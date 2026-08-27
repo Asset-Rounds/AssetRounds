@@ -1,0 +1,1918 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "adoptionEnabled": false,
+  "artifactDigest": "ff1917b840f064eece05b4a938977dcccb032548dd66b2f3238f26b0d8415cd2",
+  "authority": {
+    "appBaseHead": "8dcf404725f5b1f9ab630d2f16e445013efec036",
+    "appBaseTree": "ba11541ee75791a70012c4daadcac003207483ed",
+    "contextDigest": "bdac7237c4ebb9fea666b321f153a4f9fe00ede6c298e69cf93be439c5c5b13d",
+    "coordinationCASSequence": 159,
+    "coordinationHead": "bc860cfdcc6324b564e516227fec7ef457983df4",
+    "coordinationLedgerDigest": "21369eb529183399fcc8fcb68a186d1b4882321ab2bd3ce39e08e8f344e3fa34",
+    "coordinationTree": "a8a805cdb206f7d735bb28ce2e910ac5f93ccd85",
+    "fenceDigest": "3f6a36f8794c159c24c26ec06506bff77a2d998df3cf04a5b8b06bb1d56e8264",
+    "prerequisiteDigest": "e1b5c4142e87c5503d4d75d845ab0d2741f49e0eaa4e7e9d5b88c33777398913",
+    "s10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+  },
+  "cardID": "V23-P03-C07",
+  "downgradeDisposition": "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_ACTIVATION",
+  "failureCases": [
+    "ARCHIVE_OMISSION",
+    "DELETE_ERASE_LEAK",
+    "OLD_ARCHIVE_RESURRECTION",
+    "ORPHAN_REMAINS",
+    "UNKNOWN_RECORD_KIND",
+    "UNMAPPED_RELATIONSHIP"
+  ],
+  "hostedDispatchEnabled": false,
+  "hostedDispatchRan": false,
+  "nativeCompileRan": false,
+  "persistentChangeMode": "NEW_SCHEMA_VERSION",
+  "persistentContractSchema": "KERNEL_PERSISTENCE_V4",
+  "registry": {
+    "backupArchiveRestoreComplete": true,
+    "deleteEraseComplete": true,
+    "entries": [
+      {
+        "archive": "INCLUDE_CANONICAL",
+        "backup": "INCLUDE_CANONICAL",
+        "clearsTombstonesOnDelete": false,
+        "clearsTombstonesOnErase": false,
+        "clone": "REBIND_WORKSPACE",
+        "deleteRule": "DELETE_AFTER_DEPENDENTS",
+        "deletion": "DELETE_AFTER_DEPENDENTS",
+        "erase": "CLEAR_CANONICAL_AND_HISTORY",
+        "fork": "REBIND_WORKSPACE_AND_LINEAGE",
+        "interruption": "SAME_COMPLETE_EFFECT_AND_RECEIPT_OR_NO_EFFECT",
+        "journal": "CANONICAL_MUTATION_ENVELOPE",
+        "kind": "Asset",
+        "openExport": "CANONICAL_PORTABLE",
+        "orphanCleanup": "PRESERVE_CANONICAL_RECORD",
+        "rebuild": "CANONICAL_SOURCE",
+        "replay": "IDEMPOTENT_CANONICAL_MUTATION",
+        "restore": "REPLACE_CANONICAL",
+        "search": "BOUNDED_CANONICAL_FIELDS"
+      },
+      {
+        "archive": "INCLUDE_IMMUTABLE_HISTORY",
+        "backup": "INCLUDE_IMMUTABLE_HISTORY",
+        "clearsTombstonesOnDelete": false,
+        "clearsTombstonesOnErase": false,
+        "clone": "REBIND_WORKSPACE",
+        "deleteRule": "DELETE_WITH_OWNER",
+        "deletion": "DELETE_WITH_OWNER",
+        "erase": "CLEAR_CANONICAL_AND_HISTORY",
+        "fork": "REBIND_WORKSPACE_AND_LINEAGE",
+        "interruption": "SAME_COMPLETE_EFFECT_AND_RECEIPT_OR_NO_EFFECT",
+        "journal": "NOT_APPLICABLE",
+        "kind": "CompletedActivitySnapshotV1",
+        "openExport": "IMMUTABLE_HISTORY_PORTABLE",
+        "orphanCleanup": "PRESERVE_CANONICAL_RECORD",
+        "rebuild": "CANONICAL_SOURCE",
+        "replay": "IMMUTABLE_HISTORY",
+        "restore": "RESTORE_IMMUTABLE_IDENTITY",
+        "search": "BOUNDED_CANONICAL_FIELDS"
+      },
+      {
+        "archive": "INCLUDE_IMMUTABLE_HISTORY",
+        "backup": "INCLUDE_IMMUTABLE_HISTORY",
+        "clearsTombstonesOnDelete": false,
+        "clearsTombstonesOnErase": false,
+        "clone": "REBIND_WORKSPACE",
+        "deleteRule": "DELETE_WITH_OWNER",
+        "deletion": "DELETE_WITH_OWNER",
+        "erase": "CLEAR_CANONICAL_AND_HISTORY",
+        "fork": "REBIND_WORKSPACE_AND_LINEAGE",
+        "interruption": "SAME_COMPLETE_EFFECT_AND_RECEIPT_OR_NO_EFFECT",
+        "journal": "NOT_APPLICABLE",
+        "kind": "ContentReferenceV1",
+        "openExport": "IMMUTABLE_HISTORY_PORTABLE",
+        "orphanCleanup": "REMOVE_OWNED_BYTES_WHEN_UNREFERENCED",
+        "rebuild": "CANONICAL_SOURCE",
+        "replay": "IMMUTABLE_HISTORY",
+        "restore": "RESTORE_IMMUTABLE_IDENTITY",
+        "search": "BOUNDED_CANONICAL_FIELDS"
+      },
+      {
+        "archive": "INCLUDE_IMMUTABLE_HISTORY",
+        "backup": "INCLUDE_IMMUTABLE_HISTORY",
+        "clearsTombstonesOnDelete": false,
+        "clearsTombstonesOnErase": false,
+        "clone": "PRESERVE",
+        "deleteRule": "PRESERVE_UNLESS_EXPLICIT",
+        "deletion": "EXPLICIT_ONLY",
+        "erase": "CLEAR_CANONICAL_AND_HISTORY",
+        "fork": "PRESERVE",
+        "interruption": "SAME_COMPLETE_EFFECT_AND_RECEIPT_OR_NO_EFFECT",
+        "journal": "IMMUTABLE_EFFECT_RECEIPT",
+        "kind": "ContractSchemaDerivationReceiptV1",
+        "openExport": "IMMUTABLE_HISTORY_PORTABLE",
+        "orphanCleanup": "PRESERVE_CANONICAL_RECORD",
+        "rebuild": "CANONICAL_SOURCE",
+        "replay": "IMMUTABLE_HISTORY",
+        "restore": "RESTORE_APPEND_ONLY_HISTORY",
+        "search": "EXCLUDED"
+      },
+      {
+        "archive": "INCLUDE_IMMUTABLE_HISTORY",
+        "backup": "INCLUDE_IMMUTABLE_HISTORY",
+        "clearsTombstonesOnDelete": false,
+        "clearsTombstonesOnErase": false,
+        "clone": "PRESERVE",
+        "deleteRule": "DELETE_WITH_OWNER",
+        "deletion": "DELETE_WITH_OWNER",
+        "erase": "CLEAR_CANONICAL_AND_HISTORY",
+        "fork": "PRESERVE",
+        "interruption": "SAME_COMPLETE_EFFECT_AND_RECEIPT_OR_NO_EFFECT",
+        "journal": "IMMUTABLE_EFFECT_RECEIPT",
+        "kind": "ControlledAmendmentSupersessionV1",
+        "openExport": "IMMUTABLE_HISTORY_PORTABLE",
+        "orphanCleanup": "PRESERVE_CANONICAL_RECORD",
+        "rebuild": "CANONICAL_SOURCE",
+        "replay": "IMMUTABLE_HISTORY",
+        "restore": "RESTORE_APPEND_ONLY_HISTORY",
+        "search": "EXCLUDED"
+      },
+      {
+        "archive": "INCLUDE_IMMUTABLE_HISTORY",
+        "backup": "INCLUDE_IMMUTABLE_HISTORY",
+        "clearsTombstonesOnDelete": false,
+        "clearsTombstonesOnErase": true,
+        "clone": "PRESERVE",
+        "deleteRule": "APPEND_ERASE_ONLY",
+        "deletion": "PRESERVE_UNTIL_ERASE",
+        "erase": "CLEAR_CANONICAL_AND_HISTORY",
+        "fork": "PRESERVE",
+        "interruption": "SAME_COMPLETE_EFFECT_AND_RECEIPT_OR_NO_EFFECT",
+        "journal": "IMMUTABLE_EFFECT_RECEIPT",
+        "kind": "DeletionLedgerRow",
+        "openExport": "IMMUTABLE_HISTORY_PORTABLE",
+        "orphanCleanup": "PRESERVE_CANONICAL_RECORD",
+        "rebuild": "CANONICAL_SOURCE",
+        "replay": "IMMUTABLE_HISTORY",
+        "restore": "RESTORE_APPEND_ONLY_HISTORY",
+        "search": "EXCLUDED"
+      },
+      {
+        "archive": "INCLUDE_IMMUTABLE_HISTORY",
+        "backup": "INCLUDE_IMMUTABLE_HISTORY",
+        "clearsTombstonesOnDelete": false,
+        "clearsTombstonesOnErase": false,
+        "clone": "PRESERVE",
+        "deleteRule": "CLEAR_ON_ERASE",
+        "deletion": "PRESERVE_UNTIL_ERASE",
+        "erase": "CLEAR_CANONICAL_AND_HISTORY",
+        "fork": "PRESERVE",
+        "interruption": "SAME_COMPLETE_EFFECT_AND_RECEIPT_OR_NO_EFFECT",
+        "journal": "IMMUTABLE_EFFECT_RECEIPT",
+        "kind": "EntityMutationRevisionRow",
+        "openExport": "IMMUTABLE_HISTORY_PORTABLE",
+        "orphanCleanup": "PRESERVE_CANONICAL_RECORD",
+        "rebuild": "CANONICAL_SOURCE",
+        "replay": "IMMUTABLE_HISTORY",
+        "restore": "RESTORE_APPEND_ONLY_HISTORY",
+        "search": "EXCLUDED"
+      },
+      {
+        "archive": "INCLUDE_CANONICAL",
+        "backup": "INCLUDE_CANONICAL",
+        "clearsTombstonesOnDelete": false,
+        "clearsTombstonesOnErase": false,
+        "clone": "REBIND_WORKSPACE",
+        "deleteRule": "DELETE_WITH_OWNER",
+        "deletion": "DELETE_WITH_OWNER",
+        "erase": "CLEAR_CANONICAL_AND_HISTORY",
+        "fork": "REBIND_WORKSPACE_AND_LINEAGE",
+        "interruption": "SAME_COMPLETE_EFFECT_AND_RECEIPT_OR_NO_EFFECT",
+        "journal": "CANONICAL_MUTATION_ENVELOPE",
+        "kind": "EvidenceFile",
+        "openExport": "CANONICAL_PORTABLE",
+        "orphanCleanup": "REMOVE_OWNED_BYTES_WHEN_UNREFERENCED",
+        "rebuild": "CANONICAL_SOURCE",
+        "replay": "IDEMPOTENT_CANONICAL_MUTATION",
+        "restore": "REPLACE_CANONICAL",
+        "search": "BOUNDED_CANONICAL_FIELDS"
+      },
+      {
+        "archive": "INCLUDE_CANONICAL",
+        "backup": "INCLUDE_CANONICAL",
+        "clearsTombstonesOnDelete": false,
+        "clearsTombstonesOnErase": false,
+        "clone": "REBIND_WORKSPACE",
+        "deleteRule": "DELETE_WITH_OWNER",
+        "deletion": "DELETE_WITH_OWNER",
+        "erase": "CLEAR_CANONICAL_AND_HISTORY",
+        "fork": "REBIND_WORKSPACE_AND_LINEAGE",
+        "interruption": "SAME_COMPLETE_EFFECT_AND_RECEIPT_OR_NO_EFFECT",
+        "journal": "CANONICAL_MUTATION_ENVELOPE",
+        "kind": "Issue",
+        "openExport": "CANONICAL_PORTABLE",
+        "orphanCleanup": "PRESERVE_CANONICAL_RECORD",
+        "rebuild": "CANONICAL_SOURCE",
+        "replay": "IDEMPOTENT_CANONICAL_MUTATION",
+        "restore": "REPLACE_CANONICAL",
+        "search": "BOUNDED_CANONICAL_FIELDS"
+      },
+      {
+        "archive": "INCLUDE_OPERATIONAL_CHECKPOINT",
+        "backup": "INCLUDE_OPERATIONAL_CHECKPOINT",
+        "clearsTombstonesOnDelete": false,
+        "clearsTombstonesOnErase": false,
+        "clone": "REGENERATE_LOCAL",
+        "deleteRule": "CLEAR_ON_ERASE",
+        "deletion": "PRESERVE_UNTIL_ERASE",
+        "erase": "CLEAR_RECOVERY_STATE",
+        "fork": "REGENERATE_LOCAL",
+        "interruption": "SAME_COMPLETE_EFFECT_AND_RECEIPT_OR_NO_EFFECT",
+        "journal": "OPERATION_RECOVERY",
+        "kind": "MutationQuarantineRow",
+        "openExport": "EXCLUDED",
+        "orphanCleanup": "PRESERVE_CANONICAL_RECORD",
+        "rebuild": "REPLAY_JOURNAL",
+        "replay": "RECOVERY_STATE_MACHINE",
+        "restore": "REPLAY_RECOVERY_CHECKPOINT",
+        "search": "EXCLUDED"
+      },
+      {
+        "archive": "INCLUDE_IMMUTABLE_HISTORY",
+        "backup": "INCLUDE_IMMUTABLE_HISTORY",
+        "clearsTombstonesOnDelete": false,
+        "clearsTombstonesOnErase": false,
+        "clone": "PRESERVE",
+        "deleteRule": "CLEAR_ON_ERASE",
+        "deletion": "PRESERVE_UNTIL_ERASE",
+        "erase": "CLEAR_CANONICAL_AND_HISTORY",
+        "fork": "PRESERVE",
+        "interruption": "SAME_COMPLETE_EFFECT_AND_RECEIPT_OR_NO_EFFECT",
+        "journal": "IMMUTABLE_EFFECT_RECEIPT",
+        "kind": "MutationReceiptRow",
+        "openExport": "IMMUTABLE_HISTORY_PORTABLE",
+        "orphanCleanup": "PRESERVE_CANONICAL_RECORD",
+        "rebuild": "CANONICAL_SOURCE",
+        "replay": "IMMUTABLE_HISTORY",
+        "restore": "RESTORE_APPEND_ONLY_HISTORY",
+        "search": "EXCLUDED"
+      },
+      {
+        "archive": "INCLUDE_CANONICAL",
+        "backup": "INCLUDE_CANONICAL",
+        "clearsTombstonesOnDelete": false,
+        "clearsTombstonesOnErase": false,
+        "clone": "REBIND_WORKSPACE",
+        "deleteRule": "DELETE_WITH_OWNER",
+        "deletion": "DELETE_WITH_OWNER",
+        "erase": "CLEAR_CANONICAL_AND_HISTORY",
+        "fork": "REBIND_WORKSPACE_AND_LINEAGE",
+        "interruption": "SAME_COMPLETE_EFFECT_AND_RECEIPT_OR_NO_EFFECT",
+        "journal": "CANONICAL_MUTATION_ENVELOPE",
+        "kind": "ObservationAndTimeRow",
+        "openExport": "CANONICAL_PORTABLE",
+        "orphanCleanup": "PRESERVE_CANONICAL_RECORD",
+        "rebuild": "CANONICAL_SOURCE",
+        "replay": "IDEMPOTENT_CANONICAL_MUTATION",
+        "restore": "REPLACE_CANONICAL",
+        "search": "BOUNDED_CANONICAL_FIELDS"
+      },
+      {
+        "archive": "EXCLUDE_DORMANT_DECLARATION",
+        "backup": "EXCLUDE_DORMANT_DECLARATION",
+        "clearsTombstonesOnDelete": false,
+        "clearsTombstonesOnErase": false,
+        "clone": "NOT_APPLICABLE",
+        "deleteRule": "PRESERVE_UNLESS_EXPLICIT",
+        "deletion": "EXPLICIT_ONLY",
+        "erase": "REBUILD_EMPTY_PROJECTION",
+        "fork": "NOT_APPLICABLE",
+        "interruption": "SAME_COMPLETE_EFFECT_AND_RECEIPT_OR_NO_EFFECT",
+        "journal": "NOT_APPLICABLE",
+        "kind": "OpenJSONSchemaProjectionV1",
+        "openExport": "READ_ONLY_CONTRACT_PROJECTION",
+        "orphanCleanup": "REMOVE_DERIVED_PROJECTION",
+        "rebuild": "REBUILD_FROM_CANONICAL_DEPENDENCIES",
+        "replay": "REBUILD_PROJECTION",
+        "restore": "REBUILD_CONTRACT_PROJECTION",
+        "search": "EXCLUDED"
+      },
+      {
+        "archive": "INCLUDE_CANONICAL",
+        "backup": "INCLUDE_CANONICAL",
+        "clearsTombstonesOnDelete": false,
+        "clearsTombstonesOnErase": true,
+        "clone": "REBIND_WORKSPACE",
+        "deleteRule": "TOMBSTONE_WHEN_COUNTED",
+        "deletion": "TOMBSTONE_PRESERVING_HISTORY",
+        "erase": "CLEAR_CANONICAL_AND_HISTORY",
+        "fork": "REBIND_WORKSPACE_AND_LINEAGE",
+        "interruption": "SAME_COMPLETE_EFFECT_AND_RECEIPT_OR_NO_EFFECT",
+        "journal": "CANONICAL_MUTATION_ENVELOPE",
+        "kind": "Packet",
+        "openExport": "CANONICAL_PORTABLE",
+        "orphanCleanup": "PRESERVE_CANONICAL_RECORD",
+        "rebuild": "CANONICAL_SOURCE",
+        "replay": "IDEMPOTENT_CANONICAL_MUTATION",
+        "restore": "REPLACE_CANONICAL",
+        "search": "BOUNDED_CANONICAL_FIELDS"
+      },
+      {
+        "archive": "INCLUDE_OPERATIONAL_CHECKPOINT",
+        "backup": "INCLUDE_OPERATIONAL_CHECKPOINT",
+        "clearsTombstonesOnDelete": false,
+        "clearsTombstonesOnErase": false,
+        "clone": "REGENERATE_LOCAL",
+        "deleteRule": "CLEAR_ON_ERASE",
+        "deletion": "PRESERVE_UNTIL_ERASE",
+        "erase": "CLEAR_LOCAL_OPERATIONAL_STATE",
+        "fork": "REGENERATE_LOCAL",
+        "interruption": "SAME_COMPLETE_EFFECT_AND_RECEIPT_OR_NO_EFFECT",
+        "journal": "NOT_APPLICABLE",
+        "kind": "PersistentSchemaReleaseMarker",
+        "openExport": "EXCLUDED",
+        "orphanCleanup": "PRESERVE_CANONICAL_RECORD",
+        "rebuild": "CANONICAL_SOURCE",
+        "replay": "NOT_APPLICABLE",
+        "restore": "RESET_LOCAL_OPERATIONAL",
+        "search": "EXCLUDED"
+      },
+      {
+        "archive": "INCLUDE_CANONICAL",
+        "backup": "INCLUDE_CANONICAL",
+        "clearsTombstonesOnDelete": false,
+        "clearsTombstonesOnErase": false,
+        "clone": "REBIND_WORKSPACE",
+        "deleteRule": "DELETE_WITH_OWNER",
+        "deletion": "DELETE_WITH_OWNER",
+        "erase": "CLEAR_CANONICAL_AND_HISTORY",
+        "fork": "REBIND_WORKSPACE_AND_LINEAGE",
+        "interruption": "SAME_COMPLETE_EFFECT_AND_RECEIPT_OR_NO_EFFECT",
+        "journal": "CANONICAL_MUTATION_ENVELOPE",
+        "kind": "Report",
+        "openExport": "CANONICAL_PORTABLE",
+        "orphanCleanup": "PRESERVE_CANONICAL_RECORD",
+        "rebuild": "CANONICAL_SOURCE",
+        "replay": "IDEMPOTENT_CANONICAL_MUTATION",
+        "restore": "REPLACE_CANONICAL",
+        "search": "BOUNDED_CANONICAL_FIELDS"
+      },
+      {
+        "archive": "INCLUDE_CANONICAL",
+        "backup": "INCLUDE_CANONICAL",
+        "clearsTombstonesOnDelete": false,
+        "clearsTombstonesOnErase": false,
+        "clone": "REBIND_WORKSPACE",
+        "deleteRule": "PRESERVE_UNLESS_EXPLICIT",
+        "deletion": "EXPLICIT_ONLY",
+        "erase": "CLEAR_CANONICAL_AND_HISTORY",
+        "fork": "REBIND_WORKSPACE_AND_LINEAGE",
+        "interruption": "SAME_COMPLETE_EFFECT_AND_RECEIPT_OR_NO_EFFECT",
+        "journal": "CANONICAL_MUTATION_ENVELOPE",
+        "kind": "Site",
+        "openExport": "CANONICAL_PORTABLE",
+        "orphanCleanup": "PRESERVE_CANONICAL_RECORD",
+        "rebuild": "CANONICAL_SOURCE",
+        "replay": "IDEMPOTENT_CANONICAL_MUTATION",
+        "restore": "REPLACE_CANONICAL",
+        "search": "BOUNDED_CANONICAL_FIELDS"
+      },
+      {
+        "archive": "INCLUDE_CANONICAL",
+        "backup": "INCLUDE_CANONICAL",
+        "clearsTombstonesOnDelete": false,
+        "clearsTombstonesOnErase": false,
+        "clone": "REBIND_WORKSPACE",
+        "deleteRule": "DELETE_WITH_OWNER",
+        "deletion": "DELETE_WITH_OWNER",
+        "erase": "CLEAR_CANONICAL_AND_HISTORY",
+        "fork": "REBIND_WORKSPACE_AND_LINEAGE",
+        "interruption": "SAME_COMPLETE_EFFECT_AND_RECEIPT_OR_NO_EFFECT",
+        "journal": "CANONICAL_MUTATION_ENVELOPE",
+        "kind": "WorkflowRecord",
+        "openExport": "CANONICAL_PORTABLE",
+        "orphanCleanup": "PRESERVE_CANONICAL_RECORD",
+        "rebuild": "CANONICAL_SOURCE",
+        "replay": "IDEMPOTENT_CANONICAL_MUTATION",
+        "restore": "REPLACE_CANONICAL",
+        "search": "BOUNDED_CANONICAL_FIELDS"
+      },
+      {
+        "archive": "INCLUDE_OPERATIONAL_CHECKPOINT",
+        "backup": "INCLUDE_OPERATIONAL_CHECKPOINT",
+        "clearsTombstonesOnDelete": false,
+        "clearsTombstonesOnErase": false,
+        "clone": "REGENERATE_LOCAL",
+        "deleteRule": "CLEAR_ON_ERASE",
+        "deletion": "PRESERVE_UNTIL_ERASE",
+        "erase": "CLEAR_LOCAL_OPERATIONAL_STATE",
+        "fork": "REGENERATE_LOCAL",
+        "interruption": "SAME_COMPLETE_EFFECT_AND_RECEIPT_OR_NO_EFFECT",
+        "journal": "NOT_APPLICABLE",
+        "kind": "WorkspaceMutationStateRow",
+        "openExport": "EXCLUDED",
+        "orphanCleanup": "PRESERVE_CANONICAL_RECORD",
+        "rebuild": "CANONICAL_SOURCE",
+        "replay": "NOT_APPLICABLE",
+        "restore": "RESET_LOCAL_OPERATIONAL",
+        "search": "EXCLUDED"
+      }
+    ],
+    "openExportComplete": true,
+    "recordKindCount": 19,
+    "registryID": "kernel-lifecycle-registry-v4",
+    "registryVersion": 4,
+    "schemaID": "KERNEL_PERSISTENCE_V4",
+    "schemaVersion": 1,
+    "searchRebuildReplayComplete": true
+  },
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "V23P03C07KernelLifecycleContractV1",
+  "schemaVersion": 1,
+  "trace": {
+    "events": [
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "archive.Asset",
+        "kindID": "Asset",
+        "operation": "ARCHIVE",
+        "sequence": 0
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "archive.CompletedActivitySnapshotV1",
+        "kindID": "CompletedActivitySnapshotV1",
+        "operation": "ARCHIVE",
+        "sequence": 1
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "archive.ContentReferenceV1",
+        "kindID": "ContentReferenceV1",
+        "operation": "ARCHIVE",
+        "sequence": 2
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "archive.ContractSchemaDerivationReceiptV1",
+        "kindID": "ContractSchemaDerivationReceiptV1",
+        "operation": "ARCHIVE",
+        "sequence": 3
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "archive.ControlledAmendmentSupersessionV1",
+        "kindID": "ControlledAmendmentSupersessionV1",
+        "operation": "ARCHIVE",
+        "sequence": 4
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "archive.DeletionLedgerRow",
+        "kindID": "DeletionLedgerRow",
+        "operation": "ARCHIVE",
+        "sequence": 5
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "archive.EntityMutationRevisionRow",
+        "kindID": "EntityMutationRevisionRow",
+        "operation": "ARCHIVE",
+        "sequence": 6
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "archive.EvidenceFile",
+        "kindID": "EvidenceFile",
+        "operation": "ARCHIVE",
+        "sequence": 7
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "archive.Issue",
+        "kindID": "Issue",
+        "operation": "ARCHIVE",
+        "sequence": 8
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "archive.MutationQuarantineRow",
+        "kindID": "MutationQuarantineRow",
+        "operation": "ARCHIVE",
+        "sequence": 9
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "archive.MutationReceiptRow",
+        "kindID": "MutationReceiptRow",
+        "operation": "ARCHIVE",
+        "sequence": 10
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "archive.ObservationAndTimeRow",
+        "kindID": "ObservationAndTimeRow",
+        "operation": "ARCHIVE",
+        "sequence": 11
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "archive.OpenJSONSchemaProjectionV1",
+        "kindID": "OpenJSONSchemaProjectionV1",
+        "operation": "ARCHIVE",
+        "sequence": 12
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "archive.Packet",
+        "kindID": "Packet",
+        "operation": "ARCHIVE",
+        "sequence": 13
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "archive.PersistentSchemaReleaseMarker",
+        "kindID": "PersistentSchemaReleaseMarker",
+        "operation": "ARCHIVE",
+        "sequence": 14
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "archive.Report",
+        "kindID": "Report",
+        "operation": "ARCHIVE",
+        "sequence": 15
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "archive.Site",
+        "kindID": "Site",
+        "operation": "ARCHIVE",
+        "sequence": 16
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "archive.WorkflowRecord",
+        "kindID": "WorkflowRecord",
+        "operation": "ARCHIVE",
+        "sequence": 17
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "archive.WorkspaceMutationStateRow",
+        "kindID": "WorkspaceMutationStateRow",
+        "operation": "ARCHIVE",
+        "sequence": 18
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "backup.Asset",
+        "kindID": "Asset",
+        "operation": "BACKUP",
+        "sequence": 19
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "backup.CompletedActivitySnapshotV1",
+        "kindID": "CompletedActivitySnapshotV1",
+        "operation": "BACKUP",
+        "sequence": 20
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "backup.ContentReferenceV1",
+        "kindID": "ContentReferenceV1",
+        "operation": "BACKUP",
+        "sequence": 21
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "backup.ContractSchemaDerivationReceiptV1",
+        "kindID": "ContractSchemaDerivationReceiptV1",
+        "operation": "BACKUP",
+        "sequence": 22
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "backup.ControlledAmendmentSupersessionV1",
+        "kindID": "ControlledAmendmentSupersessionV1",
+        "operation": "BACKUP",
+        "sequence": 23
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "backup.DeletionLedgerRow",
+        "kindID": "DeletionLedgerRow",
+        "operation": "BACKUP",
+        "sequence": 24
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "backup.EntityMutationRevisionRow",
+        "kindID": "EntityMutationRevisionRow",
+        "operation": "BACKUP",
+        "sequence": 25
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "backup.EvidenceFile",
+        "kindID": "EvidenceFile",
+        "operation": "BACKUP",
+        "sequence": 26
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "backup.Issue",
+        "kindID": "Issue",
+        "operation": "BACKUP",
+        "sequence": 27
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "backup.MutationQuarantineRow",
+        "kindID": "MutationQuarantineRow",
+        "operation": "BACKUP",
+        "sequence": 28
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "backup.MutationReceiptRow",
+        "kindID": "MutationReceiptRow",
+        "operation": "BACKUP",
+        "sequence": 29
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "backup.ObservationAndTimeRow",
+        "kindID": "ObservationAndTimeRow",
+        "operation": "BACKUP",
+        "sequence": 30
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "backup.OpenJSONSchemaProjectionV1",
+        "kindID": "OpenJSONSchemaProjectionV1",
+        "operation": "BACKUP",
+        "sequence": 31
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "backup.Packet",
+        "kindID": "Packet",
+        "operation": "BACKUP",
+        "sequence": 32
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "backup.PersistentSchemaReleaseMarker",
+        "kindID": "PersistentSchemaReleaseMarker",
+        "operation": "BACKUP",
+        "sequence": 33
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "backup.Report",
+        "kindID": "Report",
+        "operation": "BACKUP",
+        "sequence": 34
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "backup.Site",
+        "kindID": "Site",
+        "operation": "BACKUP",
+        "sequence": 35
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "backup.WorkflowRecord",
+        "kindID": "WorkflowRecord",
+        "operation": "BACKUP",
+        "sequence": 36
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "backup.WorkspaceMutationStateRow",
+        "kindID": "WorkspaceMutationStateRow",
+        "operation": "BACKUP",
+        "sequence": 37
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "clone.Asset",
+        "kindID": "Asset",
+        "operation": "CLONE",
+        "sequence": 38
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "clone.CompletedActivitySnapshotV1",
+        "kindID": "CompletedActivitySnapshotV1",
+        "operation": "CLONE",
+        "sequence": 39
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "clone.ContentReferenceV1",
+        "kindID": "ContentReferenceV1",
+        "operation": "CLONE",
+        "sequence": 40
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "clone.ContractSchemaDerivationReceiptV1",
+        "kindID": "ContractSchemaDerivationReceiptV1",
+        "operation": "CLONE",
+        "sequence": 41
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "clone.ControlledAmendmentSupersessionV1",
+        "kindID": "ControlledAmendmentSupersessionV1",
+        "operation": "CLONE",
+        "sequence": 42
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "clone.DeletionLedgerRow",
+        "kindID": "DeletionLedgerRow",
+        "operation": "CLONE",
+        "sequence": 43
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "clone.EntityMutationRevisionRow",
+        "kindID": "EntityMutationRevisionRow",
+        "operation": "CLONE",
+        "sequence": 44
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "clone.EvidenceFile",
+        "kindID": "EvidenceFile",
+        "operation": "CLONE",
+        "sequence": 45
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "clone.Issue",
+        "kindID": "Issue",
+        "operation": "CLONE",
+        "sequence": 46
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "clone.MutationQuarantineRow",
+        "kindID": "MutationQuarantineRow",
+        "operation": "CLONE",
+        "sequence": 47
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "clone.MutationReceiptRow",
+        "kindID": "MutationReceiptRow",
+        "operation": "CLONE",
+        "sequence": 48
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "clone.ObservationAndTimeRow",
+        "kindID": "ObservationAndTimeRow",
+        "operation": "CLONE",
+        "sequence": 49
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "clone.OpenJSONSchemaProjectionV1",
+        "kindID": "OpenJSONSchemaProjectionV1",
+        "operation": "CLONE",
+        "sequence": 50
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "clone.Packet",
+        "kindID": "Packet",
+        "operation": "CLONE",
+        "sequence": 51
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "clone.PersistentSchemaReleaseMarker",
+        "kindID": "PersistentSchemaReleaseMarker",
+        "operation": "CLONE",
+        "sequence": 52
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "clone.Report",
+        "kindID": "Report",
+        "operation": "CLONE",
+        "sequence": 53
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "clone.Site",
+        "kindID": "Site",
+        "operation": "CLONE",
+        "sequence": 54
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "clone.WorkflowRecord",
+        "kindID": "WorkflowRecord",
+        "operation": "CLONE",
+        "sequence": 55
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "clone.WorkspaceMutationStateRow",
+        "kindID": "WorkspaceMutationStateRow",
+        "operation": "CLONE",
+        "sequence": 56
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "delete.Asset",
+        "kindID": "Asset",
+        "operation": "DELETE",
+        "sequence": 57
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "delete.CompletedActivitySnapshotV1",
+        "kindID": "CompletedActivitySnapshotV1",
+        "operation": "DELETE",
+        "sequence": 58
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "delete.ContentReferenceV1",
+        "kindID": "ContentReferenceV1",
+        "operation": "DELETE",
+        "sequence": 59
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "delete.ContractSchemaDerivationReceiptV1",
+        "kindID": "ContractSchemaDerivationReceiptV1",
+        "operation": "DELETE",
+        "sequence": 60
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "delete.ControlledAmendmentSupersessionV1",
+        "kindID": "ControlledAmendmentSupersessionV1",
+        "operation": "DELETE",
+        "sequence": 61
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "delete.DeletionLedgerRow",
+        "kindID": "DeletionLedgerRow",
+        "operation": "DELETE",
+        "sequence": 62
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "delete.EntityMutationRevisionRow",
+        "kindID": "EntityMutationRevisionRow",
+        "operation": "DELETE",
+        "sequence": 63
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "delete.EvidenceFile",
+        "kindID": "EvidenceFile",
+        "operation": "DELETE",
+        "sequence": 64
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "delete.Issue",
+        "kindID": "Issue",
+        "operation": "DELETE",
+        "sequence": 65
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "delete.MutationQuarantineRow",
+        "kindID": "MutationQuarantineRow",
+        "operation": "DELETE",
+        "sequence": 66
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "delete.MutationReceiptRow",
+        "kindID": "MutationReceiptRow",
+        "operation": "DELETE",
+        "sequence": 67
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "delete.ObservationAndTimeRow",
+        "kindID": "ObservationAndTimeRow",
+        "operation": "DELETE",
+        "sequence": 68
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "delete.OpenJSONSchemaProjectionV1",
+        "kindID": "OpenJSONSchemaProjectionV1",
+        "operation": "DELETE",
+        "sequence": 69
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "delete.Packet",
+        "kindID": "Packet",
+        "operation": "DELETE",
+        "sequence": 70
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "delete.PersistentSchemaReleaseMarker",
+        "kindID": "PersistentSchemaReleaseMarker",
+        "operation": "DELETE",
+        "sequence": 71
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "delete.Report",
+        "kindID": "Report",
+        "operation": "DELETE",
+        "sequence": 72
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "delete.Site",
+        "kindID": "Site",
+        "operation": "DELETE",
+        "sequence": 73
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "delete.WorkflowRecord",
+        "kindID": "WorkflowRecord",
+        "operation": "DELETE",
+        "sequence": 74
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "delete.WorkspaceMutationStateRow",
+        "kindID": "WorkspaceMutationStateRow",
+        "operation": "DELETE",
+        "sequence": 75
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "erase.Asset",
+        "kindID": "Asset",
+        "operation": "ERASE",
+        "sequence": 76
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "erase.CompletedActivitySnapshotV1",
+        "kindID": "CompletedActivitySnapshotV1",
+        "operation": "ERASE",
+        "sequence": 77
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "erase.ContentReferenceV1",
+        "kindID": "ContentReferenceV1",
+        "operation": "ERASE",
+        "sequence": 78
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "erase.ContractSchemaDerivationReceiptV1",
+        "kindID": "ContractSchemaDerivationReceiptV1",
+        "operation": "ERASE",
+        "sequence": 79
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "erase.ControlledAmendmentSupersessionV1",
+        "kindID": "ControlledAmendmentSupersessionV1",
+        "operation": "ERASE",
+        "sequence": 80
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "erase.DeletionLedgerRow",
+        "kindID": "DeletionLedgerRow",
+        "operation": "ERASE",
+        "sequence": 81
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "erase.EntityMutationRevisionRow",
+        "kindID": "EntityMutationRevisionRow",
+        "operation": "ERASE",
+        "sequence": 82
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "erase.EvidenceFile",
+        "kindID": "EvidenceFile",
+        "operation": "ERASE",
+        "sequence": 83
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "erase.Issue",
+        "kindID": "Issue",
+        "operation": "ERASE",
+        "sequence": 84
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "erase.MutationQuarantineRow",
+        "kindID": "MutationQuarantineRow",
+        "operation": "ERASE",
+        "sequence": 85
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "erase.MutationReceiptRow",
+        "kindID": "MutationReceiptRow",
+        "operation": "ERASE",
+        "sequence": 86
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "erase.ObservationAndTimeRow",
+        "kindID": "ObservationAndTimeRow",
+        "operation": "ERASE",
+        "sequence": 87
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "erase.OpenJSONSchemaProjectionV1",
+        "kindID": "OpenJSONSchemaProjectionV1",
+        "operation": "ERASE",
+        "sequence": 88
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "erase.Packet",
+        "kindID": "Packet",
+        "operation": "ERASE",
+        "sequence": 89
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "erase.PersistentSchemaReleaseMarker",
+        "kindID": "PersistentSchemaReleaseMarker",
+        "operation": "ERASE",
+        "sequence": 90
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "erase.Report",
+        "kindID": "Report",
+        "operation": "ERASE",
+        "sequence": 91
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "erase.Site",
+        "kindID": "Site",
+        "operation": "ERASE",
+        "sequence": 92
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "erase.WorkflowRecord",
+        "kindID": "WorkflowRecord",
+        "operation": "ERASE",
+        "sequence": 93
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "erase.WorkspaceMutationStateRow",
+        "kindID": "WorkspaceMutationStateRow",
+        "operation": "ERASE",
+        "sequence": 94
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "export.Asset",
+        "kindID": "Asset",
+        "operation": "EXPORT",
+        "sequence": 95
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "export.CompletedActivitySnapshotV1",
+        "kindID": "CompletedActivitySnapshotV1",
+        "operation": "EXPORT",
+        "sequence": 96
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "export.ContentReferenceV1",
+        "kindID": "ContentReferenceV1",
+        "operation": "EXPORT",
+        "sequence": 97
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "export.ContractSchemaDerivationReceiptV1",
+        "kindID": "ContractSchemaDerivationReceiptV1",
+        "operation": "EXPORT",
+        "sequence": 98
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "export.ControlledAmendmentSupersessionV1",
+        "kindID": "ControlledAmendmentSupersessionV1",
+        "operation": "EXPORT",
+        "sequence": 99
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "export.DeletionLedgerRow",
+        "kindID": "DeletionLedgerRow",
+        "operation": "EXPORT",
+        "sequence": 100
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "export.EntityMutationRevisionRow",
+        "kindID": "EntityMutationRevisionRow",
+        "operation": "EXPORT",
+        "sequence": 101
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "export.EvidenceFile",
+        "kindID": "EvidenceFile",
+        "operation": "EXPORT",
+        "sequence": 102
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "export.Issue",
+        "kindID": "Issue",
+        "operation": "EXPORT",
+        "sequence": 103
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "export.MutationQuarantineRow",
+        "kindID": "MutationQuarantineRow",
+        "operation": "EXPORT",
+        "sequence": 104
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "export.MutationReceiptRow",
+        "kindID": "MutationReceiptRow",
+        "operation": "EXPORT",
+        "sequence": 105
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "export.ObservationAndTimeRow",
+        "kindID": "ObservationAndTimeRow",
+        "operation": "EXPORT",
+        "sequence": 106
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "export.OpenJSONSchemaProjectionV1",
+        "kindID": "OpenJSONSchemaProjectionV1",
+        "operation": "EXPORT",
+        "sequence": 107
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "export.Packet",
+        "kindID": "Packet",
+        "operation": "EXPORT",
+        "sequence": 108
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "export.PersistentSchemaReleaseMarker",
+        "kindID": "PersistentSchemaReleaseMarker",
+        "operation": "EXPORT",
+        "sequence": 109
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "export.Report",
+        "kindID": "Report",
+        "operation": "EXPORT",
+        "sequence": 110
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "export.Site",
+        "kindID": "Site",
+        "operation": "EXPORT",
+        "sequence": 111
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "export.WorkflowRecord",
+        "kindID": "WorkflowRecord",
+        "operation": "EXPORT",
+        "sequence": 112
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "export.WorkspaceMutationStateRow",
+        "kindID": "WorkspaceMutationStateRow",
+        "operation": "EXPORT",
+        "sequence": 113
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "fork.Asset",
+        "kindID": "Asset",
+        "operation": "FORK",
+        "sequence": 114
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "fork.CompletedActivitySnapshotV1",
+        "kindID": "CompletedActivitySnapshotV1",
+        "operation": "FORK",
+        "sequence": 115
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "fork.ContentReferenceV1",
+        "kindID": "ContentReferenceV1",
+        "operation": "FORK",
+        "sequence": 116
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "fork.ContractSchemaDerivationReceiptV1",
+        "kindID": "ContractSchemaDerivationReceiptV1",
+        "operation": "FORK",
+        "sequence": 117
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "fork.ControlledAmendmentSupersessionV1",
+        "kindID": "ControlledAmendmentSupersessionV1",
+        "operation": "FORK",
+        "sequence": 118
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "fork.DeletionLedgerRow",
+        "kindID": "DeletionLedgerRow",
+        "operation": "FORK",
+        "sequence": 119
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "fork.EntityMutationRevisionRow",
+        "kindID": "EntityMutationRevisionRow",
+        "operation": "FORK",
+        "sequence": 120
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "fork.EvidenceFile",
+        "kindID": "EvidenceFile",
+        "operation": "FORK",
+        "sequence": 121
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "fork.Issue",
+        "kindID": "Issue",
+        "operation": "FORK",
+        "sequence": 122
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "fork.MutationQuarantineRow",
+        "kindID": "MutationQuarantineRow",
+        "operation": "FORK",
+        "sequence": 123
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "fork.MutationReceiptRow",
+        "kindID": "MutationReceiptRow",
+        "operation": "FORK",
+        "sequence": 124
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "fork.ObservationAndTimeRow",
+        "kindID": "ObservationAndTimeRow",
+        "operation": "FORK",
+        "sequence": 125
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "fork.OpenJSONSchemaProjectionV1",
+        "kindID": "OpenJSONSchemaProjectionV1",
+        "operation": "FORK",
+        "sequence": 126
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "fork.Packet",
+        "kindID": "Packet",
+        "operation": "FORK",
+        "sequence": 127
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "fork.PersistentSchemaReleaseMarker",
+        "kindID": "PersistentSchemaReleaseMarker",
+        "operation": "FORK",
+        "sequence": 128
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "fork.Report",
+        "kindID": "Report",
+        "operation": "FORK",
+        "sequence": 129
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "fork.Site",
+        "kindID": "Site",
+        "operation": "FORK",
+        "sequence": 130
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "fork.WorkflowRecord",
+        "kindID": "WorkflowRecord",
+        "operation": "FORK",
+        "sequence": 131
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "fork.WorkspaceMutationStateRow",
+        "kindID": "WorkspaceMutationStateRow",
+        "operation": "FORK",
+        "sequence": 132
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "journal_replay.Asset",
+        "kindID": "Asset",
+        "operation": "JOURNAL_REPLAY",
+        "sequence": 133
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "journal_replay.CompletedActivitySnapshotV1",
+        "kindID": "CompletedActivitySnapshotV1",
+        "operation": "JOURNAL_REPLAY",
+        "sequence": 134
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "journal_replay.ContentReferenceV1",
+        "kindID": "ContentReferenceV1",
+        "operation": "JOURNAL_REPLAY",
+        "sequence": 135
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "journal_replay.ContractSchemaDerivationReceiptV1",
+        "kindID": "ContractSchemaDerivationReceiptV1",
+        "operation": "JOURNAL_REPLAY",
+        "sequence": 136
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "journal_replay.ControlledAmendmentSupersessionV1",
+        "kindID": "ControlledAmendmentSupersessionV1",
+        "operation": "JOURNAL_REPLAY",
+        "sequence": 137
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "journal_replay.DeletionLedgerRow",
+        "kindID": "DeletionLedgerRow",
+        "operation": "JOURNAL_REPLAY",
+        "sequence": 138
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "journal_replay.EntityMutationRevisionRow",
+        "kindID": "EntityMutationRevisionRow",
+        "operation": "JOURNAL_REPLAY",
+        "sequence": 139
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "journal_replay.EvidenceFile",
+        "kindID": "EvidenceFile",
+        "operation": "JOURNAL_REPLAY",
+        "sequence": 140
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "journal_replay.Issue",
+        "kindID": "Issue",
+        "operation": "JOURNAL_REPLAY",
+        "sequence": 141
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "journal_replay.MutationQuarantineRow",
+        "kindID": "MutationQuarantineRow",
+        "operation": "JOURNAL_REPLAY",
+        "sequence": 142
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "journal_replay.MutationReceiptRow",
+        "kindID": "MutationReceiptRow",
+        "operation": "JOURNAL_REPLAY",
+        "sequence": 143
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "journal_replay.ObservationAndTimeRow",
+        "kindID": "ObservationAndTimeRow",
+        "operation": "JOURNAL_REPLAY",
+        "sequence": 144
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "journal_replay.OpenJSONSchemaProjectionV1",
+        "kindID": "OpenJSONSchemaProjectionV1",
+        "operation": "JOURNAL_REPLAY",
+        "sequence": 145
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "journal_replay.Packet",
+        "kindID": "Packet",
+        "operation": "JOURNAL_REPLAY",
+        "sequence": 146
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "journal_replay.PersistentSchemaReleaseMarker",
+        "kindID": "PersistentSchemaReleaseMarker",
+        "operation": "JOURNAL_REPLAY",
+        "sequence": 147
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "journal_replay.Report",
+        "kindID": "Report",
+        "operation": "JOURNAL_REPLAY",
+        "sequence": 148
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "journal_replay.Site",
+        "kindID": "Site",
+        "operation": "JOURNAL_REPLAY",
+        "sequence": 149
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "journal_replay.WorkflowRecord",
+        "kindID": "WorkflowRecord",
+        "operation": "JOURNAL_REPLAY",
+        "sequence": 150
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "journal_replay.WorkspaceMutationStateRow",
+        "kindID": "WorkspaceMutationStateRow",
+        "operation": "JOURNAL_REPLAY",
+        "sequence": 151
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "orphan_cleanup.Asset",
+        "kindID": "Asset",
+        "operation": "ORPHAN_CLEANUP",
+        "sequence": 152
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "orphan_cleanup.CompletedActivitySnapshotV1",
+        "kindID": "CompletedActivitySnapshotV1",
+        "operation": "ORPHAN_CLEANUP",
+        "sequence": 153
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "orphan_cleanup.ContentReferenceV1",
+        "kindID": "ContentReferenceV1",
+        "operation": "ORPHAN_CLEANUP",
+        "sequence": 154
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "orphan_cleanup.ContractSchemaDerivationReceiptV1",
+        "kindID": "ContractSchemaDerivationReceiptV1",
+        "operation": "ORPHAN_CLEANUP",
+        "sequence": 155
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "orphan_cleanup.ControlledAmendmentSupersessionV1",
+        "kindID": "ControlledAmendmentSupersessionV1",
+        "operation": "ORPHAN_CLEANUP",
+        "sequence": 156
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "orphan_cleanup.DeletionLedgerRow",
+        "kindID": "DeletionLedgerRow",
+        "operation": "ORPHAN_CLEANUP",
+        "sequence": 157
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "orphan_cleanup.EntityMutationRevisionRow",
+        "kindID": "EntityMutationRevisionRow",
+        "operation": "ORPHAN_CLEANUP",
+        "sequence": 158
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "orphan_cleanup.EvidenceFile",
+        "kindID": "EvidenceFile",
+        "operation": "ORPHAN_CLEANUP",
+        "sequence": 159
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "orphan_cleanup.Issue",
+        "kindID": "Issue",
+        "operation": "ORPHAN_CLEANUP",
+        "sequence": 160
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "orphan_cleanup.MutationQuarantineRow",
+        "kindID": "MutationQuarantineRow",
+        "operation": "ORPHAN_CLEANUP",
+        "sequence": 161
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "orphan_cleanup.MutationReceiptRow",
+        "kindID": "MutationReceiptRow",
+        "operation": "ORPHAN_CLEANUP",
+        "sequence": 162
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "orphan_cleanup.ObservationAndTimeRow",
+        "kindID": "ObservationAndTimeRow",
+        "operation": "ORPHAN_CLEANUP",
+        "sequence": 163
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "orphan_cleanup.OpenJSONSchemaProjectionV1",
+        "kindID": "OpenJSONSchemaProjectionV1",
+        "operation": "ORPHAN_CLEANUP",
+        "sequence": 164
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "orphan_cleanup.Packet",
+        "kindID": "Packet",
+        "operation": "ORPHAN_CLEANUP",
+        "sequence": 165
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "orphan_cleanup.PersistentSchemaReleaseMarker",
+        "kindID": "PersistentSchemaReleaseMarker",
+        "operation": "ORPHAN_CLEANUP",
+        "sequence": 166
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "orphan_cleanup.Report",
+        "kindID": "Report",
+        "operation": "ORPHAN_CLEANUP",
+        "sequence": 167
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "orphan_cleanup.Site",
+        "kindID": "Site",
+        "operation": "ORPHAN_CLEANUP",
+        "sequence": 168
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "orphan_cleanup.WorkflowRecord",
+        "kindID": "WorkflowRecord",
+        "operation": "ORPHAN_CLEANUP",
+        "sequence": 169
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "orphan_cleanup.WorkspaceMutationStateRow",
+        "kindID": "WorkspaceMutationStateRow",
+        "operation": "ORPHAN_CLEANUP",
+        "sequence": 170
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "restore.Asset",
+        "kindID": "Asset",
+        "operation": "RESTORE",
+        "sequence": 171
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "restore.CompletedActivitySnapshotV1",
+        "kindID": "CompletedActivitySnapshotV1",
+        "operation": "RESTORE",
+        "sequence": 172
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "restore.ContentReferenceV1",
+        "kindID": "ContentReferenceV1",
+        "operation": "RESTORE",
+        "sequence": 173
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "restore.ContractSchemaDerivationReceiptV1",
+        "kindID": "ContractSchemaDerivationReceiptV1",
+        "operation": "RESTORE",
+        "sequence": 174
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "restore.ControlledAmendmentSupersessionV1",
+        "kindID": "ControlledAmendmentSupersessionV1",
+        "operation": "RESTORE",
+        "sequence": 175
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "restore.DeletionLedgerRow",
+        "kindID": "DeletionLedgerRow",
+        "operation": "RESTORE",
+        "sequence": 176
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "restore.EntityMutationRevisionRow",
+        "kindID": "EntityMutationRevisionRow",
+        "operation": "RESTORE",
+        "sequence": 177
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "restore.EvidenceFile",
+        "kindID": "EvidenceFile",
+        "operation": "RESTORE",
+        "sequence": 178
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "restore.Issue",
+        "kindID": "Issue",
+        "operation": "RESTORE",
+        "sequence": 179
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "restore.MutationQuarantineRow",
+        "kindID": "MutationQuarantineRow",
+        "operation": "RESTORE",
+        "sequence": 180
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "restore.MutationReceiptRow",
+        "kindID": "MutationReceiptRow",
+        "operation": "RESTORE",
+        "sequence": 181
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "restore.ObservationAndTimeRow",
+        "kindID": "ObservationAndTimeRow",
+        "operation": "RESTORE",
+        "sequence": 182
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "restore.OpenJSONSchemaProjectionV1",
+        "kindID": "OpenJSONSchemaProjectionV1",
+        "operation": "RESTORE",
+        "sequence": 183
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "restore.Packet",
+        "kindID": "Packet",
+        "operation": "RESTORE",
+        "sequence": 184
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "restore.PersistentSchemaReleaseMarker",
+        "kindID": "PersistentSchemaReleaseMarker",
+        "operation": "RESTORE",
+        "sequence": 185
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "restore.Report",
+        "kindID": "Report",
+        "operation": "RESTORE",
+        "sequence": 186
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "restore.Site",
+        "kindID": "Site",
+        "operation": "RESTORE",
+        "sequence": 187
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "restore.WorkflowRecord",
+        "kindID": "WorkflowRecord",
+        "operation": "RESTORE",
+        "sequence": 188
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "restore.WorkspaceMutationStateRow",
+        "kindID": "WorkspaceMutationStateRow",
+        "operation": "RESTORE",
+        "sequence": 189
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "search_rebuild.Asset",
+        "kindID": "Asset",
+        "operation": "SEARCH_REBUILD",
+        "sequence": 190
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "search_rebuild.CompletedActivitySnapshotV1",
+        "kindID": "CompletedActivitySnapshotV1",
+        "operation": "SEARCH_REBUILD",
+        "sequence": 191
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "search_rebuild.ContentReferenceV1",
+        "kindID": "ContentReferenceV1",
+        "operation": "SEARCH_REBUILD",
+        "sequence": 192
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "search_rebuild.ContractSchemaDerivationReceiptV1",
+        "kindID": "ContractSchemaDerivationReceiptV1",
+        "operation": "SEARCH_REBUILD",
+        "sequence": 193
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "search_rebuild.ControlledAmendmentSupersessionV1",
+        "kindID": "ControlledAmendmentSupersessionV1",
+        "operation": "SEARCH_REBUILD",
+        "sequence": 194
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "search_rebuild.DeletionLedgerRow",
+        "kindID": "DeletionLedgerRow",
+        "operation": "SEARCH_REBUILD",
+        "sequence": 195
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "search_rebuild.EntityMutationRevisionRow",
+        "kindID": "EntityMutationRevisionRow",
+        "operation": "SEARCH_REBUILD",
+        "sequence": 196
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "search_rebuild.EvidenceFile",
+        "kindID": "EvidenceFile",
+        "operation": "SEARCH_REBUILD",
+        "sequence": 197
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "search_rebuild.Issue",
+        "kindID": "Issue",
+        "operation": "SEARCH_REBUILD",
+        "sequence": 198
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "search_rebuild.MutationQuarantineRow",
+        "kindID": "MutationQuarantineRow",
+        "operation": "SEARCH_REBUILD",
+        "sequence": 199
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "search_rebuild.MutationReceiptRow",
+        "kindID": "MutationReceiptRow",
+        "operation": "SEARCH_REBUILD",
+        "sequence": 200
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "search_rebuild.ObservationAndTimeRow",
+        "kindID": "ObservationAndTimeRow",
+        "operation": "SEARCH_REBUILD",
+        "sequence": 201
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "search_rebuild.OpenJSONSchemaProjectionV1",
+        "kindID": "OpenJSONSchemaProjectionV1",
+        "operation": "SEARCH_REBUILD",
+        "sequence": 202
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "search_rebuild.Packet",
+        "kindID": "Packet",
+        "operation": "SEARCH_REBUILD",
+        "sequence": 203
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "search_rebuild.PersistentSchemaReleaseMarker",
+        "kindID": "PersistentSchemaReleaseMarker",
+        "operation": "SEARCH_REBUILD",
+        "sequence": 204
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "search_rebuild.Report",
+        "kindID": "Report",
+        "operation": "SEARCH_REBUILD",
+        "sequence": 205
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "search_rebuild.Site",
+        "kindID": "Site",
+        "operation": "SEARCH_REBUILD",
+        "sequence": 206
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "search_rebuild.WorkflowRecord",
+        "kindID": "WorkflowRecord",
+        "operation": "SEARCH_REBUILD",
+        "sequence": 207
+      },
+      {
+        "disposition": "STATIC_DECLARED",
+        "idempotencyKey": "search_rebuild.WorkspaceMutationStateRow",
+        "kindID": "WorkspaceMutationStateRow",
+        "operation": "SEARCH_REBUILD",
+        "sequence": 208
+      }
+    ],
+    "hostedExecutionRan": false,
+    "nativeExecutionRan": false,
+    "operations": [
+      "ARCHIVE",
+      "BACKUP",
+      "CLONE",
+      "DELETE",
+      "ERASE",
+      "EXPORT",
+      "FORK",
+      "JOURNAL_REPLAY",
+      "ORPHAN_CLEANUP",
+      "RESTORE",
+      "SEARCH_REBUILD"
+    ],
+    "result": "STATIC_DECLARED",
+    "schemaID": "KERNEL_PERSISTENCE_V4",
+    "schemaVersion": 1,
+    "traceID": "kernel-lifecycle-static-trace-v4"
+  },
+  "verificationMode": "STATIC_ONLY"
+}

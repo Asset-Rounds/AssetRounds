@@ -1,0 +1,62 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "adoptionEnabled": false,
+  "cardID": "V23-P03-C07",
+  "evidenceIDs": [
+    "V23-P03-C07-G01",
+    "V23-P03-C07-A01",
+    "V23-P03-C07-H01",
+    "V23-P03-C07-I01",
+    "V23-P03-C07-R01"
+  ],
+  "fixtureSHA256": "f188d41155694d6465a2810b58f4a974c535bd5d2185f46882a8679d89e2477a",
+  "hostedDispatchEnabled": false,
+  "hostedDispatchRan": false,
+  "nativeCompileRan": false,
+  "receiptID": "v23-p03-c07-static-receipt",
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "result": "PASS",
+  "schemaVersion": 1,
+  "sourceArtifacts": [
+    {
+      "path": "FieldEvidenceApp/Domain/Models/KernelPersistenceV4Contracts.swift",
+      "sha256": "8fc4f9a96c21440aa44d9717389c0e526d5d5226ef38c921106ba19f560a6809"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/KernelPersistenceV4Schema.swift",
+      "sha256": "a230c4218c11f65058adf4c4b318e493dedc0206fd26130c56a5bf33b9d8a8f6"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/KernelPersistenceV4Migration.swift",
+      "sha256": "4d23d012596c2bcf53cdb6d57e3c236b6bc7de6006fd7425251d7aab612b82e5"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/KernelRecordRegistryV4.swift",
+      "sha256": "b43159002584ee47a2ec16da5619734a1fbab719e99bd1a1b37240dcf397361c"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/KernelMutationReceiptRegistryV4.swift",
+      "sha256": "8dd5552e630cbf0a3b0dd060df11572a8a86e0a2742567dde41ae1451e6fdd78"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Backup/KernelBackupRestoreRegistryV4.swift",
+      "sha256": "bdd83be1deb09452cd0eff84a968edb09fcb9e03a7093424841a2b2a2e433427"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/KernelDeletionEraseRegistryV4.swift",
+      "sha256": "44cb1401492e5c7f593a0d73af4f8614d33f744c5b0b466445ae300320454237"
+    },
+    {
+      "path": "FieldEvidenceAppTests/V9_17KernelPersistenceTests.swift",
+      "sha256": "37c25d14abe0f425b9391d8e55bb86717b569267e6f5d4cc9d9870b9562af91b"
+    },
+    {
+      "path": "FieldEvidenceAppTests/Fixtures/V21/Persistence/V21P03C07KernelPersistenceCorpusV1.json",
+      "sha256": "f188d41155694d6465a2810b58f4a974c535bd5d2185f46882a8679d89e2477a"
+    }
+  ],
+  "verificationMode": "STATIC_ONLY"
+}

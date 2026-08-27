@@ -1,0 +1,140 @@
+{
+  "$defs": {
+    "event": {
+      "additionalProperties": false,
+      "properties": {
+        "disposition": {
+          "const": "STATIC_DECLARED"
+        },
+        "idempotencyKey": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_maximumUTF8Bytes": 256,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "kindID": {
+          "enum": [
+            "Asset",
+            "CompletedActivitySnapshotV1",
+            "ContentReferenceV1",
+            "ContractSchemaDerivationReceiptV1",
+            "ControlledAmendmentSupersessionV1",
+            "DeletionLedgerRow",
+            "EntityMutationRevisionRow",
+            "EvidenceFile",
+            "Issue",
+            "MutationQuarantineRow",
+            "MutationReceiptRow",
+            "ObservationAndTimeRow",
+            "OpenJSONSchemaProjectionV1",
+            "Packet",
+            "PersistentSchemaReleaseMarker",
+            "Report",
+            "Site",
+            "WorkflowRecord",
+            "WorkspaceMutationStateRow"
+          ],
+          "type": "string"
+        },
+        "operation": {
+          "enum": [
+            "ARCHIVE",
+            "BACKUP",
+            "CLONE",
+            "DELETE",
+            "ERASE",
+            "EXPORT",
+            "FORK",
+            "JOURNAL_REPLAY",
+            "ORPHAN_CLEANUP",
+            "RESTORE",
+            "SEARCH_REBUILD"
+          ],
+          "type": "string"
+        },
+        "sequence": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "disposition",
+        "idempotencyKey",
+        "kindID",
+        "operation",
+        "sequence"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://schemas.assetrounds.local/v23/p03/c07/kernel-lifecycle-trace/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "events": {
+      "items": {
+        "$ref": "#/$defs/event"
+      },
+      "maxItems": 209,
+      "minItems": 209,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "hostedExecutionRan": {
+      "const": false
+    },
+    "nativeExecutionRan": {
+      "const": false
+    },
+    "operations": {
+      "const": [
+        "ARCHIVE",
+        "BACKUP",
+        "CLONE",
+        "DELETE",
+        "ERASE",
+        "EXPORT",
+        "FORK",
+        "JOURNAL_REPLAY",
+        "ORPHAN_CLEANUP",
+        "RESTORE",
+        "SEARCH_REBUILD"
+      ]
+    },
+    "result": {
+      "const": "STATIC_DECLARED"
+    },
+    "schemaID": {
+      "const": "KERNEL_PERSISTENCE_V4"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "traceID": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+      "type": "string",
+      "x_assetrounds_maximumUTF8Bytes": 256,
+      "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+      "x_assetrounds_requiresNFC": true
+    }
+  },
+  "required": [
+    "events",
+    "hostedExecutionRan",
+    "nativeExecutionRan",
+    "operations",
+    "result",
+    "schemaID",
+    "schemaVersion",
+    "traceID"
+  ],
+  "title": "KernelLifecycleTraceV4",
+  "type": "object",
+  "x_assetrounds_cardID": "V23-P03-C07",
+  "x_assetrounds_staticOnly": true
+}

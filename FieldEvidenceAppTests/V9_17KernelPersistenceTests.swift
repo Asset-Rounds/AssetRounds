@@ -1,0 +1,394 @@
+import Foundation
+import XCTest
+@testable import FieldEvidenceApp
+
+final class V9_17KernelPersistenceTests: XCTestCase {
+    func testV9_17G01SchemaDescriptorAndEveryLifecycleRegistryAreCompleteAndDormant() throws {
+        try KernelPersistenceV4Schema.validate()
+        try KernelRecordRegistryV4.validate()
+        try KernelMutationReceiptRegistryV4.validate()
+        try KernelBackupRestoreRegistryV4.validate()
+        try KernelDeletionEraseRegistryV4.validate()
+
+        let schema = try KernelPersistenceV4Schema.descriptor()
+        let kinds = KernelPersistenceV4RecordKind.allCases.sorted()
+        XCTAssertEqual(schema.schemaID, "KERNEL_PERSISTENCE_V4")
+        XCTAssertEqual(schema.schemaVersion, 4)
+        XCTAssertEqual(schema.predecessorSchemaVersion, 3)
+        XCTAssertEqual(schema.runtimePosture, .dormantStatic)
+        XCTAssertFalse(schema.activationEnabled)
+        XCTAssertTrue(schema.migrationRequired)
+        XCTAssertTrue(schema.backupRestoreRequired)
+        XCTAssertTrue(schema.deleteEraseRequired)
+        XCTAssertTrue(schema.exportRequired)
+        XCTAssertEqual(schema.records.map(\.kind), kinds)
+        XCTAssertEqual(schema.relationships.map(\.kind), KernelPersistenceV4RelationshipKind.allCases.sorted())
+        XCTAssertEqual(KernelRecordRegistryV4.registrations.map(\.descriptor.kind), kinds)
+        XCTAssertEqual(KernelMutationReceiptRegistryV4.registrations.map(\.kind), kinds)
+        XCTAssertEqual(KernelBackupRestoreRegistryV4.registrations.map(\.kind), kinds)
+        XCTAssertEqual(KernelDeletionEraseRegistryV4.registrations.map(\.kind), kinds)
+        XCTAssertTrue(KernelCanonicalHashV1.validSHA256(try KernelRecordRegistryV4.canonicalDigest))
+        XCTAssertTrue(KernelCanonicalHashV1.validSHA256(try KernelMutationReceiptRegistryV4.canonicalDigest))
+        XCTAssertTrue(KernelCanonicalHashV1.validSHA256(try KernelBackupRestoreRegistryV4.canonicalDigest))
+        XCTAssertTrue(KernelCanonicalHashV1.validSHA256(try KernelDeletionEraseRegistryV4.canonicalDigest))
+
+        for kind in kinds {
+            let descriptor = try KernelPersistenceV4Schema.recordDescriptor(for: kind)
+            XCTAssertEqual(descriptor.requirements, KernelPersistenceV4LifecycleRequirement.allCases.sorted())
+            XCTAssertEqual(try KernelRecordRegistryV4.registration(for: kind).descriptor, descriptor)
+            XCTAssertEqual(try KernelMutationReceiptRegistryV4.registration(for: kind).effectID,
+                           descriptor.canonicalMutationEffectID)
+            XCTAssertEqual(try KernelBackupRestoreRegistryV4.registration(for: kind).kind, kind)
+            XCTAssertEqual(try KernelDeletionEraseRegistryV4.registration(for: kind).deleteRule,
+                           descriptor.deleteRule)
+        }
+    }
+
+    func testV9_17A01FullMigrationAndDataRightLifecycleMatrixIsDeterministic() throws {
+        let schema = try KernelPersistenceV4Schema.descriptor()
+        let staged = try V9_17KernelPersistenceFixture.completeStaging()
+        let validating = try KernelPersistenceV4Migration.beginValidation(staged)
+        let archive = try V9_17KernelPersistenceFixture.archiveManifest()
+        let validated = try KernelPersistenceV4Migration.acceptValidation(
+            validating,
+            schema: schema,
+            archiveManifestDigest: archive.archiveSHA256,
+            exportManifestDigest: V9_17KernelPersistenceFixture.digest("export-manifest")
+        )
+        XCTAssertThrowsError(try KernelPersistenceV4Migration.activateValidatedStaging(
+            validated, s10_6IntegrationAccepted: false
+        ))
+        let simulatedActive = try KernelPersistenceV4Migration.activateValidatedStaging(
+            validated, s10_6IntegrationAccepted: true
+        )
+        XCTAssertEqual(simulatedActive.phase, .active)
+        XCTAssertFalse(schema.activationEnabled, "unit simulation must not activate the dormant schema")
+
+        try archive.validate()
+        try KernelBackupRestoreRegistryV4.validateForRestore(
+            archive, expectedArchiveID: archive.archiveID,
+            knownSourceGenerationID: archive.sourceGenerationID
+        )
+        for kind in KernelPersistenceV4RecordKind.allCases.sorted() {
+            let mutation = try KernelMutationReceiptRegistryV4.registration(for: kind)
+            if mutation.effectDisposition != .dormantNoRuntimeEffect {
+                let effect = try KernelMutationEffectV4(
+                    kind: kind,
+                    mutationID: "mutation-\(kind.rawValue)",
+                    expectedRevision: 4,
+                    resultingRevision: 5,
+                    payloadSHA256: V9_17KernelPersistenceFixture.digest("payload-\(kind.rawValue)"),
+                    effectID: mutation.effectID
+                )
+                let receipt = try KernelMutationReceiptRegistryV4.receipt(for: effect)
+                XCTAssertEqual(try KernelMutationReceiptRegistryV4.reconcile(
+                    effect: effect, existingReceipt: nil
+                ), receipt)
+                XCTAssertEqual(try KernelMutationReceiptRegistryV4.reconcile(
+                    effect: effect, existingReceipt: receipt
+                ), receipt)
+            }
+
+            let deletion = try KernelDeletionEraseRegistryV4.registration(for: kind)
+            let removal = try KernelRemovalReceiptV4(
+                operationID: "erase-\(kind.rawValue)",
+                kind: kind,
+                targetID: "target-\(kind.rawValue)",
+                action: .erase,
+                priorRevision: 8,
+                resultingRevision: 9,
+                clearedTombstone: deletion.clearsTombstonesOnErase
+            )
+            XCTAssertEqual(try KernelDeletionEraseRegistryV4.reconcile(
+                candidate: removal, existing: nil
+            ), removal)
+            XCTAssertEqual(try KernelDeletionEraseRegistryV4.reconcile(
+                candidate: removal, existing: removal
+            ), removal)
+        }
+    }
+
+    func testV9_17H01UnmappedDuplicateAndVersionSkewInputsFailClosed() throws {
+        let firstRegistration = try XCTUnwrap(KernelRecordRegistryV4.registrations.first)
+        XCTAssertThrowsError(try KernelRecordRegistryV4.validate(
+            KernelRecordRegistryV4.registrations + [firstRegistration]
+        ))
+        XCTAssertThrowsError(try KernelPersistenceV4RelationshipDescriptor(
+            kind: .assetSite,
+            source: .issue,
+            fieldName: "siteID",
+            target: .site,
+            optional: false,
+            deleteRule: .deleteAfterDependents
+        ))
+        let descriptorData = try V9_17KernelPersistenceFixture.encoder.encode(
+            KernelPersistenceV4Schema.recordDescriptor(for: .asset)
+        )
+        let unknownKind = try XCTUnwrap(String(data: descriptorData, encoding: .utf8))
+            .replacingOccurrences(of: "\"kind\":\"Asset\"", with: "\"kind\":\"UnknownKernelKind\"")
+        XCTAssertThrowsError(try JSONDecoder().decode(
+            KernelPersistenceV4RecordDescriptor.self, from: Data(unknownKind.utf8)
+        ))
+
+        let begun = try KernelPersistenceV4Migration.begin(
+            migrationID: "hostile-migration",
+            sourceStoreDigest: V9_17KernelPersistenceFixture.digest("hostile-source")
+        )
+        let record = try V9_17KernelPersistenceFixture.stagedRecord(.asset)
+        let once = try KernelPersistenceV4Migration.stage(begun, record: record)
+        XCTAssertThrowsError(try KernelPersistenceV4Migration.stage(once, record: record))
+        XCTAssertThrowsError(try KernelPersistenceV4Migration.completeStaging(
+            once,
+            schema: KernelPersistenceV4Schema.descriptor(),
+            stagingDigest: V9_17KernelPersistenceFixture.digest("incomplete")
+        ))
+
+        let begunData = try V9_17KernelPersistenceFixture.encoder.encode(begun)
+        let explicitNull = try XCTUnwrap(String(data: begunData, encoding: .utf8))
+            .replacingOccurrences(
+                of: "\"sourceStoreDigest\":",
+                with: "\"stagingDigest\":null,\"sourceStoreDigest\":"
+            )
+        XCTAssertThrowsError(try JSONDecoder().decode(
+            KernelPersistenceV4MigrationCheckpoint.self, from: Data(explicitNull.utf8)
+        ))
+
+        XCTAssertEqual(try KernelPersistenceV4Migration.openDisposition(
+            storeSchemaVersion: 5, binaryMaximumSchemaVersion: 4, checkpoint: nil
+        ), .refuseNewerStore)
+        XCTAssertEqual(try KernelPersistenceV4Migration.openDisposition(
+            storeSchemaVersion: 4, binaryMaximumSchemaVersion: 3, checkpoint: nil
+        ), .refuseNewerStore)
+        XCTAssertEqual(try KernelPersistenceV4Migration.openDisposition(
+            storeSchemaVersion: 4, binaryMaximumSchemaVersion: 4, checkpoint: nil
+        ), .refuseNewerStore)
+        XCTAssertEqual(try KernelPersistenceV4Migration.openDisposition(
+            storeSchemaVersion: 3, binaryMaximumSchemaVersion: 3, checkpoint: begun
+        ), .refuseNewerStore)
+        XCTAssertThrowsError(try KernelPersistenceV4Migration.openDisposition(
+            storeSchemaVersion: 2, binaryMaximumSchemaVersion: 4, checkpoint: nil
+        ))
+
+        let archive = try V9_17KernelPersistenceFixture.archiveManifest()
+        XCTAssertThrowsError(try KernelArchiveManifestV4(
+            archiveID: "archive-omission",
+            sourceGenerationID: archive.sourceGenerationID,
+            entries: Array(archive.entries.dropLast())
+        ))
+        let encoded = try V9_17KernelPersistenceFixture.encoder.encode(archive)
+        let future = try XCTUnwrap(String(data: encoded, encoding: .utf8))
+            .replacingOccurrences(of: "\"schemaVersion\":4", with: "\"schemaVersion\":5")
+        XCTAssertThrowsError(try JSONDecoder().decode(
+            KernelArchiveManifestV4.self, from: Data(future.utf8)
+        ))
+
+        let removal = try KernelRemovalReceiptV4(
+            operationID: "duplicate-operation", kind: .packet, targetID: "packet-a",
+            action: .delete, priorRevision: 1, resultingRevision: 2, clearedTombstone: false
+        )
+        let conflicting = try KernelRemovalReceiptV4(
+            operationID: "duplicate-operation", kind: .packet, targetID: "packet-b",
+            action: .delete, priorRevision: 1, resultingRevision: 2, clearedTombstone: false
+        )
+        XCTAssertThrowsError(try KernelDeletionEraseRegistryV4.reconcile(
+            candidate: conflicting, existing: removal
+        ))
+        XCTAssertThrowsError(try KernelRemovalReceiptV4(
+            operationID: "wrong-action", kind: .mutationReceiptRow, targetID: "receipt-a",
+            action: .delete, priorRevision: 1, resultingRevision: 2, clearedTombstone: false
+        ))
+        XCTAssertThrowsError(try KernelRemovalReceiptV4(
+            operationID: "orphan-remains", kind: .asset, targetID: "asset-a",
+            action: .orphanCleanup, priorRevision: 1, resultingRevision: 2,
+            clearedTombstone: false
+        ))
+        XCTAssertThrowsError(try KernelRemovalReceiptV4(
+            operationID: "overflow", kind: .packet, targetID: "packet-max",
+            action: .erase, priorRevision: UInt64.max, resultingRevision: UInt64.max,
+            clearedTombstone: true
+        ))
+    }
+
+    func testV9_17I01EveryMigrationAndLifecycleInterruptionRecoversZeroOrCompleteIdempotently() throws {
+        var checkpoint = try KernelPersistenceV4Migration.begin(
+            migrationID: "interruption-migration",
+            sourceStoreDigest: V9_17KernelPersistenceFixture.digest("interruption-source")
+        )
+        XCTAssertEqual(try KernelPersistenceV4Migration.resumeDisposition(for: checkpoint), .resumeStaging)
+        for kind in KernelPersistenceV4RecordKind.allCases.sorted() {
+            let before = checkpoint
+            let record = try V9_17KernelPersistenceFixture.stagedRecord(kind)
+            checkpoint = try KernelPersistenceV4Migration.stage(checkpoint, record: record)
+            XCTAssertEqual(try KernelPersistenceV4Migration.resumeDisposition(for: checkpoint), .resumeStaging)
+            XCTAssertEqual(try KernelPersistenceV4Migration.stage(before, record: record), checkpoint)
+        }
+
+        let staged = try KernelPersistenceV4Migration.completeStaging(
+            checkpoint,
+            schema: KernelPersistenceV4Schema.descriptor(),
+            stagingDigest: V9_17KernelPersistenceFixture.digest("interruption-staging")
+        )
+        XCTAssertEqual(try KernelPersistenceV4Migration.resumeDisposition(for: staged), .resumeValidation)
+        XCTAssertEqual(try KernelPersistenceV4Migration.completeStaging(
+            checkpoint,
+            schema: KernelPersistenceV4Schema.descriptor(),
+            stagingDigest: V9_17KernelPersistenceFixture.digest("interruption-staging")
+        ), staged)
+
+        let validating = try KernelPersistenceV4Migration.beginValidation(staged)
+        XCTAssertEqual(try KernelPersistenceV4Migration.resumeDisposition(for: validating), .resumeValidation)
+        XCTAssertEqual(try KernelPersistenceV4Migration.beginValidation(staged), validating)
+        let archive = try V9_17KernelPersistenceFixture.archiveManifest()
+        let validated = try KernelPersistenceV4Migration.acceptValidation(
+            validating,
+            schema: KernelPersistenceV4Schema.descriptor(),
+            archiveManifestDigest: archive.archiveSHA256,
+            exportManifestDigest: V9_17KernelPersistenceFixture.digest("interruption-export")
+        )
+        XCTAssertEqual(try KernelPersistenceV4Migration.resumeDisposition(for: validated),
+                       .activateValidatedStaging)
+        XCTAssertEqual(try KernelPersistenceV4Migration.acceptValidation(
+            validating,
+            schema: KernelPersistenceV4Schema.descriptor(),
+            archiveManifestDigest: archive.archiveSHA256,
+            exportManifestDigest: V9_17KernelPersistenceFixture.digest("interruption-export")
+        ), validated)
+
+        let simulatedActive = try KernelPersistenceV4Migration.activateValidatedStaging(
+            validated, s10_6IntegrationAccepted: true
+        )
+        XCTAssertEqual(try KernelPersistenceV4Migration.resumeDisposition(for: simulatedActive), .useActiveV4)
+        let observed = try KernelPersistenceV4Migration.observePublicationOrCanonicalWrite(
+            simulatedActive, published: true, canonicalWrite: false
+        )
+        XCTAssertEqual(try KernelPersistenceV4Migration.observePublicationOrCanonicalWrite(
+            simulatedActive, published: true, canonicalWrite: false
+        ), observed)
+        let forwardFix = try KernelPersistenceV4Migration.requireForwardFix(observed)
+        XCTAssertEqual(try KernelPersistenceV4Migration.resumeDisposition(for: forwardFix),
+                       .requireForwardFixReadExport)
+
+        let discarded = try KernelPersistenceV4Migration.discardBeforeActivation(validated)
+        XCTAssertEqual(try KernelPersistenceV4Migration.resumeDisposition(for: discarded), .remainDiscardedV3)
+        XCTAssertEqual(try KernelPersistenceV4Migration.discardBeforeActivation(validated), discarded)
+        XCTAssertThrowsError(try KernelPersistenceV4Migration.discardBeforeActivation(observed))
+
+        try KernelBackupRestoreRegistryV4.validateForRestore(
+            archive, expectedArchiveID: archive.archiveID, knownSourceGenerationID: archive.sourceGenerationID
+        )
+        try KernelBackupRestoreRegistryV4.validateForRestore(
+            archive, expectedArchiveID: archive.archiveID, knownSourceGenerationID: archive.sourceGenerationID
+        )
+        XCTAssertFalse(try KernelPersistenceV4Schema.descriptor().activationEnabled)
+    }
+
+    func testV9_17R01PreactivationDiscardAndPostWriteForwardFixPreserveHistoricReadExport() throws {
+        let staged = try V9_17KernelPersistenceFixture.completeStaging()
+        let discarded = try KernelPersistenceV4Migration.discardBeforeActivation(staged)
+        XCTAssertEqual(discarded.phase, .discarded)
+        XCTAssertEqual(try KernelPersistenceV4Migration.openDisposition(
+            storeSchemaVersion: 3, binaryMaximumSchemaVersion: 4, checkpoint: discarded
+        ), .openV3ReadWrite)
+
+        let archiveBefore = try V9_17KernelPersistenceFixture.archiveManifest()
+        let validated = try KernelPersistenceV4Migration.acceptValidation(
+            KernelPersistenceV4Migration.beginValidation(staged),
+            schema: KernelPersistenceV4Schema.descriptor(),
+            archiveManifestDigest: archiveBefore.archiveSHA256,
+            exportManifestDigest: V9_17KernelPersistenceFixture.digest("recovery-export")
+        )
+        let simulatedActive = try KernelPersistenceV4Migration.activateValidatedStaging(
+            validated, s10_6IntegrationAccepted: true
+        )
+        XCTAssertEqual(try KernelPersistenceV4Migration.openDisposition(
+            storeSchemaVersion: 4,
+            binaryMaximumSchemaVersion: 4,
+            checkpoint: simulatedActive
+        ), .openV4ReadWrite)
+        let written = try KernelPersistenceV4Migration.observePublicationOrCanonicalWrite(
+            simulatedActive, published: false, canonicalWrite: true
+        )
+        let published = try KernelPersistenceV4Migration.observePublicationOrCanonicalWrite(
+            simulatedActive, published: true, canonicalWrite: false
+        )
+        XCTAssertThrowsError(try KernelPersistenceV4Migration.discardBeforeActivation(written))
+        let forwardFix = try KernelPersistenceV4Migration.requireForwardFix(written)
+        let publicationForwardFix = try KernelPersistenceV4Migration.requireForwardFix(published)
+        XCTAssertTrue(publicationForwardFix.published)
+        XCTAssertFalse(publicationForwardFix.canonicalV4WriteObserved)
+        XCTAssertEqual(try KernelPersistenceV4Migration.openDisposition(
+            storeSchemaVersion: 4, binaryMaximumSchemaVersion: 4, checkpoint: forwardFix
+        ), .forwardFixReadExportOnly)
+        XCTAssertEqual(try KernelPersistenceV4Migration.resumeDisposition(for: forwardFix),
+                       .requireForwardFixReadExport)
+
+        try archiveBefore.validate()
+        let archiveAfter = try V9_17KernelPersistenceFixture.archiveManifest()
+        XCTAssertEqual(archiveAfter, archiveBefore, "forward recovery must not rewrite historic archive truth")
+        XCTAssertThrowsError(try KernelBackupRestoreRegistryV4.validateForRestore(
+            archiveBefore,
+            expectedArchiveID: archiveBefore.archiveID,
+            knownSourceGenerationID: "old-generation"
+        ))
+        for kind in KernelPersistenceV4RecordKind.allCases.sorted() {
+            let record = try KernelRecordRegistryV4.registration(for: kind)
+            let backup = try KernelBackupRestoreRegistryV4.registration(for: kind)
+            XCTAssertEqual(backup.openExport, record.openExport)
+            if [.canonicalWorkspace, .immutableContentMetadata, .appendOnlyReceipt,
+                .dormantContractDeclaration].contains(record.descriptor.classification) {
+                XCTAssertNotEqual(record.openExport, .excluded)
+            }
+        }
+        XCTAssertFalse(try KernelPersistenceV4Schema.descriptor().activationEnabled)
+    }
+}
+
+private enum V9_17KernelPersistenceFixture {
+    static let encoder: JSONEncoder = {
+        let value = JSONEncoder()
+        value.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return value
+    }()
+
+    static func digest(_ value: String) -> String {
+        KernelCanonicalHashV1.sha256(Data(value.utf8))
+    }
+
+    static func stagedRecord(_ kind: KernelPersistenceV4RecordKind) throws -> KernelPersistenceV4StagedRecordCount {
+        try KernelPersistenceV4StagedRecordCount(
+            kind: kind, sourceCount: 1, stagedCount: 1, batchDigest: digest("batch-\(kind.rawValue)")
+        )
+    }
+
+    static func completeStaging() throws -> KernelPersistenceV4MigrationCheckpoint {
+        var checkpoint = try KernelPersistenceV4Migration.begin(
+            migrationID: "fixture-migration", sourceStoreDigest: digest("fixture-source")
+        )
+        for kind in KernelPersistenceV4RecordKind.allCases.sorted() {
+            checkpoint = try KernelPersistenceV4Migration.stage(checkpoint, record: stagedRecord(kind))
+        }
+        return try KernelPersistenceV4Migration.completeStaging(
+            checkpoint,
+            schema: KernelPersistenceV4Schema.descriptor(),
+            stagingDigest: digest("fixture-staging")
+        )
+    }
+
+    static func archiveManifest() throws -> KernelArchiveManifestV4 {
+        let entries = try KernelPersistenceV4RecordKind.allCases.sorted().map { kind in
+            let registration = try KernelBackupRestoreRegistryV4.registration(for: kind)
+            let empty = [.rebuildAfterRestore, .excludeDormantDeclaration].contains(registration.archive)
+            return try KernelArchiveEntryV4(
+                kind: kind,
+                disposition: registration.archive,
+                recordCount: empty ? 0 : 1,
+                payloadSHA256: empty ? KernelBackupRestoreRegistryV4.emptyPayloadSHA256 : digest("archive-\(kind.rawValue)")
+            )
+        }
+        return try KernelArchiveManifestV4(
+            archiveID: "archive-v4",
+            sourceGenerationID: "generation-v3",
+            entries: entries
+        )
+    }
+}

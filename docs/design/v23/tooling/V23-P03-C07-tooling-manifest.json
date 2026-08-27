@@ -1,0 +1,203 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "adoptionEnabled": false,
+  "artifactCount": 23,
+  "artifactDigest": "d9825d462ec1347ff66f93cf622c8ca979001f70d5b0d2243e3db0e3ca42f12d",
+  "artifactSetDigest": "e6ec26efdc8eee28400565015cf5a311fadec7d060a0a78696b060ec58ea6da9",
+  "artifacts": [
+    {
+      "bytes": 12891,
+      "path": "FieldEvidenceApp/Domain/Models/KernelPersistenceV4Contracts.swift",
+      "sha256": "8fc4f9a96c21440aa44d9717389c0e526d5d5226ef38c921106ba19f560a6809"
+    },
+    {
+      "bytes": 14852,
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/KernelPersistenceV4Schema.swift",
+      "sha256": "a230c4218c11f65058adf4c4b318e493dedc0206fd26130c56a5bf33b9d8a8f6"
+    },
+    {
+      "bytes": 22267,
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/KernelPersistenceV4Migration.swift",
+      "sha256": "4d23d012596c2bcf53cdb6d57e3c236b6bc7de6006fd7425251d7aab612b82e5"
+    },
+    {
+      "bytes": 13885,
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/KernelRecordRegistryV4.swift",
+      "sha256": "b43159002584ee47a2ec16da5619734a1fbab719e99bd1a1b37240dcf397361c"
+    },
+    {
+      "bytes": 15361,
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/KernelMutationReceiptRegistryV4.swift",
+      "sha256": "8dd5552e630cbf0a3b0dd060df11572a8a86e0a2742567dde41ae1451e6fdd78"
+    },
+    {
+      "bytes": 13827,
+      "path": "FieldEvidenceApp/Infrastructure/Backup/KernelBackupRestoreRegistryV4.swift",
+      "sha256": "bdd83be1deb09452cd0eff84a968edb09fcb9e03a7093424841a2b2a2e433427"
+    },
+    {
+      "bytes": 13538,
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/KernelDeletionEraseRegistryV4.swift",
+      "sha256": "44cb1401492e5c7f593a0d73af4f8614d33f744c5b0b466445ae300320454237"
+    },
+    {
+      "bytes": 21312,
+      "path": "FieldEvidenceAppTests/V9_17KernelPersistenceTests.swift",
+      "sha256": "37c25d14abe0f425b9391d8e55bb86717b569267e6f5d4cc9d9870b9562af91b"
+    },
+    {
+      "bytes": 2693,
+      "path": "FieldEvidenceAppTests/Fixtures/V21/Persistence/V21P03C07KernelPersistenceCorpusV1.json",
+      "sha256": "f188d41155694d6465a2810b58f4a974c535bd5d2185f46882a8679d89e2477a"
+    },
+    {
+      "bytes": 38883,
+      "path": "Scripts/v23/p03_c07_contracts.py",
+      "sha256": "fdac1b0e496dbb209f45102cfca17080f9a68abd25bda7597ba037219bac0caa"
+    },
+    {
+      "bytes": 1901,
+      "path": "Scripts/v23/generate_p03_c07_contracts.py",
+      "sha256": "43904611e0df9cce20b95f891e2e5be918ec4b69bf911423f98b9118d1e51843"
+    },
+    {
+      "bytes": 18700,
+      "path": "Scripts/v23/verify_p03_c07_contracts.py",
+      "sha256": "85532eae3b228875627bb5d73bd5d5b923c7ff2d650b5021d65955c58e54d16d"
+    },
+    {
+      "bytes": 24668,
+      "path": "Scripts/v23/kernel-persistence-v4.schema.json",
+      "sha256": "7168eb6a2f7155d8790e2a849cdc8a50222581144e75e82bf120502cace1e043"
+    },
+    {
+      "bytes": 13426,
+      "path": "Scripts/v23/kernel-record-mapping-registry.schema.json",
+      "sha256": "461e9d3c62cb6c2389801d7c61983eb031ab0f150008588a5fbeb3a3d99173b8"
+    },
+    {
+      "bytes": 7297,
+      "path": "Scripts/v23/kernel-migration-receipt.schema.json",
+      "sha256": "eb812f1f4e8db5f26f45b0e61ec63a2872cf1f164cbc3453bb8c8d8913b4aaf0"
+    },
+    {
+      "bytes": 6293,
+      "path": "Scripts/v23/kernel-lifecycle-registry.schema.json",
+      "sha256": "fdcea0c7ce2d4f8eff2548120b328dd73868a4dfd875f26598191589cc42ab6b"
+    },
+    {
+      "bytes": 3511,
+      "path": "Scripts/v23/kernel-lifecycle-trace.schema.json",
+      "sha256": "1acebf2891196134e3cfd4b6462498884bb31d90b7adc906c013ae5a9ea3756f"
+    },
+    {
+      "bytes": 2655,
+      "path": "Scripts/v23/kernel-persistence-evidence.schema.json",
+      "sha256": "ccec30f1a63b94203c1c050e44f3c881ef4ee7ceae883a197176301fc54e67be"
+    },
+    {
+      "bytes": 25608,
+      "path": "docs/design/v23/tooling/V23P03C07KernelPersistenceContractV1.json",
+      "sha256": "5fc92b4f242fd985c24fc5002e80864a61cd426325f4495581216991b3e5a15a"
+    },
+    {
+      "bytes": 42365,
+      "path": "docs/design/v23/tooling/V23P03C07KernelMappingRegistryContractV1.json",
+      "sha256": "294e44e3c2c36148c984d2818a2795799ad7ecce3b32aa6720be89de90524ecd"
+    },
+    {
+      "bytes": 8073,
+      "path": "docs/design/v23/tooling/V23P03C07KernelMigrationContractV1.json",
+      "sha256": "ba1a7de08c056aa03b25eb03224e20b6e2aa0fec7226313c392bd8e10de4d54a"
+    },
+    {
+      "bytes": 62635,
+      "path": "docs/design/v23/tooling/V23P03C07KernelLifecycleContractV1.json",
+      "sha256": "4a9c7fd98c29ca99ca2b7422397540d2053aed641f1840dec3b0dfd4e722e981"
+    },
+    {
+      "bytes": 2372,
+      "path": "docs/design/v23/tooling/V23P03C07KernelPersistenceEvidenceReceiptV1.json",
+      "sha256": "e4e2b06e899bca308ab2f7a93d9679864038079a8ed2f99c0819a89ddf548f53"
+    }
+  ],
+  "authority": {
+    "appBaseHead": "8dcf404725f5b1f9ab630d2f16e445013efec036",
+    "appBaseTree": "ba11541ee75791a70012c4daadcac003207483ed",
+    "contextDigest": "bdac7237c4ebb9fea666b321f153a4f9fe00ede6c298e69cf93be439c5c5b13d",
+    "coordinationCASSequence": 159,
+    "coordinationHead": "bc860cfdcc6324b564e516227fec7ef457983df4",
+    "coordinationLedgerDigest": "21369eb529183399fcc8fcb68a186d1b4882321ab2bd3ce39e08e8f344e3fa34",
+    "coordinationTree": "a8a805cdb206f7d735bb28ce2e910ac5f93ccd85",
+    "fenceDigest": "3f6a36f8794c159c24c26ec06506bff77a2d998df3cf04a5b8b06bb1d56e8264",
+    "prerequisiteDigest": "e1b5c4142e87c5503d4d75d845ab0d2741f49e0eaa4e7e9d5b88c33777398913",
+    "s10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+  },
+  "cardID": "V23-P03-C07",
+  "existingPaths": [],
+  "hostedDispatchRan": false,
+  "nativeCompileRan": false,
+  "newPaths": [
+    "FieldEvidenceApp/Domain/Models/KernelPersistenceV4Contracts.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/KernelPersistenceV4Schema.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/KernelPersistenceV4Migration.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/KernelRecordRegistryV4.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/KernelMutationReceiptRegistryV4.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/KernelBackupRestoreRegistryV4.swift",
+    "FieldEvidenceApp/Infrastructure/Deletion/KernelDeletionEraseRegistryV4.swift",
+    "FieldEvidenceAppTests/V9_17KernelPersistenceTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/Persistence/V21P03C07KernelPersistenceCorpusV1.json",
+    "Scripts/v23/p03_c07_contracts.py",
+    "Scripts/v23/generate_p03_c07_contracts.py",
+    "Scripts/v23/verify_p03_c07_contracts.py",
+    "Scripts/v23/kernel-persistence-v4.schema.json",
+    "Scripts/v23/kernel-record-mapping-registry.schema.json",
+    "Scripts/v23/kernel-migration-receipt.schema.json",
+    "Scripts/v23/kernel-lifecycle-registry.schema.json",
+    "Scripts/v23/kernel-lifecycle-trace.schema.json",
+    "Scripts/v23/kernel-persistence-evidence.schema.json",
+    "docs/design/v23/tooling/V23P03C07KernelPersistenceContractV1.json",
+    "docs/design/v23/tooling/V23P03C07KernelMappingRegistryContractV1.json",
+    "docs/design/v23/tooling/V23P03C07KernelMigrationContractV1.json",
+    "docs/design/v23/tooling/V23P03C07KernelLifecycleContractV1.json",
+    "docs/design/v23/tooling/V23P03C07KernelPersistenceEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23-P03-C07-tooling-manifest.json"
+  ],
+  "pathFence": [
+    "FieldEvidenceApp/Domain/Models/KernelPersistenceV4Contracts.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/KernelPersistenceV4Schema.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/KernelPersistenceV4Migration.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/KernelRecordRegistryV4.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/KernelMutationReceiptRegistryV4.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/KernelBackupRestoreRegistryV4.swift",
+    "FieldEvidenceApp/Infrastructure/Deletion/KernelDeletionEraseRegistryV4.swift",
+    "FieldEvidenceAppTests/V9_17KernelPersistenceTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/Persistence/V21P03C07KernelPersistenceCorpusV1.json",
+    "Scripts/v23/p03_c07_contracts.py",
+    "Scripts/v23/generate_p03_c07_contracts.py",
+    "Scripts/v23/verify_p03_c07_contracts.py",
+    "Scripts/v23/kernel-persistence-v4.schema.json",
+    "Scripts/v23/kernel-record-mapping-registry.schema.json",
+    "Scripts/v23/kernel-migration-receipt.schema.json",
+    "Scripts/v23/kernel-lifecycle-registry.schema.json",
+    "Scripts/v23/kernel-lifecycle-trace.schema.json",
+    "Scripts/v23/kernel-persistence-evidence.schema.json",
+    "docs/design/v23/tooling/V23P03C07KernelPersistenceContractV1.json",
+    "docs/design/v23/tooling/V23P03C07KernelMappingRegistryContractV1.json",
+    "docs/design/v23/tooling/V23P03C07KernelMigrationContractV1.json",
+    "docs/design/v23/tooling/V23P03C07KernelLifecycleContractV1.json",
+    "docs/design/v23/tooling/V23P03C07KernelPersistenceEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23-P03-C07-tooling-manifest.json"
+  ],
+  "pathFenceCount": 24,
+  "pendingArtifactCount": 0,
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "V23P03C07ToolingManifestV1",
+  "schemaVersion": 1,
+  "sourcePathCount": 9,
+  "toolPathCount": 15,
+  "verificationMode": "STATIC_ONLY"
+}
