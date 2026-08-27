@@ -118,6 +118,152 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
         )
     }
 
+    func sourceMutationHistorySnapshot() throws -> MutationHistorySnapshotV1 {
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        return try journalStore.exportSnapshot()
+    }
+
+    func executeImported(_ change: JournalChangeV1) throws -> WorkspaceMutationOutcomeV1 {
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        try change.validate()
+        try change.portableReversalPlan?.validate()
+
+        let sourceInputSHA256 = try change.canonicalSHA256()
+        let isSemanticReversal = change.envelope.sourceKind == .semanticReversal
+        guard isSemanticReversal == (change.semanticReversalReceipt != nil),
+              change.receipt.sourceKind == change.envelope.sourceKind,
+              change.receipt.commandBodySHA256 == change.envelope.commandBodySHA256,
+              change.receipt.expectedRevision == change.envelope.expectedRevision,
+              change.receipt.causationMutationID == change.envelope.causationMutationID,
+              change.receipt.correlationID == change.envelope.correlationID,
+              change.receipt.contentDependencyIDs == change.envelope.contentDependencyIDs,
+              change.reversalBasis?.targetMutationID == change.envelope.mutationID
+                || change.reversalBasis == nil,
+              change.reversalBasis?.targetReceiptIdentity == change.receipt.identity
+                || change.reversalBasis == nil,
+              change.envelope.correlationID.map({ $0 != Self.zeroUUID }) ?? true,
+              change.receipt.reversesMutationID
+                == change.semanticReversalReceipt?.reversesMutationID else {
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+
+        let sourceCorrelationID: UUID
+        if change.envelope.sourceKind == .importedHistory {
+            guard let carried = change.envelope.correlationID else {
+                throw WorkspaceMutationFailureV1.invalidReceipt
+            }
+            sourceCorrelationID = carried
+        } else if isSemanticReversal,
+                  let carried = change.envelope.correlationID {
+            sourceCorrelationID = carried
+        } else {
+            sourceCorrelationID = try Self.correlationID(
+                sourceInputSHA256: sourceInputSHA256
+            )
+        }
+
+        let effectiveSourceKind: MutationSourceKindV1 = isSemanticReversal
+            ? .semanticReversal
+            : .importedHistory
+        if let prior = try journalStore.receipt(
+            mutationID: change.envelope.mutationID
+        ), prior.sourceKind == effectiveSourceKind,
+           prior.correlationID == sourceCorrelationID {
+            guard try importedReplayMatches(
+                change,
+                prior: prior,
+                effectiveSourceKind: effectiveSourceKind,
+                journalStore: journalStore
+            ) else {
+                try quarantineChangedImportedReplay(
+                    change,
+                    prior: prior,
+                    sourceInputSHA256: sourceInputSHA256,
+                    journalStore: journalStore
+                )
+            }
+            let request = try importedRequest(
+                mutationID: change.envelope.mutationID,
+                command: change.envelope.command,
+                expectedRevision: prior.expectedRevision
+            )
+            return try outcome(
+                from: prior,
+                request: request,
+                digest: prior.envelopeSHA256,
+                occurredAt: prior.committedAt
+            )
+        }
+
+        let request = try importedRequest(
+            mutationID: change.envelope.mutationID,
+            command: change.envelope.command
+        )
+        if isSemanticReversal {
+            guard change.reversalBasis == nil,
+                  change.portableReversalPlan == nil,
+                  let sourceExecution = change.envelope.semanticReversalExecution,
+                  let sourceReceipt = change.semanticReversalReceipt,
+                  sourceReceipt.reversesMutationID == sourceExecution.targetMutationID,
+                  sourceReceipt.targetReceiptIdentity == sourceExecution.targetReceiptIdentity,
+                  sourceReceipt.reversalBasisSHA256 == sourceExecution.reversalBasisSHA256,
+                  sourceReceipt.planDigest == sourceExecution.planDigest,
+                  sourceReceipt.compensatingMutationIDs == sourceExecution.compensatingMutationIDs,
+                  sourceReceipt.resultingRevision == change.receipt.resultingRevision,
+                  sourceExecution.compensatingMutationIDs == [change.envelope.mutationID],
+                  let target = try journalStore.receipt(
+                    mutationID: sourceExecution.targetMutationID
+                  ),
+                  let basis = try journalStore.reversalBasis(
+                    mutationID: sourceExecution.targetMutationID
+                  ),
+                  basis.targetReceiptIdentity == target.identity,
+                  basis.compensatingCommandKinds == [request.command.kind] else {
+                throw WorkspaceMutationFailureV1.invalidReversal
+            }
+            let execution = try SemanticReversalExecutionV1(
+                targetMutationID: sourceExecution.targetMutationID,
+                targetReceiptIdentity: target.identity,
+                reversalBasisSHA256: basis.canonicalSHA256(),
+                planDigest: basis.planDigest,
+                compensatingMutationIDs: sourceExecution.compensatingMutationIDs
+            )
+            let replayIdentitySHA256 = try SemanticReversalReplayIdentityV1(
+                request: request,
+                identity: identity,
+                targetMutationID: execution.targetMutationID,
+                planDigest: execution.planDigest,
+                compensatingMutationIDs: execution.compensatingMutationIDs
+            ).canonicalSHA256()
+            return try executeInternal(
+                request,
+                reversalPlan: nil,
+                semanticReversalExecution: execution,
+                semanticReversalReplayIdentitySHA256: replayIdentitySHA256,
+                sourceKind: .semanticReversal,
+                contentDependencyIDs: change.envelope.contentDependencyIDs,
+                correlationID: sourceCorrelationID
+            )
+        }
+
+        guard change.envelope.semanticReversalExecution == nil,
+              change.envelope.causationMutationID == nil else {
+            throw WorkspaceMutationFailureV1.invalidReversal
+        }
+        return try executeInternal(
+            request,
+            reversalPlan: nil,
+            semanticReversalExecution: nil,
+            semanticReversalReplayIdentitySHA256: nil,
+            sourceKind: .importedHistory,
+            contentDependencyIDs: change.envelope.contentDependencyIDs,
+            correlationID: sourceCorrelationID,
+            portableReversalPlan: change.portableReversalPlan
+        )
+    }
+
     func query(
         _ request: WorkspacePackageLifecycleQueryRequestV1
     ) throws -> WorkspacePackageLifecycleQueryResultV1 {
@@ -230,19 +376,30 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
         _ request: WorkspaceMutationRequestV1,
         reversalPlan: SemanticReversalPlanV1?,
         semanticReversalExecution: SemanticReversalExecutionV1?,
-        semanticReversalReplayIdentitySHA256: String?
+        semanticReversalReplayIdentitySHA256: String?,
+        sourceKind: MutationSourceKindV1? = nil,
+        contentDependencyIDs: [String] = [],
+        correlationID: UUID? = nil,
+        portableReversalPlan: PortableReversalPlanV1? = nil
     ) throws -> WorkspaceMutationOutcomeV1 {
         guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
         guard !isExecuting else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        guard reversalPlan == nil || portableReversalPlan == nil else {
+            throw WorkspaceMutationFailureV1.invalidReversal
+        }
         let envelope: MutationEnvelopeV1
         let digest: String
         do {
             envelope = try MutationEnvelopeV1(
                 request: request,
                 identity: identity,
-                sourceKind: semanticReversalExecution == nil ? .localUser : .semanticReversal,
+                sourceKind: sourceKind
+                    ?? (semanticReversalExecution == nil ? .localUser : .semanticReversal),
+                contentDependencyIDs: contentDependencyIDs,
                 causationMutationID: semanticReversalExecution?.targetMutationID,
-                reversalPlanDigest: reversalPlan?.planDigest,
+                correlationID: correlationID,
+                reversalPlanDigest: reversalPlan?.planDigest
+                    ?? portableReversalPlan?.planDigest,
                 semanticReversalReplayIdentitySHA256: semanticReversalReplayIdentitySHA256,
                 semanticReversalExecution: semanticReversalExecution
             )
@@ -350,6 +507,25 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
                         ),
                         plan: reversalPlan
                     )
+                } else if let portableReversalPlan {
+                    let targetReceiptIdentity = MutationReceiptIdentityV1(
+                        workspaceID: identity.workspaceID,
+                        replicaID: identity.replicaID,
+                        localSequence: try journalStore.nextLocalSequence()
+                    )
+                    let rebound = try PortableReversalPlanV1(
+                        targetMutationID: request.mutationID,
+                        targetReceiptIdentity: targetReceiptIdentity,
+                        expectedRevision: MutationPortableExpectedRevisionV1(
+                            request.expectedRevision
+                        ),
+                        planDigest: portableReversalPlan.planDigest,
+                        compensatingCommands: portableReversalPlan.compensatingCommands
+                    )
+                    basis = try ReversalBasisV1(
+                        portablePlan: rebound,
+                        targetReceiptIdentity: targetReceiptIdentity
+                    )
                 } else {
                     basis = nil
                 }
@@ -437,6 +613,191 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
             throw WorkspaceMutationFailureV1.staleEntityRevision(identity)
         }
     }
+
+    private func importedRequest(
+        mutationID: MutationIDV1,
+        command: WorkspaceCommandV1,
+        expectedRevision: MutationPortableExpectedRevisionV1? = nil
+    ) throws -> WorkspaceMutationRequestV1 {
+        let expected: WorkspaceExpectedRevisionV1
+        if let expectedRevision {
+            expected = try WorkspaceExpectedRevisionV1(
+                workspaceID: identity.workspaceID,
+                generationID: generationID,
+                writerInstanceID: writerInstanceID,
+                workspaceRevision: expectedRevision.workspaceRevision,
+                entityRevisions: expectedRevision.entityRevisions
+            )
+        } else {
+            let current = try currentRevision()
+            let targets = try Self.targetIdentities(for: command)
+            let known = Dictionary(
+                uniqueKeysWithValues: current.entityRevisions.map {
+                    ($0.identity, $0.revision)
+                }
+            )
+            expected = try WorkspaceExpectedRevisionV1(
+                workspaceID: identity.workspaceID,
+                generationID: generationID,
+                writerInstanceID: writerInstanceID,
+                workspaceRevision: current.revision,
+                entityRevisions: targets.map {
+                    WorkspaceEntityRevisionV1(
+                        identity: $0,
+                        revision: known[$0, default: 0]
+                    )
+                }
+            )
+        }
+        return WorkspaceMutationRequestV1(
+            mutationID: mutationID,
+            expectedRevision: expected,
+            command: command
+        )
+    }
+
+    private func importedReplayMatches(
+        _ change: JournalChangeV1,
+        prior: MutationReceiptV1,
+        effectiveSourceKind: MutationSourceKindV1,
+        journalStore: MutationJournalStoreV1
+    ) throws -> Bool {
+        let priorPostImageIdentities = try prior.postImages.map { try $0.identity }
+        let incomingPostImageIdentities = try change.receipt.postImages.map {
+            try $0.identity
+        }
+        guard prior.sourceKind == effectiveSourceKind,
+              prior.mutationID == change.envelope.mutationID,
+              prior.commandBodySHA256 == change.envelope.commandBodySHA256,
+              prior.contentDependencyIDs == change.envelope.contentDependencyIDs,
+              prior.causationMutationID == change.envelope.causationMutationID,
+              priorPostImageIdentities == incomingPostImageIdentities,
+              prior.reversesMutationID
+                == change.semanticReversalReceipt?.reversesMutationID else {
+            return false
+        }
+        if effectiveSourceKind == .semanticReversal {
+            guard let sourceExecution = change.envelope.semanticReversalExecution,
+                  let sourceReceipt = change.semanticReversalReceipt,
+                  let targetReceipt = try journalStore.receipt(
+                    mutationID: sourceExecution.targetMutationID
+                  ),
+                  let targetBasis = try journalStore.reversalBasis(
+                    mutationID: sourceExecution.targetMutationID
+                  ),
+                  prior.reversesMutationID == sourceExecution.targetMutationID,
+                  sourceReceipt.reversesMutationID == sourceExecution.targetMutationID,
+                  sourceReceipt.targetReceiptIdentity
+                    == sourceExecution.targetReceiptIdentity,
+                  sourceReceipt.reversalBasisSHA256
+                    == sourceExecution.reversalBasisSHA256,
+                  sourceReceipt.compensatingMutationIDs
+                    == [change.envelope.mutationID],
+                  targetBasis.targetReceiptIdentity == targetReceipt.identity,
+                  sourceExecution.targetReceiptIdentity == change.semanticReversalReceipt?.targetReceiptIdentity else {
+                return false
+            }
+            return sourceReceipt.planDigest == targetBasis.planDigest
+                && sourceExecution.planDigest == sourceReceipt.planDigest
+                && sourceExecution.compensatingMutationIDs
+                    == sourceReceipt.compensatingMutationIDs
+                && targetBasis.compensatingCommandKinds == [change.envelope.command.kind]
+        }
+
+        let acceptedBasis = try journalStore.reversalBasis(
+            mutationID: change.envelope.mutationID
+        )
+        guard (acceptedBasis == nil) == (change.portableReversalPlan == nil) else {
+            return false
+        }
+        guard let portable = change.portableReversalPlan else { return true }
+        return acceptedBasis?.planDigest == portable.planDigest
+            && acceptedBasis?.compensatingCommandKinds
+                == portable.compensatingCommands.map(\.kind)
+    }
+
+    /// Forces the existing durable replay-conflict path for a source change
+    /// that reused an accepted mutation ID and provenance correlation while
+    /// changing invariant receipt or body data. No adapter effect is applied.
+    private func quarantineChangedImportedReplay(
+        _ change: JournalChangeV1,
+        prior: MutationReceiptV1,
+        sourceInputSHA256: String,
+        journalStore: MutationJournalStoreV1
+    ) throws -> Never {
+        let request = try importedRequest(
+            mutationID: change.envelope.mutationID,
+            command: change.envelope.command,
+            expectedRevision: prior.expectedRevision
+        )
+        let correlationID = try Self.conflictingCorrelationID(
+            sourceInputSHA256: sourceInputSHA256,
+            accepted: prior.correlationID
+        )
+        let probe = try MutationEnvelopeV1(
+            request: request,
+            identity: identity,
+            sourceKind: .importedHistory,
+            contentDependencyIDs: change.envelope.contentDependencyIDs,
+            correlationID: correlationID,
+            reversalPlanDigest: change.portableReversalPlan?.planDigest
+        )
+        _ = try journalStore.resolveReplay(
+            envelope: probe,
+            detectedAt: clock.now()
+        )
+        throw WorkspaceMutationFailureV1.mutationIDQuarantined
+    }
+
+    private static func correlationID(sourceInputSHA256: String) throws -> UUID {
+        guard MutationEnvelopeV1.isSHA256(sourceInputSHA256) else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        var bytes = stride(from: 0, to: 32, by: 2).compactMap { offset in
+            UInt8(
+                sourceInputSHA256[
+                    sourceInputSHA256.index(
+                        sourceInputSHA256.startIndex,
+                        offsetBy: offset
+                    )..<sourceInputSHA256.index(
+                        sourceInputSHA256.startIndex,
+                        offsetBy: offset + 2
+                    )
+                ],
+                radix: 16
+            )
+        }
+        guard bytes.count == 16 else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        bytes[6] = (bytes[6] & 0x0f) | 0x40
+        bytes[8] = (bytes[8] & 0x3f) | 0x80
+        return UUID(uuid: (
+            bytes[0], bytes[1], bytes[2], bytes[3],
+            bytes[4], bytes[5], bytes[6], bytes[7],
+            bytes[8], bytes[9], bytes[10], bytes[11],
+            bytes[12], bytes[13], bytes[14], bytes[15]
+        ))
+    }
+
+    private static func conflictingCorrelationID(
+        sourceInputSHA256: String,
+        accepted: UUID?
+    ) throws -> UUID {
+        let derived = try correlationID(sourceInputSHA256: sourceInputSHA256)
+        guard derived == accepted else { return derived }
+        let alternate = UUID(
+            uuid: (0, 0, 0, 0, 0, 0, 0x40, 0, 0x80, 0, 0, 0, 0, 0, 0, 1)
+        )
+        guard alternate == accepted else { return alternate }
+        return UUID(
+            uuid: (0, 0, 0, 0, 0, 0, 0x40, 0, 0x80, 0, 0, 0, 0, 0, 0, 2)
+        )
+    }
+
+    private static let zeroUUID = UUID(
+        uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    )
 
     private func outcome(
         from receipt: MutationReceiptV1,

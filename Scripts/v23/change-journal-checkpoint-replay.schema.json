@@ -1,0 +1,959 @@
+{
+  "$defs": {
+    "change": {
+      "additionalProperties": false,
+      "properties": {
+        "canonicalInputSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "contentSHA256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "entity": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "UPSERT",
+            "CONTENT_ATTACH",
+            "SEMANTIC_REVERSAL",
+            "TOMBSTONE"
+          ]
+        },
+        "mutationID": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "reversesMutationID": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sequence": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "sequence",
+        "mutationID",
+        "kind",
+        "entity",
+        "canonicalInputSHA256"
+      ],
+      "type": "object"
+    },
+    "conflictCase": {
+      "additionalProperties": false,
+      "properties": {
+        "competitors": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 3,
+          "minItems": 2,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "expectedDisposition": {
+          "enum": [
+            "TOMBSTONED_NO_RESURRECTION",
+            "UNRESOLVED_STABLE_CONFLICT_ID",
+            "DELETE_WINS_NO_RESURRECTION",
+            "CAUSALLY_DEFERRED_THEN_RESOLVED",
+            "EARLIER_BASIS_REMAINS_RESOLVED_SUCCESSOR_CONFLICT_CREATED"
+          ]
+        },
+        "id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "policy": {
+          "enum": [
+            "DELETE_WINS",
+            "MANUAL"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "competitors",
+        "policy",
+        "expectedDisposition"
+      ],
+      "type": "object"
+    },
+    "contentCase": {
+      "additionalProperties": false,
+      "properties": {
+        "expectedDisposition": {
+          "enum": [
+            "APPLIED",
+            "DEFERRED_THEN_APPLIED",
+            "QUARANTINED_THEN_APPLIED_FROM_VERIFIED_BYTES"
+          ]
+        },
+        "id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "observedSHA256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resumeSHA256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sequence": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "sequence",
+        "expectedDisposition"
+      ],
+      "type": "object"
+    },
+    "corpus": {
+      "additionalProperties": false,
+      "properties": {
+        "bounds": {
+          "additionalProperties": false,
+          "properties": {
+            "maximumGapPages": {
+              "const": 2
+            },
+            "maximumPageBytes": {
+              "const": 65536
+            },
+            "maximumPageItems": {
+              "const": 3
+            },
+            "maximumReplayAttempts": {
+              "const": 4
+            },
+            "scaleAssetCount": {
+              "const": 10000
+            },
+            "scaleExpectedPageCount": {
+              "const": 79
+            },
+            "scaleMaximumResidentBytes": {
+              "const": 16777216
+            },
+            "scalePageItems": {
+              "const": 128
+            }
+          },
+          "required": [
+            "maximumPageItems",
+            "maximumPageBytes",
+            "maximumGapPages",
+            "maximumReplayAttempts",
+            "scaleAssetCount",
+            "scalePageItems",
+            "scaleExpectedPageCount",
+            "scaleMaximumResidentBytes"
+          ],
+          "type": "object"
+        },
+        "checkpoint": {
+          "additionalProperties": false,
+          "properties": {
+            "checkpointID": {
+              "const": "2222222222224222822222222222222222222222222242228222222222222222"
+            },
+            "complete": {
+              "const": true
+            },
+            "contentManifestSHA256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "cursorSequence": {
+              "const": 40
+            },
+            "generationID": {
+              "const": "33333333-3333-4333-8333-333333333333"
+            },
+            "normalizedSnapshotSHA256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "packageContentVersion": {
+              "const": 1
+            },
+            "packageID": {
+              "const": "kernel_persistence_v4"
+            },
+            "packageReleaseSHA256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "packageSchemaVersion": {
+              "const": 4
+            },
+            "revision": {
+              "const": 40
+            },
+            "schemaRelease": {
+              "const": "KERNEL_PERSISTENCE_V4"
+            },
+            "verified": {
+              "const": true
+            }
+          },
+          "required": [
+            "checkpointID",
+            "revision",
+            "cursorSequence",
+            "schemaRelease",
+            "packageID",
+            "packageSchemaVersion",
+            "packageContentVersion",
+            "generationID",
+            "packageReleaseSHA256",
+            "normalizedSnapshotSHA256",
+            "contentManifestSHA256",
+            "complete",
+            "verified"
+          ],
+          "type": "object"
+        },
+        "conflictCases": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "competitors": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 3,
+                "minItems": 2,
+                "type": "array",
+                "uniqueItems": true
+              },
+              "expectedDisposition": {
+                "enum": [
+                  "TOMBSTONED_NO_RESURRECTION",
+                  "UNRESOLVED_STABLE_CONFLICT_ID",
+                  "DELETE_WINS_NO_RESURRECTION",
+                  "CAUSALLY_DEFERRED_THEN_RESOLVED",
+                  "EARLIER_BASIS_REMAINS_RESOLVED_SUCCESSOR_CONFLICT_CREATED"
+                ]
+              },
+              "id": {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              "policy": {
+                "enum": [
+                  "DELETE_WINS",
+                  "MANUAL"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "competitors",
+              "policy",
+              "expectedDisposition"
+            ],
+            "type": "object"
+          },
+          "maxItems": 5,
+          "minItems": 5,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "contentCases": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "expectedDisposition": {
+                "enum": [
+                  "APPLIED",
+                  "DEFERRED_THEN_APPLIED",
+                  "QUARANTINED_THEN_APPLIED_FROM_VERIFIED_BYTES"
+                ]
+              },
+              "id": {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              "observedSHA256": {
+                "anyOf": [
+                  {
+                    "pattern": "^[0-9a-f]{64}$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "resumeSHA256": {
+                "anyOf": [
+                  {
+                    "pattern": "^[0-9a-f]{64}$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "sequence": {
+                "minimum": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "id",
+              "sequence",
+              "expectedDisposition"
+            ],
+            "type": "object"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "crashMatrix": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "boundary": {
+                "enum": [
+                  "CHECKPOINT_PREPARED",
+                  "CHECKPOINT_COMMITTED",
+                  "PAGE_PREPARED",
+                  "PAGE_COMMITTED",
+                  "REPLAY_AFTER_EFFECT_BEFORE_CURSOR",
+                  "ACTIVATION_PRE_POINTER",
+                  "ACTIVATION_POST_POINTER",
+                  "COMPACTION_PRE_REPLACEMENT",
+                  "COMPACTION_POST_REPLACEMENT"
+                ]
+              },
+              "expected": {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "boundary",
+              "expected"
+            ],
+            "type": "object"
+          },
+          "maxItems": 9,
+          "minItems": 9,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "destinationReplicaIDs": {
+          "items": false,
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "const": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+            },
+            {
+              "const": "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+            },
+            {
+              "const": "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+            }
+          ],
+          "type": "array"
+        },
+        "fixedSeed": {
+          "const": "v21-p03-c11-fixed-seed-2026-08-27"
+        },
+        "pages": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "afterSequence": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "isTerminal": {
+                "type": "boolean"
+              },
+              "pageID": {
+                "pattern": "^page-[0-9]+-[0-9]+$",
+                "type": "string"
+              },
+              "pageSHA256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "sequences": {
+                "items": {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "maxItems": 128,
+                "minItems": 1,
+                "type": "array",
+                "uniqueItems": true
+              },
+              "throughSequence": {
+                "minimum": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "pageID",
+              "afterSequence",
+              "throughSequence",
+              "sequences",
+              "isTerminal",
+              "pageSHA256"
+            ],
+            "type": "object"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "postCheckpointChanges": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "canonicalInputSHA256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "contentSHA256": {
+                "anyOf": [
+                  {
+                    "pattern": "^[0-9a-f]{64}$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "entity": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "UPSERT",
+                  "CONTENT_ATTACH",
+                  "SEMANTIC_REVERSAL",
+                  "TOMBSTONE"
+                ]
+              },
+              "mutationID": {
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                "type": "string"
+              },
+              "reversesMutationID": {
+                "anyOf": [
+                  {
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "sequence": {
+                "minimum": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "sequence",
+              "mutationID",
+              "kind",
+              "entity",
+              "canonicalInputSHA256"
+            ],
+            "type": "object"
+          },
+          "maxItems": 6,
+          "minItems": 6,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "releaseAbsence": {
+          "additionalProperties": false,
+          "properties": {
+            "forbiddenProductionPaths": {
+              "items": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "forbiddenProductionSymbols": {
+              "items": {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array",
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "forbiddenProductionSymbols",
+            "forbiddenProductionPaths"
+          ],
+          "type": "object"
+        },
+        "replaySchedules": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "deliveries": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 64,
+                "minItems": 1,
+                "type": "array"
+              },
+              "expectedDisposition": {
+                "enum": [
+                  "APPLIED_TO_46",
+                  "GAP_BUFFERED_THEN_APPLIED_DUPLICATES_IGNORED",
+                  "DURABLE_GAP_RESUMED_TO_46",
+                  "REJECTED_GAP_BOUND_EXCEEDED_NO_EFFECT"
+                ]
+              },
+              "expectedSemanticSHA256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "id": {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "deliveries",
+              "expectedDisposition",
+              "expectedSemanticSHA256"
+            ],
+            "type": "object"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "replicaSchedules": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "deliveries": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 64,
+                "minItems": 1,
+                "type": "array"
+              },
+              "expectedQuiescenceRounds": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "expectedSemanticSHA256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "id": {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              "replicas": {
+                "items": {
+                  "pattern": "^[A-Z]$",
+                  "type": "string"
+                },
+                "maxItems": 3,
+                "minItems": 2,
+                "type": "array",
+                "uniqueItems": true
+              }
+            },
+            "required": [
+              "id",
+              "replicas",
+              "deliveries",
+              "expectedQuiescenceRounds",
+              "expectedSemanticSHA256"
+            ],
+            "type": "object"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "reversal": {
+          "additionalProperties": false,
+          "properties": {
+            "expectedCompactionDisposition": {
+              "const": "BASIS_AND_BOTH_RECEIPT_IDENTITIES_RETAINED"
+            },
+            "reversalMutationID": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            "reversalReceiptStableKey": {
+              "pattern": "^[0-9a-f-]+:[0-9a-f-]+:[0-9]+$",
+              "type": "string"
+            },
+            "targetMutationID": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            "targetReceiptStableKey": {
+              "pattern": "^[0-9a-f-]+:[0-9a-f-]+:[0-9]+$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "targetMutationID",
+            "reversalMutationID",
+            "targetReceiptStableKey",
+            "reversalReceiptStableKey",
+            "expectedCompactionDisposition"
+          ],
+          "type": "object"
+        },
+        "rollback": {
+          "additionalProperties": false,
+          "properties": {
+            "acceptedReceiptsImmutable": {
+              "const": true
+            },
+            "incompleteDerivedCheckpointsDiscardable": {
+              "const": true
+            },
+            "policy": {
+              "const": "CONTENT_ROLLBACK_ONLY"
+            },
+            "providerStateCreated": {
+              "const": false
+            },
+            "releasedSchemaDowngradeAllowed": {
+              "const": false
+            }
+          },
+          "required": [
+            "policy",
+            "incompleteDerivedCheckpointsDiscardable",
+            "acceptedReceiptsImmutable",
+            "releasedSchemaDowngradeAllowed",
+            "providerStateCreated"
+          ],
+          "type": "object"
+        },
+        "scale": {
+          "additionalProperties": false,
+          "properties": {
+            "assetCount": {
+              "const": 10000
+            },
+            "expectedFinalRevision": {
+              "const": 10000
+            },
+            "expectedNormalizedMetadataSHA256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "expectedPageCount": {
+              "const": 79
+            },
+            "generationRule": {
+              "const": "INDEX_ASCENDING_UTF8_LINE"
+            },
+            "labelRule": {
+              "const": "Asset-%05d"
+            },
+            "maximumResidentBytes": {
+              "const": 16777216
+            },
+            "pageItemLimit": {
+              "const": 128
+            },
+            "seed": {
+              "const": 230311
+            }
+          },
+          "required": [
+            "assetCount",
+            "seed",
+            "generationRule",
+            "labelRule",
+            "pageItemLimit",
+            "expectedPageCount",
+            "expectedFinalRevision",
+            "expectedNormalizedMetadataSHA256",
+            "maximumResidentBytes"
+          ],
+          "type": "object"
+        },
+        "schema": {
+          "const": "V21P03C11ChangeJournalCheckpointReplayCorpusV1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "sourceReplicaID": {
+          "const": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+        },
+        "workspaceID": {
+          "const": "11111111-1111-4111-8111-111111111111"
+        }
+      },
+      "required": [
+        "schema",
+        "schemaVersion",
+        "fixedSeed",
+        "workspaceID",
+        "sourceReplicaID",
+        "destinationReplicaIDs",
+        "bounds",
+        "checkpoint",
+        "postCheckpointChanges",
+        "pages",
+        "replaySchedules",
+        "contentCases",
+        "conflictCases",
+        "reversal",
+        "crashMatrix",
+        "replicaSchedules",
+        "scale",
+        "rollback",
+        "releaseAbsence"
+      ],
+      "type": "object"
+    },
+    "crashCase": {
+      "additionalProperties": false,
+      "properties": {
+        "boundary": {
+          "enum": [
+            "CHECKPOINT_PREPARED",
+            "CHECKPOINT_COMMITTED",
+            "PAGE_PREPARED",
+            "PAGE_COMMITTED",
+            "REPLAY_AFTER_EFFECT_BEFORE_CURSOR",
+            "ACTIVATION_PRE_POINTER",
+            "ACTIVATION_POST_POINTER",
+            "COMPACTION_PRE_REPLACEMENT",
+            "COMPACTION_POST_REPLACEMENT"
+          ]
+        },
+        "expected": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "boundary",
+        "expected"
+      ],
+      "type": "object"
+    },
+    "page": {
+      "additionalProperties": false,
+      "properties": {
+        "afterSequence": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "isTerminal": {
+          "type": "boolean"
+        },
+        "pageID": {
+          "pattern": "^page-[0-9]+-[0-9]+$",
+          "type": "string"
+        },
+        "pageSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "sequences": {
+          "items": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "maxItems": 128,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "throughSequence": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "pageID",
+        "afterSequence",
+        "throughSequence",
+        "sequences",
+        "isTerminal",
+        "pageSHA256"
+      ],
+      "type": "object"
+    },
+    "replaySchedule": {
+      "additionalProperties": false,
+      "properties": {
+        "deliveries": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "type": "array"
+        },
+        "expectedDisposition": {
+          "enum": [
+            "APPLIED_TO_46",
+            "GAP_BUFFERED_THEN_APPLIED_DUPLICATES_IGNORED",
+            "DURABLE_GAP_RESUMED_TO_46",
+            "REJECTED_GAP_BOUND_EXCEEDED_NO_EFFECT"
+          ]
+        },
+        "expectedSemanticSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "deliveries",
+        "expectedDisposition",
+        "expectedSemanticSHA256"
+      ],
+      "type": "object"
+    },
+    "replicaSchedule": {
+      "additionalProperties": false,
+      "properties": {
+        "deliveries": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "type": "array"
+        },
+        "expectedQuiescenceRounds": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "expectedSemanticSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "replicas": {
+          "items": {
+            "pattern": "^[A-Z]$",
+            "type": "string"
+          },
+          "maxItems": 3,
+          "minItems": 2,
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "id",
+        "replicas",
+        "deliveries",
+        "expectedQuiescenceRounds",
+        "expectedSemanticSHA256"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://assetrounds.invalid/schemas/v23/change-journal-checkpoint-replay.schema.json",
+  "$ref": "#/$defs/corpus",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "V23 P03 C11 change journal checkpoint and isolated replay corpus"
+}

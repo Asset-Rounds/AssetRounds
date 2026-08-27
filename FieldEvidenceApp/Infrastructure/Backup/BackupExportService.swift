@@ -17,6 +17,19 @@ enum BackupExportServiceError: Error, Equatable {
     case generationLeaseLost
 }
 
+struct BackupCanonicalCheckpointBasisV1: Equatable, Sendable {
+    let workspaceIdentity: WorkspaceReplicaIdentityV1
+    let generationID: UUID
+    let persistentSchemaVersion: Int
+    let recordsSchemaVersion: Int
+    let packageReleases: [PackageReleaseIdentityV1]
+    let workspaceRevision: UInt64
+    let lastLocalSequence: UInt64
+    let recordsData: Data
+    let semanticRecordsData: Data
+    let memberInventory: [V4BackupEntryV1]
+}
+
 @MainActor
 enum BackupPackageLifecycleRouteV1 {
     case live(WorkspacePackageLifecycleDependenciesV1)
@@ -25,6 +38,11 @@ enum BackupPackageLifecycleRouteV1 {
 
 @MainActor
 final class BackupExportService {
+    private static let checkpointBasisPreviewID = UUID(uuid: (
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    ))
+    private static let checkpointBasisExportedAt = Date(timeIntervalSince1970: 0)
+
     private struct Rows {
         let sites: [Site]
         let assets: [Asset]
@@ -54,6 +72,8 @@ final class BackupExportService {
         let manifest: V4BackupManifestV1
         let manifestData: Data
         let recordsData: Data
+        let mutationHistory: MutationHistorySnapshotV1
+        let checkpointBasis: BackupCanonicalCheckpointBasisV1
         let sources: [StreamingSource]
     }
 
@@ -215,6 +235,22 @@ final class BackupExportService {
     /// archive. All shipping preparation now selects the current writer.
     func prepareStreaming() throws -> BackupExportPreviewV1 {
         try prepare()
+    }
+
+    func canonicalCheckpointBasis() throws -> BackupCanonicalCheckpointBasisV1 {
+        try validateGenerationLease()
+        guard !modelContext.hasChanges else {
+            throw BackupExportServiceError.contextHasChanges
+        }
+        let value = try buildStreamingPrepared(
+            previewID: Self.checkpointBasisPreviewID,
+            exportedAt: Self.checkpointBasisExportedAt
+        )
+        guard !modelContext.hasChanges else {
+            throw BackupExportServiceError.contextHasChanges
+        }
+        try validateGenerationLease()
+        return value.checkpointBasis
     }
 
     /// Test-only compatibility fixture seam for producing the historic V1
@@ -601,12 +637,29 @@ private extension BackupExportService {
             mutationHistory: mutationHistory
         )
         let recordsData: Data
+        let semanticRecordsData: Data
         do {
             recordsData = try BackupCanonicalEncoderV1().encodeRecords(records).data
+            let semanticRecords = V4BackupRecordsV1(
+                assets: records.assets,
+                deletionLedger: records.deletionLedger,
+                evidenceFiles: records.evidenceFiles,
+                issues: records.issues,
+                mutationHistory: nil,
+                packets: records.packets,
+                recordsSchemaVersion: records.recordsSchemaVersion,
+                reports: records.reports,
+                sites: records.sites,
+                workflowRecords: records.workflowRecords
+            )
+            semanticRecordsData = try BackupCanonicalEncoderV1()
+                .encodeRecords(semanticRecords).data
         } catch {
             throw BackupExportServiceError.invalidAuthority
         }
-        guard Int64(recordsData.count) <= archiveLimits.maximumUncompressedEntryByteCount else {
+        guard Int64(recordsData.count) <= archiveLimits.maximumUncompressedEntryByteCount,
+              Int64(semanticRecordsData.count)
+                <= archiveLimits.maximumUncompressedEntryByteCount else {
             throw BackupExportServiceError.invalidAuthority
         }
 
@@ -778,6 +831,18 @@ private extension BackupExportService {
             )
         }
         let packs = try manifestPacks(rows)
+        let packageReleases: [PackageReleaseIdentityV1]
+        do {
+            packageReleases = try packs.map {
+                try PackageReleaseIdentityV1(
+                    packageID: $0.packID,
+                    schemaVersion: $0.schemaVersion,
+                    contentVersion: $0.contentVersion
+                )
+            }.sorted()
+        } catch {
+            throw BackupExportServiceError.invalidAuthority
+        }
         let manifest = V4BackupManifestV1(
             backupSchemaVersion: 4,
             consumedEvaluationRootIDs: rows.packets
@@ -808,6 +873,18 @@ private extension BackupExportService {
                 <= archiveLimits.maximumUncompressedEntryByteCount else {
             throw BackupExportServiceError.invalidAuthority
         }
+        let checkpointBasis = BackupCanonicalCheckpointBasisV1(
+            workspaceIdentity: sourceIdentity,
+            generationID: generationID,
+            persistentSchemaVersion: manifest.source.persistentSchemaVersion,
+            recordsSchemaVersion: manifest.source.recordsSchemaVersion,
+            packageReleases: packageReleases,
+            workspaceRevision: mutationHistory.workspaceRevision,
+            lastLocalSequence: mutationHistory.lastLocalSequence,
+            recordsData: recordsData,
+            semanticRecordsData: semanticRecordsData,
+            memberInventory: entries
+        )
         return StreamingPrepared(
             preview: .init(
                 id: previewID,
@@ -819,6 +896,8 @@ private extension BackupExportService {
             manifest: manifest,
             manifestData: manifestData,
             recordsData: recordsData,
+            mutationHistory: mutationHistory,
+            checkpointBasis: checkpointBasis,
             sources: sources
         )
     }

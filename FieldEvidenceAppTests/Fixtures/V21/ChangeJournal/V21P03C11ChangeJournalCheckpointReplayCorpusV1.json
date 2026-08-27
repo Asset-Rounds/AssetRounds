@@ -1,0 +1,255 @@
+{
+  "schema": "V21P03C11ChangeJournalCheckpointReplayCorpusV1",
+  "schemaVersion": 1,
+  "fixedSeed": "v21-p03-c11-fixed-seed-2026-08-27",
+  "workspaceID": "11111111-1111-4111-8111-111111111111",
+  "sourceReplicaID": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  "destinationReplicaIDs": [
+    "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+  ],
+  "bounds": {
+    "maximumPageItems": 3,
+    "maximumPageBytes": 65536,
+    "maximumGapPages": 2,
+    "maximumReplayAttempts": 4,
+    "scaleAssetCount": 10000,
+    "scalePageItems": 128,
+    "scaleExpectedPageCount": 79,
+    "scaleMaximumResidentBytes": 16777216
+  },
+  "checkpoint": {
+    "checkpointID": "2222222222224222822222222222222222222222222242228222222222222222",
+    "revision": 40,
+    "cursorSequence": 40,
+    "schemaRelease": "KERNEL_PERSISTENCE_V4",
+    "packageID": "kernel_persistence_v4",
+    "packageSchemaVersion": 4,
+    "packageContentVersion": 1,
+    "generationID": "33333333-3333-4333-8333-333333333333",
+    "packageReleaseSHA256": "0e511c1dc6fa49db0ed2c06d1e8b0b8da39ac2f0ae7f5534abfe58b18c6b09fd",
+    "normalizedSnapshotSHA256": "3f2b57ab51bfa6b2e5e26ff95d98afde609147a212435f554cfbaddb8b5411df",
+    "contentManifestSHA256": "8ce364b5f43beabf23ca21176468cb146b99fbd5d6fc134ba2848eaf1a3aaaf0",
+    "complete": true,
+    "verified": true
+  },
+  "postCheckpointChanges": [
+    {
+      "sequence": 41,
+      "mutationID": "41000000-0000-4000-8000-000000000041",
+      "kind": "UPSERT",
+      "entity": "asset:51000000-0000-4000-8000-000000000001",
+      "canonicalInputSHA256": "41dc7858f0c623be57aeb7ce87356b60ec27adc3123caed1564a272c59d09b80",
+      "contentSHA256": null,
+      "reversesMutationID": null
+    },
+    {
+      "sequence": 42,
+      "mutationID": "42000000-0000-4000-8000-000000000042",
+      "kind": "CONTENT_ATTACH",
+      "entity": "evidenceFile:52000000-0000-4000-8000-000000000002",
+      "canonicalInputSHA256": "42ed896901d734cf68bfc8df98467c71fd38bed4234dbfe2675b383d60e1ac91",
+      "contentSHA256": "d8e8fca2dc0f896fd7cb4cb0031ba249d8e8fca2dc0f896fd7cb4cb0031ba249",
+      "reversesMutationID": null
+    },
+    {
+      "sequence": 43,
+      "mutationID": "43000000-0000-4000-8000-000000000043",
+      "kind": "UPSERT",
+      "entity": "issue:53000000-0000-4000-8000-000000000003",
+      "canonicalInputSHA256": "43fe9a7a12e845d079c0d9e0a9578d820e49cef5345ec0f3786c494e71f2bda2",
+      "contentSHA256": null,
+      "reversesMutationID": null
+    },
+    {
+      "sequence": 44,
+      "mutationID": "44000000-0000-4000-8000-000000000044",
+      "kind": "SEMANTIC_REVERSAL",
+      "entity": "asset:51000000-0000-4000-8000-000000000001",
+      "canonicalInputSHA256": "440fab8b23f956e18ad1eaf1ba689e931f5ad0f6456fd104897d5a5f82a3ceb3",
+      "contentSHA256": null,
+      "reversesMutationID": "41000000-0000-4000-8000-000000000041"
+    },
+    {
+      "sequence": 45,
+      "mutationID": "45000000-0000-4000-8000-000000000045",
+      "kind": "TOMBSTONE",
+      "entity": "asset:54000000-0000-4000-8000-000000000004",
+      "canonicalInputSHA256": "4510bc9c340a67f29be2fb02cb79af04206be1a75670e215908e6b6093b4dfc4",
+      "contentSHA256": null,
+      "reversesMutationID": null
+    },
+    {
+      "sequence": 46,
+      "mutationID": "46000000-0000-4000-8000-000000000046",
+      "kind": "UPSERT",
+      "entity": "asset:55000000-0000-4000-8000-000000000005",
+      "canonicalInputSHA256": "4621cdad451b7803acf30c13dc8ab015317cf2b86781f326019f7c71a4c5e0d5",
+      "contentSHA256": null,
+      "reversesMutationID": null
+    }
+  ],
+  "pages": [
+    {
+      "pageID": "page-41-43",
+      "afterSequence": 40,
+      "throughSequence": 43,
+      "sequences": [41, 42, 43],
+      "isTerminal": false,
+      "pageSHA256": "5a3d6c78a0b78476a2c981f0fd228f07209865da11b31f0bc7642f87c0a79fa5"
+    },
+    {
+      "pageID": "page-44-46",
+      "afterSequence": 43,
+      "throughSequence": 46,
+      "sequences": [44, 45, 46],
+      "isTerminal": true,
+      "pageSHA256": "6b4e7d89b1c89587b3da92010e33901831a976eb22c4201cd8753098d1b8a0b6"
+    }
+  ],
+  "replaySchedules": [
+    {
+      "id": "golden-checkpoint-then-post-r",
+      "deliveries": ["checkpoint", "page-41-43", "page-44-46"],
+      "expectedDisposition": "APPLIED_TO_46",
+      "expectedSemanticSHA256": "9fb4f2896a6296c14a6bdff7b4d5d3f4e2c45fb4cb0f09bbce7af1d262bc46af"
+    },
+    {
+      "id": "duplicate-and-reordered",
+      "deliveries": ["checkpoint", "page-44-46", "page-41-43", "page-41-43", "page-44-46"],
+      "expectedDisposition": "GAP_BUFFERED_THEN_APPLIED_DUPLICATES_IGNORED",
+      "expectedSemanticSHA256": "9fb4f2896a6296c14a6bdff7b4d5d3f4e2c45fb4cb0f09bbce7af1d262bc46af"
+    },
+    {
+      "id": "bounded-gap-resume",
+      "deliveries": ["checkpoint", "page-44-46", "RESTART", "page-41-43"],
+      "expectedDisposition": "DURABLE_GAP_RESUMED_TO_46",
+      "expectedSemanticSHA256": "9fb4f2896a6296c14a6bdff7b4d5d3f4e2c45fb4cb0f09bbce7af1d262bc46af"
+    },
+    {
+      "id": "gap-overflow",
+      "deliveries": ["checkpoint", "future-page-50-52", "future-page-53-55", "future-page-56-58"],
+      "expectedDisposition": "REJECTED_GAP_BOUND_EXCEEDED_NO_EFFECT",
+      "expectedSemanticSHA256": "3f2b57ab51bfa6b2e5e26ff95d98afde609147a212435f554cfbaddb8b5411df"
+    }
+  ],
+  "contentCases": [
+    {
+      "id": "content-present",
+      "sequence": 42,
+      "observedSHA256": "d8e8fca2dc0f896fd7cb4cb0031ba249d8e8fca2dc0f896fd7cb4cb0031ba249",
+      "expectedDisposition": "APPLIED"
+    },
+    {
+      "id": "content-missing-then-resumed",
+      "sequence": 42,
+      "observedSHA256": null,
+      "resumeSHA256": "d8e8fca2dc0f896fd7cb4cb0031ba249d8e8fca2dc0f896fd7cb4cb0031ba249",
+      "expectedDisposition": "DEFERRED_THEN_APPLIED"
+    },
+    {
+      "id": "content-corrupt-then-resumed",
+      "sequence": 42,
+      "observedSHA256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "resumeSHA256": "d8e8fca2dc0f896fd7cb4cb0031ba249d8e8fca2dc0f896fd7cb4cb0031ba249",
+      "expectedDisposition": "QUARANTINED_THEN_APPLIED_FROM_VERIFIED_BYTES"
+    }
+  ],
+  "conflictCases": [
+    {
+      "id": "old-backup-tombstone",
+      "competitors": ["backup-upsert-39", "tombstone-45"],
+      "policy": "DELETE_WINS",
+      "expectedDisposition": "TOMBSTONED_NO_RESURRECTION"
+    },
+    {
+      "id": "same-field-manual",
+      "competitors": ["replica-a-label", "replica-b-label"],
+      "policy": "MANUAL",
+      "expectedDisposition": "UNRESOLVED_STABLE_CONFLICT_ID"
+    },
+    {
+      "id": "delete-versus-update",
+      "competitors": ["replica-a-delete", "replica-b-update"],
+      "policy": "DELETE_WINS",
+      "expectedDisposition": "DELETE_WINS_NO_RESURRECTION"
+    },
+    {
+      "id": "resolution-before-competitors",
+      "competitors": ["replica-a-label", "replica-b-label"],
+      "policy": "MANUAL",
+      "expectedDisposition": "CAUSALLY_DEFERRED_THEN_RESOLVED"
+    },
+    {
+      "id": "late-third-competitor",
+      "competitors": ["replica-a-label", "replica-b-label", "replica-c-label"],
+      "policy": "MANUAL",
+      "expectedDisposition": "EARLIER_BASIS_REMAINS_RESOLVED_SUCCESSOR_CONFLICT_CREATED"
+    }
+  ],
+  "reversal": {
+    "targetMutationID": "41000000-0000-4000-8000-000000000041",
+    "reversalMutationID": "44000000-0000-4000-8000-000000000044",
+    "targetReceiptStableKey": "11111111-1111-4111-8111-111111111111:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa:41",
+    "reversalReceiptStableKey": "11111111-1111-4111-8111-111111111111:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa:44",
+    "expectedCompactionDisposition": "BASIS_AND_BOTH_RECEIPT_IDENTITIES_RETAINED"
+  },
+  "crashMatrix": [
+    {"boundary": "CHECKPOINT_PREPARED", "expected": "INCOMPLETE_CHECKPOINT_DISCARDED"},
+    {"boundary": "CHECKPOINT_COMMITTED", "expected": "VERIFIED_CHECKPOINT_REUSED"},
+    {"boundary": "PAGE_PREPARED", "expected": "INCOMPLETE_PAGE_DISCARDED"},
+    {"boundary": "PAGE_COMMITTED", "expected": "IDENTICAL_PAGE_REUSED"},
+    {"boundary": "REPLAY_AFTER_EFFECT_BEFORE_CURSOR", "expected": "EFFECT_REPROVED_CURSOR_ADVANCED_ONCE"},
+    {"boundary": "ACTIVATION_PRE_POINTER", "expected": "SOURCE_REMAINS_ACTIVE"},
+    {"boundary": "ACTIVATION_POST_POINTER", "expected": "DESTINATION_ACTIVE_ON_RELAUNCH"},
+    {"boundary": "COMPACTION_PRE_REPLACEMENT", "expected": "ORIGINAL_JOURNAL_RETAINED"},
+    {"boundary": "COMPACTION_POST_REPLACEMENT", "expected": "COMPACTED_JOURNAL_VERIFIED"}
+  ],
+  "replicaSchedules": [
+    {
+      "id": "two-replica-golden",
+      "replicas": ["A", "B"],
+      "deliveries": ["A1>B", "B1>A", "A1>B", "A2>B", "B2>A"],
+      "expectedQuiescenceRounds": 3,
+      "expectedSemanticSHA256": "ba41e97d3792a61e506e312a41f4b5482fe96914af340ed1c99c29560ebca746"
+    },
+    {
+      "id": "three-replica-adversarial",
+      "replicas": ["A", "B", "C"],
+      "deliveries": ["C1>A", "A1>B", "B1>C", "A1>C", "C1>B", "B1>A", "RESOLUTION>A", "RESOLUTION>B", "RESOLUTION>C", "C2>A", "C2>B"],
+      "expectedQuiescenceRounds": 5,
+      "expectedSemanticSHA256": "cb52fa8e4803b72f617f423b5205c65930fa7a25b0451fe2da0d3a671fdbb857"
+    }
+  ],
+  "scale": {
+    "assetCount": 10000,
+    "seed": 230311,
+    "generationRule": "INDEX_ASCENDING_UTF8_LINE",
+    "labelRule": "Asset-%05d",
+    "pageItemLimit": 128,
+    "expectedPageCount": 79,
+    "expectedFinalRevision": 10000,
+    "expectedNormalizedMetadataSHA256": "1a26706b22cf4297894cafe4c8513c8105bedb1e3a2a793e914be0e3b4952d8b",
+    "maximumResidentBytes": 16777216
+  },
+  "rollback": {
+    "policy": "CONTENT_ROLLBACK_ONLY",
+    "incompleteDerivedCheckpointsDiscardable": true,
+    "acceptedReceiptsImmutable": true,
+    "releasedSchemaDowngradeAllowed": false,
+    "providerStateCreated": false
+  },
+  "releaseAbsence": {
+    "forbiddenProductionSymbols": [
+      "ReplicaConvergenceScenarioV1",
+      "ReplicaDeliveryScheduleV1",
+      "ReplicaConvergenceReceiptV1"
+    ],
+    "forbiddenProductionPaths": [
+      "FieldEvidenceApp/Domain/Replication/ReplicaConvergenceScenarioV1.swift",
+      "FieldEvidenceApp/Infrastructure/Replication/NetworkTransport.swift",
+      "FieldEvidenceApp/Infrastructure/Replication/ProviderOutbox.swift"
+    ]
+  }
+}
