@@ -141,6 +141,32 @@ struct WorkflowDefinitionV1: Codable, Equatable, Sendable {
     }
 }
 
+extension WorkflowDefinitionV1 {
+    /// Field descriptors are released beside, rather than encoded inside, the
+    /// C02 workflow definition. This preserves every accepted workflow byte and
+    /// package-release hash while proving a complete C03 typed binding.
+    func validateResponseFieldDefinitions(
+        _ definitions: [ResponseFieldDefinitionV1],
+        packageReleaseID: String,
+        workflowSHA256: String
+    ) throws {
+        guard KernelCanonicalHashV1.validSHA256(packageReleaseID),
+              KernelCanonicalHashV1.validSHA256(workflowSHA256),
+              definitions.map(\.fieldID) == definitions.map(\.fieldID).sorted(),
+              Set(definitions.map(\.fieldID)).count == definitions.count,
+              Set(definitions.map(\.fieldID)) == Set(declaredFieldIDs) else {
+            throw ResponseContractFailureV1.invalidValue
+        }
+        for definition in definitions {
+            guard definition.packageReleaseID == packageReleaseID,
+                  definition.workflowSHA256 == workflowSHA256 else {
+                throw ResponseContractFailureV1.hashMismatch
+            }
+            try definition.validate()
+        }
+    }
+}
+
 extension WorkflowNodeV1 {
     private enum CodingKeys: String, CodingKey, CaseIterable {
         case nodeID, kind, localizationKey, fieldID, evidencePurposeID, predicate

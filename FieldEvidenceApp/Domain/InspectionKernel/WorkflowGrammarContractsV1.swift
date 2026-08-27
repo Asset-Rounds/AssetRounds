@@ -224,6 +224,30 @@ enum WorkflowFactValueV1: Equatable, Sendable {
     case fixed(Int64)
 }
 
+extension WorkflowFactValueV1 {
+    /// The workflow grammar consumes only the fact shapes its closed predicate
+    /// language can evaluate. Other typed responses remain valid responses but
+    /// deliberately evaluate as UNKNOWN rather than gaining implicit truth.
+    init(responseValue: ResponseValueV1) {
+        switch responseValue {
+        case .noValue, .notApplicable:
+            self = .unknown
+        case .boolean:
+            self = .known
+        case .triState(let value):
+            self = value == .unknown ? .unknown : .known
+        case .singleOption(let optionID):
+            self = .option(optionID)
+        case .integer(let value):
+            self = .fixed(value)
+        case .decimal(let value) where value.scale == 0:
+            self = .fixed(value.mantissa)
+        default:
+            self = .known
+        }
+    }
+}
+
 struct RepeatInstanceIDV1: Codable, Equatable, Hashable, Sendable {
     let rawValue: String
     init(_ rawValue: String) throws {

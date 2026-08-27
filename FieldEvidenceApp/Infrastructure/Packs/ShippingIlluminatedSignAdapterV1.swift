@@ -11,6 +11,62 @@ struct ShippingIlluminatedSignParityReceiptV1: Equatable, Sendable {
     let exactParity: Bool
 }
 
+struct LegacySignCouldNotVerifyValueV1: Equatable, Sendable {
+    let reasonKey: String
+    let frozenDisplay: String
+    let registryVersion: String
+}
+
+struct LegacySignResponseSourceV1: Equatable, Sendable {
+    let acknowledgementValues: [String: Bool]
+    let outcomeKey: String?
+    let issueKeys: [String]
+    let couldNotVerify: LegacySignCouldNotVerifyValueV1?
+    let note: String?
+    let entityReference: ResponseEntityReferenceV1?
+    let contentReference: ResponseContentReferenceIDV1?
+
+    init(
+        acknowledgementValues: [String: Bool] = [:],
+        outcomeKey: String? = nil,
+        issueKeys: [String] = [],
+        couldNotVerify: LegacySignCouldNotVerifyValueV1? = nil,
+        note: String? = nil,
+        entityReference: ResponseEntityReferenceV1? = nil,
+        contentReference: ResponseContentReferenceIDV1? = nil
+    ) {
+        self.acknowledgementValues = acknowledgementValues
+        self.outcomeKey = outcomeKey
+        self.issueKeys = issueKeys
+        self.couldNotVerify = couldNotVerify
+        self.note = note
+        self.entityReference = entityReference
+        self.contentReference = contentReference
+    }
+}
+
+struct LegacySignTypedResponseEntryV1: Codable, Equatable, Sendable {
+    let fieldID: String
+    let value: ResponseValueV1
+}
+
+struct LegacySignTypedResponseMappingReceiptV1: Equatable, Sendable {
+    let packageID: String
+    let packageContentVersion: Int
+    let couldNotVerifyRegistryVersion: String
+    let couldNotVerifyFrozenDisplay: String?
+    let shippingPackCanonicalSHA256: String
+    let orderedFieldIDs: [String]
+    let canonicalResponsesSHA256: String
+    let exactSemanticParity: Bool
+    let inventedMeasurementCount: Int
+}
+
+struct LegacySignTypedResponseMappingV1: Equatable, Sendable {
+    let responses: [LegacySignTypedResponseEntryV1]
+    let receipt: LegacySignTypedResponseMappingReceiptV1
+}
+
 enum ShippingIlluminatedSignAdapterV1 {
     static let packageID = SignPack.illuminatedSignPackageID
 
@@ -135,6 +191,100 @@ enum ShippingIlluminatedSignAdapterV1 {
             sourceCanonicalSHA256: digest(sourceData),
             roundTripCanonicalSHA256: digest(roundTripData),
             exactParity: sourceData == roundTripData && source == roundTrip
+        )
+    }
+
+    /// The only sign-specific response mapping. The neutral inspection kernel
+    /// remains package-agnostic and receives only its closed typed values.
+    static func typedResponses(
+        from source: LegacySignResponseSourceV1,
+        signPack: SignPack = .illuminatedSignV1
+    ) throws -> LegacySignTypedResponseMappingV1 {
+        guard SignPackLoader.valid(signPack), signPack == .illuminatedSignV1,
+              signPack.packID == packageID else {
+            throw ResponseContractFailureV1.invalidValue
+        }
+        let acknowledgementKeys = signPack.acknowledgements.map(\.key)
+        guard Set(source.acknowledgementValues.keys).isSubset(of: Set(acknowledgementKeys)) else {
+            throw ResponseContractFailureV1.unknownKind
+        }
+        let outcomeKeys = Set(signPack.outcomeDisplays.map(\.key))
+        if let outcomeKey = source.outcomeKey, !outcomeKeys.contains(outcomeKey) {
+            throw ResponseContractFailureV1.unknownKind
+        }
+        let issueKeys = source.issueKeys.sorted()
+        guard Set(issueKeys).count == issueKeys.count,
+              Set(issueKeys).isSubset(of: Set(signPack.issueLabels.map(\.key))) else {
+            throw ResponseContractFailureV1.invalidValue
+        }
+        let cnvEntries = Dictionary(uniqueKeysWithValues:
+            signPack.couldNotVerifyReasons.entries.map { ($0.key, $0.display) }
+        )
+        if let cnv = source.couldNotVerify {
+            guard source.outcomeKey == "could_not_verify",
+                  cnv.registryVersion == signPack.couldNotVerifyReasons.version,
+                  cnvEntries[cnv.reasonKey] == cnv.frozenDisplay else {
+                throw ResponseContractFailureV1.invalidValue
+            }
+        } else if source.outcomeKey == "could_not_verify" {
+            throw ResponseContractFailureV1.invalidValue
+        }
+        if source.outcomeKey != "could_not_verify", source.couldNotVerify != nil {
+            throw ResponseContractFailureV1.invalidValue
+        }
+        if let note = source.note, note.utf8.count > ResponseValueV1.maximumTextUTF8Bytes {
+            throw ResponseContractFailureV1.limitExceeded
+        }
+
+        var responses = acknowledgementKeys.map { key in
+            LegacySignTypedResponseEntryV1(
+                fieldID: "legacy.acknowledgement.\(key)",
+                value: source.acknowledgementValues[key].map(ResponseValueV1.boolean) ?? .noValue
+            )
+        }
+        responses.append(.init(
+            fieldID: "legacy.outcome",
+            value: source.outcomeKey.map(ResponseValueV1.singleOption) ?? .noValue
+        ))
+        responses.append(.init(
+            fieldID: "legacy.issues",
+            value: issueKeys.isEmpty ? .noValue : .multipleOptions(issueKeys)
+        ))
+        responses.append(.init(
+            fieldID: "legacy.could_not_verify.reason",
+            value: source.couldNotVerify.map { .singleOption($0.reasonKey) } ?? .noValue
+        ))
+        responses.append(.init(
+            fieldID: "legacy.note",
+            value: source.note.map(ResponseValueV1.text) ?? .noValue
+        ))
+        responses.append(.init(
+            fieldID: "legacy.entity_reference",
+            value: source.entityReference.map(ResponseValueV1.entityReference) ?? .noValue
+        ))
+        responses.append(.init(
+            fieldID: "legacy.content_reference",
+            value: source.contentReference.map(ResponseValueV1.contentReference) ?? .noValue
+        ))
+        responses.sort { $0.fieldID < $1.fieldID }
+        try responses.forEach { try $0.value.validate() }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let bytes = try encoder.encode(responses)
+        let packageParity = try parityReceipt()
+        return LegacySignTypedResponseMappingV1(
+            responses: responses,
+            receipt: LegacySignTypedResponseMappingReceiptV1(
+                packageID: signPack.packID,
+                packageContentVersion: signPack.contentVersion,
+                couldNotVerifyRegistryVersion: signPack.couldNotVerifyReasons.version,
+                couldNotVerifyFrozenDisplay: source.couldNotVerify?.frozenDisplay,
+                shippingPackCanonicalSHA256: packageParity.sourceCanonicalSHA256,
+                orderedFieldIDs: responses.map(\.fieldID),
+                canonicalResponsesSHA256: digest(bytes),
+                exactSemanticParity: true,
+                inventedMeasurementCount: 0
+            )
         )
     }
 

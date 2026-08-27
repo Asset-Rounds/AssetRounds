@@ -12,6 +12,47 @@ struct WorkflowGraphValidationReceiptV1: Equatable, Sendable {
 }
 
 enum WorkflowGraphValidatorV1 {
+    static func validate(
+        _ definition: WorkflowDefinitionV1,
+        responseFieldDefinitions: [ResponseFieldDefinitionV1],
+        packageReleaseID: String,
+        workflowSHA256: String
+    ) throws -> WorkflowGraphValidationReceiptV1 {
+        let receipt = try validate(definition)
+        try definition.validateResponseFieldDefinitions(
+            responseFieldDefinitions,
+            packageReleaseID: packageReleaseID,
+            workflowSHA256: workflowSHA256
+        )
+        let factFields = Set(definition.nodes.compactMap { node in
+            node.kind == .fact ? node.fieldID : nil
+        })
+        guard factFields == Set(responseFieldDefinitions.map(\.fieldID)) else {
+            throw ResponseContractFailureV1.invalidValue
+        }
+        return receipt
+    }
+
+    static func validate(
+        _ definition: WorkflowDefinitionV1,
+        responseFieldDefinitions: [ResponseFieldDefinitionV1],
+        responses: [BoundResponseValueV1],
+        packageReleaseID: String,
+        workflowSHA256: String
+    ) throws -> WorkflowGraphValidationReceiptV1 {
+        let receipt = try validate(
+            definition,
+            responseFieldDefinitions: responseFieldDefinitions,
+            packageReleaseID: packageReleaseID,
+            workflowSHA256: workflowSHA256
+        )
+        try ResponseFieldValidatorV1.validateCollection(
+            responses,
+            definitions: responseFieldDefinitions
+        )
+        return receipt
+    }
+
     static func validate(_ definition: WorkflowDefinitionV1) throws
         -> WorkflowGraphValidationReceiptV1 {
         guard definition.schemaVersion == WorkflowDefinitionV1.schemaVersion,
