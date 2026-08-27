@@ -33,21 +33,29 @@ def _load(relative: str) -> dict[str, Any]:
     return json.loads((ROOT / relative).read_text(encoding="utf-8"), object_pairs_hook=_no_duplicate_keys)
 
 
-def _git_status_paths() -> list[str]:
-    output = subprocess.run(
+def _candidate_changed_paths() -> list[str]:
+    status_output = subprocess.run(
         ["git", "-C", str(ROOT), "status", "--porcelain=v1", "--untracked-files=all"],
         check=True,
         capture_output=True,
         text=True,
     ).stdout
     paths: list[str] = []
-    for line in output.splitlines():
+    for line in status_output.splitlines():
         if not line:
             continue
         path = line[3:]
         if " -> " in path:
             path = path.split(" -> ", 1)[1]
         paths.append(path.replace("\\", "/"))
+
+    committed_output = subprocess.run(
+        ["git", "-C", str(ROOT), "diff", "--name-only", contracts.BASE_HEAD, "--"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    paths.extend(path.replace("\\", "/") for path in committed_output.splitlines() if path)
     return sorted(set(paths))
 
 
@@ -98,9 +106,9 @@ def main() -> int:
     parser.parse_args()
 
     failures: list[str] = []
-    status_paths = _git_status_paths()
-    unowned_changed = sorted(set(status_paths) - set(contracts.PATH_FENCE))
-    missing_required_changed = sorted(set(contracts.PATH_FENCE) - set(status_paths))
+    candidate_paths = _candidate_changed_paths()
+    unowned_changed = sorted(set(candidate_paths) - set(contracts.PATH_FENCE))
+    missing_required_changed = sorted(set(contracts.PATH_FENCE) - set(candidate_paths))
 
     _assert(not unowned_changed, "changed path outside full C38 fence", failures)
     _assert(not missing_required_changed, "required changed path missing from full C38 fence", failures)

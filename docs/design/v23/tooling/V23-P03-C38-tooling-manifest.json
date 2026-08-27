@@ -67,8 +67,8 @@
   "allowedDeletePaths": [],
   "allowedRenamePaths": [],
   "artifact": "V23P03C38ToolingManifestV1",
-  "artifactDigest": "91112544c29534e66b00dbed2c65e1add9f708d4a0820b3c873e4ffa35b4d9be",
-  "artifactSetDigest": "57fe343eed3261aa22110959da33ad9bfb2ee9abec34554289127886fbe6968d",
+  "artifactDigest": "fb92f733db853e0aaa9e54f7828513a82df7d66be9ce3b1e9823fafcb6059828",
+  "artifactSetDigest": "c46d5b6fdc334631ec92b645906cd223af922fbfa2cbfaefc4cd497de6611b4b",
   "artifacts": [
     {
       "bytes": 5647,
@@ -413,9 +413,9 @@
       "state": "WORKTREE"
     },
     {
-      "bytes": 14019,
+      "bytes": 14353,
       "path": "Scripts/v23/verify_p03_c38_contracts.py",
-      "sha256": "2c632fad789f574d8ab62c28cb91b2c1f986c243fc0f20fd6f2bb15abc08f961",
+      "sha256": "62937027488c3e8cfdfccefe6948b3d1cdefc14702587ff2bb54826633b69b31",
       "state": "WORKTREE"
     },
     {
