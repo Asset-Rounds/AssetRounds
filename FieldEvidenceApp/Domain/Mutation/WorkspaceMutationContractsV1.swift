@@ -25,6 +25,10 @@ struct MutationIDV1: Codable, Hashable, Sendable {
 enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case site
     case asset
+    case locationNode
+    case assetPlacementEvent
+    case assetCompositionEdge
+    case assetCompositionEvent
     case workflowRecord
     case evidenceFile
     case issue
@@ -150,6 +154,37 @@ struct FirstSignMutationV1: Codable, Equatable, Sendable {
     let packSchemaVersion: Int
     let packContentVersion: Int
     let createdAt: Date
+    /// Nil only for decoding/replaying the frozen pre-V6 command shape. Every
+    /// live V6 caller supplies all three placement fields atomically.
+    let initialPlacementMutationID: MutationIDV1?
+    let initialPlacementEventID: UUID?
+    let initialPhysicalEpisodeID: PhysicalPlacementEpisodeIDV1?
+
+    init(
+        siteID: UUID,
+        newSite: NewSiteV1?,
+        assetID: UUID,
+        assetLabel: String,
+        packID: String,
+        packSchemaVersion: Int,
+        packContentVersion: Int,
+        createdAt: Date,
+        initialPlacementMutationID: MutationIDV1? = nil,
+        initialPlacementEventID: UUID? = nil,
+        initialPhysicalEpisodeID: PhysicalPlacementEpisodeIDV1? = nil
+    ) {
+        self.siteID = siteID
+        self.newSite = newSite
+        self.assetID = assetID
+        self.assetLabel = assetLabel
+        self.packID = packID
+        self.packSchemaVersion = packSchemaVersion
+        self.packContentVersion = packContentVersion
+        self.createdAt = createdAt
+        self.initialPlacementMutationID = initialPlacementMutationID
+        self.initialPlacementEventID = initialPlacementEventID
+        self.initialPhysicalEpisodeID = initialPhysicalEpisodeID
+    }
 }
 
 struct CheckDraftMutationV1: Codable, Equatable, Sendable {
@@ -325,6 +360,29 @@ struct RestoreWorkspaceMutationV1: Codable, Equatable, Sendable {
     let targetGenerationID: UUID
 }
 
+struct LocationHierarchyMutationV1: Codable, Equatable, Sendable {
+    let plan: LocationHierarchyChangePlanV1
+    let placementChanges: [AssetPlacementChangePlanV1]
+
+    init(plan: LocationHierarchyChangePlanV1, placementChanges: [AssetPlacementChangePlanV1]) throws {
+        try plan.validate()
+        let ordered = placementChanges.sorted { $0.basis.assetID.uuidString < $1.basis.assetID.uuidString }
+        guard ordered == placementChanges,
+              Set(ordered.map(\.basis.assetID)).count == ordered.count,
+              ordered.map(\.basis.assetID) == plan.bindingChangedAssetIDs,
+              ordered.allSatisfy({
+                  $0.operationID == plan.operationID
+                    && $0.mutationID.rawValue == plan.operationID
+                    && $0.basis.workspaceID == plan.workspaceID
+                    && plan.continuityByAssetID[$0.basis.assetID] == $0.basis.reviewedContinuity
+              }) else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+        self.plan = plan
+        self.placementChanges = ordered
+    }
+}
+
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
     case createCheckDraft(CheckDraftMutationV1)
@@ -338,6 +396,9 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case recordWork(RecordWorkMutationV1)
     case restoreWorkspace(RestoreWorkspaceMutationV1)
     case archiveEntities(ArchiveEntitiesMutationV1)
+    case applyLocationHierarchyChange(LocationHierarchyMutationV1)
+    case applyAssetPlacementChange(AssetPlacementChangePlanV1)
+    case applyAssetCompositionChange(AssetCompositionChangePlanV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -353,6 +414,9 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .recordWork: .recordWork
         case .restoreWorkspace: .restoreWorkspace
         case .archiveEntities: .archiveEntities
+        case .applyLocationHierarchyChange: .applyLocationHierarchyChange
+        case .applyAssetPlacementChange: .applyAssetPlacementChange
+        case .applyAssetCompositionChange: .applyAssetCompositionChange
         }
     }
 }
@@ -370,6 +434,37 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case recordWork = "record_work"
     case restoreWorkspace = "restore_workspace"
     case archiveEntities = "archive_entities_preview_compensation"
+    case applyLocationHierarchyChange = "apply_location_hierarchy_change"
+    case applyAssetPlacementChange = "apply_asset_placement_change"
+    case applyAssetCompositionChange = "apply_asset_composition_change"
+}
+
+extension WorkspaceCommandV1 {
+    func canonicalLocationAffectedIdentities() throws -> [WorkspaceEntityIdentityV1]? {
+        let values: [WorkspaceEntityIdentityV1]
+        switch self {
+        case let .applyLocationHierarchyChange(value):
+            let nodeIDs = Set(value.plan.beforeNodes.map(\.id)).union(value.plan.afterNodes.map(\.id))
+            var result = try nodeIDs.map { try WorkspaceEntityIdentityV1(kind: .locationNode, id: $0) }
+            for placement in value.placementChanges {
+                result.append(try .init(kind: .asset, id: placement.basis.assetID))
+                result.append(try .init(kind: .assetPlacementEvent, id: placement.newEventID))
+            }
+            values = result
+        case let .applyAssetPlacementChange(plan):
+            values = try [.init(kind: .asset, id: plan.basis.assetID), .init(kind: .assetPlacementEvent, id: plan.newEventID)]
+        case let .applyAssetCompositionChange(plan):
+            values = try [.init(kind: .assetCompositionEdge, id: plan.event.edge.id), .init(kind: .assetCompositionEvent, id: plan.event.id)]
+        default:
+            return nil
+        }
+        let ordered = values.sorted { $0.stableKey < $1.stableKey }
+        guard ordered.count <= MutationReceiptV1.maximumPostImageCount,
+              Set(ordered).count == ordered.count else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+        return ordered
+    }
 }
 
 struct WorkspaceMutationRequestV1: Codable, Equatable, Sendable {
@@ -1071,6 +1166,9 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind: .recordWork, disposition: .irreversible, stableReason: "completed_work_supersession_only"),
         .init(commandKind: .restoreWorkspace, disposition: .irreversible, stableReason: "generation_restore_cannot_be_reversed"),
         .init(commandKind: .archiveEntities, disposition: .compensatable, stableReason: "append_semantic_successor_only"),
+        .init(commandKind: .applyLocationHierarchyChange, disposition: .compensatable, stableReason: "append_hierarchy_successor_only"),
+        .init(commandKind: .applyAssetPlacementChange, disposition: .compensatable, stableReason: "append_placement_successor_only"),
+        .init(commandKind: .applyAssetCompositionChange, disposition: .compensatable, stableReason: "append_composition_successor_only"),
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {

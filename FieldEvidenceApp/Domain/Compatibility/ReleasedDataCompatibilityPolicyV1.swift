@@ -410,20 +410,22 @@ struct ReleasedDataCompatibilityPolicyV1: Codable, Equatable, Sendable {
             switch value.family {
             case .liveStore:
                 return path(.liveStore, .publiclyPersisted, [
-                    "1.0.0", "2.0.0", "3.0.0", "4.0.0", "5.0.0",
-                ], "5.0.0", transitions: [
+                    "1.0.0", "2.0.0", "3.0.0", "4.0.0", "5.0.0", "6.0.0",
+                ], "6.0.0", transitions: [
                     .init(fromVersion: "1.0.0", toVersion: "2.0.0"),
                     .init(fromVersion: "2.0.0", toVersion: "3.0.0"),
                     .init(fromVersion: "3.0.0", toVersion: "4.0.0"),
                     .init(fromVersion: "4.0.0", toVersion: "5.0.0"),
+                    .init(fromVersion: "5.0.0", toVersion: "6.0.0"),
                 ], search: .unavailableAtThisHead, rebuild: .available)
             case .backupPackage:
                 return path(.backupPackage, .publiclyPersisted, [
                     "archive1-backup2-persistent1-records1",
                     "archive1-backup2-persistent3-records2",
                     "archive1-backup4-persistent5-records4",
+                    "archive1-backup4-persistent6-records5",
                     "directory-v4-backup1-persistent1-records1",
-                ], "archive1-backup4-persistent5-records4",
+                ], "archive1-backup4-persistent6-records5",
                 search: .notApplicable, rebuild: .notApplicable)
             case .reportOpenJSON:
                 return path(.reportOpenJSON, .publiclyPersisted,

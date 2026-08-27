@@ -11,6 +11,23 @@ enum ReportSnapshotEncodingErrorV1: Error, Equatable {
 }
 
 struct ReportSnapshotEncoderV1: Sendable {
+    func encode(_ snapshot: CompletedActivitySnapshotV2) throws -> EncodedReportSnapshotV1 {
+        do {
+            let data = try CompletedActivitySnapshotCanonicalCodecV2.encode(snapshot)
+            return EncodedReportSnapshotV1(
+                data: data,
+                sha256: KernelCanonicalHashV1.sha256(data)
+            )
+        } catch {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+    }
+
+    func decodeCompletedActivityV2(_ data: Data) throws -> CompletedActivitySnapshotV2 {
+        do { return try CompletedActivitySnapshotCanonicalCodecV2.decode(data) }
+        catch { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
+    }
+
     func encode(_ snapshot: ReportSnapshotV1) throws -> EncodedReportSnapshotV1 {
         guard Self.isValid(snapshot) else {
             throw ReportSnapshotEncodingErrorV1.invalidSnapshot

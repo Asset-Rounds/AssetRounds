@@ -1,0 +1,605 @@
+{
+  "$id": "https://assetrounds.invalid/schemas/v23/location-placement-composition.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "compositionHistory": {
+      "items": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "childAssetID": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "edgeID": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "edgeSHA256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "eventID": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "isActive": {
+                "type": "boolean"
+              },
+              "parentAssetID": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "predecessorID": {
+                "type": "null"
+              },
+              "revision": {
+                "type": "integer"
+              },
+              "schemaVersion": {
+                "type": "integer"
+              },
+              "semantic": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "state": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "workspaceID": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            "required": [
+              "childAssetID",
+              "edgeID",
+              "edgeSHA256",
+              "eventID",
+              "isActive",
+              "parentAssetID",
+              "predecessorID",
+              "revision",
+              "schemaVersion",
+              "semantic",
+              "state",
+              "workspaceID"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "childAssetID": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "edgeID": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "edgeSHA256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "eventID": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "isActive": {
+                "type": "boolean"
+              },
+              "parentAssetID": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "predecessorID": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "revision": {
+                "type": "integer"
+              },
+              "schemaVersion": {
+                "type": "integer"
+              },
+              "semantic": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "state": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "workspaceID": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            "required": [
+              "childAssetID",
+              "edgeID",
+              "edgeSHA256",
+              "eventID",
+              "isActive",
+              "parentAssetID",
+              "predecessorID",
+              "revision",
+              "schemaVersion",
+              "semantic",
+              "state",
+              "workspaceID"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    },
+    "deletionMatrix": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "activeComposition": {
+            "type": "boolean"
+          },
+          "expected": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "operation": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "activeComposition",
+          "expected",
+          "id",
+          "operation"
+        ],
+        "type": "object"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array"
+    },
+    "flatMigration": {
+      "additionalProperties": false,
+      "properties": {
+        "assetIDs": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "baselineEventKind": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "baselineLocationNodeID": {
+          "type": "null"
+        },
+        "destinationSchema": {
+          "type": "integer"
+        },
+        "eventsPerAsset": {
+          "type": "integer"
+        },
+        "preservesSiteAndAssetIDs": {
+          "type": "boolean"
+        },
+        "sourceSchema": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "assetIDs",
+        "baselineEventKind",
+        "baselineLocationNodeID",
+        "destinationSchema",
+        "eventsPerAsset",
+        "preservesSiteAndAssetIDs",
+        "sourceSchema"
+      ],
+      "type": "object"
+    },
+    "hostileCases": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 12,
+      "minItems": 12,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "interruptionPoints": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "nodes": {
+      "items": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "kind": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "label": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "order": {
+                "type": "integer"
+              },
+              "parentID": {
+                "type": "null"
+              },
+              "siteID": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "state": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "label",
+              "order",
+              "parentID",
+              "siteID",
+              "state"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "kind": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "label": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "order": {
+                "type": "integer"
+              },
+              "parentID": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "siteID": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "state": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "label",
+              "order",
+              "parentID",
+              "siteID",
+              "state"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "maxItems": 4,
+      "minItems": 4,
+      "type": "array"
+    },
+    "placementHistory": {
+      "items": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assetID": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "continuity": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "eventID": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "eventSHA256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "kind": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "locationNodeID": {
+                "type": "null"
+              },
+              "mutationID": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "occurredAtMilliseconds": {
+                "type": "integer"
+              },
+              "pathNodeIDs": {
+                "maxItems": 0,
+                "minItems": 0,
+                "type": "array",
+                "uniqueItems": true
+              },
+              "physicalEpisodeID": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "predecessorID": {
+                "type": "null"
+              },
+              "schemaVersion": {
+                "type": "integer"
+              },
+              "siteID": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "tip": {
+                "type": "boolean"
+              },
+              "workspaceID": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            "required": [
+              "assetID",
+              "continuity",
+              "eventID",
+              "eventSHA256",
+              "kind",
+              "locationNodeID",
+              "mutationID",
+              "occurredAtMilliseconds",
+              "pathNodeIDs",
+              "physicalEpisodeID",
+              "predecessorID",
+              "schemaVersion",
+              "siteID",
+              "tip",
+              "workspaceID"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "assetID": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "continuity": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "eventID": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "eventSHA256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "kind": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "locationNodeID": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "mutationID": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "occurredAtMilliseconds": {
+                "type": "integer"
+              },
+              "pathNodeIDs": {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 4,
+                "minItems": 4,
+                "type": "array",
+                "uniqueItems": true
+              },
+              "physicalEpisodeID": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "predecessorID": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "schemaVersion": {
+                "type": "integer"
+              },
+              "siteID": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "tip": {
+                "type": "boolean"
+              },
+              "workspaceID": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            "required": [
+              "assetID",
+              "continuity",
+              "eventID",
+              "eventSHA256",
+              "kind",
+              "locationNodeID",
+              "mutationID",
+              "occurredAtMilliseconds",
+              "pathNodeIDs",
+              "physicalEpisodeID",
+              "predecessorID",
+              "schemaVersion",
+              "siteID",
+              "tip",
+              "workspaceID"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "maxItems": 4,
+      "minItems": 4,
+      "type": "array"
+    },
+    "releaseAbsence": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptanceCredit": {
+          "type": "boolean"
+        },
+        "adoptionEnabled": {
+          "type": "boolean"
+        },
+        "hostedDispatchEnabled": {
+          "type": "boolean"
+        },
+        "nativeCompileRan": {
+          "type": "boolean"
+        },
+        "phase10PollingDuringParallelExecution": {
+          "type": "boolean"
+        },
+        "releaseCredit": {
+          "type": "boolean"
+        },
+        "requiresAcceptedS10_6Reconciliation": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "acceptanceCredit",
+        "adoptionEnabled",
+        "hostedDispatchEnabled",
+        "nativeCompileRan",
+        "phase10PollingDuringParallelExecution",
+        "releaseCredit",
+        "requiresAcceptedS10_6Reconciliation"
+      ],
+      "type": "object"
+    },
+    "restoreMatrix": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 7,
+      "minItems": 7,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "schema": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "integer"
+    },
+    "sites": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "label": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label"
+        ],
+        "type": "object"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    },
+    "workspaceID": {
+      "format": "uuid",
+      "type": "string"
+    }
+  },
+  "required": [
+    "compositionHistory",
+    "deletionMatrix",
+    "flatMigration",
+    "hostileCases",
+    "interruptionPoints",
+    "nodes",
+    "placementHistory",
+    "releaseAbsence",
+    "restoreMatrix",
+    "schema",
+    "schemaVersion",
+    "sites",
+    "workspaceID"
+  ],
+  "title": "V23-P03-C35 semantic location placement composition corpus",
+  "type": "object"
+}

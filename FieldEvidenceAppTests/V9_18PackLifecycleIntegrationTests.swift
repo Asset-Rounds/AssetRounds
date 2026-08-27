@@ -134,9 +134,19 @@ final class V9_18PackLifecycleIntegrationTests: XCTestCase {
             // Expected fail-closed interruption boundary.
         }
 
-        let firstCommand = makeFirstAssetCommand(label: "Primary")
-        let firstOutcome = try harness.dependencies.writer.execute(firstCommand)
-        let competingCommand = makeFirstAssetCommand(label: "Competing")
+        let firstMutationID = try harness.dependencies.writer.makeMutationID()
+        let firstCommand = try makeFirstAssetCommand(
+            label: "Primary",
+            mutationID: firstMutationID
+        )
+        let firstOutcome = try harness.dependencies.writer.execute(
+            firstCommand,
+            mutationID: firstMutationID
+        )
+        let competingCommand = try makeFirstAssetCommand(
+            label: "Competing",
+            mutationID: firstOutcome.mutationID
+        )
         let competingRequest = try request(
             mutationID: firstOutcome.mutationID,
             command: competingCommand,
@@ -160,7 +170,14 @@ final class V9_18PackLifecycleIntegrationTests: XCTestCase {
         XCTAssertNotEqual(first.dependencies.workspaceID, second.dependencies.workspaceID)
         XCTAssertNotEqual(first.dependencies.generationID, second.dependencies.generationID)
 
-        _ = try first.dependencies.writer.execute(makeFirstAssetCommand(label: "First only"))
+        let firstMutationID = try first.dependencies.writer.makeMutationID()
+        _ = try first.dependencies.writer.execute(
+            try makeFirstAssetCommand(
+                label: "First only",
+                mutationID: firstMutationID
+            ),
+            mutationID: firstMutationID
+        )
         let firstAsset = try XCTUnwrap(
             try first.session.modelContext.fetch(FetchDescriptor<Asset>()).first
         )
@@ -286,8 +303,12 @@ final class V9_18PackLifecycleIntegrationTests: XCTestCase {
         )
     }
 
-    private func makeFirstAssetCommand(label: String) -> WorkspaceCommandV1 {
+    private func makeFirstAssetCommand(
+        label: String,
+        mutationID: MutationIDV1
+    ) throws -> WorkspaceCommandV1 {
         let siteID = UUID()
+        let placementEventID = UUID()
         return .createFirstSign(FirstSignMutationV1(
             siteID: siteID,
             newSite: .init(
@@ -301,7 +322,12 @@ final class V9_18PackLifecycleIntegrationTests: XCTestCase {
             packID: SignPack.illuminatedSignV1.packID,
             packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
             packContentVersion: SignPack.illuminatedSignV1.contentVersion,
-            createdAt: Date(timeIntervalSince1970: 1_700_000_000)
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+            initialPlacementMutationID: mutationID,
+            initialPlacementEventID: placementEventID,
+            initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(
+                rawValue: UUID()
+            )
         ))
     }
 
@@ -338,10 +364,17 @@ final class V9_18PackLifecycleIntegrationTests: XCTestCase {
         guard case let .createFirstSign(value) = command else {
             throw TestFailure.unsupportedCommand
         }
-        return try [
+        var identities = try [
             WorkspaceEntityIdentityV1(kind: .site, id: value.siteID),
             WorkspaceEntityIdentityV1(kind: .asset, id: value.assetID),
         ]
+        if let placementEventID = value.initialPlacementEventID {
+            identities.append(try WorkspaceEntityIdentityV1(
+                kind: .assetPlacementEvent,
+                id: placementEventID
+            ))
+        }
+        return identities
     }
 
     private func assertPackageOutcomeParity(

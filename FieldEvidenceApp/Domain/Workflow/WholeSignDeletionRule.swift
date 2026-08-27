@@ -86,6 +86,110 @@ enum WholeSignDeletionRuleError: Error, Equatable {
 }
 
 enum WholeSignDeletionRule {
+    /// Ordinary asset/site deletion is deliberately not an Erase operation.
+    /// Placement and composition event rows are append-only evidence and are
+    /// therefore never returned as cascade targets. Active composition must be
+    /// retired through the sole workspace writer before either endpoint can be
+    /// deleted. A site with location/history rows requires a separate explicit
+    /// hierarchy disposition rather than silently orphaning or deleting them.
+    static func validateLocationDeletionNoCascade(
+        deletingAssetID: UUID?,
+        deletingSiteID: UUID?,
+        liveAssetSiteByID: [UUID: UUID],
+        locationNodes: [LocationNodeV1],
+        placementEvents: [AssetPlacementEventV1],
+        compositionEdges: [AssetCompositionEdgeV1]
+    ) throws {
+        guard (deletingAssetID == nil) != (deletingSiteID == nil),
+              Set(locationNodes.map(\.id)).count == locationNodes.count,
+              Set(placementEvents.map(\.id)).count == placementEvents.count,
+              Set(compositionEdges.map(\.id)).count == compositionEdges.count else {
+            throw WholeSignDeletionRuleError.invalidGraph
+        }
+        var placementTips: [UUID: AssetPlacementEventV1] = [:]
+        do {
+            try LocationHierarchyPolicyV1.validate(locationNodes)
+            let histories = Dictionary(grouping: placementEvents, by: \.assetID)
+            let liveAssetIDs = Set(liveAssetSiteByID.keys)
+            guard liveAssetIDs.isSubset(of: Set(histories.keys)),
+                  compositionEdges.filter(\.isActive).allSatisfy({
+                      liveAssetIDs.contains($0.parentAssetID) && liveAssetIDs.contains($0.childAssetID)
+                  }) else {
+                throw WholeSignDeletionRuleError.invalidGraph
+            }
+            for (assetID, events) in histories {
+                try AssetPlacementHistoryV1.validate(events)
+                let byID = Dictionary(uniqueKeysWithValues: events.map { ($0.id, $0) })
+                let referenced = Set(events.compactMap(\.predecessorEventID))
+                guard let tip = events.first(where: { !referenced.contains($0.id) }) else {
+                    throw WholeSignDeletionRuleError.invalidGraph
+                }
+                var visited = Set<UUID>()
+                var cursor: AssetPlacementEventV1? = tip
+                while let event = cursor {
+                    guard visited.insert(event.id).inserted else {
+                        throw WholeSignDeletionRuleError.invalidGraph
+                    }
+                    cursor = event.predecessorEventID.flatMap { byID[$0] }
+                }
+                guard visited.count == events.count else {
+                    throw WholeSignDeletionRuleError.invalidGraph
+                }
+                placementTips[assetID] = tip
+            }
+            guard liveAssetSiteByID.allSatisfy({ assetID, siteID in
+                placementTips[assetID]?.siteID == siteID
+            }) else {
+                throw WholeSignDeletionRuleError.invalidGraph
+            }
+            let nodesByID = Dictionary(uniqueKeysWithValues: locationNodes.map { ($0.id, $0) })
+            guard placementEvents.allSatisfy({ event in
+                guard let nodeID = event.locationNodeID,
+                      let node = nodesByID[nodeID] else {
+                    return event.locationNodeID == nil
+                }
+                return node.workspaceID == event.workspaceID && node.siteID == event.siteID
+            }) else {
+                throw WholeSignDeletionRuleError.invalidGraph
+            }
+            try AssetCompositionPolicyV1.validate(
+                edges: compositionEdges,
+                placementByAssetID: placementTips
+            )
+        } catch {
+            throw WholeSignDeletionRuleError.invalidGraph
+        }
+        if let deletingAssetID {
+            guard !compositionEdges.contains(where: {
+                $0.isActive && ($0.parentAssetID == deletingAssetID || $0.childAssetID == deletingAssetID)
+            }) else {
+                throw WholeSignDeletionRuleError.invalidGraph
+            }
+            // Placement history intentionally remains as an immutable reference
+            // to the asset tombstone; it is not a deletion-ledger cascade target.
+            return
+        }
+        guard let deletingSiteID else {
+            throw WholeSignDeletionRuleError.invalidGraph
+        }
+        let siteAssetIDs = Set(liveAssetSiteByID.compactMap { assetID, siteID in
+            siteID == deletingSiteID ? assetID : nil
+        })
+        guard
+              siteAssetIDs.isEmpty,
+              !locationNodes.contains(where: {
+                  $0.siteID == deletingSiteID && $0.state == .active
+              }),
+              !compositionEdges.contains(where: {
+                  $0.isActive && (siteAssetIDs.contains($0.parentAssetID)
+                    || siteAssetIDs.contains($0.childAssetID))
+              }) else {
+            throw WholeSignDeletionRuleError.invalidGraph
+        }
+        // Archived nodes and all placement history remain addressable through
+        // the site tombstone. Erase, not ordinary delete, clears the generation.
+    }
+
     static func makeExplicitSiteDeletionPreview(
         _ input: ExplicitSiteDeletionInputV1
     ) throws -> ExplicitSiteDeletionPreviewV1 {

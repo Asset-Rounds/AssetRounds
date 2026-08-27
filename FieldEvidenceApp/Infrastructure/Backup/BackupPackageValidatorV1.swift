@@ -553,6 +553,15 @@ private extension BackupPackageValidatorV1 {
         default:
             sourceIdentityIsValid = false
         }
+        let sourceGenerationIsValid: Bool
+        if manifest.source.recordsSchemaVersion == 5 {
+            sourceGenerationIsValid = manifest.source.sourceGenerationID.map {
+                $0 != zero && $0 != manifest.source.workspaceID
+                    && $0 != manifest.source.replicaID
+            } ?? false
+        } else {
+            sourceGenerationIsValid = manifest.source.sourceGenerationID == nil
+        }
         let schemaPairIsValid: Bool
         switch (
             manifest.backupSchemaVersion,
@@ -560,12 +569,12 @@ private extension BackupPackageValidatorV1 {
             manifest.source.recordsSchemaVersion
         ) {
         case (1, 1, 1), (2, 1, 1), (2, 3, 2), (3, 4, 3),
-             (4, 5, 4):
+             (4, 5, 4), (4, 6, 5):
             schemaPairIsValid = true
         default:
             schemaPairIsValid = false
         }
-        guard sourceIdentityIsValid,
+        guard sourceIdentityIsValid, sourceGenerationIsValid,
               schemaPairIsValid,
               manifest.entries.count <= limits.maximumEntryCount,
               manifest.declaredPayloadByteCount >= 0 else {
@@ -706,10 +715,16 @@ private extension BackupPackageValidatorV1 {
               !kernelSchema.activationEnabled else { throw invalid() }
         try validateDeletionLedger(records, manifest: manifest)
         try validateObservationAndTime(records)
+        try validateLocationRecords(records, manifest: manifest)
         let allIDs = records.sites.map(\.id) + records.assets.map(\.id)
             + records.workflowRecords.map(\.id) + records.evidenceFiles.map(\.id)
             + records.issues.map(\.id) + records.packets.map(\.id)
-            + records.reports.map(\.id)
+            + records.reports.map(\.id) + records.assetCompositionEdges.map(\.id)
+            + records.assetCompositionEvents.map(\.id)
+            + records.assetPlacementEvents.map(\.id)
+            + records.locationHierarchyEvents.map(\.id)
+            + records.locationMigrationReceipts.map(\.id)
+            + records.locationNodes.map(\.id)
         guard Set(allIDs).count == allIDs.count else { throw invalid() }
         let sites = Dictionary(uniqueKeysWithValues: records.sites.map { ($0.id, $0) })
         let assets = Dictionary(uniqueKeysWithValues: records.assets.map { ($0.id, $0) })
@@ -1020,7 +1035,7 @@ private extension BackupPackageValidatorV1 {
             }) else { throw invalid() }
             return
         }
-        guard records.recordsSchemaVersion == 4 else { throw invalid() }
+        guard (4...5).contains(records.recordsSchemaVersion) else { throw invalid() }
         for record in records.workflowRecords {
             guard let basisData = record.observationBasisV1Data,
                   let temporalData = record.temporalContextV1Data else {
@@ -1060,6 +1075,165 @@ private extension BackupPackageValidatorV1 {
         }
     }
 
+    func validateLocationRecords(
+        _ records: V4BackupRecordsV1,
+        manifest: V4BackupManifestV1
+    ) throws {
+        let groups = [
+            records.assetCompositionEdges, records.assetCompositionEvents,
+            records.assetPlacementEvents, records.locationHierarchyEvents,
+            records.locationMigrationReceipts, records.locationNodes,
+        ]
+        guard records.recordsSchemaVersion == 5 else {
+            guard groups.allSatisfy(\.isEmpty) else { throw invalid() }
+            return
+        }
+        guard manifest.backupSchemaVersion == 4,
+              manifest.source.persistentSchemaVersion == 6,
+              let sourceWorkspaceID = manifest.source.workspaceID else {
+            throw invalid()
+        }
+        let workspaceID = WorkspaceID(rawValue: sourceWorkspaceID)
+        func canonical<T: Codable>(_ type: T.Type, _ record: V5BackupLocationRecordV1) throws -> T {
+            do { return try LocationPersistenceCodecV1.decode(type, from: record.canonicalData) }
+            catch { throw invalid() }
+        }
+        do {
+            let nodes: [LocationNodeV1] = try records.locationNodes.map {
+                let value = try canonical(LocationNodeV1.self, $0)
+                guard value.id == $0.id, value.workspaceID == workspaceID,
+                      $0.secondaryCanonicalData == nil else { throw invalid() }
+                return value
+            }
+            try LocationHierarchyPolicyV1.validate(nodes)
+            let siteIDs = Set(records.sites.map(\.id))
+            let assetIDs = Set(records.assets.map(\.id))
+            let deletionEntries = records.deletionLedger?.entries ?? []
+            let deletedSiteIDs = Set(deletionEntries.compactMap {
+                $0.identity.kind == .site ? $0.identity.id : nil
+            })
+            let deletedAssetIDs = Set(deletionEntries.compactMap {
+                $0.identity.kind == .asset ? $0.identity.id : nil
+            })
+            let knownSiteIDs = siteIDs.union(deletedSiteIDs)
+            let knownAssetIDs = assetIDs.union(deletedAssetIDs)
+            guard nodes.allSatisfy({
+                knownSiteIDs.contains($0.siteID)
+                    && (!deletedSiteIDs.contains($0.siteID) || $0.state == .archived)
+            }) else { throw invalid() }
+            let nodeIDs = Set(nodes.map(\.id))
+
+            let placements: [AssetPlacementEventV1] = try records.assetPlacementEvents.map {
+                let value = try canonical(AssetPlacementEventV1.self, $0)
+                guard value.id == $0.id, value.workspaceID == workspaceID,
+                      knownSiteIDs.contains(value.siteID), knownAssetIDs.contains(value.assetID),
+                      value.locationNodeID.map(nodeIDs.contains) ?? true,
+                      $0.secondaryCanonicalData == nil else { throw invalid() }
+                return value
+            }
+            let placementIDs = Set(placements.map(\.id))
+            guard placements.allSatisfy({ $0.predecessorEventID == nil || placementIDs.contains($0.predecessorEventID!) }),
+                  assetIDs.isSubset(of: Set(placements.map(\.assetID))) else { throw invalid() }
+            for history in Dictionary(grouping: placements, by: \.assetID).values {
+                try AssetPlacementHistoryV1.validate(history)
+            }
+            let predecessorIDs = Set(placements.compactMap(\.predecessorEventID))
+            let currentPlacements = placements.filter { !predecessorIDs.contains($0.id) }
+            guard currentPlacements.count == Set(placements.map(\.assetID)).count,
+                  Set(currentPlacements.map(\.assetID)).count == currentPlacements.count else {
+                throw invalid()
+            }
+            let placementByID = Dictionary(uniqueKeysWithValues: placements.map { ($0.id, $0) })
+            var reachedPlacementIDs = Set<UUID>()
+            for tip in currentPlacements {
+                var cursor: AssetPlacementEventV1? = tip
+                var visited = Set<UUID>()
+                while let value = cursor {
+                    guard value.assetID == tip.assetID,
+                          visited.insert(value.id).inserted,
+                          reachedPlacementIDs.insert(value.id).inserted else { throw invalid() }
+                    cursor = value.predecessorEventID.flatMap { placementByID[$0] }
+                }
+            }
+            guard reachedPlacementIDs.count == placements.count else { throw invalid() }
+            let placementByAssetID = Dictionary(uniqueKeysWithValues: currentPlacements.map { ($0.assetID, $0) })
+            let siteByAssetID = Dictionary(uniqueKeysWithValues: records.assets.map { ($0.id, $0.siteID) })
+            guard currentPlacements.allSatisfy({ value in
+                guard assetIDs.contains(value.assetID) else {
+                    return deletedAssetIDs.contains(value.assetID)
+                }
+                return siteIDs.contains(value.siteID) && siteByAssetID[value.assetID] == value.siteID
+            }) else { throw invalid() }
+
+            let edges: [AssetCompositionEdgeV1] = try records.assetCompositionEdges.map {
+                let value = try canonical(AssetCompositionEdgeV1.self, $0)
+                guard value.id == $0.id, value.workspaceID == workspaceID,
+                      knownAssetIDs.contains(value.parentAssetID),
+                      knownAssetIDs.contains(value.childAssetID),
+                      (!value.isActive || (assetIDs.contains(value.parentAssetID)
+                        && assetIDs.contains(value.childAssetID))),
+                      $0.secondaryCanonicalData == nil else { throw invalid() }
+                return value
+            }
+            try AssetCompositionPolicyV1.validate(
+                edges: edges.filter(\.isActive),
+                placementByAssetID: placementByAssetID
+            )
+            let edgeIDs = Set(edges.map(\.id))
+            let compositionEvents = try records.assetCompositionEvents.map {
+                let value = try canonical(AssetCompositionEventV1.self, $0)
+                guard value.id == $0.id, value.workspaceID == workspaceID,
+                      edgeIDs.contains(value.edge.id),
+                      knownAssetIDs.contains(value.edge.parentAssetID),
+                      knownAssetIDs.contains(value.edge.childAssetID),
+                      $0.secondaryCanonicalData == nil else { throw invalid() }
+                return value
+            }
+            let compositionHistoryByEdgeID = Dictionary(grouping: compositionEvents, by: { $0.edge.id })
+            guard Set(compositionHistoryByEdgeID.keys) == edgeIDs else { throw invalid() }
+            let currentEdgeByID = Dictionary(uniqueKeysWithValues: edges.map { ($0.id, $0) })
+            for (edgeID, history) in compositionHistoryByEdgeID {
+                guard let currentEdge = currentEdgeByID[edgeID] else { throw invalid() }
+                try AssetCompositionHistoryV1.validate(history, currentEdge: currentEdge)
+            }
+            for record in records.locationHierarchyEvents {
+                guard let receiptData = record.secondaryCanonicalData else { throw invalid() }
+                let plan = try canonical(LocationHierarchyChangePlanV1.self, record)
+                let receipt = try LocationPersistenceCodecV1.decode(LocationHierarchyChangeReceiptV1.self, from: receiptData)
+                guard plan.operationID == record.id, plan.workspaceID == workspaceID,
+                      receipt.planSHA256 == plan.planSHA256,
+                      receipt.mutationReceiptIdentity.workspaceID == workspaceID,
+                      plan.affectedAssetIDs.allSatisfy(knownAssetIDs.contains),
+                      (plan.beforeNodes + plan.afterNodes).allSatisfy({
+                        $0.workspaceID == workspaceID && knownSiteIDs.contains($0.siteID)
+                      }),
+                      (plan.beforePaths + plan.afterPaths).allSatisfy({
+                        knownSiteIDs.contains($0.siteID)
+                      }) else { throw invalid() }
+            }
+            let migrationReceipts = try records.locationMigrationReceipts.map {
+                let value = try canonical(LocationMigrationReceiptV1.self, $0)
+                guard value.candidateGenerationID == $0.id, value.workspaceID == workspaceID,
+                      value.candidateGenerationID == manifest.source.sourceGenerationID,
+                      value.bindings.allSatisfy({
+                        knownAssetIDs.contains($0.assetID)
+                            && knownSiteIDs.contains($0.siteID)
+                      }),
+                      $0.secondaryCanonicalData == nil else { throw invalid() }
+                return value
+            }
+            guard migrationReceipts.count <= 1 else { throw invalid() }
+            try LocationMigrationIntegrityV1.validate(
+                receipt: migrationReceipts.first,
+                placementEvents: placements,
+                knownAssetIDs: knownAssetIDs,
+                liveAssetSiteByID: siteByAssetID
+            )
+        } catch {
+            throw invalid()
+        }
+    }
+
     func validateDeletionLedger(
         _ records: V4BackupRecordsV1,
         manifest: V4BackupManifestV1
@@ -1077,7 +1251,8 @@ private extension BackupPackageValidatorV1 {
             return
         case (2, let value?, nil):
             ledger = value
-        case (3, let value?, let history?), (4, let value?, let history?):
+        case (3, let value?, let history?), (4, let value?, let history?),
+             (5, let value?, let history?):
             ledger = value
             do { try MutationJournalStoreV1.validateImportedSnapshot(history) }
             catch { throw invalid() }

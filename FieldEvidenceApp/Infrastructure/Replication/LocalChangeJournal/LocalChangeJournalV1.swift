@@ -254,7 +254,9 @@ final class LocalChangeJournalV1 {
         ))
         let recordSchemaSHA256 = try Self.sha256(RecordSchemaDigestBasis(
             recordsSchemaVersion: destination.recordsSchemaVersion,
-            orderedFields: Self.v4BackupRecordFields
+            orderedFields: destination.recordsSchemaVersion == 5
+                ? Self.v5BackupRecordFields
+                : Self.v4BackupRecordFields
         ))
         guard destination.workspaceIdentity == identity,
               destination.generationID == generationID,
@@ -640,8 +642,8 @@ final class LocalChangeJournalV1 {
         guard basis.workspaceIdentity == identity, basis.generationID == generationID else {
             throw ChangeJournalFailureV1.wrongGeneration
         }
-        guard basis.persistentSchemaVersion == 5,
-              basis.recordsSchemaVersion == 4 else {
+        guard basis.persistentSchemaVersion == 6,
+              basis.recordsSchemaVersion == 5 else {
             throw ChangeJournalFailureV1.incompatibleVersion
         }
         guard basis.memberInventory.map(\.path) == basis.memberInventory.map(\.path).sorted(),
@@ -693,7 +695,7 @@ final class LocalChangeJournalV1 {
             recordSchemaVersion: basis.recordsSchemaVersion,
             recordSchemaSHA256: try Self.sha256(RecordSchemaDigestBasis(
                 recordsSchemaVersion: basis.recordsSchemaVersion,
-                orderedFields: Self.v4BackupRecordFields
+                orderedFields: Self.v5BackupRecordFields
             )),
             packages: packages,
             frontier: currentFrontier,
@@ -1116,6 +1118,7 @@ final class LocalChangeJournalV1 {
         case 3: return PersistentSchemaReleaseV1.v3.compatibilityID
         case 4: return PersistentSchemaReleaseV1.v4.compatibilityID
         case 5: return PersistentSchemaReleaseV1.v5.compatibilityID
+        case 6: return PersistentSchemaReleaseV1.v6.compatibilityID
         default: throw ChangeJournalFailureV1.incompatibleVersion
         }
     }
@@ -1348,6 +1351,13 @@ final class LocalChangeJournalV1 {
     private static let v4BackupRecordFields = [
         "assets", "deletionLedger", "evidenceFiles", "issues", "mutationHistory",
         "packets", "recordsSchemaVersion", "reports", "sites", "workflowRecords",
+    ]
+
+    private static let v5BackupRecordFields = [
+        "assetCompositionEdges", "assetCompositionEvents", "assetPlacementEvents",
+        "assets", "deletionLedger", "evidenceFiles", "issues", "locationHierarchyEvents",
+        "locationMigrationReceipts", "locationNodes", "mutationHistory", "packets",
+        "recordsSchemaVersion", "reports", "sites", "workflowRecords",
     ]
 
     private static let decoder: JSONDecoder = {

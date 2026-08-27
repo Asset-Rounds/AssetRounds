@@ -43,9 +43,17 @@ final class S6_2BackupExportTests: XCTestCase {
         let validated = try importer.stageAndValidate(selectedPackageURL: package)
         defer { try? importer.discard(validated) }
         XCTAssertEqual(validated.manifest.backupSchemaVersion, 4)
-        XCTAssertEqual(validated.manifest.source.persistentSchemaVersion, 5)
-        XCTAssertEqual(validated.manifest.source.recordsSchemaVersion, 4)
+        XCTAssertEqual(validated.manifest.source.persistentSchemaVersion, 6)
+        XCTAssertEqual(validated.manifest.source.recordsSchemaVersion, 5)
         XCTAssertNotNil(validated.records.mutationHistory)
+        let placementHistory = try validated.records.assetPlacementEvents.map {
+            try LocationPersistenceCodecV1.decode(
+                AssetPlacementEventV1.self,
+                from: $0.canonicalData
+            )
+        }
+        XCTAssertEqual(placementHistory.count, 1)
+        XCTAssertNoThrow(try AssetPlacementHistoryV1.validate(placementHistory))
 
         let recordsData = try XCTUnwrap(validated.members["records.json"])
         let records = try XCTUnwrap(try JSONSerialization.jsonObject(with: recordsData) as? [String: Any])
@@ -233,6 +241,25 @@ private extension S6_2BackupExportTests {
         let assetID = UUID(uuidString: "62000000-0000-0000-0000-000000000002")!
         context.insert(Site(id: siteID, label: "Backup Site", address: nil, timeZoneID: "America/New_York", createdAt: Date(timeIntervalSince1970: 1_776_420_000)))
         context.insert(Asset(id: assetID, siteID: siteID, packID: pack.packID, packSchemaVersion: pack.schemaVersion, packContentVersion: pack.contentVersion, label: "One Live Sign", createdAt: Date(timeIntervalSince1970: 1_776_420_001)))
+        let state = try XCTUnwrap(context.fetch(FetchDescriptor<WorkspaceMutationStateRow>()).first)
+        let initialPlacement = try AssetPlacementEventV1(
+            id: UUID(uuidString: "62000000-0000-4000-8000-000000000003")!,
+            workspaceID: WorkspaceID(rawValue: state.workspaceID),
+            assetID: assetID, siteID: siteID, locationNodeID: nil,
+            predecessorEventID: nil, source: .manual,
+            physicalEpisodeID: try PhysicalPlacementEpisodeIDV1(
+                rawValue: UUID(uuidString: "62000000-0000-4000-8000-000000000004")!
+            ),
+            continuity: .samePhysicalInstallation,
+            pathSnapshot: try LocationPathSnapshotV1(
+                siteID: siteID, siteDisplay: "Backup Site", nodes: []
+            ),
+            mutationID: MutationIDV1(
+                rawValue: UUID(uuidString: "62000000-0000-4000-8000-000000000005")!
+            ),
+            occurredAt: Date(timeIntervalSince1970: 1_776_420_001)
+        )
+        context.insert(try AssetPlacementEventRow(initialPlacement))
         try context.save()
         let coordinator = CheckRunnerCoordinator(modelContext: context, signPack: pack)
         coordinator.configureCapture(generationRootURL: session.generationRootURL)

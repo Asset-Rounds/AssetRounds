@@ -43,6 +43,23 @@ struct BackupCanonicalEncoderV1: Sendable {
         guard Self.valid(records) else {
             throw BackupCanonicalEncodingErrorV1.invalidRecords
         }
+        return try encoded(.object(Self.recordFields(records)))
+    }
+
+    /// Canonical business-state projection used only by replication checkpoints.
+    /// Shipping backup transport continues to require its mutation history.
+    func encodeSemanticRecords(
+        _ records: V4BackupRecordsV1
+    ) throws -> EncodedBackupJSONV1 {
+        guard Self.validSemantic(records) else {
+            throw BackupCanonicalEncodingErrorV1.invalidRecords
+        }
+        return try encoded(.object(Self.recordFields(records)))
+    }
+
+    private static func recordFields(
+        _ records: V4BackupRecordsV1
+    ) throws -> [String: CanonicalJSONValueV1] {
         var fields: [String: CanonicalJSONValueV1] = [
             "assets": .array(records.assets.map(Self.asset)),
             "evidenceFiles": .array(records.evidenceFiles.map(Self.evidenceFile)),
@@ -58,13 +75,21 @@ struct BackupCanonicalEncoderV1: Sendable {
                 )
             }),
         ]
+        if records.recordsSchemaVersion >= 5 {
+            fields["assetCompositionEdges"] = .array(records.assetCompositionEdges.map(Self.locationRecord))
+            fields["assetCompositionEvents"] = .array(records.assetCompositionEvents.map(Self.locationRecord))
+            fields["assetPlacementEvents"] = .array(records.assetPlacementEvents.map(Self.locationRecord))
+            fields["locationHierarchyEvents"] = .array(records.locationHierarchyEvents.map(Self.locationRecord))
+            fields["locationMigrationReceipts"] = .array(records.locationMigrationReceipts.map(Self.locationRecord))
+            fields["locationNodes"] = .array(records.locationNodes.map(Self.locationRecord))
+        }
         if let deletionLedger = records.deletionLedger {
             fields["deletionLedger"] = Self.deletionLedger(deletionLedger)
         }
         if let mutationHistory = records.mutationHistory {
             fields["mutationHistory"] = try Self.mutationHistory(mutationHistory)
         }
-        return try encoded(.object(fields))
+        return fields
     }
 
     func encodeManifest(_ manifest: V4BackupManifestV1) throws -> EncodedBackupJSONV1 {
@@ -91,6 +116,31 @@ struct BackupCanonicalEncoderV1: Sendable {
 }
 
 private extension BackupCanonicalEncoderV1 {
+    static func validSemantic(_ records: V4BackupRecordsV1) -> Bool {
+        guard (4...5).contains(records.recordsSchemaVersion),
+              records.mutationHistory == nil,
+              let ledger = records.deletionLedger,
+              (try? ledger.validate()) != nil else {
+            return false
+        }
+        return validObservationAndTime(records)
+            && validLocationRecords(records)
+            && sortedUniqueIDs(records.assets.map(\.id))
+            && records.assets.allSatisfy({ $0.schemaVersion == 1 })
+            && sortedUniqueIDs(records.evidenceFiles.map(\.id))
+            && records.evidenceFiles.allSatisfy({ $0.schemaVersion == 1 })
+            && sortedUniqueIDs(records.issues.map(\.id))
+            && records.issues.allSatisfy({ $0.schemaVersion == 1 })
+            && sortedUniqueIDs(records.packets.map(\.id))
+            && records.packets.allSatisfy({ $0.schemaVersion == 1 })
+            && sortedUniqueIDs(records.reports.map(\.id))
+            && records.reports.allSatisfy({ $0.schemaVersion == 1 })
+            && sortedUniqueIDs(records.sites.map(\.id))
+            && records.sites.allSatisfy({ $0.schemaVersion == 1 })
+            && sortedUniqueIDs(records.workflowRecords.map(\.id))
+            && records.workflowRecords.allSatisfy({ $0.schemaVersion == 1 })
+    }
+
     static func valid(_ records: V4BackupRecordsV1) -> Bool {
         let ledgerIsValid: Bool
         switch (
@@ -102,7 +152,8 @@ private extension BackupCanonicalEncoderV1 {
             ledgerIsValid = true
         case (2, let ledger?, nil):
             ledgerIsValid = (try? ledger.validate()) != nil
-        case (3, let ledger?, let history?), (4, let ledger?, let history?):
+        case (3, let ledger?, let history?), (4, let ledger?, let history?),
+             (5, let ledger?, let history?):
             ledgerIsValid = (try? ledger.validate()) != nil
                 && (try? MutationJournalStoreV1.validateImportedSnapshot(history)) != nil
                 && validMutationHistoryOrder(history)
@@ -111,6 +162,7 @@ private extension BackupCanonicalEncoderV1 {
         }
         return ledgerIsValid
             && validObservationAndTime(records)
+            && validLocationRecords(records)
             && sortedUniqueIDs(records.assets.map(\.id))
             && records.assets.allSatisfy({ $0.schemaVersion == 1 })
             && sortedUniqueIDs(records.evidenceFiles.map(\.id))
@@ -133,7 +185,7 @@ private extension BackupCanonicalEncoderV1 {
                 $0.observationBasisV1Data == nil && $0.temporalContextV1Data == nil
             }
         }
-        guard records.recordsSchemaVersion == 4 else { return false }
+        guard (4...5).contains(records.recordsSchemaVersion) else { return false }
         return records.workflowRecords.allSatisfy { record in
             guard let basisData = record.observationBasisV1Data,
                   let temporalData = record.temporalContextV1Data else { return false }
@@ -167,6 +219,117 @@ private extension BackupCanonicalEncoderV1 {
         }
     }
 
+    static func validLocationRecords(_ records: V4BackupRecordsV1) -> Bool {
+        let groups = [
+            records.assetCompositionEdges, records.assetCompositionEvents,
+            records.assetPlacementEvents, records.locationHierarchyEvents,
+            records.locationMigrationReceipts, records.locationNodes,
+        ]
+        if records.recordsSchemaVersion < 5 {
+            return groups.allSatisfy(\.isEmpty)
+        }
+        guard groups.allSatisfy({ values in
+            values.map(\.id.uuidString) == values.map(\.id.uuidString).sorted()
+                && Set(values.map(\.id)).count == values.count
+                && values.allSatisfy {
+                    !$0.canonicalData.isEmpty
+                        && $0.canonicalData.count
+                            <= SnapshotProjectionLimitsV1.maximumProjectionBytes
+                        && ($0.secondaryCanonicalData?.count ?? 0)
+                            <= SnapshotProjectionLimitsV1.maximumProjectionBytes
+                }
+        })
+            && records.locationHierarchyEvents.allSatisfy {
+                !($0.secondaryCanonicalData?.isEmpty ?? true)
+            }
+            && (records.assetCompositionEdges
+                + records.assetCompositionEvents
+                + records.assetPlacementEvents
+                + records.locationMigrationReceipts
+                + records.locationNodes).allSatisfy {
+                    $0.secondaryCanonicalData == nil
+                } else {
+            return false
+        }
+        do {
+            let placements = try records.assetPlacementEvents.map { record in
+                let value = try LocationPersistenceCodecV1.decode(
+                    AssetPlacementEventV1.self,
+                    from: record.canonicalData
+                )
+                guard value.id == record.id else { throw LocationContractFailureV1.invalidValue }
+                return value
+            }
+            for history in Dictionary(grouping: placements, by: \.assetID).values {
+                try AssetPlacementHistoryV1.validate(history)
+            }
+            let edges = try records.assetCompositionEdges.map { record in
+                let value = try LocationPersistenceCodecV1.decode(
+                    AssetCompositionEdgeV1.self,
+                    from: record.canonicalData
+                )
+                guard value.id == record.id else { throw LocationContractFailureV1.invalidValue }
+                return value
+            }
+            let events = try records.assetCompositionEvents.map { record in
+                let value = try LocationPersistenceCodecV1.decode(
+                    AssetCompositionEventV1.self,
+                    from: record.canonicalData
+                )
+                guard value.id == record.id else { throw LocationContractFailureV1.invalidValue }
+                return value
+            }
+            let currentEdges = Dictionary(uniqueKeysWithValues: edges.map { ($0.id, $0) })
+            let historyByEdge = Dictionary(grouping: events, by: { $0.edge.id })
+            guard Set(currentEdges.keys) == Set(historyByEdge.keys) else { return false }
+            for (edgeID, history) in historyByEdge {
+                guard let current = currentEdges[edgeID] else { return false }
+                try AssetCompositionHistoryV1.validate(history, currentEdge: current)
+            }
+            for record in records.locationNodes {
+                let value = try LocationPersistenceCodecV1.decode(
+                    LocationNodeV1.self,
+                    from: record.canonicalData
+                )
+                guard value.id == record.id else { return false }
+            }
+            for record in records.locationHierarchyEvents {
+                guard let receiptData = record.secondaryCanonicalData else { return false }
+                let plan = try LocationPersistenceCodecV1.decode(
+                    LocationHierarchyChangePlanV1.self,
+                    from: record.canonicalData
+                )
+                let receipt = try LocationPersistenceCodecV1.decode(
+                    LocationHierarchyChangeReceiptV1.self,
+                    from: receiptData
+                )
+                guard plan.operationID == record.id,
+                      receipt.planSHA256 == plan.planSHA256 else { return false }
+            }
+            for record in records.locationMigrationReceipts {
+                let receipt = try LocationPersistenceCodecV1.decode(
+                    LocationMigrationReceiptV1.self,
+                    from: record.canonicalData
+                )
+                guard receipt.candidateGenerationID == record.id else { return false }
+            }
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    static func locationRecord(_ value: V5BackupLocationRecordV1) -> CanonicalJSONValueV1 {
+        var fields: [String: CanonicalJSONValueV1] = [
+            "canonicalData": .string(value.canonicalData.base64EncodedString()),
+            "id": CanonicalJSONV1.uuid(value.id),
+        ]
+        if let secondary = value.secondaryCanonicalData {
+            fields["secondaryCanonicalData"] = .string(secondary.base64EncodedString())
+        }
+        return .object(fields)
+    }
+
     static func valid(_ manifest: V4BackupManifestV1) -> Bool {
         let zero = UUID(uuid: (
             0, 0, 0, 0, 0, 0, 0, 0,
@@ -189,6 +352,15 @@ private extension BackupCanonicalEncoderV1 {
         default:
             sourceIdentityIsValid = false
         }
+        let sourceGenerationIsValid: Bool
+        if manifest.source.recordsSchemaVersion == 5 {
+            sourceGenerationIsValid = manifest.source.sourceGenerationID.map {
+                $0 != zero && $0 != manifest.source.workspaceID
+                    && $0 != manifest.source.replicaID
+            } ?? false
+        } else {
+            sourceGenerationIsValid = manifest.source.sourceGenerationID == nil
+        }
         let schemaPairIsValid: Bool
         switch (
             manifest.backupSchemaVersion,
@@ -196,12 +368,12 @@ private extension BackupCanonicalEncoderV1 {
             manifest.source.recordsSchemaVersion
         ) {
         case (1, 1, 1), (2, 1, 1), (2, 3, 2), (3, 4, 3),
-             (4, 5, 4):
+             (4, 5, 4), (4, 6, 5):
             schemaPairIsValid = true
         default:
             schemaPairIsValid = false
         }
-        guard sourceIdentityIsValid,
+        guard sourceIdentityIsValid, sourceGenerationIsValid,
               schemaPairIsValid,
               manifest.declaredPayloadByteCount >= 0,
               !manifest.source.appBuild.isEmpty,
@@ -615,6 +787,9 @@ private extension BackupCanonicalEncoderV1 {
            let workspaceID = value.workspaceID {
             fields["replicaID"] = CanonicalJSONV1.uuid(replicaID)
             fields["workspaceID"] = CanonicalJSONV1.uuid(workspaceID)
+        }
+        if let sourceGenerationID = value.sourceGenerationID {
+            fields["sourceGenerationID"] = CanonicalJSONV1.uuid(sourceGenerationID)
         }
         return .object(fields)
     }

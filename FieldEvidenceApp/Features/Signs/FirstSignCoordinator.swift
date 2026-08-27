@@ -244,6 +244,7 @@ final class FirstSignCoordinator: ObservableObject {
         )
 
         do {
+            let initialPlacementMutationID = try MutationIDV1(rawValue: idSource.makeID())
             let value = FirstSignMutationV1(
                 siteID: site.id,
                 newSite: insertsSite ? .init(
@@ -257,9 +258,18 @@ final class FirstSignCoordinator: ObservableObject {
                 packID: asset.packID,
                 packSchemaVersion: asset.packSchemaVersion,
                 packContentVersion: asset.packContentVersion,
-                createdAt: now
+                createdAt: now,
+                initialPlacementMutationID: initialPlacementMutationID,
+                initialPlacementEventID: idSource.makeID(),
+                initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(
+                    rawValue: idSource.makeID()
+                )
             )
-            try executeWorkspaceMutation(.createFirstSign(value), occurredAt: now)
+            try executeWorkspaceMutation(
+                .createFirstSign(value),
+                mutationID: initialPlacementMutationID,
+                occurredAt: now
+            )
         } catch {
             modelContext.rollback()
             throw FirstSignCoordinatorError.saveFailed
@@ -288,16 +298,16 @@ final class FirstSignCoordinator: ObservableObject {
 
     private func executeWorkspaceMutation(
         _ command: WorkspaceCommandV1,
+        mutationID: MutationIDV1,
         occurredAt: Date
     ) throws {
         switch mutationRoute {
         case let .live(dependencies):
-            _ = try dependencies.writer.execute(command)
+            _ = try dependencies.writer.execute(command, mutationID: mutationID)
         case let .expiringCompatibility(mutationAdapter, fileAuthority, posture):
             guard posture == .frozenS10CallersOnly else {
                 throw WorkspaceMutationFailureV1.unsupportedCommand
             }
-            let mutationID = try MutationIDV1(rawValue: idSource.makeID())
             let temporaryPath = try fileAuthority.temporaryRelativePath(
                 mutationID: mutationID,
                 component: command.kind.rawValue

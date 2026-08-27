@@ -197,7 +197,8 @@ private extension ReplacementRestoreRule {
         case (2, let ledger?, nil):
             try ledger.validate()
             explicit = ledger
-        case (3, let ledger?, let history?), (4, let ledger?, let history?):
+        case (3, let ledger?, let history?), (4, let ledger?, let history?),
+             (5, let ledger?, let history?):
             try ledger.validate()
             try MutationJournalStoreV1.validateImportedSnapshot(history)
             explicit = ledger
@@ -257,20 +258,27 @@ private extension ReplacementRestoreRule {
         }
 
         let result = V4BackupRecordsV1(
+            assetCompositionEdges: records.assetCompositionEdges,
+            assetCompositionEvents: records.assetCompositionEvents,
+            assetPlacementEvents: records.assetPlacementEvents,
             assets: assets,
             deletionLedger: ledger,
             evidenceFiles: evidence,
             issues: issues,
+            locationHierarchyEvents: records.locationHierarchyEvents,
+            locationMigrationReceipts: records.locationMigrationReceipts,
+            locationNodes: records.locationNodes,
             mutationHistory: records.mutationHistory,
             packets: packets,
             recordsSchemaVersion: records.mutationHistory == nil
                 ? 2
-                : (records.recordsSchemaVersion >= 4 ? 4 : 3),
+                : records.recordsSchemaVersion,
             reports: reports,
             sites: sites,
             workflowRecords: workflow
         )
-        guard validReferences(result), noDeletedLiveIdentity(result, ledger: ledger) else {
+        guard validReferences(result), noDeletedLiveIdentity(result, ledger: ledger),
+              validLocationReferences(result, ledger: ledger) else {
             throw ReplacementRestoreRuleError.invalidAuthority
         }
         return result
@@ -281,10 +289,16 @@ private extension ReplacementRestoreRule {
         with packets: [V4BackupPacketDTO]
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            assetCompositionEdges: records.assetCompositionEdges,
+            assetCompositionEvents: records.assetCompositionEvents,
+            assetPlacementEvents: records.assetPlacementEvents,
             assets: records.assets,
             deletionLedger: records.deletionLedger,
             evidenceFiles: records.evidenceFiles,
             issues: records.issues,
+            locationHierarchyEvents: records.locationHierarchyEvents,
+            locationMigrationReceipts: records.locationMigrationReceipts,
+            locationNodes: records.locationNodes,
             mutationHistory: records.mutationHistory,
             packets: packets,
             recordsSchemaVersion: records.recordsSchemaVersion,
@@ -299,15 +313,21 @@ private extension ReplacementRestoreRule {
         with mutationHistory: MutationHistorySnapshotV1?
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            assetCompositionEdges: records.assetCompositionEdges,
+            assetCompositionEvents: records.assetCompositionEvents,
+            assetPlacementEvents: records.assetPlacementEvents,
             assets: records.assets,
             deletionLedger: records.deletionLedger,
             evidenceFiles: records.evidenceFiles,
             issues: records.issues,
+            locationHierarchyEvents: records.locationHierarchyEvents,
+            locationMigrationReceipts: records.locationMigrationReceipts,
+            locationNodes: records.locationNodes,
             mutationHistory: mutationHistory,
             packets: records.packets,
             recordsSchemaVersion: mutationHistory == nil
                 ? min(records.recordsSchemaVersion, 2)
-                : (records.recordsSchemaVersion >= 4 ? 4 : 3),
+                : records.recordsSchemaVersion,
             reports: records.reports,
             sites: records.sites,
             workflowRecords: records.workflowRecords
@@ -443,6 +463,142 @@ private extension ReplacementRestoreRule {
             return packet.currentRecordID == nil
                 && packet.evaluationCounted
                 && packet.contentDeletedAt == entry.deletedAt
+        }
+    }
+
+    static func validLocationReferences(
+        _ records: V4BackupRecordsV1,
+        ledger: DeletionLedgerV2
+    ) -> Bool {
+        guard records.recordsSchemaVersion == 5 else {
+            return records.locationNodes.isEmpty
+                && records.assetPlacementEvents.isEmpty
+                && records.assetCompositionEdges.isEmpty
+                && records.assetCompositionEvents.isEmpty
+                && records.locationHierarchyEvents.isEmpty
+                && records.locationMigrationReceipts.isEmpty
+        }
+        let liveSites = Set(records.sites.map(\.id))
+        let liveAssets = Set(records.assets.map(\.id))
+        let deletedSites = Set(ledger.entries.compactMap {
+            $0.identity.kind == .site ? $0.identity.id : nil
+        })
+        let deletedAssets = Set(ledger.entries.compactMap {
+            $0.identity.kind == .asset ? $0.identity.id : nil
+        })
+        let knownSites = liveSites.union(deletedSites)
+        let knownAssets = liveAssets.union(deletedAssets)
+        func decode<T: Codable>(_ type: T.Type, _ record: V5BackupLocationRecordV1) throws -> T {
+            try LocationPersistenceCodecV1.decode(type, from: record.canonicalData)
+        }
+        do {
+            let nodes = try records.locationNodes.map { try decode(LocationNodeV1.self, $0) }
+            let nodeIDs = Set(nodes.map(\.id))
+            guard nodes.allSatisfy({
+                knownSites.contains($0.siteID)
+                    && (!deletedSites.contains($0.siteID) || $0.state == .archived)
+            }) else { return false }
+
+            let placements = try records.assetPlacementEvents.map {
+                try decode(AssetPlacementEventV1.self, $0)
+            }
+            let placementIDs = Set(placements.map(\.id))
+            guard placements.allSatisfy({ value in
+                knownAssets.contains(value.assetID)
+                    && knownSites.contains(value.siteID)
+                    && value.locationNodeID.map(nodeIDs.contains) ?? true
+                    && value.predecessorEventID.map(placementIDs.contains) ?? true
+            }) else { return false }
+            for history in Dictionary(grouping: placements, by: \.assetID).values {
+                try AssetPlacementHistoryV1.validate(history)
+            }
+            let predecessorIDs = Set(placements.compactMap(\.predecessorEventID))
+            let tips = placements.filter { !predecessorIDs.contains($0.id) }
+            guard Set(tips.map(\.assetID)).count == tips.count,
+                  Set(tips.map(\.assetID)) == Set(placements.map(\.assetID)),
+                  liveAssets.isSubset(of: Set(tips.map(\.assetID))) else { return false }
+            let placementsByID = Dictionary(uniqueKeysWithValues: placements.map { ($0.id, $0) })
+            var reachedPlacementIDs = Set<UUID>()
+            for tip in tips {
+                var cursor: AssetPlacementEventV1? = tip
+                var visited = Set<UUID>()
+                while let value = cursor {
+                    guard value.assetID == tip.assetID,
+                          visited.insert(value.id).inserted,
+                          reachedPlacementIDs.insert(value.id).inserted else { return false }
+                    cursor = value.predecessorEventID.flatMap { placementsByID[$0] }
+                }
+            }
+            guard reachedPlacementIDs.count == placements.count else { return false }
+            let liveSiteByAsset = Dictionary(uniqueKeysWithValues: records.assets.map { ($0.id, $0.siteID) })
+            guard tips.allSatisfy({ tip in
+                guard liveAssets.contains(tip.assetID) else { return deletedAssets.contains(tip.assetID) }
+                return liveSites.contains(tip.siteID) && liveSiteByAsset[tip.assetID] == tip.siteID
+            }) else { return false }
+            let placementByAsset = Dictionary(uniqueKeysWithValues: tips.map { ($0.assetID, $0) })
+
+            let edges = try records.assetCompositionEdges.map {
+                try decode(AssetCompositionEdgeV1.self, $0)
+            }
+            guard edges.allSatisfy({ edge in
+                knownAssets.contains(edge.parentAssetID)
+                    && knownAssets.contains(edge.childAssetID)
+                    && (!edge.isActive || (liveAssets.contains(edge.parentAssetID)
+                        && liveAssets.contains(edge.childAssetID)))
+            }) else { return false }
+            try AssetCompositionPolicyV1.validate(
+                edges: edges.filter(\.isActive),
+                placementByAssetID: placementByAsset
+            )
+            let edgeIDs = Set(edges.map(\.id))
+            let compositionEvents = try records.assetCompositionEvents.map {
+                try decode(AssetCompositionEventV1.self, $0)
+            }
+            guard compositionEvents.allSatisfy({ event in
+                edgeIDs.contains(event.edge.id)
+                    && knownAssets.contains(event.edge.parentAssetID)
+                    && knownAssets.contains(event.edge.childAssetID)
+            }) else { return false }
+            let compositionHistoryByEdgeID = Dictionary(grouping: compositionEvents, by: { $0.edge.id })
+            guard Set(compositionHistoryByEdgeID.keys) == edgeIDs else { return false }
+            let currentEdgeByID = Dictionary(uniqueKeysWithValues: edges.map { ($0.id, $0) })
+            for (edgeID, history) in compositionHistoryByEdgeID {
+                guard let currentEdge = currentEdgeByID[edgeID] else { return false }
+                try AssetCompositionHistoryV1.validate(history, currentEdge: currentEdge)
+            }
+
+            for record in records.locationHierarchyEvents {
+                guard let receiptData = record.secondaryCanonicalData else { return false }
+                let plan = try decode(LocationHierarchyChangePlanV1.self, record)
+                let receipt = try LocationPersistenceCodecV1.decode(
+                    LocationHierarchyChangeReceiptV1.self, from: receiptData
+                )
+                guard plan.operationID == record.id,
+                      receipt.planSHA256 == plan.planSHA256,
+                      plan.affectedAssetIDs.allSatisfy(knownAssets.contains),
+                      (plan.beforeNodes + plan.afterNodes).allSatisfy({ knownSites.contains($0.siteID) }),
+                      (plan.beforePaths + plan.afterPaths).allSatisfy({ knownSites.contains($0.siteID) }) else {
+                    return false
+                }
+            }
+            let migrationReceipts = try records.locationMigrationReceipts.map {
+                try decode(LocationMigrationReceiptV1.self, $0)
+            }
+            guard migrationReceipts.count <= 1,
+                  migrationReceipts.allSatisfy({ receipt in
+                receipt.bindings.allSatisfy {
+                    knownAssets.contains($0.assetID) && knownSites.contains($0.siteID)
+                }
+            }) else { return false }
+            try LocationMigrationIntegrityV1.validate(
+                receipt: migrationReceipts.first,
+                placementEvents: placements,
+                knownAssetIDs: knownAssets,
+                liveAssetSiteByID: liveSiteByAsset
+            )
+            return true
+        } catch {
+            return false
         }
     }
 

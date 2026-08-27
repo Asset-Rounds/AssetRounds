@@ -460,7 +460,9 @@ struct JournalChangeV1: Codable, Equatable, Sendable {
     func validate() throws {
         try envelope.validate(); try receipt.validate(); try reversalBasis?.validate(); try semanticReversalReceipt?.validate()
         let receiptIdentities = try receipt.postImages.map { try $0.identity }
+        let locationIdentities = try envelope.command.canonicalLocationAffectedIdentities()
         guard schemaVersion == Self.schemaVersion, envelope.workspaceID == receipt.identity.workspaceID, envelope.replicaID == receipt.identity.replicaID, envelope.mutationID == receipt.mutationID, receipt.envelopeSHA256 == (try envelope.canonicalSHA256()),
+              locationIdentities == nil || locationIdentities == receiptIdentities,
               entityChanges.map(\.stableKey) == entityChanges.map(\.stableKey).sorted(), Set(entityChanges.map(\.identity)).count == entityChanges.count, entityChanges.map(\.identity) == receiptIdentities,
               entityChanges.map(\.postImage) == receipt.postImages,
               contentReferences.map(\.contentID) == contentReferences.map(\.contentID).sorted(), Set(contentReferences.map(\.contentID)).count == contentReferences.count,

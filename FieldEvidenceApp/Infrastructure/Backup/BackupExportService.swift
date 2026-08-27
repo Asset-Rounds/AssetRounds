@@ -44,12 +44,18 @@ final class BackupExportService {
     private static let checkpointBasisExportedAt = Date(timeIntervalSince1970: 0)
 
     private struct Rows {
+        let assetCompositionEdges: [AssetCompositionEdgeRow]
+        let assetCompositionEvents: [AssetCompositionEventRow]
+        let assetPlacementEvents: [AssetPlacementEventRow]
         let sites: [Site]
         let assets: [Asset]
         let records: [WorkflowRecord]
         let observationAndTime: [UUID: ObservationAndTimeRow]
         let evidence: [EvidenceFile]
         let issues: [Issue]
+        let locationHierarchyEvents: [LocationHierarchyEventRow]
+        let locationMigrationReceipts: [LocationMigrationReceiptRow]
+        let locationNodes: [LocationNodeRow]
         let packets: [Packet]
         let reports: [Report]
     }
@@ -641,10 +647,16 @@ private extension BackupExportService {
         do {
             recordsData = try BackupCanonicalEncoderV1().encodeRecords(records).data
             let semanticRecords = V4BackupRecordsV1(
+                assetCompositionEdges: records.assetCompositionEdges,
+                assetCompositionEvents: records.assetCompositionEvents,
+                assetPlacementEvents: records.assetPlacementEvents,
                 assets: records.assets,
                 deletionLedger: records.deletionLedger,
                 evidenceFiles: records.evidenceFiles,
                 issues: records.issues,
+                locationHierarchyEvents: records.locationHierarchyEvents,
+                locationMigrationReceipts: records.locationMigrationReceipts,
+                locationNodes: records.locationNodes,
                 mutationHistory: nil,
                 packets: records.packets,
                 recordsSchemaVersion: records.recordsSchemaVersion,
@@ -653,7 +665,7 @@ private extension BackupExportService {
                 workflowRecords: records.workflowRecords
             )
             semanticRecordsData = try BackupCanonicalEncoderV1()
-                .encodeRecords(semanticRecords).data
+                .encodeSemanticRecords(semanticRecords).data
         } catch {
             throw BackupExportServiceError.invalidAuthority
         }
@@ -856,9 +868,10 @@ private extension BackupExportService {
             source: .init(
                 appBuild: appBuild(),
                 appVersion: appVersion(),
-                persistentSchemaVersion: 5,
+                persistentSchemaVersion: 6,
                 replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: 4,
+                recordsSchemaVersion: 5,
+                sourceGenerationID: generationID,
                 workspaceID: sourceIdentity.workspaceID.rawValue
             )
         )
@@ -1365,6 +1378,9 @@ private extension BackupExportService {
     private func fetchRows() throws -> Rows {
         do {
             return Rows(
+                assetCompositionEdges: try modelContext.fetch(FetchDescriptor<AssetCompositionEdgeRow>()),
+                assetCompositionEvents: try modelContext.fetch(FetchDescriptor<AssetCompositionEventRow>()),
+                assetPlacementEvents: try modelContext.fetch(FetchDescriptor<AssetPlacementEventRow>()),
                 sites: try modelContext.fetch(FetchDescriptor<Site>()),
                 assets: try modelContext.fetch(FetchDescriptor<Asset>()),
                 records: try modelContext.fetch(FetchDescriptor<WorkflowRecord>()),
@@ -1373,6 +1389,9 @@ private extension BackupExportService {
                 ),
                 evidence: try modelContext.fetch(FetchDescriptor<EvidenceFile>()),
                 issues: try modelContext.fetch(FetchDescriptor<Issue>()),
+                locationHierarchyEvents: try modelContext.fetch(FetchDescriptor<LocationHierarchyEventRow>()),
+                locationMigrationReceipts: try modelContext.fetch(FetchDescriptor<LocationMigrationReceiptRow>()),
+                locationNodes: try modelContext.fetch(FetchDescriptor<LocationNodeRow>()),
                 packets: try modelContext.fetch(FetchDescriptor<Packet>()),
                 reports: try modelContext.fetch(FetchDescriptor<Report>())
             )
@@ -1718,7 +1737,44 @@ private extension BackupExportService {
         deletionLedger: DeletionLedgerV2? = nil,
         mutationHistory: MutationHistorySnapshotV1? = nil
     ) throws -> V4BackupRecordsV1 {
-        V4BackupRecordsV1(
+        func includedLocationRecords(
+            _ build: () throws -> [V5BackupLocationRecordV1]
+        ) rethrows -> [V5BackupLocationRecordV1] {
+            guard mutationHistory != nil else { return [] }
+            return try build()
+        }
+        let assetCompositionEdges = try includedLocationRecords { try rows.assetCompositionEdges.map {
+            _ = try $0.value()
+            return .init(id: $0.id, canonicalData: $0.canonicalData)
+        }.sorted { $0.id.uuidString < $1.id.uuidString } }
+        let assetCompositionEvents = try includedLocationRecords { try rows.assetCompositionEvents.map {
+            _ = try $0.value()
+            return .init(id: $0.id, canonicalData: $0.canonicalData)
+        }.sorted { $0.id.uuidString < $1.id.uuidString } }
+        let assetPlacementEvents = try includedLocationRecords { try rows.assetPlacementEvents.map {
+            _ = try $0.value()
+            return .init(id: $0.id, canonicalData: $0.canonicalData)
+        }.sorted { $0.id.uuidString < $1.id.uuidString } }
+        let locationMigrationReceipts = try includedLocationRecords { try rows.locationMigrationReceipts.map {
+            _ = try $0.value()
+            return .init(id: $0.candidateGenerationID, canonicalData: $0.canonicalData)
+        }.sorted { $0.id.uuidString < $1.id.uuidString } }
+        let locationHierarchyEvents = try includedLocationRecords { try rows.locationHierarchyEvents.map {
+            _ = try $0.values()
+            return .init(
+                id: $0.operationID,
+                canonicalData: $0.planData,
+                secondaryCanonicalData: $0.receiptData
+            )
+        }.sorted { $0.id.uuidString < $1.id.uuidString } }
+        let locationNodes = try includedLocationRecords { try rows.locationNodes.map {
+            _ = try $0.value()
+            return .init(id: $0.id, canonicalData: $0.canonicalData)
+        }.sorted { $0.id.uuidString < $1.id.uuidString } }
+        return V4BackupRecordsV1(
+            assetCompositionEdges: assetCompositionEdges,
+            assetCompositionEvents: assetCompositionEvents,
+            assetPlacementEvents: assetPlacementEvents,
             assets: rows.assets.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion, siteID: $0.siteID,
@@ -1748,6 +1804,9 @@ private extension BackupExportService {
                     createdAt: $0.createdAt, updatedAt: $0.updatedAt
                 )
             }.sorted(by: dtoOrder),
+            locationHierarchyEvents: locationHierarchyEvents,
+            locationMigrationReceipts: locationMigrationReceipts,
+            locationNodes: locationNodes,
             mutationHistory: mutationHistory,
             packets: rows.packets.map {
                 .init(
@@ -1760,7 +1819,7 @@ private extension BackupExportService {
             }.sorted(by: dtoOrder),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : 4,
+                : 5,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,

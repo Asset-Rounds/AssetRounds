@@ -183,11 +183,37 @@ enum ReportSemanticProjectorV1 {
         snapshot: CompletedActivitySnapshotV1,
         manifest: ContractManifestV1
     ) throws -> ReportSemanticProjectionV1 {
+        try project(
+            activity: snapshot.payload,
+            snapshotSHA256: snapshot.snapshotSHA256,
+            locationComposition: nil,
+            manifest: manifest
+        )
+    }
+
+    static func project(
+        snapshot: CompletedActivitySnapshotV2,
+        manifest: ContractManifestV1
+    ) throws -> ReportSemanticProjectionV1 {
+        try project(
+            activity: snapshot.payload.activity,
+            snapshotSHA256: snapshot.snapshotSHA256,
+            locationComposition: snapshot.payload.locationComposition,
+            manifest: manifest
+        )
+    }
+
+    private static func project(
+        activity: CompletedActivitySnapshotPayloadV1,
+        snapshotSHA256: String,
+        locationComposition: CompletedLocationCompositionSnapshotV1?,
+        manifest: ContractManifestV1
+    ) throws -> ReportSemanticProjectionV1 {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         let manifestBytes = try encoder.encode(manifest)
-        let bindingBytes = try encoder.encode(snapshot.payload.profileBinding)
-        let binding = snapshot.payload.profileBinding
+        let bindingBytes = try encoder.encode(activity.profileBinding)
+        let binding = activity.profileBinding
         typealias DraftNode = (section: String, role: String, label: String, value: String, referenceID: String?)
         var drafts: [DraftNode] = []
 
@@ -214,17 +240,32 @@ enum ReportSemanticProjectorV1 {
             return KernelCanonicalHashV1.sha256(Data("\(binding.outputScopeID)|\(kind)|\(value)".utf8))
         }
 
-        try append("identity", "heading", "Report", visibleID("report", snapshot.payload.reportID))
-        try append("identity", "fact", "Snapshot", visibleID("snapshot", snapshot.payload.snapshotID))
-        try append("identity", "fact", "Snapshot revision", String(snapshot.payload.snapshotRevision))
-        try append("identity", "fact", "Package release", visibleID("package", snapshot.payload.packageReleaseID))
+        try append("identity", "heading", "Report", visibleID("report", activity.reportID))
+        try append("identity", "fact", "Snapshot", visibleID("snapshot", activity.snapshotID))
+        try append("identity", "fact", "Snapshot revision", String(activity.snapshotRevision))
+        try append("identity", "fact", "Package release", visibleID("package", activity.packageReleaseID))
         try append("identity", "fact", "Projection version", binding.projectionVersion)
-        try append("identity", "fact", "Generated", snapshot.payload.generatedAt)
-        try append("identity", "fact", "Completed", snapshot.payload.completedAt)
-        for fact in snapshot.payload.serviceFacts where binding.audience == .internalUse || fact.privacyClass != .internalOnly {
+        try append("identity", "fact", "Generated", activity.generatedAt)
+        try append("identity", "fact", "Completed", activity.completedAt)
+        if let locationComposition {
+            let path = ([locationComposition.locationPath.siteDisplay]
+                + locationComposition.locationPath.nodes.map(\.label)).joined(separator: " / ")
+            try append("identity", "fact", "Completed location", path)
+            try append(
+                "identity", "digest", "Location and composition snapshot SHA-256",
+                visibleDigest("location-composition-digest", locationComposition.snapshotSHA256)
+            )
+            for edge in locationComposition.compositionEdges {
+                try append(
+                    "service", "composition", "Component relationship",
+                    "\(visibleID("asset", edge.childAssetID.uuidString.lowercased())) component of \(visibleID("asset", edge.parentAssetID.uuidString.lowercased()))"
+                )
+            }
+        }
+        for fact in activity.serviceFacts where binding.audience == .internalUse || fact.privacyClass != .internalOnly {
             try append("service", "fact", fact.label, fact.value)
         }
-        for card in snapshot.payload.evidenceCards {
+        for card in activity.evidenceCards {
             try append("evidence", "heading", "Evidence", visibleID("evidence", card.cardID))
             for field in card.fields {
                 try append("evidence", "fact", field.label, field.value)
@@ -237,16 +278,16 @@ enum ReportSemanticProjectorV1 {
             }
             try append("limitations", "limitation", "Evidence limitation", card.limitationsText)
         }
-        for limitation in snapshot.payload.limitations {
+        for limitation in activity.limitations {
             try append("limitations", "limitation", "Limitation", limitation)
         }
         try append(
             "provenance",
             "digest",
             binding.audience == .customerSafe ? "Output-scoped snapshot digest" : "Snapshot SHA-256",
-            visibleDigest("snapshot-digest", snapshot.snapshotSHA256)
+            visibleDigest("snapshot-digest", snapshotSHA256)
         )
-        if let superseded = snapshot.payload.supersedesSnapshotID {
+        if let superseded = activity.supersedesSnapshotID {
             try append("supersession", "fact", "Supersedes snapshot", visibleID("snapshot", superseded))
         } else {
             try append("supersession", "fact", "Supersession", "Original immutable snapshot")
@@ -274,9 +315,9 @@ enum ReportSemanticProjectorV1 {
         }
 
         return try ReportSemanticProjectionV1(
-            projectionVersion: snapshot.payload.profileBinding.projectionVersion,
-            snapshotID: visibleID("snapshot", snapshot.payload.snapshotID),
-            snapshotSHA256: visibleDigest("snapshot-digest", snapshot.snapshotSHA256),
+            projectionVersion: activity.profileBinding.projectionVersion,
+            snapshotID: visibleID("snapshot", activity.snapshotID),
+            snapshotSHA256: visibleDigest("snapshot-digest", snapshotSHA256),
             manifestSHA256: KernelCanonicalHashV1.sha256(manifestBytes),
             profileBindingSHA256: visibleDigest(
                 "profile-binding-digest",

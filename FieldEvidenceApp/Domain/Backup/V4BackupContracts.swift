@@ -1,5 +1,21 @@
 import Foundation
 
+struct V5BackupLocationRecordV1: Codable, Equatable, Sendable {
+    let id: UUID
+    let canonicalData: Data
+    let secondaryCanonicalData: Data?
+
+    init(
+        id: UUID,
+        canonicalData: Data,
+        secondaryCanonicalData: Data? = nil
+    ) {
+        self.id = id
+        self.canonicalData = canonicalData
+        self.secondaryCanonicalData = secondaryCanonicalData
+    }
+}
+
 struct V4BackupSiteDTO: Codable, Equatable, Identifiable, Sendable {
     let id: UUID
     let schemaVersion: Int
@@ -162,10 +178,16 @@ struct V4BackupReportDTO: Codable, Equatable, Identifiable, Sendable {
 }
 
 struct V4BackupRecordsV1: Codable, Equatable, Sendable {
+    let assetCompositionEdges: [V5BackupLocationRecordV1]
+    let assetCompositionEvents: [V5BackupLocationRecordV1]
+    let assetPlacementEvents: [V5BackupLocationRecordV1]
     let assets: [V4BackupAssetDTO]
     let deletionLedger: DeletionLedgerV2?
     let evidenceFiles: [V4BackupEvidenceFileDTO]
     let issues: [V4BackupIssueDTO]
+    let locationHierarchyEvents: [V5BackupLocationRecordV1]
+    let locationMigrationReceipts: [V5BackupLocationRecordV1]
+    let locationNodes: [V5BackupLocationRecordV1]
     let mutationHistory: MutationHistorySnapshotV1?
     let packets: [V4BackupPacketDTO]
     let recordsSchemaVersion: Int
@@ -174,10 +196,16 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     let workflowRecords: [V4BackupWorkflowRecordDTO]
 
     init(
+        assetCompositionEdges: [V5BackupLocationRecordV1] = [],
+        assetCompositionEvents: [V5BackupLocationRecordV1] = [],
+        assetPlacementEvents: [V5BackupLocationRecordV1] = [],
         assets: [V4BackupAssetDTO],
         deletionLedger: DeletionLedgerV2? = nil,
         evidenceFiles: [V4BackupEvidenceFileDTO],
         issues: [V4BackupIssueDTO],
+        locationHierarchyEvents: [V5BackupLocationRecordV1] = [],
+        locationMigrationReceipts: [V5BackupLocationRecordV1] = [],
+        locationNodes: [V5BackupLocationRecordV1] = [],
         mutationHistory: MutationHistorySnapshotV1? = nil,
         packets: [V4BackupPacketDTO],
         recordsSchemaVersion: Int,
@@ -185,16 +213,52 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         sites: [V4BackupSiteDTO],
         workflowRecords: [V4BackupWorkflowRecordDTO]
     ) {
+        self.assetCompositionEdges = assetCompositionEdges
+        self.assetCompositionEvents = assetCompositionEvents
+        self.assetPlacementEvents = assetPlacementEvents
         self.assets = assets
         self.deletionLedger = deletionLedger
         self.evidenceFiles = evidenceFiles
         self.issues = issues
+        self.locationHierarchyEvents = locationHierarchyEvents
+        self.locationMigrationReceipts = locationMigrationReceipts
+        self.locationNodes = locationNodes
         self.mutationHistory = mutationHistory
         self.packets = packets
         self.recordsSchemaVersion = recordsSchemaVersion
         self.reports = reports
         self.sites = sites
         self.workflowRecords = workflowRecords
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case assetCompositionEdges, assetCompositionEvents, assetPlacementEvents, assets
+        case deletionLedger, evidenceFiles, issues, locationHierarchyEvents
+        case locationMigrationReceipts, locationNodes, mutationHistory, packets
+        case recordsSchemaVersion, reports, sites, workflowRecords
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        let version = try values.decode(Int.self, forKey: .recordsSchemaVersion)
+        self.init(
+            assetCompositionEdges: try values.decodeIfPresent([V5BackupLocationRecordV1].self, forKey: .assetCompositionEdges) ?? [],
+            assetCompositionEvents: try values.decodeIfPresent([V5BackupLocationRecordV1].self, forKey: .assetCompositionEvents) ?? [],
+            assetPlacementEvents: try values.decodeIfPresent([V5BackupLocationRecordV1].self, forKey: .assetPlacementEvents) ?? [],
+            assets: try values.decode([V4BackupAssetDTO].self, forKey: .assets),
+            deletionLedger: try values.decodeIfPresent(DeletionLedgerV2.self, forKey: .deletionLedger),
+            evidenceFiles: try values.decode([V4BackupEvidenceFileDTO].self, forKey: .evidenceFiles),
+            issues: try values.decode([V4BackupIssueDTO].self, forKey: .issues),
+            locationHierarchyEvents: try values.decodeIfPresent([V5BackupLocationRecordV1].self, forKey: .locationHierarchyEvents) ?? [],
+            locationMigrationReceipts: try values.decodeIfPresent([V5BackupLocationRecordV1].self, forKey: .locationMigrationReceipts) ?? [],
+            locationNodes: try values.decodeIfPresent([V5BackupLocationRecordV1].self, forKey: .locationNodes) ?? [],
+            mutationHistory: try values.decodeIfPresent(MutationHistorySnapshotV1.self, forKey: .mutationHistory),
+            packets: try values.decode([V4BackupPacketDTO].self, forKey: .packets),
+            recordsSchemaVersion: version,
+            reports: try values.decode([V4BackupReportDTO].self, forKey: .reports),
+            sites: try values.decode([V4BackupSiteDTO].self, forKey: .sites),
+            workflowRecords: try values.decode([V4BackupWorkflowRecordDTO].self, forKey: .workflowRecords)
+        )
     }
 }
 
@@ -217,6 +281,7 @@ struct V4BackupSourceV1: Codable, Equatable, Sendable {
     let persistentSchemaVersion: Int
     let replicaID: UUID?
     let recordsSchemaVersion: Int
+    let sourceGenerationID: UUID?
     let workspaceID: UUID?
 
     init(
@@ -225,6 +290,7 @@ struct V4BackupSourceV1: Codable, Equatable, Sendable {
         persistentSchemaVersion: Int,
         replicaID: UUID? = nil,
         recordsSchemaVersion: Int,
+        sourceGenerationID: UUID? = nil,
         workspaceID: UUID? = nil
     ) {
         self.appBuild = appBuild
@@ -232,6 +298,7 @@ struct V4BackupSourceV1: Codable, Equatable, Sendable {
         self.persistentSchemaVersion = persistentSchemaVersion
         self.replicaID = replicaID
         self.recordsSchemaVersion = recordsSchemaVersion
+        self.sourceGenerationID = sourceGenerationID
         self.workspaceID = workspaceID
     }
 }

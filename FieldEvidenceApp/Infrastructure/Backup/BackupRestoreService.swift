@@ -444,6 +444,9 @@ final class BackupRestoreService {
                 expectedRecords,
                 identityDecision: preliminaryIdentityDecision
             )
+            guard uniqueModelIDs(in: expectedRecords) else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
             try materialize(
                 validatedPackage,
                 records: expectedRecords,
@@ -1455,10 +1458,16 @@ private extension BackupRestoreService {
         with packets: [V4BackupPacketDTO]
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            assetCompositionEdges: records.assetCompositionEdges,
+            assetCompositionEvents: records.assetCompositionEvents,
+            assetPlacementEvents: records.assetPlacementEvents,
             assets: records.assets,
             deletionLedger: records.deletionLedger,
             evidenceFiles: records.evidenceFiles,
             issues: records.issues,
+            locationHierarchyEvents: records.locationHierarchyEvents,
+            locationMigrationReceipts: records.locationMigrationReceipts,
+            locationNodes: records.locationNodes,
             mutationHistory: records.mutationHistory,
             packets: packets,
             recordsSchemaVersion: records.recordsSchemaVersion,
@@ -1476,6 +1485,12 @@ private extension BackupRestoreService {
             + records.issues.map(\.id)
             + records.packets.map(\.id)
             + records.reports.map(\.id)
+            + records.assetCompositionEdges.map(\.id)
+            + records.assetCompositionEvents.map(\.id)
+            + records.assetPlacementEvents.map(\.id)
+            + records.locationHierarchyEvents.map(\.id)
+            + records.locationMigrationReceipts.map(\.id)
+            + records.locationNodes.map(\.id)
         return Set(ids).count == ids.count
     }
 
@@ -1484,13 +1499,19 @@ private extension BackupRestoreService {
         with history: MutationHistorySnapshotV1
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            assetCompositionEdges: records.assetCompositionEdges,
+            assetCompositionEvents: records.assetCompositionEvents,
+            assetPlacementEvents: records.assetPlacementEvents,
             assets: records.assets,
             deletionLedger: records.deletionLedger ?? .empty,
             evidenceFiles: records.evidenceFiles,
             issues: records.issues,
+            locationHierarchyEvents: records.locationHierarchyEvents,
+            locationMigrationReceipts: records.locationMigrationReceipts,
+            locationNodes: records.locationNodes,
             mutationHistory: history,
             packets: records.packets,
-            recordsSchemaVersion: records.recordsSchemaVersion >= 4 ? 4 : 3,
+            recordsSchemaVersion: max(3, records.recordsSchemaVersion),
             reports: records.reports,
             sites: records.sites,
             workflowRecords: records.workflowRecords
@@ -1501,7 +1522,17 @@ private extension BackupRestoreService {
         _ records: V4BackupRecordsV1,
         identityDecision: RestoreIdentityV1?
     ) throws -> V4BackupRecordsV1 {
-        let normalized = try recordsWithObservationAndTime(records)
+        var normalized = try recordsWithObservationAndTime(records)
+        if normalized.recordsSchemaVersion == 5,
+           let identityDecision {
+            normalized = try rebindingLocationMigrationReceipt(
+                in: normalized,
+                workspaceID: WorkspaceID(
+                    rawValue: identityDecision.targetPointer.workspaceID
+                ),
+                generationID: identityDecision.targetPointer.generationID
+            )
+        }
         guard let history = normalized.mutationHistory else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -1529,6 +1560,198 @@ private extension BackupRestoreService {
         )
     }
 
+    func rebindingLocationMigrationReceipt(
+        in records: V4BackupRecordsV1,
+        workspaceID: WorkspaceID,
+        generationID: UUID
+    ) throws -> V4BackupRecordsV1 {
+        guard records.locationMigrationReceipts.count <= 1 else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        let nodes = try records.locationNodes.map { record -> V5BackupLocationRecordV1 in
+            let value = try LocationPersistenceCodecV1.decode(
+                LocationNodeV1.self, from: record.canonicalData
+            )
+            guard value.workspaceID != workspaceID else { return record }
+            let rebound = try LocationNodeV1(
+                id: value.id, workspaceID: workspaceID, siteID: value.siteID,
+                parentNodeID: value.parentNodeID, kind: value.kind,
+                label: value.label, shortCode: value.shortCode,
+                siblingOrder: value.siblingOrder, state: value.state,
+                revision: value.revision,
+                provenance: try LocationMutationProvenanceV1(
+                    mutationID: value.provenance.mutationID,
+                    occurredAt: value.provenance.occurredAt
+                )
+            )
+            return .init(id: rebound.id, canonicalData: try LocationPersistenceCodecV1.encode(rebound))
+        }
+        let placements = try records.assetPlacementEvents.map { record -> V5BackupLocationRecordV1 in
+            let value = try LocationPersistenceCodecV1.decode(
+                AssetPlacementEventV1.self, from: record.canonicalData
+            )
+            guard value.workspaceID != workspaceID else { return record }
+            let rebound = try AssetPlacementEventV1(
+                id: value.id, workspaceID: workspaceID, assetID: value.assetID,
+                siteID: value.siteID, locationNodeID: value.locationNodeID,
+                predecessorEventID: value.predecessorEventID, source: value.source,
+                physicalEpisodeID: value.physicalEpisodeID,
+                continuity: value.continuity, pathSnapshot: value.pathSnapshot,
+                mutationID: value.mutationID, occurredAt: value.occurredAt
+            )
+            return .init(id: rebound.id, canonicalData: try LocationPersistenceCodecV1.encode(rebound))
+        }
+        let reboundEdges = try records.assetCompositionEdges.map { record -> (V5BackupLocationRecordV1, AssetCompositionEdgeV1) in
+            let value = try LocationPersistenceCodecV1.decode(
+                AssetCompositionEdgeV1.self, from: record.canonicalData
+            )
+            let rebound = value.workspaceID == workspaceID ? value : try AssetCompositionEdgeV1(
+                id: value.id, workspaceID: workspaceID,
+                parentAssetID: value.parentAssetID, childAssetID: value.childAssetID,
+                relationship: value.relationship, isActive: value.isActive,
+                revision: value.revision
+            )
+            return (
+                .init(id: rebound.id, canonicalData: try LocationPersistenceCodecV1.encode(rebound)),
+                rebound
+            )
+        }
+        let edgesByID = Dictionary(uniqueKeysWithValues: reboundEdges.map { ($0.1.id, $0.1) })
+        let compositionEvents = try records.assetCompositionEvents.map { record -> V5BackupLocationRecordV1 in
+            let value = try LocationPersistenceCodecV1.decode(
+                AssetCompositionEventV1.self, from: record.canonicalData
+            )
+            guard edgesByID[value.edge.id] != nil else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            let eventEdge = value.edge.workspaceID == workspaceID ? value.edge : try AssetCompositionEdgeV1(
+                id: value.edge.id, workspaceID: workspaceID,
+                parentAssetID: value.edge.parentAssetID,
+                childAssetID: value.edge.childAssetID,
+                relationship: value.edge.relationship,
+                isActive: value.edge.isActive,
+                revision: value.edge.revision
+            )
+            let rebound = try AssetCompositionEventV1(
+                id: value.id, workspaceID: workspaceID, edge: eventEdge,
+                predecessorEventID: value.predecessorEventID, action: value.action,
+                mutationID: value.mutationID, occurredAt: value.occurredAt
+            )
+            return .init(id: rebound.id, canonicalData: try LocationPersistenceCodecV1.encode(rebound))
+        }
+        func reboundNode(_ value: LocationNodeV1) throws -> LocationNodeV1 {
+            guard value.workspaceID != workspaceID else { return value }
+            return try LocationNodeV1(
+                id: value.id, workspaceID: workspaceID, siteID: value.siteID,
+                parentNodeID: value.parentNodeID, kind: value.kind,
+                label: value.label, shortCode: value.shortCode,
+                siblingOrder: value.siblingOrder, state: value.state,
+                revision: value.revision, provenance: value.provenance
+            )
+        }
+        let hierarchyEvents = try records.locationHierarchyEvents.map { record -> V5BackupLocationRecordV1 in
+            guard let receiptData = record.secondaryCanonicalData else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            let sourcePlan = try LocationPersistenceCodecV1.decode(
+                LocationHierarchyChangePlanV1.self, from: record.canonicalData
+            )
+            let sourceReceipt = try LocationPersistenceCodecV1.decode(
+                LocationHierarchyChangeReceiptV1.self, from: receiptData
+            )
+            guard sourcePlan.operationID == record.id else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            guard sourcePlan.workspaceID != workspaceID else { return record }
+            let expectedRevision = try WorkspaceExpectedRevisionV1(
+                workspaceID: workspaceID,
+                generationID: generationID,
+                writerInstanceID: sourcePlan.expectedRevision.writerInstanceID,
+                workspaceRevision: sourcePlan.expectedRevision.workspaceRevision,
+                entityRevisions: sourcePlan.expectedRevision.entityRevisions
+            )
+            let destinationPlan = try LocationHierarchyChangePlanV1(
+                operationID: sourcePlan.operationID,
+                workspaceID: workspaceID,
+                expectedRevision: expectedRevision,
+                beforeNodes: try sourcePlan.beforeNodes.map(reboundNode),
+                afterNodes: try sourcePlan.afterNodes.map(reboundNode),
+                affectedAssetIDs: sourcePlan.affectedAssetIDs,
+                assetPathChanges: sourcePlan.assetPathChanges,
+                immutablePlacementReferencedNodeIDs: sourcePlan.immutablePlacementReferencedNodeIDs,
+                consumerImpact: sourcePlan.consumerImpact,
+                assetBindingsChange: sourcePlan.assetBindingsChange,
+                operationContinuityDisposition: sourcePlan.operationContinuityDisposition,
+                continuityByAssetID: sourcePlan.continuityByAssetID
+            )
+            let destinationReceipt = try LocationHierarchyChangeReceiptV1.importedCloneFork(
+                destinationPlan: destinationPlan,
+                sourcePlan: sourcePlan,
+                sourceReceipt: sourceReceipt
+            )
+            return .init(
+                id: destinationPlan.operationID,
+                canonicalData: try LocationPersistenceCodecV1.encode(destinationPlan),
+                secondaryCanonicalData: try LocationPersistenceCodecV1.encode(destinationReceipt)
+            )
+        }
+        guard let archived = records.locationMigrationReceipts.first else {
+            return V4BackupRecordsV1(
+                assetCompositionEdges: reboundEdges.map(\.0),
+                assetCompositionEvents: compositionEvents,
+                assetPlacementEvents: placements,
+                assets: records.assets, deletionLedger: records.deletionLedger,
+                evidenceFiles: records.evidenceFiles, issues: records.issues,
+                locationHierarchyEvents: hierarchyEvents,
+                locationMigrationReceipts: [], locationNodes: nodes,
+                mutationHistory: records.mutationHistory, packets: records.packets,
+                recordsSchemaVersion: records.recordsSchemaVersion,
+                reports: records.reports, sites: records.sites,
+                workflowRecords: records.workflowRecords
+            )
+        }
+        let receipt = try LocationPersistenceCodecV1.decode(
+            LocationMigrationReceiptV1.self, from: archived.canonicalData
+        )
+        if receipt.workspaceID == workspaceID,
+           receipt.candidateGenerationID == generationID,
+           nodes == records.locationNodes,
+           placements == records.assetPlacementEvents,
+           reboundEdges.map(\.0) == records.assetCompositionEdges,
+           compositionEvents == records.assetCompositionEvents {
+            return records
+        }
+        let rebound = try LocationMigrationReceiptV1(
+            workspaceID: workspaceID,
+            sourceGenerationID: receipt.candidateGenerationID,
+            candidateGenerationID: generationID,
+            sourceSiteCount: receipt.sourceSiteCount,
+            sourceAssetCount: receipt.sourceAssetCount,
+            bindings: receipt.bindings
+        )
+        return V4BackupRecordsV1(
+            assetCompositionEdges: reboundEdges.map(\.0),
+            assetCompositionEvents: compositionEvents,
+            assetPlacementEvents: placements,
+            assets: records.assets,
+            deletionLedger: records.deletionLedger,
+            evidenceFiles: records.evidenceFiles,
+            issues: records.issues,
+            locationHierarchyEvents: hierarchyEvents,
+            locationMigrationReceipts: [.init(
+                id: rebound.candidateGenerationID,
+                canonicalData: try LocationPersistenceCodecV1.encode(rebound)
+            )],
+            locationNodes: nodes,
+            mutationHistory: records.mutationHistory,
+            packets: records.packets,
+            recordsSchemaVersion: records.recordsSchemaVersion,
+            reports: records.reports,
+            sites: records.sites,
+            workflowRecords: records.workflowRecords
+        )
+    }
+
     func recordsWithObservationAndTime(
         _ records: V4BackupRecordsV1
     ) throws -> V4BackupRecordsV1 {
@@ -1544,10 +1767,16 @@ private extension BackupRestoreService {
             )
         }
         return V4BackupRecordsV1(
+            assetCompositionEdges: records.assetCompositionEdges,
+            assetCompositionEvents: records.assetCompositionEvents,
+            assetPlacementEvents: records.assetPlacementEvents,
             assets: records.assets,
             deletionLedger: records.deletionLedger,
             evidenceFiles: records.evidenceFiles,
             issues: records.issues,
+            locationHierarchyEvents: records.locationHierarchyEvents,
+            locationMigrationReceipts: records.locationMigrationReceipts,
+            locationNodes: records.locationNodes,
             mutationHistory: records.mutationHistory,
             packets: records.packets,
             recordsSchemaVersion: 4,
@@ -1567,7 +1796,11 @@ private extension BackupRestoreService {
         do {
             try generationFactory.createRestoreStagingGeneration(
                 id: generationID,
-                authority: generationAuthority
+                authority: generationAuthority,
+                recordsSchemaVersion: records.recordsSchemaVersion,
+                sourceGenerationID: value.manifest.source.sourceGenerationID,
+                archiveProvenanceSHA256: try BackupCanonicalEncoderV1()
+                    .encodeManifest(value.manifest).sha256
             ) { context in
                 try insert(
                     records,
@@ -1619,7 +1852,7 @@ private extension BackupRestoreService {
         recordsSchemaVersion: Int
     ) throws -> (basis: Data?, temporal: Data?) {
         do {
-            if recordsSchemaVersion == 4 {
+            if recordsSchemaVersion == 4 || recordsSchemaVersion == 5 {
                 guard let basisData = value.observationBasisV1Data,
                       let temporalData = value.temporalContextV1Data else {
                     throw BackupRestoreServiceError.invalidPackage
@@ -1692,7 +1925,8 @@ private extension BackupRestoreService {
         legacyDestinationIdentity: WorkspaceReplicaIdentityV1
     ) throws {
         guard (records.recordsSchemaVersion == 3
-                || records.recordsSchemaVersion == 4)
+                || records.recordsSchemaVersion == 4
+                || records.recordsSchemaVersion == 5)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -1703,7 +1937,8 @@ private extension BackupRestoreService {
         ) {
         case (1, nil, nil):
             break
-        case (2, let ledger?, nil), (3, let ledger?, _), (4, let ledger?, _):
+        case (2, let ledger?, nil), (3, let ledger?, _), (4, let ledger?, _),
+             (5, let ledger?, _):
             do {
                 try ledger.validate()
                 try DeletionLedgerStore(context: context).stageUnion(ledger.entries)
@@ -1734,6 +1969,79 @@ private extension BackupRestoreService {
                 createdAt: value.createdAt,
                 updatedAt: value.updatedAt
             ))
+        }
+        if records.recordsSchemaVersion == 5 {
+            do {
+                for record in records.locationNodes {
+                    let value = try LocationPersistenceCodecV1.decode(
+                        LocationNodeV1.self, from: record.canonicalData
+                    )
+                    guard value.id == record.id,
+                          record.secondaryCanonicalData == nil else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                    context.insert(try LocationNodeRow(value))
+                }
+                for record in records.assetPlacementEvents {
+                    let value = try LocationPersistenceCodecV1.decode(
+                        AssetPlacementEventV1.self, from: record.canonicalData
+                    )
+                    guard value.id == record.id,
+                          record.secondaryCanonicalData == nil else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                    context.insert(try AssetPlacementEventRow(value))
+                }
+                for record in records.assetCompositionEdges {
+                    let value = try LocationPersistenceCodecV1.decode(
+                        AssetCompositionEdgeV1.self, from: record.canonicalData
+                    )
+                    guard value.id == record.id,
+                          record.secondaryCanonicalData == nil else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                    context.insert(try AssetCompositionEdgeRow(value))
+                }
+                for record in records.assetCompositionEvents {
+                    let value = try LocationPersistenceCodecV1.decode(
+                        AssetCompositionEventV1.self, from: record.canonicalData
+                    )
+                    guard value.id == record.id,
+                          record.secondaryCanonicalData == nil else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                    context.insert(try AssetCompositionEventRow(value))
+                }
+                for record in records.locationHierarchyEvents {
+                    guard let receiptData = record.secondaryCanonicalData else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                    let plan = try LocationPersistenceCodecV1.decode(
+                        LocationHierarchyChangePlanV1.self, from: record.canonicalData
+                    )
+                    let receipt = try LocationPersistenceCodecV1.decode(
+                        LocationHierarchyChangeReceiptV1.self, from: receiptData
+                    )
+                    guard plan.operationID == record.id else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                    context.insert(try LocationHierarchyEventRow(
+                        plan: plan, receipt: receipt
+                    ))
+                }
+                for record in records.locationMigrationReceipts {
+                    let value = try LocationPersistenceCodecV1.decode(
+                        LocationMigrationReceiptV1.self, from: record.canonicalData
+                    )
+                    guard value.candidateGenerationID == record.id,
+                          record.secondaryCanonicalData == nil else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                    context.insert(try LocationMigrationReceiptRow(value))
+                }
+            } catch {
+                throw BackupRestoreServiceError.invalidPackage
+            }
         }
         for value in records.workflowRecords {
             let observationAndTime = try observationAndTimeData(
@@ -1867,7 +2175,8 @@ private extension BackupRestoreService {
         }
         if let mutationHistory = records.mutationHistory {
             guard records.recordsSchemaVersion == 3
-                    || records.recordsSchemaVersion == 4 else {
+                    || records.recordsSchemaVersion == 4
+                    || records.recordsSchemaVersion == 5 else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {
@@ -2933,9 +3242,54 @@ private extension BackupRestoreService {
         _ context: ModelContext,
         expected: V4BackupRecordsV1
     ) throws {
-        guard try records(in: context) == expected else {
+        let actual = try records(in: context)
+        if actual == expected { return }
+        guard expected.recordsSchemaVersion < 5,
+              actual.recordsSchemaVersion == 5,
+              try validLegacyLocationMigration(actual, expected: expected) else {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
+    }
+
+    func validLegacyLocationMigration(
+        _ actual: V4BackupRecordsV1,
+        expected: V4BackupRecordsV1
+    ) throws -> Bool {
+        let predecessor = V4BackupRecordsV1(
+            assets: actual.assets,
+            deletionLedger: actual.deletionLedger,
+            evidenceFiles: actual.evidenceFiles,
+            issues: actual.issues,
+            mutationHistory: actual.mutationHistory,
+            packets: actual.packets,
+            recordsSchemaVersion: expected.recordsSchemaVersion,
+            reports: actual.reports,
+            sites: actual.sites,
+            workflowRecords: actual.workflowRecords
+        )
+        guard predecessor == expected,
+              actual.locationNodes.isEmpty,
+              actual.locationHierarchyEvents.isEmpty,
+              actual.assetCompositionEdges.isEmpty,
+              actual.assetCompositionEvents.isEmpty,
+              actual.assetPlacementEvents.count == actual.assets.count,
+              actual.locationMigrationReceipts.count == 1 else { return false }
+        let assetIDs = Set(actual.assets.map(\.id))
+        let events = try actual.assetPlacementEvents.map {
+            try LocationPersistenceCodecV1.decode(
+                AssetPlacementEventV1.self, from: $0.canonicalData
+            )
+        }
+        let receipt = try LocationPersistenceCodecV1.decode(
+            LocationMigrationReceiptV1.self,
+            from: actual.locationMigrationReceipts[0].canonicalData
+        )
+        return Set(events.map(\.assetID)) == assetIDs
+            && events.allSatisfy {
+                $0.source == .migratedBaseline && $0.locationNodeID == nil
+                    && $0.predecessorEventID == nil
+            }
+            && Set(receipt.bindings.map(\.assetID)) == assetIDs
     }
 
     func validateFrozenFiles(
@@ -3039,6 +3393,12 @@ private extension BackupRestoreService {
         let issues = try context.fetch(FetchDescriptor<Issue>())
         let packets = try context.fetch(FetchDescriptor<Packet>())
         let reports = try context.fetch(FetchDescriptor<Report>())
+        let assetCompositionEdges = try context.fetch(FetchDescriptor<AssetCompositionEdgeRow>())
+        let assetCompositionEvents = try context.fetch(FetchDescriptor<AssetCompositionEventRow>())
+        let assetPlacementEvents = try context.fetch(FetchDescriptor<AssetPlacementEventRow>())
+        let locationHierarchyEvents = try context.fetch(FetchDescriptor<LocationHierarchyEventRow>())
+        let locationMigrationReceipts = try context.fetch(FetchDescriptor<LocationMigrationReceiptRow>())
+        let locationNodes = try context.fetch(FetchDescriptor<LocationNodeRow>())
         let observationAndTime: [UUID: ObservationAndTimeRow]
         if includesObservationAndTime {
             observationAndTime = try ObservationAndTimeRowStoreV1.validatedIndex(
@@ -3057,6 +3417,15 @@ private extension BackupRestoreService {
             mutationHistory = nil
         }
         return V4BackupRecordsV1(
+            assetCompositionEdges: assetCompositionEdges.map {
+                .init(id: $0.id, canonicalData: $0.canonicalData)
+            }.sorted { canonical($0.id) < canonical($1.id) },
+            assetCompositionEvents: assetCompositionEvents.map {
+                .init(id: $0.id, canonicalData: $0.canonicalData)
+            }.sorted { canonical($0.id) < canonical($1.id) },
+            assetPlacementEvents: assetPlacementEvents.map {
+                .init(id: $0.id, canonicalData: $0.canonicalData)
+            }.sorted { canonical($0.id) < canonical($1.id) },
             assets: assets.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion, siteID: $0.siteID,
@@ -3089,6 +3458,19 @@ private extension BackupRestoreService {
                     createdAt: $0.createdAt, updatedAt: $0.updatedAt
                 )
             }.sorted { canonical($0.id) < canonical($1.id) },
+            locationHierarchyEvents: locationHierarchyEvents.map {
+                .init(
+                    id: $0.operationID,
+                    canonicalData: $0.planData,
+                    secondaryCanonicalData: $0.receiptData
+                )
+            }.sorted { canonical($0.id) < canonical($1.id) },
+            locationMigrationReceipts: locationMigrationReceipts.map {
+                .init(id: $0.candidateGenerationID, canonicalData: $0.canonicalData)
+            }.sorted { canonical($0.id) < canonical($1.id) },
+            locationNodes: locationNodes.map {
+                .init(id: $0.id, canonicalData: $0.canonicalData)
+            }.sorted { canonical($0.id) < canonical($1.id) },
             mutationHistory: mutationHistory,
             packets: packets.map {
                 .init(
@@ -3102,7 +3484,13 @@ private extension BackupRestoreService {
             }.sorted { canonical($0.id) < canonical($1.id) },
             recordsSchemaVersion: mutationHistory == nil
                 ? (includingDeletionLedger ? 2 : 1)
-                : 4,
+                : (includesObservationAndTime
+                    && (!assetCompositionEdges.isEmpty
+                        || !assetCompositionEvents.isEmpty
+                        || !assetPlacementEvents.isEmpty
+                        || !locationHierarchyEvents.isEmpty
+                        || !locationMigrationReceipts.isEmpty
+                        || !locationNodes.isEmpty) ? 5 : 4),
             reports: reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,

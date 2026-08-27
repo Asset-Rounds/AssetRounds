@@ -315,6 +315,11 @@ final class WholeSignDeletionService {
         let frozenMutationHistory = try mutationHistorySnapshot()
 
         let rows = try fetchRows()
+        try validateLocationDeletionNoCascade(
+            rows: rows,
+            deletingAssetID: assetID,
+            deletingSiteID: nil
+        )
         _ = try lifecycleProfile(for: assetID, rows: rows)
         let deletionID = makeUUID()
         let deletedAt = now()
@@ -423,6 +428,11 @@ final class WholeSignDeletionService {
         guard let site = rows.sites.first(where: { $0.id == siteID }) else {
             throw WholeSignDeletionServiceError.graphInvalid
         }
+        try validateLocationDeletionNoCascade(
+            rows: rows,
+            deletingAssetID: nil,
+            deletingSiteID: siteID
+        )
         _ = try packageProfiles(
             for: rows.assets.filter { $0.siteID == siteID }.map(\.id),
             rows: rows,
@@ -459,6 +469,11 @@ final class WholeSignDeletionService {
         guard let site = rows.sites.first(where: { $0.id == preview.siteID }) else {
             throw WholeSignDeletionServiceError.graphInvalid
         }
+        try validateLocationDeletionNoCascade(
+            rows: rows,
+            deletingAssetID: nil,
+            deletingSiteID: preview.siteID
+        )
         let current: ExplicitSiteDeletionPreviewV1
         do {
             current = try WholeSignDeletionRule.makeExplicitSiteDeletionPreview(
@@ -1102,6 +1117,9 @@ private extension WholeSignDeletionService {
     struct Rows {
         let sites: [Site]
         let assets: [Asset]
+        let locationNodes: [LocationNodeRow]
+        let placementEvents: [AssetPlacementEventRow]
+        let compositionEdges: [AssetCompositionEdgeRow]
         let records: [WorkflowRecord]
         let observationAndTime: [UUID: ObservationAndTimeRow]
         let recordPayloads: [WorkflowRecordPayloadV1]
@@ -1126,6 +1144,9 @@ private extension WholeSignDeletionService {
             return Rows(
                 sites: try boundedFetch(Site.self),
                 assets: try boundedFetch(Asset.self),
+                locationNodes: try boundedFetch(LocationNodeRow.self),
+                placementEvents: try boundedFetch(AssetPlacementEventRow.self),
+                compositionEdges: try boundedFetch(AssetCompositionEdgeRow.self),
                 records: records,
                 observationAndTime: observationAndTime,
                 recordPayloads: recordPayloads,
@@ -1133,6 +1154,30 @@ private extension WholeSignDeletionService {
                 issues: try boundedFetch(Issue.self),
                 packets: try boundedFetch(Packet.self),
                 reports: try boundedFetch(Report.self)
+            )
+        } catch {
+            throw WholeSignDeletionServiceError.graphInvalid
+        }
+    }
+
+    func validateLocationDeletionNoCascade(
+        rows: Rows,
+        deletingAssetID: UUID?,
+        deletingSiteID: UUID?
+    ) throws {
+        do {
+            try WholeSignDeletionRule.validateLocationDeletionNoCascade(
+                deletingAssetID: deletingAssetID,
+                deletingSiteID: deletingSiteID,
+                liveAssetSiteByID: Dictionary(uniqueKeysWithValues: rows.assets.map { ($0.id, $0.siteID) }),
+                locationNodes: try rows.locationNodes.map { try $0.value() },
+                placementEvents: try rows.placementEvents.map { try $0.value() },
+                compositionEdges: try rows.compositionEdges.map {
+                    try LocationPersistenceCodecV1.decode(
+                        AssetCompositionEdgeV1.self,
+                        from: $0.canonicalData
+                    )
+                }
             )
         } catch {
             throw WholeSignDeletionServiceError.graphInvalid

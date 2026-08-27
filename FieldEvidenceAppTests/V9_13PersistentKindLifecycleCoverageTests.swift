@@ -17,11 +17,35 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
 
         let derivedUniverse = source.registrations.map(\.subject.canonicalKey).sorted()
         let manifest = catalog.coverageManifest
+        let c35PersistentKindIDs = Set([
+            "PERSISTENT_MODEL:AssetCompositionEdgeRow",
+            "PERSISTENT_MODEL:AssetCompositionEventRow",
+            "PERSISTENT_MODEL:AssetPlacementEventRow",
+            "PERSISTENT_MODEL:LocationHierarchyEventRow",
+            "PERSISTENT_MODEL:LocationMigrationReceiptRow",
+            "PERSISTENT_MODEL:LocationNodeRow",
+        ])
         XCTAssertEqual(corpus.declaredKindIDs, corpus.declaredKindIDs.sorted())
         XCTAssertEqual(Set(corpus.declaredKindIDs).count, corpus.declaredKindIDs.count)
-        XCTAssertEqual(corpus.declaredKindIDs, derivedUniverse)
-        XCTAssertEqual(corpus.temporalProvenance.map(\.kindID), derivedUniverse)
-        XCTAssertEqual(Set(corpus.temporalProvenance.map(\.kindID)).count, derivedUniverse.count)
+        XCTAssertTrue(Set(corpus.declaredKindIDs).isSubset(of: Set(derivedUniverse)))
+        XCTAssertEqual(
+            Set(derivedUniverse).subtracting(corpus.declaredKindIDs),
+            Set([
+                "PERSISTENT_MODEL:AssetCompositionEdgeRow",
+                "PERSISTENT_MODEL:AssetCompositionEventRow",
+                "PERSISTENT_MODEL:AssetPlacementEventRow",
+                "PERSISTENT_MODEL:LocationHierarchyEventRow",
+                "PERSISTENT_MODEL:LocationMigrationReceiptRow",
+                "PERSISTENT_MODEL:LocationNodeRow",
+                "PROJECTION:StoreSemanticEnvelopeV6",
+                "PROJECTION:V5BackupLocationRecordV1",
+            ])
+        )
+        XCTAssertEqual(corpus.temporalProvenance.map(\.kindID), corpus.declaredKindIDs)
+        XCTAssertEqual(
+            Set(corpus.temporalProvenance.map(\.kindID)).count,
+            corpus.declaredKindIDs.count
+        )
         XCTAssertEqual(corpus.durableFirstWriteKindIDs, corpus.durableFirstWriteKindIDs.sorted())
         XCTAssertEqual(Set(corpus.durableFirstWriteKindIDs).count, 65)
         XCTAssertFalse(derivedUniverse.isEmpty)
@@ -61,31 +85,44 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
 
         for registration in source.registrations {
             let descriptor = try catalog.descriptor(for: registration.subject)
-            let expectedProvenance = try XCTUnwrap(corpus.temporalProvenance.first {
+            let expectedProvenance = corpus.temporalProvenance.first {
                 $0.kindID == descriptor.stableKindID
-            })
+            }
             XCTAssertEqual(descriptor.replicationClassification, registration.classification)
             XCTAssertEqual(descriptor.stableKindID, registration.subject.canonicalKey)
             XCTAssertEqual(descriptor.declarationOwner, PersistentKindLifecycleRegistryV1.declarationOwner)
             XCTAssertNotEqual(descriptor.declarationOwner, descriptor.currentImplementationOwner)
             XCTAssertEqual(try catalog.lifecyclePolicy(for: registration.subject).kindID, descriptor.stableKindID)
             XCTAssertEqual(try catalog.dataHandlingPolicy(for: registration.subject).kindID, descriptor.stableKindID)
-            XCTAssertEqual(
-                descriptor.temporalEvidence.representationSourceCard,
-                expectedProvenance.representationSourceCard
-            )
-            XCTAssertEqual(
-                descriptor.temporalEvidence.representationSourceOrdinal,
-                expectedProvenance.representationSourceOrdinal
-            )
-            if corpus.durableFirstWriteKindIDs.contains(descriptor.stableKindID) {
+            if let expectedProvenance {
                 XCTAssertEqual(
-                    descriptor.temporalEvidence.firstWriteVersion,
+                    descriptor.temporalEvidence.representationSourceCard,
                     expectedProvenance.representationSourceCard
                 )
                 XCTAssertEqual(
-                    descriptor.temporalEvidence.firstWriteOrdinal,
+                    descriptor.temporalEvidence.representationSourceOrdinal,
                     expectedProvenance.representationSourceOrdinal
+                )
+            } else {
+                let isC35Persistent = c35PersistentKindIDs.contains(descriptor.stableKindID)
+                XCTAssertEqual(
+                    descriptor.temporalEvidence.representationSourceCard,
+                    isC35Persistent ? "V23_P03_C35" : "PRE_V23_BASELINE"
+                )
+                XCTAssertEqual(
+                    descriptor.temporalEvidence.representationSourceOrdinal,
+                    isC35Persistent ? 41 : 0
+                )
+            }
+            if descriptor.temporalEvidence.firstWriteVersion
+                != PersistentKindTemporalEvidenceV1.notApplicable {
+                XCTAssertEqual(
+                    descriptor.temporalEvidence.firstWriteVersion,
+                    descriptor.temporalEvidence.representationSourceCard
+                )
+                XCTAssertEqual(
+                    descriptor.temporalEvidence.firstWriteOrdinal,
+                    descriptor.temporalEvidence.representationSourceOrdinal
                 )
             } else {
                 XCTAssertEqual(
@@ -96,19 +133,19 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
             }
         }
 
-        let provenancePartition = Dictionary(grouping: corpus.temporalProvenance) {
-            $0.representationSourceOrdinal
+        let provenancePartition = Dictionary(grouping: catalog.descriptors) {
+            $0.temporalEvidence.representationSourceOrdinal
         }.mapValues(\.count)
         XCTAssertEqual(provenancePartition, [
-            0: 54, 16: 6, 17: 1, 18: 1, 19: 3,
-            22: 18, 24: 4, 27: 6, 28: 7,
+            0: 56, 16: 6, 17: 1, 18: 1, 19: 3,
+            22: 18, 24: 4, 27: 6, 28: 7, 41: 6,
         ])
         let durableFirstWrites = catalog.descriptors.filter {
             $0.temporalEvidence.firstWriteVersion != PersistentKindTemporalEvidenceV1.notApplicable
         }.map(\.stableKindID).sorted()
-        XCTAssertEqual(durableFirstWrites, corpus.durableFirstWriteKindIDs)
-        XCTAssertEqual(durableFirstWrites.count, 65)
-        XCTAssertEqual(catalog.descriptors.count - durableFirstWrites.count, 35)
+        XCTAssertTrue(Set(corpus.durableFirstWriteKindIDs).isSubset(of: Set(durableFirstWrites)))
+        XCTAssertEqual(durableFirstWrites.count, 71)
+        XCTAssertEqual(catalog.descriptors.count - durableFirstWrites.count, 37)
         XCTAssertTrue(Set([
             "PROJECTION:ReportSnapshotV1",
             "PROJECTION:entityMutationRevision",
@@ -127,11 +164,13 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
             ("OWNED_FILE_CLASS:generationLeaseControl", "V23_P02_C04", 24),
             ("PERSISTENT_MODEL:ObservationAndTimeRow", "V23_P02_C07", 27),
             ("DIAGNOSTIC:DeviceOperationalSupportStoreV2", "V23_P02_C08", 28),
+            ("PERSISTENT_MODEL:LocationNodeRow", "V23_P03_C35", 41),
+            ("PROJECTION:StoreSemanticEnvelopeV6", "PRE_V23_BASELINE", 0),
         ]
         for (kindID, card, ordinal) in provenanceAnchors {
-            let evidence = try XCTUnwrap(corpus.temporalProvenance.first {
-                $0.kindID == kindID
-            })
+            let evidence = try XCTUnwrap(catalog.descriptors.first {
+                $0.stableKindID == kindID
+            }?.temporalEvidence)
             XCTAssertEqual(evidence.representationSourceCard, card, kindID)
             XCTAssertEqual(evidence.representationSourceOrdinal, ordinal, kindID)
         }
@@ -828,9 +867,10 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
         try exactHeadCompatibility.validate()
         let liveStore = try exactHeadCompatibility.dataManifest
             .path(for: .liveStore)
-        XCTAssertEqual(liveStore.currentWriterVersion, "5.0.0")
+        XCTAssertEqual(liveStore.currentWriterVersion, "6.0.0")
         XCTAssertTrue(liveStore.readableVersions.contains("4.0.0"))
         XCTAssertTrue(liveStore.readableVersions.contains("5.0.0"))
+        XCTAssertTrue(liveStore.readableVersions.contains("6.0.0"))
         XCTAssertTrue(try liveStore.supportsForwardUpgrade(
             fromVersion: "1.0.0",
             toVersion: liveStore.currentWriterVersion
@@ -838,6 +878,9 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
         XCTAssertThrowsError(try liveStore.validateReadableVersion("999.0.0")) {
             XCTAssertEqual($0 as? CompatibilityContractErrorV1, .unsupportedVersion)
         }
+        let backup = try exactHeadCompatibility.dataManifest.path(for: .backupPackage)
+        XCTAssertEqual(backup.currentWriterVersion, "archive1-backup4-persistent6-records5")
+        XCTAssertTrue(backup.readableVersions.contains("archive1-backup4-persistent5-records4"))
 
         XCTAssertEqual(corpus.fixtureIdentity, "V21-P02-C09-PERSISTENT-KIND-LIFECYCLE-COVERAGE-CORPUS-V1")
         XCTAssertEqual(

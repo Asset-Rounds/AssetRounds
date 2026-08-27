@@ -2,6 +2,7 @@ import Foundation
 
 @MainActor
 protocol WorkspaceWriterAdapterPortV1: AnyObject {
+    var requiresInitialPlacementForFirstSign: Bool { get }
     func apply(
         _ command: WorkspaceCommandV1,
         occurredAt: Date,
@@ -14,6 +15,10 @@ protocol WorkspaceWriterAdapterPortV1: AnyObject {
         packageBindings: [WorkspacePackageBindingV1]
     )
     func rollback()
+}
+
+extension WorkspaceWriterAdapterPortV1 {
+    var requiresInitialPlacementForFirstSign: Bool { false }
 }
 
 extension WorkspaceWriterAdapterPortV1 {
@@ -237,6 +242,9 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
                 planDigest: execution.planDigest,
                 compensatingMutationIDs: execution.compensatingMutationIDs
             ).canonicalSHA256()
+            let locationOccurredAt = try change.envelope.command.canonicalLocationAffectedIdentities() == nil
+                ? nil
+                : change.receipt.committedAt
             return try executeInternal(
                 request,
                 reversalPlan: nil,
@@ -244,7 +252,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
                 semanticReversalReplayIdentitySHA256: replayIdentitySHA256,
                 sourceKind: .semanticReversal,
                 contentDependencyIDs: change.envelope.contentDependencyIDs,
-                correlationID: sourceCorrelationID
+                correlationID: sourceCorrelationID,
+                occurredAtOverride: locationOccurredAt
             )
         }
 
@@ -252,6 +261,9 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
               change.envelope.causationMutationID == nil else {
             throw WorkspaceMutationFailureV1.invalidReversal
         }
+        let locationOccurredAt = try change.envelope.command.canonicalLocationAffectedIdentities() == nil
+            ? nil
+            : change.receipt.committedAt
         return try executeInternal(
             request,
             reversalPlan: nil,
@@ -260,7 +272,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
             sourceKind: .importedHistory,
             contentDependencyIDs: change.envelope.contentDependencyIDs,
             correlationID: sourceCorrelationID,
-            portableReversalPlan: change.portableReversalPlan
+            portableReversalPlan: change.portableReversalPlan,
+            occurredAtOverride: locationOccurredAt
         )
     }
 
@@ -286,6 +299,13 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
     /// This operation is synchronous by design: no canonical transaction can
     /// suspend and admit another command on the main actor.
     func execute(_ command: WorkspaceCommandV1) throws -> WorkspaceMutationOutcomeV1 {
+        try execute(command, mutationID: makeMutationID())
+    }
+
+    func execute(
+        _ command: WorkspaceCommandV1,
+        mutationID: MutationIDV1
+    ) throws -> WorkspaceMutationOutcomeV1 {
         let current = try currentRevision()
         let targets = try Self.targetIdentities(for: command)
         let known = Dictionary(
@@ -301,7 +321,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
             }
         )
         return try execute(WorkspaceMutationRequestV1(
-            mutationID: makeMutationID(),
+            mutationID: mutationID,
             expectedRevision: WorkspaceExpectedRevisionV1(snapshot: scoped),
             command: command
         ))
@@ -380,12 +400,51 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
         sourceKind: MutationSourceKindV1? = nil,
         contentDependencyIDs: [String] = [],
         correlationID: UUID? = nil,
-        portableReversalPlan: PortableReversalPlanV1? = nil
+        portableReversalPlan: PortableReversalPlanV1? = nil,
+        occurredAtOverride: Date? = nil
     ) throws -> WorkspaceMutationOutcomeV1 {
         guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
         guard !isExecuting else { throw WorkspaceMutationFailureV1.persistenceFailed }
         guard reversalPlan == nil || portableReversalPlan == nil else {
             throw WorkspaceMutationFailureV1.invalidReversal
+        }
+        switch request.command {
+        case .createFirstSign(let value):
+            let placementFields = [
+                value.initialPlacementMutationID != nil,
+                value.initialPlacementEventID != nil,
+                value.initialPhysicalEpisodeID != nil,
+            ]
+            guard placementFields.allSatisfy({ $0 }) || placementFields.allSatisfy({ !$0 }),
+                  !(adapter.requiresInitialPlacementForFirstSign
+                    && sourceKind != .importedHistory
+                    && !placementFields.allSatisfy({ $0 })),
+                  value.initialPlacementMutationID.map({ $0 == request.mutationID }) ?? true else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+        case .applyLocationHierarchyChange(let value):
+            let beforeByID = Dictionary(uniqueKeysWithValues: value.plan.beforeNodes.map { ($0.id, $0) })
+            let changedAfterNodes = value.plan.afterNodes.filter { beforeByID[$0.id] != $0 }
+            guard value.plan.workspaceID == identity.workspaceID,
+                  (sourceKind == .importedHistory || occurredAtOverride != nil || value.plan.expectedRevision == request.expectedRevision),
+                  changedAfterNodes.allSatisfy({ $0.provenance.mutationID == request.mutationID }),
+                  value.placementChanges.allSatisfy({ $0.mutationID == request.mutationID }) else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+        case .applyAssetPlacementChange(let plan):
+            guard plan.mutationID == request.mutationID,
+                  (sourceKind == .importedHistory || occurredAtOverride != nil || plan.basis.expectedRevision == request.expectedRevision),
+                  plan.basis.workspaceID == identity.workspaceID else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+        case .applyAssetCompositionChange(let plan):
+            guard plan.mutationID == request.mutationID,
+                  (sourceKind == .importedHistory || occurredAtOverride != nil || plan.expectedRevision == request.expectedRevision),
+                  plan.workspaceID == identity.workspaceID else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+        default:
+            break
         }
         let envelope: MutationEnvelopeV1
         let digest: String
@@ -408,7 +467,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
             throw WorkspaceMutationFailureV1.invalidCommand
         }
 
-        let occurredAt = clock.now()
+        let occurredAt = occurredAtOverride ?? clock.now()
         if let journalStore,
            let prior = try journalStore.resolveReplay(envelope: envelope, detectedAt: occurredAt) {
             return try outcome(from: prior, request: request, digest: digest, occurredAt: occurredAt)
@@ -843,6 +902,12 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
             if let site = value.newSite {
                 identities.append(try WorkspaceEntityIdentityV1(kind: .site, id: site.id))
             }
+            if let placementEventID = value.initialPlacementEventID {
+                identities.append(try WorkspaceEntityIdentityV1(
+                    kind: .assetPlacementEvent,
+                    id: placementEventID
+                ))
+            }
             values = identities
         case let .createCheckDraft(value):
             values = [try WorkspaceEntityIdentityV1(kind: .workflowRecord, id: value.recordID)]
@@ -927,6 +992,40 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
                 throw WorkspaceMutationFailureV1.invalidCommand
             }
             values = value.identities
+        case let .applyLocationHierarchyChange(value):
+            try value.plan.validate()
+            let plan = value.plan
+            guard plan.beforeNodes.allSatisfy({ $0.workspaceID == plan.workspaceID }),
+                  plan.afterNodes.allSatisfy({ $0.workspaceID == plan.workspaceID }) else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            let nodeIDs = Set(plan.beforeNodes.map(\.id)).union(plan.afterNodes.map(\.id))
+            guard nodeIDs.count + value.placementChanges.count * 2 <= MutationReceiptV1.maximumPostImageCount else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            var identities = try nodeIDs.map {
+                try WorkspaceEntityIdentityV1(kind: .locationNode, id: $0)
+            }
+            for placement in value.placementChanges {
+                identities.append(try .init(kind: .asset, id: placement.basis.assetID))
+                identities.append(try .init(kind: .assetPlacementEvent, id: placement.newEventID))
+            }
+            values = identities
+        case let .applyAssetPlacementChange(plan):
+            guard plan.mutationID.rawValue != UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
+                  plan.basis.currentPlacement?.id != plan.newEventID else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            values = try [
+                WorkspaceEntityIdentityV1(kind: .asset, id: plan.basis.assetID),
+                WorkspaceEntityIdentityV1(kind: .assetPlacementEvent, id: plan.newEventID),
+            ]
+        case let .applyAssetCompositionChange(plan):
+            try plan.validate()
+            values = try [
+                WorkspaceEntityIdentityV1(kind: .assetCompositionEdge, id: plan.event.edge.id),
+                WorkspaceEntityIdentityV1(kind: .assetCompositionEvent, id: plan.event.id),
+            ]
         }
         guard Set(values).count == values.count else {
             throw WorkspaceMutationFailureV1.invalidCommand

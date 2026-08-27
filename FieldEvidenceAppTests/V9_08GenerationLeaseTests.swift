@@ -211,6 +211,11 @@ final class V9_08GenerationLeaseTests: XCTestCase {
         let realBefore = try realWriter.currentRevision()
         let realSiteID = v908MakeUUID(231)
         let realAssetID = v908MakeUUID(232)
+        let realMutationID = try MutationIDV1(rawValue: v908MakeUUID(233))
+        let realPlacementEventID = v908MakeUUID(244)
+        let realPhysicalEpisodeID = try PhysicalPlacementEpisodeIDV1(
+            rawValue: v908MakeUUID(245)
+        )
         let realExpected = try WorkspaceExpectedRevisionV1(
             workspaceID: realBefore.workspaceID,
             generationID: realBefore.generationID,
@@ -231,9 +236,15 @@ final class V9_08GenerationLeaseTests: XCTestCase {
                     ),
                     revision: 0
                 ),
+                .init(
+                    identity: try WorkspaceEntityIdentityV1(
+                        kind: .assetPlacementEvent,
+                        id: realPlacementEventID
+                    ),
+                    revision: 0
+                ),
             ]
         )
-        let realMutationID = try MutationIDV1(rawValue: v908MakeUUID(233))
         let realRequest = WorkspaceMutationRequestV1(
             mutationID: realMutationID,
             expectedRevision: realExpected,
@@ -250,7 +261,10 @@ final class V9_08GenerationLeaseTests: XCTestCase {
                 packID: "v23.lease.test",
                 packSchemaVersion: 1,
                 packContentVersion: 1,
-                createdAt: Date(timeIntervalSinceReferenceDate: 222_334)
+                createdAt: Date(timeIntervalSinceReferenceDate: 222_334),
+                initialPlacementMutationID: realMutationID,
+                initialPlacementEventID: realPlacementEventID,
+                initialPhysicalEpisodeID: realPhysicalEpisodeID
             ))
         )
         let realOutcome = try realWriter.execute(realRequest)
@@ -264,6 +278,11 @@ final class V9_08GenerationLeaseTests: XCTestCase {
 
         let staleSiteID = v908MakeUUID(234)
         let staleAssetID = v908MakeUUID(235)
+        let staleMutationID = try MutationIDV1(rawValue: v908MakeUUID(236))
+        let stalePlacementEventID = v908MakeUUID(246)
+        let stalePhysicalEpisodeID = try PhysicalPlacementEpisodeIDV1(
+            rawValue: v908MakeUUID(247)
+        )
         let staleExpected = try WorkspaceExpectedRevisionV1(
             workspaceID: realBefore.workspaceID,
             generationID: realBefore.generationID,
@@ -284,9 +303,15 @@ final class V9_08GenerationLeaseTests: XCTestCase {
                     ),
                     revision: 0
                 ),
+                .init(
+                    identity: try WorkspaceEntityIdentityV1(
+                        kind: .assetPlacementEvent,
+                        id: stalePlacementEventID
+                    ),
+                    revision: 0
+                ),
             ]
         )
-        let staleMutationID = try MutationIDV1(rawValue: v908MakeUUID(236))
         let staleRequest = WorkspaceMutationRequestV1(
             mutationID: staleMutationID,
             expectedRevision: staleExpected,
@@ -303,7 +328,10 @@ final class V9_08GenerationLeaseTests: XCTestCase {
                 packID: "v23.lease.test",
                 packSchemaVersion: 1,
                 packContentVersion: 1,
-                createdAt: Date(timeIntervalSinceReferenceDate: 222_335)
+                createdAt: Date(timeIntervalSinceReferenceDate: 222_335),
+                initialPlacementMutationID: staleMutationID,
+                initialPlacementEventID: stalePlacementEventID,
+                initialPhysicalEpisodeID: stalePhysicalEpisodeID
             ))
         )
         XCTAssertThrowsError(try realWriter.execute(staleRequest)) { error in
@@ -391,6 +419,11 @@ final class V9_08GenerationLeaseTests: XCTestCase {
 
         let switchedSiteID = v908MakeUUID(239)
         let switchedAssetID = v908MakeUUID(240)
+        let switchedMutationID = try MutationIDV1(rawValue: v908MakeUUID(241))
+        let switchedPlacementEventID = v908MakeUUID(248)
+        let switchedPhysicalEpisodeID = try PhysicalPlacementEpisodeIDV1(
+            rawValue: v908MakeUUID(249)
+        )
         let switchedExpected = try WorkspaceExpectedRevisionV1(
             workspaceID: realBefore.workspaceID,
             generationID: realBefore.generationID,
@@ -411,9 +444,15 @@ final class V9_08GenerationLeaseTests: XCTestCase {
                     ),
                     revision: 0
                 ),
+                .init(
+                    identity: try WorkspaceEntityIdentityV1(
+                        kind: .assetPlacementEvent,
+                        id: switchedPlacementEventID
+                    ),
+                    revision: 0
+                ),
             ]
         )
-        let switchedMutationID = try MutationIDV1(rawValue: v908MakeUUID(241))
         let switchedRequest = WorkspaceMutationRequestV1(
             mutationID: switchedMutationID,
             expectedRevision: switchedExpected,
@@ -430,7 +469,10 @@ final class V9_08GenerationLeaseTests: XCTestCase {
                 packID: "v23.lease.test",
                 packSchemaVersion: 1,
                 packContentVersion: 1,
-                createdAt: Date(timeIntervalSinceReferenceDate: 222_337)
+                createdAt: Date(timeIntervalSinceReferenceDate: 222_337),
+                initialPlacementMutationID: switchedMutationID,
+                initialPlacementEventID: switchedPlacementEventID,
+                initialPhysicalEpisodeID: switchedPhysicalEpisodeID
             ))
         )
         XCTAssertThrowsError(try realWriter.execute(switchedRequest)) { error in
@@ -1109,6 +1151,8 @@ final class V9_08GenerationLeaseTests: XCTestCase {
                 mutationID: journalMutationID,
                 siteID: journalSiteID,
                 assetID: journalAssetID,
+                placementEventID: v908MakeUUID(360 + offset),
+                physicalEpisodeID: v908MakeUUID(370 + offset),
                 label: "Interrupted lease mutation \(offset)"
             )
 
@@ -1424,6 +1468,8 @@ final class V9_08GenerationLeaseTests: XCTestCase {
                 mutationID: sourceMutationID,
                 siteID: sourceSiteID,
                 assetID: sourceAssetID,
+                placementEventID: makeUUID(2_404),
+                physicalEpisodeID: makeUUID(2_405),
                 label: "Production backup source"
             )
             let outcome = try coordinator.workspaceWriter.execute(request)
@@ -1489,6 +1535,8 @@ final class V9_08GenerationLeaseTests: XCTestCase {
                 mutationID: destinationMutationID,
                 siteID: destinationSiteID,
                 assetID: destinationAssetID,
+                placementEventID: makeUUID(2_425),
+                physicalEpisodeID: makeUUID(2_426),
                 label: "Existing destination data"
             )
             let outcome = try coordinator.workspaceWriter.execute(request)
@@ -1505,7 +1553,7 @@ final class V9_08GenerationLeaseTests: XCTestCase {
             selectedPackageURL: archive
         )
         XCTAssertEqual(validated.manifest.backupSchemaVersion, 4)
-        XCTAssertEqual(validated.manifest.source.recordsSchemaVersion, 4)
+        XCTAssertEqual(validated.manifest.source.recordsSchemaVersion, 5)
         XCTAssertEqual(
             Set(validated.records.sites.map(\.id)),
             Set([sourceSiteID])
@@ -1737,6 +1785,8 @@ final class V9_08GenerationLeaseTests: XCTestCase {
         mutationID: MutationIDV1,
         siteID: UUID,
         assetID: UUID,
+        placementEventID: UUID,
+        physicalEpisodeID: UUID,
         label: String
     ) throws -> WorkspaceMutationRequestV1 {
         let expected = try WorkspaceExpectedRevisionV1(
@@ -1759,6 +1809,13 @@ final class V9_08GenerationLeaseTests: XCTestCase {
                     ),
                     revision: 0
                 ),
+                .init(
+                    identity: try WorkspaceEntityIdentityV1(
+                        kind: .assetPlacementEvent,
+                        id: placementEventID
+                    ),
+                    revision: 0
+                ),
             ]
         )
         return WorkspaceMutationRequestV1(
@@ -1777,7 +1834,12 @@ final class V9_08GenerationLeaseTests: XCTestCase {
                 packID: SignPack.illuminatedSignV1.packID,
                 packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
                 packContentVersion: SignPack.illuminatedSignV1.contentVersion,
-                createdAt: Date(timeIntervalSinceReferenceDate: 601_000)
+                createdAt: Date(timeIntervalSinceReferenceDate: 601_000),
+                initialPlacementMutationID: mutationID,
+                initialPlacementEventID: placementEventID,
+                initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(
+                    rawValue: physicalEpisodeID
+                )
             ))
         )
     }

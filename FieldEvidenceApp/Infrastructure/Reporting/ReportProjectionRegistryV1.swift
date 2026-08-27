@@ -30,6 +30,44 @@ struct ReportProjectionBundleV1: Equatable, Sendable {
         openJSON: ReportProjectionOutputV1,
         structuredText: ReportProjectionOutputV1
     ) throws {
+        try self.init(
+            snapshotID: snapshot.payload.snapshotID,
+            snapshotSHA256: snapshot.snapshotSHA256,
+            audience: snapshot.payload.profileBinding.audience,
+            semanticProjection: semanticProjection,
+            pdf: pdf,
+            openJSON: openJSON,
+            structuredText: structuredText
+        )
+    }
+
+    init(
+        snapshot: CompletedActivitySnapshotV2,
+        semanticProjection: ReportSemanticProjectionV1,
+        pdf: ReportProjectionOutputV1,
+        openJSON: ReportProjectionOutputV1,
+        structuredText: ReportProjectionOutputV1
+    ) throws {
+        try self.init(
+            snapshotID: snapshot.payload.activity.snapshotID,
+            snapshotSHA256: snapshot.snapshotSHA256,
+            audience: snapshot.payload.activity.profileBinding.audience,
+            semanticProjection: semanticProjection,
+            pdf: pdf,
+            openJSON: openJSON,
+            structuredText: structuredText
+        )
+    }
+
+    private init(
+        snapshotID: String,
+        snapshotSHA256: String,
+        audience: ReportAudienceV1,
+        semanticProjection: ReportSemanticProjectionV1,
+        pdf: ReportProjectionOutputV1,
+        openJSON: ReportProjectionOutputV1,
+        structuredText: ReportProjectionOutputV1
+    ) throws {
         let outputs = [pdf, openJSON, structuredText]
         guard Set(outputs.map(\.format)) == Set([.pdf, .openJSON, .structuredText]),
               Set(outputs.map(\.semanticSHA256)) == Set([semanticProjection.semanticSHA256]),
@@ -50,8 +88,8 @@ struct ReportProjectionBundleV1: Equatable, Sendable {
         let artifactRows = outputs.sorted(by: { $0.format.rawValue < $1.format.rawValue }).map {
             "\($0.format.rawValue):\($0.sha256):\($0.data.count)"
         }.joined(separator: "\n") + "\n"
-        snapshotID = snapshot.payload.snapshotID
-        snapshotSHA256 = snapshot.snapshotSHA256
+        self.snapshotID = snapshotID
+        self.snapshotSHA256 = snapshotSHA256
         self.semanticProjection = semanticProjection
         self.pdf = pdf
         self.openJSON = openJSON
@@ -59,7 +97,7 @@ struct ReportProjectionBundleV1: Equatable, Sendable {
         artifactSetSHA256 = KernelCanonicalHashV1.sha256(Data(artifactRows.utf8))
         accessibleStructuredTextAlwaysPresent = true
         taggedPDFAccessibilityClaimed = false
-        requiresFinalAudienceConfirmation = snapshot.payload.profileBinding.audience == .customerSafe
+        requiresFinalAudienceConfirmation = audience == .customerSafe
         externalPublicationAuthorized = false
     }
 }
@@ -253,5 +291,191 @@ struct ReportProjectionRegistryV1: Codable, Equatable, Sendable {
             throw SnapshotProjectionFailureV1.projectionDisagreement
         }
         return regenerated
+    }
+
+    func render(
+        snapshot: CompletedActivitySnapshotV2,
+        manifest: ContractManifestV1,
+        reportProfile: ReportLayoutProfileV1,
+        exportProfile: ExportProfileV1,
+        recoveringFrom boundary: ReportProjectionPublicationBoundaryV1? = nil
+    ) throws -> ReportProjectionPublicationV1 {
+        if boundary == .beforeValidation { return .zero }
+        try validate(); try snapshot.validate(); try manifest.validate()
+        try reportProfile.validate(against: manifest.reportSectionRegistry)
+        try exportProfile.validate()
+        _ = try CompletedActivitySnapshotCanonicalCodecV2.encode(snapshot)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let sectionRegistrySHA256 = KernelCanonicalHashV1.sha256(
+            try encoder.encode(manifest.reportSectionRegistry)
+        )
+        let manifestSHA256 = KernelCanonicalHashV1.sha256(try encoder.encode(manifest))
+        let reportProfileSHA256 = KernelCanonicalHashV1.sha256(try encoder.encode(reportProfile))
+        let exportProfileSHA256 = KernelCanonicalHashV1.sha256(try encoder.encode(exportProfile))
+        let activity = snapshot.payload.activity
+        let binding = activity.profileBinding
+        try binding.validate()
+        guard sectionRegistrySHA256 == binding.sectionRegistrySHA256,
+              manifest.reportSectionRegistry.registryID == binding.sectionRegistryID,
+              manifest.reportSectionRegistry.registryVersion == binding.sectionRegistryVersion,
+              manifest.manifestID == binding.contractManifestID,
+              manifest.manifestVersion == binding.contractManifestVersion,
+              manifestSHA256 == binding.contractManifestSHA256,
+              reportProfileSHA256 == binding.reportProfileSHA256,
+              reportProfile.profileID == binding.reportProfileID,
+              reportProfile.profileRelease == binding.reportProfileRelease,
+              reportProfile.sectionIDs == binding.sectionIDs,
+              reportProfile.audience == binding.audience,
+              reportProfile.detail == binding.detail,
+              reportProfile.localeIdentifier == binding.localeIdentifier,
+              reportProfile.unitsProfileID == binding.unitsProfileID,
+              reportProfile.displayProfileID == binding.displayProfileID,
+              reportProfile.orientation == binding.orientation,
+              reportProfile.mediaLayout == binding.mediaLayout,
+              exportProfileSHA256 == binding.exportProfileSHA256,
+              exportProfile.exportProfileID == binding.exportProfileID,
+              exportProfile.exportProfileRelease == binding.exportProfileRelease,
+              exportProfile.privacyTransformID == binding.privacyTransformID,
+              Set(requiredFormats).isSubset(of: Set(exportProfile.formats)),
+              manifest.reportSectionRegistry.requiredSectionIDs.isSubset(of: Set(binding.sectionIDs)),
+              binding.sectionIDs.allSatisfy({ id in
+                  manifest.reportSectionRegistry.sections.contains(where: { $0.sectionID == id })
+              }),
+              binding.sectionIDs.allSatisfy({ id in
+                  guard let section = manifest.reportSectionRegistry.sections.first(where: { $0.sectionID == id }) else {
+                      return false
+                  }
+                  return Set(requiredFormats).isSubset(of: Set(section.supportedFormats))
+              }),
+              binding.rendererVersion == soleRenderer,
+              activity.evidenceCards.allSatisfy({ $0.audience == binding.audience }) else {
+            throw SnapshotProjectionFailureV1.missingBinding
+        }
+        if boundary == .afterValidation { return .zero }
+        let semantic = try ReportSemanticProjectorV1.project(snapshot: snapshot, manifest: manifest)
+        if boundary == .afterSemanticProjection { return .zero }
+        let openJSON = try DeterministicOpenJSONRendererV1.render(semantic)
+        if boundary == .afterOpenJSON { return .zero }
+        let pdf = try DeterministicPDFRendererV1.render(semantic, layoutProfile: reportProfile)
+        if boundary == .afterPDF { return .zero }
+        let text = try DeterministicOpenJSONRendererV1.renderStructuredText(semantic)
+        if boundary == .afterStructuredText || boundary == .afterReopenValidationBeforePublication {
+            return .zero
+        }
+        let renderedBytes = [openJSON, pdf, text].reduce(Int64(0)) {
+            $0 + Int64($1.data.count)
+        }
+        let mediaReferenceCount = activity.evidenceCards.reduce(0) {
+            $0 + $1.outputReferences.count
+        }
+        guard renderedBytes <= exportProfile.maximumArchiveBytes,
+              mediaReferenceCount <= exportProfile.maximumMediaItems else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        guard try DeterministicOpenJSONRendererV1.reopen(openJSON.data) == semantic,
+              try DeterministicOpenJSONRendererV1.reopenStructuredText(text.data) == semantic,
+              try DeterministicPDFRendererV1.reopen(pdf.data) == semantic else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return .complete(try ReportProjectionBundleV1(
+            snapshot: snapshot,
+            semanticProjection: semantic,
+            pdf: pdf,
+            openJSON: openJSON,
+            structuredText: text
+        ))
+    }
+
+    func recover(
+        snapshot: CompletedActivitySnapshotV2,
+        manifest: ContractManifestV1,
+        reportProfile: ReportLayoutProfileV1,
+        exportProfile: ExportProfileV1,
+        storedBundle: ReportProjectionBundleV1?
+    ) throws -> ReportProjectionBundleV1 {
+        guard case .complete(let regenerated) = try render(
+            snapshot: snapshot, manifest: manifest,
+            reportProfile: reportProfile, exportProfile: exportProfile
+        ) else { throw SnapshotProjectionFailureV1.partialEffect }
+        if let storedBundle, storedBundle != regenerated {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return regenerated
+    }
+}
+
+/// Additive registry release for completed-activity snapshot V2. The frozen
+/// V1 registry remains unchanged for historic snapshots and encoded fixtures.
+struct ReportProjectionRegistryV2: Codable, Equatable, Sendable {
+    static let schemaVersion = 2
+    static let registryID = "report-projection-registry-v2"
+    let schemaVersion: Int
+    let registryID: String
+    let supportedPersistentContractSchemas: [String]
+    let baseRendererRegistry: ReportProjectionRegistryV1
+
+    init() {
+        schemaVersion = Self.schemaVersion
+        registryID = Self.registryID
+        supportedPersistentContractSchemas = ["KERNEL_SNAPSHOT_V1", "KERNEL_SNAPSHOT_V2"]
+        baseRendererRegistry = ReportProjectionRegistryV1()
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, registryID, supportedPersistentContractSchemas
+        case baseRendererRegistry
+    }
+
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(
+            decoder, allowed: Set(CodingKeys.allCases.map(\.rawValue))
+        )
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        let expected = Self()
+        guard try values.decode(Int.self, forKey: .schemaVersion) == expected.schemaVersion,
+              try values.decode(String.self, forKey: .registryID) == expected.registryID,
+              try values.decode([String].self, forKey: .supportedPersistentContractSchemas)
+                == expected.supportedPersistentContractSchemas,
+              try values.decode(ReportProjectionRegistryV1.self, forKey: .baseRendererRegistry)
+                == expected.baseRendererRegistry else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        self = expected
+    }
+
+    func validate() throws {
+        guard self == Self() else { throw SnapshotProjectionFailureV1.incompatibleVersion }
+        try baseRendererRegistry.validate()
+    }
+
+    func render(
+        snapshot: CompletedActivitySnapshotV2,
+        manifest: ContractManifestV1,
+        reportProfile: ReportLayoutProfileV1,
+        exportProfile: ExportProfileV1,
+        recoveringFrom boundary: ReportProjectionPublicationBoundaryV1? = nil
+    ) throws -> ReportProjectionPublicationV1 {
+        try validate()
+        return try baseRendererRegistry.render(
+            snapshot: snapshot, manifest: manifest,
+            reportProfile: reportProfile, exportProfile: exportProfile,
+            recoveringFrom: boundary
+        )
+    }
+
+    func recover(
+        snapshot: CompletedActivitySnapshotV2,
+        manifest: ContractManifestV1,
+        reportProfile: ReportLayoutProfileV1,
+        exportProfile: ExportProfileV1,
+        storedBundle: ReportProjectionBundleV1?
+    ) throws -> ReportProjectionBundleV1 {
+        try validate()
+        return try baseRendererRegistry.recover(
+            snapshot: snapshot, manifest: manifest,
+            reportProfile: reportProfile, exportProfile: exportProfile,
+            storedBundle: storedBundle
+        )
     }
 }

@@ -237,12 +237,33 @@ final class V10_03ReplicationConflictRegistryTests: XCTestCase {
         let registeredModelNames = currentCatalog.registrations
             .filter { $0.subject.category == .persistentModel }
             .map(\.subject.stableName)
-        XCTAssertEqual(registeredModelNames.count, 14)
+        XCTAssertEqual(registeredModelNames.count, 20)
         XCTAssertEqual(Set(registeredModelNames).count, registeredModelNames.count)
         XCTAssertEqual(
             registeredModelNames.sorted(),
-            CurrentSyncClassificationCatalogV1.persistentModelNames.sorted()
+            CurrentSyncClassificationCatalogV1.activePersistentModelNames.sorted()
         )
+        XCTAssertEqual(CurrentSyncClassificationCatalogV1.persistentModelNames.count, 14)
+        XCTAssertTrue(
+            Set(CurrentSyncClassificationCatalogV1.persistentModelNames)
+                .isSubset(of: Set(registeredModelNames))
+        )
+        XCTAssertEqual(
+            Set(CurrentSyncClassificationCatalogV1.v6PersistentModelNames),
+            Set([
+                "AssetCompositionEdgeRow", "AssetCompositionEventRow",
+                "AssetPlacementEventRow", "LocationHierarchyEventRow",
+                "LocationMigrationReceiptRow", "LocationNodeRow",
+            ])
+        )
+        for name in CurrentSyncClassificationCatalogV1.v6PersistentModelNames {
+            let registration = try currentCatalog.registration(for: .init(
+                category: .persistentModel,
+                stableName: name
+            ))
+            XCTAssertEqual(registration.replicationPolicy.persistence, .swiftDataRecord)
+            XCTAssertEqual(registration.replicationPolicy.authority, .workspaceWriter)
+        }
         let registeredFileNames = currentCatalog.registrations
             .filter { $0.subject.category == .ownedFileClass }
             .map(\.subject.stableName)

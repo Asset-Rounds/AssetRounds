@@ -978,16 +978,19 @@ final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
     @MainActor
     func testV10_02R01MigrationLifecycleAndReplicaIdentityMatrix() throws {
         let corpus = try Self.loadCorpus()
-        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeRelease, .v5)
+        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeRelease, .v6)
         XCTAssertEqual(
             PersistentSchemaReleaseRegistryV1.releases,
-            [.v1, .v2, .v3, .v4, .v5]
+            [.v1, .v2, .v3, .v4, .v5, .v6]
         )
         XCTAssertEqual(PersistentSchemaV4.models.count, PersistentSchemaV3.models.count + 4)
         XCTAssertEqual(PersistentSchemaV5.models.count, PersistentSchemaV4.models.count + 1)
+        XCTAssertEqual(PersistentSchemaV6.models.count, PersistentSchemaV5.models.count + 6)
         XCTAssertEqual(PersistentSchemaMigrationPlanV3.schemas.count, 2)
         XCTAssertEqual(PersistentSchemaMigrationPlanV4.schemas.count, 2)
+        XCTAssertEqual(PersistentSchemaMigrationPlanV5.schemas.count, 2)
         XCTAssertEqual(PersistentSchemaReleaseV1.v5.migrationStage, .custom)
+        XCTAssertEqual(PersistentSchemaReleaseV1.v6.migrationStage, .custom)
 
         XCTAssertEqual(corpus.restoreMatrix.map(\.mode), ["empty", "replace", "clone", "fork"])
         XCTAssertTrue(corpus.restoreMatrix.allSatisfy(\.preservesReceiptHistory))

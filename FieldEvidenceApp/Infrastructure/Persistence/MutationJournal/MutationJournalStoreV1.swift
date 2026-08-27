@@ -378,6 +378,21 @@ final class MutationJournalStoreV1 {
         } else {
             generatedSemanticReversal = semanticReversal
         }
+        if case let .applyLocationHierarchyChange(value) = envelope.command {
+            let plan = value.plan
+            let operationID = plan.operationID
+            guard try modelContext.fetch(FetchDescriptor<LocationHierarchyEventRow>(
+                predicate: #Predicate { $0.operationID == operationID }
+            )).isEmpty else { throw WorkspaceMutationFailureV1.sequenceCollision }
+            let hierarchyReceipt = try LocationHierarchyChangeReceiptV1(
+                plan: plan,
+                mutationReceipt: receipt
+            )
+            modelContext.insert(try LocationHierarchyEventRow(
+                plan: plan,
+                receipt: hierarchyReceipt
+            ))
+        }
         modelContext.insert(try MutationReceiptRow(
             envelope: envelope,
             receipt: receipt,
@@ -1088,6 +1103,30 @@ final class MutationJournalStoreV1 {
                 packContentVersion: row.packContentVersion, label: row.label,
                 createdAt: row.createdAt, updatedAt: row.updatedAt
             ))
+        case .locationNode:
+            let id = identity.id
+            let rows = try modelContext.fetch(FetchDescriptor<LocationNodeRow>(predicate: #Predicate { $0.id == id }))
+            guard let row = try exactlyOneOrAbsent(rows) else { return try tombstone(identity, revision) }
+            return try semanticPostImage(identity, revision, try row.value())
+        case .assetPlacementEvent:
+            let id = identity.id
+            let rows = try modelContext.fetch(FetchDescriptor<AssetPlacementEventRow>(predicate: #Predicate { $0.id == id }))
+            guard let row = try exactlyOneOrAbsent(rows) else { return try tombstone(identity, revision) }
+            return try semanticPostImage(identity, revision, try row.value())
+        case .assetCompositionEdge:
+            let id = identity.id
+            let rows = try modelContext.fetch(FetchDescriptor<AssetCompositionEdgeRow>(predicate: #Predicate { $0.id == id }))
+            guard let row = try exactlyOneOrAbsent(rows) else { return try tombstone(identity, revision) }
+            let value = try LocationPersistenceCodecV1.decode(AssetCompositionEdgeV1.self, from: row.canonicalData)
+            try value.validate()
+            return try semanticPostImage(identity, revision, value)
+        case .assetCompositionEvent:
+            let id = identity.id
+            let rows = try modelContext.fetch(FetchDescriptor<AssetCompositionEventRow>(predicate: #Predicate { $0.id == id }))
+            guard let row = try exactlyOneOrAbsent(rows) else { return try tombstone(identity, revision) }
+            let value = try LocationPersistenceCodecV1.decode(AssetCompositionEventV1.self, from: row.canonicalData)
+            try value.validate()
+            return try semanticPostImage(identity, revision, value)
         case .workflowRecord:
             let id = identity.id
             let rows = try modelContext.fetch(FetchDescriptor<WorkflowRecord>(predicate: #Predicate { $0.id == id }))
@@ -1198,6 +1237,10 @@ final class MutationJournalStoreV1 {
         var identities: [WorkspaceEntityIdentityV1] = []
         identities += try boundedFetch(FetchDescriptor<Site>()).map { try .init(kind: .site, id: $0.id) }
         identities += try boundedFetch(FetchDescriptor<Asset>()).map { try .init(kind: .asset, id: $0.id) }
+        identities += try boundedFetch(FetchDescriptor<LocationNodeRow>()).map { try .init(kind: .locationNode, id: $0.id) }
+        identities += try boundedFetch(FetchDescriptor<AssetPlacementEventRow>()).map { try .init(kind: .assetPlacementEvent, id: $0.id) }
+        identities += try boundedFetch(FetchDescriptor<AssetCompositionEdgeRow>()).map { try .init(kind: .assetCompositionEdge, id: $0.id) }
+        identities += try boundedFetch(FetchDescriptor<AssetCompositionEventRow>()).map { try .init(kind: .assetCompositionEvent, id: $0.id) }
         identities += try boundedFetch(FetchDescriptor<WorkflowRecord>()).map { try .init(kind: .workflowRecord, id: $0.id) }
         identities += try boundedFetch(FetchDescriptor<EvidenceFile>()).map { try .init(kind: .evidenceFile, id: $0.id) }
         identities += try boundedFetch(FetchDescriptor<Issue>()).map { try .init(kind: .issue, id: $0.id) }
@@ -1265,6 +1308,10 @@ final class MutationJournalStoreV1 {
         switch identity.kind {
         case .site: return .site(id: identity.id, revision: revision, semanticSHA256: digest)
         case .asset: return .asset(id: identity.id, revision: revision, semanticSHA256: digest)
+        case .locationNode: return .locationNode(id: identity.id, revision: revision, semanticSHA256: digest)
+        case .assetPlacementEvent: return .assetPlacementEvent(id: identity.id, revision: revision, semanticSHA256: digest)
+        case .assetCompositionEdge: return .assetCompositionEdge(id: identity.id, revision: revision, semanticSHA256: digest)
+        case .assetCompositionEvent: return .assetCompositionEvent(id: identity.id, revision: revision, semanticSHA256: digest)
         case .workflowRecord: return .workflowRecord(id: identity.id, revision: revision, semanticSHA256: digest)
         case .evidenceFile: return .evidenceFile(id: identity.id, revision: revision, semanticSHA256: digest)
         case .issue: return .issue(id: identity.id, revision: revision, semanticSHA256: digest)

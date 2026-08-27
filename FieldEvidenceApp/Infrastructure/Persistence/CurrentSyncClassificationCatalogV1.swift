@@ -68,6 +68,16 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "WorkspaceMutationStateRow",
     ]
 
+    /// Frozen V5 public baseline remains available to sealed Kernel V4 and
+    /// prior tooling. Runtime V6 consumers use this additive inventory.
+    static let v6PersistentModelNames = [
+        "AssetCompositionEdgeRow", "AssetCompositionEventRow",
+        "AssetPlacementEventRow", "LocationHierarchyEventRow",
+        "LocationMigrationReceiptRow", "LocationNodeRow",
+    ]
+    static let activePersistentModelNames =
+        (persistentModelNames + v6PersistentModelNames).sorted()
+
     static let ownedFileClassNames = [
         "cache", "commerceEntitlementCache", "database", "databaseSHM", "databaseWAL",
         "diagnostics", "durableDirectory", "generationLeaseControl",
@@ -94,6 +104,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "V4BackupReportDTO",
         "V4BackupSiteDTO",
         "V4BackupWorkflowRecordDTO",
+        "V5BackupLocationRecordV1",
     ]
 
     static let derivedIndexNames = [
@@ -110,6 +121,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "StoreSemanticEnvelopeV3",
         "StoreSemanticEnvelopeV4",
         "StoreSemanticEnvelopeV5",
+        "StoreSemanticEnvelopeV6",
         "WorkspaceMutationStateSemanticV1",
         "entityMutationRevision",
         "workspaceMutationState",
@@ -235,7 +247,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
             }
             let persistentSubjects = try subjects(
                 category: .persistentModel,
-                names: persistentModelNames
+                names: activePersistentModelNames
             )
             let ownedFileSubjects = try subjects(
                 category: .ownedFileClass,
@@ -351,7 +363,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         try requireExactCategory(
             persistentModelSubjects,
             category: .persistentModel,
-            expectedNames: Self.persistentModelNames
+            expectedNames: Self.activePersistentModelNames
         )
         try requireExactCategory(
             ownedFileClassSubjects,
@@ -547,6 +559,15 @@ private extension CurrentSyncClassificationCatalogV1 {
                 try subject(category: .persistentModel, name: "WorkflowRecord")
             ]
         ))
+        for name in v6PersistentModelNames {
+            let mutable = ["LocationNodeRow", "AssetCompositionEdgeRow"].contains(name)
+            specs.append(AdditionalSpec(
+                category: .persistentModel,
+                name: name,
+                profile: mutable ? .replicatedContent : .replicatedMutationHistory,
+                dependencies: try locationPersistentDependencies(for: name)
+            ))
+        }
 
         for name in portableContentProjectionNames {
             let profile: AdditionalProfile = name == "ReportSnapshotV1"
@@ -849,6 +870,8 @@ private extension CurrentSyncClassificationCatalogV1 {
             ])
         case "V4BackupRecordsV1", "V4BackupManifestV1":
             return try contentModelSubjects()
+        case "V5BackupLocationRecordV1":
+            return try subjects(category: .persistentModel, names: v6PersistentModelNames)
         default:
             throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
         }
@@ -873,6 +896,8 @@ private extension CurrentSyncClassificationCatalogV1 {
             ]
         case "StoreSemanticEnvelopeV3", "StoreSemanticEnvelopeV4", "StoreSemanticEnvelopeV5":
             return try subjects(category: .persistentModel, names: persistentModelNames)
+        case "StoreSemanticEnvelopeV6":
+            return try subjects(category: .persistentModel, names: activePersistentModelNames)
         default:
             throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
         }
@@ -885,8 +910,27 @@ private extension CurrentSyncClassificationCatalogV1 {
         ])
     }
 
+    static func locationPersistentDependencies(
+        for name: String
+    ) throws -> [SyncSubjectIdentityV1] {
+        switch name {
+        case "LocationNodeRow":
+            return [try subject(category: .persistentModel, name: "Site")]
+        case "LocationHierarchyEventRow":
+            return try subjects(category: .persistentModel, names: ["LocationNodeRow", "Site"])
+        case "AssetPlacementEventRow":
+            return try subjects(category: .persistentModel, names: ["Asset", "LocationNodeRow", "Site"])
+        case "AssetCompositionEdgeRow", "AssetCompositionEventRow":
+            return [try subject(category: .persistentModel, name: "Asset")]
+        case "LocationMigrationReceiptRow":
+            return try subjects(category: .persistentModel, names: ["Asset", "AssetPlacementEventRow", "Site"])
+        default:
+            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+        }
+    }
+
     static func validatePersistentModels() throws {
-        let expected: [any PersistentModel.Type] = [
+        let frozenV5: [any PersistentModel.Type] = [
             Site.self,
             Asset.self,
             WorkflowRecord.self,
@@ -902,18 +946,33 @@ private extension CurrentSyncClassificationCatalogV1 {
             EntityMutationRevisionRow.self,
             ObservationAndTimeRow.self,
         ]
-        let runtimeNames = PersistentSchemaV5.models.map { modelType in
+        let expected = frozenV5 + [
+            LocationNodeRow.self,
+            LocationHierarchyEventRow.self,
+            AssetPlacementEventRow.self,
+            AssetCompositionEdgeRow.self,
+            AssetCompositionEventRow.self,
+            LocationMigrationReceiptRow.self,
+        ]
+        let runtimeNames = PersistentSchemaV6.models.map { modelType in
             String(describing: modelType)
                 .split(separator: ".")
                 .last
                 .map(String.init) ?? ""
         }.sorted()
-        guard PersistentSchemaV5.models.count == expected.count,
+        let frozenNames = PersistentSchemaV5.models.map { modelType in
+            String(describing: modelType).split(separator: ".").last.map(String.init) ?? ""
+        }.sorted()
+        guard PersistentSchemaV5.models.count == frozenV5.count,
               Set(PersistentSchemaV5.models.map { ObjectIdentifier($0) })
+                == Set(frozenV5.map { ObjectIdentifier($0) }),
+              frozenNames == persistentModelNames,
+              PersistentSchemaV6.models.count == expected.count,
+              Set(PersistentSchemaV6.models.map { ObjectIdentifier($0) })
                 == Set(expected.map { ObjectIdentifier($0) }),
               runtimeNames.count == Set(runtimeNames).count,
               runtimeNames.allSatisfy(ReplicationContractValidationV1.validToken),
-              runtimeNames == persistentModelNames,
+              runtimeNames == activePersistentModelNames,
               Set(persistentModelNames)
                 == Set(SyncClassificationRegistryV1.persistentModelNames + ["ObservationAndTimeRow"]) else {
             throw CurrentSyncClassificationCatalogFailureV1.invalidInventory

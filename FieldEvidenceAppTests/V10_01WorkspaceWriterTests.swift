@@ -43,6 +43,9 @@ final class V10_01WorkspaceWriterTests: XCTestCase {
         ).workspaceWriter
         let realSiteID = Harness.id(81)
         let realAssetID = Harness.id(82)
+        let realMutationID = try MutationIDV1(rawValue: Harness.id(83))
+        let realPlacementEventID = Harness.id(84)
+        let realPhysicalEpisodeID = try PhysicalPlacementEpisodeIDV1(rawValue: Harness.id(85))
         let realCreatedAt = Date(timeIntervalSince1970: 1_800_000_110)
         let realCurrent = try realWriter.currentRevision()
         let realExpected = try WorkspaceExpectedRevisionV1(
@@ -59,10 +62,38 @@ final class V10_01WorkspaceWriterTests: XCTestCase {
                     identity: try WorkspaceEntityIdentityV1(kind: .asset, id: realAssetID),
                     revision: 0
                 ),
+                .init(
+                    identity: try WorkspaceEntityIdentityV1(
+                        kind: .assetPlacementEvent,
+                        id: realPlacementEventID
+                    ),
+                    revision: 0
+                ),
             ]
         )
+        XCTAssertThrowsError(try realWriter.execute(.init(
+            mutationID: try MutationIDV1(rawValue: Harness.id(86)),
+            expectedRevision: realExpected,
+            command: .createFirstSign(.init(
+                siteID: realSiteID,
+                newSite: .init(
+                    id: realSiteID,
+                    label: "Real site",
+                    address: nil,
+                    timeZoneID: "UTC"
+                ),
+                assetID: realAssetID,
+                assetLabel: "Real asset",
+                packID: "test.pack",
+                packSchemaVersion: 1,
+                packContentVersion: 1,
+                createdAt: realCreatedAt
+            ))
+        ))) { error in
+            XCTAssertEqual(error as? WorkspaceMutationFailureV1, .invalidCommand)
+        }
         let realOutcome = try realWriter.execute(.init(
-            mutationID: try MutationIDV1(rawValue: Harness.id(83)),
+            mutationID: realMutationID,
             expectedRevision: realExpected,
             command: .createFirstSign(.init(
                 siteID: realSiteID,
@@ -72,7 +103,10 @@ final class V10_01WorkspaceWriterTests: XCTestCase {
                 packID: "test.pack",
                 packSchemaVersion: 1,
                 packContentVersion: 1,
-                createdAt: realCreatedAt
+                createdAt: realCreatedAt,
+                initialPlacementMutationID: realMutationID,
+                initialPlacementEventID: realPlacementEventID,
+                initialPhysicalEpisodeID: realPhysicalEpisodeID
             ))
         ))
         XCTAssertEqual(realOutcome.after.revision, 1)
@@ -82,10 +116,24 @@ final class V10_01WorkspaceWriterTests: XCTestCase {
         let persistedAssets = try session.modelContext.fetch(FetchDescriptor<Asset>(
             predicate: #Predicate { $0.id == realAssetID }
         ))
+        let persistedPlacements = try session.modelContext.fetch(FetchDescriptor<AssetPlacementEventRow>(
+            predicate: #Predicate { $0.id == realPlacementEventID }
+        ))
         XCTAssertEqual(persistedSites.count, 1)
         XCTAssertEqual(persistedSites.first?.createdAt, realCreatedAt)
         XCTAssertEqual(persistedAssets.count, 1)
         XCTAssertEqual(persistedAssets.first?.createdAt, realCreatedAt)
+        let placement = try XCTUnwrap(persistedPlacements.first).value()
+        XCTAssertEqual(persistedPlacements.count, 1)
+        XCTAssertEqual(placement.assetID, realAssetID)
+        XCTAssertEqual(placement.siteID, realSiteID)
+        XCTAssertNil(placement.locationNodeID)
+        XCTAssertNil(placement.predecessorEventID)
+        XCTAssertEqual(placement.source, .manual)
+        XCTAssertEqual(placement.physicalEpisodeID, realPhysicalEpisodeID)
+        XCTAssertEqual(placement.mutationID, realMutationID)
+        XCTAssertEqual(placement.occurredAt, realOutcome.occurredAt)
+        XCTAssertNoThrow(try AssetPlacementHistoryV1.validate([placement]))
     }
 
     @MainActor
@@ -191,11 +239,24 @@ final class V10_01WorkspaceWriterTests: XCTestCase {
                 "begin_check_draft", "capture_evidence", "confirm_site_timezone",
                 "create_first_sign", "delete_asset", "delete_site", "erase_workspace",
                 "finalize_check", "finalize_correction", "record_work", "restore_workspace",
+                "apply_location_hierarchy_change", "apply_asset_placement_change",
+                "apply_asset_composition_change",
             ]
         )
         XCTAssertEqual(WorkspaceWriterAdapterV1.supportedCommandKinds, [
             .createFirstSign, .createCheckDraft, .acceptCheckEvidence, .updateSiteTimeZone,
         ])
+        XCTAssertEqual(WorkspaceWriterAdapterV1.locationSupportedCommandKinds, [
+            .applyLocationHierarchyChange,
+            .applyAssetPlacementChange,
+            .applyAssetCompositionChange,
+        ])
+        XCTAssertEqual(
+            WorkspaceWriterAdapterV1.activeSupportedCommandKinds,
+            WorkspaceWriterAdapterV1.supportedCommandKinds.union(
+                WorkspaceWriterAdapterV1.locationSupportedCommandKinds
+            )
+        )
         XCTAssertFalse(WorkspaceWriterAdapterV1.supportedCommandKinds.contains(.finalizeCheck))
         XCTAssertFalse(WorkspaceWriterAdapterV1.supportedCommandKinds.contains(.eraseWorkspace))
         XCTAssertEqual(MutationBoundaryClosureReceiptV1.kernel.writersPerWorkspaceGeneration, 1)
