@@ -19826,7 +19826,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             workflowSource.components(
                 separatedBy: #"taskID: "work_and_recheck""#
             ).count - 1,
-            10
+            12
         )
         XCTAssertFalse(workflowSource.contains("S10_4_AUDIT_DIAGNOSTIC"))
         XCTAssertFalse(
