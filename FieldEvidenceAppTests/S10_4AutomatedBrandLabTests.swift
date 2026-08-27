@@ -4927,7 +4927,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ".typeText(",
             "Thread.sleep",
             "sleep(",
-            "performAccessibilityAudit",
             "captureBaseline(",
             "attachCandidate(",
             #"prefix: "S10_4_AX_STATE""#,
@@ -4946,6 +4945,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 prohibitedWorkValidationPositioningForm
             )
         }
+        XCTAssertEqual(
+            workValidationPositioningHelperSource.components(
+                separatedBy: "performAccessibilityAudit"
+            ).count - 1,
+            1
+        )
 
         for consumedWorkValidationDiagnosticForm in [
             "diagnoseAXTextWorkValidationContrast",
