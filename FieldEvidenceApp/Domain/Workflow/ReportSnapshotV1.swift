@@ -37,6 +37,9 @@ struct ReportSnapshotV1: Codable, Equatable, Sendable {
     /// Optional C39 asset-semantic projection.  It is a frozen view of
     /// canonical semantic/product/lifecycle/work-subject records only.
     var assetSemantics: CompletedAssetSemanticsSnapshotV1? = nil
+    /// Optional C40 frozen authority, applicability, assessment, classification,
+    /// severity, measurement-protocol, and derived-fact projection.
+    var authorityCriterion: CompletedAuthorityCriterionSnapshotV1? = nil
 }
 
 struct AcknowledgementSnapshotV1: Codable, Equatable, Sendable {

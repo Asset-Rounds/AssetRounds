@@ -5,6 +5,34 @@ import XCTest
 
 @MainActor
 final class V9_ChangeJournalCheckpointReplayTests: XCTestCase {
+    func testV23P03C40CanonicalReplayRetainsPredecessorConcurrencyIdentity() throws {
+        let workspaceID = WorkspaceID(rawValue: UUID(uuidString: "00000000-0000-4000-8000-000000004001")!)
+        let mutationID = try MutationIDV1(rawValue: UUID(uuidString: "00000000-0000-4000-8000-000000004002")!)
+        let predecessorID = UUID(uuidString: "00000000-0000-4000-8000-000000004003")!
+        let value = try AuthoritySourceReleaseV1(
+            releaseID: UUID(uuidString: "00000000-0000-4000-8000-000000004004")!,
+            workspaceID: workspaceID,
+            sourceID: UUID(uuidString: "00000000-0000-4000-8000-000000004005")!,
+            sourceType: .guidance, designation: "Replay guidance", editionOrRevision: "2",
+            retrievedAt: Date(timeIntervalSince1970: 1_735_689_600),
+            licenseStorageDisposition: .notStored, supersedesReleaseID: predecessorID,
+            recordedAt: Date(timeIntervalSince1970: 1_735_689_600), revision: 2,
+            mutationID: mutationID
+        )
+        let mutation = try AuthorityCriterionMutationV1(
+            workspaceID: workspaceID, expectedRevision: 1, mutationID: mutationID,
+            postImage: .supersedeAuthoritySource(value)
+        )
+        let replayed = try AuthorityCriterionMutationV1.decodeCanonical(from: mutation.canonicalData())
+        XCTAssertEqual(replayed, mutation)
+        XCTAssertEqual(
+            try replayed.concurrencyIdentity,
+            WorkspaceEntityIdentityV1(kind: .authoritySourceRelease, id: predecessorID)
+        )
+        XCTAssertEqual(try replayed.postImage.mutationPostImage.concurrencyIdentity, try replayed.concurrencyIdentity)
+        XCTAssertEqual(try replayed.postImage.mutationPostImage.identity, try replayed.affectedIdentity)
+    }
+
     func testV23P03C39JournalReplayRetainsExactLifecycleKinds() throws {
         let kinds = AssetLifecycleEventKindV1.allCases
         let bytes = try AssetSemanticCanonicalCodecV1.encode(kinds)

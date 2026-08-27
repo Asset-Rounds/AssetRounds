@@ -512,7 +512,17 @@ struct EntityChangeV1: Codable, Equatable, Sendable {
         identity = try postImage.identity; self.postImage = postImage; self.conflictPolicy = conflictPolicy; self.conflictIdentity = conflictIdentity
         try validate()
     }
-    func validate() throws { try conflictPolicy.validate(); try conflictIdentity?.validate(); guard identity == (try postImage.identity), postImage.revision > 0, ChangeJournalValidationV1.isSHA256(postImage.semanticSHA256), (conflictPolicy.rule == .exactRevisionManual) || conflictIdentity == nil else { throw ChangeJournalFailureV1.invalidValue } }
+    func validate() throws {
+        try conflictPolicy.validate(); try conflictIdentity?.validate()
+        let concurrencyIdentity = try postImage.concurrencyIdentity
+        guard identity == (try postImage.identity),
+              concurrencyIdentity.kind == identity.kind,
+              postImage.revision > 0,
+              ChangeJournalValidationV1.isSHA256(postImage.semanticSHA256),
+              (conflictPolicy.rule == .exactRevisionManual) || conflictIdentity == nil else {
+            throw ChangeJournalFailureV1.invalidValue
+        }
+    }
     var stableKey: String { identity.stableKey }
     private enum CodingKeys: String, CodingKey, CaseIterable { case identity, postImage, conflictPolicy, conflictIdentity }
     init(from decoder: any Decoder) throws { try ChangeJournalClosedCodingV1.requireClosed(decoder, CodingKeys.self, required: [.identity, .postImage, .conflictPolicy]); let c = try decoder.container(keyedBy: CodingKeys.self); let value = try Self(postImage: c.decode(MutationPostImageV1.self, forKey: .postImage), conflictPolicy: c.decode(ConflictPolicyV1.self, forKey: .conflictPolicy), conflictIdentity: c.decodeIfPresent(ConflictIdentityV1.self, forKey: .conflictIdentity)); guard try c.decode(WorkspaceEntityIdentityV1.self, forKey: .identity) == value.identity else { throw ChangeJournalFailureV1.invalidValue }; self = value }

@@ -23,6 +23,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             .applyRequirementAssurance,
             .applyPartyAccountability,
             .applyAssetSemantics,
+            .applyAuthorityCriterion,
         ])
 
     private let modelContext: ModelContext
@@ -121,6 +122,8 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
                 value,
                 temporaryRelativePath: temporaryRelativePath
             )
+        case let .applyAuthorityCriterion(value):
+            return try applyAuthorityCriterion(value, temporaryRelativePath: temporaryRelativePath)
         case .deleteAsset,
              .deleteSite,
              .eraseWorkspace,
@@ -131,6 +134,210 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
              .archiveEntities:
             throw WorkspaceMutationFailureV1.unsupportedCommand
         }
+    }
+
+    private func applyAuthorityCriterion(
+        _ mutation: AuthorityCriterionMutationV1,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1 {
+        do {
+            try mutation.validate()
+            let identity = try mutation.affectedIdentity
+            try validateAuthorityCriterionReferences(mutation.postImage)
+            if let predecessor = try mutation.postImage.predecessorIdentity {
+                let prior = try authorityCriterionRevision(predecessor)
+                guard prior.workspaceID == mutation.workspaceID,
+                      prior.revision < UInt64.max,
+                      prior.revision + 1 == mutation.postImage.revision else {
+                    throw WorkspaceMutationFailureV1.staleEntityRevision(predecessor)
+                }
+                guard try !authorityCriterionSuccessorExists(predecessor) else {
+                    throw WorkspaceMutationFailureV1.sequenceCollision
+                }
+            }
+            guard try !authorityCriterionRowExists(identity) else {
+                throw WorkspaceMutationFailureV1.sequenceCollision
+            }
+            switch mutation.postImage {
+            case .appendAuthoritySource(let v), .supersedeAuthoritySource(let v): modelContext.insert(try AuthoritySourceReleaseRow(v))
+            case .appendRequirementBasis(let v), .supersedeRequirementBasis(let v): modelContext.insert(try RequirementBasisBindingRow(v))
+            case .appendApplicabilityContext(let v), .supersedeApplicabilityContext(let v): modelContext.insert(try ApplicabilityContextSnapshotRow(v))
+            case .appendAssessmentScope(let v), .supersedeAssessmentScope(let v): modelContext.insert(try AssessmentScopeSnapshotRow(v))
+            case .appendSeverityScale(let v), .supersedeSeverityScale(let v): modelContext.insert(try SeverityScaleReleaseRow(v))
+            case .appendFindingClassification(let v), .supersedeFindingClassification(let v): modelContext.insert(try FindingClassificationBindingRow(v))
+            case .appendMeasurementProtocol(let v), .supersedeMeasurementProtocol(let v): modelContext.insert(try MeasurementProtocolReleaseRow(v))
+            case .appendEvaluatorDescriptor(let v), .supersedeEvaluatorDescriptor(let v): modelContext.insert(try DerivedFactEvaluatorDescriptorRow(v))
+            case .appendDerivedFact(let v), .supersedeDerivedFact(let v): modelContext.insert(try DerivedFactProvenanceRow(v))
+            }
+            return try WorkspaceMutationEffectV1(affectedEntities: [identity], temporaryRelativePath: temporaryRelativePath)
+        } catch let failure as WorkspaceMutationFailureV1 {
+            modelContext.rollback(); throw failure
+        } catch {
+            modelContext.rollback(); throw WorkspaceMutationFailureV1.invalidCommand
+        }
+    }
+
+    private func authorityCriterionRowExists(_ identity: WorkspaceEntityIdentityV1) throws -> Bool {
+        let id = identity.id
+        switch identity.kind {
+        case .authoritySourceRelease: return try uniquePresence(modelContext.fetch(FetchDescriptor<AuthoritySourceReleaseRow>(predicate: #Predicate { $0.releaseID == id })))
+        case .requirementBasisBinding: return try uniquePresence(modelContext.fetch(FetchDescriptor<RequirementBasisBindingRow>(predicate: #Predicate { $0.bindingID == id })))
+        case .applicabilityContextSnapshot: return try uniquePresence(modelContext.fetch(FetchDescriptor<ApplicabilityContextSnapshotRow>(predicate: #Predicate { $0.snapshotID == id })))
+        case .assessmentScopeSnapshot: return try uniquePresence(modelContext.fetch(FetchDescriptor<AssessmentScopeSnapshotRow>(predicate: #Predicate { $0.snapshotID == id })))
+        case .severityScaleRelease: return try uniquePresence(modelContext.fetch(FetchDescriptor<SeverityScaleReleaseRow>(predicate: #Predicate { $0.releaseID == id })))
+        case .findingClassificationBinding: return try uniquePresence(modelContext.fetch(FetchDescriptor<FindingClassificationBindingRow>(predicate: #Predicate { $0.bindingID == id })))
+        case .measurementProtocolRelease: return try uniquePresence(modelContext.fetch(FetchDescriptor<MeasurementProtocolReleaseRow>(predicate: #Predicate { $0.releaseID == id })))
+        case .derivedFactEvaluatorDescriptor: return try uniquePresence(modelContext.fetch(FetchDescriptor<DerivedFactEvaluatorDescriptorRow>(predicate: #Predicate { $0.descriptorID == id })))
+        case .derivedFactProvenance: return try uniquePresence(modelContext.fetch(FetchDescriptor<DerivedFactProvenanceRow>(predicate: #Predicate { $0.provenanceID == id })))
+        default: return false
+        }
+    }
+
+    private func uniquePresence<T>(_ rows: [T]) throws -> Bool {
+        guard rows.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        return rows.count == 1
+    }
+
+    private func authorityCriterionSuccessorExists(
+        _ predecessor: WorkspaceEntityIdentityV1
+    ) throws -> Bool {
+        let id = predecessor.id
+        let count: Int
+        switch predecessor.kind {
+        case .authoritySourceRelease:
+            count = try modelContext.fetch(FetchDescriptor<AuthoritySourceReleaseRow>()).map { try $0.value() }.filter { $0.supersedesReleaseID == id }.count
+        case .requirementBasisBinding:
+            count = try modelContext.fetch(FetchDescriptor<RequirementBasisBindingRow>()).map { try $0.value() }.filter { $0.supersedesBindingID == id }.count
+        case .applicabilityContextSnapshot:
+            count = try modelContext.fetch(FetchDescriptor<ApplicabilityContextSnapshotRow>()).map { try $0.value() }.filter { $0.supersedesSnapshotID == id }.count
+        case .assessmentScopeSnapshot:
+            count = try modelContext.fetch(FetchDescriptor<AssessmentScopeSnapshotRow>()).map { try $0.value() }.filter { $0.supersedesSnapshotID == id }.count
+        case .severityScaleRelease:
+            count = try modelContext.fetch(FetchDescriptor<SeverityScaleReleaseRow>()).map { try $0.value() }.filter { $0.supersedesReleaseID == id }.count
+        case .findingClassificationBinding:
+            count = try modelContext.fetch(FetchDescriptor<FindingClassificationBindingRow>()).map { try $0.value() }.filter { $0.supersedesBindingID == id }.count
+        case .measurementProtocolRelease:
+            count = try modelContext.fetch(FetchDescriptor<MeasurementProtocolReleaseRow>()).map { try $0.value() }.filter { $0.supersedesReleaseID == id }.count
+        case .derivedFactEvaluatorDescriptor:
+            count = try modelContext.fetch(FetchDescriptor<DerivedFactEvaluatorDescriptorRow>()).map { try $0.value() }.filter { $0.supersedesDescriptorID == id }.count
+        case .derivedFactProvenance:
+            count = try modelContext.fetch(FetchDescriptor<DerivedFactProvenanceRow>()).map { try $0.value() }.filter { $0.predecessorProvenanceID == id }.count
+        default: throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        guard count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        return count == 1
+    }
+
+    private func authorityCriterionRevision(
+        _ identity: WorkspaceEntityIdentityV1
+    ) throws -> (workspaceID: WorkspaceID, revision: UInt64) {
+        let id = identity.id
+        switch identity.kind {
+        case .authoritySourceRelease:
+            let r=try modelContext.fetch(FetchDescriptor<AuthoritySourceReleaseRow>(predicate:#Predicate{$0.releaseID == id})); guard r.count==1,let v=try r.first?.value() else{throw WorkspaceMutationFailureV1.invalidCommand}; return(v.workspaceID,v.revision)
+        case .requirementBasisBinding:
+            let r=try modelContext.fetch(FetchDescriptor<RequirementBasisBindingRow>(predicate:#Predicate{$0.bindingID == id})); guard r.count==1,let v=try r.first?.value() else{throw WorkspaceMutationFailureV1.invalidCommand}; return(v.workspaceID,v.revision)
+        case .applicabilityContextSnapshot:
+            let r=try modelContext.fetch(FetchDescriptor<ApplicabilityContextSnapshotRow>(predicate:#Predicate{$0.snapshotID == id})); guard r.count==1,let v=try r.first?.value() else{throw WorkspaceMutationFailureV1.invalidCommand}; return(v.workspaceID,v.revision)
+        case .assessmentScopeSnapshot:
+            let r=try modelContext.fetch(FetchDescriptor<AssessmentScopeSnapshotRow>(predicate:#Predicate{$0.snapshotID == id})); guard r.count==1,let v=try r.first?.value() else{throw WorkspaceMutationFailureV1.invalidCommand}; return(v.workspaceID,v.revision)
+        case .severityScaleRelease:
+            let r=try modelContext.fetch(FetchDescriptor<SeverityScaleReleaseRow>(predicate:#Predicate{$0.releaseID == id})); guard r.count==1,let v=try r.first?.value() else{throw WorkspaceMutationFailureV1.invalidCommand}; return(v.workspaceID,v.revision)
+        case .findingClassificationBinding:
+            let r=try modelContext.fetch(FetchDescriptor<FindingClassificationBindingRow>(predicate:#Predicate{$0.bindingID == id})); guard r.count==1,let v=try r.first?.value() else{throw WorkspaceMutationFailureV1.invalidCommand}; return(v.workspaceID,v.revision)
+        case .measurementProtocolRelease:
+            let r=try modelContext.fetch(FetchDescriptor<MeasurementProtocolReleaseRow>(predicate:#Predicate{$0.releaseID == id})); guard r.count==1,let v=try r.first?.value() else{throw WorkspaceMutationFailureV1.invalidCommand}; return(v.workspaceID,v.revision)
+        case .derivedFactEvaluatorDescriptor:
+            let r=try modelContext.fetch(FetchDescriptor<DerivedFactEvaluatorDescriptorRow>(predicate:#Predicate{$0.descriptorID == id})); guard r.count==1,let v=try r.first?.value() else{throw WorkspaceMutationFailureV1.invalidCommand}; return(v.workspaceID,v.revision)
+        case .derivedFactProvenance:
+            let r=try modelContext.fetch(FetchDescriptor<DerivedFactProvenanceRow>(predicate:#Predicate{$0.provenanceID == id})); guard r.count==1,let v=try r.first?.value() else{throw WorkspaceMutationFailureV1.invalidCommand}; return(v.workspaceID,v.revision)
+        default: throw WorkspaceMutationFailureV1.invalidCommand
+        }
+    }
+
+    private func validateAuthorityCriterionReferences(
+        _ payload: AuthorityCriterionMutationPayloadV1
+    ) throws {
+        func require(_ kind: WorkspaceEntityKindV1, _ id: UUID, _ workspaceID: WorkspaceID) throws {
+            let identity = try WorkspaceEntityIdentityV1(kind: kind, id: id)
+            let stored = try authorityCriterionRevision(identity)
+            guard stored.workspaceID == workspaceID else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+        }
+        switch payload {
+        case .appendAuthoritySource, .supersedeAuthoritySource,
+             .appendSeverityScale, .supersedeSeverityScale,
+             .appendEvaluatorDescriptor, .supersedeEvaluatorDescriptor:
+            break
+        case .appendRequirementBasis(let v), .supersedeRequirementBasis(let v):
+            try require(.authoritySourceRelease, v.authorityReleaseID, v.workspaceID)
+            try requireExactActor(v.selectedBy)
+        case .appendApplicabilityContext(let v), .supersedeApplicabilityContext(let v):
+            try requireExactWorkSubjectScope(v.workSubjectScope)
+            try requireExactActor(v.actor)
+            if let qualification = v.qualification { try requireExactQualification(qualification) }
+            for basis in v.basisBindings { try requireExactRequirementBasis(basis) }
+        case .appendAssessmentScope(let v), .supersedeAssessmentScope(let v):
+            try require(.applicabilityContextSnapshot, v.applicabilityContextID, v.workspaceID)
+            try requireExactWorkSubjectScope(v.workSubjectScope)
+        case .appendFindingClassification(let v), .supersedeFindingClassification(let v):
+            try require(.applicabilityContextSnapshot, v.applicabilityContextID, v.workspaceID)
+            try require(.assessmentScopeSnapshot, v.assessmentScopeID, v.workspaceID)
+            if let releaseID = v.severityScaleReleaseID {
+                let scale = try requireSeverityScale(releaseID, workspaceID: v.workspaceID)
+                guard let levelID = v.severityLevelID,
+                      scale.levels.contains(where: { $0.levelID == levelID }) else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            }
+        case .appendMeasurementProtocol(let v), .supersedeMeasurementProtocol(let v):
+            try require(.derivedFactEvaluatorDescriptor, v.evaluatorDescriptorID, v.workspaceID)
+        case .appendDerivedFact(let v), .supersedeDerivedFact(let v):
+            try require(.measurementProtocolRelease, v.protocolReleaseID, v.workspaceID)
+            try require(.derivedFactEvaluatorDescriptor, v.evaluatorDescriptorID, v.workspaceID)
+        }
+    }
+
+    private func requireExactActor(_ expected: ActorSnapshotV1) throws {
+        let id = expected.snapshotID
+        let rows = try modelContext.fetch(FetchDescriptor<ActorSnapshotRow>(predicate: #Predicate { $0.snapshotID == id }))
+        guard rows.count == 1, let row = rows.first,
+              try row.value() == expected else { throw WorkspaceMutationFailureV1.invalidCommand }
+    }
+
+    private func requireExactQualification(_ expected: QualificationSnapshotV1) throws {
+        let id = expected.snapshotID
+        let rows = try modelContext.fetch(FetchDescriptor<QualificationSnapshotRow>(predicate: #Predicate { $0.snapshotID == id }))
+        guard rows.count == 1, let row = rows.first,
+              try row.value() == expected else { throw WorkspaceMutationFailureV1.invalidCommand }
+    }
+
+    private func requireExactWorkSubjectScope(_ expected: WorkSubjectScopeSnapshotV1) throws {
+        let id = expected.snapshotID
+        let rows = try modelContext.fetch(FetchDescriptor<WorkSubjectScopeSnapshotRow>(predicate: #Predicate { $0.snapshotID == id }))
+        guard rows.count == 1, let row = rows.first,
+              try row.value() == expected else { throw WorkspaceMutationFailureV1.invalidCommand }
+    }
+
+    private func requireExactRequirementBasis(_ expected: RequirementBasisBindingV1) throws {
+        let id = expected.bindingID
+        let rows = try modelContext.fetch(FetchDescriptor<RequirementBasisBindingRow>(predicate: #Predicate { $0.bindingID == id }))
+        guard rows.count == 1, let row = rows.first,
+              try row.value() == expected else { throw WorkspaceMutationFailureV1.invalidCommand }
+    }
+
+    private func requireSeverityScale(
+        _ releaseID: UUID,
+        workspaceID: WorkspaceID
+    ) throws -> SeverityScaleReleaseV1 {
+        let rows = try modelContext.fetch(FetchDescriptor<SeverityScaleReleaseRow>(predicate: #Predicate { $0.releaseID == releaseID }))
+        guard rows.count == 1, let row = rows.first else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        let value = try row.value()
+        guard value.workspaceID == workspaceID else { throw WorkspaceMutationFailureV1.invalidCommand }
+        return value
     }
 
     func queryExisting(
@@ -225,6 +432,12 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             case .signoffSnapshot:
                 let values = try modelContext.fetch(FetchDescriptor<SignoffSnapshotRow>(predicate: #Predicate { $0.snapshotID == id }))
                 guard values.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }; exists = values.count == 1
+            case .authoritySourceRelease, .requirementBasisBinding,
+                 .applicabilityContextSnapshot, .assessmentScopeSnapshot,
+                 .severityScaleRelease, .findingClassificationBinding,
+                 .measurementProtocolRelease, .derivedFactEvaluatorDescriptor,
+                 .derivedFactProvenance:
+                exists = try authorityCriterionRowExists(identity)
             case .workflowRecord:
                 let values = try modelContext.fetch(FetchDescriptor<WorkflowRecord>(
                     predicate: #Predicate { $0.id == id }

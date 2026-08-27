@@ -7,6 +7,32 @@ import XCTest
 final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
     private let candidateHead = "c5aaa2a6b6f4a1c900e5743648b66252d19f5ef7"
 
+    func testV23P03C40NinePersistentFamiliesHaveClosedLifecycleCoverage() throws {
+        let catalog = try CurrentPersistentKindLifecycleCatalogV1.compile(
+            candidateHead: candidateHead
+        )
+        let expected = Set([
+            "PERSISTENT_MODEL:AuthoritySourceReleaseRow",
+            "PERSISTENT_MODEL:RequirementBasisBindingRow",
+            "PERSISTENT_MODEL:ApplicabilityContextSnapshotRow",
+            "PERSISTENT_MODEL:AssessmentScopeSnapshotRow",
+            "PERSISTENT_MODEL:SeverityScaleReleaseRow",
+            "PERSISTENT_MODEL:FindingClassificationBindingRow",
+            "PERSISTENT_MODEL:MeasurementProtocolReleaseRow",
+            "PERSISTENT_MODEL:DerivedFactEvaluatorDescriptorRow",
+            "PERSISTENT_MODEL:DerivedFactProvenanceRow",
+        ])
+        let descriptors = catalog.descriptors.filter { expected.contains($0.stableKindID) }
+        XCTAssertEqual(Set(descriptors.map(\.stableKindID)), expected)
+        for descriptor in descriptors {
+            let policy = try catalog.lifecyclePolicy(for: descriptor.subject)
+            XCTAssertEqual(try policy.backup, .supported)
+            XCTAssertEqual(try policy.replaceRestore, .supported)
+            XCTAssertEqual(try policy.erase, .supported)
+        }
+    }
+
+
     func testV23P03C39LifecycleKindUniverseIsClosedAndAppendOnly() throws {
         XCTAssertEqual(
             AssetLifecycleEventKindV1.allCases.map(\.rawValue),

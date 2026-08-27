@@ -5,6 +5,32 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class V9_06DeletionRightsTests: XCTestCase {
+    func testV23P03C40OrdinaryDeletionCannotRemoveImmutableAuthorityHistory() throws {
+        try AuthorityCriterionDeletionLedgerPolicyV1.validate()
+        let kinds = V11BackupAuthorityCriterionRecordV1.Kind.allCases
+        XCTAssertEqual(kinds.count, 9)
+        let before = AuthorityCriterionDeletionInventoryV1(recordIDsByKind: Dictionary(
+            uniqueKeysWithValues: kinds.enumerated().map { index, kind in
+                (kind, Set([V906Integration.id(600 + index)]))
+            }
+        ))
+        XCTAssertNoThrow(try WholeSignDeletionRule.validateAuthorityCriterionLifecycle(
+            authority: .ordinaryAssetOrSiteDelete, before: before, after: before
+        ))
+        XCTAssertThrowsError(try WholeSignDeletionRule.validateAuthorityCriterionLifecycle(
+            authority: .ordinaryAssetOrSiteDelete,
+            before: before,
+            after: AuthorityCriterionDeletionInventoryV1(recordIDsByKind: [:])
+        )) {
+            XCTAssertEqual($0 as? WholeSignDeletionRuleError, .invalidGraph)
+        }
+        XCTAssertNoThrow(try WholeSignDeletionRule.validateAuthorityCriterionLifecycle(
+            authority: .workspaceErase,
+            before: before,
+            after: AuthorityCriterionDeletionInventoryV1(recordIDsByKind: [:])
+        ))
+    }
+
     @MainActor
     func testV9_06G01DeleteStreamingRoundTripAllModesAndEmptySite() async throws {
         let fixture = try V906Integration.loadFixture()

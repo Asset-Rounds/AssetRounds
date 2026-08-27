@@ -880,3 +880,78 @@ struct ReportProjectionRegistryV4: Codable, Equatable, Sendable {
         baseRendererRegistry.requiredFormats
     }
 }
+
+/// Additive C40 registry identity. V5 selects the same deterministic renderer
+/// family while requiring the authority/criterion section whenever a frozen
+/// C40 projection is present.
+struct ReportProjectionRegistryV5: Codable, Equatable, Sendable {
+    static let schemaVersion = 5
+    static let registryID = "report-projection-registry-v5"
+    static let persistentContractSchema = "KERNEL_SNAPSHOT_V5"
+    let schemaVersion: Int
+    let registryID: String
+    let supportedPersistentContractSchemas: [String]
+    let baseRendererRegistry: ReportProjectionRegistryV1
+
+    init() {
+        schemaVersion = Self.schemaVersion
+        registryID = Self.registryID
+        supportedPersistentContractSchemas = [
+            "KERNEL_SNAPSHOT_V1", "KERNEL_SNAPSHOT_V2", "KERNEL_SNAPSHOT_V3",
+            "KERNEL_SNAPSHOT_V4", "KERNEL_SNAPSHOT_V5",
+        ]
+        baseRendererRegistry = ReportProjectionRegistryV1()
+    }
+
+    func validate() throws {
+        guard self == Self(),
+              ReportAuthorityCriterionProjectionPolicyV1.sectionID == "authority-criterion",
+              ReportAuthorityCriterionProjectionPolicyV1.requiredWording == "assessed against",
+              ReportAuthorityCriterionProjectionPolicyV1.supports(.openJSON),
+              ReportAuthorityCriterionProjectionPolicyV1.supports(.structuredText),
+              ReportAuthorityCriterionProjectionPolicyV1.excludesLicensedSourceBytes,
+              ReportAuthorityCriterionProjectionPolicyV1.excludesRawLocators,
+              ReportAuthorityCriterionProjectionPolicyV1.excludesLegalSafetyComplianceClaims else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try baseRendererRegistry.validate()
+    }
+
+    func semanticProjection(
+        snapshot: CompletedActivitySnapshotV5,
+        manifest: ContractManifestV1
+    ) throws -> ReportSemanticProjectionV1 {
+        try validate(); try snapshot.validate(); try manifest.validate()
+        if snapshot.payload.authorityCriterion != nil {
+            let binding = snapshot.payload.activity.activity.activity.activity.profileBinding
+            guard binding.sectionIDs.contains(ReportAuthorityCriterionProjectionPolicyV1.sectionID) else {
+                throw SnapshotProjectionFailureV1.missingBinding
+            }
+        }
+        return try ReportSemanticProjectorV1.project(snapshot: snapshot, manifest: manifest)
+    }
+
+    func renderOpenJSON(
+        snapshot: CompletedActivitySnapshotV5,
+        manifest: ContractManifestV1
+    ) throws -> ReportProjectionOutputV1 {
+        let semantic = try semanticProjection(snapshot: snapshot, manifest: manifest)
+        let output = try DeterministicOpenJSONRendererV1.render(semantic)
+        guard try DeterministicOpenJSONRendererV1.reopen(output.data) == semantic else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return output
+    }
+
+    func renderStructuredText(
+        snapshot: CompletedActivitySnapshotV5,
+        manifest: ContractManifestV1
+    ) throws -> ReportProjectionOutputV1 {
+        let semantic = try semanticProjection(snapshot: snapshot, manifest: manifest)
+        let output = try DeterministicOpenJSONRendererV1.renderStructuredText(semantic)
+        guard try DeterministicOpenJSONRendererV1.reopenStructuredText(output.data) == semantic else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return output
+    }
+}

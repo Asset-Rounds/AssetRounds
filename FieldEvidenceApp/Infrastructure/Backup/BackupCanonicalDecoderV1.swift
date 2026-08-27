@@ -47,6 +47,7 @@ struct BackupCanonicalDecoderV1: Sendable {
             let value = try decoder().decode(V4BackupRecordsV1.self, from: data)
             try Self.validatePartyAccountability(value)
             try Self.validateAssetSemantics(value)
+            try Self.validateAuthorityCriterion(value)
             let canonical = try BackupCanonicalEncoderV1().encodeRecords(value).data
             guard canonical == data else {
                 throw BackupCanonicalDecodingErrorV1.invalidRecords
@@ -59,6 +60,49 @@ struct BackupCanonicalDecoderV1: Sendable {
 }
 
 private extension BackupCanonicalDecoderV1 {
+    static func validateAuthorityCriterion(_ records: V4BackupRecordsV1) throws {
+        guard records.recordsSchemaVersion >= 10 else {
+            guard records.authorityCriterion.isEmpty else { throw BackupCanonicalDecodingErrorV1.invalidRecords }
+            return
+        }
+        for record in records.authorityCriterion {
+            let identity: (UUID, WorkspaceID, Bool)
+            switch record.kind {
+            case .authoritySourceRelease:
+                let value = try AuthorityCriterionCanonicalCodecV1.decode(AuthoritySourceReleaseV1.self, from: record.canonicalData)
+                try value.validate(); identity = (value.releaseID, value.workspaceID, try AuthorityCriterionCanonicalCodecV1.encode(value) == record.canonicalData)
+            case .requirementBasisBinding:
+                let value = try AuthorityCriterionCanonicalCodecV1.decode(RequirementBasisBindingV1.self, from: record.canonicalData)
+                try value.validate(); identity = (value.bindingID, value.workspaceID, try AuthorityCriterionCanonicalCodecV1.encode(value) == record.canonicalData)
+            case .applicabilityContextSnapshot:
+                let value = try AuthorityCriterionCanonicalCodecV1.decode(ApplicabilityContextSnapshotV1.self, from: record.canonicalData)
+                try value.validate(); identity = (value.snapshotID, value.workspaceID, try AuthorityCriterionCanonicalCodecV1.encode(value) == record.canonicalData)
+            case .assessmentScopeSnapshot:
+                let value = try AuthorityCriterionCanonicalCodecV1.decode(AssessmentScopeSnapshotV1.self, from: record.canonicalData)
+                try value.validate(); identity = (value.snapshotID, value.workspaceID, try AuthorityCriterionCanonicalCodecV1.encode(value) == record.canonicalData)
+            case .severityScaleRelease:
+                let value = try AuthorityCriterionCanonicalCodecV1.decode(SeverityScaleReleaseV1.self, from: record.canonicalData)
+                try value.validate(); identity = (value.releaseID, value.workspaceID, try AuthorityCriterionCanonicalCodecV1.encode(value) == record.canonicalData)
+            case .findingClassificationBinding:
+                let value = try AuthorityCriterionCanonicalCodecV1.decode(FindingClassificationBindingV1.self, from: record.canonicalData)
+                try value.validate(); identity = (value.bindingID, value.workspaceID, try AuthorityCriterionCanonicalCodecV1.encode(value) == record.canonicalData)
+            case .measurementProtocolRelease:
+                let value = try AuthorityCriterionCanonicalCodecV1.decode(MeasurementProtocolReleaseV1.self, from: record.canonicalData)
+                try value.validate(); identity = (value.releaseID, value.workspaceID, try AuthorityCriterionCanonicalCodecV1.encode(value) == record.canonicalData)
+            case .derivedFactEvaluatorDescriptor:
+                let value = try AuthorityCriterionCanonicalCodecV1.decode(DerivedFactEvaluatorDescriptorV1.self, from: record.canonicalData)
+                try value.validate(); identity = (value.descriptorID, value.workspaceID, try AuthorityCriterionCanonicalCodecV1.encode(value) == record.canonicalData)
+            case .derivedFactProvenance:
+                let value = try AuthorityCriterionCanonicalCodecV1.decode(DerivedFactProvenanceV1.self, from: record.canonicalData)
+                try value.validate(); identity = (value.provenanceID, value.workspaceID, try AuthorityCriterionCanonicalCodecV1.encode(value) == record.canonicalData)
+            }
+            guard identity.0 == record.id, identity.1.rawValue == record.workspaceID,
+                  identity.2 else {
+                throw BackupCanonicalDecodingErrorV1.invalidRecords
+            }
+        }
+    }
+
     static func validateAssetSemantics(_ records: V4BackupRecordsV1) throws {
         guard records.recordsSchemaVersion >= 9 else {
             guard records.assetSemantics.isEmpty else {

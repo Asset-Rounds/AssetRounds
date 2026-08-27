@@ -951,6 +951,26 @@ struct WorkSubjectScopeSnapshotV1: Codable, Equatable, Hashable, Sendable {
     }
 }
 
+extension WorkSubjectScopeSnapshotV1 {
+    func validateAuthorityAssessmentScope(
+        workspaceID: WorkspaceID,
+        siteID: UUID,
+        packageReleases: [PackageReleaseIdentityV1]
+    ) throws {
+        try validate()
+        guard self.workspaceID == workspaceID,
+              self.siteID == siteID,
+              packageReleases == packageReleases.sorted(),
+              Set(packageReleases).count == packageReleases.count else {
+            throw AssetSemanticContractFailureV1.incompatibleRelease
+        }
+        let frozenPackages = Set(semanticBindings.flatMap(\.workflowPackageReleases))
+        guard Set(packageReleases).isSubset(of: frozenPackages) else {
+            throw AssetSemanticContractFailureV1.incompatibleRelease
+        }
+    }
+}
+
 enum AssetSemanticCanonicalCodecV1 {
     static func encode<T: Encodable>(_ value: T) throws -> Data {
         let encoder = JSONEncoder()

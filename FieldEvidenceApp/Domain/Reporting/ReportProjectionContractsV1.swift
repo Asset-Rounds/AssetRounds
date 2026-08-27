@@ -82,6 +82,48 @@ enum ReportAssetSemanticsProjectionPolicyV1 {
     }
 }
 
+/// C40 authority and criterion facts are reported as an exact historic basis,
+/// never as an app-origin legal, safety, compliance, AHJ, or professional claim.
+enum ReportAuthorityCriterionProjectionPolicyV1 {
+    static let sectionID = "authority-criterion"
+    static let sectionVersion = 1
+    static let projectionVersion = "report-authority-criterion-v1"
+    static let privacyClass = ReportPrivacyClassV1.audienceSafe
+    static let requiredWording = "assessed against"
+    static let localizationKeys: [AuthorityCriterionLocalizationKeyV1] = [
+        .authoritySource,
+        .applicability,
+        .criterionResult,
+        .severity,
+        .measurementProtocol,
+        .technicalBasis,
+        .assessedAgainst,
+        .nextStep,
+    ]
+    static let excludesLicensedSourceBytes = true
+    static let excludesRawLocators = true
+    static let excludesLegalSafetyComplianceClaims = true
+    static let supportedFormats: [ReportProjectionFormatV1] = [
+        .openJSON, .structuredText,
+    ]
+
+    static func applicabilityLocalizationKey(
+        _ disposition: ApplicabilityDispositionV1
+    ) -> AuthorityCriterionLocalizationKeyV1 {
+        AuthorityCriterionLocalizationKeyV1.applicabilityKey(disposition)
+    }
+
+    static func resultLocalizationKey(
+        _ result: ScreeningCriterionResultV1
+    ) -> AuthorityCriterionLocalizationKeyV1 {
+        AuthorityCriterionLocalizationKeyV1.resultKey(result)
+    }
+
+    static func supports(_ format: ReportProjectionFormatV1) -> Bool {
+        supportedFormats.contains(format)
+    }
+}
+
 struct ReportSectionDefinitionV1: Codable, Equatable, Hashable, Sendable {
     let sectionID: String
     let version: Int

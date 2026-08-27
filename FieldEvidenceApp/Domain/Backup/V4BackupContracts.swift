@@ -133,6 +133,24 @@ struct V10BackupAssetSemanticRecordV1: Codable, Equatable, Sendable {
     let canonicalData: Data
 }
 
+struct V11BackupAuthorityCriterionRecordV1: Codable, Equatable, Sendable {
+    enum Kind: String, Codable, CaseIterable, Sendable {
+        case authoritySourceRelease = "AUTHORITY_SOURCE_RELEASE"
+        case requirementBasisBinding = "REQUIREMENT_BASIS_BINDING"
+        case applicabilityContextSnapshot = "APPLICABILITY_CONTEXT_SNAPSHOT"
+        case assessmentScopeSnapshot = "ASSESSMENT_SCOPE_SNAPSHOT"
+        case severityScaleRelease = "SEVERITY_SCALE_RELEASE"
+        case findingClassificationBinding = "FINDING_CLASSIFICATION_BINDING"
+        case measurementProtocolRelease = "MEASUREMENT_PROTOCOL_RELEASE"
+        case derivedFactEvaluatorDescriptor = "DERIVED_FACT_EVALUATOR_DESCRIPTOR"
+        case derivedFactProvenance = "DERIVED_FACT_PROVENANCE"
+    }
+    let kind: Kind
+    let id: UUID
+    let workspaceID: UUID
+    let canonicalData: Data
+}
+
 struct V4BackupSiteDTO: Codable, Equatable, Identifiable, Sendable {
     let id: UUID
     let schemaVersion: Int
@@ -295,6 +313,7 @@ struct V4BackupReportDTO: Codable, Equatable, Identifiable, Sendable {
 }
 
 struct V4BackupRecordsV1: Codable, Equatable, Sendable {
+    let authorityCriterion: [V11BackupAuthorityCriterionRecordV1]
     let assetSemantics: [V10BackupAssetSemanticRecordV1]
     let assetCompositionEdges: [V5BackupLocationRecordV1]
     let assetCompositionEvents: [V5BackupLocationRecordV1]
@@ -317,6 +336,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     let workflowRecords: [V4BackupWorkflowRecordDTO]
 
     init(
+        authorityCriterion: [V11BackupAuthorityCriterionRecordV1] = [],
         assetSemantics: [V10BackupAssetSemanticRecordV1] = [],
         assetCompositionEdges: [V5BackupLocationRecordV1] = [],
         assetCompositionEvents: [V5BackupLocationRecordV1] = [],
@@ -338,6 +358,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         sites: [V4BackupSiteDTO],
         workflowRecords: [V4BackupWorkflowRecordDTO]
     ) {
+        self.authorityCriterion = authorityCriterion
         self.assetSemantics = assetSemantics
         self.assetCompositionEdges = assetCompositionEdges
         self.assetCompositionEvents = assetCompositionEvents
@@ -361,7 +382,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case assetSemantics, assetCompositionEdges, assetCompositionEvents, assetPlacementEvents, assets
+        case authorityCriterion, assetSemantics, assetCompositionEdges, assetCompositionEvents, assetPlacementEvents, assets
         case deletionLedger, evidenceFiles, issues, locationHierarchyEvents
         case locationMigrationReceipts, locationNodes, mutationHistory, packets, partyAccountability
         case recordsSchemaVersion, reports, requirementAssurance, savedSmartViews, sites
@@ -372,6 +393,9 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         let version = try values.decode(Int.self, forKey: .recordsSchemaVersion)
         self.init(
+            authorityCriterion: try values.decodeIfPresent(
+                [V11BackupAuthorityCriterionRecordV1].self, forKey: .authorityCriterion
+            ) ?? [],
             assetSemantics: try values.decodeIfPresent(
                 [V10BackupAssetSemanticRecordV1].self, forKey: .assetSemantics
             ) ?? [],

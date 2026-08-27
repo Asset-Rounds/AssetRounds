@@ -80,6 +80,17 @@ struct FindingSeverityBindingV1: Codable, Equatable, Hashable, Sendable {
     }
 }
 
+extension FindingSeverityBindingV1 {
+    func validate(against scale: SeverityScaleReleaseV1) throws {
+        try scale.validate()
+        guard severityScaleReleaseID.lowercased() == scale.releaseID.uuidString.lowercased(),
+              scale.levels.contains(where: { $0.levelID == severityID }),
+              severityScaleSHA256 == scale.releaseSHA256 else {
+            throw FindingContractFailureV1.invalidValue
+        }
+    }
+}
+
 struct FindingSubjectV1: Codable, Equatable, Hashable, Sendable {
     let subjectKindID: String
     let subjectID: String
@@ -167,6 +178,28 @@ struct FindingV1: Codable, Equatable, Identifiable, Sendable {
         self.subject = subject
         self.source = source
         self.summary = summary
+    }
+}
+
+extension FindingV1 {
+    func validateClassification(
+        _ classification: FindingClassificationBindingV1,
+        scale: SeverityScaleReleaseV1?
+    ) throws {
+        try classification.validate()
+        guard UUID(uuidString: findingID) == classification.findingID else {
+            throw FindingContractFailureV1.invalidValue
+        }
+        if let scale {
+            try severity.validate(against: scale)
+            guard classification.severityScaleReleaseID == scale.releaseID,
+                  classification.severityLevelID == severity.severityID else {
+                throw FindingContractFailureV1.invalidValue
+            }
+        } else if classification.severityScaleReleaseID != nil
+                    || classification.severityLevelID != nil {
+            throw FindingContractFailureV1.invalidValue
+        }
     }
 }
 

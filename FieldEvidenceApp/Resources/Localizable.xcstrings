@@ -342,6 +342,204 @@
           }
         }
       }
+    },
+    "authority.criterion.heading" : {
+      "comment" : "Heading for recorded authority and criterion facts.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authority and criteria"
+          }
+        }
+      }
+    },
+    "authority.criterion.authority_source" : {
+      "comment" : "Localized label for an authority source metadata record.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authority source"
+          }
+        }
+      }
+    },
+    "authority.criterion.applicability" : {
+      "comment" : "Localized label for a selected applicability disposition.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Applicability"
+          }
+        }
+      }
+    },
+    "authority.criterion.applicability.applicable" : {
+      "comment" : "Accessible text for an applicable recorded context.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Applicable"
+          }
+        }
+      }
+    },
+    "authority.criterion.applicability.not_applicable_with_reason" : {
+      "comment" : "Accessible text for a not-applicable disposition with its recorded reason.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not applicable with reason"
+          }
+        }
+      }
+    },
+    "authority.criterion.applicability.unknown" : {
+      "comment" : "Accessible text for an applicability disposition that remains unknown.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unknown"
+          }
+        }
+      }
+    },
+    "authority.criterion.applicability.conflict_review_required" : {
+      "comment" : "Accessible text for conflicting applicability sources awaiting review.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conflict requires review"
+          }
+        }
+      }
+    },
+    "authority.criterion.applicability.unsupported" : {
+      "comment" : "Accessible text for an applicability context that is not supported.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unsupported"
+          }
+        }
+      }
+    },
+    "authority.criterion.result" : {
+      "comment" : "Localized label for a recorded screening result.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screening result"
+          }
+        }
+      }
+    },
+    "authority.criterion.result.meets_screening_criterion" : {
+      "comment" : "Accessible text for a screening result that meets its stated criterion.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meets screening criterion"
+          }
+        }
+      }
+    },
+    "authority.criterion.result.does_not_meet" : {
+      "comment" : "Accessible text for a screening result that does not meet its stated criterion.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Does not meet screening criterion"
+          }
+        }
+      }
+    },
+    "authority.criterion.result.inconclusive" : {
+      "comment" : "Accessible text for a screening result that cannot be concluded.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inconclusive"
+          }
+        }
+      }
+    },
+    "authority.criterion.result.not_evaluated" : {
+      "comment" : "Accessible text for a criterion that was not evaluated.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not evaluated"
+          }
+        }
+      }
+    },
+    "authority.criterion.severity" : {
+      "comment" : "Localized label for a severity level within its recorded scale.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Severity"
+          }
+        }
+      }
+    },
+    "authority.criterion.measurement_protocol" : {
+      "comment" : "Localized label for the protocol governing a recorded measurement.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Measurement protocol"
+          }
+        }
+      }
+    },
+    "authority.criterion.technical_basis" : {
+      "comment" : "Localized label for the technical basis disclosed with a recorded result.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Technical basis"
+          }
+        }
+      }
+    },
+    "authority.criterion.next_step" : {
+      "comment" : "Localized label for the actionable next step accompanying an unresolved state.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next step"
+          }
+        }
+      }
+    },
+    "authority.criterion.assessed_against" : {
+      "comment" : "Localized wording for a report that states which basis was assessed against.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Assessed against"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

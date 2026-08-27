@@ -48,6 +48,15 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         defer { cleanup(harness) }
         let coordinator = try XCTUnwrap(harness.coordinator)
         let oldID = coordinator.generationID
+        let authoritySource = try C40BackupLifecycleTestValues.source(
+            workspace: coordinator.workspaceIdentity.workspaceID.rawValue
+        )
+        coordinator.modelContext.insert(try AuthoritySourceReleaseRow(authoritySource))
+        try coordinator.modelContext.save()
+        XCTAssertEqual(
+            try coordinator.modelContext.fetchCount(FetchDescriptor<AuthoritySourceReleaseRow>()),
+            1
+        )
         let mutationID = try MutationIDV1(rawValue: uuid(
             "66000000-0000-0000-0000-000000000100"
         ))
@@ -140,6 +149,18 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             try erased.session.modelContext.fetchCount(FetchDescriptor<EntityMutationRevisionRow>()),
             0
         )
+        XCTAssertEqual(
+            try erased.session.modelContext.fetchCount(FetchDescriptor<AuthoritySourceReleaseRow>()),
+            0
+        )
+        XCTAssertEqual(try erased.session.modelContext.fetchCount(FetchDescriptor<RequirementBasisBindingRow>()), 0)
+        XCTAssertEqual(try erased.session.modelContext.fetchCount(FetchDescriptor<ApplicabilityContextSnapshotRow>()), 0)
+        XCTAssertEqual(try erased.session.modelContext.fetchCount(FetchDescriptor<AssessmentScopeSnapshotRow>()), 0)
+        XCTAssertEqual(try erased.session.modelContext.fetchCount(FetchDescriptor<SeverityScaleReleaseRow>()), 0)
+        XCTAssertEqual(try erased.session.modelContext.fetchCount(FetchDescriptor<FindingClassificationBindingRow>()), 0)
+        XCTAssertEqual(try erased.session.modelContext.fetchCount(FetchDescriptor<MeasurementProtocolReleaseRow>()), 0)
+        XCTAssertEqual(try erased.session.modelContext.fetchCount(FetchDescriptor<DerivedFactEvaluatorDescriptorRow>()), 0)
+        XCTAssertEqual(try erased.session.modelContext.fetchCount(FetchDescriptor<DerivedFactProvenanceRow>()), 0)
         let diagnosticsAfterErase = await harness.diagnostics.snapshot()
         XCTAssertEqual(diagnosticsAfterErase, .zero)
         let operationalAfterErase = try await harness.diagnostics.operationalSupportSnapshot()
@@ -172,6 +193,10 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         let reopened = try harness.factory.openOrBootstrapCurrent()
         XCTAssertEqual(reopened.generationID, newID)
         XCTAssertEqual(try counts(reopened.modelContext), [0, 0, 0, 0, 0, 0, 0])
+        XCTAssertEqual(
+            try reopened.modelContext.fetchCount(FetchDescriptor<AuthoritySourceReleaseRow>()),
+            0
+        )
     }
 
     @MainActor

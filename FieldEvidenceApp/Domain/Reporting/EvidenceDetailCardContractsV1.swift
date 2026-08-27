@@ -28,6 +28,7 @@ enum AudiencePrivacyFindingKindV1: String, Codable, CaseIterable, Hashable, Comp
 enum AudiencePrivacyLexicalDetectorV1 {
     private static let prohibitedFragments = [
         "c:\\", "capability-secret", "contact-canary", "cost-canary", "diagnostic-canary", "file://",
+        "http://", "https://",
         "local-id-canary", "original-canary", "private-canary", "secret-canary", "verified-person-canary",
         "\\users\\", "/users/",
     ]
@@ -39,6 +40,71 @@ enum AudiencePrivacyLexicalDetectorV1 {
                 locale: Locale(identifier: "en_US_POSIX")
             )
             return prohibitedFragments.contains(where: folded.contains)
+        }
+    }
+}
+
+enum AuthorityCriterionClaimVocabularyV1 {
+    private static let prohibitedPhrases: [String] = [
+        // C40 forbids app-origin legal, jurisdiction, compliance, safety,
+        // licensing, web-update, evaluator, unit-system, package, and S10
+        // claims. Normalize punctuation below so hyphenated hostile canaries
+        // cannot bypass this closed vocabulary.
+        "approved by ahj",
+        "ahj",
+        "certified",
+        "certified by",
+        "certified copy",
+        "compliant",
+        "is certified",
+        "is compliant",
+        "is safe",
+        "safe",
+        "safe to use",
+        "safe compliant certified copy leak",
+        "legal research",
+        "legal research engine",
+        "gps derived jurisdiction",
+        "gps jurisdiction",
+        "automatic legal precedence",
+        "automatic legal precedence or ahj selection",
+        "automatic ahj selection",
+        "ahj selection",
+        "automatic compliance",
+        "compliance score",
+        "safety score",
+        "licensed source",
+        "licensed source text",
+        "web updated standard",
+        "web updated standards",
+        "user authored evaluator",
+        "user authored script",
+        "evaluator or script",
+        "full ucum",
+        "second unit system",
+        "second reference store",
+        "package specific table",
+        "package specific writer",
+        "s10 release",
+        "s10 brand approval",
+        "brand approval",
+        "professional",
+        "professional qualification",
+        "qualified professional",
+        "professional claim",
+    ]
+
+    static func containsProhibitedClaim(in values: [String]) -> Bool {
+        values.contains { value in
+            let normalized = value
+                .folding(
+                    options: [.caseInsensitive, .diacriticInsensitive],
+                    locale: Locale(identifier: "en_US_POSIX")
+                )
+                .split { !$0.isLetter && !$0.isNumber }
+                .joined(separator: " ")
+            let bounded = " \(normalized) "
+            return prohibitedPhrases.contains { bounded.contains(" \($0) ") }
         }
     }
 }

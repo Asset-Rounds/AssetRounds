@@ -408,6 +408,28 @@ extension QualificationSnapshotV1 {
     init(from decoder: Decoder) throws { let v = try Decoded(from: decoder); guard v.schemaVersion == Self.schemaVersion else { throw PartyAccountabilityFailureV1.incompatibleVersion }; try self.init(snapshotID: v.snapshotID, workspaceID: v.workspaceID, declaredScope: v.declaredScope, issuerDisplay: v.issuerDisplay, credentialLocator: v.credentialLocator, effectiveAt: v.effectiveAt, expiresAt: v.expiresAt, provenance: v.provenance, capturedAt: v.capturedAt); guard snapshotSHA256 == v.snapshotSHA256 else { throw PartyAccountabilityFailureV1.digestMismatch } }
 }
 
+extension QualificationSnapshotV1 {
+    /// Validates only the recorded claim's temporal applicability. It does not
+    /// authenticate an actor or verify a credential or professional status.
+    func validateDeclaredApplicability(at effectiveAt: Date, workspaceID: WorkspaceID) throws {
+        try validate()
+        guard self.workspaceID == workspaceID,
+              self.effectiveAt.map({ $0 <= effectiveAt }) ?? true,
+              expiresAt.map({ effectiveAt <= $0 }) ?? true else {
+            throw PartyAccountabilityFailureV1.invalidInterval
+        }
+    }
+}
+
+extension ActorSnapshotV1 {
+    func validateAuthoritySelection(workspaceID: WorkspaceID) throws {
+        try validate()
+        guard self.workspaceID == workspaceID else {
+            throw PartyAccountabilityFailureV1.wrongWorkspace
+        }
+    }
+}
+
 extension SignoffIntentDisclosureReleaseV1 {
     private struct Decoded: Decodable { let schemaVersion: Int; let releaseID: String; let disclosureText: String; let statesLocalAssertionOnly: Bool; let disclaimsIdentityVerification: Bool; let disclaimsLegalSignature: Bool }
     init(from decoder: Decoder) throws { let v = try Decoded(from: decoder); guard v.schemaVersion == Self.schemaVersion else { throw PartyAccountabilityFailureV1.incompatibleVersion }; try self.init(releaseID: v.releaseID, disclosureText: v.disclosureText, statesLocalAssertionOnly: v.statesLocalAssertionOnly, disclaimsIdentityVerification: v.disclaimsIdentityVerification, disclaimsLegalSignature: v.disclaimsLegalSignature) }

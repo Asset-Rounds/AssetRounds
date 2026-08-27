@@ -4,6 +4,21 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class V9_19LocalSearchTests: XCTestCase {
+    func testV23P03C40SearchHeadExcludesSupersededAuthorityRelease() throws {
+        let root = try C40BackupLifecycleTestValues.source()
+        let successor = try C40BackupLifecycleTestValues.source(
+            releaseID: C40BackupLifecycleTestValues.id(90_010),
+            supersedes: root.releaseID,
+            revision: 2
+        )
+        let values = [root, successor]
+        let supersededIDs = Set(values.compactMap(\.supersedesReleaseID))
+        let heads = values.filter { !supersededIDs.contains($0.releaseID) }
+        XCTAssertEqual(heads.map(\.releaseID), [successor.releaseID])
+        XCTAssertEqual(heads.first?.revision, 2)
+        XCTAssertFalse(heads.contains(where: { $0.releaseID == root.releaseID }))
+    }
+
     private let fileManager = FileManager.default
 
     func testV9_19G01MutationDeleteSynchronization() async throws {

@@ -3,6 +3,16 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class V9_16SnapshotProjectionTests: XCTestCase {
+    func testV23P03C40V5AuthorityProjectionIsRequiredAtTheTypeBoundary() {
+        let keyPath: KeyPath<
+            CompletedActivitySnapshotPayloadV5,
+            CompletedAuthorityCriterionSnapshotV1
+        > = \.authorityCriterion
+        XCTAssertNotNil(keyPath)
+        XCTAssertEqual(CompletedActivitySnapshotPayloadV5.schemaVersion, 5)
+        XCTAssertEqual(CompletedAuthorityCriterionSnapshotV1.schemaVersion, 1)
+    }
+
     func testV23P03C39WorkSubjectReferenceSnapshotIsCanonical() throws {
         let reference = WorkSubjectReferenceV1(
             kind: .asset,

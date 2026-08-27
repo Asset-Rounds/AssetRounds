@@ -5,6 +5,37 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class V9_06DeletionArchiveIntegrationTests: XCTestCase {
+    @MainActor
+    func testV23P03C40AssetDeletionPreservesImmutableAuthorityRows() async throws {
+        let harness = try V906Integration.makeHarness("c40-immutable", withAsset: true)
+        defer { V906Integration.remove(harness.root) }
+        let mutationID = try MutationIDV1(rawValue: V906Integration.id(880))
+        let value = try AuthoritySourceReleaseV1(
+            releaseID: V906Integration.id(881),
+            workspaceID: harness.session.workspaceIdentity.workspaceID,
+            sourceID: V906Integration.id(882),
+            sourceType: .ownerPolicy,
+            designation: "Deletion-retained policy",
+            editionOrRevision: "1",
+            retrievedAt: V906Integration.deletedAt.addingTimeInterval(-30),
+            licenseStorageDisposition: .notStored,
+            recordedAt: V906Integration.deletedAt.addingTimeInterval(-30),
+            mutationID: mutationID
+        )
+        harness.session.modelContext.insert(try AuthoritySourceReleaseRow(value))
+        try harness.session.modelContext.save()
+        let assetID = try XCTUnwrap(
+            harness.session.modelContext.fetch(FetchDescriptor<Asset>()).first?.id
+        )
+
+        _ = try await V906Integration.deletionService(harness).delete(assetID: assetID)
+
+        XCTAssertEqual(try harness.session.modelContext.fetchCount(FetchDescriptor<Asset>()), 0)
+        let retained = try harness.session.modelContext.fetch(FetchDescriptor<AuthoritySourceReleaseRow>())
+        XCTAssertEqual(retained.count, 1)
+        XCTAssertEqual(try XCTUnwrap(retained.first).value(), value)
+    }
+
     // Relaunch recovery is the real restore boundary for interrupted deletion work.
     @MainActor
     func testV9_06I01PartialDeletionRecoveryAndInterruptedErasePreservesOrForwards() async throws {

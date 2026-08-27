@@ -4,6 +4,23 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class V9_07CompatibilityPolicyTests: XCTestCase {
+    func testV23P03C40Snapshot3IsReadableProvisionalAndSnapshot2RemainsWriter() throws {
+        let policy = ReleasedDataCompatibilityPolicyV1.exactHead(
+            candidateHead: String(repeating: "4", count: 40)
+        )
+        let path = try policy.dataManifest.path(for: .reportOpenJSON)
+        XCTAssertEqual(path.readableVersions, ["snapshot1", "snapshot2", "snapshot3"])
+        XCTAssertEqual(path.currentWriterVersion, "snapshot2")
+        XCTAssertNoThrow(try path.validateReadableVersion("snapshot3"))
+        XCTAssertThrowsError(try path.validateWriterVersion("snapshot3")) {
+            XCTAssertEqual($0 as? CompatibilityContractErrorV1, .noncurrentWriterVersion)
+        }
+        XCTAssertEqual(
+            ReportSnapshotEncoderV1.authorityCriterionWriterStatus,
+            "PROVISIONAL_READ_ONLY_PRE_S10"
+        )
+    }
+
     func testV9_07A01DeterministicBoundaryAndInternationalSeedCases() throws {
         let policy = ReleasedDataCompatibilityPolicyV1.current
         let corpus = try V907CompatibilitySupport.corpus()

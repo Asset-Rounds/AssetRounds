@@ -4,6 +4,25 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class S6_4AtomicRestoreTests: XCTestCase {
+    @MainActor
+    func testV23P03C40TypedRowPersistsAsAtomicRestoreUnit() throws {
+        let harness = try makeHarness("c40-row")
+        defer { try? fileManager.removeItem(at: harness.root) }
+        let source = try C40BackupLifecycleTestValues.source(
+            workspace: harness.session.workspaceIdentity.workspaceID.rawValue
+        )
+        harness.session.modelContext.insert(try AuthoritySourceReleaseRow(source))
+        try harness.session.modelContext.save()
+
+        let rows = try harness.session.modelContext.fetch(FetchDescriptor<AuthoritySourceReleaseRow>())
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(try rows[0].value(), source)
+        XCTAssertEqual(
+            try AuthorityCriterionCanonicalCodecV1.encode(rows[0].value()),
+            try AuthorityCriterionCanonicalCodecV1.encode(source)
+        )
+    }
+
     private let fileManager = FileManager.default
 
     @MainActor

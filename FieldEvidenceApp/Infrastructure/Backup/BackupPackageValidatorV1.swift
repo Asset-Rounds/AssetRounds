@@ -719,6 +719,7 @@ private extension BackupPackageValidatorV1 {
         try validateLocationRecords(records, manifest: manifest)
         try validatePartyAccountability(records, manifest: manifest)
         try validateAssetSemantics(records, manifest: manifest)
+        try validateAuthorityCriterion(records, manifest: manifest)
         let savedSmartViews: [SavedSmartViewDescriptorV1]
         do {
             savedSmartViews = try records.savedSmartViews.map { try $0.descriptor() }
@@ -730,7 +731,8 @@ private extension BackupPackageValidatorV1 {
                 : ((records.recordsSchemaVersion == 6
                         || records.recordsSchemaVersion == 7
                         || records.recordsSchemaVersion == 8
-                        || records.recordsSchemaVersion == 9)
+                        || records.recordsSchemaVersion == 9
+                        || records.recordsSchemaVersion == 10)
                     && savedSmartViews.allSatisfy({
                         $0.workspaceID == manifest.source.workspaceID
                     }))) else {
@@ -781,7 +783,8 @@ private extension BackupPackageValidatorV1 {
               records.recordsSchemaVersion < 7
                 ? assuranceSnapshots.isEmpty
                 : ((records.recordsSchemaVersion == 7 || records.recordsSchemaVersion == 8
-                        || records.recordsSchemaVersion == 9)
+                        || records.recordsSchemaVersion == 9
+                        || records.recordsSchemaVersion == 10)
                     && assuranceSnapshots.allSatisfy({ snapshot in
                         snapshot.workspaceID == manifest.source.workspaceID
                             && workflow[snapshot.workflowRecordID] != nil
@@ -1072,7 +1075,7 @@ private extension BackupPackageValidatorV1 {
             }) else { throw invalid() }
             return
         }
-        guard (4...9).contains(records.recordsSchemaVersion) else { throw invalid() }
+        guard (4...10).contains(records.recordsSchemaVersion) else { throw invalid() }
         for record in records.workflowRecords {
             guard let basisData = record.observationBasisV1Data,
                   let temporalData = record.temporalContextV1Data else {
@@ -1120,9 +1123,10 @@ private extension BackupPackageValidatorV1 {
             guard records.partyAccountability.isEmpty else { throw invalid() }
             return
         }
-        guard (8...9).contains(records.recordsSchemaVersion),
+        guard (8...10).contains(records.recordsSchemaVersion),
               (manifest.source.persistentSchemaVersion == 9
-                || manifest.source.persistentSchemaVersion == 10),
+                || manifest.source.persistentSchemaVersion == 10
+                || manifest.source.persistentSchemaVersion == 11),
               let workspaceID = manifest.source.workspaceID else { throw invalid() }
         let keys = records.partyAccountability.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
@@ -1202,8 +1206,8 @@ private extension BackupPackageValidatorV1 {
             guard records.assetSemantics.isEmpty else { throw invalid() }
             return
         }
-        guard records.recordsSchemaVersion == 9,
-              manifest.source.persistentSchemaVersion == 10,
+        guard (9...10).contains(records.recordsSchemaVersion),
+              (manifest.source.persistentSchemaVersion == 10 || manifest.source.persistentSchemaVersion == 11),
               let sourceWorkspaceID = manifest.source.workspaceID else { throw invalid() }
         let keys = records.assetSemantics.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         guard keys == keys.sorted(), Set(keys).count == keys.count,
@@ -1396,6 +1400,149 @@ private extension BackupPackageValidatorV1 {
         } catch { throw invalid() }
     }
 
+    func validateAuthorityCriterion(
+        _ records: V4BackupRecordsV1,
+        manifest: V4BackupManifestV1
+    ) throws {
+        guard records.recordsSchemaVersion >= 10 else {
+            guard records.authorityCriterion.isEmpty else { throw invalid() }
+            return
+        }
+        guard records.recordsSchemaVersion == 10,
+              manifest.source.persistentSchemaVersion == 11,
+              let workspaceID = manifest.source.workspaceID else { throw invalid() }
+        let keys = records.authorityCriterion.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
+        guard keys == keys.sorted(), Set(keys).count == keys.count,
+              records.authorityCriterion.allSatisfy({
+                  $0.workspaceID == workspaceID && !$0.canonicalData.isEmpty
+              }) else { throw invalid() }
+        do {
+            _ = try BackupCanonicalDecoderV1().decodeRecords(
+                BackupCanonicalEncoderV1().encodeRecords(records).data
+            )
+            var sources: [UUID: AuthoritySourceReleaseV1] = [:]
+            var bases: [UUID: RequirementBasisBindingV1] = [:]
+            var contexts: [UUID: ApplicabilityContextSnapshotV1] = [:]
+            var scopes: [UUID: AssessmentScopeSnapshotV1] = [:]
+            var scales: [UUID: SeverityScaleReleaseV1] = [:]
+            var classifications: [UUID: FindingClassificationBindingV1] = [:]
+            var protocols: [UUID: MeasurementProtocolReleaseV1] = [:]
+            var evaluators: [UUID: DerivedFactEvaluatorDescriptorV1] = [:]
+            var facts: [UUID: DerivedFactProvenanceV1] = [:]
+            for row in records.authorityCriterion {
+                switch row.kind {
+                case .authoritySourceRelease:
+                    let value = try AuthorityCriterionCanonicalCodecV1.decode(AuthoritySourceReleaseV1.self, from: row.canonicalData)
+                    guard value.releaseID == row.id, sources.updateValue(value, forKey: value.releaseID) == nil else { throw invalid() }
+                case .requirementBasisBinding:
+                    let value = try AuthorityCriterionCanonicalCodecV1.decode(RequirementBasisBindingV1.self, from: row.canonicalData)
+                    guard value.bindingID == row.id, bases.updateValue(value, forKey: value.bindingID) == nil else { throw invalid() }
+                case .applicabilityContextSnapshot:
+                    let value = try AuthorityCriterionCanonicalCodecV1.decode(ApplicabilityContextSnapshotV1.self, from: row.canonicalData)
+                    guard value.snapshotID == row.id, contexts.updateValue(value, forKey: value.snapshotID) == nil else { throw invalid() }
+                case .assessmentScopeSnapshot:
+                    let value = try AuthorityCriterionCanonicalCodecV1.decode(AssessmentScopeSnapshotV1.self, from: row.canonicalData)
+                    guard value.snapshotID == row.id, scopes.updateValue(value, forKey: value.snapshotID) == nil else { throw invalid() }
+                case .severityScaleRelease:
+                    let value = try AuthorityCriterionCanonicalCodecV1.decode(SeverityScaleReleaseV1.self, from: row.canonicalData)
+                    guard value.releaseID == row.id, scales.updateValue(value, forKey: value.releaseID) == nil else { throw invalid() }
+                case .findingClassificationBinding:
+                    let value = try AuthorityCriterionCanonicalCodecV1.decode(FindingClassificationBindingV1.self, from: row.canonicalData)
+                    guard value.bindingID == row.id, classifications.updateValue(value, forKey: value.bindingID) == nil else { throw invalid() }
+                case .measurementProtocolRelease:
+                    let value = try AuthorityCriterionCanonicalCodecV1.decode(MeasurementProtocolReleaseV1.self, from: row.canonicalData)
+                    guard value.releaseID == row.id, protocols.updateValue(value, forKey: value.releaseID) == nil else { throw invalid() }
+                case .derivedFactEvaluatorDescriptor:
+                    let value = try AuthorityCriterionCanonicalCodecV1.decode(DerivedFactEvaluatorDescriptorV1.self, from: row.canonicalData)
+                    guard value.descriptorID == row.id, evaluators.updateValue(value, forKey: value.descriptorID) == nil else { throw invalid() }
+                case .derivedFactProvenance:
+                    let value = try AuthorityCriterionCanonicalCodecV1.decode(DerivedFactProvenanceV1.self, from: row.canonicalData)
+                    guard value.provenanceID == row.id, facts.updateValue(value, forKey: value.provenanceID) == nil else { throw invalid() }
+                }
+            }
+
+            func validateChain<T>(
+                _ values: [T], id: KeyPath<T, UUID>, predecessor: KeyPath<T, UUID?>,
+                revision: KeyPath<T, UInt64>
+            ) throws {
+                let byID = Dictionary(uniqueKeysWithValues: values.map { ($0[keyPath: id], $0) })
+                var claimedPredecessors = Set<UUID>()
+                for value in values {
+                    if let predecessorID = value[keyPath: predecessor] {
+                        guard let prior = byID[predecessorID],
+                              prior[keyPath: revision] < UInt64.max,
+                              prior[keyPath: revision] + 1 == value[keyPath: revision],
+                              claimedPredecessors.insert(predecessorID).inserted else { throw invalid() }
+                    } else if value[keyPath: revision] != 1 {
+                        throw invalid()
+                    }
+                }
+                try requireAcyclic(values, id: id, next: predecessor)
+            }
+
+            try validateChain(Array(sources.values), id: \.releaseID, predecessor: \.supersedesReleaseID, revision: \.revision)
+            try validateChain(Array(bases.values), id: \.bindingID, predecessor: \.supersedesBindingID, revision: \.revision)
+            try validateChain(Array(contexts.values), id: \.snapshotID, predecessor: \.supersedesSnapshotID, revision: \.revision)
+            try validateChain(Array(scopes.values), id: \.snapshotID, predecessor: \.supersedesSnapshotID, revision: \.revision)
+            try validateChain(Array(scales.values), id: \.releaseID, predecessor: \.supersedesReleaseID, revision: \.revision)
+            try validateChain(Array(classifications.values), id: \.bindingID, predecessor: \.supersedesBindingID, revision: \.revision)
+            try validateChain(Array(protocols.values), id: \.releaseID, predecessor: \.supersedesReleaseID, revision: \.revision)
+            try validateChain(Array(evaluators.values), id: \.descriptorID, predecessor: \.supersedesDescriptorID, revision: \.revision)
+            try validateChain(Array(facts.values), id: \.provenanceID, predecessor: \.predecessorProvenanceID, revision: \.revision)
+
+            var actors: [UUID: ActorSnapshotV1] = [:]
+            var qualifications: [UUID: QualificationSnapshotV1] = [:]
+            for row in records.partyAccountability {
+                switch row.kind {
+                case .actorSnapshot:
+                    let value = try PartyAccountabilitySnapshotCodecV1.decode(ActorSnapshotV1.self, from: row.canonicalData)
+                    actors[value.snapshotID] = value
+                case .qualificationSnapshot:
+                    let value = try PartyAccountabilitySnapshotCodecV1.decode(QualificationSnapshotV1.self, from: row.canonicalData)
+                    qualifications[value.snapshotID] = value
+                default: break
+                }
+            }
+            var workScopes: [UUID: WorkSubjectScopeSnapshotV1] = [:]
+            for row in records.assetSemantics where row.kind == .workSubjectScopeSnapshot {
+                let value = try AssetSemanticCanonicalCodecV1.decode(WorkSubjectScopeSnapshotV1.self, from: row.canonicalData)
+                workScopes[value.snapshotID] = value
+            }
+
+            guard bases.values.allSatisfy({ value in
+                      sources[value.authorityReleaseID] != nil
+                        && actors[value.selectedBy.snapshotID] == value.selectedBy
+                  }),
+                  contexts.values.allSatisfy({ value in
+                      workScopes[value.workSubjectScope.snapshotID] == value.workSubjectScope
+                        && actors[value.actor.snapshotID] == value.actor
+                        && (value.qualification.map { qualifications[$0.snapshotID] == $0 } ?? true)
+                        && value.basisBindings.allSatisfy { bases[$0.bindingID] == $0 }
+                  }),
+                  scopes.values.allSatisfy({ value in
+                      contexts[value.applicabilityContextID] != nil
+                        && workScopes[value.workSubjectScope.snapshotID] == value.workSubjectScope
+                  }),
+                  classifications.values.allSatisfy({ value in
+                      guard let context = contexts[value.applicabilityContextID],
+                            let scope = scopes[value.assessmentScopeID],
+                            scope.applicabilityContextID == context.snapshotID,
+                            scope.includedCriterionIDs.contains(value.criterionID) else { return false }
+                      if let releaseID = value.severityScaleReleaseID {
+                          guard let levelID = value.severityLevelID,
+                                scales[releaseID]?.levels.contains(where: { $0.levelID == levelID }) == true else { return false }
+                      }
+                      return true
+                  }),
+                  protocols.values.allSatisfy({ evaluators[$0.evaluatorDescriptorID] != nil }),
+                  facts.values.allSatisfy({ value in
+                      guard let protocolValue = protocols[value.protocolReleaseID],
+                            let evaluator = evaluators[value.evaluatorDescriptorID] else { return false }
+                      return protocolValue.evaluatorDescriptorID == evaluator.descriptorID
+                  }) else { throw invalid() }
+        } catch { throw invalid() }
+    }
+
     func validateLocationRecords(
         _ records: V4BackupRecordsV1,
         manifest: V4BackupManifestV1
@@ -1419,7 +1566,9 @@ private extension BackupPackageValidatorV1 {
                 || (records.recordsSchemaVersion == 8
                     && manifest.source.persistentSchemaVersion == 9)
                 || (records.recordsSchemaVersion == 9
-                    && manifest.source.persistentSchemaVersion == 10)),
+                    && manifest.source.persistentSchemaVersion == 10)
+                || (records.recordsSchemaVersion == 10
+                    && manifest.source.persistentSchemaVersion == 11)),
               let sourceWorkspaceID = manifest.source.workspaceID else {
             throw invalid()
         }

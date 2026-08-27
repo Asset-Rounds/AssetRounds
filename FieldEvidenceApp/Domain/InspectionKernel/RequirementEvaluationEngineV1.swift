@@ -50,8 +50,8 @@ enum RequirementEvaluationEngineV1 {
                 reasons.insert(.waiverNotAllowed)
             } else if waiverReason == nil {
                 result = .waived; reasons = [.waiverAccepted]; waiverID = waiver.waiverID
-            } else {
-                reasons.insert(waiverReason!)
+            } else if let waiverReason {
+                reasons.insert(waiverReason)
             }
         }
         return try RequirementEvaluationV1(
@@ -227,5 +227,295 @@ enum RequirementEvaluationEngineV1 {
         return Array(Set(zip(sorted, sorted.dropFirst()).compactMap { pair in
             pair.0 == pair.1 ? pair.0 : nil
         })).sorted()
+    }
+}
+
+/// The closed, app-bundled evaluator registry for C40. Package declarations may
+/// bind these identities, versions, and digests, but never provide executable
+/// formulas or scripts.
+enum BundledDerivedFactEvaluatorRegistryV1 {
+    static let evaluatorVersion = "1"
+
+    static func evaluatorID(for kind: DerivedFactEvaluatorKindV1) -> String {
+        switch kind {
+        case .identityCanonical: return "com.assetrounds.derived.identity"
+        case .arithmeticMeanCanonical: return "com.assetrounds.derived.arithmetic-mean"
+        case .ratioPercent: return "com.assetrounds.derived.ratio-percent"
+        }
+    }
+
+    static func implementationSHA256(for kind: DerivedFactEvaluatorKindV1) throws -> String {
+        struct DigestBasis: Codable {
+            let evaluatorID: String
+            let evaluatorVersion: String
+            let kind: DerivedFactEvaluatorKindV1
+            let arithmeticPolicy: String
+        }
+        return try WorkspaceMutationCanonicalV1.sha256(DigestBasis(
+            evaluatorID: evaluatorID(for: kind),
+            evaluatorVersion: evaluatorVersion,
+            kind: kind,
+            arithmeticPolicy: "CHECKED_INT64_EXACT_DECIMAL_TIES_TO_EVEN_V1"
+        ))
+    }
+
+    static func descriptor(
+        descriptorID: UUID,
+        workspaceID: WorkspaceID,
+        kind: DerivedFactEvaluatorKindV1,
+        inputDimension: MeasurementDimensionV1,
+        supersedesDescriptorID: UUID? = nil,
+        recordedAt: Date
+    ) throws -> DerivedFactEvaluatorDescriptorV1 {
+        try DerivedFactEvaluatorDescriptorV1(
+            descriptorID: descriptorID,
+            workspaceID: workspaceID,
+            evaluatorID: evaluatorID(for: kind),
+            evaluatorVersion: evaluatorVersion,
+            implementationSHA256: implementationSHA256(for: kind),
+            kind: kind,
+            inputDimension: inputDimension,
+            outputDimension: kind == .ratioPercent ? .dimensionless : inputDimension,
+            supersedesDescriptorID: supersedesDescriptorID,
+            recordedAt: recordedAt
+        )
+    }
+
+    static func validate(_ descriptor: DerivedFactEvaluatorDescriptorV1) throws {
+        try descriptor.validate()
+        guard descriptor.evaluatorID == evaluatorID(for: descriptor.kind),
+              descriptor.evaluatorVersion == evaluatorVersion,
+              descriptor.implementationSHA256 == (try implementationSHA256(for: descriptor.kind)),
+              descriptor.outputDimension == (descriptor.kind == .ratioPercent
+                ? .dimensionless : descriptor.inputDimension) else {
+            throw AuthorityCriterionFailureV1.unsupportedEvaluator
+        }
+    }
+}
+
+/// Pure deterministic C40 derivation. It consumes C03 canonical measurements
+/// and emits one immutable provenance value; it performs no persistence.
+enum DeterministicDerivedFactEvaluatorV1 {
+    private struct MeasuredInputV1 {
+        let source: DerivedFactInputV1
+        let measurement: ExactMeasurementV1
+    }
+
+    static func evaluate(
+        provenanceID: UUID,
+        workspaceID: WorkspaceID,
+        protocolRelease: MeasurementProtocolReleaseV1,
+        evaluator: DerivedFactEvaluatorDescriptorV1,
+        inputs: [DerivedFactInputV1],
+        predecessorProvenanceID: UUID? = nil,
+        recordedAt: Date
+    ) throws -> DerivedFactProvenanceV1 {
+        try protocolRelease.validate()
+        try BundledDerivedFactEvaluatorRegistryV1.validate(evaluator)
+        guard protocolRelease.workspaceID == workspaceID,
+              evaluator.workspaceID == workspaceID,
+              protocolRelease.evaluatorDescriptorID == evaluator.descriptorID,
+              protocolRelease.dimension == evaluator.inputDimension else {
+            throw AuthorityCriterionFailureV1.wrongWorkspace
+        }
+
+        let ordered = inputs.sorted {
+            if $0.sampleOrdinal != $1.sampleOrdinal {
+                return $0.sampleOrdinal < $1.sampleOrdinal
+            }
+            return $0.sampleID.uuidString < $1.sampleID.uuidString
+        }
+        try ordered.forEach { try $0.validate() }
+        guard Set(ordered.map(\.sampleID)).count == ordered.count,
+              Set(ordered.map(\.sampleOrdinal)).count == ordered.count else {
+            throw AuthorityCriterionFailureV1.duplicateSample
+        }
+        let expectedOrdinals = ordered.indices.map { $0 + 1 }
+        guard ordered.map(\.sampleOrdinal) == expectedOrdinals else {
+            throw AuthorityCriterionFailureV1.invalidValue
+        }
+        guard ordered.count <= protocolRelease.maximumSampleCount else {
+            throw AuthorityCriterionFailureV1.invalidValue
+        }
+
+        var measured: [MeasuredInputV1] = []
+        var hasMissingSample = false
+        for input in ordered {
+            switch input.state {
+            case .missing:
+                guard input.measurement == nil else {
+                    throw AuthorityCriterionFailureV1.invalidValue
+                }
+                hasMissingSample = true
+            case .present:
+                guard let measurement = input.measurement else {
+                    throw AuthorityCriterionFailureV1.invalidValue
+                }
+                try validate(
+                    measurement: measurement,
+                    protocolRelease: protocolRelease,
+                    evaluator: evaluator
+                )
+                measured.append(.init(source: input, measurement: measurement))
+            case .outlier:
+                guard let measurement = input.measurement else {
+                    throw AuthorityCriterionFailureV1.invalidValue
+                }
+                try validate(
+                    measurement: measurement,
+                    protocolRelease: protocolRelease,
+                    evaluator: evaluator
+                )
+                guard protocolRelease.outlierPolicy == .retainAll else {
+                    throw AuthorityCriterionFailureV1.invalidValue
+                }
+                measured.append(.init(source: input, measurement: measurement))
+            }
+        }
+
+        if hasMissingSample {
+            if protocolRelease.missingSamplePolicy == .inconclusive {
+                return try DerivedFactProvenanceV1(
+                    provenanceID: provenanceID, workspaceID: workspaceID,
+                    protocolReleaseID: protocolRelease.releaseID,
+                    evaluatorDescriptorID: evaluator.descriptorID, inputs: ordered,
+                    result: nil, disposition: .inconclusive,
+                    predecessorProvenanceID: predecessorProvenanceID, recordedAt: recordedAt
+                )
+            }
+            throw AuthorityCriterionFailureV1.insufficientSamples
+        }
+        guard measured.count >= protocolRelease.minimumSampleCount else {
+            if protocolRelease.missingSamplePolicy == .inconclusive {
+                return try DerivedFactProvenanceV1(
+                    provenanceID: provenanceID, workspaceID: workspaceID,
+                    protocolReleaseID: protocolRelease.releaseID,
+                    evaluatorDescriptorID: evaluator.descriptorID, inputs: ordered,
+                    result: nil, disposition: .inconclusive,
+                    predecessorProvenanceID: predecessorProvenanceID, recordedAt: recordedAt
+                )
+            }
+            throw AuthorityCriterionFailureV1.insufficientSamples
+        }
+        if protocolRelease.duplicatePolicy == .reject {
+            let canonicalSamples = measured.map {
+                "\($0.measurement.canonicalValue.mantissa):\($0.measurement.canonicalValue.scale):\($0.measurement.canonicalUnitID)"
+            }
+            guard Set(canonicalSamples).count == canonicalSamples.count else {
+                throw AuthorityCriterionFailureV1.duplicateSample
+            }
+        }
+
+        do {
+            let result = try resultMeasurement(
+                kind: evaluator.kind,
+                evaluatorID: evaluator.evaluatorID,
+                inputs: measured
+            )
+            return try DerivedFactProvenanceV1(
+                provenanceID: provenanceID,
+                workspaceID: workspaceID,
+                protocolReleaseID: protocolRelease.releaseID,
+                evaluatorDescriptorID: evaluator.descriptorID,
+                inputs: ordered,
+                result: result,
+                disposition: .evaluated,
+                uncertaintyCanonical: try maximumUncertainty(in: measured),
+                predecessorProvenanceID: predecessorProvenanceID,
+                recordedAt: recordedAt
+            )
+        } catch is ResponseContractFailureV1 {
+            throw AuthorityCriterionFailureV1.arithmeticFailure
+        }
+    }
+
+    private static func resultMeasurement(
+        kind: DerivedFactEvaluatorKindV1,
+        evaluatorID: String,
+        inputs: [MeasuredInputV1]
+    ) throws -> ExactMeasurementV1 {
+        guard let first = inputs.first else { throw AuthorityCriterionFailureV1.insufficientSamples }
+        let value: ExactDecimalV1
+        let unitID: String
+        switch kind {
+        case .identityCanonical:
+            guard inputs.count == 1 else { throw AuthorityCriterionFailureV1.invalidValue }
+            value = first.measurement.canonicalValue
+            unitID = first.measurement.canonicalUnitID
+        case .arithmeticMeanCanonical:
+            let targetScale = inputs.map { $0.measurement.canonicalValue.scale }.max() ?? 0
+            var sum: Int64 = 0
+            for input in inputs {
+                sum = try ExactIntegerMathV1.add(
+                    sum,
+                    input.measurement.canonicalValue.rescaledExactly(to: targetScale).mantissa
+                )
+            }
+            let rounded = try ExactUnitConverterV1.rounded(
+                numerator: sum,
+                denominator: Int64(inputs.count),
+                targetScale: targetScale
+            )
+            value = rounded.canonicalValue
+            unitID = first.measurement.canonicalUnitID
+        case .ratioPercent:
+            guard inputs.count == 2 else { throw AuthorityCriterionFailureV1.invalidValue }
+            let lhs = inputs[0].measurement.canonicalValue
+            let rhs = inputs[1].measurement.canonicalValue
+            guard rhs.mantissa != 0 else { throw AuthorityCriterionFailureV1.arithmeticFailure }
+            var numerator = try ExactIntegerMathV1.multiply(
+                lhs.mantissa, ExactIntegerMathV1.powerOfTen(rhs.scale)
+            )
+            numerator = try ExactIntegerMathV1.multiply(numerator, 100)
+            var denominator = try ExactIntegerMathV1.multiply(
+                rhs.mantissa, ExactIntegerMathV1.powerOfTen(lhs.scale)
+            )
+            if denominator < 0 {
+                numerator = try ExactIntegerMathV1.multiply(numerator, -1)
+                denominator = try ExactIntegerMathV1.multiply(denominator, -1)
+            }
+            value = try ExactUnitConverterV1.rounded(
+                numerator: numerator, denominator: denominator, targetScale: 9
+            ).canonicalValue
+            unitID = "1"
+        }
+        return try ExactMeasurementV1(
+            enteredValue: value,
+            enteredUnitID: unitID,
+            precisionScale: value.scale,
+            uncertaintyCanonical: nil,
+            source: .derived,
+            captureMethodID: evaluatorID
+        )
+    }
+
+    private static func maximumUncertainty(
+        in inputs: [MeasuredInputV1]
+    ) throws -> ExactDecimalV1? {
+        var maximum: ExactDecimalV1?
+        for value in inputs.compactMap({ $0.measurement.uncertaintyCanonical }) {
+            if let existing = maximum {
+                if try existing.compared(to: value) == .orderedAscending { maximum = value }
+            } else {
+                maximum = value
+            }
+        }
+        return maximum
+    }
+
+    private static func validate(
+        measurement: ExactMeasurementV1,
+        protocolRelease: MeasurementProtocolReleaseV1,
+        evaluator: DerivedFactEvaluatorDescriptorV1
+    ) throws {
+        try measurement.validate()
+        guard measurement.dimension == protocolRelease.dimension,
+              measurement.dimension == evaluator.inputDimension else {
+            throw AuthorityCriterionFailureV1.dimensionMismatch
+        }
+        if protocolRelease.requiresUncertainty,
+           measurement.uncertaintyCanonical == nil {
+            throw AuthorityCriterionFailureV1.invalidValue
+        }
     }
 }

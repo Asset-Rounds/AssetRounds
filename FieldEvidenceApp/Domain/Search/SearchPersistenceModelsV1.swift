@@ -51,6 +51,20 @@ enum SearchAssetSemanticsPersistencePolicyV1 {
     }
 }
 
+enum SearchAuthorityCriterionPersistencePolicyV1 {
+    static let semanticLabel = "AUTHORITY_CRITERION_SEARCH_PROJECTION_V1"
+    static let sourceKind = "WORK"
+    static let fieldIDs = [
+        "authority_source", "applicability_disposition", "criterion_result",
+        "severity_level", "measurement_protocol",
+    ]
+    static let excludesLicensedSourceBytes = true
+    static let excludesRawLocators = true
+    static let excludesLegalSafetyComplianceClaims = true
+
+    static func accepts(fieldID: String) -> Bool { fieldIDs.contains(fieldID) }
+}
+
 enum SearchPersistenceCodecV1 {
     static func encode<T: Encodable>(_ value: T) throws -> Data {
         let encoder = JSONEncoder()

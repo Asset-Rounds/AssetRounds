@@ -1,0 +1,769 @@
+{
+  "applicabilityContexts": [
+    {
+      "activityID": "activity-synthetic-1",
+      "actorSnapshotID": "actor-c38-1",
+      "basisBindingID": "basis-owner-policy",
+      "disposition": "APPLICABLE",
+      "effectiveDate": "2024-03-10",
+      "id": "context-applicable",
+      "packageReleaseID": "package-c40-v1",
+      "personSelected": true,
+      "qualificationSnapshotID": "qualification-c38-1",
+      "siteID": "site-synthetic-1",
+      "sourceReleaseIDs": [
+        "synthetic-guidance-v1"
+      ],
+      "subjectSnapshotID": "subject-synthetic-1"
+    },
+    {
+      "activityID": "activity-synthetic-1",
+      "actorSnapshotID": "actor-c38-1",
+      "basisBindingID": "basis-owner-policy",
+      "disposition": "NOT_APPLICABLE_WITH_REASON",
+      "effectiveDate": "2024-03-10",
+      "id": "context-not-applicable",
+      "packageReleaseID": "package-c40-v1",
+      "personSelected": true,
+      "qualificationSnapshotID": null,
+      "reason": "scope-excluded-by-person",
+      "siteID": "site-synthetic-1",
+      "sourceReleaseIDs": [
+        "synthetic-guidance-v1"
+      ],
+      "subjectSnapshotID": "subject-synthetic-1"
+    },
+    {
+      "activityID": "activity-synthetic-1",
+      "actorSnapshotID": "actor-c38-1",
+      "basisBindingID": "basis-owner-policy",
+      "disposition": "UNKNOWN",
+      "effectiveDate": "2024-03-10",
+      "id": "context-unknown",
+      "packageReleaseID": "package-c40-v1",
+      "personSelected": true,
+      "qualificationSnapshotID": "qualification-c38-1",
+      "siteID": "site-synthetic-1",
+      "sourceReleaseIDs": [],
+      "subjectSnapshotID": "subject-synthetic-1"
+    },
+    {
+      "activityID": "activity-synthetic-1",
+      "actorSnapshotID": "actor-c38-1",
+      "basisBindingID": "basis-conflict",
+      "disposition": "CONFLICT_REVIEW_REQUIRED",
+      "effectiveDate": "2024-03-10",
+      "id": "context-conflict",
+      "packageReleaseID": "package-c40-v1",
+      "personSelected": true,
+      "qualificationSnapshotID": "qualification-c38-1",
+      "siteID": "site-synthetic-1",
+      "sourceReleaseIDs": [
+        "synthetic-adopted-v1",
+        "synthetic-guidance-v1"
+      ],
+      "subjectSnapshotID": "subject-synthetic-1"
+    },
+    {
+      "activityID": "activity-synthetic-1",
+      "actorSnapshotID": "actor-c38-1",
+      "basisBindingID": "basis-owner-policy",
+      "disposition": "UNSUPPORTED",
+      "effectiveDate": "2024-03-10",
+      "id": "context-unsupported",
+      "packageReleaseID": "package-c40-v1",
+      "personSelected": true,
+      "qualificationSnapshotID": "qualification-c38-1",
+      "siteID": "site-synthetic-1",
+      "sourceReleaseIDs": [
+        "synthetic-guidance-v1"
+      ],
+      "subjectSnapshotID": "subject-synthetic-1"
+    }
+  ],
+  "applicabilityDispositions": [
+    "APPLICABLE",
+    "NOT_APPLICABLE_WITH_REASON",
+    "UNKNOWN",
+    "CONFLICT_REVIEW_REQUIRED",
+    "UNSUPPORTED"
+  ],
+  "assessmentScopes": [
+    {
+      "actorSnapshotID": "actor-c38-1",
+      "contextSnapshotID": "context-applicable",
+      "effectiveDate": "2024-03-10",
+      "frozen": true,
+      "id": "scope-synthetic-1",
+      "packageReleaseID": "package-c40-v1",
+      "qualificationSnapshotID": "qualification-c38-1",
+      "sourceReleaseIDs": [
+        "synthetic-guidance-v1"
+      ],
+      "subjectSnapshotID": "subject-synthetic-1"
+    }
+  ],
+  "authoritySourceReleases": [
+    {
+      "addendaOrCorrigenda": [],
+      "copiedSourceTextStored": false,
+      "designation": "SYN-G-001",
+      "edition": "1",
+      "effectiveDate": "2024-01-01",
+      "id": "synthetic-guidance-v1",
+      "issuer": "Synthetic Publisher",
+      "licenseStorageDisposition": "METADATA_ONLY",
+      "licensedBytesStored": false,
+      "locator": "c23://reference/synthetic-guidance-v1",
+      "publicationDate": "2024-01-01",
+      "publisher": "Synthetic Publisher",
+      "retiredDate": null,
+      "retrievalTime": "2024-01-02",
+      "retrievedAt": "2024-01-02",
+      "sourceDigest": null,
+      "sourceType": "GUIDANCE",
+      "title": "Synthetic authority metadata",
+      "url": null
+    },
+    {
+      "addendaOrCorrigenda": [
+        "none"
+      ],
+      "copiedSourceTextStored": false,
+      "designation": "SYN-A-001",
+      "edition": "1",
+      "effectiveDate": "2024-03-01",
+      "id": "synthetic-adopted-v1",
+      "issuer": "Synthetic Authority",
+      "lawfulC23ReferenceReleaseID": "c23-release-synthetic-v1",
+      "licenseStorageDisposition": "LAWFUL_C23_REFERENCE",
+      "licensedBytesStored": false,
+      "locator": "c23://reference/synthetic-adopted-v1",
+      "publicationDate": "2024-02-01",
+      "publisher": "Synthetic Authority",
+      "retiredDate": null,
+      "retrievalTime": "2024-03-02",
+      "retrievedAt": "2024-03-02",
+      "sourceDigest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "sourceType": "ADOPTED_RULE",
+      "title": "Synthetic adopted metadata",
+      "url": null
+    },
+    {
+      "addendaOrCorrigenda": [],
+      "copiedSourceTextStored": false,
+      "designation": "SYN-V-001",
+      "edition": "1",
+      "effectiveDate": "2024-04-01",
+      "id": "synthetic-standard-v1",
+      "issuer": "Synthetic Standards Body",
+      "licenseStorageDisposition": "METADATA_ONLY",
+      "licensedBytesStored": false,
+      "locator": "c23://reference/synthetic-standard-v1",
+      "publicationDate": "2024-04-01",
+      "publisher": "Synthetic Standards Body",
+      "retiredDate": null,
+      "retrievalTime": "2024-04-02",
+      "retrievedAt": "2024-04-02",
+      "sourceDigest": null,
+      "sourceType": "VOLUNTARY_STANDARD",
+      "title": "Synthetic voluntary metadata",
+      "url": null
+    },
+    {
+      "addendaOrCorrigenda": [],
+      "copiedSourceTextStored": false,
+      "designation": "SYN-M-001",
+      "edition": "1",
+      "effectiveDate": "2024-05-01",
+      "id": "synthetic-manufacturer-v1",
+      "issuer": "Synthetic Manufacturer",
+      "licenseStorageDisposition": "METADATA_ONLY",
+      "licensedBytesStored": false,
+      "locator": "c23://reference/synthetic-manufacturer-v1",
+      "publicationDate": "2024-05-01",
+      "publisher": "Synthetic Manufacturer",
+      "retiredDate": null,
+      "retrievalTime": "2024-05-02",
+      "retrievedAt": "2024-05-02",
+      "sourceDigest": null,
+      "sourceType": "MANUFACTURER_INSTRUCTION",
+      "title": "Synthetic manufacturer metadata",
+      "url": null
+    },
+    {
+      "addendaOrCorrigenda": [],
+      "copiedSourceTextStored": false,
+      "designation": "SYN-C-001",
+      "edition": "1",
+      "effectiveDate": "2024-06-01",
+      "id": "synthetic-contract-v1",
+      "issuer": "Synthetic Contract Party",
+      "licenseStorageDisposition": "METADATA_ONLY",
+      "licensedBytesStored": false,
+      "locator": "c23://reference/synthetic-contract-v1",
+      "publicationDate": "2024-06-01",
+      "publisher": "Synthetic Contract Party",
+      "retiredDate": null,
+      "retrievalTime": "2024-06-02",
+      "retrievedAt": "2024-06-02",
+      "sourceDigest": null,
+      "sourceType": "CONTRACT_OR_INSURER",
+      "title": "Synthetic contract metadata",
+      "url": null
+    },
+    {
+      "addendaOrCorrigenda": [],
+      "copiedSourceTextStored": false,
+      "designation": "SYN-O-001",
+      "edition": "1",
+      "effectiveDate": "2024-07-01",
+      "id": "synthetic-owner-v1",
+      "issuer": "Synthetic Owner",
+      "licenseStorageDisposition": "METADATA_ONLY",
+      "licensedBytesStored": false,
+      "locator": "c23://reference/synthetic-owner-v1",
+      "publicationDate": "2024-07-01",
+      "publisher": "Synthetic Owner",
+      "retiredDate": null,
+      "retrievalTime": "2024-07-02",
+      "retrievedAt": "2024-07-02",
+      "sourceDigest": null,
+      "sourceType": "OWNER_POLICY",
+      "title": "Synthetic owner policy metadata",
+      "url": null
+    }
+  ],
+  "basisBindings": [
+    {
+      "adoptionInferred": false,
+      "basisKind": "OWNER_POLICY",
+      "id": "basis-owner-policy",
+      "jurisdictionInferred": false,
+      "personSelected": true,
+      "sourceReleaseIDs": [
+        "synthetic-guidance-v1"
+      ]
+    },
+    {
+      "adoptionInferred": false,
+      "basisKind": "ADOPTION",
+      "id": "basis-conflict",
+      "jurisdictionInferred": false,
+      "personSelected": true,
+      "sourceReleaseIDs": [
+        "synthetic-adopted-v1",
+        "synthetic-guidance-v1"
+      ]
+    }
+  ],
+  "cardID": "V23-P03-C40",
+  "claims": {
+    "AUTOMATIC_COMPLIANCE_OR_SAFETY_SCORE": false,
+    "AUTOMATIC_LEGAL_PRECEDENCE_OR_AHJ_SELECTION": false,
+    "FULL_UCUM_OR_SECOND_UNIT_SYSTEM": false,
+    "GPS_DERIVED_JURISDICTION": false,
+    "LEGAL_RESEARCH_ENGINE": false,
+    "LICENSED_SOURCE_TEXT": false,
+    "PACKAGE_SPECIFIC_TABLE_OR_WRITER": false,
+    "S10_RELEASE_OR_BRAND_APPROVAL": false,
+    "SECOND_REFERENCE_STORE": false,
+    "USER_AUTHORED_EVALUATOR_OR_SCRIPT": false,
+    "WEB_UPDATED_STANDARDS": false,
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "hosted": false,
+    "native": false,
+    "release": false,
+    "releaseCredit": false
+  },
+  "classificationBindings": [
+    {
+      "criterionResult": "MEETS_SCREENING_CRITERION",
+      "id": "classification-meets_screening_criterion",
+      "language": "assessed against",
+      "safeClaim": false,
+      "scopeSnapshotID": "scope-synthetic-1",
+      "severityLevelID": "LOW",
+      "severityScaleReleaseID": "scale-synthetic-v1"
+    },
+    {
+      "criterionResult": "DOES_NOT_MEET",
+      "id": "classification-does_not_meet",
+      "language": "assessed against",
+      "safeClaim": false,
+      "scopeSnapshotID": "scope-synthetic-1",
+      "severityLevelID": null,
+      "severityScaleReleaseID": "scale-synthetic-v1"
+    },
+    {
+      "criterionResult": "INCONCLUSIVE",
+      "id": "classification-inconclusive",
+      "language": "assessed against",
+      "safeClaim": false,
+      "scopeSnapshotID": "scope-synthetic-1",
+      "severityLevelID": null,
+      "severityScaleReleaseID": "scale-synthetic-v1"
+    },
+    {
+      "criterionResult": "NOT_EVALUATED",
+      "id": "classification-not_evaluated",
+      "language": "assessed against",
+      "safeClaim": false,
+      "scopeSnapshotID": "scope-synthetic-1",
+      "severityLevelID": null,
+      "severityScaleReleaseID": "scale-synthetic-v1"
+    }
+  ],
+  "criterionResults": [
+    "MEETS_SCREENING_CRITERION",
+    "DOES_NOT_MEET",
+    "INCONCLUSIVE",
+    "NOT_EVALUATED"
+  ],
+  "crossScaleMappingReleases": [
+    {
+      "exact": true,
+      "fromScaleID": "scale-synthetic-v0",
+      "id": "mapping-synthetic-v1",
+      "mapping": [
+        {
+          "fromLevelID": "LEGACY",
+          "toLevelID": "LOW"
+        }
+      ],
+      "toScaleID": "scale-synthetic-v1"
+    }
+  ],
+  "derivationDispositions": [
+    "DERIVED",
+    "INCONCLUSIVE",
+    "NOT_EVALUATED",
+    "INVALID_INPUT"
+  ],
+  "derivedFactProvenance": [
+    {
+      "conversionPreserved": true,
+      "derivedFactID": "derived-synthetic-valid",
+      "dispositionPreserved": true,
+      "predecessorPreserved": true,
+      "rawInputPreserved": true,
+      "resultPreserved": true,
+      "roundingPreserved": true,
+      "uncertaintyPreserved": true
+    }
+  ],
+  "derivedFacts": [
+    {
+      "conversionPolicy": "C03_EXACT",
+      "disposition": "DERIVED",
+      "evaluatorDescriptorID": "evaluator-synthetic-v1",
+      "id": "derived-synthetic-valid",
+      "inputUnit": "mm",
+      "predecessorID": null,
+      "rawInputDigest": "2222222222222222222222222222222222222222222222222222222222222222",
+      "result": "MEETS_SCREENING_CRITERION",
+      "roundingPolicy": "DISPLAY_ONLY",
+      "uncertainty": "EXPLICIT_INTERVAL"
+    },
+    {
+      "conversionPolicy": "C03_EXACT",
+      "disposition": "INCONCLUSIVE",
+      "evaluatorDescriptorID": "evaluator-synthetic-v1",
+      "id": "derived-synthetic-inconclusive",
+      "inputUnit": "mm",
+      "predecessorID": "derived-synthetic-valid",
+      "rawInputDigest": "3333333333333333333333333333333333333333333333333333333333333333",
+      "result": "INCONCLUSIVE",
+      "roundingPolicy": "DISPLAY_ONLY",
+      "uncertainty": "UNKNOWN"
+    }
+  ],
+  "evaluatorDescriptors": [
+    {
+      "floatingPointCanonicalThresholds": false,
+      "formulaReference": "NONE",
+      "id": "evaluator-synthetic-v1",
+      "implementationDigest": "1111111111111111111111111111111111111111111111111111111111111111",
+      "implementationKind": "APP_BUNDLED_PURE",
+      "packageSupplied": false,
+      "protocolReleaseID": "protocol-synthetic-v1",
+      "version": 1
+    }
+  ],
+  "evidenceCases": [
+    {
+      "assertion": "Register, dossier, inherited V21 boundary, policy, contract, aggregate, and invalidation source projection values are pinned to their exact recorded hashes and lengths.",
+      "id": "C40-S01",
+      "kind": "SOURCE_PROJECTION"
+    },
+    {
+      "assertion": "Synthetic source records contain metadata and locators only; licensed bytes and copied source text are absent and unresolved rights remain non-admissible.",
+      "id": "C40-S02",
+      "kind": "RIGHTS_SAFE_SOURCE"
+    },
+    {
+      "assertion": "The fixture covers person-selected context, simultaneous sources, adopted versus published edition, mid-session package update, source retirement, and every applicability disposition.",
+      "id": "C40-S03",
+      "kind": "APPLICABILITY_MATRIX"
+    },
+    {
+      "assertion": "All four screening results are represented, severity is scale-qualified, and cross-scale ordering requires an exact mapping release.",
+      "id": "C40-S04",
+      "kind": "CRITERION_SEVERITY"
+    },
+    {
+      "assertion": "Exact inch/mm, psi/kPa, affine, rounding, duplicate, uncertainty, denominator, overflow, dimension, and evaluator-version cases remain deterministic and fail closed when invalid.",
+      "id": "C40-S05",
+      "kind": "MEASUREMENT_DERIVATION"
+    },
+    {
+      "assertion": "Completed scope and criterion results preserve their authority, protocol, evaluator, source, and predecessor history through updates and recovery.",
+      "id": "C40-S06",
+      "kind": "HISTORY_PINNING"
+    },
+    {
+      "assertion": "Exactly the 86-path C40 fence is accounted for (71 existing and 15 new), with exact manifest byte/digest rows, no unowned path, and zero S10 overlap.",
+      "id": "C40-F01",
+      "kind": "PATH_DIGEST_FENCE"
+    },
+    {
+      "assertion": "The result is PASS_STATIC_PROVISIONAL and all native, hosted, adoption, acceptance, and release flags and credits are false.",
+      "id": "C40-B01",
+      "kind": "STATIC_BOUNDARY"
+    }
+  ],
+  "forbiddenClaims": [
+    "LEGAL_RESEARCH_ENGINE",
+    "GPS_DERIVED_JURISDICTION",
+    "AUTOMATIC_LEGAL_PRECEDENCE_OR_AHJ_SELECTION",
+    "AUTOMATIC_COMPLIANCE_OR_SAFETY_SCORE",
+    "LICENSED_SOURCE_TEXT",
+    "WEB_UPDATED_STANDARDS",
+    "USER_AUTHORED_EVALUATOR_OR_SCRIPT",
+    "FULL_UCUM_OR_SECOND_UNIT_SYSTEM",
+    "SECOND_REFERENCE_STORE",
+    "PACKAGE_SPECIFIC_TABLE_OR_WRITER",
+    "S10_RELEASE_OR_BRAND_APPROVAL"
+  ],
+  "hostileCases": [
+    {
+      "expectedDisposition": "FAIL_CLOSED",
+      "id": "missing-adoption-basis"
+    },
+    {
+      "expectedDisposition": "FAIL_CLOSED",
+      "id": "contradictory-source-basis"
+    },
+    {
+      "expectedDisposition": "FAIL_CLOSED",
+      "id": "gps-derived-jurisdiction"
+    },
+    {
+      "expectedDisposition": "FAIL_CLOSED",
+      "id": "copyrighted-bytes"
+    },
+    {
+      "expectedDisposition": "FAIL_CLOSED",
+      "id": "source-digest-mismatch"
+    },
+    {
+      "expectedDisposition": "FAIL_CLOSED",
+      "id": "expired-qualification"
+    },
+    {
+      "expectedDisposition": "FAIL_CLOSED",
+      "id": "duplicate-samples"
+    },
+    {
+      "expectedDisposition": "FAIL_CLOSED",
+      "id": "zero-denominator"
+    },
+    {
+      "expectedDisposition": "FAIL_CLOSED",
+      "id": "overflow"
+    },
+    {
+      "expectedDisposition": "FAIL_CLOSED",
+      "id": "dimension-mismatch"
+    },
+    {
+      "expectedDisposition": "FAIL_CLOSED",
+      "id": "display-rounding-boundary"
+    },
+    {
+      "expectedDisposition": "FAIL_CLOSED",
+      "id": "unknown-evaluator"
+    },
+    {
+      "expectedDisposition": "FAIL_CLOSED",
+      "id": "unknown-unit-version"
+    },
+    {
+      "expectedDisposition": "FAIL_CLOSED",
+      "id": "floating-point-threshold"
+    },
+    {
+      "expectedDisposition": "FAIL_CLOSED",
+      "id": "package-script"
+    },
+    {
+      "expectedDisposition": "FAIL_CLOSED",
+      "id": "safe-compliant-certified-copy-leak"
+    }
+  ],
+  "interruptionCases": [
+    {
+      "expectedDisposition": "RETRY_IDEMPOTENT_NO_PARTIAL_ACTIVATION",
+      "id": "release-admission-boundary"
+    },
+    {
+      "expectedDisposition": "RETRY_IDEMPOTENT_NO_PARTIAL_ACTIVATION",
+      "id": "binding-boundary"
+    },
+    {
+      "expectedDisposition": "RETRY_IDEMPOTENT_NO_PARTIAL_ACTIVATION",
+      "id": "derivation-boundary"
+    },
+    {
+      "expectedDisposition": "RETRY_IDEMPOTENT_NO_PARTIAL_ACTIVATION",
+      "id": "report-boundary"
+    },
+    {
+      "expectedDisposition": "RETRY_IDEMPOTENT_NO_PARTIAL_ACTIVATION",
+      "id": "archive-boundary"
+    },
+    {
+      "expectedDisposition": "RETRY_IDEMPOTENT_NO_PARTIAL_ACTIVATION",
+      "id": "restore-boundary"
+    },
+    {
+      "expectedDisposition": "RETRY_IDEMPOTENT_NO_PARTIAL_ACTIVATION",
+      "id": "replay-boundary"
+    }
+  ],
+  "licenseStorageDispositionRecords": [
+    {
+      "id": "metadata-only",
+      "lawfulReferenceReleaseID": null,
+      "licensedBytesStored": false,
+      "mode": "METADATA_ONLY",
+      "sourceTextStored": false
+    },
+    {
+      "id": "lawful-c23-reference",
+      "lawfulReferenceReleaseID": "c23-release-synthetic-v1",
+      "licensedBytesStored": false,
+      "mode": "LAWFUL_C23_REFERENCE",
+      "sourceTextStored": false
+    },
+    {
+      "id": "rights-unresolved",
+      "lawfulReferenceReleaseID": null,
+      "licensedBytesStored": false,
+      "mode": "RIGHTS_UNRESOLVED",
+      "sourceTextStored": false
+    }
+  ],
+  "licenseStorageDispositions": [
+    "METADATA_ONLY",
+    "LAWFUL_C23_REFERENCE",
+    "RIGHTS_UNRESOLVED"
+  ],
+  "lifecycleDimensions": [
+    "SCHEMA_V11_VERSIONED_IDENTITY",
+    "WRITER_COMMAND_QUERY",
+    "MIGRATION_AND_RECOVERY",
+    "BACKUP_REPLACE_RESTORE",
+    "CLONE_FORK_GENERATION",
+    "IMPORT_EXPORT_PREVIEW",
+    "JOURNAL_REPLAY_CHECKPOINT",
+    "DELETE_ERASE_RETENTION",
+    "LOCAL_SEARCH_REBUILD",
+    "REPORT_SNAPSHOT_OPEN_JSON",
+    "PRIVACY_PROGRESSIVE_DISCLOSURE",
+    "INTERRUPTION_IDEMPOTENT_RECEIPTS"
+  ],
+  "measurementDispositions": [
+    "VALID",
+    "MISSING",
+    "OUTLIER",
+    "DUPLICATE",
+    "UNCERTAINTY_INVALID",
+    "INSUFFICIENT_SAMPLES",
+    "DIMENSION_MISMATCH"
+  ],
+  "measurementProtocols": [
+    {
+      "duplicatePolicy": "FAIL_CLOSED",
+      "id": "protocol-synthetic-v1",
+      "missingPolicy": "FAIL_CLOSED",
+      "normativeUnit": "mm",
+      "outlierPolicy": "PRESERVE_AND_MARK",
+      "released": true,
+      "roundingPolicy": "DISPLAY_ONLY_AFTER_CANONICAL_RESULT",
+      "samplingPolicy": "DECLARED_SAMPLE_SET",
+      "uncertaintyPolicy": "EXPLICIT_INTERVAL",
+      "unitAuthority": "V23-P03-C03",
+      "version": 1
+    }
+  ],
+  "persistence": {
+    "backupRestoreRequired": true,
+    "canonicalWriter": "V23-P02-C01",
+    "compatibilityRequired": true,
+    "deleteEraseRequired": true,
+    "downgrade": "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_FIRST_V11_WRITE",
+    "exportImportPreviewRequired": true,
+    "firstWriteEnrolled": true,
+    "migration": "EXACT_V10_TO_V11_COPY_ON_WRITE",
+    "predecessorSchemaVersion": 10,
+    "schemaRelease": "PERSISTENT_SCHEMA_V11_AUTHORITY_CRITERION_DERIVATION"
+  },
+  "recoveryCases": [
+    {
+      "expectedDisposition": "RECOVER_EFFECT_RECEIPT_AND_HISTORY",
+      "id": "backup-clone-fork"
+    },
+    {
+      "expectedDisposition": "RECOVER_EFFECT_RECEIPT_AND_HISTORY",
+      "id": "journal-replay-checkpoint"
+    },
+    {
+      "expectedDisposition": "RECOVER_EFFECT_RECEIPT_AND_HISTORY",
+      "id": "compatibility-forward-fix"
+    },
+    {
+      "expectedDisposition": "RECOVER_EFFECT_RECEIPT_AND_HISTORY",
+      "id": "search-report"
+    },
+    {
+      "expectedDisposition": "RECOVER_EFFECT_RECEIPT_AND_HISTORY",
+      "id": "delete-erase"
+    },
+    {
+      "expectedDisposition": "RECOVER_EFFECT_RECEIPT_AND_HISTORY",
+      "id": "released-v1"
+    }
+  ],
+  "requiredBehaviors": [
+    {
+      "contract": "AuthoritySourceReleaseV1",
+      "evidence": "C40-S01",
+      "id": "SOURCE_RELEASES",
+      "requirement": "Immutable authority releases store issuer, designation, edition, dates, locator, digest when available, source type, and rights disposition without licensed bytes or copied source text."
+    },
+    {
+      "contract": "LicenseStorageDispositionV1",
+      "evidence": "C40-S02",
+      "id": "SOURCE_RIGHTS",
+      "requirement": "Metadata-only and lawful C23 reference modes are explicit; unresolved rights fail closed and never activate a source."
+    },
+    {
+      "contract": "ApplicabilityContextSnapshotV1",
+      "evidence": "C40-S03",
+      "id": "APPLICABILITY_CONTEXT",
+      "requirement": "Person-selected Site, activity, C39 subject, package, C38 actor and qualification, effective date, basis, and source releases remain frozen in an append-only snapshot."
+    },
+    {
+      "contract": "ApplicabilityDispositionV1",
+      "evidence": "C40-S04",
+      "id": "APPLICABILITY_DISPOSITION",
+      "requirement": "Applicable, not-applicable-with-reason, unknown, conflict-review-required, and unsupported are closed outcomes; GPS and newest/strictest inference are forbidden."
+    },
+    {
+      "contract": "AssessmentScopeSnapshotV1",
+      "evidence": "C40-S05",
+      "id": "ASSESSMENT_SCOPE",
+      "requirement": "Assessment scope binds the exact frozen subject, activity, package, source, actor, qualification, and effective-date basis used by a criterion result."
+    },
+    {
+      "contract": "SeverityScaleReleaseV1",
+      "evidence": "C40-S06",
+      "id": "SEVERITY_AND_CRITERION",
+      "requirement": "Immutable scale releases own meaningful level IDs and exact cross-scale mappings; criterion results remain screening-only and use assessed-against language."
+    },
+    {
+      "contract": "MeasurementProtocolReleaseV1",
+      "evidence": "C40-S07",
+      "id": "MEASUREMENT_PROTOCOL",
+      "requirement": "Protocol releases freeze normative units, sampling, missing/outlier/duplicate/uncertainty/rounding behavior and consume C03 conversion authority."
+    },
+    {
+      "contract": "DerivedFactEvaluatorDescriptorV1",
+      "evidence": "C40-S08",
+      "id": "PURE_DERIVATION",
+      "requirement": "App-bundled pure digest-bound evaluators preserve raw inputs, conversion, rounding, result, uncertainty, disposition, and predecessor and fail closed on invalid inputs."
+    },
+    {
+      "contract": "PersistentSchemaV11",
+      "evidence": "C40-L01",
+      "id": "SCHEMA_V11_PERSISTENCE",
+      "requirement": "Schema-v11 migration, writer, backup/restore, clone/fork, import preview, journal/replay, search, report/open JSON, delete/Erase, privacy, interruption, and forward-fix behavior enroll every C40 family before first write."
+    },
+    {
+      "contract": "V23-P03-C40",
+      "evidence": "C40-B01",
+      "id": "STATIC_BOUNDARY",
+      "requirement": "This lane is PASS_STATIC_PROVISIONAL; native, hosted, adoption, acceptance, release, acceptance credit, and release credit remain false."
+    }
+  ],
+  "requiredContractNames": [
+    "AuthoritySourceReleaseV1",
+    "LicenseStorageDispositionV1",
+    "RequirementBasisBindingV1",
+    "ApplicabilityContextSnapshotV1",
+    "ApplicabilityDispositionV1",
+    "AssessmentScopeSnapshotV1",
+    "SeverityScaleReleaseV1",
+    "FindingClassificationBindingV1",
+    "MeasurementProtocolReleaseV1",
+    "DerivedFactEvaluatorDescriptorV1",
+    "DerivedFactProvenanceV1"
+  ],
+  "schema": "V21P03C40AuthorityCriterionCorpusV1",
+  "schemaVersion": 1,
+  "severityScaleReleases": [
+    {
+      "crossScaleMappingReleaseID": "mapping-synthetic-v1",
+      "id": "scale-synthetic-v1",
+      "levels": [
+        {
+          "id": "LOW",
+          "localizedKey": "criterion.severity.low"
+        },
+        {
+          "id": "HIGH",
+          "localizedKey": "criterion.severity.high"
+        }
+      ],
+      "state": "RELEASED",
+      "version": 1
+    },
+    {
+      "crossScaleMappingReleaseID": null,
+      "id": "scale-synthetic-v0",
+      "levels": [
+        {
+          "id": "LEGACY",
+          "localizedKey": "criterion.severity.legacy"
+        }
+      ],
+      "state": "RETIRED",
+      "version": 0
+    }
+  ],
+  "severityScaleStates": [
+    "RELEASED",
+    "RETIRED"
+  ],
+  "sourceTypes": [
+    "GUIDANCE",
+    "VOLUNTARY_STANDARD",
+    "ADOPTED_RULE",
+    "MANUFACTURER_INSTRUCTION",
+    "CONTRACT_OR_INSURER",
+    "OWNER_POLICY"
+  ]
+}

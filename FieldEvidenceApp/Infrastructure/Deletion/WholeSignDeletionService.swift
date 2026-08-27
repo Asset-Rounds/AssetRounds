@@ -1069,6 +1069,8 @@ private extension WholeSignDeletionService {
     }
 
     func validateKernelDeletionMappings() throws {
+        do { try AuthorityCriterionDeletionLedgerPolicyV1.validate() }
+        catch { throw WholeSignDeletionServiceError.graphInvalid }
         do {
             for kind in DeletionRecordKindV2.allCases {
                 let registration = try KernelDeletionEraseRegistryV4.registration(

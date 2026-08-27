@@ -224,9 +224,24 @@ enum ReportSemanticProjectorV1 {
         try project(
             activity: snapshot.payload.activity.activity.activity,
             snapshotSHA256: snapshot.snapshotSHA256,
-            locationComposition: snapshot.payload.activity.locationComposition,
+            locationComposition: snapshot.payload.activity.activity.locationComposition,
             accountability: snapshot.payload.activity.accountability,
             assetSemantics: snapshot.payload.assetSemantics,
+            manifest: manifest
+        )
+    }
+
+    static func project(
+        snapshot: CompletedActivitySnapshotV5,
+        manifest: ContractManifestV1
+    ) throws -> ReportSemanticProjectionV1 {
+        try project(
+            activity: snapshot.payload.activity.activity.activity.activity,
+            snapshotSHA256: snapshot.snapshotSHA256,
+            locationComposition: snapshot.payload.activity.activity.activity.locationComposition,
+            accountability: snapshot.payload.activity.activity.accountability,
+            assetSemantics: snapshot.payload.activity.assetSemantics,
+            authorityCriterion: snapshot.payload.authorityCriterion,
             manifest: manifest
         )
     }
@@ -237,6 +252,7 @@ enum ReportSemanticProjectorV1 {
         locationComposition: CompletedLocationCompositionSnapshotV1?,
         accountability: CompletedAccountabilitySnapshotV1? = nil,
         assetSemantics: CompletedAssetSemanticsSnapshotV1? = nil,
+        authorityCriterion: CompletedAuthorityCriterionSnapshotV1? = nil,
         manifest: ContractManifestV1
     ) throws -> ReportSemanticProjectionV1 {
         let encoder = JSONEncoder()
@@ -308,6 +324,14 @@ enum ReportSemanticProjectorV1 {
                 visibleID: visibleID
             )
         }
+        if let authorityCriterion {
+            try appendAuthorityCriterion(
+                authorityCriterion,
+                append: append,
+                visibleID: visibleID,
+                visibleDigest: visibleDigest
+            )
+        }
         for fact in activity.serviceFacts where binding.audience == .internalUse || fact.privacyClass != .internalOnly {
             try append("service", "fact", fact.label, fact.value)
         }
@@ -371,6 +395,87 @@ enum ReportSemanticProjectorV1 {
             ),
             nodes: nodes
         )
+    }
+
+    private static func appendAuthorityCriterion(
+        _ snapshot: CompletedAuthorityCriterionSnapshotV1,
+        append: (_ section: String, _ role: String, _ label: String, _ value: String, _ ref: String?) throws -> Void,
+        visibleID: (_ kind: String, _ value: String) -> String,
+        visibleDigest: (_ kind: String, _ value: String) -> String
+    ) throws {
+        let section = ReportAuthorityCriterionProjectionPolicyV1.sectionID
+        let facts = snapshot.aggregate
+        let heading = try localizedAuthorityCriterion(.heading)
+        let authoritySource = try localizedAuthorityCriterion(.authoritySource)
+        let applicability = try localizedAuthorityCriterion(.applicability)
+        let criterionResult = try localizedAuthorityCriterion(.criterionResult)
+        let severity = try localizedAuthorityCriterion(.severity)
+        let measurementProtocol = try localizedAuthorityCriterion(.measurementProtocol)
+        let technicalBasis = try localizedAuthorityCriterion(.technicalBasis)
+        let nextStep = try localizedAuthorityCriterion(.nextStep)
+        let assessedAgainst = try localizedAuthorityCriterion(.assessedAgainst)
+
+        let projectedText = facts.sourceReleases.flatMap {
+            [$0.designation, $0.editionOrRevision, $0.publisherDisplay].compactMap { $0 }
+        }
+            + facts.applicabilityContexts.compactMap(\.dispositionReason)
+            + facts.classificationBindings.flatMap { [$0.criterionID, $0.severityLevelID].compactMap { $0 } }
+            + facts.measurementProtocolReleases.flatMap { [$0.designation, $0.normativeUnitID] }
+        guard !AuthorityCriterionClaimVocabularyV1.containsProhibitedClaim(in: projectedText),
+              !AudiencePrivacyLexicalDetectorV1.containsProhibitedPattern(in: projectedText) else {
+            throw SnapshotProjectionFailureV1.hostileText
+        }
+
+        try append(section, "heading", heading, assessedAgainst, nil)
+        for source in facts.sourceReleases {
+            let metadata = [source.designation, source.editionOrRevision, source.publisherDisplay]
+                .compactMap { $0 }.joined(separator: " — ")
+            try append(section, "fact", authoritySource, metadata,
+                       visibleID("authority-release", source.releaseID.uuidString.lowercased()))
+            try append(section, "digest", technicalBasis,
+                       visibleDigest("authority-release-digest", source.releaseSHA256), nil)
+        }
+        for context in facts.applicabilityContexts {
+            let disposition = try localizedAuthorityCriterion(
+                ReportAuthorityCriterionProjectionPolicyV1.applicabilityLocalizationKey(context.disposition)
+            )
+            try append(section, "fact", applicability, disposition,
+                       visibleID("applicability", context.snapshotID.uuidString.lowercased()))
+            if let reason = context.dispositionReason {
+                try append(section, "limitation", nextStep, reason, nil)
+            }
+        }
+        for classification in facts.classificationBindings {
+            let result = try localizedAuthorityCriterion(
+                ReportAuthorityCriterionProjectionPolicyV1.resultLocalizationKey(classification.result)
+            )
+            try append(section, "fact", criterionResult, result,
+                       visibleID("classification", classification.bindingID.uuidString.lowercased()))
+            try append(section, "fact", technicalBasis, classification.criterionID, nil)
+            if let level = classification.severityLevelID {
+                try append(section, "fact", severity, level, nil)
+            }
+        }
+        for measurement in facts.measurementProtocolReleases {
+            try append(section, "fact", measurementProtocol,
+                       "\(measurement.designation) — \(measurement.normativeUnitID)",
+                       visibleID("measurement-protocol", measurement.releaseID.uuidString.lowercased()))
+        }
+        for fact in facts.derivedFacts {
+            // Derived-fact dispositions have no C40 shipping label. Preserve
+            // the provenance digest while withholding the raw enum token.
+            try append(section, "digest", technicalBasis,
+                       visibleDigest("derived-fact-digest", fact.provenanceSHA256), nil)
+        }
+    }
+
+    private static func localizedAuthorityCriterion(
+        _ key: AuthorityCriterionLocalizationKeyV1
+    ) throws -> String {
+        guard let bundledKey = BundledLocalizationKeyV1(rawValue: key.rawValue) else {
+            throw SnapshotProjectionFailureV1.missingBinding
+        }
+        return BundledLocalizationCatalogV1.localized(bundledKey)
     }
 
     private static func appendAssetSemantics(

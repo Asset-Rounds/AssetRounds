@@ -70,15 +70,16 @@ struct ExactRationalV1: Codable, Equatable, Hashable, Sendable {
     }
 }
 
-enum MeasurementDimensionV1: String, CaseIterable, Codable, Sendable {
+enum MeasurementDimensionV1: String, CaseIterable, Codable, Hashable, Sendable {
     case dimensionless = "DIMENSIONLESS"
     case length = "LENGTH"
     case illuminance = "ILLUMINANCE"
     case duration = "DURATION"
     case temperature = "TEMPERATURE"
+    case pressure = "PRESSURE"
 }
 
-struct UnitDefinitionV1: Codable, Equatable, Sendable {
+struct UnitDefinitionV1: Codable, Equatable, Hashable, Sendable {
     let unitID: String
     let dimension: MeasurementDimensionV1
     let canonicalUnitID: String
@@ -151,6 +152,8 @@ enum KernelUnitRegistryV1 {
             unit("min", .duration, "s", rational(60), 3),
             unit("mm", .length, "m", rational(1, 1_000), 9),
             unit("ms", .duration, "s", rational(1, 1_000), 3),
+            unit("kPa", .pressure, "kPa", rational(1), 9),
+            unit("psi", .pressure, "kPa", rational(6_894_757_293, 1_000_000_000), 9),
             unit("s", .duration, "s", rational(1), 3),
         ].sorted { $0.unitID < $1.unitID }
     }()
@@ -186,7 +189,7 @@ enum TiesToEvenRoundingDispositionV1: String, CaseIterable, Codable, Sendable {
     case tieEvenAdjusted = "TIE_EVEN_ADJUSTED"
 }
 
-struct ExactRoundingReceiptV1: Codable, Equatable, Sendable {
+struct ExactRoundingReceiptV1: Codable, Equatable, Hashable, Sendable {
     let schemaVersion: Int
     let policy: String
     let sourceNumerator: Int64
@@ -198,7 +201,7 @@ struct ExactRoundingReceiptV1: Codable, Equatable, Sendable {
     let disposition: TiesToEvenRoundingDispositionV1
 }
 
-struct ExactConversionResultV1: Equatable, Sendable {
+struct ExactConversionResultV1: Equatable, Hashable, Sendable {
     let canonicalValue: ExactDecimalV1
     let receipt: ExactRoundingReceiptV1
 }
@@ -310,14 +313,14 @@ enum ExactUnitConverterV1 {
     }
 }
 
-enum MeasurementSourceV1: String, CaseIterable, Codable, Sendable {
+enum MeasurementSourceV1: String, CaseIterable, Codable, Hashable, Sendable {
     case manualEntry = "MANUAL_ENTRY"
     case instrumentObserved = "INSTRUMENT_OBSERVED"
     case imported = "IMPORTED"
     case derived = "DERIVED"
 }
 
-struct ExactMeasurementV1: Codable, Equatable, Sendable {
+struct ExactMeasurementV1: Codable, Equatable, Hashable, Sendable {
     static let schemaVersion = 1
     let schemaVersion: Int
     let enteredValue: ExactDecimalV1

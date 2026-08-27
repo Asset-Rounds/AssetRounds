@@ -535,6 +535,183 @@ final class V9_22LocalizationAccessibilityTests: XCTestCase {
         }
     }
 
+    func testV23P03C40AuthorityCriterionLocalizationAndNonColorSemanticsAreEnglishOnly() throws {
+        let registry = try BundledLocalizationCatalogV1.authorityCriterionRegistry()
+        try registry.validate()
+
+        let expectedKeys = Set(AuthorityCriterionLocalizationKeyV1.allCases.map(\.rawValue))
+        XCTAssertEqual(Set(AuthorityCriterionLocalizationPolicyV1.keys), expectedKeys)
+        XCTAssertTrue(expectedKeys.isSubset(of: Set(registry.definitions.map { $0.key.rawValue })))
+        XCTAssertEqual(AuthorityCriterionLocalizationPolicyV1.sourceLocale, "en")
+        XCTAssertEqual(AuthorityCriterionLocalizationPolicyV1.shippingLocale, "en")
+        XCTAssertEqual(AuthorityCriterionLocalizationPolicyV1.metadataLocale, "en-US")
+        XCTAssertEqual(
+            Set(AuthorityCriterionLocalizationPolicyV1.testOnlyLocales),
+            Set(TestOnlyPseudoLocaleV1.allCases.map(\.rawValue))
+        )
+        XCTAssertEqual(AuthorityCriterionLocalizationPolicyV1.requiredReportWording, "assessed against")
+        XCTAssertEqual(
+            ApplicabilityDispositionV1.allCases.map {
+                AuthorityCriterionLocalizationKeyV1.applicabilityKey($0).rawValue
+            },
+            [
+                "authority.criterion.applicability.applicable",
+                "authority.criterion.applicability.not_applicable_with_reason",
+                "authority.criterion.applicability.unknown",
+                "authority.criterion.applicability.conflict_review_required",
+                "authority.criterion.applicability.unsupported",
+            ]
+        )
+        XCTAssertEqual(
+            ScreeningCriterionResultV1.allCases.map {
+                AuthorityCriterionLocalizationKeyV1.resultKey($0).rawValue
+            },
+            [
+                "authority.criterion.result.meets_screening_criterion",
+                "authority.criterion.result.does_not_meet",
+                "authority.criterion.result.inconclusive",
+                "authority.criterion.result.not_evaluated",
+            ]
+        )
+        XCTAssertTrue(AuthorityCriterionLocalizationPolicyV1.excludesLicensedSourceText)
+        XCTAssertTrue(AuthorityCriterionLocalizationPolicyV1.excludesRawMeasurementSamples)
+        XCTAssertTrue(AuthorityCriterionLocalizationPolicyV1.excludesPrivateLocators)
+        XCTAssertTrue(AuthorityCriterionLocalizationPolicyV1.excludesQualificationDetail)
+        XCTAssertTrue(AuthorityCriterionLocalizationPolicyV1.excludesUnsupportedClaims)
+        XCTAssertTrue(AuthorityCriterionLocalizationPolicyV1.requiresNonColorStateText)
+        XCTAssertTrue(AuthorityCriterionLocalizationPolicyV1.requiresTextAndIconForIndeterminateStates)
+        XCTAssertTrue(AuthorityCriterionLocalizationPolicyV1.requiresActionableNextStep)
+        XCTAssertFalse(AuthorityCriterionLocalizationPolicyV1.allowsColorOnlySeverity)
+        XCTAssertFalse(AuthorityCriterionLocalizationPolicyV1.allowsIconOnlyState)
+
+        let accessibility = try BundledLocalizationCatalogV1
+            .authorityCriterionAccessibilityRegistry(localization: registry)
+        let c40IDs = Set(AuthorityCriterionAccessibilityIDV1.allCases.map(\.rawValue))
+        let accessibilityIDs = Set(accessibility.entries.map(\.semanticID))
+        XCTAssertTrue(c40IDs.isSubset(of: accessibilityIDs))
+        XCTAssertEqual(Set(AuthorityCriterionAccessibilityPolicyV1.semanticIDs), c40IDs)
+        XCTAssertTrue(accessibility.entries.allSatisfy {
+            $0.dynamicSuffixPolicy == .none && $0.deprecatedAliases.isEmpty
+        })
+
+        let entriesByID = Dictionary(uniqueKeysWithValues: accessibility.entries.map {
+            ($0.semanticID, $0)
+        })
+        for semanticID in AuthorityCriterionAccessibilityIDV1.allCases {
+            let entry = try XCTUnwrap(entriesByID[semanticID.rawValue])
+            XCTAssertEqual(
+                try accessibility.identifier(semanticID: semanticID.rawValue),
+                semanticID.rawValue
+            )
+            XCTAssertTrue(
+                registry.definitions.contains { $0.key == entry.labelKey },
+                "missing localized label for \(semanticID.rawValue)"
+            )
+        }
+        for semanticID in AuthorityCriterionAccessibilityPolicyV1.indeterminateSemanticIDs {
+            let entry = try XCTUnwrap(entriesByID[semanticID])
+            XCTAssertEqual(entry.role, .status)
+            XCTAssertNotNil(entry.hintKey, "\(semanticID) needs an actionable next-step hint")
+            XCTAssertTrue(AuthorityCriterionAccessibilityPolicyV1.requiresTextAndIcon(for: semanticID))
+            XCTAssertTrue(AuthorityCriterionAccessibilityPolicyV1.requiresActionableNextStep(for: semanticID))
+        }
+        XCTAssertFalse(AuthorityCriterionAccessibilityPolicyV1.colorOnlySeverityAllowed)
+        XCTAssertFalse(AuthorityCriterionAccessibilityPolicyV1.iconOnlyStatusAllowed)
+
+        let source = try JSONSerialization.jsonObject(with: sourceCatalogData()) as? [String: Any]
+        let strings = try XCTUnwrap(source?["strings"] as? [String: Any])
+        var c40Values = [String]()
+        for key in AuthorityCriterionLocalizationKeyV1.allCases {
+            let entry = try XCTUnwrap(strings[key.rawValue] as? [String: Any])
+            let comment = try XCTUnwrap(entry["comment"] as? String)
+            XCTAssertFalse(comment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            let localizations = try XCTUnwrap(entry["localizations"] as? [String: Any])
+            XCTAssertEqual(Set(localizations.keys), Set(["en"]))
+            let english = try XCTUnwrap(localizations["en"] as? [String: Any])
+            let unit = try XCTUnwrap(english["stringUnit"] as? [String: Any])
+            let value = try XCTUnwrap(unit["value"] as? String)
+            XCTAssertFalse(value.isEmpty)
+            c40Values.append(contentsOf: [comment, value])
+            let bundledKey = try XCTUnwrap(BundledLocalizationKeyV1(rawValue: key.rawValue))
+            XCTAssertEqual(BundledLocalizationCatalogV1.localized(bundledKey), value)
+        }
+        XCTAssertTrue(c40Values.contains("Assessed against"))
+        XCTAssertFalse(
+            AuthorityCriterionLocalizationPolicyV1.containsProhibitedClaim(in: c40Values)
+        )
+
+        let publication = try BundledLocalizationCatalogV1.publish(
+            sourceCatalogBytes: sourceCatalogData(),
+            legacy: legacyAllowlist(),
+            includeAuthorityCriteria: true
+        )
+        guard case let .complete(
+            publishedRegistry, publishedAccessibility, _, _, receipt
+        ) = publication else {
+            return XCTFail("C40 requires one complete authority-criterion catalog publication")
+        }
+        XCTAssertEqual(publishedRegistry, registry)
+        XCTAssertEqual(
+            Set(publishedAccessibility.entries.map(\.semanticID)),
+            Set(accessibility.entries.map(\.semanticID))
+        )
+        XCTAssertTrue(KernelCanonicalHashV1.validSHA256(receipt.release.releaseSHA256))
+    }
+
+    func testV23P03C40ReportLabelsAreTypedAndAuthorityHostilesFailClosed() throws {
+        XCTAssertEqual(
+            Set(ReportAuthorityCriterionProjectionPolicyV1.localizationKeys.map(\.rawValue)),
+            Set(AuthorityCriterionLocalizationPolicyV1.reportKeys)
+        )
+        XCTAssertEqual(
+            ReportAuthorityCriterionProjectionPolicyV1.applicabilityLocalizationKey(.applicable),
+            .applicabilityApplicable
+        )
+        XCTAssertEqual(
+            ReportAuthorityCriterionProjectionPolicyV1.applicabilityLocalizationKey(.conflictReviewRequired),
+            .applicabilityConflictReviewRequired
+        )
+        XCTAssertEqual(
+            ReportAuthorityCriterionProjectionPolicyV1.resultLocalizationKey(.meetsScreeningCriterion),
+            .resultMeetsScreeningCriterion
+        )
+        XCTAssertEqual(
+            ReportAuthorityCriterionProjectionPolicyV1.resultLocalizationKey(.notEvaluated),
+            .resultNotEvaluated
+        )
+
+        let hostileAuthorityText = [
+            "safe-compliant-certified-copy-leak",
+            "Legal research engine",
+            "GPS-derived jurisdiction",
+            "automatic legal precedence or AHJ selection",
+            "automatic compliance or safety score",
+            "licensed source text",
+            "web-updated standards",
+            "user-authored evaluator or script",
+            "full UCUM or second unit system",
+            "second reference store",
+            "package-specific table or writer",
+            "S10 release or brand approval",
+        ]
+        for value in hostileAuthorityText {
+            XCTAssertTrue(
+                AuthorityCriterionClaimVocabularyV1.containsProhibitedClaim(in: [value]),
+                "hostile authority text escaped claim vocabulary: \(value)"
+            )
+        }
+        XCTAssertFalse(
+            AuthorityCriterionClaimVocabularyV1.containsProhibitedClaim(
+                in: ["Observed reading", "safely recorded", "professional association"]
+            )
+        )
+        XCTAssertTrue(
+            AudiencePrivacyLexicalDetectorV1.containsProhibitedPattern(
+                in: ["https://authority.example/source", "file:///Users/private/source"]
+            )
+        )
+    }
+
     private func corpus() throws -> Corpus {
         try JSONDecoder().decode(Corpus.self, from: Data(contentsOf: try fixtureURL()))
     }

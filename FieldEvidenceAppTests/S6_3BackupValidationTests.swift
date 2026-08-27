@@ -8,6 +8,37 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class S6_3BackupValidationTests: XCTestCase {
+    func testV23P03C40Records10GraphRequiresExactPredecessorRevision() throws {
+        let root = try C40BackupLifecycleTestValues.source()
+        let successor = try C40BackupLifecycleTestValues.source(
+            releaseID: C40BackupLifecycleTestValues.id(90_004),
+            supersedes: root.releaseID,
+            revision: 2
+        )
+        let records = try C40BackupLifecycleTestValues.records([root, successor])
+        let decoded = try BackupCanonicalDecoderV1().decodeRecords(
+            BackupCanonicalEncoderV1().encodeRecords(records).data
+        )
+        let values = try decoded.authorityCriterion.map {
+            try AuthorityCriterionCanonicalCodecV1.decode(
+                AuthoritySourceReleaseV1.self, from: $0.canonicalData
+            )
+        }
+        let byID = Dictionary(uniqueKeysWithValues: values.map { ($0.releaseID, $0) })
+        let restoredSuccessor = try XCTUnwrap(byID[successor.releaseID])
+        let restoredRoot = try XCTUnwrap(byID[restoredSuccessor.supersedesReleaseID!])
+        XCTAssertEqual(restoredRoot.revision + 1, restoredSuccessor.revision)
+
+        let dangling = try C40BackupLifecycleTestValues.source(
+            releaseID: C40BackupLifecycleTestValues.id(90_005),
+            supersedes: C40BackupLifecycleTestValues.id(90_099),
+            revision: 2
+        )
+        let danglingValues = [dangling]
+        let danglingByID = Dictionary(uniqueKeysWithValues: danglingValues.map { ($0.releaseID, $0) })
+        XCTAssertNil(danglingByID[dangling.supersedesReleaseID!])
+    }
+
     private let fileManager = FileManager.default
 
     @MainActor

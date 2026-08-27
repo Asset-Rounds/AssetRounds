@@ -20,6 +20,15 @@ enum BundledInspectionPackageRegistryV2 {
     static let shippingAssetSemanticReleasedAt = Date(
         timeIntervalSince1970: 1_735_689_600
     )
+    static let shippingMeasurementProtocolReleaseID = UUID(
+        uuidString: "c4000000-0000-4000-8000-000000000001"
+    )!
+    static let shippingMeasurementProtocolID = UUID(
+        uuidString: "c4000000-0000-4000-8000-000000000002"
+    )!
+    static let shippingDerivedEvaluatorDescriptorID = UUID(
+        uuidString: "c4000000-0000-4000-8000-000000000003"
+    )!
 
     /// Localization is a sidecar release binding. The package's canonical V2
     /// bytes and release identity remain unchanged.
@@ -71,6 +80,51 @@ enum BundledInspectionPackageRegistryV2 {
             definitions: [definition],
             releasedAt: shippingAssetSemanticReleasedAt
         )
+    }
+
+    static func shippingAuthorityCriterionBinding(
+        workspaceID: WorkspaceID,
+        recordedAt: Date
+    ) throws -> InspectionPackageAuthorityCriterionBindingV1 {
+        let package = try ShippingIlluminatedSignAdapterV1.inspectionPackage()
+        let packageRelease = try PackageReleaseIdentityV1(
+            packageID: package.packageID,
+            schemaVersion: package.schemaVersion,
+            contentVersion: package.contentVersion
+        )
+        let descriptor = try BundledDerivedFactEvaluatorRegistryV1.descriptor(
+            descriptorID: shippingDerivedEvaluatorDescriptorID,
+            workspaceID: workspaceID,
+            kind: .identityCanonical,
+            inputDimension: .illuminance,
+            recordedAt: recordedAt
+        )
+        let measurementProtocol = try MeasurementProtocolReleaseV1(
+            releaseID: shippingMeasurementProtocolReleaseID,
+            workspaceID: workspaceID,
+            protocolID: shippingMeasurementProtocolID,
+            designation: "Illuminance observation screening protocol",
+            dimension: .illuminance,
+            normativeUnitID: "lx",
+            samplingPolicy: .single,
+            minimumSampleCount: 1,
+            maximumSampleCount: 1,
+            missingSamplePolicy: .inconclusive,
+            outlierPolicy: .retainAll,
+            duplicatePolicy: .reject,
+            requiresUncertainty: false,
+            evaluatorDescriptorID: descriptor.descriptorID,
+            recordedAt: recordedAt
+        )
+        let binding = try InspectionPackageAuthorityCriterionBindingV1(
+            workspaceID: workspaceID,
+            packageRelease: packageRelease,
+            criterionIDs: [],
+            measurementProtocolReleases: [measurementProtocol],
+            evaluatorDescriptors: [descriptor]
+        )
+        try AuthorityCriterionPackageCompatibilityRegistryV1.validate(binding, package: package)
+        return binding
     }
 
     static func shippingDraftRelease(

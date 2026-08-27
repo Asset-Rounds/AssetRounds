@@ -103,7 +103,7 @@ enum ContentByteRoleV1: String, CaseIterable, Codable, Hashable, Sendable {
     case derivative = "DERIVATIVE"
 }
 
-struct ContentReferenceV1: Codable, Equatable, Identifiable, Sendable {
+struct ContentReferenceV1: Codable, Equatable, Hashable, Identifiable, Sendable {
     static let schemaVersion = 1
     let schemaVersion: Int
     let workspaceID: String
@@ -202,5 +202,19 @@ extension ContentReferenceV1 {
             byteRole: c.decode(ContentByteRoleV1.self, forKey: .byteRole),
             createdAt: c.decode(String.self, forKey: .createdAt)
         )
+    }
+}
+
+extension ContentReferenceV1 {
+    func validateAuthoritySourceBinding(_ release: AuthoritySourceReleaseV1) throws {
+        try release.validate()
+        guard release.licenseStorageDisposition == .lawfulContentReference,
+              release.lawfulContentReference == self,
+              AuthorityCriterionValidationV1.sameWorkspaceString(
+                workspaceID,
+                as: release.workspaceID
+              ) else {
+            throw ContentContractFailureV1.wrongWorkspace
+        }
     }
 }

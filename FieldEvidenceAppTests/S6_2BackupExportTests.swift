@@ -8,6 +8,27 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class S6_2BackupExportTests: XCTestCase {
+    func testV23P03C40Records10CanonicalExportCarriesTypedV11Record() throws {
+        let source = try C40BackupLifecycleTestValues.source()
+        let records = try C40BackupLifecycleTestValues.records([source])
+        let encoded = try BackupCanonicalEncoderV1().encodeRecords(records)
+        let decoded = try BackupCanonicalDecoderV1().decodeRecords(encoded.data)
+        XCTAssertEqual(decoded.recordsSchemaVersion, 10)
+        XCTAssertEqual(decoded.authorityCriterion, records.authorityCriterion)
+        XCTAssertEqual(decoded.authorityCriterion.first?.kind, .authoritySourceRelease)
+        XCTAssertEqual(decoded.authorityCriterion.first?.id, source.releaseID)
+        XCTAssertEqual(
+            Set(V11BackupAuthorityCriterionRecordV1.Kind.allCases.map(\.rawValue)),
+            Set([
+                "AUTHORITY_SOURCE_RELEASE", "REQUIREMENT_BASIS_BINDING",
+                "APPLICABILITY_CONTEXT_SNAPSHOT", "ASSESSMENT_SCOPE_SNAPSHOT",
+                "SEVERITY_SCALE_RELEASE", "FINDING_CLASSIFICATION_BINDING",
+                "MEASUREMENT_PROTOCOL_RELEASE", "DERIVED_FACT_EVALUATOR_DESCRIPTOR",
+                "DERIVED_FACT_PROVENANCE",
+            ])
+        )
+    }
+
     func testV23P03C39BackupCodecEnforcesBoundedCanonicalInput() throws {
         let value = AssetProductIdentifierReviewStateV1.unknownRecorded
         let bytes = try AssetSemanticCanonicalCodecV1.encode(value)

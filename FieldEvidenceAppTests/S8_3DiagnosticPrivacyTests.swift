@@ -197,6 +197,75 @@ final class S8_3DiagnosticPrivacyTests: XCTestCase {
         XCTAssertTrue(minimalText.contains(#""metricKit":null"#))
         XCTAssertTrue(minimalText.contains(#""report_saved":0"#))
     }
+
+    func testC40AuthorityCriterionLocalizationIsCustomerSafeAndClaimBounded() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let catalogURL = root
+            .appendingPathComponent("FieldEvidenceApp/Resources/Localizable.xcstrings")
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: catalogURL)) as? [String: Any]
+        )
+        let strings = try XCTUnwrap(object["strings"] as? [String: Any])
+        let c40Text = try AuthorityCriterionLocalizationKeyV1.allCases.flatMap { key in
+            let entry = try XCTUnwrap(strings[key.rawValue] as? [String: Any])
+            let comment = try XCTUnwrap(entry["comment"] as? String)
+            let localizations = try XCTUnwrap(entry["localizations"] as? [String: Any])
+            let english = try XCTUnwrap(localizations["en"] as? [String: Any])
+            let unit = try XCTUnwrap(english["stringUnit"] as? [String: Any])
+            let value = try XCTUnwrap(unit["value"] as? String)
+            return [comment, value]
+        }
+
+        XCTAssertFalse(
+            AuthorityCriterionLocalizationPolicyV1.containsProhibitedClaim(in: c40Text)
+        )
+        XCTAssertFalse(c40Text.contains { $0 == "\n" })
+        XCTAssertFalse(c40Text.contains { $0 == "\r" })
+        for restricted in ["http://", "https://", "file://", "raw sample", "private locator"] {
+            XCTAssertFalse(
+                c40Text.contains { $0.localizedCaseInsensitiveContains(restricted) },
+                restricted
+            )
+        }
+
+        XCTAssertTrue(
+            AuthorityCriterionLocalizationPolicyV1.containsProhibitedClaim(
+                in: ["SAFE", "COMPLIANT", "CERTIFIED", "AHJ", "professional"]
+            )
+        )
+        XCTAssertTrue(AuthorityCriterionLocalizationPolicyV1.excludesLicensedSourceText)
+        XCTAssertTrue(AuthorityCriterionLocalizationPolicyV1.excludesRawMeasurementSamples)
+        XCTAssertTrue(AuthorityCriterionLocalizationPolicyV1.excludesPrivateLocators)
+        XCTAssertTrue(AuthorityCriterionLocalizationPolicyV1.excludesQualificationDetail)
+        XCTAssertTrue(AuthorityCriterionLocalizationPolicyV1.excludesUnsupportedClaims)
+
+        let hostileAuthorityText = [
+            "safe-compliant-certified-copy-leak",
+            "Legal research engine",
+            "GPS-derived jurisdiction",
+            "automatic legal precedence or AHJ selection",
+            "automatic compliance or safety score",
+            "licensed source text",
+            "web-updated standards",
+            "user-authored evaluator or script",
+            "full UCUM or second unit system",
+            "second reference store",
+            "package-specific table or writer",
+            "S10 release or brand approval",
+        ]
+        XCTAssertTrue(
+            hostileAuthorityText.allSatisfy {
+                AuthorityCriterionClaimVocabularyV1.containsProhibitedClaim(in: [$0])
+            }
+        )
+        XCTAssertTrue(
+            AudiencePrivacyLexicalDetectorV1.containsProhibitedPattern(
+                in: ["https://authority.example/source", "file:///Users/private/source"]
+            )
+        )
+    }
 }
 
 private final class DiagnosticsLogProbe: @unchecked Sendable {

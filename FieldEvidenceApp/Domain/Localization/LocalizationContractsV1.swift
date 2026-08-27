@@ -430,3 +430,116 @@ enum AssetSemanticLocalizationPolicyV1 {
     static let excludesIdentityClaims = true
     static let progressivelyDisclosedProductIdentity = true
 }
+
+/// C40's authority and criterion labels are a closed English source surface.
+/// They describe the recorded basis and screening disposition only; they do
+/// not turn a source, result, or severity label into a legal, safety,
+/// compliance, or professional claim.
+enum AuthorityCriterionLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
+    case heading = "authority.criterion.heading"
+    case authoritySource = "authority.criterion.authority_source"
+    case applicability = "authority.criterion.applicability"
+    case applicabilityApplicable = "authority.criterion.applicability.applicable"
+    case applicabilityNotApplicableWithReason = "authority.criterion.applicability.not_applicable_with_reason"
+    case applicabilityUnknown = "authority.criterion.applicability.unknown"
+    case applicabilityConflictReviewRequired = "authority.criterion.applicability.conflict_review_required"
+    case applicabilityUnsupported = "authority.criterion.applicability.unsupported"
+    case criterionResult = "authority.criterion.result"
+    case resultMeetsScreeningCriterion = "authority.criterion.result.meets_screening_criterion"
+    case resultDoesNotMeet = "authority.criterion.result.does_not_meet"
+    case resultInconclusive = "authority.criterion.result.inconclusive"
+    case resultNotEvaluated = "authority.criterion.result.not_evaluated"
+    case severity = "authority.criterion.severity"
+    case measurementProtocol = "authority.criterion.measurement_protocol"
+    case technicalBasis = "authority.criterion.technical_basis"
+    case nextStep = "authority.criterion.next_step"
+    case assessedAgainst = "authority.criterion.assessed_against"
+
+    // Additive spelling aliases keep call sites readable without adding a
+    // second raw key or a second catalog entry.
+    static var result: Self { .criterionResult }
+    static var applicable: Self { .applicabilityApplicable }
+    static var notApplicableWithReason: Self { .applicabilityNotApplicableWithReason }
+    static var unknown: Self { .applicabilityUnknown }
+    static var conflictReviewRequired: Self { .applicabilityConflictReviewRequired }
+    static var unsupported: Self { .applicabilityUnsupported }
+    static var meetsScreeningCriterion: Self { .resultMeetsScreeningCriterion }
+    static var doesNotMeet: Self { .resultDoesNotMeet }
+    static var inconclusive: Self { .resultInconclusive }
+    static var notEvaluated: Self { .resultNotEvaluated }
+
+    var localizationKey: LocalizationKeyV1 {
+        // Construction is non-throwing for this closed, repository-owned set;
+        // registry construction remains the validation boundary.
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+}
+
+enum AuthorityCriterionLocalizationPolicyV1 {
+    static let semanticNamespace = "authority.criterion"
+    static let sourceLocale = "en"
+    static let shippingLocale = "en"
+    static let metadataLocale = "en-US"
+    static let testOnlyLocales = TestOnlyPseudoLocaleV1.allCases.map(\.rawValue).sorted()
+    static let keys = AuthorityCriterionLocalizationKeyV1.allCases.map(\.rawValue)
+    static let semanticIDs = AuthorityCriterionAccessibilityIDV1.allCases.map(\.rawValue)
+    static let reportKeys = [
+        AuthorityCriterionLocalizationKeyV1.authoritySource.rawValue,
+        AuthorityCriterionLocalizationKeyV1.applicability.rawValue,
+        AuthorityCriterionLocalizationKeyV1.criterionResult.rawValue,
+        AuthorityCriterionLocalizationKeyV1.severity.rawValue,
+        AuthorityCriterionLocalizationKeyV1.measurementProtocol.rawValue,
+        AuthorityCriterionLocalizationKeyV1.technicalBasis.rawValue,
+        AuthorityCriterionLocalizationKeyV1.assessedAgainst.rawValue,
+        AuthorityCriterionLocalizationKeyV1.nextStep.rawValue,
+    ]
+    static let requiredReportWording = "assessed against"
+    static let excludesLicensedSourceText = true
+    static let excludesRawMeasurementSamples = true
+    static let excludesPrivateLocators = true
+    static let excludesQualificationDetail = true
+    static let excludesUnsupportedClaims = true
+    static let requiresNonColorStateText = true
+    static let requiresTextAndIconForIndeterminateStates = true
+    static let requiresActionableNextStep = true
+    static let allowsColorOnlySeverity = false
+    static let allowsIconOnlyState = false
+    static let excludesLegalSafetyComplianceClaims = true
+    static let textIconActionableNextStepRequired = true
+
+    /// Claim words are tokenized, not substring-matched, so a harmless word
+    /// such as "safely" cannot accidentally be treated as the prohibited
+    /// app-origin claim "safe".
+    static let prohibitedClaimTokens: Set<String> = [
+        "ahj", "certified", "compliant", "safe", "legal", "professional",
+    ]
+
+    static func containsProhibitedClaim(in values: [String]) -> Bool {
+        values.contains { value in
+            let tokens = value.lowercased().split { !$0.isLetter && !$0.isNumber }
+            return tokens.contains { prohibitedClaimTokens.contains(String($0)) }
+        }
+    }
+}
+
+extension AuthorityCriterionLocalizationKeyV1 {
+    static func applicabilityKey(_ disposition: ApplicabilityDispositionV1) -> Self {
+        switch disposition {
+        case .applicable: return .applicabilityApplicable
+        case .notApplicableWithReason: return .applicabilityNotApplicableWithReason
+        case .unknown: return .applicabilityUnknown
+        case .conflictReviewRequired: return .applicabilityConflictReviewRequired
+        case .unsupported: return .applicabilityUnsupported
+        }
+    }
+
+    static func resultKey(_ result: ScreeningCriterionResultV1) -> Self {
+        switch result {
+        case .meetsScreeningCriterion: return .resultMeetsScreeningCriterion
+        case .doesNotMeet: return .resultDoesNotMeet
+        case .inconclusive: return .resultInconclusive
+        case .notEvaluated: return .resultNotEvaluated
+        }
+    }
+}

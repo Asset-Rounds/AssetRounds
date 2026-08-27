@@ -37,13 +37,17 @@ enum SearchContractLimitsV1 {
     /// V1/V2 registries.
     static let maximumAssetSemanticsFieldRegistrations = 18
     static let maximumAccountabilityAssetSemanticsFieldRegistrations = 22
+    static let maximumAuthorityCriterionFieldRegistrations = 18
+    static let maximumAccountabilityAuthorityCriterionFieldRegistrations = 22
+    static let maximumAssetSemanticsAuthorityCriterionFieldRegistrations = 23
+    static let maximumAllProjectionFieldRegistrations = 27
     static let maximumFilters = 16
     static let maximumSuggestions = 5
     static let maximumSnippetBytes = 320
     static let maximumBreadcrumbComponents = 16
     static let maximumProjectionTokens = 128
     static let maximumCanonicalRecords = 10_000
-    static let maximumSearchableFieldCount = maximumAccountabilityAssetSemanticsFieldRegistrations
+    static let maximumSearchableFieldCount = maximumAllProjectionFieldRegistrations
     static let maximumProjectionRecords = maximumCanonicalRecords * maximumSearchableFieldCount
     static let maximumAccountabilityProjectionFieldsPerRecord = 4
     static let maximumAccountabilityProjectionRecords = maximumCanonicalRecords
@@ -184,6 +188,11 @@ enum FrozenSearchableFieldV1: String, CaseIterable, Codable, Hashable, Sendable 
     case assetLifecycleEvent = "asset_lifecycle_event"
     case assetProductIdentityState = "asset_product_identity_state"
     case workSubjectScope = "work_subject_scope"
+    case authoritySource = "authority_source"
+    case applicabilityDisposition = "applicability_disposition"
+    case criterionResult = "criterion_result"
+    case severityLevel = "severity_level"
+    case measurementProtocol = "measurement_protocol"
 
     var allowedSourceKinds: Set<SearchSourceKindV1> {
         switch self {
@@ -195,6 +204,8 @@ enum FrozenSearchableFieldV1: String, CaseIterable, Codable, Hashable, Sendable 
         case .status: return Set(SearchSourceKindV1.allCases)
         case .assetSemanticKind, .assetSemanticCapability, .assetLifecycleEvent,
              .assetProductIdentityState, .workSubjectScope: return [.asset]
+        case .authoritySource, .applicabilityDisposition, .criterionResult,
+             .severityLevel, .measurementProtocol: return [.work]
         }
     }
 
@@ -317,13 +328,17 @@ struct SearchableFieldRegistryV1: Codable, Equatable, Sendable {
 
     func validate() throws {
         guard schemaVersion == Self.schemaVersion,
-              fields.count <= SearchContractLimitsV1.maximumAccountabilityAssetSemanticsFieldRegistrations else {
+              fields.count <= SearchContractLimitsV1.maximumAllProjectionFieldRegistrations else {
             throw SearchContractFailureV1.limitExceeded
         }
         guard fields.count == SearchContractLimitsV1.maximumFieldRegistrations
                 || fields.count == SearchContractLimitsV1.maximumAccountabilityFieldRegistrations
                 || fields.count == SearchContractLimitsV1.maximumAssetSemanticsFieldRegistrations
-                || fields.count == SearchContractLimitsV1.maximumAccountabilityAssetSemanticsFieldRegistrations else {
+                || fields.count == SearchContractLimitsV1.maximumAccountabilityAssetSemanticsFieldRegistrations
+                || fields.count == SearchContractLimitsV1.maximumAuthorityCriterionFieldRegistrations
+                || fields.count == SearchContractLimitsV1.maximumAccountabilityAuthorityCriterionFieldRegistrations
+                || fields.count == SearchContractLimitsV1.maximumAssetSemanticsAuthorityCriterionFieldRegistrations
+                || fields.count == SearchContractLimitsV1.maximumAllProjectionFieldRegistrations else {
             throw SearchContractFailureV1.invalidField
         }
         let identities = fields.map { $0.fieldID + ":" + $0.sourceKind.rawValue }
@@ -333,7 +348,11 @@ struct SearchableFieldRegistryV1: Codable, Equatable, Sendable {
         guard Set(identities) == Self.frozenRegistrationIdentities
                 || Set(identities) == Self.accountabilityRegistrationIdentities
                 || Set(identities) == Self.assetSemanticsRegistrationIdentities
-                || Set(identities) == Self.accountabilityAssetSemanticsRegistrationIdentities else {
+                || Set(identities) == Self.accountabilityAssetSemanticsRegistrationIdentities
+                || Set(identities) == Self.authorityCriterionRegistrationIdentities
+                || Set(identities) == Self.accountabilityAuthorityCriterionRegistrationIdentities
+                || Set(identities) == Self.assetSemanticsAuthorityCriterionRegistrationIdentities
+                || Set(identities) == Self.allProjectionRegistrationIdentities else {
             throw SearchContractFailureV1.invalidField
         }
         try fields.forEach { try $0.validate() }
@@ -378,6 +397,20 @@ struct SearchableFieldRegistryV1: Codable, Equatable, Sendable {
             "asset_product_identity_state:ASSET",
             "work_subject_scope:ASSET",
         ])
+
+    static let authorityCriterionRegistrationIdentities: Set<String> =
+        frozenRegistrationIdentities.union(authorityCriterionFields)
+    static let accountabilityAuthorityCriterionRegistrationIdentities: Set<String> =
+        accountabilityRegistrationIdentities.union(authorityCriterionFields)
+    static let assetSemanticsAuthorityCriterionRegistrationIdentities: Set<String> =
+        assetSemanticsRegistrationIdentities.union(authorityCriterionFields)
+    static let allProjectionRegistrationIdentities: Set<String> =
+        accountabilityAssetSemanticsRegistrationIdentities.union(authorityCriterionFields)
+
+    private static let authorityCriterionFields: Set<String> = [
+        "authority_source:WORK", "applicability_disposition:WORK",
+        "criterion_result:WORK", "severity_level:WORK", "measurement_protocol:WORK",
+    ]
 
     func descriptor(fieldID: String, sourceKind: SearchSourceKindV1) throws -> SearchableFieldDescriptorV1 {
         guard let value = fields.first(where: { $0.fieldID == fieldID && $0.sourceKind == sourceKind }) else {

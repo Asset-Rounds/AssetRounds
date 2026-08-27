@@ -932,6 +932,53 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         XCTAssertTrue(factorySource.contains("PersistentSchemaV9"))
     }
 
+    func testV23P03C40V10ToV11MigrationIsEmptyAndKeepsAuthorityExplicit() throws {
+        XCTAssertEqual(
+            PersistentSchemaMigrationPlanV10.schemas.map { ObjectIdentifier($0) },
+            [
+                ObjectIdentifier(PersistentSchemaV10.self),
+                ObjectIdentifier(PersistentSchemaV11.self),
+            ]
+        )
+        XCTAssertEqual(PersistentSchemaMigrationPlanV10.stages.count, 1)
+        XCTAssertEqual(PersistentSchemaV11.models.count, PersistentSchemaV10.models.count + 9)
+        XCTAssertEqual(
+            Array(PersistentSchemaV11.models.suffix(9)).map { ObjectIdentifier($0) },
+            [
+                ObjectIdentifier(AuthoritySourceReleaseRow.self),
+                ObjectIdentifier(RequirementBasisBindingRow.self),
+                ObjectIdentifier(ApplicabilityContextSnapshotRow.self),
+                ObjectIdentifier(AssessmentScopeSnapshotRow.self),
+                ObjectIdentifier(SeverityScaleReleaseRow.self),
+                ObjectIdentifier(FindingClassificationBindingRow.self),
+                ObjectIdentifier(MeasurementProtocolReleaseRow.self),
+                ObjectIdentifier(DerivedFactEvaluatorDescriptorRow.self),
+                ObjectIdentifier(DerivedFactProvenanceRow.self),
+            ]
+        )
+
+        let schemaSource = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("FieldEvidenceApp/Infrastructure/Persistence/PersistentSchemas.swift"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(schemaSource.contains("PersistentSchemaV10.self, PersistentSchemaV11.self"))
+        XCTAssertTrue(schemaSource.contains("enum PersistentSchemaMigrationPlanV10"))
+        XCTAssertTrue(schemaSource.contains("didMigrate: { _ in }"))
+
+        let factorySource = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(factorySource.contains("PersistentSchemaMigrationPlanV10.self"))
+        XCTAssertTrue(factorySource.contains("PersistentSchemaV11"))
+    }
+
     private func makeLegacyFixture(suffix: String) throws -> LegacyFixture {
         let root = fileManager.temporaryDirectory.appendingPathComponent(
             "V9_03MigrationRecoveryTests-\(suffix)",

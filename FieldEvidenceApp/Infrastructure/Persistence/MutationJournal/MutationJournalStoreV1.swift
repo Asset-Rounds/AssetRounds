@@ -315,6 +315,15 @@ final class MutationJournalStoreV1 {
                 throw WorkspaceMutationFailureV1.invalidCommand
             }
         }
+        if case let .applyAuthorityCriterion(value) = envelope.command {
+            do {
+                try value.validate()
+                guard affectedEntities == [try value.affectedIdentity] else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            } catch let failure as WorkspaceMutationFailureV1 { throw failure }
+            catch { throw WorkspaceMutationFailureV1.invalidCommand }
+        }
         let state = try requireState()
         let current = try currentRevision(writerInstanceID: writerInstanceID)
         let expected = envelope.expectedRevision
@@ -326,11 +335,18 @@ final class MutationJournalStoreV1 {
         let currentByIdentity = Dictionary(uniqueKeysWithValues: current.entityRevisions.map { ($0.identity, $0.revision) })
         let expectedByIdentity = Dictionary(uniqueKeysWithValues: expected.entityRevisions.map { ($0.identity, $0.revision) })
         for identity in affectedEntities {
-            guard let expectedRevision = expectedByIdentity[identity] else {
+            let concurrencyIdentity: WorkspaceEntityIdentityV1
+            if case let .applyAuthorityCriterion(mutation) = envelope.command,
+               identity == (try mutation.affectedIdentity) {
+                concurrencyIdentity = try mutation.concurrencyIdentity
+            } else {
+                concurrencyIdentity = identity
+            }
+            guard let expectedRevision = expectedByIdentity[concurrencyIdentity] else {
                 throw WorkspaceMutationFailureV1.invalidCommand
             }
-            guard expectedRevision == currentByIdentity[identity, default: 0] else {
-                throw WorkspaceMutationFailureV1.staleEntityRevision(identity)
+            guard expectedRevision == currentByIdentity[concurrencyIdentity, default: 0] else {
+                throw WorkspaceMutationFailureV1.staleEntityRevision(concurrencyIdentity)
             }
         }
         guard state.workspaceRevision >= 0, state.lastLocalSequence >= 0,
@@ -354,13 +370,28 @@ final class MutationJournalStoreV1 {
                 existing.externalProjectionSHA256 = nil
                 row = existing
             } else {
-                row = EntityMutationRevisionRow(identity: entity, revision: 1)
+                let initialRevision: UInt64
+                if case let .applyAuthorityCriterion(mutation) = envelope.command,
+                   entity == (try mutation.affectedIdentity) {
+                    initialRevision = mutation.postImage.revision
+                } else {
+                    initialRevision = 1
+                }
+                guard initialRevision <= UInt64(Int64.max) else {
+                    throw WorkspaceMutationFailureV1.revisionOverflow
+                }
+                row = EntityMutationRevisionRow(identity: entity, revision: initialRevision)
                 modelContext.insert(row)
             }
             postImages.append(try currentPostImage(
                 identity: entity,
                 revision: try domainRevision(row.revision)
             ))
+        }
+        if case let .applyAuthorityCriterion(mutation) = envelope.command {
+            guard postImages == [try mutation.postImage.mutationPostImage] else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
         }
         let after = try currentRevision(writerInstanceID: writerInstanceID)
         let receiptIdentity = MutationReceiptIdentityV1(
@@ -1183,6 +1214,24 @@ final class MutationJournalStoreV1 {
             let rows = try modelContext.fetch(FetchDescriptor<SignoffSnapshotRow>(predicate: #Predicate { $0.snapshotID == id }))
             guard let row = try exactlyOneOrAbsent(rows) else { return try tombstone(identity, revision) }
             return try semanticPostImage(identity, revision, try row.value())
+        case .authoritySourceRelease:
+            let id=identity.id; let rows=try modelContext.fetch(FetchDescriptor<AuthoritySourceReleaseRow>(predicate:#Predicate{$0.releaseID == id})); guard let row=try exactlyOneOrAbsent(rows) else{return try tombstone(identity,revision)}; let v=try row.value(); guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt}; return .authoritySourceRelease(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesReleaseID),revision:revision,semanticSHA256:v.releaseSHA256)
+        case .requirementBasisBinding:
+            let id=identity.id; let rows=try modelContext.fetch(FetchDescriptor<RequirementBasisBindingRow>(predicate:#Predicate{$0.bindingID == id})); guard let row=try exactlyOneOrAbsent(rows) else{return try tombstone(identity,revision)}; let v=try row.value(); guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt}; return .requirementBasisBinding(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesBindingID),revision:revision,semanticSHA256:v.bindingSHA256)
+        case .applicabilityContextSnapshot:
+            let id=identity.id; let rows=try modelContext.fetch(FetchDescriptor<ApplicabilityContextSnapshotRow>(predicate:#Predicate{$0.snapshotID == id})); guard let row=try exactlyOneOrAbsent(rows) else{return try tombstone(identity,revision)}; let v=try row.value(); guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt}; return .applicabilityContextSnapshot(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesSnapshotID),revision:revision,semanticSHA256:v.snapshotSHA256)
+        case .assessmentScopeSnapshot:
+            let id=identity.id; let rows=try modelContext.fetch(FetchDescriptor<AssessmentScopeSnapshotRow>(predicate:#Predicate{$0.snapshotID == id})); guard let row=try exactlyOneOrAbsent(rows) else{return try tombstone(identity,revision)}; let v=try row.value(); guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt}; return .assessmentScopeSnapshot(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesSnapshotID),revision:revision,semanticSHA256:v.snapshotSHA256)
+        case .severityScaleRelease:
+            let id=identity.id; let rows=try modelContext.fetch(FetchDescriptor<SeverityScaleReleaseRow>(predicate:#Predicate{$0.releaseID == id})); guard let row=try exactlyOneOrAbsent(rows) else{return try tombstone(identity,revision)}; let v=try row.value(); guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt}; return .severityScaleRelease(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesReleaseID),revision:revision,semanticSHA256:v.releaseSHA256)
+        case .findingClassificationBinding:
+            let id=identity.id; let rows=try modelContext.fetch(FetchDescriptor<FindingClassificationBindingRow>(predicate:#Predicate{$0.bindingID == id})); guard let row=try exactlyOneOrAbsent(rows) else{return try tombstone(identity,revision)}; let v=try row.value(); guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt}; return .findingClassificationBinding(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesBindingID),revision:revision,semanticSHA256:v.bindingSHA256)
+        case .measurementProtocolRelease:
+            let id=identity.id; let rows=try modelContext.fetch(FetchDescriptor<MeasurementProtocolReleaseRow>(predicate:#Predicate{$0.releaseID == id})); guard let row=try exactlyOneOrAbsent(rows) else{return try tombstone(identity,revision)}; let v=try row.value(); guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt}; return .measurementProtocolRelease(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesReleaseID),revision:revision,semanticSHA256:v.releaseSHA256)
+        case .derivedFactEvaluatorDescriptor:
+            let id=identity.id; let rows=try modelContext.fetch(FetchDescriptor<DerivedFactEvaluatorDescriptorRow>(predicate:#Predicate{$0.descriptorID == id})); guard let row=try exactlyOneOrAbsent(rows) else{return try tombstone(identity,revision)}; let v=try row.value(); guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt}; return .derivedFactEvaluatorDescriptor(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesDescriptorID),revision:revision,semanticSHA256:v.descriptorSHA256)
+        case .derivedFactProvenance:
+            let id=identity.id; let rows=try modelContext.fetch(FetchDescriptor<DerivedFactProvenanceRow>(predicate:#Predicate{$0.provenanceID == id})); guard let row=try exactlyOneOrAbsent(rows) else{return try tombstone(identity,revision)}; let v=try row.value(); guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt}; return .derivedFactProvenance(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.predecessorProvenanceID),revision:revision,semanticSHA256:v.provenanceSHA256)
         case .workflowRecord:
             let id = identity.id
             let rows = try modelContext.fetch(FetchDescriptor<WorkflowRecord>(predicate: #Predicate { $0.id == id }))
@@ -1314,6 +1363,15 @@ final class MutationJournalStoreV1 {
         identities += try boundedFetch(FetchDescriptor<Issue>()).map { try .init(kind: .issue, id: $0.id) }
         identities += try boundedFetch(FetchDescriptor<Packet>()).map { try .init(kind: .packet, id: $0.id) }
         identities += try boundedFetch(FetchDescriptor<Report>()).map { try .init(kind: .report, id: $0.id) }
+        identities += try boundedFetch(FetchDescriptor<AuthoritySourceReleaseRow>()).map { try .init(kind: .authoritySourceRelease, id: $0.releaseID) }
+        identities += try boundedFetch(FetchDescriptor<RequirementBasisBindingRow>()).map { try .init(kind: .requirementBasisBinding, id: $0.bindingID) }
+        identities += try boundedFetch(FetchDescriptor<ApplicabilityContextSnapshotRow>()).map { try .init(kind: .applicabilityContextSnapshot, id: $0.snapshotID) }
+        identities += try boundedFetch(FetchDescriptor<AssessmentScopeSnapshotRow>()).map { try .init(kind: .assessmentScopeSnapshot, id: $0.snapshotID) }
+        identities += try boundedFetch(FetchDescriptor<SeverityScaleReleaseRow>()).map { try .init(kind: .severityScaleRelease, id: $0.releaseID) }
+        identities += try boundedFetch(FetchDescriptor<FindingClassificationBindingRow>()).map { try .init(kind: .findingClassificationBinding, id: $0.bindingID) }
+        identities += try boundedFetch(FetchDescriptor<MeasurementProtocolReleaseRow>()).map { try .init(kind: .measurementProtocolRelease, id: $0.releaseID) }
+        identities += try boundedFetch(FetchDescriptor<DerivedFactEvaluatorDescriptorRow>()).map { try .init(kind: .derivedFactEvaluatorDescriptor, id: $0.descriptorID) }
+        identities += try boundedFetch(FetchDescriptor<DerivedFactProvenanceRow>()).map { try .init(kind: .derivedFactProvenance, id: $0.provenanceID) }
         guard identities.count <= Self.maximumMutableContentValidationCount,
               Set(identities).count == identities.count else {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
@@ -1372,6 +1430,13 @@ final class MutationJournalStoreV1 {
         )
     }
 
+    private func authorityConcurrency(
+        _ identity: WorkspaceEntityIdentityV1,
+        _ predecessorID: UUID?
+    ) throws -> WorkspaceEntityIdentityV1 {
+        try WorkspaceEntityIdentityV1(kind: identity.kind, id: predecessorID ?? identity.id)
+    }
+
     private static func postImage(identity: WorkspaceEntityIdentityV1, revision: UInt64, digest: String) throws -> MutationPostImageV1 {
         switch identity.kind {
         case .site: return .site(id: identity.id, revision: revision, semanticSHA256: digest)
@@ -1386,6 +1451,15 @@ final class MutationJournalStoreV1 {
         case .actorSnapshot: return .actorSnapshot(id: identity.id, revision: revision, semanticSHA256: digest)
         case .qualificationSnapshot: return .qualificationSnapshot(id: identity.id, revision: revision, semanticSHA256: digest)
         case .signoffSnapshot: return .signoffSnapshot(id: identity.id, revision: revision, semanticSHA256: digest)
+        case .authoritySourceRelease: return .authoritySourceRelease(id: identity.id, concurrencyIdentity: identity, revision: revision, semanticSHA256: digest)
+        case .requirementBasisBinding: return .requirementBasisBinding(id: identity.id, concurrencyIdentity: identity, revision: revision, semanticSHA256: digest)
+        case .applicabilityContextSnapshot: return .applicabilityContextSnapshot(id: identity.id, concurrencyIdentity: identity, revision: revision, semanticSHA256: digest)
+        case .assessmentScopeSnapshot: return .assessmentScopeSnapshot(id: identity.id, concurrencyIdentity: identity, revision: revision, semanticSHA256: digest)
+        case .severityScaleRelease: return .severityScaleRelease(id: identity.id, concurrencyIdentity: identity, revision: revision, semanticSHA256: digest)
+        case .findingClassificationBinding: return .findingClassificationBinding(id: identity.id, concurrencyIdentity: identity, revision: revision, semanticSHA256: digest)
+        case .measurementProtocolRelease: return .measurementProtocolRelease(id: identity.id, concurrencyIdentity: identity, revision: revision, semanticSHA256: digest)
+        case .derivedFactEvaluatorDescriptor: return .derivedFactEvaluatorDescriptor(id: identity.id, concurrencyIdentity: identity, revision: revision, semanticSHA256: digest)
+        case .derivedFactProvenance: return .derivedFactProvenance(id: identity.id, concurrencyIdentity: identity, revision: revision, semanticSHA256: digest)
         case .workflowRecord: return .workflowRecord(id: identity.id, revision: revision, semanticSHA256: digest)
         case .evidenceFile: return .evidenceFile(id: identity.id, revision: revision, semanticSHA256: digest)
         case .issue: return .issue(id: identity.id, revision: revision, semanticSHA256: digest)

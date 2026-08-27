@@ -475,6 +475,290 @@ enum KernelConformanceFixtureHarnessV1 {
     }
 }
 
+/// Test-only C40 receipt.  It proves that the typed authority aggregate can be
+/// validated and replayed through the same canonical bytes without implying
+/// native adoption, hosted verification, or release acceptance.
+struct AuthorityCriterionConformanceReceiptV1: Equatable, Sendable {
+    let canonicalAggregateSHA256: String
+    let replayAggregateSHA256: String
+    let sourceCount: Int
+    let applicabilityCount: Int
+    let classificationCount: Int
+    let measurementProtocolCount: Int
+    let derivedFactCount: Int
+    let searchFieldIDs: [String]
+    let reportSectionID: String
+    let requiredReportWording: String
+    let excludesLicensedSourceBytes: Bool
+    let excludesRawLocators: Bool
+}
+
+extension KernelConformanceFixtureHarnessV1 {
+    static func makeC40Receipt(
+        for aggregate: AuthorityCriterionAggregateV1,
+        workspaceID: WorkspaceID
+    ) throws -> AuthorityCriterionConformanceReceiptV1 {
+        try AuthorityCriterionRegistryV1.validate(aggregate, workspaceID: workspaceID)
+        try aggregate.severityMappingReleases.forEach { try $0.validate() }
+        let canonical = try AuthorityCriterionCanonicalCodecV1.encode(aggregate)
+        let replayed = try AuthorityCriterionCanonicalCodecV1.decode(
+            AuthorityCriterionAggregateV1.self,
+            from: canonical
+        )
+        let replay = try AuthorityCriterionCanonicalCodecV1.encode(replayed)
+        guard replayed == aggregate, replay == canonical else {
+            throw KernelConformanceFixtureFailureV1.invalidArtifact("c40-canonical-replay")
+        }
+        return AuthorityCriterionConformanceReceiptV1(
+            canonicalAggregateSHA256: sha256(canonical),
+            replayAggregateSHA256: sha256(replay),
+            sourceCount: aggregate.sourceReleases.count,
+            applicabilityCount: aggregate.applicabilityContexts.count,
+            classificationCount: aggregate.classificationBindings.count,
+            measurementProtocolCount: aggregate.measurementProtocolReleases.count,
+            derivedFactCount: aggregate.derivedFacts.count,
+            searchFieldIDs: SearchAuthorityCriterionPersistencePolicyV1.fieldIDs,
+            reportSectionID: ReportAuthorityCriterionProjectionPolicyV1.sectionID,
+            requiredReportWording: ReportAuthorityCriterionProjectionPolicyV1.requiredWording,
+            excludesLicensedSourceBytes: SearchAuthorityCriterionPersistencePolicyV1.excludesLicensedSourceBytes,
+            excludesRawLocators: SearchAuthorityCriterionPersistencePolicyV1.excludesRawLocators
+        )
+    }
+}
+
+/// Test-only C40 mutation boundary evidence.  The helper exercises the
+/// coordinator, typed predecessor/concurrency identity, canonical mutation
+/// replay, and the journal-owned receipt binding without opening a second
+/// persistence path.
+struct AuthorityCriterionMutationBoundaryReceiptV1: Equatable, Sendable {
+    let append: AuthorityCriterionMutationReceiptV1
+    let successor: AuthorityCriterionMutationReceiptV1
+    let appendMutationSHA256: String
+    let successorMutationSHA256: String
+    let appendReplayStable: Bool
+    let successorReplayStable: Bool
+    let coordinatorValidationPassed: Bool
+    let staleAppendRejected: Bool
+    let missingPredecessorRejected: Bool
+    let foreignWorkspaceRejected: Bool
+}
+
+extension KernelConformanceFixtureHarnessV1 {
+    static func makeC40MutationBoundaryReceipt() throws -> AuthorityCriterionMutationBoundaryReceiptV1 {
+        func id(_ suffix: String) -> UUID { UUID(uuidString: "00000000-0000-0000-0000-\(suffix)")! }
+
+        let workspaceID = try WorkspaceID(rawValue: id("00000000c440"))
+        let replicaID = try ReplicaID(rawValue: id("00000000c441"))
+        let writerInstanceID = id("00000000c442")
+        let identity = try WorkspaceReplicaIdentityV1(workspaceID: workspaceID, replicaID: replicaID)
+        let recordedAt = Date(timeIntervalSince1970: 1_735_700_000)
+        let appendMutationID = try MutationIDV1(rawValue: id("00000000c443"))
+        let successorMutationID = try MutationIDV1(rawValue: id("00000000c444"))
+        let source = try AuthoritySourceReleaseV1(
+            releaseID: id("00000000c445"), workspaceID: workspaceID,
+            sourceID: id("00000000c446"), sourceType: .guidance,
+            designation: "C40 mutation boundary", editionOrRevision: "1",
+            retrievedAt: recordedAt, licenseStorageDisposition: .notStored,
+            recordedAt: recordedAt.addingTimeInterval(1), revision: 1,
+            mutationID: appendMutationID
+        )
+        let successor = try AuthoritySourceReleaseV1(
+            releaseID: id("00000000c447"), workspaceID: workspaceID,
+            sourceID: source.sourceID, sourceType: source.sourceType,
+            designation: source.designation, editionOrRevision: "2",
+            retrievedAt: recordedAt.addingTimeInterval(2),
+            supersedesReleaseID: source.releaseID,
+            licenseStorageDisposition: .notStored,
+            recordedAt: recordedAt.addingTimeInterval(3), revision: 2,
+            mutationID: successorMutationID
+        )
+
+        let appendPayload = AuthorityCriterionMutationPayloadV1.appendAuthoritySource(source)
+        let appendPrepared = try AuthorityCriterionCoordinatorV1.prepare(
+            workspaceID: workspaceID, expectedRevision: 0, payload: appendPayload
+        )
+        try appendPrepared.validate()
+        let appendMutation = appendPrepared.mutation
+        let appendData = try appendMutation.canonicalData()
+        let appendReplay = try AuthorityCriterionMutationV1.decodeCanonical(from: appendData)
+
+        let successorPayload = AuthorityCriterionMutationPayloadV1.supersedeAuthoritySource(successor)
+        let successorPrepared = try AuthorityCriterionCoordinatorV1.prepare(
+            workspaceID: workspaceID, expectedRevision: 1, payload: successorPayload
+        )
+        try successorPrepared.validate()
+        let successorMutation = successorPrepared.mutation
+        let successorData = try successorMutation.canonicalData()
+        let successorReplay = try AuthorityCriterionMutationV1.decodeCanonical(from: successorData)
+
+        let appendIdentity = try appendMutation.affectedIdentity
+        let successorIdentity = try successorMutation.affectedIdentity
+        let predecessorIdentity = try successorMutation.postImage.predecessorIdentity
+        let appendConcurrencyIdentity = try appendMutation.concurrencyIdentity
+        let successorConcurrencyIdentity = try successorMutation.concurrencyIdentity
+        guard predecessorIdentity == appendIdentity,
+              appendConcurrencyIdentity == appendIdentity,
+              successorConcurrencyIdentity == appendIdentity else {
+            throw KernelConformanceFixtureFailureV1.incompleteCoverage("c40-mutation-identities")
+        }
+
+        let appendExpected = try WorkspaceExpectedRevisionV1(
+            workspaceID: workspaceID, generationID: id("00000000c448"),
+            writerInstanceID: writerInstanceID, workspaceRevision: 0,
+            entityRevisions: [.init(identity: appendIdentity, revision: 0)]
+        )
+        let appendEnvelope = try MutationEnvelopeV1(
+            request: .init(
+                mutationID: appendMutation.mutationID,
+                expectedRevision: appendExpected,
+                command: .applyAuthorityCriterion(appendMutation)
+            ), identity: identity
+        )
+        let appendResulting = try WorkspaceExpectedRevisionV1(
+            workspaceID: workspaceID, generationID: appendExpected.generationID,
+            writerInstanceID: writerInstanceID, workspaceRevision: 1,
+            entityRevisions: [.init(identity: appendIdentity, revision: 1)]
+        )
+        let appendReceipt = try MutationReceiptV1(
+            identity: .init(workspaceID: workspaceID, replicaID: replicaID, localSequence: 1),
+            envelope: appendEnvelope,
+            resultingRevision: try MutationPortableExpectedRevisionV1(appendResulting),
+            postImages: [try appendPayload.mutationPostImage],
+            committedAt: recordedAt.addingTimeInterval(4)
+        )
+        let typedAppendReceipt = try AuthorityCriterionMutationReceiptV1(
+            mutation: appendMutation, mutationReceipt: appendReceipt
+        )
+
+        let successorExpected = try WorkspaceExpectedRevisionV1(
+            workspaceID: workspaceID, generationID: appendExpected.generationID,
+            writerInstanceID: writerInstanceID, workspaceRevision: 1,
+            entityRevisions: [.init(identity: appendIdentity, revision: 1)]
+        )
+        let successorEnvelope = try MutationEnvelopeV1(
+            request: .init(
+                mutationID: successorMutation.mutationID,
+                expectedRevision: successorExpected,
+                command: .applyAuthorityCriterion(successorMutation)
+            ), identity: identity
+        )
+        let successorResulting = try WorkspaceExpectedRevisionV1(
+            workspaceID: workspaceID, generationID: appendExpected.generationID,
+            writerInstanceID: writerInstanceID, workspaceRevision: 2,
+            entityRevisions: [.init(identity: successorIdentity, revision: 2)]
+        )
+        let successorReceipt = try MutationReceiptV1(
+            identity: .init(workspaceID: workspaceID, replicaID: replicaID, localSequence: 2),
+            envelope: successorEnvelope,
+            resultingRevision: try MutationPortableExpectedRevisionV1(successorResulting),
+            postImages: [try successorPayload.mutationPostImage],
+            committedAt: recordedAt.addingTimeInterval(5)
+        )
+        let typedSuccessorReceipt = try AuthorityCriterionMutationReceiptV1(
+            mutation: successorMutation, mutationReceipt: successorReceipt
+        )
+        let appendOutcome = WorkspaceMutationOutcomeV1(
+            mutationID: appendMutation.mutationID,
+            commandDigest: appendPrepared.canonicalSHA256,
+            occurredAt: recordedAt.addingTimeInterval(6),
+            before: try WorkspaceRevisionV1(
+                workspaceID: workspaceID, generationID: appendExpected.generationID,
+                writerInstanceID: writerInstanceID, revision: 0,
+                entityRevisions: [.init(identity: appendIdentity, revision: 0)]
+            ),
+            after: try WorkspaceRevisionV1(
+                workspaceID: workspaceID, generationID: appendExpected.generationID,
+                writerInstanceID: writerInstanceID, revision: 1,
+                entityRevisions: [.init(identity: appendIdentity, revision: 1)]
+            ),
+            effect: try WorkspaceMutationEffectV1(
+                affectedEntities: [appendIdentity], temporaryRelativePath: "authority/c40/append"
+            )
+        )
+        try AuthorityCriterionCoordinatorV1.validate(outcome: appendOutcome, for: appendPrepared)
+        let successorOutcome = WorkspaceMutationOutcomeV1(
+            mutationID: successorMutation.mutationID,
+            commandDigest: successorPrepared.canonicalSHA256,
+            occurredAt: recordedAt.addingTimeInterval(7),
+            before: try WorkspaceRevisionV1(
+                workspaceID: workspaceID, generationID: successorExpected.generationID,
+                writerInstanceID: writerInstanceID, revision: 1,
+                entityRevisions: [.init(identity: appendIdentity, revision: 1)]
+            ),
+            after: try WorkspaceRevisionV1(
+                workspaceID: workspaceID, generationID: successorExpected.generationID,
+                writerInstanceID: writerInstanceID, revision: 2,
+                entityRevisions: [.init(identity: successorIdentity, revision: 2)]
+            ),
+            effect: try WorkspaceMutationEffectV1(
+                affectedEntities: [successorIdentity], temporaryRelativePath: "authority/c40/successor"
+            )
+        )
+        try AuthorityCriterionCoordinatorV1.validate(outcome: successorOutcome, for: successorPrepared)
+        let appendReceiptReplay = try AuthorityCriterionCanonicalCodecV1.decode(
+            AuthorityCriterionMutationReceiptV1.self,
+            from: AuthorityCriterionCanonicalCodecV1.encode(typedAppendReceipt)
+        )
+        let successorReceiptReplay = try AuthorityCriterionCanonicalCodecV1.decode(
+            AuthorityCriterionMutationReceiptV1.self,
+            from: AuthorityCriterionCanonicalCodecV1.encode(typedSuccessorReceipt)
+        )
+
+        let staleAppendRejected: Bool
+        do {
+            _ = try AuthorityCriterionCoordinatorV1.prepare(
+                workspaceID: workspaceID, expectedRevision: 1, payload: appendPayload
+            )
+            staleAppendRejected = false
+        } catch AuthorityCriterionCoordinatorFailureV1.staleRevision {
+            staleAppendRejected = true
+        }
+
+        let missingPredecessorRejected: Bool
+        let malformedSuccessor = try AuthoritySourceReleaseV1(
+            releaseID: id("00000000c449"), workspaceID: workspaceID,
+            sourceID: source.sourceID, sourceType: source.sourceType,
+            designation: source.designation, editionOrRevision: "3",
+            retrievedAt: recordedAt.addingTimeInterval(6),
+            licenseStorageDisposition: .notStored,
+            recordedAt: recordedAt.addingTimeInterval(7), revision: 2,
+            mutationID: try MutationIDV1(rawValue: id("00000000c44a"))
+        )
+        do {
+            try AuthorityCriterionMutationPayloadV1.supersedeAuthoritySource(malformedSuccessor).validate()
+            missingPredecessorRejected = false
+        } catch {
+            missingPredecessorRejected = true
+        }
+
+        let foreignWorkspaceRejected: Bool
+        let foreignWorkspace = try WorkspaceID(rawValue: id("00000000c44b"))
+        let foreignSource = try source.rebound(to: foreignWorkspace)
+        do {
+            _ = try AuthorityCriterionCoordinatorV1.prepare(
+                workspaceID: workspaceID, expectedRevision: 0,
+                payload: .appendAuthoritySource(foreignSource)
+            )
+            foreignWorkspaceRejected = false
+        } catch AuthorityCriterionCoordinatorFailureV1.wrongWorkspace {
+            foreignWorkspaceRejected = true
+        }
+
+        return AuthorityCriterionMutationBoundaryReceiptV1(
+            append: typedAppendReceipt,
+            successor: typedSuccessorReceipt,
+            appendMutationSHA256: try appendMutation.canonicalSHA256(),
+            successorMutationSHA256: try successorMutation.canonicalSHA256(),
+            appendReplayStable: appendReplay == appendMutation && appendReceiptReplay == typedAppendReceipt,
+            successorReplayStable: successorReplay == successorMutation && successorReceiptReplay == typedSuccessorReceipt,
+            coordinatorValidationPassed: true,
+            staleAppendRejected: staleAppendRejected,
+            missingPredecessorRejected: missingPredecessorRejected,
+            foreignWorkspaceRejected: foreignWorkspaceRejected
+        )
+    }
+}
+
 struct KernelConformanceLifecycleTraceV1: Equatable, Sendable {
     let shapeID: String
     let executedActions: [String]

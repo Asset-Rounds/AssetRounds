@@ -119,6 +119,11 @@ struct AssetSemanticDeletionInventoryV1: Equatable, Sendable {
     }
 }
 
+struct AuthorityCriterionDeletionInventoryV1: Equatable, Sendable {
+    let recordIDsByKind: [V11BackupAuthorityCriterionRecordV1.Kind: Set<UUID>]
+    var isEmpty: Bool { recordIDsByKind.values.allSatisfy(\.isEmpty) }
+}
+
 enum WholeSignDeletionRule {
     static func validatePartyAccountabilityLifecycle(
         authority: PartyAccountabilityDeletionAuthorityV1,
@@ -141,6 +146,19 @@ enum WholeSignDeletionRule {
         authority: PartyAccountabilityDeletionAuthorityV1,
         before: AssetSemanticDeletionInventoryV1,
         after: AssetSemanticDeletionInventoryV1
+    ) throws {
+        switch authority {
+        case .ordinaryAssetOrSiteDelete:
+            guard after == before else { throw WholeSignDeletionRuleError.invalidGraph }
+        case .workspaceErase:
+            guard after.isEmpty else { throw WholeSignDeletionRuleError.invalidGraph }
+        }
+    }
+
+    static func validateAuthorityCriterionLifecycle(
+        authority: PartyAccountabilityDeletionAuthorityV1,
+        before: AuthorityCriterionDeletionInventoryV1,
+        after: AuthorityCriterionDeletionInventoryV1
     ) throws {
         switch authority {
         case .ordinaryAssetOrSiteDelete:

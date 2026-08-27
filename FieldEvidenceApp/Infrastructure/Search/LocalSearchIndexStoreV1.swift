@@ -134,6 +134,14 @@ actor LocalSearchIndexStoreV1: SearchIndexSnapshotProvidingV1, SearchIndexLifecy
                   }.allSatisfy {
                       SearchAssetSemanticsPersistencePolicyV1.accepts(fieldID: $0.fieldID)
                   },
+                  records.filter {
+                      $0.sourceKind == .work
+                          && SearchAuthorityCriterionPersistencePolicyV1.accepts(fieldID: $0.fieldID)
+                  }.allSatisfy {
+                      !AuthorityCriterionClaimVocabularyV1.containsProhibitedClaim(
+                          in: $0.normalizedTokens + [$0.permittedSnippet].compactMap { $0 }
+                      )
+                  },
                   records.allSatisfy({
                       $0.workspaceID == source.workspaceID
                           && $0.sourceRevision <= source.commitRevision

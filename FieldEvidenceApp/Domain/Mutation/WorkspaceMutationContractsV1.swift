@@ -35,6 +35,15 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case actorSnapshot
     case qualificationSnapshot
     case signoffSnapshot
+    case authoritySourceRelease
+    case requirementBasisBinding
+    case applicabilityContextSnapshot
+    case assessmentScopeSnapshot
+    case severityScaleRelease
+    case findingClassificationBinding
+    case measurementProtocolRelease
+    case derivedFactEvaluatorDescriptor
+    case derivedFactProvenance
     case workflowRecord
     case evidenceFile
     case issue
@@ -538,6 +547,7 @@ enum PartyAccountabilityMutationV1: Codable, Equatable, Sendable {
             }
         }
     }
+
 }
 
 /// The one writer payload for C39 asset-semantic history.  The physical
@@ -827,6 +837,240 @@ struct AssetSemanticsMutationV1: Codable, Equatable, Sendable {
     )
 }
 
+/// Closed C40 mutation payload. Each case carries the complete immutable
+/// canonical post-image; writers never reconstruct authority or criterion
+/// meaning from scalar command metadata.
+enum AuthorityCriterionMutationPayloadV1: Codable, Equatable, Sendable {
+    case appendAuthoritySource(AuthoritySourceReleaseV1)
+    case supersedeAuthoritySource(AuthoritySourceReleaseV1)
+    case appendRequirementBasis(RequirementBasisBindingV1)
+    case supersedeRequirementBasis(RequirementBasisBindingV1)
+    case appendApplicabilityContext(ApplicabilityContextSnapshotV1)
+    case supersedeApplicabilityContext(ApplicabilityContextSnapshotV1)
+    case appendAssessmentScope(AssessmentScopeSnapshotV1)
+    case supersedeAssessmentScope(AssessmentScopeSnapshotV1)
+    case appendSeverityScale(SeverityScaleReleaseV1)
+    case supersedeSeverityScale(SeverityScaleReleaseV1)
+    case appendFindingClassification(FindingClassificationBindingV1)
+    case supersedeFindingClassification(FindingClassificationBindingV1)
+    case appendMeasurementProtocol(MeasurementProtocolReleaseV1)
+    case supersedeMeasurementProtocol(MeasurementProtocolReleaseV1)
+    case appendEvaluatorDescriptor(DerivedFactEvaluatorDescriptorV1)
+    case supersedeEvaluatorDescriptor(DerivedFactEvaluatorDescriptorV1)
+    case appendDerivedFact(DerivedFactProvenanceV1)
+    case supersedeDerivedFact(DerivedFactProvenanceV1)
+
+    var workspaceID: WorkspaceID {
+        switch self {
+        case let .appendAuthoritySource(v), let .supersedeAuthoritySource(v): v.workspaceID
+        case let .appendRequirementBasis(v), let .supersedeRequirementBasis(v): v.workspaceID
+        case let .appendApplicabilityContext(v), let .supersedeApplicabilityContext(v): v.workspaceID
+        case let .appendAssessmentScope(v), let .supersedeAssessmentScope(v): v.workspaceID
+        case let .appendSeverityScale(v), let .supersedeSeverityScale(v): v.workspaceID
+        case let .appendFindingClassification(v), let .supersedeFindingClassification(v): v.workspaceID
+        case let .appendMeasurementProtocol(v), let .supersedeMeasurementProtocol(v): v.workspaceID
+        case let .appendEvaluatorDescriptor(v), let .supersedeEvaluatorDescriptor(v): v.workspaceID
+        case let .appendDerivedFact(v), let .supersedeDerivedFact(v): v.workspaceID
+        }
+    }
+
+    var mutationID: MutationIDV1 {
+        switch self {
+        case let .appendAuthoritySource(v), let .supersedeAuthoritySource(v): v.mutationID
+        case let .appendRequirementBasis(v), let .supersedeRequirementBasis(v): v.mutationID
+        case let .appendApplicabilityContext(v), let .supersedeApplicabilityContext(v): v.mutationID
+        case let .appendAssessmentScope(v), let .supersedeAssessmentScope(v): v.mutationID
+        case let .appendSeverityScale(v), let .supersedeSeverityScale(v): v.mutationID
+        case let .appendFindingClassification(v), let .supersedeFindingClassification(v): v.mutationID
+        case let .appendMeasurementProtocol(v), let .supersedeMeasurementProtocol(v): v.mutationID
+        case let .appendEvaluatorDescriptor(v), let .supersedeEvaluatorDescriptor(v): v.mutationID
+        case let .appendDerivedFact(v), let .supersedeDerivedFact(v): v.mutationID
+        }
+    }
+
+    var revision: UInt64 {
+        switch self {
+        case let .appendAuthoritySource(v), let .supersedeAuthoritySource(v): v.revision
+        case let .appendRequirementBasis(v), let .supersedeRequirementBasis(v): v.revision
+        case let .appendApplicabilityContext(v), let .supersedeApplicabilityContext(v): v.revision
+        case let .appendAssessmentScope(v), let .supersedeAssessmentScope(v): v.revision
+        case let .appendSeverityScale(v), let .supersedeSeverityScale(v): v.revision
+        case let .appendFindingClassification(v), let .supersedeFindingClassification(v): v.revision
+        case let .appendMeasurementProtocol(v), let .supersedeMeasurementProtocol(v): v.revision
+        case let .appendEvaluatorDescriptor(v), let .supersedeEvaluatorDescriptor(v): v.revision
+        case let .appendDerivedFact(v), let .supersedeDerivedFact(v): v.revision
+        }
+    }
+
+    var semanticSHA256: String {
+        switch self {
+        case let .appendAuthoritySource(v), let .supersedeAuthoritySource(v): v.releaseSHA256
+        case let .appendRequirementBasis(v), let .supersedeRequirementBasis(v): v.bindingSHA256
+        case let .appendApplicabilityContext(v), let .supersedeApplicabilityContext(v): v.snapshotSHA256
+        case let .appendAssessmentScope(v), let .supersedeAssessmentScope(v): v.snapshotSHA256
+        case let .appendSeverityScale(v), let .supersedeSeverityScale(v): v.releaseSHA256
+        case let .appendFindingClassification(v), let .supersedeFindingClassification(v): v.bindingSHA256
+        case let .appendMeasurementProtocol(v), let .supersedeMeasurementProtocol(v): v.releaseSHA256
+        case let .appendEvaluatorDescriptor(v), let .supersedeEvaluatorDescriptor(v): v.descriptorSHA256
+        case let .appendDerivedFact(v), let .supersedeDerivedFact(v): v.provenanceSHA256
+        }
+    }
+
+    var affectedIdentity: WorkspaceEntityIdentityV1 {
+        get throws {
+            switch self {
+            case let .appendAuthoritySource(v), let .supersedeAuthoritySource(v):
+                try .init(kind: .authoritySourceRelease, id: v.releaseID)
+            case let .appendRequirementBasis(v), let .supersedeRequirementBasis(v):
+                try .init(kind: .requirementBasisBinding, id: v.bindingID)
+            case let .appendApplicabilityContext(v), let .supersedeApplicabilityContext(v):
+                try .init(kind: .applicabilityContextSnapshot, id: v.snapshotID)
+            case let .appendAssessmentScope(v), let .supersedeAssessmentScope(v):
+                try .init(kind: .assessmentScopeSnapshot, id: v.snapshotID)
+            case let .appendSeverityScale(v), let .supersedeSeverityScale(v):
+                try .init(kind: .severityScaleRelease, id: v.releaseID)
+            case let .appendFindingClassification(v), let .supersedeFindingClassification(v):
+                try .init(kind: .findingClassificationBinding, id: v.bindingID)
+            case let .appendMeasurementProtocol(v), let .supersedeMeasurementProtocol(v):
+                try .init(kind: .measurementProtocolRelease, id: v.releaseID)
+            case let .appendEvaluatorDescriptor(v), let .supersedeEvaluatorDescriptor(v):
+                try .init(kind: .derivedFactEvaluatorDescriptor, id: v.descriptorID)
+            case let .appendDerivedFact(v), let .supersedeDerivedFact(v):
+                try .init(kind: .derivedFactProvenance, id: v.provenanceID)
+            }
+        }
+    }
+
+    var predecessorIdentity: WorkspaceEntityIdentityV1? {
+        get throws {
+            switch self {
+            case .appendAuthoritySource, .appendRequirementBasis,
+                 .appendApplicabilityContext, .appendAssessmentScope,
+                 .appendSeverityScale, .appendFindingClassification,
+                 .appendMeasurementProtocol, .appendEvaluatorDescriptor,
+                 .appendDerivedFact:
+                nil
+            case let .supersedeAuthoritySource(v):
+                try v.supersedesReleaseID.map { try WorkspaceEntityIdentityV1(kind: .authoritySourceRelease, id: $0) }
+            case let .supersedeRequirementBasis(v):
+                try v.supersedesBindingID.map { try WorkspaceEntityIdentityV1(kind: .requirementBasisBinding, id: $0) }
+            case let .supersedeApplicabilityContext(v):
+                try v.supersedesSnapshotID.map { try WorkspaceEntityIdentityV1(kind: .applicabilityContextSnapshot, id: $0) }
+            case let .supersedeAssessmentScope(v):
+                try v.supersedesSnapshotID.map { try WorkspaceEntityIdentityV1(kind: .assessmentScopeSnapshot, id: $0) }
+            case let .supersedeSeverityScale(v):
+                try v.supersedesReleaseID.map { try WorkspaceEntityIdentityV1(kind: .severityScaleRelease, id: $0) }
+            case let .supersedeFindingClassification(v):
+                try v.supersedesBindingID.map { try WorkspaceEntityIdentityV1(kind: .findingClassificationBinding, id: $0) }
+            case let .supersedeMeasurementProtocol(v):
+                try v.supersedesReleaseID.map { try WorkspaceEntityIdentityV1(kind: .measurementProtocolRelease, id: $0) }
+            case let .supersedeEvaluatorDescriptor(v):
+                try v.supersedesDescriptorID.map { try WorkspaceEntityIdentityV1(kind: .derivedFactEvaluatorDescriptor, id: $0) }
+            case let .supersedeDerivedFact(v):
+                try v.predecessorProvenanceID.map { try WorkspaceEntityIdentityV1(kind: .derivedFactProvenance, id: $0) }
+            }
+        }
+    }
+
+    var isSupersession: Bool {
+        switch self {
+        case .supersedeAuthoritySource, .supersedeRequirementBasis,
+             .supersedeApplicabilityContext, .supersedeAssessmentScope,
+             .supersedeSeverityScale, .supersedeFindingClassification,
+             .supersedeMeasurementProtocol, .supersedeEvaluatorDescriptor,
+             .supersedeDerivedFact:
+            true
+        default:
+            false
+        }
+    }
+
+    func validate() throws {
+        switch self {
+        case let .appendAuthoritySource(v): try v.validate(); guard v.supersedesReleaseID == nil else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+        case let .supersedeAuthoritySource(v): try v.validate(); guard v.supersedesReleaseID != nil else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+        case let .appendRequirementBasis(v): try v.validate(); guard v.supersedesBindingID == nil else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+        case let .supersedeRequirementBasis(v): try v.validate(); guard v.supersedesBindingID != nil else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+        case let .appendApplicabilityContext(v): try v.validate(); guard v.supersedesSnapshotID == nil else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+        case let .supersedeApplicabilityContext(v): try v.validate(); guard v.supersedesSnapshotID != nil else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+        case let .appendAssessmentScope(v): try v.validate(); guard v.supersedesSnapshotID == nil else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+        case let .supersedeAssessmentScope(v): try v.validate(); guard v.supersedesSnapshotID != nil else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+        case let .appendSeverityScale(v): try v.validate(); guard v.supersedesReleaseID == nil else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+        case let .supersedeSeverityScale(v): try v.validate(); guard v.supersedesReleaseID != nil else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+        case let .appendFindingClassification(v): try v.validate(); guard v.supersedesBindingID == nil else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+        case let .supersedeFindingClassification(v): try v.validate(); guard v.supersedesBindingID != nil else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+        case let .appendMeasurementProtocol(v): try v.validate(); guard v.supersedesReleaseID == nil else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+        case let .supersedeMeasurementProtocol(v): try v.validate(); guard v.supersedesReleaseID != nil else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+        case let .appendEvaluatorDescriptor(v): try v.validate(); guard v.supersedesDescriptorID == nil else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+        case let .supersedeEvaluatorDescriptor(v): try v.validate(); guard v.supersedesDescriptorID != nil else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+        case let .appendDerivedFact(v): try v.validate(); guard v.predecessorProvenanceID == nil else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+        case let .supersedeDerivedFact(v): try v.validate(); guard v.predecessorProvenanceID != nil else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+        }
+    }
+}
+
+struct AuthorityCriterionMutationV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let workspaceID: WorkspaceID
+    let expectedRevision: UInt64
+    let mutationID: MutationIDV1
+    let postImage: AuthorityCriterionMutationPayloadV1
+
+    init(
+        workspaceID: WorkspaceID,
+        expectedRevision: UInt64,
+        mutationID: MutationIDV1,
+        postImage: AuthorityCriterionMutationPayloadV1
+    ) throws {
+        schemaVersion = Self.schemaVersion
+        self.workspaceID = workspaceID
+        self.expectedRevision = expectedRevision
+        self.mutationID = mutationID
+        self.postImage = postImage
+        try validate()
+    }
+
+    func validate() throws {
+        try postImage.validate()
+        let predecessor = try postImage.predecessorIdentity
+        let validRevision: Bool
+        if predecessor == nil {
+            validRevision = !postImage.isSupersession
+                && expectedRevision == 0
+                && postImage.revision == 1
+        } else {
+            validRevision = postImage.isSupersession
+                && expectedRevision > 0
+                && expectedRevision < UInt64.max
+                && postImage.revision == expectedRevision + 1
+        }
+        guard schemaVersion == Self.schemaVersion,
+              workspaceID == postImage.workspaceID,
+              mutationID == postImage.mutationID,
+              validRevision,
+              MutationEnvelopeV1.isSHA256(postImage.semanticSHA256) else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+    }
+
+    var affectedIdentity: WorkspaceEntityIdentityV1 { get throws { try postImage.affectedIdentity } }
+    var concurrencyIdentity: WorkspaceEntityIdentityV1 {
+        get throws { try postImage.predecessorIdentity ?? postImage.affectedIdentity }
+    }
+    func canonicalData() throws -> Data { try validate(); return try WorkspaceMutationCanonicalV1.data(self) }
+    func canonicalSHA256() throws -> String { try validate(); return try WorkspaceMutationCanonicalV1.sha256(self) }
+
+    static func decodeCanonical(from data: Data) throws -> Self {
+        let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .millisecondsSince1970
+        let value = try decoder.decode(Self.self, from: data)
+        try value.validate()
+        guard try value.canonicalData() == data else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+        return value
+    }
+}
+
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
     case createCheckDraft(CheckDraftMutationV1)
@@ -847,6 +1091,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyRequirementAssurance(RequirementAssuranceMutationV1)
     case applyPartyAccountability(PartyAccountabilityMutationV1)
     case applyAssetSemantics(AssetSemanticsMutationV1)
+    case applyAuthorityCriterion(AuthorityCriterionMutationV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -869,6 +1114,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyRequirementAssurance: .applyRequirementAssurance
         case .applyPartyAccountability: .applyPartyAccountability
         case .applyAssetSemantics: .applyAssetSemantics
+        case .applyAuthorityCriterion: .applyAuthorityCriterion
         }
     }
 }
@@ -893,6 +1139,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyRequirementAssurance = "apply_requirement_assurance"
     case applyPartyAccountability = "apply_party_accountability"
     case applyAssetSemantics = "apply_asset_semantics"
+    case applyAuthorityCriterion = "apply_authority_criterion"
 }
 
 extension WorkspaceCommandV1 {
@@ -1629,6 +1876,7 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind: .applyRequirementAssurance, disposition: .compensatable, stableReason: "replace_typed_requirement_assurance"),
         .init(commandKind: .applyPartyAccountability, disposition: .compensatable, stableReason: "append_accountability_successor_only"),
         .init(commandKind: .applyAssetSemantics, disposition: .compensatable, stableReason: "append_asset_semantic_pair_only"),
+        .init(commandKind: .applyAuthorityCriterion, disposition: .compensatable, stableReason: "append_authority_criterion_successor_only"),
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {

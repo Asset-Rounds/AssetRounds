@@ -525,6 +525,70 @@ enum InspectionPackageAssetSemanticBoundaryV1 {
     static let functionalRelationshipPolicyOwner = "V23-P03-C41"
 }
 
+/// Declarative C40 sidecar. It binds an exact package release to immutable
+/// protocol/evaluator releases and cannot contain executable package content.
+struct InspectionPackageAuthorityCriterionBindingV1: Codable, Equatable, Hashable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let workspaceID: WorkspaceID
+    let packageRelease: PackageReleaseIdentityV1
+    let criterionIDs: [String]
+    let measurementProtocolReleases: [MeasurementProtocolReleaseV1]
+    let evaluatorDescriptors: [DerivedFactEvaluatorDescriptorV1]
+    let declaresExecutableContent: Bool
+
+    init(
+        workspaceID: WorkspaceID,
+        packageRelease: PackageReleaseIdentityV1,
+        criterionIDs: [String],
+        measurementProtocolReleases: [MeasurementProtocolReleaseV1],
+        evaluatorDescriptors: [DerivedFactEvaluatorDescriptorV1],
+        declaresExecutableContent: Bool = false
+    ) throws {
+        schemaVersion = Self.schemaVersion
+        self.workspaceID = workspaceID
+        self.packageRelease = packageRelease
+        self.criterionIDs = criterionIDs.sorted()
+        self.measurementProtocolReleases = measurementProtocolReleases.sorted {
+            $0.releaseID.uuidString < $1.releaseID.uuidString
+        }
+        self.evaluatorDescriptors = evaluatorDescriptors.sorted {
+            $0.descriptorID.uuidString < $1.descriptorID.uuidString
+        }
+        self.declaresExecutableContent = declaresExecutableContent
+        try validate()
+    }
+
+    func validate() throws {
+        try AuthorityCriterionValidationV1.requireWorkspace(workspaceID)
+        try AuthorityCriterionValidationV1.requireUnique(criterionIDs)
+        try AuthorityCriterionValidationV1.requireUnique(
+            measurementProtocolReleases.map(\.releaseID)
+        )
+        try AuthorityCriterionValidationV1.requireUnique(
+            evaluatorDescriptors.map(\.descriptorID)
+        )
+        for criterionID in criterionIDs {
+            try AuthorityCriterionValidationV1.requireText(criterionID, maximumBytes: 256)
+        }
+        try measurementProtocolReleases.forEach { try $0.validate() }
+        try evaluatorDescriptors.forEach {
+            try BundledDerivedFactEvaluatorRegistryV1.validate($0)
+        }
+        let evaluatorIDs = Set(evaluatorDescriptors.map(\.descriptorID))
+        guard schemaVersion == Self.schemaVersion,
+              !declaresExecutableContent,
+              packageRelease.schemaVersion == InspectionPackageV2.schemaVersion,
+              measurementProtocolReleases.allSatisfy({ $0.workspaceID == workspaceID }),
+              evaluatorDescriptors.allSatisfy({ $0.workspaceID == workspaceID }),
+              measurementProtocolReleases.allSatisfy({
+                  evaluatorIDs.contains($0.evaluatorDescriptorID)
+              }) else {
+            throw InspectionPackageFailureV2.incompatiblePackage
+        }
+    }
+}
+
 enum InspectionPackageValidationV2 {
     static func validIdentifier(_ value: String, maximumBytes: Int) -> Bool {
         value == value.lowercased()

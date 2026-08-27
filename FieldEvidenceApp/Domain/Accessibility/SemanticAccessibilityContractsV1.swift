@@ -39,6 +39,87 @@ enum AssetSemanticAccessibilityIDV1: String, Codable, CaseIterable, Sendable {
     case recordedState = "asset.semantic.state.recorded"
 }
 
+/// Closed C40 identifiers for authority, applicability, criterion-result, and
+/// measurement presentation.  These IDs remain stable when a localized label
+/// changes.  Indeterminate states are text-bearing status elements so VoiceOver,
+/// Voice Control, Dynamic Type, and non-color presentation retain the same
+/// meaning.
+enum AuthorityCriterionAccessibilityIDV1: String, Codable, CaseIterable, Sendable {
+    case screen = "authority.criterion.screen"
+    case heading = "authority.criterion.heading"
+    case authoritySource = "authority.criterion.authority-source"
+    case applicability = "authority.criterion.applicability"
+    case applicable = "authority.criterion.applicability.applicable"
+    case notApplicableWithReason = "authority.criterion.applicability.not_applicable_with_reason"
+    case unknownApplicability = "authority.criterion.applicability.unknown"
+    case conflictReviewRequired = "authority.criterion.applicability.conflict_review_required"
+    case unsupportedApplicability = "authority.criterion.applicability.unsupported"
+    case criterionResult = "authority.criterion.result"
+    case meetsScreeningCriterion = "authority.criterion.result.meets_screening_criterion"
+    case doesNotMeet = "authority.criterion.result.does_not_meet"
+    case inconclusive = "authority.criterion.result.inconclusive"
+    case notEvaluated = "authority.criterion.result.not_evaluated"
+    case severity = "authority.criterion.severity"
+    case measurementProtocol = "authority.criterion.measurement-protocol"
+    case technicalBasis = "authority.criterion.technical-basis"
+    case nextStep = "authority.criterion.next-step"
+    case assessedAgainst = "authority.criterion.assessed-against"
+
+    // Additive aliases keep state names easy to discover without introducing
+    // additional IDs or changing the closed CaseIterable surface.
+    static var result: Self { .criterionResult }
+    static var unknown: Self { .unknownApplicability }
+    static var unsupported: Self { .unsupportedApplicability }
+}
+
+/// C40 accessibility requirements are represented as contract policy because
+/// the existing accessibility record intentionally carries semantic identity,
+/// role, and localized bindings—not rendering colors or icon assets.
+enum AuthorityCriterionAccessibilityPolicyV1 {
+    static let semanticIDs = AuthorityCriterionAccessibilityIDV1.allCases.map(\.rawValue)
+    static let indeterminateSemanticIDs: Set<String> = [
+        AuthorityCriterionAccessibilityIDV1.unknownApplicability.rawValue,
+        AuthorityCriterionAccessibilityIDV1.conflictReviewRequired.rawValue,
+        AuthorityCriterionAccessibilityIDV1.unsupportedApplicability.rawValue,
+        AuthorityCriterionAccessibilityIDV1.inconclusive.rawValue,
+        AuthorityCriterionAccessibilityIDV1.notEvaluated.rawValue,
+    ]
+    static let statusSemanticIDs: Set<String> = [
+        AuthorityCriterionAccessibilityIDV1.applicable.rawValue,
+        AuthorityCriterionAccessibilityIDV1.notApplicableWithReason.rawValue,
+        AuthorityCriterionAccessibilityIDV1.unknownApplicability.rawValue,
+        AuthorityCriterionAccessibilityIDV1.conflictReviewRequired.rawValue,
+        AuthorityCriterionAccessibilityIDV1.unsupportedApplicability.rawValue,
+        AuthorityCriterionAccessibilityIDV1.meetsScreeningCriterion.rawValue,
+        AuthorityCriterionAccessibilityIDV1.doesNotMeet.rawValue,
+        AuthorityCriterionAccessibilityIDV1.inconclusive.rawValue,
+        AuthorityCriterionAccessibilityIDV1.notEvaluated.rawValue,
+        AuthorityCriterionAccessibilityIDV1.severity.rawValue,
+    ]
+    static let nonColorStateTextRequired = true
+    static let textAndIconRequiredForIndeterminateStates = true
+    static let actionableNextStepRequiredForIndeterminateStates = true
+    static let colorOnlySeverityAllowed = false
+    static let iconOnlyStatusAllowed = false
+    static let rtlRequired = true
+    static let dynamicTypeRequired = true
+    static let voiceOverRequired = true
+    static let voiceControlRequired = true
+    static let switchControlRequired = true
+    static let actionableNextStepRequired = true
+    static let textIconActionableNextStepRequired = true
+    static let colorOnlyAllowed = false
+    static let iconOnlyAllowed = false
+
+    static func requiresTextAndIcon(for semanticID: String) -> Bool {
+        indeterminateSemanticIDs.contains(semanticID)
+    }
+
+    static func requiresActionableNextStep(for semanticID: String) -> Bool {
+        indeterminateSemanticIDs.contains(semanticID)
+    }
+}
+
 struct AccessibilityContractV1: Codable, Equatable, Sendable {
     let semanticID: String
     let role: SemanticAccessibilityRoleV1

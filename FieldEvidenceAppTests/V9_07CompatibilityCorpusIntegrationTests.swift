@@ -5,6 +5,21 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class V9_07CompatibilityCorpusIntegrationTests: XCTestCase {
+    func testV23P03C40CanonicalCompatibilityRoundTripRetainsProvisionalReaderBoundary() throws {
+        let policy = ReleasedDataCompatibilityPolicyV1.exactHead(
+            candidateHead: String(repeating: "4", count: 40)
+        )
+        let restored = try ReleasedDataCompatibilityPolicyV1.decodeCanonical(
+            policy.canonicalData()
+        )
+        let path = try restored.dataManifest.path(for: .reportOpenJSON)
+        XCTAssertEqual(path.currentWriterVersion, "snapshot2")
+        XCTAssertTrue(path.readableVersions.contains("snapshot3"))
+        XCTAssertThrowsError(
+            try restored.dataManifest.validateWriterVersion("snapshot3", for: .reportOpenJSON)
+        )
+    }
+
     @MainActor
     func testV9_07G01AggregateReleasedDataCorpusAndRuntimeRoundTrips() async throws {
         let policy = ReleasedDataCompatibilityPolicyV1.current

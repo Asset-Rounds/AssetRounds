@@ -213,6 +213,15 @@ final class BackupRestoreService {
                 && modelContext.fetchCount(
                     FetchDescriptor<WorkSubjectScopeSnapshotRow>()
                 ) == 0
+                && modelContext.fetchCount(FetchDescriptor<AuthoritySourceReleaseRow>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<RequirementBasisBindingRow>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<ApplicabilityContextSnapshotRow>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<AssessmentScopeSnapshotRow>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<SeverityScaleReleaseRow>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<FindingClassificationBindingRow>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<MeasurementProtocolReleaseRow>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<DerivedFactEvaluatorDescriptorRow>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<DerivedFactProvenanceRow>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<WorkflowRecord>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<EvidenceFile>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<Issue>()) == 0
@@ -1494,7 +1503,7 @@ private extension BackupRestoreService {
         with packets: [V4BackupPacketDTO]
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
-            assetSemantics: records.assetSemantics,
+            authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
             assetCompositionEdges: records.assetCompositionEdges,
             assetCompositionEvents: records.assetCompositionEvents,
             assetPlacementEvents: records.assetPlacementEvents,
@@ -1540,7 +1549,7 @@ private extension BackupRestoreService {
         with history: MutationHistorySnapshotV1
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
-            assetSemantics: records.assetSemantics,
+            authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
             assetCompositionEdges: records.assetCompositionEdges,
             assetCompositionEvents: records.assetCompositionEvents,
             assetPlacementEvents: records.assetPlacementEvents,
@@ -1644,7 +1653,7 @@ private extension BackupRestoreService {
             return try V8BackupRequirementAssuranceRecordV1(row)
         }.sorted { canonical($0.workflowRecordID) < canonical($1.workflowRecordID) }
         return V4BackupRecordsV1(
-            assetSemantics: records.assetSemantics,
+            authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
             assetCompositionEdges: records.assetCompositionEdges,
             assetCompositionEvents: records.assetCompositionEvents,
             assetPlacementEvents: records.assetPlacementEvents,
@@ -1845,9 +1854,12 @@ private extension BackupRestoreService {
             records.assetSemantics,
             workspaceID: workspaceID
         )
+        let authorityCriterion = try rebindingAuthorityCriterion(
+            records.authorityCriterion, workspaceID: workspaceID
+        )
         guard let archived = records.locationMigrationReceipts.first else {
             return V4BackupRecordsV1(
-                assetSemantics: assetSemantics,
+                authorityCriterion: authorityCriterion, assetSemantics: assetSemantics,
                 assetCompositionEdges: reboundEdges.map(\.0),
                 assetCompositionEvents: compositionEvents,
                 assetPlacementEvents: placements,
@@ -1875,7 +1887,8 @@ private extension BackupRestoreService {
            compositionEvents == records.assetCompositionEvents,
            savedSmartViews == records.savedSmartViews,
            partyAccountability == records.partyAccountability,
-           assetSemantics == records.assetSemantics {
+           assetSemantics == records.assetSemantics,
+           authorityCriterion == records.authorityCriterion {
             return records
         }
         let rebound = try LocationMigrationReceiptV1(
@@ -1887,7 +1900,7 @@ private extension BackupRestoreService {
             bindings: receipt.bindings
         )
         return V4BackupRecordsV1(
-            assetSemantics: assetSemantics,
+            authorityCriterion: authorityCriterion, assetSemantics: assetSemantics,
             assetCompositionEdges: reboundEdges.map(\.0),
             assetCompositionEvents: compositionEvents,
             assetPlacementEvents: placements,
@@ -2207,6 +2220,36 @@ private extension BackupRestoreService {
         }
     }
 
+    func rebindingAuthorityCriterion(
+        _ records: [V11BackupAuthorityCriterionRecordV1],
+        workspaceID: WorkspaceID
+    ) throws -> [V11BackupAuthorityCriterionRecordV1] {
+        try records.map { record in
+            let data: Data
+            switch record.kind {
+            case .authoritySourceRelease:
+                let source = try AuthorityCriterionCanonicalCodecV1.decode(AuthoritySourceReleaseV1.self, from: record.canonicalData); data = try AuthorityCriterionCanonicalCodecV1.encode(source.workspaceID == workspaceID ? source : source.rebound(to: workspaceID))
+            case .requirementBasisBinding:
+                let source = try AuthorityCriterionCanonicalCodecV1.decode(RequirementBasisBindingV1.self, from: record.canonicalData); data = try AuthorityCriterionCanonicalCodecV1.encode(source.workspaceID == workspaceID ? source : source.rebound(to: workspaceID))
+            case .applicabilityContextSnapshot:
+                let source = try AuthorityCriterionCanonicalCodecV1.decode(ApplicabilityContextSnapshotV1.self, from: record.canonicalData); data = try AuthorityCriterionCanonicalCodecV1.encode(source.workspaceID == workspaceID ? source : source.rebound(to: workspaceID))
+            case .assessmentScopeSnapshot:
+                let source = try AuthorityCriterionCanonicalCodecV1.decode(AssessmentScopeSnapshotV1.self, from: record.canonicalData); data = try AuthorityCriterionCanonicalCodecV1.encode(source.workspaceID == workspaceID ? source : source.rebound(to: workspaceID))
+            case .severityScaleRelease:
+                let source = try AuthorityCriterionCanonicalCodecV1.decode(SeverityScaleReleaseV1.self, from: record.canonicalData); data = try AuthorityCriterionCanonicalCodecV1.encode(source.workspaceID == workspaceID ? source : source.rebound(to: workspaceID))
+            case .findingClassificationBinding:
+                let source = try AuthorityCriterionCanonicalCodecV1.decode(FindingClassificationBindingV1.self, from: record.canonicalData); data = try AuthorityCriterionCanonicalCodecV1.encode(source.workspaceID == workspaceID ? source : source.rebound(to: workspaceID))
+            case .measurementProtocolRelease:
+                let source = try AuthorityCriterionCanonicalCodecV1.decode(MeasurementProtocolReleaseV1.self, from: record.canonicalData); data = try AuthorityCriterionCanonicalCodecV1.encode(source.workspaceID == workspaceID ? source : source.rebound(to: workspaceID))
+            case .derivedFactEvaluatorDescriptor:
+                let source = try AuthorityCriterionCanonicalCodecV1.decode(DerivedFactEvaluatorDescriptorV1.self, from: record.canonicalData); data = try AuthorityCriterionCanonicalCodecV1.encode(source.workspaceID == workspaceID ? source : source.rebound(to: workspaceID))
+            case .derivedFactProvenance:
+                let source = try AuthorityCriterionCanonicalCodecV1.decode(DerivedFactProvenanceV1.self, from: record.canonicalData); data = try AuthorityCriterionCanonicalCodecV1.encode(source.workspaceID == workspaceID ? source : source.rebound(to: workspaceID))
+            }
+            return .init(kind: record.kind, id: record.id, workspaceID: workspaceID.rawValue, canonicalData: data)
+        }
+    }
+
     func recordsWithObservationAndTime(
         _ records: V4BackupRecordsV1
     ) throws -> V4BackupRecordsV1 {
@@ -2222,7 +2265,7 @@ private extension BackupRestoreService {
             )
         }
         return V4BackupRecordsV1(
-            assetSemantics: [],
+            authorityCriterion: [], assetSemantics: [],
             assetCompositionEdges: records.assetCompositionEdges,
             assetCompositionEvents: records.assetCompositionEvents,
             assetPlacementEvents: records.assetPlacementEvents,
@@ -2391,7 +2434,8 @@ private extension BackupRestoreService {
                 || records.recordsSchemaVersion == 6
                 || records.recordsSchemaVersion == 7
                 || records.recordsSchemaVersion == 8
-                || records.recordsSchemaVersion == 9)
+                || records.recordsSchemaVersion == 9
+                || records.recordsSchemaVersion == 10)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -2641,7 +2685,8 @@ private extension BackupRestoreService {
             ))
         }
         if records.recordsSchemaVersion == 6 || records.recordsSchemaVersion == 7
-            || records.recordsSchemaVersion == 8 || records.recordsSchemaVersion == 9 {
+            || records.recordsSchemaVersion == 8 || records.recordsSchemaVersion == 9
+            || records.recordsSchemaVersion == 10 {
             do {
                 for record in records.savedSmartViews {
                     let descriptor = try record.descriptor()
@@ -2712,7 +2757,7 @@ private extension BackupRestoreService {
                 }
             } catch { throw BackupRestoreServiceError.invalidPackage }
         }
-        if records.recordsSchemaVersion == 9 {
+        if records.recordsSchemaVersion >= 9 {
             do {
                 for record in records.assetSemantics {
                     switch record.kind {
@@ -2757,6 +2802,23 @@ private extension BackupRestoreService {
                 }
             } catch { throw BackupRestoreServiceError.invalidPackage }
         }
+        if records.recordsSchemaVersion >= 10 {
+            do {
+                for record in records.authorityCriterion {
+                    switch record.kind {
+                    case .authoritySourceRelease: context.insert(try AuthoritySourceReleaseRow(AuthorityCriterionCanonicalCodecV1.decode(AuthoritySourceReleaseV1.self, from: record.canonicalData)))
+                    case .requirementBasisBinding: context.insert(try RequirementBasisBindingRow(AuthorityCriterionCanonicalCodecV1.decode(RequirementBasisBindingV1.self, from: record.canonicalData)))
+                    case .applicabilityContextSnapshot: context.insert(try ApplicabilityContextSnapshotRow(AuthorityCriterionCanonicalCodecV1.decode(ApplicabilityContextSnapshotV1.self, from: record.canonicalData)))
+                    case .assessmentScopeSnapshot: context.insert(try AssessmentScopeSnapshotRow(AuthorityCriterionCanonicalCodecV1.decode(AssessmentScopeSnapshotV1.self, from: record.canonicalData)))
+                    case .severityScaleRelease: context.insert(try SeverityScaleReleaseRow(AuthorityCriterionCanonicalCodecV1.decode(SeverityScaleReleaseV1.self, from: record.canonicalData)))
+                    case .findingClassificationBinding: context.insert(try FindingClassificationBindingRow(AuthorityCriterionCanonicalCodecV1.decode(FindingClassificationBindingV1.self, from: record.canonicalData)))
+                    case .measurementProtocolRelease: context.insert(try MeasurementProtocolReleaseRow(AuthorityCriterionCanonicalCodecV1.decode(MeasurementProtocolReleaseV1.self, from: record.canonicalData)))
+                    case .derivedFactEvaluatorDescriptor: context.insert(try DerivedFactEvaluatorDescriptorRow(AuthorityCriterionCanonicalCodecV1.decode(DerivedFactEvaluatorDescriptorV1.self, from: record.canonicalData)))
+                    case .derivedFactProvenance: context.insert(try DerivedFactProvenanceRow(AuthorityCriterionCanonicalCodecV1.decode(DerivedFactProvenanceV1.self, from: record.canonicalData)))
+                    }
+                }
+            } catch { throw BackupRestoreServiceError.invalidPackage }
+        }
         if let mutationHistory = records.mutationHistory {
             guard records.recordsSchemaVersion == 3
                     || records.recordsSchemaVersion == 4
@@ -2764,7 +2826,8 @@ private extension BackupRestoreService {
                     || records.recordsSchemaVersion == 6
                     || records.recordsSchemaVersion == 7
                     || records.recordsSchemaVersion == 8
-                    || records.recordsSchemaVersion == 9 else {
+                    || records.recordsSchemaVersion == 9
+                    || records.recordsSchemaVersion == 10 else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {
@@ -3833,7 +3896,7 @@ private extension BackupRestoreService {
         let actual = try records(in: context)
         if actual == expected { return }
         guard expected.recordsSchemaVersion < 9,
-              actual.recordsSchemaVersion == 9 else {
+              (actual.recordsSchemaVersion == 9 || actual.recordsSchemaVersion == 10) else {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
         if expected.recordsSchemaVersion == 5 || expected.recordsSchemaVersion == 6 {
@@ -3852,6 +3915,7 @@ private extension BackupRestoreService {
         schemaVersion: Int
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            authorityCriterion: schemaVersion >= 10 ? records.authorityCriterion : [],
             assetSemantics: schemaVersion >= 9 ? records.assetSemantics : [],
             assetCompositionEdges: records.assetCompositionEdges,
             assetCompositionEvents: records.assetCompositionEvents,
@@ -3880,6 +3944,7 @@ private extension BackupRestoreService {
         expected: V4BackupRecordsV1
     ) throws -> Bool {
         let predecessor = V4BackupRecordsV1(
+            authorityCriterion: expected.recordsSchemaVersion >= 10 ? expected.authorityCriterion : [],
             assetSemantics: expected.recordsSchemaVersion >= 9 ? expected.assetSemantics : [],
             assets: actual.assets,
             deletionLedger: actual.deletionLedger,
@@ -4039,6 +4104,15 @@ private extension BackupRestoreService {
         let assetLifecycleEvents = try context.fetch(FetchDescriptor<AssetLifecycleEventRow>())
         let assetSuccessorLinks = try context.fetch(FetchDescriptor<AssetSuccessorLinkRow>())
         let workSubjectScopeSnapshots = try context.fetch(FetchDescriptor<WorkSubjectScopeSnapshotRow>())
+        let authoritySourceReleases = try context.fetch(FetchDescriptor<AuthoritySourceReleaseRow>())
+        let requirementBasisBindings = try context.fetch(FetchDescriptor<RequirementBasisBindingRow>())
+        let applicabilityContexts = try context.fetch(FetchDescriptor<ApplicabilityContextSnapshotRow>())
+        let assessmentScopes = try context.fetch(FetchDescriptor<AssessmentScopeSnapshotRow>())
+        let severityScales = try context.fetch(FetchDescriptor<SeverityScaleReleaseRow>())
+        let classifications = try context.fetch(FetchDescriptor<FindingClassificationBindingRow>())
+        let measurementProtocols = try context.fetch(FetchDescriptor<MeasurementProtocolReleaseRow>())
+        let evaluators = try context.fetch(FetchDescriptor<DerivedFactEvaluatorDescriptorRow>())
+        let derivedFacts = try context.fetch(FetchDescriptor<DerivedFactProvenanceRow>())
         let observationAndTime: [UUID: ObservationAndTimeRow]
         if includesObservationAndTime {
             observationAndTime = try ObservationAndTimeRowStoreV1.validatedIndex(
@@ -4057,6 +4131,17 @@ private extension BackupRestoreService {
             mutationHistory = nil
         }
         return V4BackupRecordsV1(
+            authorityCriterion: try (
+                authoritySourceReleases.map { let v=try $0.value(); return .init(kind: .authoritySourceRelease,id:v.releaseID,workspaceID:v.workspaceID.rawValue,canonicalData:$0.canonicalData) }
+                + requirementBasisBindings.map { let v=try $0.value(); return .init(kind:.requirementBasisBinding,id:v.bindingID,workspaceID:v.workspaceID.rawValue,canonicalData:$0.canonicalData) }
+                + applicabilityContexts.map { let v=try $0.value(); return .init(kind:.applicabilityContextSnapshot,id:v.snapshotID,workspaceID:v.workspaceID.rawValue,canonicalData:$0.canonicalData) }
+                + assessmentScopes.map { let v=try $0.value(); return .init(kind:.assessmentScopeSnapshot,id:v.snapshotID,workspaceID:v.workspaceID.rawValue,canonicalData:$0.canonicalData) }
+                + severityScales.map { let v=try $0.value(); return .init(kind:.severityScaleRelease,id:v.releaseID,workspaceID:v.workspaceID.rawValue,canonicalData:$0.canonicalData) }
+                + classifications.map { let v=try $0.value(); return .init(kind:.findingClassificationBinding,id:v.bindingID,workspaceID:v.workspaceID.rawValue,canonicalData:$0.canonicalData) }
+                + measurementProtocols.map { let v=try $0.value(); return .init(kind:.measurementProtocolRelease,id:v.releaseID,workspaceID:v.workspaceID.rawValue,canonicalData:$0.canonicalData) }
+                + evaluators.map { let v=try $0.value(); return .init(kind:.derivedFactEvaluatorDescriptor,id:v.descriptorID,workspaceID:v.workspaceID.rawValue,canonicalData:$0.canonicalData) }
+                + derivedFacts.map { let v=try $0.value(); return .init(kind:.derivedFactProvenance,id:v.provenanceID,workspaceID:v.workspaceID.rawValue,canonicalData:$0.canonicalData) }
+            ).sorted { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)" },
             assetSemantics: try (
                 assetKindBindingEvents.map {
                     let value = try $0.value()
@@ -4189,9 +4274,17 @@ private extension BackupRestoreService {
                 "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
                     < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
             },
-            recordsSchemaVersion: mutationHistory == nil
-                ? (includingDeletionLedger ? 2 : 1)
-                : 9,
+            recordsSchemaVersion: authoritySourceReleases.isEmpty
+                    && requirementBasisBindings.isEmpty
+                    && applicabilityContexts.isEmpty
+                    && assessmentScopes.isEmpty
+                    && severityScales.isEmpty
+                    && classifications.isEmpty
+                    && measurementProtocols.isEmpty
+                    && evaluators.isEmpty
+                    && derivedFacts.isEmpty
+                ? (mutationHistory == nil ? (includingDeletionLedger ? 2 : 1) : 9)
+                : 10,
             reports: reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,

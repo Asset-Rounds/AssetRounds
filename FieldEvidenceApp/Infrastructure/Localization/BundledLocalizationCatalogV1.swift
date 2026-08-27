@@ -31,6 +31,24 @@ enum BundledLocalizationKeyV1: String, CaseIterable, Sendable {
     case assetSemanticRetiredState = "asset.semantic.state.retired"
     case assetSemanticReplacedState = "asset.semantic.state.replaced"
     case assetSemanticRecordedState = "asset.semantic.state.recorded"
+    case authorityCriterionHeading = "authority.criterion.heading"
+    case authorityCriterionAuthoritySource = "authority.criterion.authority_source"
+    case authorityCriterionApplicability = "authority.criterion.applicability"
+    case authorityCriterionApplicable = "authority.criterion.applicability.applicable"
+    case authorityCriterionNotApplicableWithReason = "authority.criterion.applicability.not_applicable_with_reason"
+    case authorityCriterionApplicabilityUnknown = "authority.criterion.applicability.unknown"
+    case authorityCriterionConflictReviewRequired = "authority.criterion.applicability.conflict_review_required"
+    case authorityCriterionApplicabilityUnsupported = "authority.criterion.applicability.unsupported"
+    case authorityCriterionResult = "authority.criterion.result"
+    case authorityCriterionMeetsScreeningCriterion = "authority.criterion.result.meets_screening_criterion"
+    case authorityCriterionDoesNotMeet = "authority.criterion.result.does_not_meet"
+    case authorityCriterionInconclusive = "authority.criterion.result.inconclusive"
+    case authorityCriterionNotEvaluated = "authority.criterion.result.not_evaluated"
+    case authorityCriterionSeverity = "authority.criterion.severity"
+    case authorityCriterionMeasurementProtocol = "authority.criterion.measurement_protocol"
+    case authorityCriterionTechnicalBasis = "authority.criterion.technical_basis"
+    case authorityCriterionNextStep = "authority.criterion.next_step"
+    case authorityCriterionAssessedAgainst = "authority.criterion.assessed_against"
 }
 
 enum LocalizationCatalogPublicationBoundaryV1: String, CaseIterable, Sendable {
@@ -195,6 +213,104 @@ enum BundledLocalizationCatalogV1 {
             ),
         ]
         return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+
+    /// C40's additive key surface.  The source catalog remains one English
+    /// String Catalog, while this registry exposes the typed basis,
+    /// disposition, and non-color status vocabulary to authority consumers.
+    static func authorityCriterionRegistry() throws -> LocalizationKeyRegistryV1 {
+        let base = try assetSemanticRegistry()
+        let additions = [
+            try definition(
+                .authorityCriterionHeading, "authority.criterion.heading", "Authority and criteria",
+                "Heading for recorded authority and criterion facts."
+            ),
+            try definition(
+                .authorityCriterionAuthoritySource, "authority.criterion.authority_source", "Authority source",
+                "Localized label for an authority source metadata record."
+            ),
+            try definition(
+                .authorityCriterionApplicability, "authority.criterion.applicability", "Applicability",
+                "Localized label for a selected applicability disposition."
+            ),
+            try definition(
+                .authorityCriterionApplicable, "authority.criterion.applicability.applicable", "Applicable",
+                "Accessible text for an applicable recorded context."
+            ),
+            try definition(
+                .authorityCriterionNotApplicableWithReason,
+                "authority.criterion.applicability.not_applicable_with_reason",
+                "Not applicable with reason",
+                "Accessible text for a not-applicable disposition with its recorded reason."
+            ),
+            try definition(
+                .authorityCriterionApplicabilityUnknown, "authority.criterion.applicability.unknown", "Unknown",
+                "Accessible text for an applicability disposition that remains unknown."
+            ),
+            try definition(
+                .authorityCriterionConflictReviewRequired,
+                "authority.criterion.applicability.conflict_review_required",
+                "Conflict requires review",
+                "Accessible text for conflicting applicability sources awaiting review."
+            ),
+            try definition(
+                .authorityCriterionApplicabilityUnsupported,
+                "authority.criterion.applicability.unsupported",
+                "Unsupported",
+                "Accessible text for an applicability context that is not supported."
+            ),
+            try definition(
+                .authorityCriterionResult, "authority.criterion.result", "Screening result",
+                "Localized label for a recorded screening result."
+            ),
+            try definition(
+                .authorityCriterionMeetsScreeningCriterion,
+                "authority.criterion.result.meets_screening_criterion",
+                "Meets screening criterion",
+                "Accessible text for a screening result that meets its stated criterion."
+            ),
+            try definition(
+                .authorityCriterionDoesNotMeet,
+                "authority.criterion.result.does_not_meet",
+                "Does not meet screening criterion",
+                "Accessible text for a screening result that does not meet its stated criterion."
+            ),
+            try definition(
+                .authorityCriterionInconclusive, "authority.criterion.result.inconclusive", "Inconclusive",
+                "Accessible text for a screening result that cannot be concluded."
+            ),
+            try definition(
+                .authorityCriterionNotEvaluated, "authority.criterion.result.not_evaluated", "Not evaluated",
+                "Accessible text for a criterion that was not evaluated."
+            ),
+            try definition(
+                .authorityCriterionSeverity, "authority.criterion.severity", "Severity",
+                "Localized label for a severity level within its recorded scale."
+            ),
+            try definition(
+                .authorityCriterionMeasurementProtocol,
+                "authority.criterion.measurement_protocol",
+                "Measurement protocol",
+                "Localized label for the protocol governing a recorded measurement."
+            ),
+            try definition(
+                .authorityCriterionTechnicalBasis, "authority.criterion.technical_basis", "Technical basis",
+                "Localized label for the technical basis disclosed with a recorded result."
+            ),
+            try definition(
+                .authorityCriterionNextStep, "authority.criterion.next_step", "Next step",
+                "Localized label for the actionable next step accompanying an unresolved state."
+            ),
+            try definition(
+                .authorityCriterionAssessedAgainst, "authority.criterion.assessed_against", "Assessed against",
+                "Localized wording for a report that states which basis was assessed against."
+            ),
+        ]
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+
+    static func authorityCriteriaRegistry() throws -> LocalizationKeyRegistryV1 {
+        try authorityCriterionRegistry()
     }
 
     static func accessibilityRegistry(
@@ -370,6 +486,176 @@ enum BundledLocalizationCatalogV1 {
         return try base.appending(entries, localization: localization)
     }
 
+    static func authorityCriterionAccessibilityRegistry(
+        localization: LocalizationKeyRegistryV1
+    ) throws -> SemanticAccessibilityIDRegistryV1 {
+        let base = try assetSemanticAccessibilityRegistry(localization: localization)
+        let nextStep = try LocalizationKeyV1(
+            AuthorityCriterionLocalizationKeyV1.nextStep.rawValue
+        )
+        let entries: [AccessibilityContractV1] = [
+            AccessibilityContractV1(
+                semanticID: AuthorityCriterionAccessibilityIDV1.screen.rawValue,
+                role: .screen, reachability: .always,
+                labelKey: try LocalizationKeyV1(
+                    AuthorityCriterionLocalizationKeyV1.heading.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: AuthorityCriterionAccessibilityIDV1.heading.rawValue,
+                role: .heading, reachability: .always,
+                labelKey: try LocalizationKeyV1(
+                    AuthorityCriterionLocalizationKeyV1.heading.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: AuthorityCriterionAccessibilityIDV1.authoritySource.rawValue,
+                role: .group, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    AuthorityCriterionLocalizationKeyV1.authoritySource.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: AuthorityCriterionAccessibilityIDV1.applicability.rawValue,
+                role: .group, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    AuthorityCriterionLocalizationKeyV1.applicability.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: AuthorityCriterionAccessibilityIDV1.applicable.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    AuthorityCriterionLocalizationKeyV1.applicabilityApplicable.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: AuthorityCriterionAccessibilityIDV1.notApplicableWithReason.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    AuthorityCriterionLocalizationKeyV1.applicabilityNotApplicableWithReason.rawValue
+                ), hintKey: nextStep, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: AuthorityCriterionAccessibilityIDV1.unknownApplicability.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    AuthorityCriterionLocalizationKeyV1.applicabilityUnknown.rawValue
+                ), hintKey: nextStep, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: AuthorityCriterionAccessibilityIDV1.conflictReviewRequired.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    AuthorityCriterionLocalizationKeyV1.applicabilityConflictReviewRequired.rawValue
+                ), hintKey: nextStep, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: AuthorityCriterionAccessibilityIDV1.unsupportedApplicability.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    AuthorityCriterionLocalizationKeyV1.applicabilityUnsupported.rawValue
+                ), hintKey: nextStep, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: AuthorityCriterionAccessibilityIDV1.criterionResult.rawValue,
+                role: .group, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    AuthorityCriterionLocalizationKeyV1.criterionResult.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: AuthorityCriterionAccessibilityIDV1.meetsScreeningCriterion.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    AuthorityCriterionLocalizationKeyV1.resultMeetsScreeningCriterion.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: AuthorityCriterionAccessibilityIDV1.doesNotMeet.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    AuthorityCriterionLocalizationKeyV1.resultDoesNotMeet.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: AuthorityCriterionAccessibilityIDV1.inconclusive.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    AuthorityCriterionLocalizationKeyV1.resultInconclusive.rawValue
+                ), hintKey: nextStep, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: AuthorityCriterionAccessibilityIDV1.notEvaluated.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    AuthorityCriterionLocalizationKeyV1.resultNotEvaluated.rawValue
+                ), hintKey: nextStep, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: AuthorityCriterionAccessibilityIDV1.severity.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    AuthorityCriterionLocalizationKeyV1.severity.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: AuthorityCriterionAccessibilityIDV1.measurementProtocol.rawValue,
+                role: .group, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    AuthorityCriterionLocalizationKeyV1.measurementProtocol.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: AuthorityCriterionAccessibilityIDV1.technicalBasis.rawValue,
+                role: .group, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    AuthorityCriterionLocalizationKeyV1.technicalBasis.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: AuthorityCriterionAccessibilityIDV1.nextStep.rawValue,
+                role: .button, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    AuthorityCriterionLocalizationKeyV1.nextStep.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: AuthorityCriterionAccessibilityIDV1.assessedAgainst.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    AuthorityCriterionLocalizationKeyV1.assessedAgainst.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+        ]
+        return try base.appending(entries, localization: localization)
+    }
+
+    static func authorityCriteriaAccessibilityRegistry(
+        localization: LocalizationKeyRegistryV1
+    ) throws -> SemanticAccessibilityIDRegistryV1 {
+        try authorityCriterionAccessibilityRegistry(localization: localization)
+    }
+
     static func publish(
         sourceCatalogBytes: Data,
         packagePublications: [InspectionPackagePublishedReleaseV1] = [],
@@ -378,6 +664,7 @@ enum BundledLocalizationCatalogV1 {
         previousLegacy: LegacyLocalizationAccessibilityAllowlistV1? = nil,
         includeAccountability: Bool = false,
         includeAssetSemantics: Bool = false,
+        includeAuthorityCriteria: Bool = false,
         interruption: Interruption = { _ in }
     ) throws -> LocalizationCatalogPublicationV1 {
         try interruption(.beforeValidation)
@@ -385,7 +672,9 @@ enum BundledLocalizationCatalogV1 {
         let locales = LocalizationLocaleManifestV1.shippingV1()
         try locales.validate()
         let keys: LocalizationKeyRegistryV1
-        if includeAssetSemantics {
+        if includeAuthorityCriteria {
+            keys = try authorityCriterionRegistry()
+        } else if includeAssetSemantics {
             keys = try assetSemanticRegistry()
         } else if includeAccountability {
             keys = try accountabilityRegistry()
@@ -400,7 +689,9 @@ enum BundledLocalizationCatalogV1 {
         }
         if let previousLegacy { try previousLegacy.validateObserved(legacy.entries) }
         let accessibility: SemanticAccessibilityIDRegistryV1
-        if includeAssetSemantics {
+        if includeAuthorityCriteria {
+            accessibility = try authorityCriterionAccessibilityRegistry(localization: keys)
+        } else if includeAssetSemantics {
             accessibility = try assetSemanticAccessibilityRegistry(localization: keys)
         } else if includeAccountability {
             accessibility = try accountabilityAccessibilityRegistry(localization: keys)
@@ -446,7 +737,8 @@ enum BundledLocalizationCatalogV1 {
         legacy: LegacyLocalizationAccessibilityAllowlistV1,
         packagePublications: [InspectionPackagePublishedReleaseV1] = [],
         includeAccountability: Bool = false,
-        includeAssetSemantics: Bool = false
+        includeAssetSemantics: Bool = false,
+        includeAuthorityCriteria: Bool = false
     ) throws -> LocalizationCatalogPublicationV1 {
         switch (sourceCatalogBytes, receipt) {
         case (nil, nil): return .zero
@@ -456,7 +748,8 @@ enum BundledLocalizationCatalogV1 {
                 packagePublications: packagePublications,
                 legacy: legacy,
                 includeAccountability: includeAccountability,
-                includeAssetSemantics: includeAssetSemantics
+                includeAssetSemantics: includeAssetSemantics,
+                includeAuthorityCriteria: includeAuthorityCriteria
             )
             guard case let .complete(_, _, _, _, actual) = publication,
                   actual == expected else { throw LocalizationContractFailureV1.digestMismatch }
@@ -528,6 +821,42 @@ enum BundledLocalizationCatalogV1 {
             return String(localized: "asset.semantic.state.replaced", defaultValue: "Replaced", bundle: bundle, locale: locale, comment: "Accessible text for a human-recorded replaced lifecycle event.")
         case .assetSemanticRecordedState:
             return String(localized: "asset.semantic.state.recorded", defaultValue: "Recorded", bundle: bundle, locale: locale, comment: "Accessible text for a fact explicitly recorded by a local actor.")
+        case .authorityCriterionHeading:
+            return String(localized: "authority.criterion.heading", defaultValue: "Authority and criteria", bundle: bundle, locale: locale, comment: "Heading for recorded authority and criterion facts.")
+        case .authorityCriterionAuthoritySource:
+            return String(localized: "authority.criterion.authority_source", defaultValue: "Authority source", bundle: bundle, locale: locale, comment: "Localized label for an authority source metadata record.")
+        case .authorityCriterionApplicability:
+            return String(localized: "authority.criterion.applicability", defaultValue: "Applicability", bundle: bundle, locale: locale, comment: "Localized label for a selected applicability disposition.")
+        case .authorityCriterionApplicable:
+            return String(localized: "authority.criterion.applicability.applicable", defaultValue: "Applicable", bundle: bundle, locale: locale, comment: "Accessible text for an applicable recorded context.")
+        case .authorityCriterionNotApplicableWithReason:
+            return String(localized: "authority.criterion.applicability.not_applicable_with_reason", defaultValue: "Not applicable with reason", bundle: bundle, locale: locale, comment: "Accessible text for a not-applicable disposition with its recorded reason.")
+        case .authorityCriterionApplicabilityUnknown:
+            return String(localized: "authority.criterion.applicability.unknown", defaultValue: "Unknown", bundle: bundle, locale: locale, comment: "Accessible text for an applicability disposition that remains unknown.")
+        case .authorityCriterionConflictReviewRequired:
+            return String(localized: "authority.criterion.applicability.conflict_review_required", defaultValue: "Conflict requires review", bundle: bundle, locale: locale, comment: "Accessible text for conflicting applicability sources awaiting review.")
+        case .authorityCriterionApplicabilityUnsupported:
+            return String(localized: "authority.criterion.applicability.unsupported", defaultValue: "Unsupported", bundle: bundle, locale: locale, comment: "Accessible text for an applicability context that is not supported.")
+        case .authorityCriterionResult:
+            return String(localized: "authority.criterion.result", defaultValue: "Screening result", bundle: bundle, locale: locale, comment: "Localized label for a recorded screening result.")
+        case .authorityCriterionMeetsScreeningCriterion:
+            return String(localized: "authority.criterion.result.meets_screening_criterion", defaultValue: "Meets screening criterion", bundle: bundle, locale: locale, comment: "Accessible text for a screening result that meets its stated criterion.")
+        case .authorityCriterionDoesNotMeet:
+            return String(localized: "authority.criterion.result.does_not_meet", defaultValue: "Does not meet screening criterion", bundle: bundle, locale: locale, comment: "Accessible text for a screening result that does not meet its stated criterion.")
+        case .authorityCriterionInconclusive:
+            return String(localized: "authority.criterion.result.inconclusive", defaultValue: "Inconclusive", bundle: bundle, locale: locale, comment: "Accessible text for a screening result that cannot be concluded.")
+        case .authorityCriterionNotEvaluated:
+            return String(localized: "authority.criterion.result.not_evaluated", defaultValue: "Not evaluated", bundle: bundle, locale: locale, comment: "Accessible text for a criterion that was not evaluated.")
+        case .authorityCriterionSeverity:
+            return String(localized: "authority.criterion.severity", defaultValue: "Severity", bundle: bundle, locale: locale, comment: "Localized label for a severity level within its recorded scale.")
+        case .authorityCriterionMeasurementProtocol:
+            return String(localized: "authority.criterion.measurement_protocol", defaultValue: "Measurement protocol", bundle: bundle, locale: locale, comment: "Localized label for the protocol governing a recorded measurement.")
+        case .authorityCriterionTechnicalBasis:
+            return String(localized: "authority.criterion.technical_basis", defaultValue: "Technical basis", bundle: bundle, locale: locale, comment: "Localized label for the technical basis disclosed with a recorded result.")
+        case .authorityCriterionNextStep:
+            return String(localized: "authority.criterion.next_step", defaultValue: "Next step", bundle: bundle, locale: locale, comment: "Localized label for the actionable next step accompanying an unresolved state.")
+        case .authorityCriterionAssessedAgainst:
+            return String(localized: "authority.criterion.assessed_against", defaultValue: "Assessed against", bundle: bundle, locale: locale, comment: "Localized wording for a report that states which basis was assessed against.")
         }
     }
 
@@ -579,8 +908,8 @@ enum BundledLocalizationCatalogV1 {
         // The source catalog may be validated against any currently declared
         // additive projection, while the selected registry still controls the
         // required subset.  This keeps C16/C38 compatibility callers frozen
-        // and lets the C39 typed surface publish atomically.
-        let supportedKeys = Set((try? assetSemanticRegistry())?.definitions.map(\.key.rawValue) ?? [])
+        // and lets the C39/C40 typed surfaces publish atomically.
+        let supportedKeys = Set((try? authorityCriterionRegistry())?.definitions.map(\.key.rawValue) ?? [])
         guard registeredKeys.isSubset(of: Set(strings.keys)),
               Set(strings.keys).isSubset(of: supportedKeys) else {
             throw LocalizationContractFailureV1.invalidValue

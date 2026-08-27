@@ -64,6 +64,18 @@ enum RequirementEvaluationResultV1: String, Codable, CaseIterable, Hashable, Com
     static func < (lhs: Self, rhs: Self) -> Bool { lhs.rawValue < rhs.rawValue }
 }
 
+/// Explicit projection only. Screening language remains C40-owned and is never
+/// represented as a compliance, safety, certification, or legal conclusion.
+enum RequirementScreeningProjectionV1 {
+    static func project(_ result: ScreeningCriterionResultV1) -> RequirementEvaluationResultV1 {
+        switch result {
+        case .meetsScreeningCriterion: return .satisfied
+        case .doesNotMeet: return .notSatisfied
+        case .inconclusive, .notEvaluated: return .unknown
+        }
+    }
+}
+
 enum RequirementGateEffectV1: String, Codable, CaseIterable, Hashable, Sendable {
     case hardBlocker = "HARD_BLOCKER"
     case warning = "WARNING"

@@ -310,7 +310,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
         mutationID: MutationIDV1
     ) throws -> WorkspaceMutationOutcomeV1 {
         let current = try currentRevision()
-        let targets = try Self.targetIdentities(for: command)
+        let targets = try Self.expectedRevisionIdentities(for: command)
         let known = Dictionary(
             uniqueKeysWithValues: current.entityRevisions.map { ($0.identity, $0.revision) }
         )
@@ -482,6 +482,20 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
             } catch {
                 throw WorkspaceMutationFailureV1.invalidCommand
             }
+        case .applyAuthorityCriterion(let value):
+            do {
+                try value.validate()
+                let target = try value.concurrencyIdentity
+                let expectedEntityRevision = request.expectedRevision.entityRevisions
+                    .first(where: { $0.identity == target })?.revision
+                guard value.workspaceID == identity.workspaceID,
+                      value.mutationID == request.mutationID,
+                      sourceKind == .importedHistory || occurredAtOverride != nil
+                        || expectedEntityRevision == value.expectedRevision else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            } catch let failure as WorkspaceMutationFailureV1 { throw failure }
+            catch { throw WorkspaceMutationFailureV1.invalidCommand }
         default:
             break
         }
@@ -532,11 +546,12 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
         }
 
         let targets = try Self.targetIdentities(for: request.command)
-        try require(request.expectedRevision, targets: targets)
+        let expectedRevisionTargets = try Self.expectedRevisionIdentities(for: request.command)
+        try require(request.expectedRevision, targets: expectedRevisionTargets)
         let liveRevision = try currentRevision()
         let liveByIdentity = Dictionary(uniqueKeysWithValues: liveRevision.entityRevisions.map { ($0.identity, $0.revision) })
         guard liveRevision.revision < UInt64(Int64.max),
-              targets.allSatisfy({ liveByIdentity[$0, default: 0] < UInt64(Int64.max) }) else {
+              expectedRevisionTargets.allSatisfy({ liveByIdentity[$0, default: 0] < UInt64(Int64.max) }) else {
             throw WorkspaceMutationFailureV1.revisionOverflow
         }
 
@@ -662,7 +677,11 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
         }
 
         workspaceRevision += 1
-        for target in targets { entityRevisions[target, default: 0] += 1 }
+        if case let .applyAuthorityCriterion(mutation) = request.command {
+            entityRevisions[try mutation.affectedIdentity] = mutation.postImage.revision
+        } else {
+            for target in targets { entityRevisions[target, default: 0] += 1 }
+        }
         let after = try currentRevision()
         let outcome = WorkspaceMutationOutcomeV1(
             mutationID: request.mutationID,
@@ -745,7 +764,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
             )
         } else {
             let current = try currentRevision()
-            let targets = try Self.targetIdentities(for: command)
+            let targets = try Self.expectedRevisionIdentities(for: command)
             let known = Dictionary(
                 uniqueKeysWithValues: current.entityRevisions.map {
                     ($0.identity, $0.revision)
@@ -1097,11 +1116,24 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
         case let .applyAssetSemantics(value):
             try value.validate()
             values = [try value.affectedIdentity]
+        case let .applyAuthorityCriterion(value):
+            try value.validate()
+            values = [try value.affectedIdentity]
         }
         guard Set(values).count == values.count else {
             throw WorkspaceMutationFailureV1.invalidCommand
         }
         return values
+    }
+
+    private static func expectedRevisionIdentities(
+        for command: WorkspaceCommandV1
+    ) throws -> [WorkspaceEntityIdentityV1] {
+        if case let .applyAuthorityCriterion(value) = command {
+            try value.validate()
+            return [try value.concurrencyIdentity]
+        }
+        return try targetIdentities(for: command)
     }
 
     private static func requireOperationID(_ value: UUID) throws {

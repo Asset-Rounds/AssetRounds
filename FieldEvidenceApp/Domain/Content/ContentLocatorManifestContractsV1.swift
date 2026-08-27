@@ -1,6 +1,6 @@
 import Foundation
 
-struct ContentLocatorV1: Codable, Equatable, Identifiable, Sendable {
+struct ContentLocatorV1: Codable, Equatable, Hashable, Identifiable, Sendable {
     static let schemaVersion = 1
     let schemaVersion: Int
     let locatorID: String
@@ -209,6 +209,22 @@ extension ContentLocatorV1 {
             contentID: c.decode(String.self, forKey: .contentID), locatorRevision: c.decode(Int.self, forKey: .locatorRevision),
             contentDigest: c.decode(ContentDigestV1.self, forKey: .contentDigest), expectedByteLength: c.decode(Int64.self, forKey: .expectedByteLength)
         )
+    }
+}
+
+extension ContentLocatorV1 {
+    func validateAuthoritySourceBinding(_ release: AuthoritySourceReleaseV1) throws {
+        try release.validate()
+        guard release.contentLocator == self,
+              AuthorityCriterionValidationV1.sameWorkspaceString(
+                workspaceID,
+                as: release.workspaceID
+              ) else {
+            throw ContentContractFailureV1.wrongWorkspace
+        }
+        if let reference = release.lawfulContentReference {
+            try validate(against: reference)
+        }
     }
 }
 

@@ -446,6 +446,60 @@ final class V10_01WorkspaceWriterTests: XCTestCase {
         XCTAssertTrue(rowsSource.contains("PartyAccountabilitySnapshotCodecV1.encode"))
     }
 
+    @MainActor
+    func testV23P03C40WriterUsesPredecessorRevisionAndReceiptsNewPostImage() throws {
+        let root = try Self.makeTemporaryApplicationSupportURL()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let session = try StoreGenerationFactory(applicationSupportURL: root).openOrBootstrapCurrent()
+        let writer = StoreSessionCoordinator(session: session).workspaceWriter
+        let workspaceID = try writer.currentRevision().workspaceID
+        let firstMutationID = try MutationIDV1(rawValue: Harness.id(101))
+        let first = try AuthoritySourceReleaseV1(
+            releaseID: Harness.id(102), workspaceID: workspaceID, sourceID: Harness.id(103),
+            sourceType: .ownerPolicy, designation: "Owner policy", editionOrRevision: "1",
+            retrievedAt: Date(timeIntervalSince1970: 1_800_001_000),
+            licenseStorageDisposition: .notStored,
+            recordedAt: Date(timeIntervalSince1970: 1_800_001_000),
+            mutationID: firstMutationID
+        )
+        let append = try AuthorityCriterionMutationV1(
+            workspaceID: workspaceID, expectedRevision: 0, mutationID: firstMutationID,
+            postImage: .appendAuthoritySource(first)
+        )
+        let firstOutcome = try writer.execute(.applyAuthorityCriterion(append), mutationID: firstMutationID)
+        let firstIdentity = try append.affectedIdentity
+        XCTAssertEqual(firstOutcome.after.entityRevisions.first { $0.identity == firstIdentity }?.revision, 1)
+
+        let secondMutationID = try MutationIDV1(rawValue: Harness.id(104))
+        let second = try AuthoritySourceReleaseV1(
+            releaseID: Harness.id(105), workspaceID: workspaceID, sourceID: first.sourceID,
+            sourceType: .ownerPolicy, designation: "Owner policy", editionOrRevision: "2",
+            retrievedAt: Date(timeIntervalSince1970: 1_800_001_100),
+            licenseStorageDisposition: .notStored, supersedesReleaseID: first.releaseID,
+            recordedAt: Date(timeIntervalSince1970: 1_800_001_100), revision: 2,
+            mutationID: secondMutationID
+        )
+        let supersede = try AuthorityCriterionMutationV1(
+            workspaceID: workspaceID, expectedRevision: 1, mutationID: secondMutationID,
+            postImage: .supersedeAuthoritySource(second)
+        )
+        XCTAssertEqual(try supersede.concurrencyIdentity, firstIdentity)
+        let secondIdentity = try supersede.affectedIdentity
+        XCTAssertNotEqual(secondIdentity, firstIdentity)
+        let secondOutcome = try writer.execute(.applyAuthorityCriterion(supersede), mutationID: secondMutationID)
+        XCTAssertEqual(secondOutcome.before.entityRevisions.first { $0.identity == firstIdentity }?.revision, 1)
+        XCTAssertEqual(
+            secondOutcome.after.entityRevisions.first { $0.identity == secondIdentity }?.revision,
+            2
+        )
+        let receipt = try XCTUnwrap(writer.durableReceipt(mutationID: secondMutationID))
+        let typed = try AuthorityCriterionMutationReceiptV1(mutation: supersede, mutationReceipt: receipt)
+        XCTAssertEqual(typed.predecessorIdentity, firstIdentity)
+        XCTAssertEqual(typed.concurrencyIdentity, firstIdentity)
+        XCTAssertEqual(typed.affectedIdentity, secondIdentity)
+        XCTAssertEqual(try session.modelContext.fetchCount(FetchDescriptor<AuthoritySourceReleaseRow>()), 2)
+    }
+
     private static func makeTemporaryApplicationSupportURL() throws -> URL {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(
             "V10_01WorkspaceWriterTests-\(UUID().uuidString)",

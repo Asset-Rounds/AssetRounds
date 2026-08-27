@@ -201,7 +201,7 @@ struct SnapshotValidatorV1 {
         let reportID = canonicalID(report.id)
         let expectedSnapshotPath = "snapshots/\(reportID).json"
         guard report.schemaVersion == 1,
-              report.snapshotSchemaVersion == 1 || report.snapshotSchemaVersion == 2,
+              (1...3).contains(report.snapshotSchemaVersion),
               report.snapshotRelativePath == expectedSnapshotPath,
               isLowercaseSHA256(report.snapshotSHA256),
               report.pdfState == ReportPDFState.pending.rawValue,
@@ -226,6 +226,7 @@ struct SnapshotValidatorV1 {
         }
         let snapshot = try ReportSnapshotEncoderV1().decode(snapshotData)
         try validateRequirementAssurance(snapshot)
+        try validateAuthorityCriterion(snapshot)
         guard try ReportSnapshotEncoderV1().encode(snapshot).data == snapshotData,
               snapshot.snapshotSchemaVersion == report.snapshotSchemaVersion,
               snapshot.reportID == report.id,
@@ -462,6 +463,19 @@ struct SnapshotValidatorV1 {
         guard let assurance = snapshot.requirementAssurance else { return }
         do {
             try assurance.validate()
+        } catch {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+    }
+
+    private func validateAuthorityCriterion(_ snapshot: ReportSnapshotV1) throws {
+        guard let authority = snapshot.authorityCriterion else { return }
+        do {
+            try authority.validate()
+            if case .live(let dependencies, _) = lifecycleRoute,
+               authority.workspaceID.rawValue != dependencies.workspaceID {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
         } catch {
             throw SnapshotValidationErrorV1.invalidAuthority
         }

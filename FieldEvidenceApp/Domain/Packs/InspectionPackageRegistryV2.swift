@@ -177,3 +177,31 @@ enum AssetSemanticPackageCompatibilityRegistryV1 {
         }
     }
 }
+
+enum AuthorityCriterionPackageCompatibilityRegistryV1 {
+    static func validate(
+        _ binding: InspectionPackageAuthorityCriterionBindingV1,
+        package: InspectionPackageV2
+    ) throws {
+        try binding.validate()
+        try package.validate()
+        guard binding.packageRelease.packageID == package.packageID,
+              binding.packageRelease.schemaVersion == package.schemaVersion,
+              binding.packageRelease.contentVersion == package.contentVersion else {
+            throw InspectionPackageFailureV2.incompatiblePackage
+        }
+    }
+
+    static func validate(
+        _ bindings: [InspectionPackageAuthorityCriterionBindingV1],
+        registry: InspectionPackageRegistryV2
+    ) throws {
+        guard bindings.count <= InspectionPackageRegistrySchemaV2.maximumPackageCount,
+              Set(bindings.map(\.packageRelease)).count == bindings.count else {
+            throw InspectionPackageFailureV2.duplicateDeclaration
+        }
+        for binding in bindings {
+            try validate(binding, package: registry.package(id: binding.packageRelease.packageID))
+        }
+    }
+}

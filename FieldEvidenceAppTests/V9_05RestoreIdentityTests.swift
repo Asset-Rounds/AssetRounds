@@ -5,6 +5,25 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class V9_05RestoreIdentityTests: XCTestCase {
+    func testV23P03C40CloneForkRebindPreservesIdentityAndRecomputesDigest() throws {
+        let source = try C40BackupLifecycleTestValues.source(workspace: id(40_000))
+        for destinationID in [id(40_001), id(40_002)] {
+            let rebound = try source.rebound(to: WorkspaceID(rawValue: destinationID))
+            XCTAssertEqual(rebound.releaseID, source.releaseID)
+            XCTAssertEqual(rebound.sourceID, source.sourceID)
+            XCTAssertEqual(rebound.revision, source.revision)
+            XCTAssertEqual(rebound.workspaceID.rawValue, destinationID)
+            XCTAssertNotEqual(rebound.releaseSHA256, source.releaseSHA256)
+            XCTAssertEqual(
+                try AuthorityCriterionCanonicalCodecV1.decode(
+                    AuthoritySourceReleaseV1.self,
+                    from: AuthorityCriterionCanonicalCodecV1.encode(rebound)
+                ),
+                rebound
+            )
+        }
+    }
+
     func testV23P03C39RestoreRebindUsesTypedSemanticReleaseIdentity() throws {
         let source = AssetSemanticCompatibilityPolicyV1.exactReleaseOnly
         let bytes = try AssetSemanticCanonicalCodecV1.encode(source)
@@ -532,6 +551,51 @@ final class V9_05RestoreIdentityTests: XCTestCase {
         XCTAssertTrue(restoreSource.contains("PartyAccountabilitySnapshotCodecV1.decode"))
         XCTAssertFalse(restoreSource.contains("identityVerified = true"))
         XCTAssertFalse(restoreSource.contains("legalSignature = true"))
+    }
+}
+
+enum C40BackupLifecycleTestValues {
+    static func id(_ value: Int) -> UUID {
+        UUID(uuidString: String(format: "00000000-0000-0000-0000-%012x", value))!
+    }
+
+    static func source(
+        workspace: UUID = id(90_000),
+        releaseID: UUID = id(90_001),
+        supersedes: UUID? = nil,
+        revision: UInt64 = 1
+    ) throws -> AuthoritySourceReleaseV1 {
+        try AuthoritySourceReleaseV1(
+            releaseID: releaseID,
+            workspaceID: WorkspaceID(rawValue: workspace),
+            sourceID: id(90_002),
+            sourceType: .adoptedRule,
+            designation: "Recorded authority source",
+            editionOrRevision: "2026",
+            retrievedAt: Date(timeIntervalSince1970: 1_788_000_000),
+            licenseStorageDisposition: .metadataAndLocatorOnly,
+            supersedesReleaseID: supersedes,
+            recordedAt: Date(timeIntervalSince1970: 1_788_000_001),
+            revision: revision,
+            mutationID: MutationIDV1(rawValue: id(90_003))
+        )
+    }
+
+    static func record(_ value: AuthoritySourceReleaseV1) throws -> V11BackupAuthorityCriterionRecordV1 {
+        .init(
+            kind: .authoritySourceRelease,
+            id: value.releaseID,
+            workspaceID: value.workspaceID.rawValue,
+            canonicalData: try AuthorityCriterionCanonicalCodecV1.encode(value)
+        )
+    }
+
+    static func records(_ values: [AuthoritySourceReleaseV1]) throws -> V4BackupRecordsV1 {
+        V4BackupRecordsV1(
+            authorityCriterion: try values.map(record).sorted { $0.id.uuidString < $1.id.uuidString },
+            assets: [], evidenceFiles: [], issues: [], packets: [], recordsSchemaVersion: 10,
+            reports: [], sites: [], workflowRecords: []
+        )
     }
 }
 

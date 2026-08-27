@@ -1413,3 +1413,253 @@ enum CompletedActivitySnapshotCanonicalCodecV4 {
         return value
     }
 }
+
+/// Frozen C40 authority/criterion facts captured at completion. This aggregate
+/// preserves exact historic records; presentation layers omit licensed content
+/// references and raw locators.
+struct CompletedAuthorityCriterionSnapshotV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let workspaceID: WorkspaceID
+    let aggregate: AuthorityCriterionAggregateV1
+    let snapshotSHA256: String
+
+    init(workspaceID: WorkspaceID, aggregate: AuthorityCriterionAggregateV1) throws {
+        schemaVersion = Self.schemaVersion
+        self.workspaceID = workspaceID
+        self.aggregate = Self.canonicalized(aggregate)
+        snapshotSHA256 = try WorkspaceMutationCanonicalV1.sha256(Basis(
+            schemaVersion: Self.schemaVersion, workspaceID: workspaceID,
+            aggregate: self.aggregate
+        ))
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try AuthorityCriterionRegistryV1.validate(aggregate, workspaceID: workspaceID)
+        for value in aggregate.severityMappingReleases {
+            guard value.workspaceID == workspaceID else { throw SnapshotProjectionFailureV1.wrongWorkspace }
+        }
+        let sources = Dictionary(uniqueKeysWithValues: aggregate.sourceReleases.map { ($0.releaseID, $0) })
+        let bases = Dictionary(uniqueKeysWithValues: aggregate.basisBindings.map { ($0.bindingID, $0) })
+        let applicability = Dictionary(uniqueKeysWithValues: aggregate.applicabilityContexts.map { ($0.snapshotID, $0) })
+        let scopes = Dictionary(uniqueKeysWithValues: aggregate.assessmentScopes.map { ($0.snapshotID, $0) })
+        let scales = Dictionary(uniqueKeysWithValues: aggregate.severityScaleReleases.map { ($0.releaseID, $0) })
+        let protocols = Dictionary(uniqueKeysWithValues: aggregate.measurementProtocolReleases.map { ($0.releaseID, $0) })
+        let evaluators = Dictionary(uniqueKeysWithValues: aggregate.evaluatorDescriptors.map { ($0.descriptorID, $0) })
+        guard aggregate.basisBindings.allSatisfy({ sources[$0.authorityReleaseID] != nil }),
+              aggregate.applicabilityContexts.allSatisfy({ context in
+                  context.basisBindings.allSatisfy {
+                      sources[$0.authorityReleaseID] != nil && bases[$0.bindingID] == $0
+                  }
+              }),
+              aggregate.assessmentScopes.allSatisfy({ scope in
+                  guard let context = applicability[scope.applicabilityContextID] else { return false }
+                  return context.workSubjectScope == scope.workSubjectScope
+              }),
+              aggregate.classificationBindings.allSatisfy({ value in
+                  guard let scope = scopes[value.assessmentScopeID],
+                        applicability[value.applicabilityContextID] != nil,
+                        scope.applicabilityContextID == value.applicabilityContextID,
+                        scope.includedCriterionIDs.contains(value.criterionID) else { return false }
+                  guard let releaseID = value.severityScaleReleaseID,
+                        let levelID = value.severityLevelID else { return true }
+                  return scales[releaseID]?.levels.contains(where: { $0.levelID == levelID }) == true
+              }),
+              aggregate.measurementProtocolReleases.allSatisfy({ evaluators[$0.evaluatorDescriptorID] != nil }),
+              aggregate.derivedFacts.allSatisfy({ value in
+                  protocols[value.protocolReleaseID]?.evaluatorDescriptorID == value.evaluatorDescriptorID
+                      && evaluators[value.evaluatorDescriptorID] != nil
+              }) else { throw SnapshotProjectionFailureV1.missingBinding }
+        let expected = try WorkspaceMutationCanonicalV1.sha256(Basis(
+            schemaVersion: schemaVersion, workspaceID: workspaceID, aggregate: aggregate
+        ))
+        guard snapshotSHA256 == expected else { throw SnapshotProjectionFailureV1.digestMismatch }
+    }
+
+    private static func canonicalized(_ value: AuthorityCriterionAggregateV1) -> AuthorityCriterionAggregateV1 {
+        AuthorityCriterionAggregateV1(
+            sourceReleases: value.sourceReleases.sorted { $0.releaseID.uuidString < $1.releaseID.uuidString },
+            basisBindings: value.basisBindings.sorted { $0.bindingID.uuidString < $1.bindingID.uuidString },
+            applicabilityContexts: value.applicabilityContexts.sorted { $0.snapshotID.uuidString < $1.snapshotID.uuidString },
+            assessmentScopes: value.assessmentScopes.sorted { $0.snapshotID.uuidString < $1.snapshotID.uuidString },
+            severityScaleReleases: value.severityScaleReleases.sorted { $0.releaseID.uuidString < $1.releaseID.uuidString },
+            severityMappingReleases: value.severityMappingReleases.sorted { $0.releaseID.uuidString < $1.releaseID.uuidString },
+            classificationBindings: value.classificationBindings.sorted { $0.bindingID.uuidString < $1.bindingID.uuidString },
+            measurementProtocolReleases: value.measurementProtocolReleases.sorted { $0.releaseID.uuidString < $1.releaseID.uuidString },
+            evaluatorDescriptors: value.evaluatorDescriptors.sorted { $0.descriptorID.uuidString < $1.descriptorID.uuidString },
+            derivedFacts: value.derivedFacts.sorted { $0.provenanceID.uuidString < $1.provenanceID.uuidString }
+        )
+    }
+
+    private struct Basis: Codable {
+        let schemaVersion: Int
+        let workspaceID: WorkspaceID
+        let aggregate: AuthorityCriterionAggregateV1
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, workspaceID, aggregate, snapshotSHA256
+    }
+
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(
+            decoder, allowed: Set(CodingKeys.allCases.map(\.rawValue))
+        )
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        guard try values.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        let rebuilt = try Self(
+            workspaceID: values.decode(WorkspaceID.self, forKey: .workspaceID),
+            aggregate: values.decode(AuthorityCriterionAggregateV1.self, forKey: .aggregate)
+        )
+        guard try values.decode(String.self, forKey: .snapshotSHA256) == rebuilt.snapshotSHA256 else {
+            throw SnapshotProjectionFailureV1.digestMismatch
+        }
+        self = rebuilt
+    }
+}
+
+struct CompletedActivitySnapshotPayloadV5: Codable, Equatable, Sendable {
+    static let schemaVersion = 5
+    let schemaVersion: Int
+    let activity: CompletedActivitySnapshotPayloadV4
+    let authorityCriterion: CompletedAuthorityCriterionSnapshotV1
+
+    init(activity: CompletedActivitySnapshotPayloadV4,
+         authorityCriterion: CompletedAuthorityCriterionSnapshotV1) throws {
+        schemaVersion = Self.schemaVersion
+        self.activity = activity
+        self.authorityCriterion = authorityCriterion
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion else { throw SnapshotProjectionFailureV1.incompatibleVersion }
+        try activity.validate()
+        try authorityCriterion.validate()
+        guard authorityCriterion.workspaceID.rawValue.uuidString.lowercased()
+                == activity.activity.activity.workspaceID.lowercased() else {
+            throw SnapshotProjectionFailureV1.wrongWorkspace
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, activity, authorityCriterion
+    }
+
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(
+            decoder, allowed: Set(CodingKeys.allCases.map(\.rawValue))
+        )
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        guard try values.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try self.init(
+            activity: values.decode(CompletedActivitySnapshotPayloadV4.self, forKey: .activity),
+            authorityCriterion: values.decode(
+                CompletedAuthorityCriterionSnapshotV1.self, forKey: .authorityCriterion
+            )
+        )
+    }
+}
+
+struct CompletedActivitySnapshotV5: Codable, Equatable, Identifiable, Sendable {
+    static let schemaVersion = 5
+    let schemaVersion: Int
+    let payload: CompletedActivitySnapshotPayloadV5
+    let snapshotSHA256: String
+    var id: String { "\(payload.activity.activity.activity.activity.workspaceID)|\(payload.activity.activity.activity.activity.snapshotID)" }
+
+    private init(payload: CompletedActivitySnapshotPayloadV5, snapshotSHA256: String) throws {
+        schemaVersion = Self.schemaVersion; self.payload = payload; self.snapshotSHA256 = snapshotSHA256
+        try validate()
+    }
+
+    static func freezeOriginal(_ payload: CompletedActivitySnapshotPayloadV5) throws -> Self {
+        let activity = payload.activity.activity.activity.activity
+        guard activity.snapshotRevision == 1, activity.supersedesSnapshotID == nil,
+              activity.supersededSnapshotSHA256 == nil else { throw SnapshotProjectionFailureV1.historyRewrite }
+        return try Self(payload: payload, snapshotSHA256: KernelCanonicalHashV1.sha256(
+            try CompletedActivitySnapshotCanonicalCodecV5.encodePayload(payload)
+        ))
+    }
+
+    static func freezeAmendment(_ payload: CompletedActivitySnapshotPayloadV5,
+                                superseding prior: Self) throws -> Self {
+        let value = try Self(payload: payload, snapshotSHA256: KernelCanonicalHashV1.sha256(
+            try CompletedActivitySnapshotCanonicalCodecV5.encodePayload(payload)
+        ))
+        let current = payload.activity.activity.activity.activity
+        let previous = prior.payload.activity.activity.activity.activity
+        let (next, overflow) = previous.snapshotRevision.addingReportingOverflow(1)
+        guard !overflow, current.workspaceID == previous.workspaceID,
+              current.snapshotRevision == next, current.supersedesSnapshotID == previous.snapshotID,
+              current.supersededSnapshotSHA256 == prior.snapshotSHA256,
+              current.sourceActivityID == previous.sourceActivityID,
+              current.reportID == previous.reportID, current.completedAt == previous.completedAt,
+              current.sourceRevision > previous.sourceRevision else { throw SnapshotProjectionFailureV1.historyRewrite }
+        return value
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion, KernelCanonicalHashV1.validSHA256(snapshotSHA256) else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try payload.validate()
+        guard snapshotSHA256 == KernelCanonicalHashV1.sha256(
+            try CompletedActivitySnapshotCanonicalCodecV5.encodePayload(payload)
+        ) else { throw SnapshotProjectionFailureV1.digestMismatch }
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, payload, snapshotSHA256
+    }
+
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(
+            decoder, allowed: Set(CodingKeys.allCases.map(\.rawValue))
+        )
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        guard try values.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try self.init(
+            payload: values.decode(CompletedActivitySnapshotPayloadV5.self, forKey: .payload),
+            snapshotSHA256: values.decode(String.self, forKey: .snapshotSHA256)
+        )
+    }
+}
+
+enum CompletedActivitySnapshotCanonicalCodecV5 {
+    private static func encoder() -> JSONEncoder {
+        let value = JSONEncoder(); value.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]; return value
+    }
+    static func encodePayload(_ payload: CompletedActivitySnapshotPayloadV5) throws -> Data {
+        try payload.validate(); let data = try encoder().encode(payload)
+        guard !data.isEmpty, data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        return data
+    }
+    static func encode(_ snapshot: CompletedActivitySnapshotV5) throws -> Data {
+        try snapshot.validate(); let data = try encoder().encode(snapshot)
+        guard !data.isEmpty, data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        return data
+    }
+    static func decode(_ data: Data) throws -> CompletedActivitySnapshotV5 {
+        guard !data.isEmpty, data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        let value = try JSONDecoder().decode(CompletedActivitySnapshotV5.self, from: data)
+        try value.validate(); guard try encode(value) == data else { throw SnapshotProjectionFailureV1.digestMismatch }
+        return value
+    }
+}

@@ -4,6 +4,37 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class V10_03ReplicationConflictRegistryTests: XCTestCase {
+    func testV23P03C40SupersessionCarriesDistinctReplicationAndConcurrencyIdentities() throws {
+        let workspaceID = WorkspaceID(rawValue: Self.id(70))
+        let mutationID = try MutationIDV1(rawValue: Self.id(71))
+        let predecessorID = Self.id(72)
+        let value = try AuthoritySourceReleaseV1(
+            releaseID: Self.id(73), workspaceID: workspaceID, sourceID: Self.id(74),
+            sourceType: .ownerPolicy, designation: "Replicated policy", editionOrRevision: "2",
+            retrievedAt: Date(timeIntervalSince1970: 1_735_689_600),
+            licenseStorageDisposition: .notStored, supersedesReleaseID: predecessorID,
+            recordedAt: Date(timeIntervalSince1970: 1_735_689_600), revision: 2,
+            mutationID: mutationID
+        )
+        let mutation = try AuthorityCriterionMutationV1(
+            workspaceID: workspaceID, expectedRevision: 1, mutationID: mutationID,
+            postImage: .supersedeAuthoritySource(value)
+        )
+        let postImage = try mutation.postImage.mutationPostImage
+        XCTAssertEqual(try postImage.identity, try mutation.affectedIdentity)
+        XCTAssertEqual(try postImage.concurrencyIdentity, try mutation.concurrencyIdentity)
+        XCTAssertNotEqual(try postImage.identity, try postImage.concurrencyIdentity)
+
+        let catalog = try CurrentSyncClassificationCatalogV1.current
+        let registration = try catalog.registration(for: .init(
+            category: .persistentModel, stableName: "AuthoritySourceReleaseRow"
+        ))
+        XCTAssertEqual(registration.classification, .replicated)
+        XCTAssertEqual(registration.replicationPolicy.authority, .workspaceWriter)
+        XCTAssertEqual(registration.replicationPolicy.bootstrap, .immutableHistory)
+        XCTAssertEqual(registration.conflictPolicy.rule, .stableIDAppendUnion)
+    }
+
     func testV23P03C39SuccessorConflictIsRejectedBeforeReplication() throws {
         let workspaceID = WorkspaceID()
         let mutationID = try MutationIDV1(rawValue: UUID())

@@ -44,6 +44,15 @@ final class BackupExportService {
     private static let checkpointBasisExportedAt = Date(timeIntervalSince1970: 0)
 
     private struct Rows {
+        let authoritySourceReleases: [AuthoritySourceReleaseRow]
+        let requirementBasisBindings: [RequirementBasisBindingRow]
+        let applicabilityContextSnapshots: [ApplicabilityContextSnapshotRow]
+        let assessmentScopeSnapshots: [AssessmentScopeSnapshotRow]
+        let severityScaleReleases: [SeverityScaleReleaseRow]
+        let findingClassificationBindings: [FindingClassificationBindingRow]
+        let measurementProtocolReleases: [MeasurementProtocolReleaseRow]
+        let derivedFactEvaluatorDescriptors: [DerivedFactEvaluatorDescriptorRow]
+        let derivedFactProvenances: [DerivedFactProvenanceRow]
         let assetCompositionEdges: [AssetCompositionEdgeRow]
         let assetCompositionEvents: [AssetCompositionEventRow]
         let assetPlacementEvents: [AssetPlacementEventRow]
@@ -660,7 +669,7 @@ private extension BackupExportService {
         do {
             recordsData = try BackupCanonicalEncoderV1().encodeRecords(records).data
             let semanticRecords = V4BackupRecordsV1(
-                assetSemantics: records.assetSemantics,
+                authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
                 assetCompositionEdges: records.assetCompositionEdges,
                 assetCompositionEvents: records.assetCompositionEvents,
                 assetPlacementEvents: records.assetPlacementEvents,
@@ -885,9 +894,9 @@ private extension BackupExportService {
             source: .init(
                 appBuild: appBuild(),
                 appVersion: appVersion(),
-                persistentSchemaVersion: 10,
+                persistentSchemaVersion: 11,
                 replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: 9,
+                recordsSchemaVersion: 10,
                 sourceGenerationID: generationID,
                 workspaceID: sourceIdentity.workspaceID.rawValue
             )
@@ -1402,6 +1411,15 @@ private extension BackupExportService {
     private func fetchRows() throws -> Rows {
         do {
             return Rows(
+                authoritySourceReleases: try modelContext.fetch(FetchDescriptor<AuthoritySourceReleaseRow>()),
+                requirementBasisBindings: try modelContext.fetch(FetchDescriptor<RequirementBasisBindingRow>()),
+                applicabilityContextSnapshots: try modelContext.fetch(FetchDescriptor<ApplicabilityContextSnapshotRow>()),
+                assessmentScopeSnapshots: try modelContext.fetch(FetchDescriptor<AssessmentScopeSnapshotRow>()),
+                severityScaleReleases: try modelContext.fetch(FetchDescriptor<SeverityScaleReleaseRow>()),
+                findingClassificationBindings: try modelContext.fetch(FetchDescriptor<FindingClassificationBindingRow>()),
+                measurementProtocolReleases: try modelContext.fetch(FetchDescriptor<MeasurementProtocolReleaseRow>()),
+                derivedFactEvaluatorDescriptors: try modelContext.fetch(FetchDescriptor<DerivedFactEvaluatorDescriptorRow>()),
+                derivedFactProvenances: try modelContext.fetch(FetchDescriptor<DerivedFactProvenanceRow>()),
                 assetCompositionEdges: try modelContext.fetch(FetchDescriptor<AssetCompositionEdgeRow>()),
                 assetCompositionEvents: try modelContext.fetch(FetchDescriptor<AssetCompositionEventRow>()),
                 assetPlacementEvents: try modelContext.fetch(FetchDescriptor<AssetPlacementEventRow>()),
@@ -1871,7 +1889,9 @@ private extension BackupExportService {
             return .init(id: $0.id, canonicalData: $0.canonicalData)
         }.sorted { $0.id.uuidString < $1.id.uuidString } }
         let assetSemantics = mutationHistory == nil ? [] : try assetSemanticRecords(rows)
+        let authorityCriterion = mutationHistory == nil ? [] : try authorityCriterionRecords(rows)
         return V4BackupRecordsV1(
+            authorityCriterion: authorityCriterion,
             assetSemantics: assetSemantics,
             assetCompositionEdges: assetCompositionEdges,
             assetCompositionEvents: assetCompositionEvents,
@@ -1921,7 +1941,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : 9,
+                : 10,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -2040,6 +2060,22 @@ private extension BackupExportService {
             "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
                 < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
         }
+    }
+
+    private func authorityCriterionRecords(
+        _ rows: Rows
+    ) throws -> [V11BackupAuthorityCriterionRecordV1] {
+        var result: [V11BackupAuthorityCriterionRecordV1] = []
+        result += try rows.authoritySourceReleases.map { let v = try $0.value(); return .init(kind: .authoritySourceRelease, id: v.releaseID, workspaceID: v.workspaceID.rawValue, canonicalData: try AuthorityCriterionCanonicalCodecV1.encode(v)) }
+        result += try rows.requirementBasisBindings.map { let v = try $0.value(); return .init(kind: .requirementBasisBinding, id: v.bindingID, workspaceID: v.workspaceID.rawValue, canonicalData: try AuthorityCriterionCanonicalCodecV1.encode(v)) }
+        result += try rows.applicabilityContextSnapshots.map { let v = try $0.value(); return .init(kind: .applicabilityContextSnapshot, id: v.snapshotID, workspaceID: v.workspaceID.rawValue, canonicalData: try AuthorityCriterionCanonicalCodecV1.encode(v)) }
+        result += try rows.assessmentScopeSnapshots.map { let v = try $0.value(); return .init(kind: .assessmentScopeSnapshot, id: v.snapshotID, workspaceID: v.workspaceID.rawValue, canonicalData: try AuthorityCriterionCanonicalCodecV1.encode(v)) }
+        result += try rows.severityScaleReleases.map { let v = try $0.value(); return .init(kind: .severityScaleRelease, id: v.releaseID, workspaceID: v.workspaceID.rawValue, canonicalData: try AuthorityCriterionCanonicalCodecV1.encode(v)) }
+        result += try rows.findingClassificationBindings.map { let v = try $0.value(); return .init(kind: .findingClassificationBinding, id: v.bindingID, workspaceID: v.workspaceID.rawValue, canonicalData: try AuthorityCriterionCanonicalCodecV1.encode(v)) }
+        result += try rows.measurementProtocolReleases.map { let v = try $0.value(); return .init(kind: .measurementProtocolRelease, id: v.releaseID, workspaceID: v.workspaceID.rawValue, canonicalData: try AuthorityCriterionCanonicalCodecV1.encode(v)) }
+        result += try rows.derivedFactEvaluatorDescriptors.map { let v = try $0.value(); return .init(kind: .derivedFactEvaluatorDescriptor, id: v.descriptorID, workspaceID: v.workspaceID.rawValue, canonicalData: try AuthorityCriterionCanonicalCodecV1.encode(v)) }
+        result += try rows.derivedFactProvenances.map { let v = try $0.value(); return .init(kind: .derivedFactProvenance, id: v.provenanceID, workspaceID: v.workspaceID.rawValue, canonicalData: try AuthorityCriterionCanonicalCodecV1.encode(v)) }
+        return result.sorted { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)" }
     }
 
     private func validateAssetSemanticRows(

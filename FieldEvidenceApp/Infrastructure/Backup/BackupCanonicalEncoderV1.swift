@@ -103,6 +103,11 @@ struct BackupCanonicalEncoderV1: Sendable {
                 try records.assetSemantics.map(Self.assetSemanticRecord)
             )
         }
+        if records.recordsSchemaVersion >= 10 {
+            fields["authorityCriterion"] = .array(
+                try records.authorityCriterion.map(Self.authorityCriterionRecord)
+            )
+        }
         if let deletionLedger = records.deletionLedger {
             fields["deletionLedger"] = Self.deletionLedger(deletionLedger)
         }
@@ -137,7 +142,7 @@ struct BackupCanonicalEncoderV1: Sendable {
 
 private extension BackupCanonicalEncoderV1 {
     static func validSemantic(_ records: V4BackupRecordsV1) -> Bool {
-        guard (4...9).contains(records.recordsSchemaVersion),
+        guard (4...10).contains(records.recordsSchemaVersion),
               records.mutationHistory == nil,
               let ledger = records.deletionLedger,
               (try? ledger.validate()) != nil else {
@@ -149,6 +154,7 @@ private extension BackupCanonicalEncoderV1 {
             && validRequirementAssurance(records)
             && validPartyAccountability(records)
             && validAssetSemantics(records)
+            && validAuthorityCriterion(records)
             && sortedUniqueIDs(records.assets.map(\.id))
             && records.assets.allSatisfy({ $0.schemaVersion == 1 })
             && sortedUniqueIDs(records.evidenceFiles.map(\.id))
@@ -177,9 +183,9 @@ private extension BackupCanonicalEncoderV1 {
         case (2, let ledger?, nil):
             ledgerIsValid = (try? ledger.validate()) != nil
         case (3, let ledger?, let history?), (4, let ledger?, let history?),
-             (5, let ledger?, let history?), (6, let ledger?, let history?),
-             (7, let ledger?, let history?), (8, let ledger?, let history?),
-             (9, let ledger?, let history?):
+            (5, let ledger?, let history?), (6, let ledger?, let history?),
+            (7, let ledger?, let history?), (8, let ledger?, let history?),
+             (9, let ledger?, let history?), (10, let ledger?, let history?):
             ledgerIsValid = (try? ledger.validate()) != nil
                 && (try? MutationJournalStoreV1.validateImportedSnapshot(history)) != nil
                 && validMutationHistoryOrder(history)
@@ -193,6 +199,7 @@ private extension BackupCanonicalEncoderV1 {
             && validRequirementAssurance(records)
             && validPartyAccountability(records)
             && validAssetSemantics(records)
+            && validAuthorityCriterion(records)
             && sortedUniqueIDs(records.assets.map(\.id))
             && records.assets.allSatisfy({ $0.schemaVersion == 1 })
             && sortedUniqueIDs(records.evidenceFiles.map(\.id))
@@ -215,7 +222,7 @@ private extension BackupCanonicalEncoderV1 {
                 $0.observationBasisV1Data == nil && $0.temporalContextV1Data == nil
             }
         }
-        guard (4...9).contains(records.recordsSchemaVersion) else { return false }
+        guard (4...10).contains(records.recordsSchemaVersion) else { return false }
         return records.workflowRecords.allSatisfy { record in
             guard let basisData = record.observationBasisV1Data,
                   let temporalData = record.temporalContextV1Data else { return false }
@@ -369,7 +376,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validRequirementAssurance(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 7 { return records.requirementAssurance.isEmpty }
-        guard (7...9).contains(records.recordsSchemaVersion),
+        guard (7...10).contains(records.recordsSchemaVersion),
               records.requirementAssurance.map(\.workflowRecordID.uuidString)
                 == records.requirementAssurance.map(\.workflowRecordID.uuidString).sorted(),
               Set(records.requirementAssurance.map(\.workflowRecordID)).count
@@ -383,7 +390,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validPartyAccountability(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 8 { return records.partyAccountability.isEmpty }
-        guard (8...9).contains(records.recordsSchemaVersion),
+        guard (8...10).contains(records.recordsSchemaVersion),
               records.partyAccountability.map({ "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" })
                 == records.partyAccountability.map({ "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }).sorted(),
               Set(records.partyAccountability.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }).count
@@ -398,7 +405,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validAssetSemantics(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 9 { return records.assetSemantics.isEmpty }
-        guard records.recordsSchemaVersion == 9 else { return false }
+        guard (9...10).contains(records.recordsSchemaVersion) else { return false }
         let keys = records.assetSemantics.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
         return keys == keys.sorted() && Set(keys).count == keys.count
@@ -406,6 +413,29 @@ private extension BackupCanonicalEncoderV1 {
                 $0.id != zero && $0.workspaceID != zero && $0.revision > 0
                     && $0.revision <= UInt64(Int.max) && !$0.canonicalData.isEmpty
             }
+    }
+
+    static func validAuthorityCriterion(_ records: V4BackupRecordsV1) -> Bool {
+        if records.recordsSchemaVersion < 10 { return records.authorityCriterion.isEmpty }
+        guard records.recordsSchemaVersion == 10 else { return false }
+        let keys = records.authorityCriterion.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
+        let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
+        return keys == keys.sorted() && Set(keys).count == keys.count
+            && records.authorityCriterion.allSatisfy {
+                $0.id != zero && $0.workspaceID != zero && !$0.canonicalData.isEmpty
+            }
+    }
+
+    static func authorityCriterionRecord(
+        _ value: V11BackupAuthorityCriterionRecordV1
+    ) throws -> CanonicalJSONValueV1 {
+        guard !value.canonicalData.isEmpty else { throw BackupCanonicalEncodingErrorV1.invalidRecords }
+        return .object([
+            "canonicalData": .string(value.canonicalData.base64EncodedString()),
+            "id": CanonicalJSONV1.uuid(value.id),
+            "kind": .string(value.kind.rawValue),
+            "workspaceID": CanonicalJSONV1.uuid(value.workspaceID),
+        ])
     }
 
     static func assetSemanticRecord(

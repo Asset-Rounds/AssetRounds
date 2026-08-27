@@ -69,6 +69,7 @@ enum RequirementAssuranceSnapshotCanonicalCodecV1 {
 }
 
 struct ReportSnapshotEncoderV1: Sendable {
+    static let authorityCriterionWriterStatus = "PROVISIONAL_READ_ONLY_PRE_S10"
     static let requirementAssuranceCodecStatus =
         RequirementAssuranceSnapshotCanonicalCodecV1.status
 
@@ -123,6 +124,18 @@ struct ReportSnapshotEncoderV1: Sendable {
         catch { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
     }
 
+    func encode(_ snapshot: CompletedActivitySnapshotV5) throws -> EncodedReportSnapshotV1 {
+        do {
+            let data = try CompletedActivitySnapshotCanonicalCodecV5.encode(snapshot)
+            return EncodedReportSnapshotV1(data: data, sha256: KernelCanonicalHashV1.sha256(data))
+        } catch { throw ReportSnapshotEncodingErrorV1.invalidSnapshot }
+    }
+
+    func decodeCompletedActivityV5(_ data: Data) throws -> CompletedActivitySnapshotV5 {
+        do { return try CompletedActivitySnapshotCanonicalCodecV5.decode(data) }
+        catch { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
+    }
+
     func encode(
         _ snapshot: RequirementAssuranceSnapshotV1
     ) throws -> EncodedReportSnapshotV1 {
@@ -140,6 +153,13 @@ struct ReportSnapshotEncoderV1: Sendable {
     }
 
     func encode(_ snapshot: ReportSnapshotV1) throws -> EncodedReportSnapshotV1 {
+        guard snapshot.snapshotSchemaVersion < 3 else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        return try canonicalEncoding(snapshot)
+    }
+
+    private func canonicalEncoding(_ snapshot: ReportSnapshotV1) throws -> EncodedReportSnapshotV1 {
         guard Self.isValid(snapshot) else {
             throw ReportSnapshotEncodingErrorV1.invalidSnapshot
         }
@@ -162,7 +182,7 @@ struct ReportSnapshotEncoderV1: Sendable {
         }
 
         guard let snapshot = try? decoder.decode(ReportSnapshotV1.self, from: data),
-              let encoded = try? encode(snapshot),
+              let encoded = try? canonicalEncoding(snapshot),
               encoded.data == data
         else {
             throw ReportSnapshotEncodingErrorV1.noncanonicalData
@@ -185,7 +205,7 @@ struct ReportSnapshotEncoderV1: Sendable {
     }
 
     private static func isValid(_ snapshot: ReportSnapshotV1) -> Bool {
-        guard snapshot.snapshotSchemaVersion == 1 || snapshot.snapshotSchemaVersion == 2,
+        guard (1...3).contains(snapshot.snapshotSchemaVersion),
               snapshot.stage == "check" || snapshot.stage == "recheck",
               snapshot.pdfTemplate.id == "field.evidence.pdf.worklight.v1",
               snapshot.pdfTemplate.version == 1,
@@ -203,6 +223,10 @@ struct ReportSnapshotEncoderV1: Sendable {
               Set(snapshot.evidence.map(\.evidenceID)).count == snapshot.evidence.count,
               Set(snapshot.issues.map(\.issueID)).count == snapshot.issues.count
         else {
+            return false
+        }
+
+        guard (snapshot.snapshotSchemaVersion == 3) == (snapshot.authorityCriterion != nil) else {
             return false
         }
 
@@ -226,11 +250,14 @@ struct ReportSnapshotEncoderV1: Sendable {
                 return false
             }
         }
+        if let authorityCriterion = snapshot.authorityCriterion {
+            guard (try? authorityCriterion.validate()) != nil else { return false }
+        }
 
         guard validObservationAndTime(
             basis: snapshot.observationBasis,
             temporal: snapshot.temporalContext,
-            required: snapshot.snapshotSchemaVersion == 2
+            required: snapshot.snapshotSchemaVersion >= 2
         ) else { return false }
 
         return snapshot.history.allSatisfy {
@@ -240,7 +267,7 @@ struct ReportSnapshotEncoderV1: Sendable {
                 && validObservationAndTime(
                     basis: $0.observationBasis,
                     temporal: $0.temporalContext,
-                    required: snapshot.snapshotSchemaVersion == 2
+                    required: snapshot.snapshotSchemaVersion >= 2
                 )
         } && snapshot.issues.allSatisfy {
             $0.status == "open" || $0.status == "recheck_due" || $0.status == "resolved"
@@ -329,7 +356,7 @@ extension CanonicalJSONV1 {
             "stage": .string(value.stage),
             "timeContext": timeContext(value.timeContext),
         ]
-        if value.snapshotSchemaVersion == 2,
+        if value.snapshotSchemaVersion >= 2,
            let basis = value.observationBasis,
            let temporal = value.temporalContext {
             object["observationBasis"] = observationBasis(basis)
@@ -344,7 +371,27 @@ extension CanonicalJSONV1 {
         if let assetSemantics = value.assetSemantics {
             object["assetSemantics"] = Self.assetSemantics(assetSemantics)
         }
+        if let authorityCriterion = value.authorityCriterion {
+            object["authorityCriterion"] = Self.authorityCriterion(authorityCriterion)
+        }
         return .object(object)
+    }
+
+    private static func authorityCriterion(
+        _ value: CompletedAuthorityCriterionSnapshotV1
+    ) -> CanonicalJSONValueV1 {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        encoder.dateEncodingStrategy = .custom { date, encoder in
+            var container = encoder.singleValueContainer()
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            formatter.timeZone = TimeZone(secondsFromGMT: 0)
+            try container.encode(formatter.string(from: date))
+        }
+        guard let data = try? encoder.encode(value),
+              let object = try? JSONSerialization.jsonObject(with: data) else { return .null }
+        return canonicalValue(object)
     }
 
     /// C39 values are already validated and canonically encoded by their

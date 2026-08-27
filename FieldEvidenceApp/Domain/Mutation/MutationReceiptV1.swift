@@ -70,6 +70,15 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
     case actorSnapshot(id: UUID, revision: UInt64, semanticSHA256: String)
     case qualificationSnapshot(id: UUID, revision: UInt64, semanticSHA256: String)
     case signoffSnapshot(id: UUID, revision: UInt64, semanticSHA256: String)
+    case authoritySourceRelease(id: UUID, concurrencyIdentity: WorkspaceEntityIdentityV1, revision: UInt64, semanticSHA256: String)
+    case requirementBasisBinding(id: UUID, concurrencyIdentity: WorkspaceEntityIdentityV1, revision: UInt64, semanticSHA256: String)
+    case applicabilityContextSnapshot(id: UUID, concurrencyIdentity: WorkspaceEntityIdentityV1, revision: UInt64, semanticSHA256: String)
+    case assessmentScopeSnapshot(id: UUID, concurrencyIdentity: WorkspaceEntityIdentityV1, revision: UInt64, semanticSHA256: String)
+    case severityScaleRelease(id: UUID, concurrencyIdentity: WorkspaceEntityIdentityV1, revision: UInt64, semanticSHA256: String)
+    case findingClassificationBinding(id: UUID, concurrencyIdentity: WorkspaceEntityIdentityV1, revision: UInt64, semanticSHA256: String)
+    case measurementProtocolRelease(id: UUID, concurrencyIdentity: WorkspaceEntityIdentityV1, revision: UInt64, semanticSHA256: String)
+    case derivedFactEvaluatorDescriptor(id: UUID, concurrencyIdentity: WorkspaceEntityIdentityV1, revision: UInt64, semanticSHA256: String)
+    case derivedFactProvenance(id: UUID, concurrencyIdentity: WorkspaceEntityIdentityV1, revision: UInt64, semanticSHA256: String)
     case workflowRecord(id: UUID, revision: UInt64, semanticSHA256: String)
     case evidenceFile(id: UUID, revision: UInt64, semanticSHA256: String)
     case issue(id: UUID, revision: UInt64, semanticSHA256: String)
@@ -93,6 +102,15 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
             case let .actorSnapshot(id, _, _): return try .init(kind: .actorSnapshot, id: id)
             case let .qualificationSnapshot(id, _, _): return try .init(kind: .qualificationSnapshot, id: id)
             case let .signoffSnapshot(id, _, _): return try .init(kind: .signoffSnapshot, id: id)
+            case let .authoritySourceRelease(id, _, _, _): return try .init(kind: .authoritySourceRelease, id: id)
+            case let .requirementBasisBinding(id, _, _, _): return try .init(kind: .requirementBasisBinding, id: id)
+            case let .applicabilityContextSnapshot(id, _, _, _): return try .init(kind: .applicabilityContextSnapshot, id: id)
+            case let .assessmentScopeSnapshot(id, _, _, _): return try .init(kind: .assessmentScopeSnapshot, id: id)
+            case let .severityScaleRelease(id, _, _, _): return try .init(kind: .severityScaleRelease, id: id)
+            case let .findingClassificationBinding(id, _, _, _): return try .init(kind: .findingClassificationBinding, id: id)
+            case let .measurementProtocolRelease(id, _, _, _): return try .init(kind: .measurementProtocolRelease, id: id)
+            case let .derivedFactEvaluatorDescriptor(id, _, _, _): return try .init(kind: .derivedFactEvaluatorDescriptor, id: id)
+            case let .derivedFactProvenance(id, _, _, _): return try .init(kind: .derivedFactProvenance, id: id)
             case let .workflowRecord(id, _, _): return try .init(kind: .workflowRecord, id: id)
             case let .evidenceFile(id, _, _): return try .init(kind: .evidenceFile, id: id)
             case let .issue(id, _, _): return try .init(kind: .issue, id: id)
@@ -112,10 +130,42 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
              let .serviceParty(_, _, value), let .sitePartyRoleEvent(_, _, value),
              let .actorSnapshot(_, _, value), let .qualificationSnapshot(_, _, value),
              let .signoffSnapshot(_, _, value),
+             let .authoritySourceRelease(_, _, _, value), let .requirementBasisBinding(_, _, _, value),
+             let .applicabilityContextSnapshot(_, _, _, value), let .assessmentScopeSnapshot(_, _, _, value),
+             let .severityScaleRelease(_, _, _, value), let .findingClassificationBinding(_, _, _, value),
+             let .measurementProtocolRelease(_, _, _, value), let .derivedFactEvaluatorDescriptor(_, _, _, value),
+             let .derivedFactProvenance(_, _, _, value),
              let .workflowRecord(_, _, value),
              let .evidenceFile(_, _, value), let .issue(_, _, value), let .packet(_, _, value),
              let .report(_, _, value), let .deletionLedgerEntry(_, _, value),
              let .tombstone(_, _, value): return value
+        }
+    }
+
+    var concurrencyIdentity: WorkspaceEntityIdentityV1 {
+        get throws {
+            switch self {
+            case let .authoritySourceRelease(_, value, _, _):
+                guard value.kind == .authoritySourceRelease else { throw WorkspaceMutationFailureV1.invalidReceipt }; return value
+            case let .requirementBasisBinding(_, value, _, _):
+                guard value.kind == .requirementBasisBinding else { throw WorkspaceMutationFailureV1.invalidReceipt }; return value
+            case let .applicabilityContextSnapshot(_, value, _, _):
+                guard value.kind == .applicabilityContextSnapshot else { throw WorkspaceMutationFailureV1.invalidReceipt }; return value
+            case let .assessmentScopeSnapshot(_, value, _, _):
+                guard value.kind == .assessmentScopeSnapshot else { throw WorkspaceMutationFailureV1.invalidReceipt }; return value
+            case let .severityScaleRelease(_, value, _, _):
+                guard value.kind == .severityScaleRelease else { throw WorkspaceMutationFailureV1.invalidReceipt }; return value
+            case let .findingClassificationBinding(_, value, _, _):
+                guard value.kind == .findingClassificationBinding else { throw WorkspaceMutationFailureV1.invalidReceipt }; return value
+            case let .measurementProtocolRelease(_, value, _, _):
+                guard value.kind == .measurementProtocolRelease else { throw WorkspaceMutationFailureV1.invalidReceipt }; return value
+            case let .derivedFactEvaluatorDescriptor(_, value, _, _):
+                guard value.kind == .derivedFactEvaluatorDescriptor else { throw WorkspaceMutationFailureV1.invalidReceipt }; return value
+            case let .derivedFactProvenance(_, value, _, _):
+                guard value.kind == .derivedFactProvenance else { throw WorkspaceMutationFailureV1.invalidReceipt }; return value
+            default:
+                return try identity
+            }
         }
     }
 
@@ -128,6 +178,11 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
              let .serviceParty(_, value, _), let .sitePartyRoleEvent(_, value, _),
              let .actorSnapshot(_, value, _), let .qualificationSnapshot(_, value, _),
              let .signoffSnapshot(_, value, _),
+             let .authoritySourceRelease(_, _, value, _), let .requirementBasisBinding(_, _, value, _),
+             let .applicabilityContextSnapshot(_, _, value, _), let .assessmentScopeSnapshot(_, _, value, _),
+             let .severityScaleRelease(_, _, value, _), let .findingClassificationBinding(_, _, value, _),
+             let .measurementProtocolRelease(_, _, value, _), let .derivedFactEvaluatorDescriptor(_, _, value, _),
+             let .derivedFactProvenance(_, _, value, _),
              let .workflowRecord(_, value, _), let .evidenceFile(_, value, _),
              let .issue(_, value, _), let .packet(_, value, _),
              let .report(_, value, _), let .deletionLedgerEntry(_, value, _),
@@ -193,6 +248,7 @@ struct MutationReceiptV1: Codable, Equatable, Sendable {
         try resultingRevision.validate()
         try identity.validate()
         let identities = try postImages.map { try $0.identity }
+        let concurrencyIdentities = try postImages.map { try $0.concurrencyIdentity }
         let expectedByIdentity = Dictionary(
             uniqueKeysWithValues: expectedRevision.entityRevisions.map { ($0.identity, $0.revision) }
         )
@@ -209,10 +265,12 @@ struct MutationReceiptV1: Codable, Equatable, Sendable {
               !postImages.isEmpty,
               postImages.count <= Self.maximumPostImageCount,
               Set(identities).count == identities.count,
+              Set(concurrencyIdentities).count == concurrencyIdentities.count,
               identities.map(\.stableKey) == identities.map(\.stableKey).sorted(),
               postImages.allSatisfy({ image in
                   guard let identity = try? image.identity,
-                        let before = expectedByIdentity[identity],
+                        let concurrencyIdentity = try? image.concurrencyIdentity,
+                        let before = expectedByIdentity[concurrencyIdentity],
                         before < .max else { return false }
                   return image.revision == before + 1
                     && resultingByIdentity[identity] == image.revision
@@ -360,6 +418,167 @@ struct AssetSemanticsChangeReceiptV1: Codable, Equatable, Sendable {
         let mutationReceiptIdentity: MutationReceiptIdentityV1
         let mutationReceiptSHA256: String
         let affectedIdentity: WorkspaceEntityIdentityV1
+        let committedAt: Date
+    }
+}
+
+extension AuthorityCriterionMutationPayloadV1 {
+    var mutationPostImage: MutationPostImageV1 {
+        get throws {
+            let concurrencyIdentity = try predecessorIdentity ?? affectedIdentity
+            switch self {
+            case let .appendAuthoritySource(v), let .supersedeAuthoritySource(v):
+                .authoritySourceRelease(id: v.releaseID, concurrencyIdentity: concurrencyIdentity, revision: v.revision, semanticSHA256: v.releaseSHA256)
+            case let .appendRequirementBasis(v), let .supersedeRequirementBasis(v):
+                .requirementBasisBinding(id: v.bindingID, concurrencyIdentity: concurrencyIdentity, revision: v.revision, semanticSHA256: v.bindingSHA256)
+            case let .appendApplicabilityContext(v), let .supersedeApplicabilityContext(v):
+                .applicabilityContextSnapshot(id: v.snapshotID, concurrencyIdentity: concurrencyIdentity, revision: v.revision, semanticSHA256: v.snapshotSHA256)
+            case let .appendAssessmentScope(v), let .supersedeAssessmentScope(v):
+                .assessmentScopeSnapshot(id: v.snapshotID, concurrencyIdentity: concurrencyIdentity, revision: v.revision, semanticSHA256: v.snapshotSHA256)
+            case let .appendSeverityScale(v), let .supersedeSeverityScale(v):
+                .severityScaleRelease(id: v.releaseID, concurrencyIdentity: concurrencyIdentity, revision: v.revision, semanticSHA256: v.releaseSHA256)
+            case let .appendFindingClassification(v), let .supersedeFindingClassification(v):
+                .findingClassificationBinding(id: v.bindingID, concurrencyIdentity: concurrencyIdentity, revision: v.revision, semanticSHA256: v.bindingSHA256)
+            case let .appendMeasurementProtocol(v), let .supersedeMeasurementProtocol(v):
+                .measurementProtocolRelease(id: v.releaseID, concurrencyIdentity: concurrencyIdentity, revision: v.revision, semanticSHA256: v.releaseSHA256)
+            case let .appendEvaluatorDescriptor(v), let .supersedeEvaluatorDescriptor(v):
+                .derivedFactEvaluatorDescriptor(id: v.descriptorID, concurrencyIdentity: concurrencyIdentity, revision: v.revision, semanticSHA256: v.descriptorSHA256)
+            case let .appendDerivedFact(v), let .supersedeDerivedFact(v):
+                .derivedFactProvenance(id: v.provenanceID, concurrencyIdentity: concurrencyIdentity, revision: v.revision, semanticSHA256: v.provenanceSHA256)
+            }
+        }
+    }
+}
+
+/// Typed C40 receipt binding the journal-owned receipt to the exact canonical
+/// authority/criterion post-image. It does not introduce a second receipt
+/// writer or infer authority meaning from the persisted scalar fields.
+struct AuthorityCriterionMutationReceiptV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let mutationSHA256: String
+    let mutationReceipt: MutationReceiptV1
+    let mutationReceiptIdentity: MutationReceiptIdentityV1
+    let mutationReceiptSHA256: String
+    let affectedIdentity: WorkspaceEntityIdentityV1
+    let predecessorIdentity: WorkspaceEntityIdentityV1?
+    let concurrencyIdentity: WorkspaceEntityIdentityV1
+    let postImageSHA256: String
+    let committedAt: Date
+    let receiptSHA256: String
+
+    init(
+        mutation: AuthorityCriterionMutationV1,
+        mutationReceipt: MutationReceiptV1
+    ) throws {
+        try mutation.validate()
+        try mutationReceipt.validate()
+        let affectedIdentity = try mutation.affectedIdentity
+        let predecessorIdentity = try mutation.postImage.predecessorIdentity
+        let concurrencyIdentity = try mutation.concurrencyIdentity
+        let commandBodySHA256 = try WorkspaceMutationCanonicalV1.sha256(
+            WorkspaceCommandV1.applyAuthorityCriterion(mutation)
+        )
+        let expectedEntityRevision = mutationReceipt.expectedRevision.entityRevisions
+            .first(where: { $0.identity == concurrencyIdentity })?.revision
+        let resultingEntityRevision = mutationReceipt.resultingRevision.entityRevisions
+            .first(where: { $0.identity == affectedIdentity })?.revision
+        let expectedPostImage = try mutation.postImage.mutationPostImage
+        guard mutationReceipt.mutationID == mutation.mutationID,
+              mutationReceipt.identity.workspaceID == mutation.workspaceID,
+              mutationReceipt.commandBodySHA256 == commandBodySHA256,
+              mutationReceipt.sourceKind == .localUser,
+              expectedEntityRevision == mutation.expectedRevision,
+              resultingEntityRevision == mutation.postImage.revision,
+              mutationReceipt.postImages == [expectedPostImage] else {
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+
+        schemaVersion = Self.schemaVersion
+        mutationSHA256 = try mutation.canonicalSHA256()
+        self.mutationReceipt = mutationReceipt
+        mutationReceiptIdentity = mutationReceipt.identity
+        mutationReceiptSHA256 = try mutationReceipt.canonicalSHA256()
+        self.affectedIdentity = affectedIdentity
+        self.predecessorIdentity = predecessorIdentity
+        self.concurrencyIdentity = concurrencyIdentity
+        postImageSHA256 = mutation.postImage.semanticSHA256
+        committedAt = mutationReceipt.committedAt
+        receiptSHA256 = try WorkspaceMutationCanonicalV1.sha256(
+            DigestBasis(
+                schemaVersion: Self.schemaVersion,
+                mutationSHA256: mutationSHA256,
+                mutationReceiptIdentity: mutationReceipt.identity,
+                mutationReceiptSHA256: mutationReceiptSHA256,
+                affectedIdentity: affectedIdentity,
+                predecessorIdentity: predecessorIdentity,
+                concurrencyIdentity: concurrencyIdentity,
+                postImageSHA256: postImageSHA256,
+                committedAt: committedAt
+            )
+        )
+    }
+
+    func validate() throws {
+        try mutationReceipt.validate()
+        let expectedConcurrencyRevision = mutationReceipt.expectedRevision.entityRevisions
+            .first(where: { $0.identity == concurrencyIdentity })?.revision
+        let resultingAffectedRevision = mutationReceipt.resultingRevision.entityRevisions
+            .first(where: { $0.identity == affectedIdentity })?.revision
+        let validRevisionBinding: Bool
+        if predecessorIdentity == nil {
+            validRevisionBinding = expectedConcurrencyRevision == 0
+                && mutationReceipt.postImages.first?.revision == 1
+        } else {
+            validRevisionBinding = expectedConcurrencyRevision.map {
+                $0 > 0 && $0 < UInt64.max
+                    && mutationReceipt.postImages.first?.revision == $0 + 1
+            } == true
+        }
+        guard schemaVersion == Self.schemaVersion,
+              MutationEnvelopeV1.isSHA256(mutationSHA256),
+              mutationReceipt.identity == mutationReceiptIdentity,
+              mutationReceiptSHA256 == (try mutationReceipt.canonicalSHA256()),
+              mutationReceipt.sourceKind == .localUser,
+              mutationReceipt.postImages.count == 1,
+              let postImage = mutationReceipt.postImages.first,
+              (try? postImage.identity) == affectedIdentity,
+              (try? postImage.concurrencyIdentity) == concurrencyIdentity,
+              (predecessorIdentity ?? affectedIdentity) == concurrencyIdentity,
+              predecessorIdentity.map({ $0 != affectedIdentity }) ?? true,
+              validRevisionBinding,
+              resultingAffectedRevision == postImage.revision,
+              postImage.semanticSHA256 == postImageSHA256,
+              MutationEnvelopeV1.isSHA256(postImageSHA256),
+              committedAt == mutationReceipt.committedAt,
+              receiptSHA256 == (try WorkspaceMutationCanonicalV1.sha256(
+                DigestBasis(
+                    schemaVersion: schemaVersion,
+                    mutationSHA256: mutationSHA256,
+                    mutationReceiptIdentity: mutationReceiptIdentity,
+                    mutationReceiptSHA256: mutationReceiptSHA256,
+                    affectedIdentity: affectedIdentity,
+                    predecessorIdentity: predecessorIdentity,
+                    concurrencyIdentity: concurrencyIdentity,
+                    postImageSHA256: postImageSHA256,
+                    committedAt: committedAt
+                )
+              )),
+              committedAt.timeIntervalSinceReferenceDate.isFinite else {
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+    }
+
+    private struct DigestBasis: Codable {
+        let schemaVersion: Int
+        let mutationSHA256: String
+        let mutationReceiptIdentity: MutationReceiptIdentityV1
+        let mutationReceiptSHA256: String
+        let affectedIdentity: WorkspaceEntityIdentityV1
+        let predecessorIdentity: WorkspaceEntityIdentityV1?
+        let concurrencyIdentity: WorkspaceEntityIdentityV1
+        let postImageSHA256: String
         let committedAt: Date
     }
 }

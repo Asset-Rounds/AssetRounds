@@ -59,6 +59,83 @@ protocol SearchOperationalStatusProvidingV1: Sendable {
     ) async throws -> Set<SearchCanonicalRecordIdentityV1>
 }
 
+private struct AuthorityCriterionClassificationChainKeyV1: Hashable {
+    let activityID: UUID
+    let findingID: UUID
+    let criterionID: String
+}
+
+private struct AuthorityCriterionClassificationSearchRecordV1 {
+    let value: FindingClassificationBindingV1
+    let activityID: UUID
+}
+
+/// Resolves an append-only predecessor chain to exactly one current head for
+/// every logical group. A search rebuild must not choose a newest row, merge
+/// forks, or silently bridge a chain into another workspace/group.
+private func authorityCriterionUniqueHeadsV1<Value, Group: Hashable>(
+    values: [Value],
+    expectedWorkspace: WorkspaceID,
+    id: (Value) -> UUID,
+    workspace: (Value) -> WorkspaceID,
+    predecessor: (Value) -> UUID?,
+    group: (Value) -> Group
+) throws -> [Value] {
+    var byID: [UUID: Value] = [:]
+    for value in values {
+        let valueID = id(value)
+        guard valueID != SearchContractValidationV1.zeroUUID,
+              workspace(value) == expectedWorkspace,
+              byID[valueID] == nil else {
+            throw SearchContractFailureV1.invalidContext
+        }
+        byID[valueID] = value
+    }
+
+    var childCounts: [UUID: Int] = [:]
+    for value in values {
+        guard let predecessorID = predecessor(value) else { continue }
+        guard predecessorID != id(value),
+              let parent = byID[predecessorID],
+              workspace(parent) == expectedWorkspace,
+              group(parent) == group(value) else {
+            throw SearchContractFailureV1.invalidContext
+        }
+        childCounts[predecessorID, default: 0] += 1
+        guard childCounts[predecessorID] == 1 else {
+            throw SearchContractFailureV1.invalidContext
+        }
+    }
+
+    // A cycle has no head, so detect it explicitly rather than allowing a
+    // cyclic group to disappear behind an empty head set.
+    for value in values {
+        var visited: Set<UUID> = []
+        var cursor = value
+        while let predecessorID = predecessor(cursor) {
+            let cursorID = id(cursor)
+            guard visited.insert(cursorID).inserted,
+                  predecessorID != cursorID,
+                  let parent = byID[predecessorID],
+                  workspace(parent) == expectedWorkspace,
+                  group(parent) == group(cursor) else {
+                throw SearchContractFailureV1.invalidContext
+            }
+            cursor = parent
+        }
+    }
+
+    var headsByGroup: [Group: [Value]] = [:]
+    for value in values where childCounts[id(value), default: 0] == 0 {
+        headsByGroup[group(value), default: []].append(value)
+    }
+    guard headsByGroup.count == Set(values.map(group)).count,
+          headsByGroup.values.allSatisfy({ $0.count == 1 }) else {
+        throw SearchContractFailureV1.invalidContext
+    }
+    return headsByGroup.values.compactMap { $0.first }
+}
+
 /// Main-actor SwiftData projection source for the active generation. Paging is
 /// over canonical entities (not projection rows) and is bound to the writer's
 /// exact revision before and after every fetch.
@@ -83,6 +160,11 @@ final class SwiftDataSearchCanonicalProjectionSourceV1: SearchCanonicalProjectio
         let lifecycleEventSummary: String = ""
         let productIdentityStateSummary: String = ""
         let workSubjectScopeSummary: String = ""
+        let authoritySourceSummary: String = ""
+        let applicabilityDispositionSummary: String = ""
+        let criterionResultSummary: String = ""
+        let severityLevelSummary: String = ""
+        let measurementProtocolSummary: String = ""
     }
 
     let registry: SearchableFieldRegistryV1
@@ -93,6 +175,7 @@ final class SwiftDataSearchCanonicalProjectionSourceV1: SearchCanonicalProjectio
     private let operationalStatusProvider: (any SearchOperationalStatusProvidingV1)?
     private let includeAccountability: Bool
     private let includeAssetSemantics: Bool
+    private let includeAuthorityCriterion: Bool
     private var snapshotRevision: SearchSourceRevisionV1?
     private var snapshotValues: [CanonicalValue]?
     private var snapshotBackupStaleIdentities: Set<SearchCanonicalRecordIdentityV1> = []
@@ -104,7 +187,8 @@ final class SwiftDataSearchCanonicalProjectionSourceV1: SearchCanonicalProjectio
         revisionProvider: @escaping @MainActor () throws -> SearchSourceRevisionV1,
         operationalStatusProvider: (any SearchOperationalStatusProvidingV1)? = nil,
         includeAccountability: Bool = false,
-        includeAssetSemantics: Bool = false
+        includeAssetSemantics: Bool = false,
+        includeAuthorityCriterion: Bool = false
     ) throws {
         guard workspaceID != SearchContractValidationV1.zeroUUID,
               generationID != SearchContractValidationV1.zeroUUID else {
@@ -117,15 +201,12 @@ final class SwiftDataSearchCanonicalProjectionSourceV1: SearchCanonicalProjectio
         self.operationalStatusProvider = operationalStatusProvider
         self.includeAccountability = includeAccountability
         self.includeAssetSemantics = includeAssetSemantics
-        if includeAssetSemantics {
-            registry = try Self.makeAssetSemanticsRegistry(
-                includeAccountability: includeAccountability
-            )
-        } else if includeAccountability {
-            registry = try Self.makeAccountabilityRegistry()
-        } else {
-            registry = try Self.makeRegistry()
-        }
+        self.includeAuthorityCriterion = includeAuthorityCriterion
+        registry = try Self.makeExtendedRegistry(
+            includeAccountability: includeAccountability,
+            includeAssetSemantics: includeAssetSemantics,
+            includeAuthorityCriterion: includeAuthorityCriterion
+        )
     }
 
     func currentSearchSourceRevision() async throws -> SearchSourceRevisionV1 {
@@ -202,6 +283,9 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         let semanticByAsset = includeAssetSemantics
             ? try assetSemanticSearchValues()
             : [:]
+        let authorityByActivity = includeAuthorityCriterion
+            ? try authorityCriterionSearchValues()
+            : [:]
         values += try modelContext.fetch(FetchDescriptor<Asset>()).map {
             let semantic = semanticByAsset[$0.id]
             return CanonicalValue(kind: .asset, stableID: try stableKey(kind: .asset, id: $0.id),
@@ -227,9 +311,15 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
             }
         values += try modelContext.fetch(FetchDescriptor<WorkflowRecord>()).map {
             let summary = $0.workDescription ?? $0.note ?? $0.outcomeKey ?? $0.stage
+            let authority = authorityByActivity[$0.id]
             return CanonicalValue(kind: .work, stableID: try stableKey(kind: .workflowRecord, id: $0.id),
                 display: summary, summary: summary, breadcrumb: [], status: $0.state,
-                dueAt: nil, timestamp: $0.completedAt ?? $0.startedAt)
+                dueAt: nil, timestamp: $0.completedAt ?? $0.startedAt,
+                authoritySourceSummary: authority?.sources.sorted().joined(separator: " ") ?? "",
+                applicabilityDispositionSummary: authority?.dispositions.sorted().joined(separator: " ") ?? "",
+                criterionResultSummary: authority?.results.sorted().joined(separator: " ") ?? "",
+                severityLevelSummary: authority?.severityLevels.sorted().joined(separator: " ") ?? "",
+                measurementProtocolSummary: authority?.measurementProtocols.sorted().joined(separator: " ") ?? "")
         }
         values += try modelContext.fetch(FetchDescriptor<Issue>()).map {
             CanonicalValue(kind: .work, stableID: try stableKey(kind: .issue, id: $0.id),
@@ -367,6 +457,120 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         return result
     }
 
+    private struct AuthorityCriterionSearchValue {
+        var sources: Set<String> = []
+        var dispositions: Set<String> = []
+        var results: Set<String> = []
+        var severityLevels: Set<String> = []
+        var measurementProtocols: Set<String> = []
+    }
+
+    /// Builds only exact activity-bound summaries. Licensed content, clause/raw
+    /// locators, external locator values, and derived facts without an explicit
+    /// activity reference are intentionally excluded.
+    func authorityCriterionSearchValues() throws -> [UUID: AuthorityCriterionSearchValue] {
+        let expectedWorkspace = WorkspaceID(rawValue: workspaceID)
+        let releases = try modelContext.fetch(FetchDescriptor<AuthoritySourceReleaseRow>())
+            .filter { $0.workspaceID == workspaceID }.map { try $0.value() }
+        var releaseByID: [UUID: AuthoritySourceReleaseV1] = [:]
+        for release in releases {
+            guard release.workspaceID == expectedWorkspace,
+                  releaseByID[release.releaseID] == nil else {
+                throw SearchContractFailureV1.invalidContext
+            }
+            releaseByID[release.releaseID] = release
+        }
+
+        let contexts = try modelContext.fetch(FetchDescriptor<ApplicabilityContextSnapshotRow>())
+            .filter { $0.workspaceID == workspaceID }.map { try $0.value() }
+        var contextByID: [UUID: ApplicabilityContextSnapshotV1] = [:]
+        for context in contexts {
+            guard context.workspaceID == expectedWorkspace,
+                  contextByID[context.snapshotID] == nil else {
+                throw SearchContractFailureV1.invalidContext
+            }
+            contextByID[context.snapshotID] = context
+            for basis in context.basisBindings {
+                guard basis.workspaceID == expectedWorkspace,
+                      let release = releaseByID[basis.authorityReleaseID],
+                      release.workspaceID == expectedWorkspace else {
+                    throw SearchContractFailureV1.invalidContext
+                }
+            }
+        }
+        let currentContexts = try authorityCriterionUniqueHeadsV1(
+            values: contexts,
+            expectedWorkspace: expectedWorkspace,
+            id: { $0.snapshotID },
+            workspace: { $0.workspaceID },
+            predecessor: { $0.supersedesSnapshotID },
+            group: { $0.activityID }
+        )
+        var currentContextByID: [UUID: ApplicabilityContextSnapshotV1] = [:]
+        for context in currentContexts {
+            guard currentContextByID[context.snapshotID] == nil else {
+                throw SearchContractFailureV1.invalidContext
+            }
+            currentContextByID[context.snapshotID] = context
+        }
+
+        let classifications = try modelContext.fetch(FetchDescriptor<FindingClassificationBindingRow>())
+            .filter { $0.workspaceID == workspaceID }.map { try $0.value() }
+        var classificationRecords: [AuthorityCriterionClassificationSearchRecordV1] = []
+        for classification in classifications {
+            guard classification.workspaceID == expectedWorkspace,
+                  let context = contextByID[classification.applicabilityContextID],
+                  context.workspaceID == expectedWorkspace else {
+                throw SearchContractFailureV1.invalidContext
+            }
+            classificationRecords.append(.init(
+                value: classification,
+                activityID: context.activityID
+            ))
+        }
+        let currentClassificationRecords = try authorityCriterionUniqueHeadsV1(
+            values: classificationRecords,
+            expectedWorkspace: expectedWorkspace,
+            id: { $0.value.bindingID },
+            workspace: { $0.value.workspaceID },
+            predecessor: { $0.value.supersedesBindingID },
+            group: {
+                AuthorityCriterionClassificationChainKeyV1(
+                    activityID: $0.activityID,
+                    findingID: $0.value.findingID,
+                    criterionID: $0.value.criterionID
+                )
+            }
+        )
+        var classificationsByContext: [UUID: [FindingClassificationBindingV1]] = [:]
+        for record in currentClassificationRecords {
+            guard currentContextByID[record.value.applicabilityContextID] != nil else {
+                throw SearchContractFailureV1.invalidContext
+            }
+            classificationsByContext[record.value.applicabilityContextID, default: []]
+                .append(record.value)
+        }
+
+        var result: [UUID: AuthorityCriterionSearchValue] = [:]
+        for context in currentContexts {
+            var value = result[context.activityID] ?? AuthorityCriterionSearchValue()
+            value.dispositions.insert(context.disposition.rawValue)
+            for basis in context.basisBindings {
+                guard let release = releaseByID[basis.authorityReleaseID] else {
+                    throw SearchContractFailureV1.invalidContext
+                }
+                value.sources.insert([release.designation, release.editionOrRevision]
+                    .joined(separator: " "))
+            }
+            for classification in classificationsByContext[context.snapshotID] ?? [] {
+                value.results.insert("\(classification.criterionID) \(classification.result.rawValue)")
+                if let severity = classification.severityLevelID { value.severityLevels.insert(severity) }
+            }
+            result[context.activityID] = value
+        }
+        return result
+    }
+
     func stableKey(kind: WorkspaceEntityKindV1, id: UUID) throws -> String {
         try WorkspaceEntityIdentityV1(kind: kind, id: id).stableKey
     }
@@ -396,6 +600,15 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         case .work:
             fields = [("work_identifier", value.stableID), ("work_summary", value.summary),
                       ("status", value.status)]
+            if includeAuthorityCriterion {
+                fields += [
+                    ("authority_source", value.authoritySourceSummary),
+                    ("applicability_disposition", value.applicabilityDispositionSummary),
+                    ("criterion_result", value.criterionResultSummary),
+                    ("severity_level", value.severityLevelSummary),
+                    ("measurement_protocol", value.measurementProtocolSummary),
+                ].filter { !$0.1.isEmpty }
+            }
         case .report:
             fields = [("report_identifier", value.stableID), ("report_summary", value.summary),
                       ("status", value.status)]
@@ -488,6 +701,41 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         try append("party_role", .party)
         for kind in [.asset, .location, .work, .report, .party] as [SearchSourceKindV1] {
             try append("status", kind, operational: true)
+        }
+        return try SearchableFieldRegistryV1(fields: fields)
+    }
+
+    static func makeAssetSemanticsRegistry(
+        includeAccountability: Bool
+    ) throws -> SearchableFieldRegistryV1 {
+        try makeExtendedRegistry(
+            includeAccountability: includeAccountability,
+            includeAssetSemantics: true,
+            includeAuthorityCriterion: false
+        )
+    }
+
+    static func makeExtendedRegistry(
+        includeAccountability: Bool,
+        includeAssetSemantics: Bool,
+        includeAuthorityCriterion: Bool
+    ) throws -> SearchableFieldRegistryV1 {
+        var fields = try (includeAccountability ? makeAccountabilityRegistry() : makeRegistry()).fields
+        func append(_ id: String, _ kind: SearchSourceKindV1) throws {
+            fields.append(try SearchableFieldDescriptorV1(
+                fieldID: id, sourceKind: kind, privacyClass: .approvedCustomerText,
+                tokenization: .unicodeWords,
+                normalization: .unicodeCaseAndDiacriticFoldedNFC,
+                snippetPermission: .boundedUserVisibleExcerpt,
+                retention: .untilSourceFieldIsAmended,
+                purgeOwner: .indexRebuildCoordinator
+            ))
+        }
+        if includeAssetSemantics {
+            for id in SearchAssetSemanticsPersistencePolicyV1.fieldIDs { try append(id, .asset) }
+        }
+        if includeAuthorityCriterion {
+            for id in SearchAuthorityCriterionPersistencePolicyV1.fieldIDs { try append(id, .work) }
         }
         return try SearchableFieldRegistryV1(fields: fields)
     }
@@ -712,7 +960,8 @@ struct ProductionSearchServicesV1 {
         revisionProvider: @escaping @MainActor () throws -> SearchSourceRevisionV1,
         operationalStatusProvider: (any SearchOperationalStatusProvidingV1)? = nil,
         includeAccountability: Bool = false,
-        includeAssetSemantics: Bool = true
+        includeAssetSemantics: Bool = true,
+        includeAuthorityCriterion: Bool = true
     ) throws {
         let source = try SwiftDataSearchCanonicalProjectionSourceV1(
             modelContext: modelContext,
@@ -721,7 +970,8 @@ struct ProductionSearchServicesV1 {
             revisionProvider: revisionProvider,
             operationalStatusProvider: operationalStatusProvider,
             includeAccountability: includeAccountability,
-            includeAssetSemantics: includeAssetSemantics
+            includeAssetSemantics: includeAssetSemantics,
+            includeAuthorityCriterion: includeAuthorityCriterion
         )
         self.source = source
         registry = source.registry
