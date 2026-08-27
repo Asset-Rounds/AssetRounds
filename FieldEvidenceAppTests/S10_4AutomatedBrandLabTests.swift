@@ -120,8 +120,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 224_501,
-            sha256: "53C3468567D1912D0EC5915F5D9F820729707805067A407AAFC4063E5242D0C4"
+            byteCount: 226_693,
+            sha256: "CDD62EFBC9E739535B6B9FEAEBD8D245C817A13969A9439A4BC821BE34C8CCE5"
         )
         let workflowSource = try text(workflowPath)
         let workerCallHeader =
@@ -755,7 +755,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(workerExecutionSource.utf8.count, 99_798)
         XCTAssertEqual(
             Data(workerExecutionSource.utf8).sha256,
-            "D14A9FC7EB4093246397D55994A9A03752727EB4ADCA93AFF3FDC8E3C5AD76A8"
+            "7A2C1CEF5B531BBC418D6619FC49BE2009052F1D806918D49ADDC0B40EA32A4C"
         )
         let warpScopeSource = String(
             warpJobSource[warpScopeStart.lowerBound..<warpExecutionStart.lowerBound]
@@ -11269,7 +11269,21 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             contrastAuthoritySource.components(
                 separatedBy: "ContrastAuditExceptionSignature("
             ).count - 1,
-            22
+            23
+        )
+        let purchaseCompleteNoSyncExceptionSource = try boundedSource(
+            contrastAuthoritySource,
+            from:
+                "        ContrastAuditExceptionSignature(\n" +
+                    "            issueID: \"S10.4-XCUI-CONTRAST-FP-AX-TEXT-PAYWALL-PURCHASE-COMPLETE-NO-SYNC\"",
+            before:
+                "\n        ContrastAuditExceptionSignature(\n" +
+                    "            issueID: \"S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-WIDE-VIEW\""
+        )
+        XCTAssertEqual(purchaseCompleteNoSyncExceptionSource.utf8.count, 1_554)
+        XCTAssertEqual(
+            Data(purchaseCompleteNoSyncExceptionSource.utf8).sha256,
+            "B83430732CB0FF5B028C62F6D6EE3FC9163F635696C4F273A341B7AC407A15C7"
         )
         for prohibitedReduceMotionSavingTaskExpansion in [
             #"case ("s10.4.current.reduce-motion", "work_and_recheck")"#,
@@ -12996,7 +13010,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             availablePurchaseFunctionSource.components(
                 separatedBy: "return usedSettingsRetry"
             ).count - 1,
-            15
+            14
         )
         XCTAssertFalse(availablePurchaseFunctionSource.contains("\n            return\n"))
         XCTAssertFalse(availablePurchaseFunctionSource.contains("\n                    return\n"))
@@ -13733,10 +13747,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             uiSource.components(separatedBy: postPurchaseCapture).count - 1,
             2
         )
-        XCTAssertEqual(postPurchaseAXGateSource.utf8.count, 967)
+        XCTAssertEqual(postPurchaseAXGateSource.utf8.count, 561)
         XCTAssertEqual(
             Data(postPurchaseAXGateSource.utf8).sha256,
-            "413B37AE39B85C17718F259B2499CD9652C413E6C44C5CD18B440EA2AB3C00D5"
+            "DE1386524B6B07AD44A4FDF05B56B3C290BEE43337F0C7B63A78513F8F255E72"
         )
         XCTAssertEqual(postPurchaseNonAXSuffixSource.utf8.count, 4_110)
         XCTAssertEqual(
@@ -13746,31 +13760,18 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let axHelperCall = try XCTUnwrap(
             postPurchaseAXGateSource.range(of: "positionAXTextPurchaseCompleteViewport(in: app)")
         )
-        let segment2DiagnosticGate = try XCTUnwrap(
-            postPurchaseAXGateSource.range(of: "if automationSegment == .segment2")
-        )
-        let segment2DiagnosticCall = try XCTUnwrap(
-            postPurchaseAXGateSource.range(
-                of: "try diagnoseSegment2AXTextPaywallPurchaseCompleteNativeContrast("
-            )
-        )
         let axCapture = try XCTUnwrap(postPurchaseAXGateSource.range(of: postPurchaseCapture))
         let axReturn = try XCTUnwrap(
             postPurchaseAXGateSource.range(of: "return usedSettingsRetry", range: axCapture.upperBound..<postPurchaseAXGateSource.endIndex)
         )
-        XCTAssertLessThan(axHelperCall.lowerBound, segment2DiagnosticGate.lowerBound)
-        XCTAssertLessThan(
-            segment2DiagnosticGate.lowerBound,
-            segment2DiagnosticCall.lowerBound
-        )
-        XCTAssertLessThan(segment2DiagnosticCall.lowerBound, axCapture.lowerBound)
+        XCTAssertLessThan(axHelperCall.lowerBound, axCapture.lowerBound)
         XCTAssertLessThan(axCapture.lowerBound, axReturn.lowerBound)
         XCTAssertTrue(postPurchaseAXGateSource.hasPrefix(postPurchaseAXGateStart))
         XCTAssertEqual(
             postPurchaseAXGateSource.components(
                 separatedBy: "diagnoseSegment2AXTextPaywallPurchaseCompleteNativeContrast"
             ).count - 1,
-            1
+            0
         )
         XCTAssertEqual(
             postPurchaseViewportSource.components(separatedBy: postPurchaseCapture).count - 1,
@@ -15755,6 +15756,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
 
         let exceptionIDs = [
+            "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PAYWALL-PURCHASE-COMPLETE-NO-SYNC",
             "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-WIDE-VIEW",
             "S10.4-XCUI-CONTRAST-FP-AX-TEXT-CUSTOMER-SITE-NAME",
             "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-BEFORE-YOU-BEGIN",
@@ -15779,6 +15781,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER",
         ]
         let exceptionRationales = [
+            "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified no-sync disclosure whose frozen public frame starts 526.66666666666629 points above the application, is 745.33333333333303 points tall, and therefore exceeds the 704-point paywall Store viewport; the audit-owned crop visibly binds the issue to black text clipped beneath native Subscription/status chrome, and the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for Wide view even though the audit-owned crop visibly renders white text on the dark elevated Sample card; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for Customer / site name even though the audit-owned crop visibly renders black text on white and the public node is bound to the top navigation-region frame; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for Before you begin while the frozen public node frame is bottom-clipped outside the 402x874 application frame in the AX-text preflight state; the exception is limited to the frozen public issue signature.",
@@ -15808,7 +15811,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             exceptionIDs.filter { !$0.hasSuffix("REPORT-CORRECTION-HEADER") }.count,
-            16
+            17
         )
         for lock in exceptionIDs {
             let uiCount = lock.hasPrefix(
@@ -15835,6 +15838,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let uiExceptionStateCounts = [
             ("state.check-preflight.ready", 2),
             ("state.new-sign.editing", 1),
+            ("state.paywall.purchase-complete", 1),
             ("state.sample-report.ready", 1),
             ("state.feedback.review-ready", 1),
             ("state.work.validation-error", 2),
@@ -15857,37 +15861,37 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(
             uiSource.components(separatedBy: "ContrastAuditExceptionSignature(").count - 1,
-            22
+            23
         )
         XCTAssertEqual(
             uiSource.components(
                 separatedBy: #"issueID: "S10.4-XCUI-CONTRAST-FP-"#
             ).count - 1,
-            22
+            23
         )
         XCTAssertEqual(
             workflowSource.components(
                 separatedBy: #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-"#
             ).count - 1,
-            44
+            46
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: #"owner: "palatis3""#).count - 1,
-            22
+            23
         )
         XCTAssertEqual(
             workflowSource.components(separatedBy: #"exceptionOwner: "palatis3""#)
                 .count - 1,
-            22
+            23
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: #"expiresAt: "2026-11-20""#).count - 1,
-            22
+            23
         )
         XCTAssertEqual(
             workflowSource.components(separatedBy: #"exceptionExpiresAt: "2026-11-20""#)
                 .count - 1,
-            22
+            23
         )
 
         let signatureLocks = [
@@ -18614,8 +18618,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"let permittedExceptionStateIDs: Set<String>"#,
             #"switch (shard.shardID, task.taskID)"#,
             #"case ("s10.4.current.ax-text", "one_handed_start")"#,
-            #"taskIssueLimit = 4"#,
-            #"taskStateLimit = 3"#,
+            #"taskIssueLimit = 5"#,
+            #"taskStateLimit = 4"#,
+            #"                    "state.paywall.purchase-complete","#,
             #"                    "state.sign-selection.ready","#,
             #"case ("s10.4.current.default-light", "report_comprehension")"#,
             #"taskIssueLimit = 1"#,
@@ -18734,11 +18739,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let axOneHandedStartTaskExceptionBound =
             #"            case ("s10.4.current.ax-text", "one_handed_start"):"# +
                 "\n" +
-                "                taskIssueLimit = 4\n" +
-                "                taskStateLimit = 3\n" +
+                "                taskIssueLimit = 5\n" +
+                "                taskStateLimit = 4\n" +
                 "                permittedExceptionStateIDs = [\n" +
                 #"                    "state.check-preflight.ready","# + "\n" +
                 #"                    "state.new-sign.editing","# + "\n" +
+                #"                    "state.paywall.purchase-complete","# + "\n" +
                 #"                    "state.sign-selection.ready","# + "\n" +
                 "                ]"
         XCTAssertEqual(
@@ -18751,15 +18757,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             (
                 "AX one-handed task issue contraction",
                 axOneHandedStartTaskExceptionBound.replacingOccurrences(
-                    of: "taskIssueLimit = 4",
-                    with: "taskIssueLimit = 3"
+                    of: "taskIssueLimit = 5",
+                    with: "taskIssueLimit = 4"
                 )
             ),
             (
                 "AX one-handed task state contraction",
                 axOneHandedStartTaskExceptionBound.replacingOccurrences(
-                    of: "taskStateLimit = 3",
-                    with: "taskStateLimit = 2"
+                    of: "taskStateLimit = 4",
+                    with: "taskStateLimit = 3"
                 )
             ),
             (
@@ -19030,10 +19036,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "contrast_exception_authority_path=",
             #"if .result == "PASS" then"#,
             #"elif .result == "EXCEPTION" then"#,
-            #"length == 22"#,
-            #"and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 19"#,
-            #"and ([.[].exceptionIssueID] | unique | length) == 22"#,
-            #"and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 17"#,
+            #"length == 23"#,
+            #"and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 20"#,
+            #"and ([.[].exceptionIssueID] | unique | length) == 23"#,
+            #"and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 18"#,
             #"| select(.exceptionIssueID | IN("#,
             #""S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER","#,
             #""S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER","#,
@@ -19076,7 +19082,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"error("AX-text contrast exception bound exceeded")"#,
             #"error("contrast exception on ineligible shard")"#,
             #"def taskIssueLimit($shardID; $taskID):"#,
-            #"and $taskID == "one_handed_start" then 4"#,
+            #"and $taskID == "one_handed_start" then 5"#,
             #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
                 #"                     and $taskID == "report_comprehension" then 4"#,
             #"and $taskID == "work_and_recheck" then 6"#,
@@ -19084,7 +19090,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"and $taskID == "history_recovery" then 1"#,
             #"and $taskID == "report_comprehension" then 1"#,
             #"def taskStateLimit($shardID; $taskID):"#,
-            #"and $taskID == "one_handed_start" then 3"#,
+            #"and $taskID == "one_handed_start" then 4"#,
             #"                     and $taskID == "report_comprehension" then 3"#,
             #"| map(select(.taskID == $taskID))"#,
             #"| sort_by(.stateID, .exceptionIssueID)) as $taskExceptions"#,
@@ -19117,11 +19123,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"($matchedAuthorities | length) > 1"#,
             #"($matchedExceptionStateIDs | length) > 1"#,
             #"elif $shard == "s10.4.current.ax-text" then"#,
-            #"($matchedAuthorities | length) > 14"#,
-            #"($matchedExceptionStateIDs | length) > 11"#,
+            #"($matchedAuthorities | length) > 15"#,
+            #"($matchedExceptionStateIDs | length) > 12"#,
             #"stateIssueLimit($shardID; $stateID)"#,
             #"and $stateID == "state.check-preflight.ready" then 2"#,
             #"and $stateID == "state.new-sign.editing" then 1"#,
+            #"and $stateID == "state.paywall.purchase-complete" then 1"#,
             #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
                 #"                     and $stateID == "state.report-correction.validation-error" then 1"#,
             #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
@@ -19187,10 +19194,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
         let workflowAuthorityCardinality =
-            "            length == 22\n" +
-                "            and ([.[] | [.shardID, .stateID] | join(\"|\")] | unique | length) == 19\n" +
-                "            and ([.[].exceptionIssueID] | unique | length) == 22\n" +
-                "            and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 17"
+            "            length == 23\n" +
+                "            and ([.[] | [.shardID, .stateID] | join(\"|\")] | unique | length) == 20\n" +
+                "            and ([.[].exceptionIssueID] | unique | length) == 23\n" +
+                "            and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 18"
         XCTAssertEqual(
             workflowSource.components(
                 separatedBy: workflowAuthorityCardinality
@@ -19201,29 +19208,29 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             (
                 "authority count contraction",
                 workflowAuthorityCardinality.replacingOccurrences(
-                    of: "length == 22",
-                    with: "length == 21"
+                    of: "length == 23",
+                    with: "length == 22"
                 )
             ),
             (
                 "authority pair contraction",
                 workflowAuthorityCardinality.replacingOccurrences(
-                    of: "unique | length) == 19",
-                    with: "unique | length) == 18"
+                    of: "unique | length) == 20",
+                    with: "unique | length) == 19"
                 )
             ),
             (
                 "authority issue contraction",
                 workflowAuthorityCardinality.replacingOccurrences(
-                    of: "exceptionIssueID] | unique | length) == 22",
-                    with: "exceptionIssueID] | unique | length) == 21"
+                    of: "exceptionIssueID] | unique | length) == 23",
+                    with: "exceptionIssueID] | unique | length) == 22"
                 )
             ),
             (
                 "authority signature contraction",
                 workflowAuthorityCardinality.replacingOccurrences(
-                    of: "tojson)] | unique | length) == 17",
-                    with: "tojson)] | unique | length) == 16"
+                    of: "tojson)] | unique | length) == 18",
+                    with: "tojson)] | unique | length) == 17"
                 )
             ),
         ] {
@@ -19262,7 +19269,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             0
         )
-        let workflowHeaderSharedOneAndNonHeaderSixteen =
+        let workflowHeaderSharedOneAndNonHeaderSeventeen =
             "            and ([.[]\n" +
                 "              | select(.exceptionIssueID | IN(\n" +
                 "                  \"S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER\",\n" +
@@ -19282,10 +19289,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                  \"S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER\",\n" +
                 "                  \"S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER\"\n" +
                 "                )) | not)\n" +
-                "              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 16"
+                "              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 17"
         XCTAssertEqual(
             workflowSource.components(
-                separatedBy: workflowHeaderSharedOneAndNonHeaderSixteen
+                separatedBy: workflowHeaderSharedOneAndNonHeaderSeventeen
             ).count - 1,
             1
         )
@@ -19540,8 +19547,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let axWorkflowAggregateBound =
             #"elif $shard == "s10.4.current.ax-text""# + "\n" +
-                #"                     and (($matchedAuthorities | length) > 14"# + "\n" +
-                #"                       or ($matchedExceptionStateIDs | length) > 11) then"#
+                #"                     and (($matchedAuthorities | length) > 15"# + "\n" +
+                #"                       or ($matchedExceptionStateIDs | length) > 12) then"#
         XCTAssertEqual(
             workflowSource.components(separatedBy: axWorkflowAggregateBound).count - 1,
             1
@@ -19556,7 +19563,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let axWorkflowTaskIssueFunctionBound =
                 #"              def taskIssueLimit($shardID; $taskID):"# + "\n" +
                 #"                if $shardID == "s10.4.current.ax-text""# + "\n" +
-                #"                   and $taskID == "one_handed_start" then 4"# + "\n" +
+                #"                   and $taskID == "one_handed_start" then 5"# + "\n" +
                 #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
                 #"                     and $taskID == "report_comprehension" then 4"# + "\n" +
                 #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
@@ -19570,7 +19577,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let axWorkflowTaskStateFunctionBound =
                 #"              def taskStateLimit($shardID; $taskID):"# + "\n" +
                 #"                if $shardID == "s10.4.current.ax-text""# + "\n" +
-                #"                   and $taskID == "one_handed_start" then 3"# + "\n" +
+                #"                   and $taskID == "one_handed_start" then 4"# + "\n" +
                 #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
                 #"                     and $taskID == "report_comprehension" then 3"# + "\n" +
                 #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
@@ -19586,6 +19593,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 #"                     and $stateID == "state.report-history.ready" then 1"#
         XCTAssertEqual(
             workflowSource.components(separatedBy: axWorkflowStateIssueBound).count - 1,
+            1
+        )
+        let axWorkflowPurchaseCompleteStateIssueBound =
+            #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
+                #"                     and $stateID == "state.paywall.purchase-complete" then 1"#
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: axWorkflowPurchaseCompleteStateIssueBound
+            ).count - 1,
             1
         )
         let axWorkflowReportsIndexStateIssueBound =
@@ -19926,8 +19942,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let planSource = try text(planPath)
         try assertFile(
             planPath,
-            byteCount: 19_053,
-            sha256: "752DAD6AE6006CE2CF6909083482D68B75C695381D7C191F12A1FB6555CF5B25"
+            byteCount: 19_367,
+            sha256: "8E4C157C5ACC0B0916FB81EDF57EBFDC7C47030CBF9A5976317C6E2FDD0977D7"
         )
         XCTAssertFalse(planSource.contains("\r"))
         XCTAssertEqual(try int(plan, "schemaVersion"), 1)
@@ -20047,14 +20063,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
 
         let planExceptionAuthorities = try rows(plan, "exceptionAuthorities")
-        XCTAssertEqual(planExceptionAuthorities.count, 14)
+        XCTAssertEqual(planExceptionAuthorities.count, 15)
         XCTAssertEqual(
             Set(try planExceptionAuthorities.map { try string($0, "exceptionIssueID") }).count,
-            14
+            15
         )
         XCTAssertEqual(
             Set(try planExceptionAuthorities.map { try string($0, "stateID") }).count,
-            11
+            12
         )
         let planExceptionAuthorityTuples = try Set(
             planExceptionAuthorities.map {
@@ -20070,6 +20086,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(
             planExceptionAuthorityTuples,
             Set([
+                "state.paywall.purchase-complete|one_handed_start|S10.4-XCUI-CONTRAST-FP-AX-TEXT-PAYWALL-PURCHASE-COMPLETE-NO-SYNC|palatis3|2026-11-20",
                 "state.check-preflight.ready|one_handed_start|S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-BEFORE-YOU-BEGIN|palatis3|2026-11-20",
                 "state.check-preflight.ready|one_handed_start|S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-TIME-ZONE-CONFIRMATION|palatis3|2026-11-20",
                 "state.issue.recheck-due|work_and_recheck|S10.4-XCUI-CONTRAST-FP-AX-TEXT-ISSUE-RECHECK-DUE-SECTION-APPEARS-DARK|palatis3|2026-11-20",
@@ -20090,6 +20107,36 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             try string($0, "taskID") == "report_comprehension"
         }
         XCTAssertEqual(planReportTaskAuthorities.count, 4)
+        let planOneHandedTaskAuthorities = try planExceptionAuthorities.filter {
+            try string($0, "taskID") == "one_handed_start"
+        }
+        XCTAssertEqual(planOneHandedTaskAuthorities.count, 5)
+        let k207PlanPurchaseCompleteAuthority = try XCTUnwrap(
+            planExceptionAuthorities.first {
+                try string($0, "exceptionIssueID")
+                    == "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PAYWALL-PURCHASE-COMPLETE-NO-SYNC"
+            }
+        )
+        XCTAssertEqual(
+            try string(k207PlanPurchaseCompleteAuthority, "shardID"),
+            "s10.4.current.ax-text"
+        )
+        XCTAssertEqual(
+            try string(k207PlanPurchaseCompleteAuthority, "stateID"),
+            "state.paywall.purchase-complete"
+        )
+        XCTAssertEqual(
+            try string(k207PlanPurchaseCompleteAuthority, "taskID"),
+            "one_handed_start"
+        )
+        XCTAssertEqual(
+            try string(k207PlanPurchaseCompleteAuthority, "exceptionOwner"),
+            "palatis3"
+        )
+        XCTAssertEqual(
+            try string(k207PlanPurchaseCompleteAuthority, "exceptionExpiresAt"),
+            "2026-11-20"
+        )
         let k130PlanAuthority = try XCTUnwrap(
             planExceptionAuthorities.first {
                 try string($0, "exceptionIssueID")
@@ -20337,7 +20384,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             evidenceKernelData.sha256,
-            "5DC95CDF6F6510BB35DEA594A3B93B5D6E9D4900300945CADD45A522911D3C14"
+            "BB035D2E46DA61C5C19DD3000B4E25A5E199E44CCF9173EBC894669666D0A97E"
         )
         XCTAssertEqual(
             try string(plan, "evidenceKernelSHA256"),
@@ -20622,10 +20669,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "\n    @MainActor\n" +
                     "    private func positionAXTextPurchaseCompleteViewport("
         )
-        XCTAssertEqual(availablePaywallSource.utf8.count, 12_526)
+        XCTAssertEqual(availablePaywallSource.utf8.count, 12_120)
         XCTAssertEqual(
             Data(availablePaywallSource.utf8).sha256,
-            "82B6A4A92D18CF8F7D49C1808776D82087FF6BED187A545D67B4EA64F185B9F8"
+            "5E49ECFBAC50A1B9D3865A23469EFB3C7B5782FB42404F3B9D28D63200D6815B"
         )
         for exact in [
             "emitsEvidence: Bool = true",
@@ -20637,9 +20684,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "if !emitsEvidence {",
             "return usedSettingsRetry",
             #"for: "state.paywall.purchase-complete""#,
-            "if automationSegment == .segment2",
-            "try diagnoseSegment2AXTextPaywallPurchaseCompleteNativeContrast(",
-            "XCTFail(String(describing: error))",
             #"captureBaseline("state.paywall.purchase-complete", in: app)"#,
         ] {
             XCTAssertTrue(availablePaywallSource.contains(exact), exact)
@@ -20659,20 +20703,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 range: suppressedPurchaseEvidenceReturn.upperBound..<availablePaywallSource.endIndex
             )
         )
-        let purchaseCompleteDiagnostic = try XCTUnwrap(
-            availablePaywallSource.range(
-                of: "try diagnoseSegment2AXTextPaywallPurchaseCompleteNativeContrast(",
-                range: suppressedPurchaseEvidenceReturn.upperBound..<availablePaywallSource.endIndex
-            )
-        )
         XCTAssertLessThan(purchaseAction.lowerBound, suppressedPurchaseEvidenceReturn.lowerBound)
         XCTAssertLessThan(
             suppressedPurchaseEvidenceReturn.lowerBound,
-            purchaseCompleteDiagnostic.lowerBound
-        )
-        XCTAssertLessThan(
-            purchaseCompleteDiagnostic.lowerBound,
             normalPurchaseCompleteCapture.lowerBound
+        )
+        XCTAssertEqual(
+            availablePaywallSource.components(
+                separatedBy:
+                    "try diagnoseSegment2AXTextPaywallPurchaseCompleteNativeContrast("
+            ).count - 1,
+            0
         )
         XCTAssertEqual(
             segment3ResumeSource.components(
@@ -23181,7 +23222,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         try assertFile(
             assemblerPath,
             byteCount: 35_686,
-            sha256: "0650EC7FAA4951807BD0CFBF01702F6F60AA6A7178A7385EEAD12BF0EBD3043D"
+            sha256: "CB806226F4A07301721C418EFCFA2936101829943D68F5887CBBB63BB226CADC"
         )
         XCTAssertFalse(assemblerSource.contains("\r"))
         XCTAssertTrue(
@@ -23197,8 +23238,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "plan_sha256=\"$(sha256_file \"$plan_path\")\"",
             "evidence_kernel_sha256=\"$(sha256_text \"$kernel_json\")\"",
             ".evidenceKernelSHA256 == $kernel",
-            "and (.exceptionAuthorities | length) == 14",
-            "and ([.exceptionAuthorities[].exceptionIssueID] | unique | length) == 14",
+            "and (.exceptionAuthorities | length) == 15",
+            "and ([.exceptionAuthorities[].exceptionIssueID] | unique | length) == 15",
             ".crossSessionBuildReuse == false",
             ".crossSessionTestWithoutBuilding == false",
             "test \"${#source_dirs[@]}\" -eq 3",
@@ -23433,8 +23474,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "test \"$(find \"$combined_shard/candidates\" -type f -name 'state.*.png' | wc -l | tr -d ' ')\" -eq 67",
             "test \"$(find \"$staging_root/ax/$shard_id\" -type f -name 'state.*.json' | wc -l | tr -d ' ')\" -eq 67",
             "test \"$(find \"$staging_root/contrast/$shard_id\" -type f -name 'state.*.json' | wc -l | tr -d ' ')\" -eq 67",
-            "($authorities | length) == 14",
-            "($expected | length) == 11",
+            "($authorities | length) == 15",
+            "($expected | length) == 12",
             "$today <= $row.exceptionExpiresAt",
             ".ignoredAuditIssues == []",
             "else .result == \"EXCEPTION\" end",

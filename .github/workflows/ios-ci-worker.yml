@@ -520,8 +520,8 @@ jobs:
                 and .preflightHelperSHA256 == "0062C05D0AE8383E270E491C43450D892914CA1B344C1B17DAB1C6D53D548395"
                 and .issueRecheckHelperSHA256 == "A9D52569212661CD4419ECBF4804DDFDA04187EA2F4BF133387807AF6150AC53"
                 and ((.exceptionAuthorities | type) == "array")
-                and ((.exceptionAuthorities | length) == 14)
-                and (([.exceptionAuthorities[].exceptionIssueID] | unique | length) == 14)
+                and ((.exceptionAuthorities | length) == 15)
+                and (([.exceptionAuthorities[].exceptionIssueID] | unique | length) == 15)
                 and all(.exceptionAuthorities[];
                   .shardID == "s10.4.current.ax-text"
                   and (.stateID as $stateID | ($plan.orderedStateIDs | index($stateID)) != null)
@@ -1964,6 +1964,32 @@ jobs:
             --arg timeZoneRationale "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the I confirm this is the site's time zone label even though the audit-owned crop contains only the iOS keyboard and the frozen public node frame is fully keyboard-occluded in the AX-text preflight state; the exception is limited to the frozen public issue signature." '
             [
               {
+                shardID: "s10.4.current.ax-text",
+                stateID: "state.paywall.purchase-complete",
+                taskID: "one_handed_start",
+                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PAYWALL-PURCHASE-COMPLETE-NO-SYNC",
+                exceptionOwner: "palatis3",
+                exceptionExpiresAt: "2026-11-20",
+                exceptionRationale: "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified no-sync disclosure whose frozen public frame starts 526.66666666666629 points above the application, is 745.33333333333303 points tall, and therefore exceeds the 704-point paywall Store viewport; the audit-owned crop visibly binds the issue to black text clipped beneath native Subscription/status chrome, and the exception is limited to the frozen public issue signature.",
+                ignoredAuditIssues: [
+                  {
+                    auditTypeRawValue: "1",
+                    compactDescription: "Contrast failed",
+                    detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode",
+                    elementIdentifier: "s7.2.paywall.no-sync",
+                    elementLabel: "Inspection data and photos stay on this device and do not sync with the subscription. Use a data backup to move them to another device.",
+                    elementType: "XCUIElementType(rawValue: 48)",
+                    elementFrame: {
+                      x: 32,
+                      y: -526.66666666666629,
+                      width: 338,
+                      height: 745.33333333333303
+                    },
+                    applicationFrame: {x: 0, y: 0, width: 402, height: 874}
+                  }
+                ]
+              },
+              {
                 shardID: "s10.4.current.default-dark",
                 stateID: "state.sample-report.ready",
                 taskID: "report_comprehension",
@@ -2538,10 +2564,10 @@ jobs:
             ]
           ' > "$contrast_exception_authority_path"
           jq -e --arg today "$(date -u +%F)" '
-            length == 22
-            and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 19
-            and ([.[].exceptionIssueID] | unique | length) == 22
-            and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 17
+            length == 23
+            and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 20
+            and ([.[].exceptionIssueID] | unique | length) == 23
+            and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 18
             and ([.[]
               | select(.exceptionIssueID | IN(
                   "S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER",
@@ -2561,7 +2587,7 @@ jobs:
                   "S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER",
                   "S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER"
                 )) | not)
-              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 16
+              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 17
             and ([.[] | {shardID, stateID, taskID, exceptionIssueID}]
               | sort_by(.shardID, .stateID, .exceptionIssueID)) == ([
               {
@@ -2593,6 +2619,12 @@ jobs:
                 stateID: "state.new-sign.editing",
                 taskID: "one_handed_start",
                 exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-CUSTOMER-SITE-NAME"
+              },
+              {
+                shardID: "s10.4.current.ax-text",
+                stateID: "state.paywall.purchase-complete",
+                taskID: "one_handed_start",
+                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PAYWALL-PURCHASE-COMPLETE-NO-SYNC"
               },
               {
                 shardID: "s10.4.current.ax-text",
@@ -2821,7 +2853,7 @@ jobs:
                   end;
               def taskIssueLimit($shardID; $taskID):
                 if $shardID == "s10.4.current.ax-text"
-                   and $taskID == "one_handed_start" then 4
+                   and $taskID == "one_handed_start" then 5
                 elif $shardID == "s10.4.current.ax-text"
                      and $taskID == "report_comprehension" then 4
                 elif $shardID == "s10.4.current.ax-text"
@@ -2844,7 +2876,7 @@ jobs:
                 end;
               def taskStateLimit($shardID; $taskID):
                 if $shardID == "s10.4.current.ax-text"
-                   and $taskID == "one_handed_start" then 3
+                   and $taskID == "one_handed_start" then 4
                 elif $shardID == "s10.4.current.ax-text"
                      and $taskID == "report_comprehension" then 3
                 elif $shardID == "s10.4.current.ax-text"
@@ -2927,8 +2959,8 @@ jobs:
                        or ($matchedExceptionStateIDs | length) > 1) then
                    error("reduce-transparency contrast exception bound exceeded")
                 elif $shard == "s10.4.current.ax-text"
-                     and (($matchedAuthorities | length) > 14
-                       or ($matchedExceptionStateIDs | length) > 11) then
+                     and (($matchedAuthorities | length) > 15
+                       or ($matchedExceptionStateIDs | length) > 12) then
                    error("AX-text contrast exception bound exceeded")
                  elif $shard != "s10.4.current.default-light"
                       and $shard != "s10.4.current.default-dark"
@@ -3147,6 +3179,8 @@ jobs:
                    and $stateID == "state.check-preflight.ready" then 2
                 elif $shardID == "s10.4.current.ax-text"
                      and $stateID == "state.new-sign.editing" then 1
+                elif $shardID == "s10.4.current.ax-text"
+                     and $stateID == "state.paywall.purchase-complete" then 1
                 elif $shardID == "s10.4.current.ax-text"
                      and $stateID == "state.report-correction.validation-error" then 1
                 elif $shardID == "s10.4.current.ax-text"

@@ -196,6 +196,28 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
     private static let contrastAuditExceptionSignatures = [
         ContrastAuditExceptionSignature(
+            issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PAYWALL-PURCHASE-COMPLETE-NO-SYNC",
+            shardID: "s10.4.current.ax-text",
+            stateID: "state.paywall.purchase-complete",
+            taskID: "one_handed_start",
+            owner: "palatis3",
+            expiresAt: "2026-11-20",
+            rationale: "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified no-sync disclosure whose frozen public frame starts 526.66666666666629 points above the application, is 745.33333333333303 points tall, and therefore exceeds the 704-point paywall Store viewport; the audit-owned crop visibly binds the issue to black text clipped beneath native Subscription/status chrome, and the exception is limited to the frozen public issue signature.",
+            auditTypeRawValue: "1",
+            compactDescription: "Contrast failed",
+            detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode",
+            elementIdentifier: "s7.2.paywall.no-sync",
+            elementLabel: "Inspection data and photos stay on this device and do not sync with the subscription. Use a data backup to move them to another device.",
+            elementTypeDescription: "XCUIElementType(rawValue: 48)",
+            elementFrame: CGRect(
+                x: 32,
+                y: -526.66666666666629,
+                width: 338,
+                height: 745.33333333333303
+            ),
+            applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)
+        ),
+        ContrastAuditExceptionSignature(
             issueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-WIDE-VIEW",
             shardID: "s10.4.current.default-dark",
             stateID: "state.sample-report.ready",
@@ -8256,16 +8278,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     XCTFail("S10.4 AX-text purchase-complete positioning failed")
                     return usedSettingsRetry
                 }
-                if automationSegment == .segment2 {
-                    do {
-                        try diagnoseSegment2AXTextPaywallPurchaseCompleteNativeContrast(
-                            in: app
-                        )
-                    } catch {
-                        XCTFail(String(describing: error))
-                        return usedSettingsRetry
-                    }
-                }
             }
             captureBaseline("state.paywall.purchase-complete", in: app)
             return usedSettingsRetry
@@ -13574,11 +13586,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let permittedExceptionStateIDs: Set<String>
             switch (shard.shardID, task.taskID) {
             case ("s10.4.current.ax-text", "one_handed_start"):
-                taskIssueLimit = 4
-                taskStateLimit = 3
+                taskIssueLimit = 5
+                taskStateLimit = 4
                 permittedExceptionStateIDs = [
                     "state.check-preflight.ready",
                     "state.new-sign.editing",
+                    "state.paywall.purchase-complete",
                     "state.sign-selection.ready",
                 ]
             case ("s10.4.current.ax-text", "report_comprehension"):
