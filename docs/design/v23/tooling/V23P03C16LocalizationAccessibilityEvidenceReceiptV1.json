@@ -1,0 +1,174 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "adoptionEnabled": false,
+  "appStorePrimaryLocale": "en-US",
+  "artifactDigest": "7adf6772e8ef791e2618e3826684394ec6fd425be67f24e62ba29253c5d64503",
+  "authority": {
+    "appBaseHead": "b8cda42978df63fc5ae1c9b786ffb4a80410407f",
+    "appBaseTree": "027cae683452fde2cfae6e1b575f146ab87fba2d",
+    "contextDigest": "3f2a69f78720190a186e800a3d1b206e498fbe1f28329a4a5c12bbec946a3ae6",
+    "dossierDigest": "851dea838763020ced4b268647c9d2515b07d02518b64589d1211df573ec1ea5",
+    "fenceDigest": "184ec46a5ec7a017a84bb3f9a487c5aec1d5d1f3ea90d57279333ce0aa5a6e43",
+    "inheritedV21BlockDigest": "0cde2b63bff18ee4eadc25ff96c6a3aeaa2cf5e465741d6187c0a1b6ebfa5fc9",
+    "provisionalPrerequisiteDigest": "7fa6f4843f91a21f43be3059e6a16e2612b1195f3bc61ccbb4f109847069c1b9",
+    "registerRowDigest": "e96ddc7f9eb9052b7dce758c8c4986b456098f3482a348a4de5fbd2e9fcb6459",
+    "s10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+  },
+  "cardID": "V23-P03-C16",
+  "catalogKeyCount": 11,
+  "checks": [
+    "EXACT_18_PATH_FENCE_15_NEW_3_EXISTING_AND_ZERO_S10_OVERLAP",
+    "SOLE_APPLICATION_LOCALIZABLE_XCSTRINGS_WITH_EXACT_EN_ONLY_CATALOG",
+    "ELEVEN_TYPED_LITERAL_COMPILER_EXTRACTION_KEYS_AND_COMMENTS",
+    "INFOPLIST_XCSTRINGS_READ_ONLY_P00_C06_INPUT",
+    "SEMANTIC_ACCESSIBILITY_REGISTRY_AND_EXACT_FIVE_ID_LEGACY_NO_GROWTH_RATCHET",
+    "SHIPPING_PACKAGE_RELEASE_SIDECAR_BINDS_THREE_LOCALIZATION_KEYS_WITHOUT_SCHEMA_CHANGE",
+    "LOCALE_AWARE_PRESENTATION_AND_TEST_ONLY_PSEUDO_LOCALES",
+    "FROZEN_HISTORIC_DISPLAY_AND_CANONICAL_BYTES_NEVER_RELOCALIZED",
+    "ZERO_OR_COMPLETE_INTERRUPTION_AND_IDEMPOTENT_RECOVERY",
+    "EXACT_FIVE_G01_A01_H01_I01_R01_UNIT_AND_HONEST_DEFERRED_UI_SELECTORS",
+    "STATIC_ONLY_NO_CREDIT_AND_POST_S10_6_RECONCILIATION_REQUIRED"
+  ],
+  "compilerExtractionEvidence": "NOT_RUN_NO_CREDIT_WINDOWS_STATIC_ONLY",
+  "contractArtifact": {
+    "bytes": 11699,
+    "path": "docs/design/v23/tooling/V23P03C16LocalizationAccessibilityContractV1.json",
+    "sha256": "22407af22248c86f91ca8afa2941a4782b95eda5438efeecccbdd2c3a87fb4a4"
+  },
+  "evidenceMatrix": [
+    {
+      "evidenceID": "V23-P03-C16-G01",
+      "uiDisposition": "DECLARED_SKIPPED_PENDING_S10_6_RECONCILIATION",
+      "uiTestMethod": "testV23P03C16G01CompilerCatalogAndShippingLocaleUI",
+      "unitTestMethod": "testV9_22G01CompilerExtractedCatalogAndShippingLocaleTruth"
+    },
+    {
+      "evidenceID": "V23-P03-C16-A01",
+      "uiDisposition": "DECLARED_SKIPPED_PENDING_S10_6_RECONCILIATION",
+      "uiTestMethod": "testV23P03C16A01PseudoLocaleAndRTLUI",
+      "unitTestMethod": "testV9_22A01TestOnlyPseudoLocalesAndLocaleAwarePresentationRemainBounded"
+    },
+    {
+      "evidenceID": "V23-P03-C16-H01",
+      "uiDisposition": "DECLARED_SKIPPED_PENDING_S10_6_RECONCILIATION",
+      "uiTestMethod": "testV23P03C16H01HostileAccessibilityAndLocaleUI",
+      "unitTestMethod": "testV9_22H01MissingDuplicateReassignedAndLocaleDriftInputsFailClosed"
+    },
+    {
+      "evidenceID": "V23-P03-C16-I01",
+      "uiDisposition": "DECLARED_SKIPPED_PENDING_S10_6_RECONCILIATION",
+      "uiTestMethod": "testV23P03C16I01InterruptedCatalogUI",
+      "unitTestMethod": "testV9_22I01InterruptedExtractionLeavesNoPartialCatalogOrBinding"
+    },
+    {
+      "evidenceID": "V23-P03-C16-R01",
+      "uiDisposition": "DECLARED_SKIPPED_PENDING_S10_6_RECONCILIATION",
+      "uiTestMethod": "testV23P03C16R01FrozenDisplayAndRecoveryUI",
+      "unitTestMethod": "testV9_22R01FrozenDisplayAndPackageDigestsRecoverIdempotently"
+    }
+  ],
+  "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+  "existingPathCount": 3,
+  "exportLocalizationsEvidence": "NOT_RUN_NO_CREDIT_WINDOWS_STATIC_ONLY",
+  "generatedArtifactCount": 4,
+  "hostedDispatchEnabled": false,
+  "hostedDispatchRan": false,
+  "implementationCredit": false,
+  "infoPlistCatalogDisposition": "READ_ONLY_P00_C06_INPUT",
+  "legacyAllowlistCount": 5,
+  "legacyAllowlistGrowthAllowed": false,
+  "nativeCompileRan": false,
+  "newPathCount": 15,
+  "packageLocalizationKeyCount": 3,
+  "pathFenceCount": 18,
+  "phase10PollingDuringParallelExecution": false,
+  "pseudoLocalesShipping": false,
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "result": "PASS_STATIC_PROVISIONAL",
+  "s10FenceOverlapPaths": [],
+  "schema": "V23P03C16LocalizationAccessibilityEvidenceReceiptV1",
+  "schemaVersion": 1,
+  "semanticIDCount": 5,
+  "shippingRuntimeLocales": [
+    "en"
+  ],
+  "sourceArtifacts": [
+    {
+      "bytes": 3875,
+      "path": "FieldEvidenceApp/Resources/Localizable.xcstrings",
+      "sha256": "c0f2c8fc8cb2dc85f8767a5bc1483c461c6c58d0cd86daea6bbddf41cc576a78"
+    },
+    {
+      "bytes": 14562,
+      "path": "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
+      "sha256": "4b813c5da0352e3da5b6fac07bda89041265dd953e39b0bdda4def4581f84af2"
+    },
+    {
+      "bytes": 5557,
+      "path": "FieldEvidenceApp/Domain/Accessibility/SemanticAccessibilityContractsV1.swift",
+      "sha256": "7c1c3cae185c90005be617b8c7ba979eee58f1c646368a91bc8f5013ba2b9915"
+    },
+    {
+      "bytes": 17524,
+      "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+      "sha256": "8f74d2e9227645ece863b18e85b1cc23aad1dcd7a8474d2ac19271269ccf1df1"
+    },
+    {
+      "bytes": 25271,
+      "path": "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift",
+      "sha256": "ec6bf0e7fe025c4f632b54389bc9489cce279c5f0f6436c9f2b08d81e0707731"
+    },
+    {
+      "bytes": 1257,
+      "path": "FieldEvidenceAppUITests/V23_P03_C16LocalizationAccessibilityUITests.swift",
+      "sha256": "83b0afddfd3cf155d61099620a20dc60baecec95600a764636ade830221d9088"
+    },
+    {
+      "bytes": 11058,
+      "path": "FieldEvidenceAppTests/Fixtures/V21/Localization/V21P03C16LocalizationAccessibilityCorpusV1.json",
+      "sha256": "d915ab16523d0ba301bbb79a5b98482330c0f470c774560ba69af91ff6ef1bdb"
+    },
+    {
+      "bytes": 15183,
+      "path": "Scripts/v23/p03_c16_contracts.py",
+      "sha256": "61f9742f053cb976d5273e8045a17055c68591455c479f4409b4693cf7b5d377"
+    },
+    {
+      "bytes": 1365,
+      "path": "Scripts/v23/generate_p03_c16_contracts.py",
+      "sha256": "16d6e5092eb7339f85d345a105c8acc44399a89cd771a4e7b48d9276b174719c"
+    },
+    {
+      "bytes": 17634,
+      "path": "Scripts/v23/verify_p03_c16_contracts.py",
+      "sha256": "0c30d607af2e8ae069cbdea4014139dec691e6c440fe5918de451d2050315ead"
+    },
+    {
+      "bytes": 9450,
+      "path": "Scripts/v23/localization-accessibility.schema.json",
+      "sha256": "7d2470c6dd34ef1d7ae1de378a71f1e05409f0c21e44854b6b614ac96cc5ae8e"
+    },
+    {
+      "bytes": 3031,
+      "path": "FieldEvidenceApp/Infrastructure/Packs/BundledInspectionPackageRegistryV2.swift",
+      "sha256": "265f0fde969279aa879466f2549028e648e00a6068b90d20b5a519820ad3302b"
+    },
+    {
+      "bytes": 24991,
+      "path": "FieldEvidenceAppTests/V9_11PackRegistryTests.swift",
+      "sha256": "3df20924b5d4c22471d7d651289e414cdb985c2c17a0dece6a95beb2607381b2"
+    },
+    {
+      "bytes": 10968,
+      "path": "FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift",
+      "sha256": "80c29226890dd1d2a50deb491548b0e657c14e5e1cbd392aa9b6519c9f42ad59"
+    }
+  ],
+  "sourcePathCount": 14,
+  "uiAcceptanceEvidence": "NOT_RUN_NO_CREDIT_S10_RESERVED",
+  "verificationMode": "STATIC_ONLY",
+  "zeroShippingAllowlistRequired": false
+}

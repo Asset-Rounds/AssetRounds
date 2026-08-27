@@ -1,0 +1,139 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "common.done" : {
+      "comment" : "Completes and closes the current task.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Done"
+          }
+        }
+      }
+    },
+    "feedback.mail.attachment_count" : {
+      "comment" : "Number of diagnostic files attached to the support email.",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Diagnostic attachment: %lld"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Diagnostic attachments: %lld"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "feedback.mail.body_template" : {
+      "comment" : "Editable support-email body. Arguments are app version, build, device model, and OS version.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App version: %@ (%@)\nDevice: %@\nOS: iOS %@\n\nFeedback:\n"
+          }
+        }
+      }
+    },
+    "feedback.mail.composer.title" : {
+      "comment" : "Heading of the deterministic feedback composer used by UI tests.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feedback composer"
+          }
+        }
+      }
+    },
+    "feedback.mail.message.heading" : {
+      "comment" : "Heading above the editable feedback message.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Editable message"
+          }
+        }
+      }
+    },
+    "feedback.mail.message.label" : {
+      "comment" : "Accessibility label for the editable feedback message.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feedback message"
+          }
+        }
+      }
+    },
+    "feedback.mail.recipient" : {
+      "comment" : "Support-email recipient summary. Argument is the recipient list.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To: %@"
+          }
+        }
+      }
+    },
+    "feedback.mail.subject" : {
+      "comment" : "Subject of the support email.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App feedback"
+          }
+        }
+      }
+    },
+    "package.illuminated_sign.guidance.authorized_position" : {
+      "comment" : "Shipping illuminated-sign package safety guidance.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stand in an authorized position before taking a photo."
+          }
+        }
+      }
+    },
+    "package.illuminated_sign.guidance.required_views" : {
+      "comment" : "Shipping illuminated-sign package guidance for required evidence views.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Capture the required views."
+          }
+        }
+      }
+    },
+    "package.illuminated_sign.guidance.visible_conditions_only" : {
+      "comment" : "Shipping illuminated-sign package limitation guidance.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record only conditions visible in the evidence."
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

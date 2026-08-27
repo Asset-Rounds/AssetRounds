@@ -14,6 +14,32 @@ enum BundledInspectionPackageRegistryV2 {
     static let runtimeDownloadsAllowed = false
     static let shippingPackageIDs = [ShippingIlluminatedSignAdapterV1.packageID]
 
+    /// Localization is a sidecar release binding. The package's canonical V2
+    /// bytes and release identity remain unchanged.
+    static func shippingLocalizationSlotBindings() throws
+        -> [PackageLocalizationSlotBindingV1] {
+        let package = try ShippingIlluminatedSignAdapterV1.inspectionPackage()
+        return try package.advisoryGuidance.map {
+            PackageLocalizationSlotBindingV1(
+                slotID: "advisoryGuidance.\($0.guidanceID)",
+                localizationKey: try LocalizationKeyV1($0.localizationKey)
+            )
+        }
+    }
+
+    static func localizationBinding(
+        publication: InspectionPackagePublishedReleaseV1,
+        localizationRelease: LocalizationCatalogReleaseV1,
+        registry: LocalizationKeyRegistryV1
+    ) throws -> PackageLocalizationReleaseBindingV1 {
+        try PackageLocalizationReleaseBindingV1(
+            publication: publication,
+            localizationRelease: localizationRelease,
+            slotBindings: try shippingLocalizationSlotBindings(),
+            registry: registry
+        )
+    }
+
     static func shippingDraftRelease(
         workflow: WorkflowDefinitionV1
     ) throws -> InspectionPackageReleaseV1 {

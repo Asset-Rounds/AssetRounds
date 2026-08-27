@@ -301,6 +301,114 @@ final class V9_11PackRegistryTests: XCTestCase {
         XCTAssertFalse(BundledInspectionPackageRegistryV2.shippingPackageIDs.contains(alternate.packageID))
     }
 
+    func testV9_11C16ShippingPackageLocalizationSlotsRemainBoundToCatalog() throws {
+        let shipping = try ShippingIlluminatedSignAdapterV1.inspectionPackage()
+        let expectedKeys = [
+            "package.illuminated_sign.guidance.required_views",
+            "package.illuminated_sign.guidance.visible_conditions_only",
+            "package.illuminated_sign.guidance.authorized_position",
+        ]
+        XCTAssertEqual(shipping.advisoryGuidance.map(\.localizationKey), expectedKeys)
+
+        let fixtureData = try Data(contentsOf: try localizationFixtureURL())
+        let fixture = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: fixtureData) as? [String: Any]
+        )
+        let catalog = try XCTUnwrap(fixture["catalog"] as? [String: Any])
+        let catalogKeys = try XCTUnwrap(catalog["keys"] as? [[String: Any]])
+            .compactMap { $0["key"] as? String }
+        XCTAssertTrue(Set(expectedKeys).isSubset(of: Set(catalogKeys)))
+
+        let bindings = try XCTUnwrap(fixture["packageBindings"] as? [[String: Any]])
+        let binding = try XCTUnwrap(
+            bindings.first { ($0["packageID"] as? String) == shipping.packageID }
+        )
+        XCTAssertEqual(binding["packageContentVersion"] as? Int, shipping.contentVersion)
+        XCTAssertEqual(binding["slotKeys"] as? [String], expectedKeys)
+        XCTAssertFalse((binding["catalogReleaseID"] as? String ?? "").isEmpty)
+        let canonicalKeys = try JSONSerialization.data(
+            withJSONObject: catalogKeys.sorted(),
+            options: [.sortedKeys, .withoutEscapingSlashes]
+        )
+        XCTAssertEqual(binding["catalogKeyDigest"] as? String, Self.sha256(canonicalKeys))
+        XCTAssertEqual(binding["deprecatedKeyFallback"] as? String, "deterministic-source-locale")
+    }
+
+    func testV9_11C16PublishedPackageReleaseBindsLocalizationSidecar() throws {
+        let workflow = try localizationBindingWorkflow()
+        let draft = try BundledInspectionPackageRegistryV2.shippingDraftRelease(
+            workflow: workflow
+        )
+        let tested = try InspectionPackageReleasePublisherV1.test(draft)
+        let published = try InspectionPackageReleasePublisherV1.publish(tested)
+        let originalPackage = try ShippingIlluminatedSignAdapterV1.inspectionPackage()
+        let sourceCatalog = try Data(contentsOf: repositoryRootURL()
+            .appendingPathComponent("FieldEvidenceApp/Resources/Localizable.xcstrings"))
+        let legacy = try BundledLocalizationCatalogV1.mailLegacyAllowlist()
+        let publication = try BundledLocalizationCatalogV1.publish(
+            sourceCatalogBytes: sourceCatalog,
+            packagePublications: [published],
+            legacy: legacy
+        )
+        guard case let .complete(
+            registry: registry,
+            accessibility: _,
+            legacy: publishedLegacy,
+            packageBindings: packageBindings,
+            receipt: receipt
+        ) = publication else {
+            return XCTFail("A published package must produce a complete localization declaration")
+        }
+
+        let binding = try XCTUnwrap(packageBindings.first)
+        let expectedSlots = try BundledInspectionPackageRegistryV2.shippingLocalizationSlotBindings()
+        XCTAssertEqual(binding.packageReleaseID, published.release.packageReleaseID)
+        XCTAssertEqual(binding.packageSHA256, published.release.packageSHA256)
+        XCTAssertEqual(binding.workflowSHA256, published.release.workflowSHA256)
+        XCTAssertEqual(binding.localizationReleaseSHA256, receipt.release.releaseSHA256)
+        XCTAssertEqual(binding.sourceCatalogSHA256, receipt.release.sourceCatalogSHA256)
+        XCTAssertEqual(binding.keyRegistrySHA256, receipt.release.keyRegistrySHA256)
+        XCTAssertEqual(binding.localeManifestSHA256, receipt.release.localeManifestSHA256)
+        XCTAssertEqual(binding.orderedSlotBindings, expectedSlots.sorted { $0.slotID < $1.slotID })
+        XCTAssertEqual(publishedLegacy, legacy)
+        XCTAssertEqual(
+            try BundledInspectionPackageRegistryV2.localizationBinding(
+                publication: published,
+                localizationRelease: receipt.release,
+                registry: registry
+            ),
+            binding
+        )
+        try binding.validate(
+            publication: published,
+            localizationRelease: receipt.release,
+            registry: registry
+        )
+        var renamedSlots = expectedSlots
+        let first = try XCTUnwrap(renamedSlots.first)
+        renamedSlots[0] = PackageLocalizationSlotBindingV1(
+            slotID: first.slotID + ".renamed",
+            localizationKey: first.localizationKey
+        )
+        XCTAssertThrowsError(
+            try PackageLocalizationReleaseBindingV1(
+                publication: published,
+                localizationRelease: receipt.release,
+                slotBindings: renamedSlots,
+                registry: registry
+            )
+        )
+
+        let publishedPackage = try InspectionPackageCanonicalCodecV2.decode(
+            published.release.canonicalPackageBytes
+        )
+        XCTAssertEqual(publishedPackage, originalPackage)
+        XCTAssertEqual(
+            try InspectionPackageCanonicalCodecV2.encode(publishedPackage),
+            published.release.canonicalPackageBytes
+        )
+    }
+
     private func fixturePackage() throws -> InspectionPackageV2 {
         try InspectionPackageCanonicalCodecV2.decode(fixtureCanonicalData())
     }
@@ -330,6 +438,48 @@ final class V9_11PackRegistryTests: XCTestCase {
                 forResource: "V21P03C01AlternatePackV1",
                 withExtension: "json"
             )
+        )
+    }
+
+    private func localizationFixtureURL() throws -> URL {
+        let bundle = Bundle(for: Self.self)
+        return try XCTUnwrap(
+            bundle.url(
+                forResource: "V21P03C16LocalizationAccessibilityCorpusV1",
+                withExtension: "json",
+                subdirectory: "Fixtures/V21/Localization"
+            ) ?? bundle.url(
+                forResource: "V21P03C16LocalizationAccessibilityCorpusV1",
+                withExtension: "json"
+            )
+        )
+    }
+
+    private func repositoryRootURL() -> URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+    }
+
+    private func localizationBindingWorkflow() throws -> WorkflowDefinitionV1 {
+        try WorkflowDefinitionV1(
+            workflowID: "fixture.localization.binding.v1",
+            entryNodeID: "node.section",
+            declaredFieldIDs: [],
+            nodes: [
+                try WorkflowNodeV1(
+                    nodeID: "node.section",
+                    kind: .section,
+                    localizationKey: "workflow.section",
+                    outgoingNodeIDs: ["node.terminal"]
+                ),
+                try WorkflowNodeV1(
+                    nodeID: "node.terminal",
+                    kind: .terminal,
+                    localizationKey: "workflow.terminal",
+                    outgoingNodeIDs: []
+                ),
+            ]
         )
     }
 

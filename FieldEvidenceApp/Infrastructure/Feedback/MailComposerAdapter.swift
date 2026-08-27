@@ -36,14 +36,11 @@ enum FeedbackMailDraftBuilderV1 {
         }
 
         let value = diagnostic.value
-        let body = """
-        App version: \(value.app.version) (\(value.app.build))
-        Device: \(value.device.model)
-        OS: iOS \(value.device.osVersion)
-
-        Feedback:
-
-        """
+        let body = String(
+            format: BundledLocalizationCatalogV1.localized(.feedbackBodyTemplate),
+            locale: Locale(identifier: BundledLocalizationCatalogV1.runtimeLanguage),
+            value.app.version, value.app.build, value.device.model, value.device.osVersion
+        )
         let attachments: [FeedbackMailAttachmentV1]
         switch attachmentChoice {
         case .attach:
@@ -59,7 +56,7 @@ enum FeedbackMailDraftBuilderV1 {
         }
         return FeedbackMailDraftV1(
             recipients: [address],
-            subject: "App feedback",
+            subject: BundledLocalizationCatalogV1.localized(.feedbackSubject),
             body: body,
             attachments: attachments
         )
@@ -225,29 +222,37 @@ private final class FeedbackUITestMailViewController: UIViewController {
         view.backgroundColor = .systemBackground
 
         let title = UILabel()
-        title.text = "Feedback composer"
+        title.text = BundledLocalizationCatalogV1.localized(.mailComposerTitle)
         title.font = .preferredFont(forTextStyle: .title2)
         title.adjustsFontForContentSizeCategory = true
         title.accessibilityTraits.insert(.header)
         title.accessibilityIdentifier = "s8.4.mail.screen"
 
         let recipient = UILabel()
-        recipient.text = "To: \(draft.recipients.joined(separator: ", "))"
+        recipient.text = String(
+            format: BundledLocalizationCatalogV1.localized(.mailRecipient),
+            draft.recipients.joined(separator: ", ")
+        )
         recipient.font = .preferredFont(forTextStyle: .body)
         recipient.adjustsFontForContentSizeCategory = true
         recipient.numberOfLines = 0
         recipient.accessibilityIdentifier = "s8.4.mail.recipient"
 
         let attachment = UILabel()
-        attachment.text = "Diagnostic attachments: \(draft.attachments.count)"
+        attachment.text = String.localizedStringWithFormat(
+            BundledLocalizationCatalogV1.localized(.mailAttachmentCount),
+            draft.attachments.count
+        )
         attachment.font = .preferredFont(forTextStyle: .body)
         attachment.adjustsFontForContentSizeCategory = true
         attachment.numberOfLines = 0
         attachment.accessibilityIdentifier = "s8.4.mail.attachment-count"
-        attachment.accessibilityValue = String(draft.attachments.count)
+        attachment.accessibilityValue = BundledLocalizationCatalogV1.formattedInteger(
+            draft.attachments.count
+        )
 
         let bodyLabel = UILabel()
-        bodyLabel.text = "Editable message"
+        bodyLabel.text = BundledLocalizationCatalogV1.localized(.mailMessageHeading)
         bodyLabel.font = .preferredFont(forTextStyle: .headline)
         bodyLabel.adjustsFontForContentSizeCategory = true
 
@@ -258,13 +263,13 @@ private final class FeedbackUITestMailViewController: UIViewController {
         message.layer.borderColor = UIColor.separator.cgColor
         message.layer.borderWidth = 1
         message.layer.cornerRadius = 8
-        message.accessibilityLabel = "Feedback message"
+        message.accessibilityLabel = BundledLocalizationCatalogV1.localized(.mailMessageLabel)
         message.accessibilityIdentifier = "s8.4.mail.body"
         message.heightAnchor.constraint(greaterThanOrEqualToConstant: 180)
             .isActive = true
 
         let done = UIButton(type: .system)
-        done.setTitle("Done", for: .normal)
+        done.setTitle(BundledLocalizationCatalogV1.localized(.commonDone), for: .normal)
         done.titleLabel?.font = .preferredFont(forTextStyle: .headline)
         done.titleLabel?.adjustsFontForContentSizeCategory = true
         done.accessibilityIdentifier = "s8.4.mail.done"

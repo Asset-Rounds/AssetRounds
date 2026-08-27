@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://assetrounds.local/schemas/v23/localization-accessibility.schema.json",
+  "title": "V23 P03 C16 localization and accessibility corpus",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "schemaVersion", "runtimeUI", "catalog", "permissionCatalog",
+    "presentation", "semanticAccessibility", "legacyAllowlist", "packageBindings",
+    "frozenDisplay", "goldenCases", "alternateCases", "hostileCases",
+    "interruptionCases", "recoveryCases"
+  ],
+  "properties": {
+    "schema": { "const": "V23-P03-C16-LocalizationAccessibilityCorpusV1" },
+    "schemaVersion": { "const": 1 },
+    "runtimeUI": { "$ref": "#/$defs/runtimeUI" },
+    "catalog": { "$ref": "#/$defs/catalog" },
+    "permissionCatalog": { "$ref": "#/$defs/permissionCatalog" },
+    "presentation": { "$ref": "#/$defs/presentation" },
+    "semanticAccessibility": { "$ref": "#/$defs/semanticAccessibility" },
+    "legacyAllowlist": { "$ref": "#/$defs/legacyAllowlist" },
+    "packageBindings": {
+      "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/packageBinding" }
+    },
+    "frozenDisplay": { "$ref": "#/$defs/frozenDisplay" },
+    "goldenCases": { "$ref": "#/$defs/evidenceCases" },
+    "alternateCases": { "$ref": "#/$defs/evidenceCases" },
+    "hostileCases": { "$ref": "#/$defs/evidenceCases" },
+    "interruptionCases": { "$ref": "#/$defs/evidenceCases" },
+    "recoveryCases": { "$ref": "#/$defs/evidenceCases" }
+  },
+  "$defs": {
+    "nonempty": { "type": "string", "minLength": 1 },
+    "stringArray": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "runtimeUI": {
+      "type": "object", "additionalProperties": false,
+      "required": ["shippingLocale", "primaryMetadataLocale", "acceptedShippingLocales", "completeCatalogLocales", "pseudoLocales"],
+      "properties": {
+        "shippingLocale": { "const": "en" },
+        "primaryMetadataLocale": { "const": "en-US" },
+        "acceptedShippingLocales": { "const": ["en"] },
+        "completeCatalogLocales": { "const": ["en"] },
+        "pseudoLocales": { "type": "array", "minItems": 5, "maxItems": 5, "items": { "$ref": "#/$defs/pseudoLocale" } }
+      }
+    },
+    "pseudoLocale": {
+      "type": "object", "additionalProperties": false,
+      "required": ["locale", "direction", "purpose", "testOnly", "shipping"],
+      "properties": {
+        "locale": { "enum": ["ar-XB", "en-XA", "en-XB", "en-XL", "en-XT"] },
+        "direction": { "enum": ["ltr", "rtl"] },
+        "purpose": { "$ref": "#/$defs/nonempty" },
+        "testOnly": { "const": true },
+        "shipping": { "const": false }
+      }
+    },
+    "catalog": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "sourceLanguage", "version", "extraction", "shippingLocales", "missingKeys", "orphanKeys", "keys"],
+      "properties": {
+        "path": { "const": "FieldEvidenceApp/Resources/Localizable.xcstrings" },
+        "sourceLanguage": { "const": "en" },
+        "version": { "const": "1.0" },
+        "extraction": { "const": "compiler" },
+        "shippingLocales": { "const": ["en"] },
+        "missingKeys": { "const": [] },
+        "orphanKeys": { "const": [] },
+        "keys": { "type": "array", "minItems": 11, "maxItems": 11, "items": { "$ref": "#/$defs/catalogKey" } }
+      }
+    },
+    "catalogKey": {
+      "type": "object", "additionalProperties": false,
+      "required": ["key", "comment", "meaning", "value", "plural"],
+      "properties": {
+        "key": { "type": "string", "pattern": "^[a-z0-9]+(?:[._-][a-z0-9]+)+$" },
+        "comment": { "$ref": "#/$defs/nonempty" },
+        "meaning": { "$ref": "#/$defs/nonempty" },
+        "value": { "$ref": "#/$defs/nonempty" },
+        "plural": {
+          "type": "object", "additionalProperties": false,
+          "properties": { "one": { "$ref": "#/$defs/nonempty" }, "other": { "$ref": "#/$defs/nonempty" } },
+          "oneOf": [
+            { "maxProperties": 0 },
+            { "required": ["one", "other"], "minProperties": 2 }
+          ]
+        }
+      }
+    },
+    "permissionCatalog": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "owner", "sourceLanguage", "keys", "shippingLocales", "pseudoLocalesShipping"],
+      "properties": {
+        "path": { "const": "FieldEvidenceApp/InfoPlist.xcstrings" },
+        "owner": { "const": "V23-P00-C06" },
+        "sourceLanguage": { "const": "en" },
+        "keys": { "const": ["NSCameraUsageDescription"] },
+        "shippingLocales": { "const": ["en"] },
+        "pseudoLocalesShipping": { "const": false }
+      }
+    },
+    "presentation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["numberFormatting", "dateFormatting", "unitFormatting", "canonicalDataFormatting", "canonicalUnitIDsUnlocalized"],
+      "properties": {
+        "numberFormatting": { "const": "locale-aware" },
+        "dateFormatting": { "const": "locale-aware" },
+        "unitFormatting": { "const": "locale-aware" },
+        "canonicalDataFormatting": { "const": "en_US_POSIX" },
+        "canonicalUnitIDsUnlocalized": { "const": true }
+      }
+    },
+    "semanticAccessibility": {
+      "type": "object", "additionalProperties": false,
+      "required": ["registry", "contract", "registryVersion", "entries"],
+      "properties": {
+        "registry": { "const": "SemanticAccessibilityIDRegistryV1" },
+        "contract": { "const": "AccessibilityContractV1" },
+        "registryVersion": { "const": 1 },
+        "entries": { "type": "array", "minItems": 5, "maxItems": 5, "items": { "$ref": "#/$defs/semanticEntry" } }
+      }
+    },
+    "semanticEntry": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "role", "reachability", "labelKey", "hintKey", "valueKey", "dynamicOpaqueSuffixPolicy", "deprecatedAliases"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9.-]+$" },
+        "role": { "enum": ["SCREEN", "HEADING", "BUTTON", "TEXT_FIELD", "STATUS", "GROUP"] },
+        "reachability": { "enum": ["ALWAYS", "WHEN_AVAILABLE"] },
+        "labelKey": { "$ref": "#/$defs/nonempty" },
+        "hintKey": { "type": ["string", "null"] },
+        "valueKey": { "type": ["string", "null"] },
+        "dynamicOpaqueSuffixPolicy": { "enum": ["NONE", "OPAQUE_LOWERCASE_HEX"] },
+        "deprecatedAliases": { "$ref": "#/$defs/stringArray" }
+      }
+    },
+    "legacyAllowlist": {
+      "type": "object", "additionalProperties": false,
+      "required": ["registry", "version", "baseline", "current", "newEntries", "growthAllowed"],
+      "properties": {
+        "registry": { "const": "LegacyLocalizationAccessibilityAllowlistV1" },
+        "version": { "const": 1 },
+        "baseline": { "$ref": "#/$defs/stringArray" },
+        "current": { "$ref": "#/$defs/stringArray" },
+        "newEntries": { "const": [] },
+        "growthAllowed": { "const": false }
+      }
+    },
+    "packageBinding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["packageID", "packageContentVersion", "slotKeys", "catalogReleaseID", "catalogKeyDigest", "deprecatedKeyFallback"],
+      "properties": {
+        "packageID": { "const": "field.evidence.illuminated_sign.v1" },
+        "packageContentVersion": { "const": 1 },
+        "slotKeys": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "string" }, "uniqueItems": true },
+        "catalogReleaseID": { "$ref": "#/$defs/nonempty" },
+        "catalogKeyDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "deprecatedKeyFallback": { "const": "deterministic-source-locale" }
+      }
+    },
+    "frozenDisplay": {
+      "type": "object", "additionalProperties": false,
+      "required": ["registry", "snapshotID", "canonicalLocale", "canonicalFormats", "localeInvariant", "historicOutputByteIdentical", "canonicalIDsUnlocalized", "historicFixtureDigests"],
+      "properties": {
+        "registry": { "const": "FrozenDisplaySnapshotV1" },
+        "snapshotID": { "$ref": "#/$defs/nonempty" },
+        "canonicalLocale": { "const": "en_US_POSIX" },
+        "canonicalFormats": { "$ref": "#/$defs/stringArray" },
+        "localeInvariant": { "const": true },
+        "historicOutputByteIdentical": { "const": true },
+        "canonicalIDsUnlocalized": { "const": true },
+        "historicFixtureDigests": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/fixtureDigest" } }
+      }
+    },
+    "fixtureDigest": {
+      "type": "object", "additionalProperties": false,
+      "required": ["fixtureID", "sha256"],
+      "properties": {
+        "fixtureID": { "$ref": "#/$defs/nonempty" },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "evidenceCases": {
+      "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/evidenceCase" }
+    },
+    "evidenceCase": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "classification", "expectedResult", "reason"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^V23-P03-C16-[GAHIR][0-9]{2}(?:-[A-Z0-9_-]+)?$" },
+        "classification": { "enum": ["GOLDEN", "ALTERNATE", "HOSTILE", "INTERRUPTION", "RECOVERY"] },
+        "expectedResult": { "enum": ["ACCEPT", "REJECT", "NO_PARTIAL_ACCEPTANCE", "IDEMPOTENT", "PRESERVED"] },
+        "reason": { "$ref": "#/$defs/nonempty" }
+      }
+    }
+  }
+}

@@ -1,0 +1,362 @@
+{
+  "schema": "V23-P03-C16-LocalizationAccessibilityCorpusV1",
+  "schemaVersion": 1,
+  "runtimeUI": {
+    "shippingLocale": "en",
+    "primaryMetadataLocale": "en-US",
+    "acceptedShippingLocales": [
+      "en"
+    ],
+    "completeCatalogLocales": [
+      "en"
+    ],
+    "pseudoLocales": [
+      {
+        "locale": "en-XA",
+        "direction": "ltr",
+        "purpose": "accented",
+        "testOnly": true,
+        "shipping": false
+      },
+      {
+        "locale": "en-XB",
+        "direction": "ltr",
+        "purpose": "double-length",
+        "testOnly": true,
+        "shipping": false
+      },
+      {
+        "locale": "ar-XB",
+        "direction": "rtl",
+        "purpose": "right-to-left",
+        "testOnly": true,
+        "shipping": false
+      },
+      {
+        "locale": "en-XL",
+        "direction": "ltr",
+        "purpose": "long",
+        "testOnly": true,
+        "shipping": false
+      },
+      {
+        "locale": "en-XT",
+        "direction": "ltr",
+        "purpose": "tall",
+        "testOnly": true,
+        "shipping": false
+      }
+    ]
+  },
+  "catalog": {
+    "path": "FieldEvidenceApp/Resources/Localizable.xcstrings",
+    "sourceLanguage": "en",
+    "version": "1.0",
+    "extraction": "compiler",
+    "shippingLocales": [
+      "en"
+    ],
+    "missingKeys": [],
+    "orphanKeys": [],
+    "keys": [
+      {
+        "key": "common.done",
+        "comment": "Completes and closes the current task.",
+        "meaning": "Completes and closes the current task.",
+        "value": "Done",
+        "plural": {}
+      },
+      {
+        "key": "feedback.mail.attachment_count",
+        "comment": "Number of diagnostic files attached to the support email.",
+        "meaning": "Number of diagnostic attachments.",
+        "value": "Diagnostic attachments: %lld",
+        "plural": {
+          "one": "Diagnostic attachment: %lld",
+          "other": "Diagnostic attachments: %lld"
+        }
+      },
+      {
+        "key": "feedback.mail.body_template",
+        "comment": "Editable support-email body. Arguments are app version, build, device model, and OS version.",
+        "meaning": "Editable support-email body.",
+        "value": "App version: %@ (%@)\nDevice: %@\nOS: iOS %@\n\nFeedback:\n",
+        "plural": {}
+      },
+      {
+        "key": "feedback.mail.composer.title",
+        "comment": "Heading of the deterministic feedback composer used by UI tests.",
+        "meaning": "Feedback composer heading.",
+        "value": "Feedback composer",
+        "plural": {}
+      },
+      {
+        "key": "feedback.mail.message.heading",
+        "comment": "Heading above the editable feedback message.",
+        "meaning": "Heading above the editable feedback message.",
+        "value": "Editable message",
+        "plural": {}
+      },
+      {
+        "key": "feedback.mail.message.label",
+        "comment": "Accessibility label for the editable feedback message.",
+        "meaning": "Accessibility label for the editable feedback message.",
+        "value": "Feedback message",
+        "plural": {}
+      },
+      {
+        "key": "feedback.mail.recipient",
+        "comment": "Support-email recipient summary. Argument is the recipient list.",
+        "meaning": "Support-email recipient summary.",
+        "value": "To: %@",
+        "plural": {}
+      },
+      {
+        "key": "feedback.mail.subject",
+        "comment": "Subject of the support email.",
+        "meaning": "Subject of the support email.",
+        "value": "App feedback",
+        "plural": {}
+      },
+      {
+        "key": "package.illuminated_sign.guidance.authorized_position",
+        "comment": "Shipping illuminated-sign package safety guidance.",
+        "meaning": "Package-owned safety guidance slot.",
+        "value": "Stand in an authorized position before taking a photo.",
+        "plural": {}
+      },
+      {
+        "key": "package.illuminated_sign.guidance.required_views",
+        "comment": "Shipping illuminated-sign package guidance for required evidence views.",
+        "meaning": "Package-owned evidence guidance slot.",
+        "value": "Capture the required views.",
+        "plural": {}
+      },
+      {
+        "key": "package.illuminated_sign.guidance.visible_conditions_only",
+        "comment": "Shipping illuminated-sign package limitation guidance.",
+        "meaning": "Package-owned limitation guidance slot.",
+        "value": "Record only conditions visible in the evidence.",
+        "plural": {}
+      }
+    ]
+  },
+  "permissionCatalog": {
+    "path": "FieldEvidenceApp/InfoPlist.xcstrings",
+    "owner": "V23-P00-C06",
+    "sourceLanguage": "en",
+    "keys": [
+      "NSCameraUsageDescription"
+    ],
+    "shippingLocales": [
+      "en"
+    ],
+    "pseudoLocalesShipping": false
+  },
+  "presentation": {
+    "numberFormatting": "locale-aware",
+    "dateFormatting": "locale-aware",
+    "unitFormatting": "locale-aware",
+    "canonicalDataFormatting": "en_US_POSIX",
+    "canonicalUnitIDsUnlocalized": true
+  },
+  "semanticAccessibility": {
+    "registry": "SemanticAccessibilityIDRegistryV1",
+    "contract": "AccessibilityContractV1",
+    "registryVersion": 1,
+    "entries": [
+      {
+        "id": "feedback.mail.screen",
+        "role": "SCREEN",
+        "reachability": "ALWAYS",
+        "labelKey": "feedback.mail.composer.title",
+        "hintKey": null,
+        "valueKey": null,
+        "dynamicOpaqueSuffixPolicy": "NONE",
+        "deprecatedAliases": [
+          "s8.4.mail.screen"
+        ]
+      },
+      {
+        "id": "feedback.mail.recipient",
+        "role": "GROUP",
+        "reachability": "ALWAYS",
+        "labelKey": "feedback.mail.recipient",
+        "hintKey": null,
+        "valueKey": null,
+        "dynamicOpaqueSuffixPolicy": "NONE",
+        "deprecatedAliases": [
+          "s8.4.mail.recipient"
+        ]
+      },
+      {
+        "id": "feedback.mail.attachment-count",
+        "role": "STATUS",
+        "reachability": "ALWAYS",
+        "labelKey": "feedback.mail.attachment_count",
+        "hintKey": null,
+        "valueKey": null,
+        "dynamicOpaqueSuffixPolicy": "NONE",
+        "deprecatedAliases": [
+          "s8.4.mail.attachment-count"
+        ]
+      },
+      {
+        "id": "feedback.mail.body",
+        "role": "TEXT_FIELD",
+        "reachability": "ALWAYS",
+        "labelKey": "feedback.mail.message.label",
+        "hintKey": null,
+        "valueKey": null,
+        "dynamicOpaqueSuffixPolicy": "NONE",
+        "deprecatedAliases": [
+          "s8.4.mail.body"
+        ]
+      },
+      {
+        "id": "feedback.mail.done",
+        "role": "BUTTON",
+        "reachability": "ALWAYS",
+        "labelKey": "common.done",
+        "hintKey": null,
+        "valueKey": null,
+        "dynamicOpaqueSuffixPolicy": "NONE",
+        "deprecatedAliases": [
+          "s8.4.mail.done"
+        ]
+      }
+    ]
+  },
+  "legacyAllowlist": {
+    "registry": "LegacyLocalizationAccessibilityAllowlistV1",
+    "version": 1,
+    "baseline": [
+      "s8.4.mail.screen",
+      "s8.4.mail.recipient",
+      "s8.4.mail.attachment-count",
+      "s8.4.mail.body",
+      "s8.4.mail.done"
+    ],
+    "current": [
+      "s8.4.mail.screen",
+      "s8.4.mail.recipient",
+      "s8.4.mail.attachment-count",
+      "s8.4.mail.body",
+      "s8.4.mail.done"
+    ],
+    "newEntries": [],
+    "growthAllowed": false
+  },
+  "packageBindings": [
+    {
+      "packageID": "field.evidence.illuminated_sign.v1",
+      "packageContentVersion": 1,
+      "slotKeys": [
+        "package.illuminated_sign.guidance.required_views",
+        "package.illuminated_sign.guidance.visible_conditions_only",
+        "package.illuminated_sign.guidance.authorized_position"
+      ],
+      "catalogReleaseID": "catalog.release.v1",
+      "catalogKeyDigest": "0f18726683e623ba1e4fafaa25c2aa459198626f229f6d9925537c33047d5fab",
+      "deprecatedKeyFallback": "deterministic-source-locale"
+    }
+  ],
+  "frozenDisplay": {
+    "registry": "FrozenDisplaySnapshotV1",
+    "snapshotID": "fixture.historic-report.v1",
+    "canonicalLocale": "en_US_POSIX",
+    "canonicalFormats": [
+      "ISO8601",
+      "en_US_POSIX"
+    ],
+    "localeInvariant": true,
+    "historicOutputByteIdentical": true,
+    "canonicalIDsUnlocalized": true,
+    "historicFixtureDigests": [
+      {
+        "fixtureID": "V21P01C07HistoricReportOpenV1.json",
+        "sha256": "3675469de64040dd16f3312b4f8cb9c3ffa8d15645684320a0387acf4b66399a"
+      },
+      {
+        "fixtureID": "S3_3ReportSnapshotV1.json",
+        "sha256": "8b81589641276df9ee94dba99ac390ce8679fcc2932825e79e4178eb91377b3e"
+      }
+    ]
+  },
+  "goldenCases": [
+    {
+      "id": "V23-P03-C16-G01",
+      "classification": "GOLDEN",
+      "expectedResult": "ACCEPT",
+      "reason": "Compiler-extracted English catalog and shipping-locale manifest agree."
+    }
+  ],
+  "alternateCases": [
+    {
+      "id": "V23-P03-C16-A01",
+      "classification": "ALTERNATE",
+      "expectedResult": "ACCEPT",
+      "reason": "Test-only pseudo locales exercise expansion and RTL without becoming shipping locales."
+    }
+  ],
+  "hostileCases": [
+    {
+      "id": "V23-P03-C16-H01-MISSING_KEY",
+      "classification": "HOSTILE",
+      "expectedResult": "REJECT",
+      "reason": "A referenced key is absent from the sole runtime catalog."
+    },
+    {
+      "id": "V23-P03-C16-H01-DUPLICATE_ID",
+      "classification": "HOSTILE",
+      "expectedResult": "REJECT",
+      "reason": "Two semantic entries claim one stable ID."
+    },
+    {
+      "id": "V23-P03-C16-H01-ALLOWLIST_GROWTH",
+      "classification": "HOSTILE",
+      "expectedResult": "REJECT",
+      "reason": "The legacy phase-ID allowlist grows after its reviewed baseline."
+    },
+    {
+      "id": "V23-P03-C16-H01-PACKAGE_REMOVED_KEY",
+      "classification": "HOSTILE",
+      "expectedResult": "REJECT",
+      "reason": "A package slot references a deleted or reassigned catalog key."
+    },
+    {
+      "id": "V23-P03-C16-H01-CANONICAL_LOCALE_DRIFT",
+      "classification": "HOSTILE",
+      "expectedResult": "REJECT",
+      "reason": "Locale-dependent formatting changes canonical or historic output bytes."
+    }
+  ],
+  "interruptionCases": [
+    {
+      "id": "V23-P03-C16-I01-BEFORE_EXTRACTION",
+      "classification": "INTERRUPTION",
+      "expectedResult": "NO_PARTIAL_ACCEPTANCE",
+      "reason": "An interrupted extraction publishes no partial catalog release."
+    },
+    {
+      "id": "V23-P03-C16-I01-BEFORE_BINDING_RECEIPT",
+      "classification": "INTERRUPTION",
+      "expectedResult": "NO_PARTIAL_ACCEPTANCE",
+      "reason": "A package binding is accepted only with a complete catalog digest."
+    }
+  ],
+  "recoveryCases": [
+    {
+      "id": "V23-P03-C16-R01-RETRY_SAME_DIGEST",
+      "classification": "RECOVERY",
+      "expectedResult": "IDEMPOTENT",
+      "reason": "Retrying the same catalog and package inputs returns the same release identity."
+    },
+    {
+      "id": "V23-P03-C16-R01-HISTORIC_BYTES_PRESERVED",
+      "classification": "RECOVERY",
+      "expectedResult": "PRESERVED",
+      "reason": "Locale fallback never rewrites the historic frozen-display fixture."
+    }
+  ]
+}
