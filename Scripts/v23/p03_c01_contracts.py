@@ -23,15 +23,15 @@ TITLE = "Closed package registry, declared capabilities/guidance, and shipping-s
 ORDINAL = 32
 
 # Frozen coordination/context values supplied by the Card32 hydration record.
-COORDINATION_HEAD = "040dfd4a5da8d97d3c32bd70cd650d048d5a7730"
-COORDINATION_TREE = "6342fce34624dff2dfd0b4aca96878d6f27ac504"
+COORDINATION_HEAD = "a6153aaf387226be2d26068533c09d617df6b67f"
+COORDINATION_TREE = "bf3ab3063e484100604f342051fd29175f1670aa"
 APP_BASE_HEAD = "05d5bac1918bdb3b48d173a9d6e574c35411829b"
 APP_BASE_TREE = "a03292d69db1ee420f4cfe7fd4154b141ff35986"
-COORDINATION_CAS_SEQUENCE = 134
-COORDINATION_LEDGER_DIGEST = "dc945f72e400706d7debfbb6d6912d9e732add838cedda35e0c4399fc67f456d"
-HYDRATION_PROJECTION_DIGEST = "3d86b4dcb59f6547a9a80ce6dff79b4c351a23a178f0a33614415fbe1ef3dee7"
-CONTEXT_DIGEST = "ef2dadc0ee20fd773c39f1589d951f1c042c3509e0a674c28bcf0ab6ae910243"
-FENCE_DIGEST = "c9ce98f31882295a3625773820c878d414945b8088c5cc3fe69b40c355ed0357"
+COORDINATION_CAS_SEQUENCE = 136
+COORDINATION_LEDGER_DIGEST = "7146308e70de3b834c8f633e1351a37ad5853f0dc1bcf8328e9ca0e115fdbaea"
+HYDRATION_PROJECTION_DIGEST = "4a58d7e09b8d28eef035824eccc7f630677bf6996013763d68897b3bfe6fd17e"
+CONTEXT_DIGEST = "4221ebc43e391f9b81cad953b9ab2f4c188da324e6c434a92efb2687f941a028"
+FENCE_DIGEST = "fae827d3757adfaf3af7485b3b5076db54ebbf92193a450a37e7ce8e042fb1d3"
 PREREQUISITE_DIGEST = "dfbe448a81c15d933055d5f640c82e13ea993ccc670669e70f247d875e6726b9"
 REGISTER_SECTION_DIGEST = "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5"
 REGISTER_SECTION_LENGTH = 44_217
@@ -283,12 +283,12 @@ def common_fields(schema_name: str) -> dict[str, Any]:
         "deleteEraseRequired": False,
         "exportReportRequired": False,
         "downgradeDisposition": "DORMANT_REVERT_ALLOWED",
-        "schemaBehaviorDelta": True,
-        "migrationBehaviorDelta": True,
-        "backupBehaviorDelta": True,
-        "restoreBehaviorDelta": True,
-        "deleteBehaviorDelta": True,
-        "exportBehaviorDelta": True,
+        "schemaBehaviorDelta": False,
+        "migrationBehaviorDelta": False,
+        "backupBehaviorDelta": False,
+        "restoreBehaviorDelta": False,
+        "deleteBehaviorDelta": False,
+        "exportBehaviorDelta": False,
         "evidenceIDs": EVIDENCE_IDS,
         "provisionalKernelOnly": True,
         "shippingBoundaryAdoption": "DEFERRED_UNTIL_ACCEPTED_S10_6_RECONCILIATION",

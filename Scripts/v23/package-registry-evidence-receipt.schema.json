@@ -111,13 +111,13 @@
           "type": "string"
         },
         "coordinationAuthorityHead": {
-          "const": "040dfd4a5da8d97d3c32bd70cd650d048d5a7730"
+          "const": "a6153aaf387226be2d26068533c09d617df6b67f"
         },
         "coordinationAuthorityTree": {
-          "const": "6342fce34624dff2dfd0b4aca96878d6f27ac504"
+          "const": "bf3ab3063e484100604f342051fd29175f1670aa"
         },
         "coordinationCASSequence": {
-          "const": 134
+          "const": 136
         },
         "coordinationLedgerDigest": {
           "pattern": "^[0-9a-f]{64}$",
@@ -314,7 +314,7 @@
       "type": "object"
     },
     "backupBehaviorDelta": {
-      "const": true
+      "const": false
     },
     "backupRestoreRequired": {
       "const": false
@@ -383,7 +383,7 @@
       "const": "V23-P03-C01"
     },
     "deleteBehaviorDelta": {
-      "const": true
+      "const": false
     },
     "deleteEraseRequired": {
       "const": false
@@ -543,7 +543,7 @@
       "type": "array"
     },
     "exportBehaviorDelta": {
-      "const": true
+      "const": false
     },
     "exportReportRequired": {
       "const": false
@@ -638,7 +638,7 @@
       "type": "object"
     },
     "migrationBehaviorDelta": {
-      "const": true
+      "const": false
     },
     "migrationRequired": {
       "const": false
@@ -893,13 +893,13 @@
       "const": true
     },
     "restoreBehaviorDelta": {
-      "const": true
+      "const": false
     },
     "schema": {
       "const": "V23P03C01PackageRegistryEvidenceReceiptV1"
     },
     "schemaBehaviorDelta": {
-      "const": true
+      "const": false
     },
     "schemaVersion": {
       "const": 1

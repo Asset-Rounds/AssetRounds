@@ -3,7 +3,7 @@
   "acceptanceEnabled": false,
   "acceptanceOrReleaseClaimed": false,
   "adoptionEnabled": false,
-  "artifactDigest": "6ba583bc9117656b458e04cf2f00de8b50002549f2c58f80ad84ad071f5948b8",
+  "artifactDigest": "f607a79b5ee5debbb1f6986ad8a10d6f3bcde49254078747f5f2d38430f88cf0",
   "authority": {
     "aggregateAcceptanceMemberships": [
       "AutonomousRequiredAcceptedSetV1"
@@ -17,11 +17,11 @@
     "conformanceSubjects": [
       "KernelConformanceSubjectSetV1"
     ],
-    "contextDigest": "ef2dadc0ee20fd773c39f1589d951f1c042c3509e0a674c28bcf0ab6ae910243",
-    "coordinationAuthorityHead": "040dfd4a5da8d97d3c32bd70cd650d048d5a7730",
-    "coordinationAuthorityTree": "6342fce34624dff2dfd0b4aca96878d6f27ac504",
-    "coordinationCASSequence": 134,
-    "coordinationLedgerDigest": "dc945f72e400706d7debfbb6d6912d9e732add838cedda35e0c4399fc67f456d",
+    "contextDigest": "4221ebc43e391f9b81cad953b9ab2f4c188da324e6c434a92efb2687f941a028",
+    "coordinationAuthorityHead": "a6153aaf387226be2d26068533c09d617df6b67f",
+    "coordinationAuthorityTree": "bf3ab3063e484100604f342051fd29175f1670aa",
+    "coordinationCASSequence": 136,
+    "coordinationLedgerDigest": "7146308e70de3b834c8f633e1351a37ad5853f0dc1bcf8328e9ca0e115fdbaea",
     "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
     "deterministicEvidenceIDs": [
       "V23-P03-C01-G01",
@@ -40,7 +40,7 @@
     "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
     "foundationRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
     "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
-    "hydrationProjectionDigest": "3d86b4dcb59f6547a9a80ce6dff79b4c351a23a178f0a33614415fbe1ef3dee7",
+    "hydrationProjectionDigest": "4a58d7e09b8d28eef035824eccc7f630677bf6996013763d68897b3bfe6fd17e",
     "impactManifestDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
     "inheritedV21BlockDigest": "04eca5f8e695c815d008f1f9163d06af41b4afff0473e90709f5ec7a9db91aa0",
     "inheritedV21BlockLength": 7084,
@@ -52,7 +52,7 @@
     ],
     "lineage": "REFINED_WITHOUT_LOSS",
     "lineageSource": "V21-P03-C01",
-    "pathFenceDigest": "c9ce98f31882295a3625773820c878d414945b8088c5cc3fe69b40c355ed0357",
+    "pathFenceDigest": "fae827d3757adfaf3af7485b3b5076db54ebbf92193a450a37e7ce8e042fb1d3",
     "planningStatus": "NOT_STARTED",
     "provisionalPrerequisiteDigest": "dfbe448a81c15d933055d5f640c82e13ea993ccc670669e70f247d875e6726b9",
     "registerOrdinal": 32,
@@ -64,7 +64,7 @@
     "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
     "title": "Closed package registry, declared capabilities/guidance, and shipping-sign adapter"
   },
-  "backupBehaviorDelta": true,
+  "backupBehaviorDelta": false,
   "backupRestoreRequired": false,
   "brandSurfaceDelta": false,
   "capabilities": {
@@ -90,7 +90,7 @@
     "unknownDisposition": "FAIL_CLOSED"
   },
   "cardID": "V23-P03-C01",
-  "deleteBehaviorDelta": true,
+  "deleteBehaviorDelta": false,
   "deleteEraseRequired": false,
   "downgradeDisposition": "DORMANT_REVERT_ALLOWED",
   "evidenceIDs": [
@@ -100,7 +100,7 @@
     "V23-P03-C01-I01",
     "V23-P03-C01-R01"
   ],
-  "exportBehaviorDelta": true,
+  "exportBehaviorDelta": false,
   "exportReportRequired": false,
   "guidance": {
     "closedKinds": [
@@ -132,7 +132,7 @@
   },
   "hostedDispatchEnabled": false,
   "hostedDispatchRan": false,
-  "migrationBehaviorDelta": true,
+  "migrationBehaviorDelta": false,
   "migrationRequired": false,
   "nativeCompileRan": false,
   "nativeOrHostedEvidenceClaimed": false,
@@ -212,9 +212,9 @@
   "releaseCredit": false,
   "releaseReady": false,
   "requiresAcceptedS10_6Reconciliation": true,
-  "restoreBehaviorDelta": true,
+  "restoreBehaviorDelta": false,
   "schema": "V23P03C01CapabilityGuidanceContractV1",
-  "schemaBehaviorDelta": true,
+  "schemaBehaviorDelta": false,
   "schemaVersion": 1,
   "shippingBoundaryAdoption": "DEFERRED_UNTIL_ACCEPTED_S10_6_RECONCILIATION",
   "sourceBindings": [
