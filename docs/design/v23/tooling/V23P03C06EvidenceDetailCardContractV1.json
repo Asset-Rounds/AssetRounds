@@ -1,0 +1,55 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "acceptanceOrReleaseClaimed": false,
+  "adoptionEnabled": false,
+  "artifactDigest": "ca833421d2e7fd2644fd838f93ee81f51f723a9a22cb659c877ae5b5035f23aa",
+  "authority": {
+    "appBaseHead": "4dc8154790cc11748d26db9d3d70361e926ddb1e",
+    "appBaseTree": "15b8fc7dc63c8f71bbfe1eb75d86611e2e483647",
+    "contextDigest": "1058e2792a104f74af0a43844467482a7abb29a99da129c8e0be92b6ea0f922d",
+    "coordinationCASSequence": 156,
+    "coordinationHead": "f026315fb5d833eb5334e75cc27c96413be9e857",
+    "coordinationLedgerDigest": "8fcf5068ca18a4433071f08b82d25b69fc0eb6a1129027533e90dc02dfe9bb98",
+    "coordinationTree": "5aa8e800e296f89cfe748941babdbd7c31458d2e",
+    "fenceDigest": "cb123dd654137debce2a0b4679dde737645d30af9b57d52a43ee14aad3f997d2",
+    "hydrationProjectionDigest": "74cc810fa233e659d6fe7ea006b39dc1012ead0912f097539e16c2839f6de6a0",
+    "prerequisiteDigest": "62ea4185d0266ec91ea0df9352645e192869cdbf2924278a08ecdfd3bd75488c",
+    "s10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "transitionDigest": "f7b73b37ef4ba4cf4388821b9658cfc49aa5e45fb9188b7d3dd7b0c2704c3072"
+  },
+  "cardID": "V23-P03-C06",
+  "downgradeDisposition": "DORMANT_REVERT_ALLOWED",
+  "exportReportRequired": true,
+  "failureCases": [
+    "FORGED_CONFIRMATION",
+    "PRIVACY_CANARY_LEAK",
+    "STALE_COMPOSED_BYTES"
+  ],
+  "hostedDispatchEnabled": false,
+  "hostedDispatchRan": false,
+  "invariants": [
+    "PRIVACY_TRANSFORM_BEFORE_REVIEWED_MARKUP",
+    "CUSTOMER_SAFE_CANARIES_EXCLUDED",
+    "OUTPUT_SCOPED_WORKSPACE_BOUND_REFERENCES_ONLY",
+    "SEMANTIC_TEXT_DIGEST_BOUND",
+    "CAPTURE_TIME_LOCATION_PERSON_NOT_VERIFIED"
+  ],
+  "nativeCompileRan": false,
+  "nativeOrHostedEvidenceClaimed": false,
+  "ownedContracts": [
+    "EvidenceDetailCardProfileV1",
+    "EvidenceDetailCardRenderReceiptV1",
+    "FinalAudiencePrivacyConfirmationV1",
+    "PostMarkupAudiencePrivacyDetectionV1"
+  ],
+  "persistentChangeMode": "DECLARATION_ONLY",
+  "persistentContractSchema": "KERNEL_SNAPSHOT_V1",
+  "phase10PollingDuringParallelExecution": false,
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "V23P03C06EvidenceDetailCardContractV1",
+  "schemaVersion": 1,
+  "verificationMode": "STATIC_ONLY"
+}
