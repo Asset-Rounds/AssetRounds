@@ -11173,6 +11173,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let diagnosticsEntries = app.descendants(matching: .any).matching(
             identifier: "s8.3.diagnostics.settings-entry"
         )
+        let feedbackEntries = app.descendants(matching: .any).matching(
+            identifier: "s8.4.feedback.settings-entry"
+        )
         let navigationBars = app.navigationBars
         let tabBars = app.tabBars
         let keyboards = app.keyboards
@@ -11182,6 +11185,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let settingsScreen = settingsScreens.firstMatch
         let settingsScrollView = settingsScrollViews.firstMatch
         let diagnosticsEntry = diagnosticsEntries.firstMatch
+        let feedbackEntry = feedbackEntries.firstMatch
         let navigationBar = navigationBars.firstMatch
         let tabBar = tabBars.firstMatch
         let contentInset: CGFloat = 16
@@ -11201,6 +11205,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               settingsScreens.count == 1,
               settingsScrollViews.count == 1,
               diagnosticsEntries.count == 1,
+              feedbackEntries.count == 1,
               navigationBars.count == 1,
               tabBars.count == 1,
               keyboards.count == 0,
@@ -11215,6 +11220,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               diagnosticsEntry.identifier == "s8.3.diagnostics.settings-entry",
               diagnosticsEntry.label == "View diagnostics",
               diagnosticsEntry.elementType == .button,
+              feedbackEntry.exists,
+              feedbackEntry.isEnabled,
+              feedbackEntry.identifier == "s8.4.feedback.settings-entry",
+              feedbackEntry.label == "Send feedback",
+              feedbackEntry.elementType == .button,
               navigationBar.exists,
               tabBar.exists else {
             XCTFail("AX-text settings-hub positioning route is invalid.")
@@ -11241,6 +11251,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                   settingsScreens.count == 1,
                   settingsScrollViews.count == 1,
                   diagnosticsEntries.count == 1,
+                  feedbackEntries.count == 1,
                   navigationBars.count == 1,
                   tabBars.count == 1,
                   keyboards.count == 0,
@@ -11257,6 +11268,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                   diagnosticsEntry.identifier == "s8.3.diagnostics.settings-entry",
                   diagnosticsEntry.label == "View diagnostics",
                   diagnosticsEntry.elementType == .button,
+                  feedbackEntry.exists,
+                  feedbackEntry.isEnabled,
+                  feedbackEntry.identifier == "s8.4.feedback.settings-entry",
+                  feedbackEntry.label == "Send feedback",
+                  feedbackEntry.elementType == .button,
                   navigationBar.exists,
                   navigationBar.frame == frozenNavigationFrame,
                   tabBar.exists,
@@ -11280,23 +11296,35 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let safeBottom = liveBottom - contentInset
             let receiverTop = liveTop + receiverInset
             let receiverBottom = liveBottom - receiverInset
-            let entryFrame = diagnosticsEntry.frame
+            let diagnosticsFrame = diagnosticsEntry.frame
+            let feedbackFrame = feedbackEntry.frame
             guard isValidFrame(liveScrollFrame),
-                  isValidFrame(entryFrame),
+                  isValidFrame(diagnosticsFrame),
+                  isValidFrame(feedbackFrame),
                   safeBottom > safeTop,
                   receiverBottom > receiverTop,
-                  entryFrame.height <= safeBottom - safeTop else {
+                  diagnosticsFrame.height <= safeBottom - safeTop,
+                  feedbackFrame.height <= safeBottom - safeTop else {
                 XCTFail("AX-text settings-hub live geometry is invalid.")
                 return false
             }
-            if entryFrame.minY >= safeTop,
-               entryFrame.maxY <= safeBottom,
-               diagnosticsEntry.isHittable {
+            if diagnosticsFrame.minY >= safeTop,
+               diagnosticsFrame.maxY <= safeBottom,
+               feedbackFrame.minY >= safeTop,
+               feedbackFrame.maxY <= safeBottom,
+               diagnosticsEntry.isHittable,
+               feedbackEntry.isHittable {
                 return true
             }
 
-            let minimumShift = safeTop - entryFrame.minY
-            let maximumShift = safeBottom - entryFrame.maxY
+            let minimumShift = max(
+                safeTop - diagnosticsFrame.minY,
+                safeTop - feedbackFrame.minY
+            )
+            let maximumShift = min(
+                safeBottom - diagnosticsFrame.maxY,
+                safeBottom - feedbackFrame.maxY
+            )
             let receiverCapacity = receiverBottom - receiverTop
             guard minimumShift <= maximumShift,
                   maximumShift < 0,
@@ -11330,7 +11358,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let dragEnd = dragStart.withOffset(
                 CGVector(dx: 0, dy: dragDistance)
             )
-            let entryMinYBeforeDrag = entryFrame.minY
+            let diagnosticsMinYBeforeDrag = diagnosticsFrame.minY
+            let feedbackMinYBeforeDrag = feedbackFrame.minY
             dragStart.press(
                 forDuration: 0.2,
                 thenDragTo: dragEnd,
@@ -11341,6 +11370,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                   settingsScreens.count == 1,
                   settingsScrollViews.count == 1,
                   diagnosticsEntries.count == 1,
+                  feedbackEntries.count == 1,
                   navigationBars.count == 1,
                   tabBars.count == 1,
                   keyboards.count == 0,
@@ -11350,9 +11380,15 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                   settingsScrollView.exists,
                   settingsScrollView.frame == frozenScrollFrame,
                   diagnosticsEntry.exists,
+                  diagnosticsEntry.isEnabled,
                   diagnosticsEntry.identifier == "s8.3.diagnostics.settings-entry",
                   diagnosticsEntry.label == "View diagnostics",
                   diagnosticsEntry.elementType == .button,
+                  feedbackEntry.exists,
+                  feedbackEntry.isEnabled,
+                  feedbackEntry.identifier == "s8.4.feedback.settings-entry",
+                  feedbackEntry.label == "Send feedback",
+                  feedbackEntry.elementType == .button,
                   navigationBar.exists,
                   navigationBar.frame == frozenNavigationFrame,
                   tabBar.exists,
@@ -11361,9 +11397,14 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 XCTFail("AX-text settings-hub route changed after positioning.")
                 return false
             }
-            let observedShift = diagnosticsEntry.frame.minY - entryMinYBeforeDrag
-            guard observedShift < 0,
-                  observedShift * dragDistance > 0 else {
+            let observedDiagnosticsShift =
+                diagnosticsEntry.frame.minY - diagnosticsMinYBeforeDrag
+            let observedFeedbackShift = feedbackEntry.frame.minY - feedbackMinYBeforeDrag
+            guard observedDiagnosticsShift < 0,
+                  observedFeedbackShift < 0,
+                  observedDiagnosticsShift * dragDistance > 0,
+                  observedFeedbackShift * dragDistance > 0,
+                  abs(observedDiagnosticsShift - observedFeedbackShift) <= 1 else {
                 XCTFail("AX-text settings-hub positioning gesture made no signed progress.")
                 return false
             }
@@ -11373,6 +11414,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               settingsScreens.count == 1,
               settingsScrollViews.count == 1,
               diagnosticsEntries.count == 1,
+              feedbackEntries.count == 1,
               navigationBars.count == 1,
               tabBars.count == 1,
               keyboards.count == 0,
@@ -11386,6 +11428,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               diagnosticsEntry.identifier == "s8.3.diagnostics.settings-entry",
               diagnosticsEntry.label == "View diagnostics",
               diagnosticsEntry.elementType == .button,
+              feedbackEntry.exists,
+              feedbackEntry.isEnabled,
+              feedbackEntry.identifier == "s8.4.feedback.settings-entry",
+              feedbackEntry.label == "Send feedback",
+              feedbackEntry.elementType == .button,
               navigationBar.exists,
               navigationBar.frame == frozenNavigationFrame,
               tabBar.exists,
@@ -11406,13 +11453,18 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             finalScrollFrame.maxY,
             min(finalApplicationFrame.maxY, tabBar.frame.minY)
         ) - contentInset
-        let finalEntryFrame = diagnosticsEntry.frame
+        let finalDiagnosticsFrame = diagnosticsEntry.frame
+        let finalFeedbackFrame = feedbackEntry.frame
         guard isValidFrame(finalScrollFrame),
-              isValidFrame(finalEntryFrame),
+              isValidFrame(finalDiagnosticsFrame),
+              isValidFrame(finalFeedbackFrame),
               finalSafeBottom > finalSafeTop,
-              finalEntryFrame.minY >= finalSafeTop,
-              finalEntryFrame.maxY <= finalSafeBottom,
-              diagnosticsEntry.isHittable else {
+              finalDiagnosticsFrame.minY >= finalSafeTop,
+              finalDiagnosticsFrame.maxY <= finalSafeBottom,
+              finalFeedbackFrame.minY >= finalSafeTop,
+              finalFeedbackFrame.maxY <= finalSafeBottom,
+              diagnosticsEntry.isHittable,
+              feedbackEntry.isHittable else {
             XCTFail("AX-text settings-hub final composition is unsafe.")
             return false
         }

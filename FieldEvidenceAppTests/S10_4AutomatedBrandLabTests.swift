@@ -20435,16 +20435,19 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "\n\n    @MainActor\n" +
                     "    private func diagnoseSegment3AXTextSettingsHubNativeContrast("
         )
-        XCTAssertEqual(settingsHubPositioningSource.utf8.count, 11_291)
+        XCTAssertEqual(settingsHubPositioningSource.utf8.count, 13_949)
         XCTAssertEqual(
             Data(settingsHubPositioningSource.utf8).sha256,
-            "F2F09B11A19106CDF9449111B03269922AC7557FDC3DFB3E2F0EA09B31037F2C"
+            "466F6B4ADF04F146E517CC5CD29A1F435819C276FC5D1A153CB28F484E9198D1"
         )
         for exact in [
             #"identifier: "s1.settings.screen""#,
             #"identifier: "s8.3.diagnostics.settings-entry""#,
             #"diagnosticsEntry.label == "View diagnostics""#,
             #"diagnosticsEntry.elementType == .button"#,
+            #"identifier: "s8.4.feedback.settings-entry""#,
+            #"feedbackEntry.label == "Send feedback""#,
+            #"feedbackEntry.elementType == .button"#,
             #"settingsScrollView.elementType == .scrollView"#,
             #"keyboards.count == 0"#,
             #"inputViews.count == 0"#,
@@ -20453,8 +20456,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"let minimumGestureDistance: CGFloat = 44"#,
             #"let isValidFrame: (CGRect) -> Bool = { frame in"#,
             #"for _ in 0..<4"#,
-            #"let minimumShift = safeTop - entryFrame.minY"#,
-            #"let maximumShift = safeBottom - entryFrame.maxY"#,
+            #"let minimumShift = max("#,
+            #"safeTop - diagnosticsFrame.minY"#,
+            #"safeTop - feedbackFrame.minY"#,
+            #"let maximumShift = min("#,
+            #"safeBottom - diagnosticsFrame.maxY"#,
+            #"safeBottom - feedbackFrame.maxY"#,
             #"maximumShift < 0"#,
             #"let recognizedMinimum = max("#,
             #"let recognizedMaximum = min("#,
@@ -20463,11 +20470,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"forDuration: 0.2"#,
             #"withVelocity: .slow"#,
             #"thenHoldForDuration: 0.2"#,
-            #"observedShift < 0"#,
-            #"observedShift * dragDistance > 0"#,
-            #"finalEntryFrame.minY >= finalSafeTop"#,
-            #"finalEntryFrame.maxY <= finalSafeBottom"#,
+            #"observedDiagnosticsShift < 0"#,
+            #"observedFeedbackShift < 0"#,
+            #"observedDiagnosticsShift * dragDistance > 0"#,
+            #"observedFeedbackShift * dragDistance > 0"#,
+            #"abs(observedDiagnosticsShift - observedFeedbackShift) <= 1"#,
+            #"finalDiagnosticsFrame.minY >= finalSafeTop"#,
+            #"finalDiagnosticsFrame.maxY <= finalSafeBottom"#,
+            #"finalFeedbackFrame.minY >= finalSafeTop"#,
+            #"finalFeedbackFrame.maxY <= finalSafeBottom"#,
             #"diagnosticsEntry.isHittable"#,
+            #"feedbackEntry.isHittable"#,
             #"return true"#,
         ] {
             XCTAssertTrue(settingsHubPositioningSource.contains(exact), exact)
@@ -20483,6 +20496,18 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 separatedBy: "for _ in 0..<4"
             ).count - 1,
             1
+        )
+        XCTAssertEqual(
+            settingsHubPositioningSource.components(
+                separatedBy: "feedbackEntries.count == 1"
+            ).count - 1,
+            4
+        )
+        XCTAssertEqual(
+            settingsHubPositioningSource.components(
+                separatedBy: "feedbackEntry.isEnabled"
+            ).count - 1,
+            4
         )
         for prohibited in [
             "performAccessibilityAudit", "ContrastAuditExceptionSignature(",
