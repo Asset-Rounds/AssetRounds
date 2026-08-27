@@ -11269,7 +11269,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             contrastAuthoritySource.components(
                 separatedBy: "ContrastAuditExceptionSignature("
             ).count - 1,
-            21
+            22
         )
         for prohibitedReduceMotionSavingTaskExpansion in [
             #"case ("s10.4.current.reduce-motion", "work_and_recheck")"#,
@@ -17996,6 +17996,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 issueRecheckDueWorkflowTuple + "\n" +
                 "              {\n" +
                 #"                shardID: "s10.4.current.ax-text","# + "\n" +
+                #"                stateID: "state.issue.resolved","# + "\n" +
+                #"                taskID: "work_and_recheck","# + "\n" +
+                #"                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-ISSUE-RESOLVED-WORK-DESCRIPTION""# + "\n" +
+                "              },\n" +
+                "              {\n" +
+                #"                shardID: "s10.4.current.ax-text","# + "\n" +
                 #"                stateID: "state.new-sign.editing","# + "\n" +
                 #"                taskID: "one_handed_start","# + "\n" +
                 #"                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-CUSTOMER-SITE-NAME""# + "\n" +
@@ -18614,10 +18620,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 #"                    "state.reports-index.ready","# + "\n" +
                 #"                ]"#,
             #"case ("s10.4.current.ax-text", "work_and_recheck")"#,
-            #"taskIssueLimit = 5"#,
-            #"taskStateLimit = 4"#,
+            #"taskIssueLimit = 6"#,
+            #"taskStateLimit = 5"#,
             #"permittedExceptionStateIDs = ["# + "\n" +
                 #"                    "state.issue.recheck-due","# + "\n" +
+                #"                    "state.issue.resolved","# + "\n" +
                 #"                    "state.recheck-capture.wide-ready","# + "\n" +
                 #"                    "state.recheck-preflight.ready","# + "\n" +
                 #"                    "state.work.validation-error","# + "\n" +
@@ -18795,7 +18802,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let axReportComprehensionTaskParitySource = try boundedSource(
             uiSource,
             from: #"            case ("s10.4.current.ax-text", "report_comprehension"):"#,
-            before: "\n                taskIssueLimit = 5"
+            before: "\n                taskIssueLimit = 6"
         )
         XCTAssertEqual(axReportComprehensionTaskParitySource.utf8.count, 429)
         XCTAssertEqual(
