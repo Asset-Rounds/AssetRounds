@@ -13733,10 +13733,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             uiSource.components(separatedBy: postPurchaseCapture).count - 1,
             2
         )
-        XCTAssertEqual(postPurchaseAXGateSource.utf8.count, 561)
+        XCTAssertEqual(postPurchaseAXGateSource.utf8.count, 967)
         XCTAssertEqual(
             Data(postPurchaseAXGateSource.utf8).sha256,
-            "DE1386524B6B07AD44A4FDF05B56B3C290BEE43337F0C7B63A78513F8F255E72"
+            "413B37AE39B85C17718F259B2499CD9652C413E6C44C5CD18B440EA2AB3C00D5"
         )
         XCTAssertEqual(postPurchaseNonAXSuffixSource.utf8.count, 4_110)
         XCTAssertEqual(
@@ -13746,14 +13746,32 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let axHelperCall = try XCTUnwrap(
             postPurchaseAXGateSource.range(of: "positionAXTextPurchaseCompleteViewport(in: app)")
         )
+        let segment2DiagnosticGate = try XCTUnwrap(
+            postPurchaseAXGateSource.range(of: "if automationSegment == .segment2")
+        )
+        let segment2DiagnosticCall = try XCTUnwrap(
+            postPurchaseAXGateSource.range(
+                of: "try diagnoseSegment2AXTextPaywallPurchaseCompleteNativeContrast("
+            )
+        )
         let axCapture = try XCTUnwrap(postPurchaseAXGateSource.range(of: postPurchaseCapture))
         let axReturn = try XCTUnwrap(
             postPurchaseAXGateSource.range(of: "return usedSettingsRetry", range: axCapture.upperBound..<postPurchaseAXGateSource.endIndex)
         )
-        XCTAssertLessThan(axHelperCall.lowerBound, axCapture.lowerBound)
+        XCTAssertLessThan(axHelperCall.lowerBound, segment2DiagnosticGate.lowerBound)
+        XCTAssertLessThan(
+            segment2DiagnosticGate.lowerBound,
+            segment2DiagnosticCall.lowerBound
+        )
+        XCTAssertLessThan(segment2DiagnosticCall.lowerBound, axCapture.lowerBound)
         XCTAssertLessThan(axCapture.lowerBound, axReturn.lowerBound)
         XCTAssertTrue(postPurchaseAXGateSource.hasPrefix(postPurchaseAXGateStart))
-        XCTAssertFalse(postPurchaseAXGateSource.contains("automationSegment"))
+        XCTAssertEqual(
+            postPurchaseAXGateSource.components(
+                separatedBy: "diagnoseSegment2AXTextPaywallPurchaseCompleteNativeContrast"
+            ).count - 1,
+            1
+        )
         XCTAssertEqual(
             postPurchaseViewportSource.components(separatedBy: postPurchaseCapture).count - 1,
             1
@@ -20604,10 +20622,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "\n    @MainActor\n" +
                     "    private func positionAXTextPurchaseCompleteViewport("
         )
-        XCTAssertEqual(availablePaywallSource.utf8.count, 12_120)
+        XCTAssertEqual(availablePaywallSource.utf8.count, 12_526)
         XCTAssertEqual(
             Data(availablePaywallSource.utf8).sha256,
-            "5E49ECFBAC50A1B9D3865A23469EFB3C7B5782FB42404F3B9D28D63200D6815B"
+            "82B6A4A92D18CF8F7D49C1808776D82087FF6BED187A545D67B4EA64F185B9F8"
         )
         for exact in [
             "emitsEvidence: Bool = true",
@@ -20619,6 +20637,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "if !emitsEvidence {",
             "return usedSettingsRetry",
             #"for: "state.paywall.purchase-complete""#,
+            "if automationSegment == .segment2",
+            "try diagnoseSegment2AXTextPaywallPurchaseCompleteNativeContrast(",
+            "XCTFail(String(describing: error))",
             #"captureBaseline("state.paywall.purchase-complete", in: app)"#,
         ] {
             XCTAssertTrue(availablePaywallSource.contains(exact), exact)
@@ -20638,9 +20659,19 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 range: suppressedPurchaseEvidenceReturn.upperBound..<availablePaywallSource.endIndex
             )
         )
+        let purchaseCompleteDiagnostic = try XCTUnwrap(
+            availablePaywallSource.range(
+                of: "try diagnoseSegment2AXTextPaywallPurchaseCompleteNativeContrast(",
+                range: suppressedPurchaseEvidenceReturn.upperBound..<availablePaywallSource.endIndex
+            )
+        )
         XCTAssertLessThan(purchaseAction.lowerBound, suppressedPurchaseEvidenceReturn.lowerBound)
         XCTAssertLessThan(
             suppressedPurchaseEvidenceReturn.lowerBound,
+            purchaseCompleteDiagnostic.lowerBound
+        )
+        XCTAssertLessThan(
+            purchaseCompleteDiagnostic.lowerBound,
             normalPurchaseCompleteCapture.lowerBound
         )
         XCTAssertEqual(
@@ -21234,6 +21265,160 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "segmentedRouteStateCursor +=", "automatedSegmentFinished = true",
         ] {
             XCTAssertFalse(k134State56HelperSource.contains(prohibited), prohibited)
+        }
+
+        let purchaseCompleteDiagnosticSource = try boundedSource(
+            uiSource,
+            from:
+                "    @MainActor\n" +
+                    "    private func diagnoseSegment2AXTextPaywallPurchaseCompleteNativeContrast(",
+            before:
+                "\n\n    @MainActor\n" +
+                    "    private func diagnoseSegment2AXTextIssueResolvedNativeContrast("
+        )
+        XCTAssertEqual(purchaseCompleteDiagnosticSource.utf8.count, 12_204)
+        XCTAssertEqual(
+            Data(purchaseCompleteDiagnosticSource.utf8).sha256,
+            "AC26452EA10EF5574261FE136F70EB07205F52CBD7875FC6F44FD9A2162D13B6"
+        )
+        for exact in [
+            #"let stateID = "state.paywall.purchase-complete""#,
+            #"Self.segmentedRouteStateIDs[22..<39]"#,
+            #""state.issue.recheck-due""#,
+            #""state.issue.resolved""#,
+            #""state.recheck-capture.wide-ready""#,
+            #""state.recheck-preflight.ready""#,
+            #""state.work.validation-error""#,
+            #"shard.shardID == "s10.4.current.ax-text""#,
+            #"automationSegment == .segment2"#,
+            #"automationSegment.replayCount == 22"#,
+            #"automationSegment.ownedStartOrdinal == 23"#,
+            #"automationSegment.ownedCount == 28"#,
+            #"automationSegment.finalOrdinal == 50"#,
+            #"Self.segmentedRouteStateIDs.count == 67"#,
+            #"Set(Self.segmentedRouteStateIDs).count == 67"#,
+            #"Self.segmentedRouteStateIDs[39] == stateID"#,
+            #"segmentedRouteStateCursor == 39"#,
+            #"migratedStateIDs == expectedMigratedStateIDs"#,
+            #"automationAXTreeDigests.keys.sorted()"#,
+            #"automationContrastExceptions.keys.sorted()"#,
+            #"!automatedSegmentFinished"#,
+            #"app.state == .runningForeground"#,
+            #""stateOrdinal": 40"#,
+            #""predecessorStateID": "state.paywall.available""#,
+            #""predecessorOrdinal": 39"#,
+            #""successorStateID": "state.check-outcome.could-not-verify""#,
+            #""successorOrdinal": 41"#,
+            #""applicationStateRawValue": app.state.rawValue"#,
+            #""applicationForeground": app.state == .runningForeground"#,
+            #""applicationFrame": auditFrameObject(app.frame)"#,
+            #""application": diagnosticElementObject(app)"#,
+            #""queries": diagnosticQueryObjects"#,
+            #""exists": element.exists"#,
+            #""isEnabled": element.isEnabled"#,
+            #""isHittable": element.isHittable"#,
+            #""identifier": element.identifier"#,
+            #""label": element.label"#,
+            #""value": valueObject"#,
+            #""elementTypeRawValue": element.elementType.rawValue"#,
+            #""elementTypeDescription": String(describing: element.elementType)"#,
+            #""frame": self.auditFrameObject(element.frame)"#,
+            #""auditTypeRawValue": String(issue.auditType.rawValue)"#,
+            #""compactDescription": issue.compactDescription"#,
+            #""detailedDescription": issue.detailedDescription"#,
+            #""elementExists": NSNull()"#,
+            #""elementEnabled": NSNull()"#,
+            #""elementHittable": NSNull()"#,
+            #""elementIdentifier": NSNull()"#,
+            #""elementLabel": NSNull()"#,
+            #""elementValue": NSNull()"#,
+            #""elementTypeRawValue": NSNull()"#,
+            #""elementTypeDescription": NSNull()"#,
+            #""elementFrame": NSNull()"#,
+            #""observedIssueCount": observedIssueCount"#,
+            #""auditedElementCount": auditedElementCount"#,
+            #"options: [.prettyPrinted, .sortedKeys]"#,
+            #"try app.performAccessibilityAudit(for: .contrast)"#,
+            #"screenshot: auditedElement.screenshot()"#,
+            #"return true"#,
+            #"S10.4 AX-text paywall purchase-complete native contrast diagnostic completed nonaccepting"#,
+        ] {
+            XCTAssertTrue(purchaseCompleteDiagnosticSource.contains(exact), exact)
+        }
+        var purchaseCompleteQueryTail =
+            purchaseCompleteDiagnosticSource[purchaseCompleteDiagnosticSource.startIndex...]
+        for queryName in [
+            "paywallScreens", "paywallStores", "closeButtons",
+            "purchaseStateElements", "termsButtons", "privacyButtons",
+            "supportButtons", "renewalStaticTexts", "noSyncStaticTexts",
+            "purchaseButtons", "navigationBars", "tabBars", "keyboards",
+            "inputViews",
+        ] {
+            let token = "\"\(queryName)\""
+            let range = try XCTUnwrap(purchaseCompleteQueryTail.range(of: token), queryName)
+            purchaseCompleteQueryTail = purchaseCompleteQueryTail[range.upperBound...]
+        }
+        for prefix in [
+            "S10_4_AX_TEXT_PAYWALL_PURCHASE_COMPLETE_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
+            "S10_4_AX_TEXT_PAYWALL_PURCHASE_COMPLETE_NATIVE_CONTRAST_ISSUE_DIAGNOSTIC",
+            "S10_4_AX_TEXT_PAYWALL_PURCHASE_COMPLETE_NATIVE_CONTRAST_COUNT_DIAGNOSTIC",
+        ] {
+            XCTAssertEqual(
+                purchaseCompleteDiagnosticSource.components(separatedBy: prefix).count - 1,
+                1,
+                prefix
+            )
+        }
+        XCTAssertEqual(
+            purchaseCompleteDiagnosticSource.components(
+                separatedBy: "performAccessibilityAudit(for: .contrast)"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            purchaseCompleteDiagnosticSource.components(separatedBy: "return true").count - 1,
+            1
+        )
+        XCTAssertEqual(
+            purchaseCompleteDiagnosticSource.components(
+                separatedBy: ".lifetime = .keepAlways"
+            ).count - 1,
+            4
+        )
+        XCTAssertEqual(
+            purchaseCompleteDiagnosticSource.components(separatedBy: "add(").count - 1,
+            4
+        )
+        var purchaseCompleteDiagnosticTail =
+            purchaseCompleteDiagnosticSource[purchaseCompleteDiagnosticSource.startIndex...]
+        for orderedToken in [
+            "let diagnosticContext: [String: Any] = [",
+            "S10_4_AX_TEXT_PAYWALL_PURCHASE_COMPLETE_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
+            "let appAttachment = XCTAttachment(screenshot: app.screenshot())",
+            "let treeAttachment = XCTAttachment(string: app.debugDescription)",
+            "let contextAttachment = XCTAttachment(",
+            "try app.performAccessibilityAudit(for: .contrast)",
+            "S10_4_AX_TEXT_PAYWALL_PURCHASE_COMPLETE_NATIVE_CONTRAST_ISSUE_DIAGNOSTIC",
+            "screenshot: auditedElement.screenshot()",
+            "S10_4_AX_TEXT_PAYWALL_PURCHASE_COMPLETE_NATIVE_CONTRAST_COUNT_DIAGNOSTIC",
+            "throw AutomationConfigurationError.invalid(",
+        ] {
+            let range = try XCTUnwrap(
+                purchaseCompleteDiagnosticTail.range(of: orderedToken),
+                orderedToken
+            )
+            purchaseCompleteDiagnosticTail =
+                purchaseCompleteDiagnosticTail[range.upperBound...]
+        }
+        for prohibited in [
+            "captureBaseline(", "S10_MIGRATION_STATE", "S10_4_AX_STATE",
+            "S10_4_CONTRAST\"", "S10_4_CANDIDATE", ".tap()", ".typeText(",
+            "setToggle(", "navigateBack(", "waitForExistence(", ".swipe",
+            ".press(", "sleep(", "NotificationCenter", "migratedStateIDs.append",
+            "segmentedRouteStateCursor +=", "automatedSegmentFinished = true",
+            "ContrastAuditExceptionSignature(", "exceptionIssueID",
+        ] {
+            XCTAssertFalse(purchaseCompleteDiagnosticSource.contains(prohibited), prohibited)
         }
 
         let issueResolvedDiagnosticSource = try boundedSource(
@@ -22061,6 +22246,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(
             captureSource.components(
                 separatedBy: "try diagnoseSegment2AXTextIssueResolvedNativeContrast(in: app)"
+            ).count - 1,
+            0
+        )
+        XCTAssertEqual(
+            captureSource.components(
+                separatedBy:
+                    "try diagnoseSegment2AXTextPaywallPurchaseCompleteNativeContrast("
             ).count - 1,
             0
         )
