@@ -520,8 +520,8 @@ jobs:
                 and .preflightHelperSHA256 == "0062C05D0AE8383E270E491C43450D892914CA1B344C1B17DAB1C6D53D548395"
                 and .issueRecheckHelperSHA256 == "A9D52569212661CD4419ECBF4804DDFDA04187EA2F4BF133387807AF6150AC53"
                 and ((.exceptionAuthorities | type) == "array")
-                and ((.exceptionAuthorities | length) == 15)
-                and (([.exceptionAuthorities[].exceptionIssueID] | unique | length) == 15)
+                and ((.exceptionAuthorities | length) == 16)
+                and (([.exceptionAuthorities[].exceptionIssueID] | unique | length) == 16)
                 and all(.exceptionAuthorities[];
                   .shardID == "s10.4.current.ax-text"
                   and (.stateID as $stateID | ($plan.orderedStateIDs | index($stateID)) != null)
@@ -2251,6 +2251,32 @@ jobs:
               },
               {
                 shardID: "s10.4.current.ax-text",
+                stateID: "state.issue.open",
+                taskID: "work_and_recheck",
+                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-ISSUE-OPEN-WORK-DESCRIPTION",
+                exceptionOwner: "palatis3",
+                exceptionExpiresAt: "2026-11-20",
+                exceptionRationale: "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the empty-identifier Replaced damaged component value whose frozen public frame begins inside native bottom tab chrome and extends below the 402x874 application frame in the AX-text issue-open state; the exact unfiltered audit callback and audit-owned crop bind the issue to that chrome-clipped composition, and the exception is limited to the frozen public issue signature.",
+                ignoredAuditIssues: [
+                  {
+                    auditTypeRawValue: "1",
+                    compactDescription: "Contrast failed",
+                    detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode",
+                    elementIdentifier: "",
+                    elementLabel: "Replaced damaged component",
+                    elementType: "XCUIElementType(rawValue: 48)",
+                    elementFrame: {
+                      x: 32,
+                      y: 813.66666666666663,
+                      width: 256.33333333333331,
+                      height: 187.33333333333337
+                    },
+                    applicationFrame: {x: 0, y: 0, width: 402, height: 874}
+                  }
+                ]
+              },
+              {
+                shardID: "s10.4.current.ax-text",
                 stateID: "state.issue.recheck-due",
                 taskID: "work_and_recheck",
                 exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-ISSUE-RECHECK-DUE-SECTION-APPEARS-DARK",
@@ -2564,10 +2590,10 @@ jobs:
             ]
           ' > "$contrast_exception_authority_path"
           jq -e --arg today "$(date -u +%F)" '
-            length == 23
-            and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 20
-            and ([.[].exceptionIssueID] | unique | length) == 23
-            and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 18
+            length == 24
+            and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 21
+            and ([.[].exceptionIssueID] | unique | length) == 24
+            and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 19
             and ([.[]
               | select(.exceptionIssueID | IN(
                   "S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER",
@@ -2587,7 +2613,7 @@ jobs:
                   "S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER",
                   "S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER"
                 )) | not)
-              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 17
+              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 18
             and ([.[] | {shardID, stateID, taskID, exceptionIssueID}]
               | sort_by(.shardID, .stateID, .exceptionIssueID)) == ([
               {
@@ -2601,6 +2627,12 @@ jobs:
                 stateID: "state.check-preflight.ready",
                 taskID: "one_handed_start",
                 exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-TIME-ZONE-CONFIRMATION"
+              },
+              {
+                shardID: "s10.4.current.ax-text",
+                stateID: "state.issue.open",
+                taskID: "work_and_recheck",
+                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-ISSUE-OPEN-WORK-DESCRIPTION"
               },
               {
                 shardID: "s10.4.current.ax-text",
@@ -2857,7 +2889,7 @@ jobs:
                 elif $shardID == "s10.4.current.ax-text"
                      and $taskID == "report_comprehension" then 4
                 elif $shardID == "s10.4.current.ax-text"
-                     and $taskID == "work_and_recheck" then 6
+                     and $taskID == "work_and_recheck" then 7
                 elif $shardID == "s10.4.current.default-light"
                      and $taskID == "report_comprehension" then 1
                 elif $shardID == "s10.4.current.default-dark"
@@ -2880,7 +2912,7 @@ jobs:
                 elif $shardID == "s10.4.current.ax-text"
                      and $taskID == "report_comprehension" then 3
                 elif $shardID == "s10.4.current.ax-text"
-                     and $taskID == "work_and_recheck" then 5
+                     and $taskID == "work_and_recheck" then 6
                 elif $shardID == "s10.4.current.default-light"
                      and $taskID == "report_comprehension" then 1
                 elif $shardID == "s10.4.current.default-dark"
@@ -2959,8 +2991,8 @@ jobs:
                        or ($matchedExceptionStateIDs | length) > 1) then
                    error("reduce-transparency contrast exception bound exceeded")
                 elif $shard == "s10.4.current.ax-text"
-                     and (($matchedAuthorities | length) > 15
-                       or ($matchedExceptionStateIDs | length) > 12) then
+                     and (($matchedAuthorities | length) > 16
+                       or ($matchedExceptionStateIDs | length) > 13) then
                    error("AX-text contrast exception bound exceeded")
                  elif $shard != "s10.4.current.default-light"
                       and $shard != "s10.4.current.default-dark"
@@ -3178,6 +3210,8 @@ jobs:
                 if $shardID == "s10.4.current.ax-text"
                    and $stateID == "state.check-preflight.ready" then 2
                 elif $shardID == "s10.4.current.ax-text"
+                     and $stateID == "state.issue.open" then 1
+                elif $shardID == "s10.4.current.ax-text"
                      and $stateID == "state.new-sign.editing" then 1
                 elif $shardID == "s10.4.current.ax-text"
                      and $stateID == "state.paywall.purchase-complete" then 1
@@ -3286,8 +3320,8 @@ jobs:
                         ($matchedAuthorities | length) <= 1
                         and ($matchedExceptionStateIDs | length) <= 1
                       elif $shard == "s10.4.current.ax-text" then
-                        ($matchedAuthorities | length) <= 15
-                        and ($matchedExceptionStateIDs | length) <= 12
+                        ($matchedAuthorities | length) <= 16
+                        and ($matchedExceptionStateIDs | length) <= 13
                       else
                         ($matchedAuthorities | length) == 0
                         and ($matchedExceptionStateIDs | length) == 0

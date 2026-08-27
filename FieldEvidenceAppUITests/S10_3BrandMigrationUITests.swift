@@ -372,6 +372,28 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)
         ),
         ContrastAuditExceptionSignature(
+            issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-ISSUE-OPEN-WORK-DESCRIPTION",
+            shardID: "s10.4.current.ax-text",
+            stateID: "state.issue.open",
+            taskID: "work_and_recheck",
+            owner: "palatis3",
+            expiresAt: "2026-11-20",
+            rationale: "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the empty-identifier Replaced damaged component value whose frozen public frame begins inside native bottom tab chrome and extends below the 402x874 application frame in the AX-text issue-open state; the exact unfiltered audit callback and audit-owned crop bind the issue to that chrome-clipped composition, and the exception is limited to the frozen public issue signature.",
+            auditTypeRawValue: "1",
+            compactDescription: "Contrast failed",
+            detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode",
+            elementIdentifier: "",
+            elementLabel: "Replaced damaged component",
+            elementTypeDescription: "XCUIElementType(rawValue: 48)",
+            elementFrame: CGRect(
+                x: 32,
+                y: 813.66666666666663,
+                width: 256.33333333333331,
+                height: 187.33333333333337
+            ),
+            applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)
+        ),
+        ContrastAuditExceptionSignature(
             issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-ISSUE-RECHECK-DUE-SECTION-APPEARS-DARK",
             shardID: "s10.4.current.ax-text",
             stateID: "state.issue.recheck-due",
@@ -6362,15 +6384,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         XCTAssertTrue(element("s5.1.issue.screen", in: app)
             .waitForExistence(timeout: 25))
         if outcome == .issueStillVisible {
-            if automationSegment == .segment2,
-               automationShard?.shardID == "s10.4.current.ax-text" {
-                do {
-                    try diagnoseSegment2AXTextIssueOpenNativeContrast(in: app)
-                } catch {
-                    XCTFail(String(describing: error))
-                }
-                return false
-            }
             captureBaseline("state.issue.open", in: app)
         }
         navigateBack(in: app)
