@@ -120,8 +120,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 218_696,
-            sha256: "7140B8FB33F486AD8D7F56C32485C8BD0B0700D2733C920F5B06D51D5D1A83AC"
+            byteCount: 220_539,
+            sha256: "F93CF7D386B6AFBF881A5AF74DAA304307B71EB9BEEF19CEF16BBA7402C4677B"
         )
         let workflowSource = try text(workflowPath)
         let workerCallHeader =
@@ -10981,7 +10981,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             contrastAuthoritySource.components(
                 separatedBy: "ContrastAuditExceptionSignature("
             ).count - 1,
-            19
+            20
         )
         for prohibitedReduceMotionSavingTaskExpansion in [
             #"case ("s10.4.current.reduce-motion", "work_and_recheck")"#,
@@ -15425,12 +15425,27 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "            issueID: \"S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORT-CORRECTION-COUNT\"",
             before:
                 "\n        ContrastAuditExceptionSignature(\n" +
-                "            issueID: \"S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER\""
+                "            issueID: \"S10.4-XCUI-CONTRAST-FP-AX-TEXT-SIGN-SELECTION-MONUMENT-SIGN\""
         )
         XCTAssertEqual(k130ReportCorrectionCountExceptionSource.utf8.count, 1_637)
         XCTAssertEqual(
             Data(k130ReportCorrectionCountExceptionSource.utf8).sha256,
             "78711FEFFFF07290E83D14A740C0204394701F7173FDA0059AA1A43F39BA2060"
+        )
+
+        let signSelectionMonumentExceptionSource = try boundedSource(
+            uiSource,
+            from:
+                "        ContrastAuditExceptionSignature(\n" +
+                "            issueID: \"S10.4-XCUI-CONTRAST-FP-AX-TEXT-SIGN-SELECTION-MONUMENT-SIGN\"",
+            before:
+                "\n        ContrastAuditExceptionSignature(\n" +
+                "            issueID: \"S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER\""
+        )
+        XCTAssertEqual(signSelectionMonumentExceptionSource.utf8.count, 1_348)
+        XCTAssertEqual(
+            Data(signSelectionMonumentExceptionSource.utf8).sha256,
+            "3638B30FA0E6BB4FEC0E9194B0EB21DC45A4E62941FFDBD31578944D3CE6A99D"
         )
 
         let exceptionIDs = [
@@ -15447,6 +15462,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "S10.4-XCUI-CONTRAST-FP-AX-TEXT-RECHECK-CAPTURE-WIDE-READY-CANNOT-COMPLETE",
             "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-FEEDBACK-PRIVACY",
             "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORT-CORRECTION-COUNT",
+            "S10.4-XCUI-CONTRAST-FP-AX-TEXT-SIGN-SELECTION-MONUMENT-SIGN",
             "S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER",
             "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER",
             "S10.4-XCUI-CONTRAST-FP-INCREASED-CONTRAST-REPORT-CORRECTION-HEADER",
@@ -15468,6 +15484,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Cannot complete button whose frozen public frame begins in the final 4.33333333333337 points of the 874-point application viewport and extends almost entirely below it in the AX-text recheck-capture wide-ready state; the live capture composition already places Take photo and Choose from Photos above it while Import test photo continues below it, so the required ordered controls cannot fit simultaneously within the visible application composition under rigid translation, and the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Feedback privacy copy while the frozen public node frame is top-clipped outside the 402x874 application frame and its remaining slice is bound to native status/navigation chrome; the live Feedback composition simultaneously preserves the frozen App-metadata and Save-diagnostics clearances, and the audit-owned crop confirms that unobscured primaryText renders white on the dark elevated surface; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified 0 of 1,000 characters count whose audit-owned crop visibly renders black primary text partially under blurred native Correct report navigation material at y 62 with height 54; exact live geometry requires a downward shift of at least 59.418619791666742 points to clear navigation maxY 116, while Save maxY 523 and inputView minY 539 leave only 16 points, so the simultaneous feasible interval is empty and no rigid ScrollView shift can preserve the validation, Save, keyboard, and inputView composition; the exception is limited to the frozen public issue signature.",
+            "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the empty-identifier Monument Sign label whose frozen public frame begins below the native tab-safe viewport and is not hittable; the live sign-selection context proves the first sign row remains visible and selectable while the second row is below native tab chrome, and the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Correct report header in default light even though the audit-owned crop visibly renders the complete header unobscured and wholly above the keyboard; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Correct report header in default dark even though the audit-owned crop visibly renders the complete header unobscured and wholly above the keyboard; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Correct report header in increased contrast even though the audit-owned crop visibly renders the complete header unobscured and wholly above the keyboard; the exception is limited to the frozen public issue signature.",
@@ -15481,7 +15498,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             exceptionIDs.filter { !$0.hasSuffix("REPORT-CORRECTION-HEADER") }.count,
-            13
+            14
         )
         for lock in exceptionIDs {
             let uiCount = lock
@@ -15516,6 +15533,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("state.report-history.ready", 1),
             ("state.reports-index.ready", 2),
             ("state.report-correction.validation-error", 7),
+            ("state.sign-selection.ready", 1),
         ]
         for (stateID, expectedCount) in uiExceptionStateCounts {
             let lock = #"stateID: "\#(stateID)""#
@@ -15527,37 +15545,37 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(
             uiSource.components(separatedBy: "ContrastAuditExceptionSignature(").count - 1,
-            19
+            20
         )
         XCTAssertEqual(
             uiSource.components(
                 separatedBy: #"issueID: "S10.4-XCUI-CONTRAST-FP-"#
             ).count - 1,
-            19
+            20
         )
         XCTAssertEqual(
             workflowSource.components(
                 separatedBy: #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-"#
             ).count - 1,
-            38
+            40
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: #"owner: "palatis3""#).count - 1,
-            19
+            20
         )
         XCTAssertEqual(
             workflowSource.components(separatedBy: #"exceptionOwner: "palatis3""#)
                 .count - 1,
-            19
+            20
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: #"expiresAt: "2026-11-20""#).count - 1,
-            19
+            20
         )
         XCTAssertEqual(
             workflowSource.components(separatedBy: #"exceptionExpiresAt: "2026-11-20""#)
                 .count - 1,
-            19
+            20
         )
 
         let signatureLocks = [
@@ -15582,6 +15600,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-NORTH-CAMPUS""#,
             #"issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-VISIT""#,
             #"issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-SHORT-DESCRIPTION""#,
+            #"issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-SIGN-SELECTION-MONUMENT-SIGN""#,
             #"shardID: "s10.4.current.default-light""#,
             #"shardID: "s10.4.current.increased-contrast""#,
             #"shardID: "s10.4.current.reduce-motion""#,
@@ -15593,11 +15612,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"stateID: "state.work.validation-error""#,
             #"stateID: "state.recheck-capture.wide-ready""#,
             #"stateID: "state.report-correction.validation-error""#,
+            #"stateID: "state.sign-selection.ready""#,
             #"elementIdentifier: "s4.5.correction.header""#,
             #"elementLabel: "Correct report""#,
             #"elementLabel: "Short description""#,
             #"elementIdentifier: "s3.capture.cannot-complete""#,
             #"elementLabel: "Cannot complete""#,
+            #"elementLabel: "Monument Sign""#,
             #"elementTypeDescription: "XCUIElementType(rawValue: 9)""#,
             #"elementTypeDescription: "XCUIElementType(rawValue: 48)""#,
             "x: 32,\n                y: 111.33333587646484,\n" +
@@ -15623,6 +15644,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "y: -34.333333333333343",
             "width: 298.33333333333331",
             "height: 86.333333333333343",
+            "y: 803.33333333333337",
+            "width: 268",
             "applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)",
         ]
         for lock in signatureLocks {
@@ -15649,6 +15672,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-NORTH-CAMPUS""#,
             #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-VISIT""#,
             #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-SHORT-DESCRIPTION""#,
+            #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-SIGN-SELECTION-MONUMENT-SIGN""#,
             #"shardID: "s10.4.current.default-light""#,
             #"shardID: "s10.4.current.increased-contrast""#,
             #"shardID: "s10.4.current.reduce-motion""#,
@@ -15660,11 +15684,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"stateID: "state.work.validation-error""#,
             #"stateID: "state.recheck-capture.wide-ready""#,
             #"stateID: "state.report-correction.validation-error""#,
+            #"stateID: "state.sign-selection.ready""#,
             #"elementIdentifier: "s4.5.correction.header""#,
             #"elementLabel: "Correct report""#,
             #"elementLabel: "Short description""#,
             #"elementIdentifier: "s3.capture.cannot-complete""#,
             #"elementLabel: "Cannot complete""#,
+            #"elementLabel: "Monument Sign""#,
             #"elementType: "XCUIElementType(rawValue: 9)""#,
             #"elementType: "XCUIElementType(rawValue: 48)""#,
             "elementFrame: {\n" +
@@ -15690,6 +15716,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "y: -34.333333333333343",
             "width: 298.33333333333331",
             "height: 86.333333333333343",
+            "y: 803.33333333333337",
+            "width: 268",
             "applicationFrame: {x: 0, y: 0, width: 402, height: 874}",
         ]
         for lock in workflowSignatureLocks {
@@ -17954,8 +17982,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"let permittedExceptionStateIDs: Set<String>"#,
             #"switch (shard.shardID, task.taskID)"#,
             #"case ("s10.4.current.ax-text", "one_handed_start")"#,
-            #"taskIssueLimit = 3"#,
-            #"taskStateLimit = 2"#,
+            #"taskIssueLimit = 4"#,
+            #"taskStateLimit = 3"#,
+            #"                    "state.sign-selection.ready","#,
             #"case ("s10.4.current.default-light", "report_comprehension")"#,
             #"taskIssueLimit = 1"#,
             #"taskStateLimit = 1"#,
@@ -18065,6 +18094,58 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        let axOneHandedStartTaskExceptionBound =
+            #"            case ("s10.4.current.ax-text", "one_handed_start"):"# +
+                "\n" +
+                "                taskIssueLimit = 4\n" +
+                "                taskStateLimit = 3\n" +
+                "                permittedExceptionStateIDs = [\n" +
+                #"                    "state.check-preflight.ready","# + "\n" +
+                #"                    "state.new-sign.editing","# + "\n" +
+                #"                    "state.sign-selection.ready","# + "\n" +
+                "                ]"
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: axOneHandedStartTaskExceptionBound
+            ).count - 1,
+            1
+        )
+        for (label, mutation) in [
+            (
+                "AX one-handed task issue contraction",
+                axOneHandedStartTaskExceptionBound.replacingOccurrences(
+                    of: "taskIssueLimit = 4",
+                    with: "taskIssueLimit = 3"
+                )
+            ),
+            (
+                "AX one-handed task state contraction",
+                axOneHandedStartTaskExceptionBound.replacingOccurrences(
+                    of: "taskStateLimit = 3",
+                    with: "taskStateLimit = 2"
+                )
+            ),
+            (
+                "AX one-handed task missing sign-selection state",
+                axOneHandedStartTaskExceptionBound.replacingOccurrences(
+                    of: #"                    "state.sign-selection.ready","# + "\n",
+                    with: ""
+                )
+            ),
+        ] {
+            XCTAssertNotEqual(mutation, axOneHandedStartTaskExceptionBound, label)
+            let mutatedUI = uiSource.replacingOccurrences(
+                of: axOneHandedStartTaskExceptionBound,
+                with: mutation
+            )
+            XCTAssertEqual(
+                mutatedUI.components(
+                    separatedBy: axOneHandedStartTaskExceptionBound
+                ).count - 1,
+                0,
+                label
+            )
+        }
         let defaultLightTaskExceptionBound =
             #"            case ("s10.4.current.default-light", "report_comprehension"):"# +
                 "\n" +
@@ -18288,10 +18369,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "contrast_exception_authority_path=",
             #"if .result == "PASS" then"#,
             #"elif .result == "EXCEPTION" then"#,
-            #"length == 19"#,
-            #"and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 17"#,
-            #"and ([.[].exceptionIssueID] | unique | length) == 19"#,
-            #"and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 14"#,
+            #"length == 20"#,
+            #"and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 18"#,
+            #"and ([.[].exceptionIssueID] | unique | length) == 20"#,
+            #"and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 15"#,
             #"| select(.exceptionIssueID | IN("#,
             #""S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER","#,
             #""S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER","#,
@@ -18302,7 +18383,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"| (.ignoredAuditIssues[0] | tojson)] | unique | length) == 1"#,
             #"| select((.exceptionIssueID | IN("#,
             #")) | not)"#,
-            #"| (.ignoredAuditIssues[0] | tojson)] | unique | length) == 13"#,
+            #"| (.ignoredAuditIssues[0] | tojson)] | unique | length) == 14"#,
             #"and (.exceptionOwner == "palatis3")"#,
             #"and (.exceptionExpiresAt | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}$"))"#,
             #"and ($today <= .exceptionExpiresAt)"#,
@@ -18334,7 +18415,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"error("AX-text contrast exception bound exceeded")"#,
             #"error("contrast exception on ineligible shard")"#,
             #"def taskIssueLimit($shardID; $taskID):"#,
-            #"and $taskID == "one_handed_start" then 3"#,
+            #"and $taskID == "one_handed_start" then 4"#,
             #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
                 #"                     and $taskID == "report_comprehension" then 4"#,
             #"and $taskID == "work_and_recheck" then 4"#,
@@ -18342,7 +18423,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"and $taskID == "history_recovery" then 1"#,
             #"and $taskID == "report_comprehension" then 1"#,
             #"def taskStateLimit($shardID; $taskID):"#,
-            #"and $taskID == "one_handed_start" then 2"#,
+            #"and $taskID == "one_handed_start" then 3"#,
             #"                     and $taskID == "report_comprehension" then 3"#,
             #"| map(select(.taskID == $taskID))"#,
             #"| sort_by(.stateID, .exceptionIssueID)) as $taskExceptions"#,
@@ -18375,8 +18456,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"($matchedAuthorities | length) > 1"#,
             #"($matchedExceptionStateIDs | length) > 1"#,
             #"elif $shard == "s10.4.current.ax-text" then"#,
-            #"($matchedAuthorities | length) > 11"#,
-            #"($matchedExceptionStateIDs | length) > 9"#,
+            #"($matchedAuthorities | length) > 12"#,
+            #"($matchedExceptionStateIDs | length) > 10"#,
             #"stateIssueLimit($shardID; $stateID)"#,
             #"and $stateID == "state.check-preflight.ready" then 2"#,
             #"and $stateID == "state.new-sign.editing" then 1"#,
@@ -18444,10 +18525,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
         let workflowAuthorityCardinality =
-            "            length == 19\n" +
-                "            and ([.[] | [.shardID, .stateID] | join(\"|\")] | unique | length) == 17\n" +
-                "            and ([.[].exceptionIssueID] | unique | length) == 19\n" +
-                "            and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 14"
+            "            length == 20\n" +
+                "            and ([.[] | [.shardID, .stateID] | join(\"|\")] | unique | length) == 18\n" +
+                "            and ([.[].exceptionIssueID] | unique | length) == 20\n" +
+                "            and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 15"
         XCTAssertEqual(
             workflowSource.components(
                 separatedBy: workflowAuthorityCardinality
@@ -18458,29 +18539,29 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             (
                 "authority count contraction",
                 workflowAuthorityCardinality.replacingOccurrences(
-                    of: "length == 19",
-                    with: "length == 18"
+                    of: "length == 20",
+                    with: "length == 19"
                 )
             ),
             (
                 "authority pair contraction",
                 workflowAuthorityCardinality.replacingOccurrences(
-                    of: "unique | length) == 17",
-                    with: "unique | length) == 16"
+                    of: "unique | length) == 18",
+                    with: "unique | length) == 17"
                 )
             ),
             (
                 "authority issue contraction",
                 workflowAuthorityCardinality.replacingOccurrences(
-                    of: "exceptionIssueID] | unique | length) == 19",
-                    with: "exceptionIssueID] | unique | length) == 18"
+                    of: "exceptionIssueID] | unique | length) == 20",
+                    with: "exceptionIssueID] | unique | length) == 19"
                 )
             ),
             (
                 "authority signature contraction",
                 workflowAuthorityCardinality.replacingOccurrences(
-                    of: "tojson)] | unique | length) == 14",
-                    with: "tojson)] | unique | length) == 13"
+                    of: "tojson)] | unique | length) == 15",
+                    with: "tojson)] | unique | length) == 14"
                 )
             ),
         ] {
@@ -18519,7 +18600,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             0
         )
-        let workflowHeaderSharedOneAndNonHeaderThirteen =
+        let workflowHeaderSharedOneAndNonHeaderFourteen =
             "            and ([.[]\n" +
                 "              | select(.exceptionIssueID | IN(\n" +
                 "                  \"S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER\",\n" +
@@ -18539,10 +18620,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                  \"S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER\",\n" +
                 "                  \"S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER\"\n" +
                 "                )) | not)\n" +
-                "              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 13"
+                "              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 14"
         XCTAssertEqual(
             workflowSource.components(
-                separatedBy: workflowHeaderSharedOneAndNonHeaderThirteen
+                separatedBy: workflowHeaderSharedOneAndNonHeaderFourteen
             ).count - 1,
             1
         )
@@ -18797,8 +18878,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let axWorkflowAggregateBound =
             #"elif $shard == "s10.4.current.ax-text""# + "\n" +
-                #"                     and (($matchedAuthorities | length) > 11"# + "\n" +
-                #"                       or ($matchedExceptionStateIDs | length) > 9) then"#
+                #"                     and (($matchedAuthorities | length) > 12"# + "\n" +
+                #"                       or ($matchedExceptionStateIDs | length) > 10) then"#
         XCTAssertEqual(
             workflowSource.components(separatedBy: axWorkflowAggregateBound).count - 1,
             1
@@ -18813,7 +18894,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let axWorkflowTaskIssueFunctionBound =
                 #"              def taskIssueLimit($shardID; $taskID):"# + "\n" +
                 #"                if $shardID == "s10.4.current.ax-text""# + "\n" +
-                #"                   and $taskID == "one_handed_start" then 3"# + "\n" +
+                #"                   and $taskID == "one_handed_start" then 4"# + "\n" +
                 #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
                 #"                     and $taskID == "report_comprehension" then 4"# + "\n" +
                 #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
@@ -18827,7 +18908,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let axWorkflowTaskStateFunctionBound =
                 #"              def taskStateLimit($shardID; $taskID):"# + "\n" +
                 #"                if $shardID == "s10.4.current.ax-text""# + "\n" +
-                #"                   and $taskID == "one_handed_start" then 2"# + "\n" +
+                #"                   and $taskID == "one_handed_start" then 3"# + "\n" +
                 #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
                 #"                     and $taskID == "report_comprehension" then 3"# + "\n" +
                 #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
@@ -18893,8 +18974,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let axWorkflowDownstreamBound =
             #"                      elif $shard == "s10.4.current.ax-text" then"# + "\n" +
-                #"                        ($matchedAuthorities | length) <= 11"# + "\n" +
-                #"                        and ($matchedExceptionStateIDs | length) <= 9"#
+                #"                        ($matchedAuthorities | length) <= 12"# + "\n" +
+                #"                        and ($matchedExceptionStateIDs | length) <= 10"#
         XCTAssertEqual(
             workflowSource.components(separatedBy: axWorkflowDownstreamBound).count - 1,
             1
@@ -18994,15 +19075,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "AX aggregate limit expansion",
                 axWorkflowAggregateBound,
                 axWorkflowAggregateBound
-                    .replacingOccurrences(of: "> 11", with: "> 12")
-                    .replacingOccurrences(of: "> 9", with: "> 10")
+                    .replacingOccurrences(of: "> 12", with: "> 13")
+                    .replacingOccurrences(of: "> 10", with: "> 11")
             ),
             (
                 "AX downstream limit expansion",
                 axWorkflowDownstreamBound,
                 axWorkflowDownstreamBound
-                    .replacingOccurrences(of: "<= 11", with: "<= 12")
-                    .replacingOccurrences(of: "<= 9", with: "<= 10")
+                    .replacingOccurrences(of: "<= 12", with: "<= 13")
+                    .replacingOccurrences(of: "<= 10", with: "<= 11")
             ),
         ]
         for (label, canonicalBound, mutatedBound) in axWorkflowLimitMutations {
@@ -21186,10 +21267,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "    private func captureBaseline(\n",
             before: "\n\n    @MainActor\n    private func shouldPrepareNormalEvidence("
         )
-        XCTAssertEqual(captureSource.utf8.count, 8_843)
+        XCTAssertEqual(captureSource.utf8.count, 8_446)
         XCTAssertEqual(
             Data(captureSource.utf8).sha256,
-            "9F331ADA24FA51AFF9B6E9AD3B33A061CA166E0760D9EACB45B51805E1C7E5D4"
+            "EB987FE672AE2804733C3E0428CD68E7F072307531C415C550EB90D679919ABC"
         )
         let captureReplayGateSource = try boundedSource(
             captureSource,
@@ -21215,11 +21296,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let normalMarker = try XCTUnwrap(
             captureSource.range(of: "print(\"S10_MIGRATION_STATE state=\\(stateID)\")")
         )
-        let signSelectionDiagnosticCall = try XCTUnwrap(
-            captureSource.range(
-                of: "try diagnoseSegment3AXTextSignSelectionNativeContrast(in: app)"
-            )
-        )
         let normalExceptionLookup = try XCTUnwrap(
             captureSource.range(of: "let eligibleExceptions =")
         )
@@ -21228,8 +21304,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertLessThan(issueResolvedDiagnosticCall.lowerBound, normalExceptionLookup.lowerBound)
         XCTAssertLessThan(normalAppend.lowerBound, normalMarker.lowerBound)
         XCTAssertLessThan(normalMarker.lowerBound, normalExceptionLookup.lowerBound)
-        XCTAssertLessThan(normalMarker.lowerBound, signSelectionDiagnosticCall.lowerBound)
-        XCTAssertLessThan(signSelectionDiagnosticCall.lowerBound, normalExceptionLookup.lowerBound)
         XCTAssertTrue(
             captureReplayGateSource.contains(
                 "automationShard?.shardID == \"s10.4.current.ax-text\""
@@ -21245,15 +21319,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(captureSource.contains("printJSONLine(prefix: \"S10_4_AX_STATE\""))
         XCTAssertTrue(captureSource.contains("printJSONLine(prefix: \"S10_4_CONTRAST\""))
         XCTAssertTrue(captureSource.contains("XCUIScreen.main.screenshot().pngRepresentation"))
-        XCTAssertTrue(captureSource.contains("automationSegment == .segment3"))
-        XCTAssertTrue(
-            captureSource.contains("stateID == \"state.sign-selection.ready\"")
-        )
         XCTAssertEqual(
             captureSource.components(
                 separatedBy: "try diagnoseSegment3AXTextSignSelectionNativeContrast(in: app)"
             ).count - 1,
-            1
+            0
         )
         XCTAssertFalse(
             captureSource.contains(

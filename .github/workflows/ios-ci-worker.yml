@@ -2147,6 +2147,32 @@ jobs:
               },
               {
                 shardID: "s10.4.current.ax-text",
+                stateID: "state.sign-selection.ready",
+                taskID: "one_handed_start",
+                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-SIGN-SELECTION-MONUMENT-SIGN",
+                exceptionOwner: "palatis3",
+                exceptionExpiresAt: "2026-11-20",
+                exceptionRationale: "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the empty-identifier Monument Sign label whose frozen public frame begins below the native tab-safe viewport and is not hittable; the live sign-selection context proves the first sign row remains visible and selectable while the second row is below native tab chrome, and the exception is limited to the frozen public issue signature.",
+                ignoredAuditIssues: [
+                  {
+                    auditTypeRawValue: "1",
+                    compactDescription: "Contrast failed",
+                    detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode",
+                    elementIdentifier: "",
+                    elementLabel: "Monument Sign",
+                    elementType: "XCUIElementType(rawValue: 48)",
+                    elementFrame: {
+                      x: 32,
+                      y: 803.33333333333337,
+                      width: 268,
+                      height: 125.33333333333326
+                    },
+                    applicationFrame: {x: 0, y: 0, width: 402, height: 874}
+                  }
+                ]
+              },
+              {
+                shardID: "s10.4.current.ax-text",
                 stateID: "state.work.validation-error",
                 taskID: "work_and_recheck",
                 exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-SHORT-DESCRIPTION",
@@ -2460,10 +2486,10 @@ jobs:
             ]
           ' > "$contrast_exception_authority_path"
           jq -e --arg today "$(date -u +%F)" '
-            length == 19
-            and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 17
-            and ([.[].exceptionIssueID] | unique | length) == 19
-            and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 14
+            length == 20
+            and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 18
+            and ([.[].exceptionIssueID] | unique | length) == 20
+            and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 15
             and ([.[]
               | select(.exceptionIssueID | IN(
                   "S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER",
@@ -2483,7 +2509,7 @@ jobs:
                   "S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER",
                   "S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER"
                 )) | not)
-              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 13
+              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 14
             and ([.[] | {shardID, stateID, taskID, exceptionIssueID}]
               | sort_by(.shardID, .stateID, .exceptionIssueID)) == ([
               {
@@ -2545,6 +2571,12 @@ jobs:
                 stateID: "state.reports-index.ready",
                 taskID: "report_comprehension",
                 exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-VISIT"
+              },
+              {
+                shardID: "s10.4.current.ax-text",
+                stateID: "state.sign-selection.ready",
+                taskID: "one_handed_start",
+                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-SIGN-SELECTION-MONUMENT-SIGN"
               },
               {
                 shardID: "s10.4.current.ax-text",
@@ -2725,7 +2757,7 @@ jobs:
                   end;
               def taskIssueLimit($shardID; $taskID):
                 if $shardID == "s10.4.current.ax-text"
-                   and $taskID == "one_handed_start" then 3
+                   and $taskID == "one_handed_start" then 4
                 elif $shardID == "s10.4.current.ax-text"
                      and $taskID == "report_comprehension" then 4
                 elif $shardID == "s10.4.current.ax-text"
@@ -2748,7 +2780,7 @@ jobs:
                 end;
               def taskStateLimit($shardID; $taskID):
                 if $shardID == "s10.4.current.ax-text"
-                   and $taskID == "one_handed_start" then 2
+                   and $taskID == "one_handed_start" then 3
                 elif $shardID == "s10.4.current.ax-text"
                      and $taskID == "report_comprehension" then 3
                 elif $shardID == "s10.4.current.ax-text"
@@ -2830,8 +2862,8 @@ jobs:
                        or ($matchedExceptionStateIDs | length) > 1) then
                    error("reduce-transparency contrast exception bound exceeded")
                 elif $shard == "s10.4.current.ax-text"
-                     and (($matchedAuthorities | length) > 11
-                       or ($matchedExceptionStateIDs | length) > 9) then
+                     and (($matchedAuthorities | length) > 12
+                       or ($matchedExceptionStateIDs | length) > 10) then
                    error("AX-text contrast exception bound exceeded")
                  elif $shard != "s10.4.current.default-light"
                       and $shard != "s10.4.current.default-dark"
@@ -3153,8 +3185,8 @@ jobs:
                         ($matchedAuthorities | length) <= 1
                         and ($matchedExceptionStateIDs | length) <= 1
                       elif $shard == "s10.4.current.ax-text" then
-                        ($matchedAuthorities | length) <= 11
-                        and ($matchedExceptionStateIDs | length) <= 9
+                        ($matchedAuthorities | length) <= 12
+                        and ($matchedExceptionStateIDs | length) <= 10
                       else
                         ($matchedAuthorities | length) == 0
                         and ($matchedExceptionStateIDs | length) == 0
