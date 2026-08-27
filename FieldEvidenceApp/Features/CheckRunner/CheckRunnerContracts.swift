@@ -42,8 +42,42 @@ enum CheckRunnerCoordinatorError: Error, Equatable {
     case reviewUnavailable
     case finalizationNotConfigured
     case finalizationFailed
+    case packageLifecycleMismatch
+    case legacyFinalizationReceiptDebt
     case saveFailed
     case accessDenied(DraftAccessDecisionV1)
+}
+
+struct PackFinalizationBindingV1: Equatable, Sendable {
+    let workspaceID: WorkspaceID
+    let generationID: UUID
+    let packageRelease: PackageReleaseIdentityV1
+    let mutationID: MutationIDV1
+    let durableReceiptIdentity: MutationReceiptIdentityV1?
+    let preservesReservedLegacyRawWriteDebt: Bool
+
+    init(
+        workspaceID: WorkspaceID,
+        generationID: UUID,
+        packageRelease: PackageReleaseIdentityV1,
+        mutationID: MutationIDV1,
+        durableReceiptIdentity: MutationReceiptIdentityV1?,
+        preservesReservedLegacyRawWriteDebt: Bool
+    ) throws {
+        guard generationID != Self.zero,
+              durableReceiptIdentity?.workspaceID == workspaceID || durableReceiptIdentity == nil,
+              (durableReceiptIdentity != nil) != preservesReservedLegacyRawWriteDebt else {
+            throw CheckRunnerCoordinatorError.packageLifecycleMismatch
+        }
+        self.workspaceID = workspaceID
+        self.generationID = generationID
+        self.packageRelease = packageRelease
+        self.mutationID = mutationID
+        self.durableReceiptIdentity = durableReceiptIdentity
+        self.preservesReservedLegacyRawWriteDebt = preservesReservedLegacyRawWriteDebt
+    }
+
+    private static let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
 }
 
 enum CheckOutcomeSelection: Equatable, Sendable {
@@ -152,4 +186,8 @@ struct CaptureCandidate: Equatable, Sendable {
 
 enum CheckRunnerCoordinatorFailurePoint: Equatable, Sendable {
     case evidenceModelSave
+}
+
+enum CheckRunnerCompatibilityPostureV1: String, Sendable {
+    case frozenS10CallersOnly = "FROZEN_S10_CALLERS_ONLY_EXPIRES_AFTER_ACCEPTED_S10_6_RECONCILIATION"
 }

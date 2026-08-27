@@ -86,6 +86,33 @@ final class OrphanFileCleanupService {
               validEvidencePairs(referencedRelativePaths) else {
             throw OrphanFileCleanupServiceError.invalidReference
         }
+        try validateKernelOrphanMappings()
+        return try reconcile(references: Set(referencedRelativePaths))
+    }
+
+    /// Package-aware callers must prove the file projection belongs to the
+    /// same workspace/generation before any pinned-FD cleanup is allowed. The
+    /// overload is main-actor isolated because the shared query dependency is
+    /// deliberately main-actor bound; the historical file-only entry point
+    /// above remains available for synthetic XCTest stores.
+    @MainActor
+    func reconcile(
+        referencedRelativePaths: [String],
+        packageLifecycleDependencies dependencies: WorkspacePackageLifecycleDependenciesV1
+    ) throws -> OrphanFileCleanupSummary {
+        guard Set(referencedRelativePaths).count == referencedRelativePaths.count,
+              referencedRelativePaths.allSatisfy(
+                  DeletionIntentEncoderV1.validRelativePath
+              ),
+              validEvidencePairs(referencedRelativePaths) else {
+            throw OrphanFileCleanupServiceError.invalidReference
+        }
+        try validateKernelOrphanMappings()
+        let identities = try evidenceIdentities(in: referencedRelativePaths)
+        try validatePackageLifecycleScope(
+            dependencies,
+            identities: identities
+        )
         return try reconcile(references: Set(referencedRelativePaths))
     }
 
@@ -145,6 +172,94 @@ final class OrphanFileCleanupService {
 }
 
 private extension OrphanFileCleanupService {
+    func validateKernelOrphanMappings() throws {
+        do {
+            let ownedContent = try KernelDeletionEraseRegistryV4.registration(
+                for: .contentReference
+            )
+            let evidence = try KernelDeletionEraseRegistryV4.registration(
+                for: .evidenceFile
+            )
+            let report = try KernelDeletionEraseRegistryV4.registration(
+                for: .report
+            )
+            let completedSnapshot = try KernelDeletionEraseRegistryV4.registration(
+                for: .completedActivitySnapshot
+            )
+            guard ownedContent.orphanCleanup == .removeOwnedBytesWhenUnreferenced,
+                  evidence.orphanCleanup == .removeOwnedBytesWhenUnreferenced,
+                  report.orphanCleanup == .preserveCanonicalRecord,
+                  completedSnapshot.orphanCleanup == .removeDerivedProjection,
+                  !ownedContent.clearsTombstonesOnDelete,
+                  !evidence.clearsTombstonesOnDelete,
+                  !report.clearsTombstonesOnDelete,
+                  !completedSnapshot.clearsTombstonesOnDelete else {
+                throw OrphanFileCleanupServiceError.invalidOwnedLayout
+            }
+        } catch let error as OrphanFileCleanupServiceError {
+            throw error
+        } catch {
+            throw OrphanFileCleanupServiceError.invalidOwnedLayout
+        }
+    }
+
+    @MainActor
+    func evidenceIdentities(
+        in paths: [String]
+    ) throws -> [WorkspaceEntityIdentityV1] {
+        let values = paths.compactMap { path -> UUID? in
+            let components = path.split(separator: "/").map(String.init)
+            guard components.count == 3,
+                  components[0] == "evidence",
+                  components[2] == "original.jpg"
+                      || components[2] == "thumbnail.jpg",
+                  let id = UUID(uuidString: components[1]),
+                  id.uuidString.lowercased() == components[1] else {
+                return nil
+            }
+            return id
+        }
+        guard Set(values).count * 2 == paths.filter({ $0.hasPrefix("evidence/") }).count
+                || paths.filter({ $0.hasPrefix("evidence/") }).isEmpty else {
+            throw OrphanFileCleanupServiceError.invalidReference
+        }
+        return try Set(values).sorted { $0.uuidString < $1.uuidString }.map {
+            try WorkspaceEntityIdentityV1(kind: .evidenceFile, id: $0)
+        }
+    }
+
+    @MainActor
+    func validatePackageLifecycleScope(
+        _ dependencies: WorkspacePackageLifecycleDependenciesV1,
+        identities: [WorkspaceEntityIdentityV1]
+    ) throws {
+        guard dependencies.generationID == generationID,
+              dependencies.generationRootURL.standardizedFileURL == generationRootURL,
+              dependencies.generationRootURL.isFileURL else {
+            throw OrphanFileCleanupServiceError.invalidGeneration
+        }
+        do {
+            let request = try WorkspacePackageLifecycleQueryRequestV1(
+                workspaceID: dependencies.workspaceID,
+                generationID: dependencies.generationID,
+                operation: .delete,
+                identities: identities
+            )
+            let result = try dependencies.queryClient.query(request)
+            guard result.workspaceID == dependencies.workspaceID,
+                  result.generationID == generationID,
+                  result.operation == .delete,
+                  Set(result.existingIdentities) == Set(request.identities),
+                  try dependencies.queryClient.currentRevision() == result.revision else {
+                throw OrphanFileCleanupServiceError.identityChanged
+            }
+        } catch let error as OrphanFileCleanupServiceError {
+            throw error
+        } catch {
+            throw OrphanFileCleanupServiceError.identityChanged
+        }
+    }
+
     struct Identity: Equatable {
         let device: dev_t
         let inode: ino_t

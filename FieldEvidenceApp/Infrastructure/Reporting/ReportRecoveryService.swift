@@ -58,13 +58,15 @@ final class ReportRecoveryService: ObservableObject {
     private let generationRootURL: URL
     private let fileManager: FileManager
     private let signPack: SignPack
+    private let lifecycleProfile: WorkspacePackageLifecycleProfileV1
+    private let lifecycleRoute: ReportingPackageLifecycleRouteV1
     private let renderService: ReportRenderService
     private let launchAttemptRegistry: ReportLaunchAttemptRegistry
     private let rootIdentity: ReportPDFAnchoredFile.RootIdentity
     private let failureInjection: ReportRecoveryFailureInjection?
     private var unavailableObserver: NSObjectProtocol?
 
-    init(
+    convenience init(
         modelContext: ModelContext,
         generationRootURL: URL,
         fileManager: FileManager = .default,
@@ -74,7 +76,62 @@ final class ReportRecoveryService: ObservableObject {
         recoveryFailureInjection: ReportRecoveryFailureInjection? = nil,
         launchAttemptRegistry: ReportLaunchAttemptRegistry? = nil
     ) throws {
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(
+            package: signPack
+        )
+        try self.init(
+            modelContext: modelContext,
+            generationRootURL: generationRootURL,
+            fileManager: fileManager,
+            lifecycleRoute: .expiringCompatibility(
+                profile: profile,
+                posture: WorkspacePackageLifecycleCompatibilityV1.expiration
+            ),
+            failNextRenderAttempt: failNextRenderAttempt,
+            failureInjection: failureInjection,
+            recoveryFailureInjection: recoveryFailureInjection,
+            launchAttemptRegistry: launchAttemptRegistry
+        )
+    }
+
+    convenience init(
+        modelContext: ModelContext,
+        lifecycleDependencies: WorkspacePackageLifecycleDependenciesV1,
+        lifecycleProfile: WorkspacePackageLifecycleProfileV1,
+        fileManager: FileManager = .default,
+        failNextRenderAttempt: Bool = false,
+        failureInjection: ReportRenderFailureInjection? = nil,
+        recoveryFailureInjection: ReportRecoveryFailureInjection? = nil,
+        launchAttemptRegistry: ReportLaunchAttemptRegistry? = nil
+    ) throws {
+        try self.init(
+            modelContext: modelContext,
+            generationRootURL: lifecycleDependencies.generationRootURL,
+            fileManager: fileManager,
+            lifecycleRoute: .live(
+                dependencies: lifecycleDependencies,
+                profile: lifecycleProfile
+            ),
+            failNextRenderAttempt: failNextRenderAttempt,
+            failureInjection: failureInjection,
+            recoveryFailureInjection: recoveryFailureInjection,
+            launchAttemptRegistry: launchAttemptRegistry
+        )
+    }
+
+    private init(
+        modelContext: ModelContext,
+        generationRootURL: URL,
+        fileManager: FileManager,
+        lifecycleRoute: ReportingPackageLifecycleRouteV1,
+        failNextRenderAttempt: Bool,
+        failureInjection: ReportRenderFailureInjection?,
+        recoveryFailureInjection: ReportRecoveryFailureInjection?,
+        launchAttemptRegistry: ReportLaunchAttemptRegistry?
+    ) throws {
         let root = generationRootURL.standardizedFileURL
+        try lifecycleRoute.validate(generationRootURL: root)
+        let lifecycleProfile = lifecycleRoute.profile
         let capturedRootIdentity: ReportPDFAnchoredFile.RootIdentity
         do {
             capturedRootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: root)
@@ -84,19 +141,33 @@ final class ReportRecoveryService: ObservableObject {
         self.modelContext = modelContext
         self.generationRootURL = root
         self.fileManager = fileManager
-        self.signPack = signPack
+        self.signPack = lifecycleProfile.package
+        self.lifecycleProfile = lifecycleProfile
+        self.lifecycleRoute = lifecycleRoute
         self.launchAttemptRegistry = launchAttemptRegistry
             ?? ReportLaunchAttemptRegistry()
         self.failureInjection = recoveryFailureInjection
         self.rootIdentity = capturedRootIdentity
-        self.renderService = try ReportRenderService(
-            modelContext: modelContext,
-            generationRootURL: generationRootURL,
-            fileManager: fileManager,
-            signPack: signPack,
-            failNextRenderAttempt: failNextRenderAttempt,
-            failureInjection: failureInjection
-        )
+        switch lifecycleRoute {
+        case .live(let lifecycleDependencies, _):
+            self.renderService = try ReportRenderService(
+                modelContext: modelContext,
+                lifecycleDependencies: lifecycleDependencies,
+                lifecycleProfile: lifecycleProfile,
+                fileManager: fileManager,
+                failNextRenderAttempt: failNextRenderAttempt,
+                failureInjection: failureInjection
+            )
+        case .expiringCompatibility:
+            self.renderService = try ReportRenderService(
+                modelContext: modelContext,
+                generationRootURL: generationRootURL,
+                fileManager: fileManager,
+                signPack: lifecycleProfile.package,
+                failNextRenderAttempt: failNextRenderAttempt,
+                failureInjection: failureInjection
+            )
+        }
         guard try ReportPDFAnchoredFile.rootIdentity(at: root)
                 == capturedRootIdentity else {
             throw ReportRecoveryServiceError.invalidAuthority
@@ -292,8 +363,10 @@ final class ReportRecoveryService: ObservableObject {
                   snapshot.reportID == report.id,
                   snapshot.packetID == report.packetID,
                   snapshot.sourceRecordID == report.sourceRecordID,
-                  snapshot.pdfTemplate.id == "field.evidence.pdf.worklight.v1",
-                  snapshot.pdfTemplate.version == 1 else {
+                  snapshot.pdfTemplate == lifecycleProfile.pdfTemplate,
+                  snapshot.pack.id == lifecycleProfile.release.packageID,
+                  snapshot.pack.schemaVersion == lifecycleProfile.release.schemaVersion,
+                  snapshot.pack.contentVersion == lifecycleProfile.release.contentVersion else {
                 throw ReportRecoveryServiceError.invalidAuthority
             }
             switch state {
@@ -367,12 +440,22 @@ final class ReportRecoveryService: ObservableObject {
         try validateReplacementChains(reports: reports)
         let authorityCoordinator: ReportDeliveryCoordinator
         do {
-            authorityCoordinator = try ReportDeliveryCoordinator(
-                modelContext: modelContext,
-                generationRootURL: generationRootURL,
-                signPack: signPack,
-                expectedRootIdentity: rootIdentity
-            )
+            switch lifecycleRoute {
+            case .live(let lifecycleDependencies, _):
+                authorityCoordinator = try ReportDeliveryCoordinator(
+                    modelContext: modelContext,
+                    lifecycleDependencies: lifecycleDependencies,
+                    lifecycleProfile: lifecycleProfile,
+                    expectedRootIdentity: rootIdentity
+                )
+            case .expiringCompatibility:
+                authorityCoordinator = try ReportDeliveryCoordinator(
+                    modelContext: modelContext,
+                    generationRootURL: generationRootURL,
+                    signPack: signPack,
+                    expectedRootIdentity: rootIdentity
+                )
+            }
         } catch {
             throw ReportRecoveryServiceError.invalidAuthority
         }

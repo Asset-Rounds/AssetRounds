@@ -3,6 +3,7 @@ import SwiftData
 
 @MainActor
 struct ProductionSignWorkflow {
+    let lifecycle: WorkspacePackageLifecycleDependenciesV1
     let firstSign: FirstSignCoordinator
     let checkRunner: CheckRunnerCoordinator
     let reportDelivery: ReportDeliveryCoordinator
@@ -14,54 +15,47 @@ struct ProductionSignWorkflow {
 @MainActor
 final class ProductionCompositionRoot {
     private let modelContext: ModelContext
-    private let generationRootURL: URL
     private let diagnosticsStore: DiagnosticsStore
-    private let clock: any ApplicationClock
-    private let idSource: any ApplicationIDSource
-    private let fileAuthority: any ApplicationFileAuthorityV1
-    private let workspaceWriter: WorkspaceWriterV1
+    private let lifecycle: WorkspacePackageLifecycleDependenciesV1
 
     init(
-        modelContext: ModelContext,
-        generationRootURL: URL,
+        storeSession: StoreSessionCoordinator,
         diagnosticsStore: DiagnosticsStore,
-        workspaceWriter: WorkspaceWriterV1,
-        clock: any ApplicationClock = SystemApplicationClock(),
-        idSource: any ApplicationIDSource = SystemApplicationIDSource(),
-        fileAuthority: any ApplicationFileAuthorityV1 = SystemApplicationFileAuthorityV1()
-    ) {
-        self.modelContext = modelContext
-        self.generationRootURL = generationRootURL.standardizedFileURL
+        profileRegistry: WorkspacePackageLifecycleProfileRegistryV1
+    ) throws {
+        let dependencies = try storeSession.packageLifecycleDependencies(
+            profileRegistry: profileRegistry
+        )
+        self.modelContext = storeSession.modelContext
         self.diagnosticsStore = diagnosticsStore
-        self.workspaceWriter = workspaceWriter
-        self.clock = clock
-        self.idSource = idSource
-        self.fileAuthority = fileAuthority
+        lifecycle = dependencies
     }
 
     func makeSignWorkflow(
         signPack: SignPack,
         accessState: (@MainActor () -> DraftAccessNormalizedStateV1)? = nil
     ) throws -> ProductionSignWorkflow {
+        let release = try PackageReleaseIdentityV1(package: signPack)
+        let profile = try lifecycle.profileRegistry.resolve(release)
+        guard profile.package == signPack, profile.release == release else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
         let storagePreflight = StoragePreflightService()
-        let checkRunner = CheckRunnerCoordinator(
+        let checkRunner = try CheckRunnerCoordinator(
             modelContext: modelContext,
-            signPack: signPack,
-            workspaceWriter: workspaceWriter,
-            clock: clock,
-            idSource: idSource,
-            fileAuthority: fileAuthority,
+            packageLifecycleDependencies: lifecycle,
+            packageLifecycleProfile: profile,
             diagnosticsStore: diagnosticsStore,
             storagePreflight: storagePreflight,
             draftAccessState: accessState
         )
-        checkRunner.configureCapture(generationRootURL: generationRootURL)
+        checkRunner.configureCapture(generationRootURL: lifecycle.generationRootURL)
 
         let reportDelivery = try ReportDeliveryCoordinator(
             modelContext: modelContext,
-            generationRootURL: generationRootURL,
-            diagnosticsStore: diagnosticsStore,
-            signPack: signPack
+            lifecycleDependencies: lifecycle,
+            lifecycleProfile: profile,
+            diagnosticsStore: diagnosticsStore
         )
         let reportHistory = ReportHistoryCoordinator(
             modelContext: modelContext,
@@ -70,27 +64,23 @@ final class ProductionCompositionRoot {
         let work = try WorkCoordinator(
             modelContext: modelContext,
             signPack: signPack,
-            generationRootURL: generationRootURL,
+            generationRootURL: lifecycle.generationRootURL,
             checkRunnerCoordinator: checkRunner,
             storagePreflight: storagePreflight
         )
         let deletion = WholeSignDeletionService(
             modelContext: modelContext,
-            generationRootURL: generationRootURL,
-            now: clock.now,
-            makeUUID: idSource.makeID
+            lifecycleDependencies: lifecycle
         )
-        let firstSign = FirstSignCoordinator(
+        let firstSign = try FirstSignCoordinator(
             modelContext: modelContext,
             diagnosticsStore: diagnosticsStore,
-            signPack: signPack,
-            workspaceWriter: workspaceWriter,
-            clock: clock,
-            idSource: idSource,
-            fileAuthority: fileAuthority,
+            packageLifecycleDependencies: lifecycle,
+            packageLifecycleProfile: profile,
             accessState: accessState
         )
         return ProductionSignWorkflow(
+            lifecycle: lifecycle,
             firstSign: firstSign,
             checkRunner: checkRunner,
             reportDelivery: reportDelivery,
@@ -99,4 +89,5 @@ final class ProductionCompositionRoot {
             deletion: deletion
         )
     }
+
 }

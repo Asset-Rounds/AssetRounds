@@ -118,6 +118,21 @@ final class StoreSessionCoordinator: ObservableObject {
         workspaceWriter
     }
 
+    func packageLifecycleDependencies(
+        profileRegistry: WorkspacePackageLifecycleProfileRegistryV1
+    ) throws -> WorkspacePackageLifecycleDependenciesV1 {
+        try WorkspacePackageLifecycleDependenciesV1(
+            workspaceID: session.workspaceID,
+            generationID: session.generationID,
+            generationRootURL: session.generationRootURL,
+            writer: workspaceWriter,
+            clock: clock,
+            idSource: idSource,
+            fileAuthority: fileAuthority,
+            profileRegistry: profileRegistry
+        )
+    }
+
     func activate(session: StoreGenerationSession) {
         do {
             try activateValidating(session: session)

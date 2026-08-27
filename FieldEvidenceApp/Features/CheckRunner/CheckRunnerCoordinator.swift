@@ -22,21 +22,22 @@ final class CheckRunnerCoordinatorFailureInjection {
 
 @MainActor
 final class CheckRunnerCoordinator {
-    private static let pdfTemplateID = "field.evidence.pdf.worklight.v1"
-    private static let pdfTemplateVersion = 1
-    private static let recheckOutcomes: Set<String> = [
-        "resolved",
-        "issue_still_visible",
-        "original_resolved_different_issue",
-        "could_not_verify",
-    ]
+    private enum MutationRoute {
+        case live(
+            WorkspacePackageLifecycleDependenciesV1,
+            WorkspacePackageLifecycleProfileV1
+        )
+        case expiringCompatibility(
+            WorkspaceWriterAdapterV1,
+            any ApplicationFileAuthorityV1,
+            CheckRunnerCompatibilityPostureV1
+        )
+    }
 
     private let modelContext: ModelContext
-    private let workspaceWriter: WorkspaceWriterV1?
-    private let mutationAdapter: WorkspaceWriterAdapterV1
+    private let mutationRoute: MutationRoute
     private let clock: any ApplicationClock
     private let idSource: any ApplicationIDSource
-    private let fileAuthority: any ApplicationFileAuthorityV1
     private let signPack: SignPack
     private let diagnosticsStore: DiagnosticsStore?
     private let storagePreflight: StoragePreflightService
@@ -52,6 +53,21 @@ final class CheckRunnerCoordinator {
     private var finalizationAttempt: FinalizationAttempt?
     private var pendingRecheckRequest: (assetID: UUID, issueID: UUID)?
 
+    private var liveLifecycle: (
+        dependencies: WorkspacePackageLifecycleDependenciesV1,
+        profile: WorkspacePackageLifecycleProfileV1
+    )? {
+        guard case let .live(dependencies, profile) = mutationRoute else { return nil }
+        return (dependencies, profile)
+    }
+
+    private var fileAuthority: any ApplicationFileAuthorityV1 {
+        switch mutationRoute {
+        case let .live(dependencies, _): dependencies.fileAuthority
+        case let .expiringCompatibility(_, authority, _): authority
+        }
+    }
+
     private struct FinalizationAttempt {
         let assetID: UUID
         let draftID: UUID?
@@ -65,7 +81,6 @@ final class CheckRunnerCoordinator {
     init(
         modelContext: ModelContext,
         signPack: SignPack,
-        workspaceWriter: WorkspaceWriterV1? = nil,
         clock: any ApplicationClock = SystemApplicationClock(),
         idSource: any ApplicationIDSource = SystemApplicationIDSource(),
         fileAuthority: any ApplicationFileAuthorityV1 = SystemApplicationFileAuthorityV1(),
@@ -76,15 +91,64 @@ final class CheckRunnerCoordinator {
         finalizationStoreFailureInjection: FinalizationIntentStoreFailureInjection? = nil,
         finalizationServiceFailureInjection: FinalizationServiceFailureInjection? = nil,
         injectsLowStorageFailureOnceForUITest: Bool = false,
-        draftAccessState: (@MainActor () -> DraftAccessNormalizedStateV1)? = nil
+        draftAccessState: (@MainActor () -> DraftAccessNormalizedStateV1)? = nil,
+        compatibilityPosture: CheckRunnerCompatibilityPostureV1 = .frozenS10CallersOnly
     ) {
         self.modelContext = modelContext
-        self.workspaceWriter = workspaceWriter
-        self.mutationAdapter = WorkspaceWriterAdapterV1(modelContext: modelContext)
+        self.mutationRoute = .expiringCompatibility(
+            WorkspaceWriterAdapterV1(modelContext: modelContext),
+            fileAuthority,
+            compatibilityPosture
+        )
         self.clock = clock
         self.idSource = idSource
-        self.fileAuthority = fileAuthority
         self.signPack = signPack
+        self.diagnosticsStore = diagnosticsStore
+        self.evidenceStoreFailureInjection = evidenceStoreFailureInjection
+        self.evidenceSaveFailureInjection = evidenceSaveFailureInjection
+        self.finalizationStoreFailureInjection = finalizationStoreFailureInjection
+        self.finalizationServiceFailureInjection = finalizationServiceFailureInjection
+        self.draftAccessState = draftAccessState
+        if injectsLowStorageFailureOnceForUITest {
+            var shouldFail = true
+            self.storagePreflight = StoragePreflightService { _ in
+                if shouldFail {
+                    shouldFail = false
+                    return 0
+                }
+                return StoragePreflightService.evidenceAcceptanceRequiredBytes
+            }
+        } else {
+            self.storagePreflight = storagePreflight
+        }
+    }
+
+    init(
+        modelContext: ModelContext,
+        packageLifecycleDependencies: WorkspacePackageLifecycleDependenciesV1,
+        packageLifecycleProfile: WorkspacePackageLifecycleProfileV1,
+        diagnosticsStore: DiagnosticsStore? = nil,
+        storagePreflight: StoragePreflightService = StoragePreflightService(),
+        evidenceStoreFailureInjection: EvidenceBundleStoreFailureInjection? = nil,
+        evidenceSaveFailureInjection: CheckRunnerCoordinatorFailureInjection? = nil,
+        finalizationStoreFailureInjection: FinalizationIntentStoreFailureInjection? = nil,
+        finalizationServiceFailureInjection: FinalizationServiceFailureInjection? = nil,
+        injectsLowStorageFailureOnceForUITest: Bool = false,
+        draftAccessState: (@MainActor () -> DraftAccessNormalizedStateV1)? = nil
+    ) throws {
+        guard try packageLifecycleDependencies.profileRegistry.resolve(
+            packageLifecycleProfile.release
+        ) == packageLifecycleProfile else {
+            throw CheckRunnerCoordinatorError.packageLifecycleMismatch
+        }
+        self.modelContext = modelContext
+        self.mutationRoute = .live(
+            packageLifecycleDependencies,
+            packageLifecycleProfile
+        )
+        self.clock = packageLifecycleDependencies.clock
+        self.idSource = packageLifecycleDependencies.idSource
+        self.signPack = packageLifecycleProfile.package
         self.diagnosticsStore = diagnosticsStore
         self.evidenceStoreFailureInjection = evidenceStoreFailureInjection
         self.evidenceSaveFailureInjection = evidenceSaveFailureInjection
@@ -159,6 +223,9 @@ final class CheckRunnerCoordinator {
 
     func configureCapture(generationRootURL: URL) {
         let standardizedURL = generationRootURL.standardizedFileURL
+        guard liveLifecycle.map({
+            $0.dependencies.generationRootURL == standardizedURL
+        }) ?? true else { return }
         guard captureGenerationRootURL != standardizedURL else { return }
         captureGenerationRootURL = standardizedURL
         reportDeliveryCoordinator = nil
@@ -196,28 +263,33 @@ final class CheckRunnerCoordinator {
             predicate: #Predicate { $0.recordID == draftID }
         )
         let evidence = try modelContext.fetch(evidenceDescriptor)
-        let wideRows = evidence.filter { $0.purposeKey == "wide_context" }
-        let closeRows = evidence.filter { $0.purposeKey == "close_detail" }
-        guard evidence.count == wideRows.count + closeRows.count,
-              wideRows.count <= 1,
-              closeRows.count <= 1,
-              outcome.couldNotVerify != nil || (wideRows.count == 1 && closeRows.count == 1) else {
+        let purposes = try requiredEvidencePurposes(for: draft)
+        guard purposes.count == 2 else {
             throw CheckRunnerCoordinatorError.invalidCaptureState
         }
-        let widePurpose = try capturePurpose(key: "wide_context", index: 0)
-        let closePurpose = try capturePurpose(key: "close_detail", index: 1)
-        let wide = wideRows.first
-        let close = closeRows.first
+        let firstRows = evidence.filter { $0.purposeKey == purposes[0].key }
+        let secondRows = evidence.filter { $0.purposeKey == purposes[1].key }
+        guard evidence.count == firstRows.count + secondRows.count,
+              firstRows.count <= 1,
+              secondRows.count <= 1,
+              outcome.couldNotVerify != nil || (firstRows.count == 1 && secondRows.count == 1) else {
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+        let first = firstRows.first
+        let second = secondRows.first
         return FinalizationReview(
             draftID: draftID,
             outcomeKey: outcome.key,
             outcomeDisplay: outcome.display,
             issueLabelDisplay: outcome.issueLabel?.display,
-            wideEvidence: wide.map { reviewEvidence($0, purposeDisplay: widePurpose.display) },
-            closeEvidence: close.map { reviewEvidence($0, purposeDisplay: closePurpose.display) },
+            wideEvidence: first.map { reviewEvidence($0, purposeDisplay: purposes[0].display) },
+            closeEvidence: second.map { reviewEvidence($0, purposeDisplay: purposes[1].display) },
             couldNotVerifyReasonDisplay: outcome.couldNotVerify?.display,
             note: outcome.note,
-            missingPurposeDisplays: [wide == nil ? widePurpose.display : nil, close == nil ? closePurpose.display : nil].compactMap { $0 },
+            missingPurposeDisplays: [
+                first == nil ? purposes[0].display : nil,
+                second == nil ? purposes[1].display : nil,
+            ].compactMap { $0 },
             localDate: localDate,
             localTime: localTime,
             timeZoneID: timeZoneID,
@@ -344,37 +416,50 @@ final class CheckRunnerCoordinator {
             predicate: #Predicate { $0.recordID == draftID }
         )
         let evidence = try modelContext.fetch(evidenceDescriptor)
-        let service: FinalizationService
-        do {
-            service = try FinalizationService(
-                modelContext: modelContext,
-                signPack: signPack,
-                generationRootURL: generationRootURL,
-                intentStoreFailureInjection: finalizationStoreFailureInjection,
-                failureInjection: finalizationServiceFailureInjection
-            )
-        } catch {
-            throw CheckRunnerCoordinatorError.finalizationNotConfigured
-        }
         let outcomeResult: FinalizationServiceOutcome
         do {
-            outcomeResult = try await service.finalize(
-                FinalizationServiceInput(
-                    draft: draft,
-                    asset: asset,
-                    site: site,
-                    evidence: evidence,
-                    outcomeKey: outcome.key,
-                    outcomeDisplay: outcome.display,
-                    issueLabel: outcome.issueLabel,
-                    couldNotVerify: outcome.couldNotVerify,
-                    note: outcome.note,
-                    completedAt: activeAttempt.completedAt,
-                    snapshotCreatedAt: activeAttempt.snapshotCreatedAt,
-                    sourceApp: activeAttempt.sourceApp,
-                    identifiers: identifiers
-                )
+            let input = FinalizationServiceInput(
+                draft: draft,
+                asset: asset,
+                site: site,
+                evidence: evidence,
+                outcomeKey: outcome.key,
+                outcomeDisplay: outcome.display,
+                issueLabel: outcome.issueLabel,
+                couldNotVerify: outcome.couldNotVerify,
+                note: outcome.note,
+                completedAt: activeAttempt.completedAt,
+                snapshotCreatedAt: activeAttempt.snapshotCreatedAt,
+                sourceApp: activeAttempt.sourceApp,
+                identifiers: identifiers
             )
+            if let lifecycle = liveLifecycle {
+                let adapter = try PackFinalizationAdapterV1(
+                    dependencies: lifecycle.dependencies,
+                    profile: lifecycle.profile,
+                    legacyModelContext: modelContext,
+                    intentStoreFailureInjection: finalizationStoreFailureInjection,
+                    failureInjection: finalizationServiceFailureInjection
+                )
+                let binding = try PackFinalizationBindingV1(
+                    workspaceID: lifecycle.dependencies.workspaceID,
+                    generationID: lifecycle.dependencies.generationID,
+                    packageRelease: lifecycle.profile.release,
+                    mutationID: MutationIDV1(rawValue: identifiers.mutationID),
+                    durableReceiptIdentity: nil,
+                    preservesReservedLegacyRawWriteDebt: true
+                )
+                outcomeResult = try await adapter.finalize(input, binding: binding).finalization
+            } else {
+                let service = try FinalizationService(
+                    modelContext: modelContext,
+                    signPack: signPack,
+                    generationRootURL: generationRootURL,
+                    intentStoreFailureInjection: finalizationStoreFailureInjection,
+                    failureInjection: finalizationServiceFailureInjection
+                )
+                outcomeResult = try await service.finalize(input)
+            }
         } catch {
             throw CheckRunnerCoordinatorError.finalizationFailed
         }
@@ -402,12 +487,26 @@ final class CheckRunnerCoordinator {
         guard let generationRootURL = captureGenerationRootURL else {
             throw CheckRunnerCoordinatorError.finalizationNotConfigured
         }
-        let coordinator = try ReportDeliveryCoordinator(
-            modelContext: modelContext,
-            generationRootURL: generationRootURL,
-            diagnosticsStore: diagnosticsStore,
-            signPack: signPack
-        )
+        let coordinator: ReportDeliveryCoordinator
+        if let liveLifecycle {
+            guard liveLifecycle.dependencies.generationRootURL.standardizedFileURL
+                    == generationRootURL.standardizedFileURL else {
+                throw CheckRunnerCoordinatorError.packageLifecycleMismatch
+            }
+            coordinator = try ReportDeliveryCoordinator(
+                modelContext: modelContext,
+                lifecycleDependencies: liveLifecycle.dependencies,
+                lifecycleProfile: liveLifecycle.profile,
+                diagnosticsStore: diagnosticsStore
+            )
+        } else {
+            coordinator = try ReportDeliveryCoordinator(
+                modelContext: modelContext,
+                generationRootURL: generationRootURL,
+                diagnosticsStore: diagnosticsStore,
+                signPack: signPack
+            )
+        }
         reportDeliveryCoordinator = coordinator
         return coordinator
     }
@@ -455,30 +554,34 @@ final class CheckRunnerCoordinator {
             predicate: #Predicate { $0.recordID == draftID }
         )
         let evidence = try modelContext.fetch(descriptor)
-        let wide = evidence.filter { $0.purposeKey == "wide_context" }
-        let close = evidence.filter { $0.purposeKey == "close_detail" }
-        guard evidence.count == wide.count + close.count,
-              wide.count <= 1,
-              close.count <= 1 else {
+        let purposes = try requiredEvidencePurposes(for: draft)
+        guard purposes.count == 2 else {
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+        let first = evidence.filter { $0.purposeKey == purposes[0].key }
+        let second = evidence.filter { $0.purposeKey == purposes[1].key }
+        guard evidence.count == first.count + second.count,
+              first.count <= 1,
+              second.count <= 1 else {
             throw CheckRunnerCoordinatorError.invalidCaptureState
         }
 
         let purpose: SignPack.EvidencePurpose?
         switch step {
         case .wide:
-            guard wide.isEmpty, close.isEmpty else {
+            guard first.isEmpty, second.isEmpty else {
                 throw CheckRunnerCoordinatorError.invalidCaptureState
             }
-            purpose = try capturePurpose(key: "wide_context", index: 0)
+            purpose = purposes[0]
         case .close:
-            guard wide.count == 1, close.isEmpty else {
+            guard first.count == 1, second.isEmpty else {
                 throw CheckRunnerCoordinatorError.invalidCaptureState
             }
-            purpose = try capturePurpose(key: "close_detail", index: 1)
+            purpose = purposes[1]
         case .outcome:
             guard allowsIncompleteReview
-                ? (close.isEmpty || wide.count == 1)
-                : (wide.count == 1 && close.count == 1) else {
+                ? (second.isEmpty || first.count == 1)
+                : (first.count == 1 && second.count == 1) else {
                 throw CheckRunnerCoordinatorError.invalidCaptureState
             }
             purpose = nil
@@ -701,11 +804,16 @@ final class CheckRunnerCoordinator {
                 predicate: #Predicate { $0.recordID == recordID }
             )
         )
+        guard let record = records.first else {
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+        let purposes = try requiredEvidencePurposes(for: record)
         let expectedStep: WorkflowDraftStep
-        switch candidate.purposeKey {
-        case "wide_context": expectedStep = .close
-        case "close_detail": expectedStep = .outcome
-        default:
+        if purposes.indices.contains(0), candidate.purposeKey == purposes[0].key {
+            expectedStep = .close
+        } else if purposes.indices.contains(1), candidate.purposeKey == purposes[1].key {
+            expectedStep = .outcome
+        } else {
             throw CheckRunnerCoordinatorError.invalidCaptureState
         }
         let staged = candidate.stagedBundle
@@ -1249,10 +1357,15 @@ final class CheckRunnerCoordinator {
         mutationID suppliedMutationID: MutationIDV1?,
         occurredAt: Date
     ) throws {
-        let mutationID = try suppliedMutationID
-            ?? workspaceWriter?.makeMutationID()
-            ?? MutationIDV1(rawValue: idSource.makeID())
-        if let workspaceWriter {
+        let mutationID: MutationIDV1
+        switch mutationRoute {
+        case let .live(dependencies, _):
+            mutationID = try suppliedMutationID ?? dependencies.writer.makeMutationID()
+        case .expiringCompatibility:
+            mutationID = try suppliedMutationID ?? MutationIDV1(rawValue: idSource.makeID())
+        }
+        if case let .live(dependencies, _) = mutationRoute {
+            let workspaceWriter = dependencies.writer
             let current = try workspaceWriter.currentRevision()
             let targets = try workspaceTargets(command)
             let known = Dictionary(
@@ -1272,7 +1385,7 @@ final class CheckRunnerCoordinator {
                 expectedRevision: WorkspaceExpectedRevisionV1(snapshot: scoped),
                 command: command
             ))
-        } else {
+        } else if case let .expiringCompatibility(mutationAdapter, _, _) = mutationRoute {
             let temporaryPath = try fileAuthority.temporaryRelativePath(
                 mutationID: mutationID,
                 component: command.kind.rawValue
@@ -1282,6 +1395,8 @@ final class CheckRunnerCoordinator {
                 occurredAt: occurredAt,
                 temporaryRelativePath: temporaryPath
             )
+        } else {
+            throw CheckRunnerCoordinatorError.packageLifecycleMismatch
         }
     }
 
@@ -1393,13 +1508,13 @@ final class CheckRunnerCoordinator {
 
         let opensOrdinaryIssue = openingRecord.parentRecordID == nil
             && openingRecord.stage == WorkflowStage.check.rawValue
-            && openingRecord.outcomeKey == "visible_issue"
+            && openingRecord.outcomeKey == (try packageOutcome(for: .findingObserved).key)
             && openingRecord.issueID == issue.id
         let opensDifferentIssue: Bool
         if let originalIssueID = openingRecord.issueID,
            originalIssueID != issue.id,
            openingRecord.stage == WorkflowStage.recheck.rawValue,
-           openingRecord.outcomeKey == "original_resolved_different_issue" {
+           openingRecord.outcomeKey == (try packageOutcome(for: .originalResolvedDifferentFinding).key) {
             let originalIssue = try requiredIssue(id: originalIssueID)
             guard originalIssue.assetID == assetID,
                   originalIssue.status == IssueStatus.resolved.rawValue,
@@ -1445,9 +1560,9 @@ final class CheckRunnerCoordinator {
                   child.completedAt != nil,
                   child.finalizationMutationID != nil,
                   (child.stage == WorkflowStage.work.rawValue
-                    && child.outcomeKey == "work_recorded")
+                    && child.outcomeKey == (try packageOutcome(for: .workRecorded).key))
                     || (child.stage == WorkflowStage.recheck.rawValue
-                    && Self.recheckOutcomes.contains(child.outcomeKey ?? "")) else {
+                    && Set(try recheckOutcomeKeys()).contains(child.outcomeKey ?? "")) else {
                 throw CheckRunnerCoordinatorError.invalidLineage
             }
             current = child
@@ -1470,7 +1585,7 @@ final class CheckRunnerCoordinator {
               openingRecord.issueID == issue.id,
               openingRecord.parentRecordID == nil,
               openingRecord.stage == WorkflowStage.check.rawValue,
-              openingRecord.outcomeKey == "visible_issue",
+              openingRecord.outcomeKey == (try packageOutcome(for: .findingObserved).key),
               openingRecord.completedAt != nil,
               openingRecord.finalizationMutationID != nil else {
             throw CheckRunnerCoordinatorError.invalidLineage
@@ -1490,9 +1605,9 @@ final class CheckRunnerCoordinator {
                   child.completedAt != nil,
                   child.finalizationMutationID != nil,
                   (child.stage == WorkflowStage.work.rawValue
-                    && child.outcomeKey == "work_recorded")
+                    && child.outcomeKey == (try packageOutcome(for: .workRecorded).key))
                     || (child.stage == WorkflowStage.recheck.rawValue
-                    && Self.recheckOutcomes.contains(child.outcomeKey ?? "")) else {
+                    && Set(try recheckOutcomeKeys()).contains(child.outcomeKey ?? "")) else {
                 throw CheckRunnerCoordinatorError.invalidLineage
             }
             current = child
@@ -1508,30 +1623,37 @@ final class CheckRunnerCoordinator {
         afterDark: SignPack.Acknowledgement,
         safePosition: SignPack.Acknowledgement
     ) {
-        guard signPack.packID == asset.packID,
-              signPack.schemaVersion == asset.packSchemaVersion,
-              signPack.contentVersion == asset.packContentVersion,
-              signPack.acknowledgements.count == 2,
-              signPack.acknowledgements[0].key == "after_dark",
-              signPack.acknowledgements[1].key == "safe_authorized_position" else {
+        guard let profile = try? activeLifecycleProfile(),
+              profile.release.matches(signPack),
+              profile.release.packageID == asset.packID,
+              profile.release.schemaVersion == asset.packSchemaVersion,
+              profile.release.contentVersion == asset.packContentVersion,
+              profile.requiredAcknowledgementKeys.count == 2 else {
             throw CheckRunnerCoordinatorError.invalidLineage
         }
+        let acknowledgements = try profile.requiredAcknowledgementKeys.map { key in
+            let matches = signPack.acknowledgements.filter { $0.key == key }
+            guard matches.count == 1 else { throw CheckRunnerCoordinatorError.invalidLineage }
+            return matches[0]
+        }
         return (
-            afterDark: signPack.acknowledgements[0],
-            safePosition: signPack.acknowledgements[1]
+            afterDark: acknowledgements[0],
+            safePosition: acknowledgements[1]
         )
     }
 
-    private func capturePurpose(
-        key: String,
-        index: Int
-    ) throws -> SignPack.EvidencePurpose {
-        guard signPack.evidencePurposes.count == 3,
-              signPack.evidencePurposes.indices.contains(index),
-              signPack.evidencePurposes[index].key == key else {
-            throw CheckRunnerCoordinatorError.invalidCaptureState
+    private func requiredEvidencePurposes(
+        for draft: WorkflowRecord
+    ) throws -> [SignPack.EvidencePurpose] {
+        let profile = try activeLifecycleProfile()
+        _ = try profile.stage(draft.stage)
+        return try profile.evidencePurposeKeys(for: .captureRequired).map { key in
+            let matches = signPack.evidencePurposes.filter { $0.key == key }
+            guard matches.count == 1 else {
+                throw CheckRunnerCoordinatorError.invalidCaptureState
+            }
+            return matches[0]
         }
-        return signPack.evidencePurposes[index]
     }
 
     private func resolvedOutcome(
@@ -1551,7 +1673,7 @@ final class CheckRunnerCoordinator {
         let normalizedSelection: CheckOutcomeSelection
         switch selection {
         case .noVisibleIssue:
-            key = "no_visible_issue"
+            key = try packageOutcome(for: .noFinding).key
             issueLabel = nil
             couldNotVerify = nil
             note = nil
@@ -1568,7 +1690,7 @@ final class CheckRunnerCoordinator {
             }), signPack.issueLabels.filter({ $0.key == normalizedKey }).count == 1 else {
                 throw CheckRunnerCoordinatorError.issueLabelInvalid
             }
-            key = "visible_issue"
+            key = try packageOutcome(for: .findingObserved).key
             issueLabel = selected
             couldNotVerify = nil
             note = nil
@@ -1587,21 +1709,21 @@ final class CheckRunnerCoordinator {
                   normalizedNote.map({ (1...1000).contains($0.count) }) ?? true else {
                 throw CheckRunnerCoordinatorError.invalidLineage
             }
-            key = "could_not_verify"
+            key = try packageOutcome(for: .couldNotVerify).key
             issueLabel = nil
             couldNotVerify = selected
             note = normalizedNote
             normalizedSelection = .couldNotVerify(reasonKey: selected.key, note: normalizedNote)
         case let .resolved(rawNote):
             let normalizedNote = try normalizedRecheckNote(rawNote)
-            key = "resolved"
+            key = try packageOutcome(for: .resolved).key
             issueLabel = nil
             couldNotVerify = nil
             note = normalizedNote
             normalizedSelection = .resolved(note: normalizedNote)
         case let .issueStillVisible(rawNote):
             let normalizedNote = try normalizedRecheckNote(rawNote)
-            key = "issue_still_visible"
+            key = try packageOutcome(for: .findingStillPresent).key
             issueLabel = nil
             couldNotVerify = nil
             note = normalizedNote
@@ -1619,7 +1741,7 @@ final class CheckRunnerCoordinator {
                 throw CheckRunnerCoordinatorError.issueLabelInvalid
             }
             let normalizedNote = try normalizedRecheckNote(rawNote)
-            key = "original_resolved_different_issue"
+            key = try packageOutcome(for: .originalResolvedDifferentFinding).key
             issueLabel = selected
             couldNotVerify = nil
             note = normalizedNote
@@ -1628,13 +1750,46 @@ final class CheckRunnerCoordinator {
                 note: normalizedNote
             )
         }
-        guard let display = signPack.outcomeDisplays.first(where: {
-            $0.key == key
-        })?.display,
-              signPack.outcomeDisplays.filter({ $0.key == key }).count == 1 else {
+        let matches = try activeLifecycleProfile().stages
+            .flatMap(\.outcomes).filter { $0.key == key }
+        guard let expected = matches.first,
+              matches.allSatisfy({
+                  $0.role == expected.role && $0.display == expected.display
+              }) else {
             throw CheckRunnerCoordinatorError.invalidLineage
         }
-        return (key, display, issueLabel, couldNotVerify, note, normalizedSelection)
+        return (key, expected.display, issueLabel, couldNotVerify, note, normalizedSelection)
+    }
+
+    private func packageOutcome(
+        for role: WorkspacePackageOutcomeRoleV1
+    ) throws -> WorkspacePackageOutcomeProfileV1 {
+        let matches = try activeLifecycleProfile().stages
+            .flatMap(\.outcomes).filter { $0.role == role }
+        guard let first = matches.first,
+              matches.allSatisfy({ $0.key == first.key && $0.display == first.display }) else {
+            throw CheckRunnerCoordinatorError.packageLifecycleMismatch
+        }
+        return first
+    }
+
+    private func activeLifecycleProfile() throws -> WorkspacePackageLifecycleProfileV1 {
+        switch mutationRoute {
+        case let .live(_, profile): return profile
+        case .expiringCompatibility:
+            return try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(
+                package: signPack
+            )
+        }
+    }
+
+    private func recheckOutcomeKeys() throws -> [String] {
+        try [
+            WorkspacePackageOutcomeRoleV1.resolved,
+            .findingStillPresent,
+            .originalResolvedDifferentFinding,
+            .couldNotVerify,
+        ].map { try packageOutcome(for: $0).key }
     }
 
     private func normalizedRecheckNote(_ value: String?) throws -> String? {
@@ -1648,16 +1803,20 @@ final class CheckRunnerCoordinator {
     }
 
     private func validCouldNotVerifyRegistry() -> Bool {
-        signPack.couldNotVerifyReasons.version == "cnv.reason.en-US.v1"
-            && signPackOutcomeDisplay(key: "could_not_verify") == "Could not verify"
-            && signPack.couldNotVerifyReasons.entries == [
-                .init(key: "conditions_changed", display: "Conditions changed"),
-                .init(key: "access_lost", display: "I lost safe access"),
-                .init(key: "unsafe_to_continue", display: "It became unsafe to continue"),
-                .init(key: "required_view_obstructed", display: "Required view is blocked"),
-                .init(key: "capture_unavailable", display: "Camera or photo capture is unavailable"),
-                .init(key: "other", display: "Another reason"),
-            ]
+        let registry = signPack.couldNotVerifyReasons
+        guard let outcome = try? packageOutcome(for: .couldNotVerify),
+              signPackOutcomeDisplay(key: outcome.key) == outcome.display,
+              !registry.version.isEmpty,
+              registry.version == registry.version.trimmingCharacters(in: .whitespacesAndNewlines),
+              (1...64).contains(registry.entries.count),
+              Set(registry.entries.map(\.key)).count == registry.entries.count else {
+            return false
+        }
+        return registry.entries.allSatisfy {
+            !$0.key.isEmpty && $0.key == $0.key.trimmingCharacters(in: .whitespacesAndNewlines)
+                && !$0.display.isEmpty
+                && $0.display == $0.display.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
     }
 
     private func reviewEvidence(
@@ -1684,6 +1843,7 @@ final class CheckRunnerCoordinator {
         )?,
         startedAt: Date
     ) throws -> WorkflowRecord {
+        let pdfTemplate = try activeLifecycleProfile().pdfTemplate
         guard signPack.packID == asset.packID,
               signPack.schemaVersion == asset.packSchemaVersion,
               signPack.contentVersion == asset.packContentVersion else {
@@ -1719,8 +1879,8 @@ final class CheckRunnerCoordinator {
                     packID: asset.packID,
                     packSchemaVersion: asset.packSchemaVersion,
                     packContentVersion: asset.packContentVersion,
-                    pdfTemplateID: Self.pdfTemplateID,
-                    pdfTemplateVersion: Self.pdfTemplateVersion
+                    pdfTemplateID: pdfTemplate.id,
+                    pdfTemplateVersion: pdfTemplate.version
                 )),
                 mutationID: try MutationIDV1(rawValue: id),
                 occurredAt: startedAt

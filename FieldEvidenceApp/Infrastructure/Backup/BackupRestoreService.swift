@@ -74,6 +74,7 @@ final class BackupRestoreService {
 
     private static let modelStoreName = "model.sqlite"
     private let applicationSupportURL: URL
+    private let lifecycleRoute: BackupPackageLifecycleRouteV1
     private let generationFactory: StoreGenerationFactory
     private var generationAuthority: StoreRestoreGenerationAuthority!
     private let intentStore: RestoreIntentStore
@@ -85,6 +86,7 @@ final class BackupRestoreService {
 
     init(
         applicationSupportURL: URL,
+        lifecycleRoute: BackupPackageLifecycleRouteV1,
         fileManager: FileManager = .default,
         storagePreflight: StoragePreflightService = StoragePreflightService(),
         now: @escaping () -> Date = Date.init,
@@ -111,6 +113,7 @@ final class BackupRestoreService {
             authority = nil
         }
         self.applicationSupportURL = root
+        self.lifecycleRoute = lifecycleRoute
         self.generationFactory = factory
         self.generationAuthority = authority
         self.intentStore = store
@@ -119,6 +122,46 @@ final class BackupRestoreService {
         self.now = now
         self.makeUUID = makeUUID
         self.failureInjection = failureInjection
+    }
+
+    convenience init(
+        applicationSupportURL: URL,
+        lifecycleDependencies: WorkspacePackageLifecycleDependenciesV1,
+        fileManager: FileManager = .default,
+        storagePreflight: StoragePreflightService = StoragePreflightService(),
+        now: @escaping () -> Date = Date.init,
+        makeUUID: @escaping () -> UUID = UUID.init,
+        failureInjection: BackupRestoreFailureInjection? = nil
+    ) throws {
+        try self.init(
+            applicationSupportURL: applicationSupportURL,
+            lifecycleRoute: .live(lifecycleDependencies),
+            fileManager: fileManager,
+            storagePreflight: storagePreflight,
+            now: now,
+            makeUUID: makeUUID,
+            failureInjection: failureInjection
+        )
+    }
+
+    convenience init(
+        applicationSupportURL: URL,
+        fileManager: FileManager = .default,
+        storagePreflight: StoragePreflightService = StoragePreflightService(),
+        now: @escaping () -> Date = Date.init,
+        makeUUID: @escaping () -> UUID = UUID.init,
+        failureInjection: BackupRestoreFailureInjection? = nil,
+        compatibilityPosture: BackupPackageCompatibilityPostureV1 = .frozenLegacyCallersOnly
+    ) throws {
+        try self.init(
+            applicationSupportURL: applicationSupportURL,
+            lifecycleRoute: .expiringCompatibility(compatibilityPosture),
+            fileManager: fileManager,
+            storagePreflight: storagePreflight,
+            now: now,
+            makeUUID: makeUUID,
+            failureInjection: failureInjection
+        )
     }
 
     static func applicationSupportURL(
@@ -166,14 +209,44 @@ final class BackupRestoreService {
 
     static func currentSummary(
         modelContext: ModelContext,
-        generationRootURL: URL
+        generationRootURL: URL,
+        lifecycleDependencies: WorkspacePackageLifecycleDependenciesV1
     ) throws -> BackupRestoreCurrentSummaryV1 {
         guard !modelContext.hasChanges else {
             throw BackupRestoreServiceError.contextHasChanges
         }
         let preview = try BackupExportService(
             modelContext: modelContext,
-            generationRootURL: generationRootURL
+            generationRootURL: generationRootURL,
+            lifecycleDependencies: lifecycleDependencies
+        ).prepare()
+        let packets = try modelContext.fetch(FetchDescriptor<Packet>())
+        let roots = packets.filter(\.evaluationCounted).map(\.stableRootID)
+        guard Set(roots).count == roots.count,
+              !modelContext.hasChanges else {
+            throw BackupRestoreServiceError.currentGenerationInvalid
+        }
+        return BackupRestoreCurrentSummaryV1(
+            signCount: preview.signCount,
+            reportCount: preview.reportCount,
+            photoCount: preview.photoCount,
+            declaredPayloadByteCount: preview.declaredPayloadByteCount,
+            consumedRootCount: roots.count
+        )
+    }
+
+    static func currentSummary(
+        modelContext: ModelContext,
+        generationRootURL: URL,
+        compatibilityPosture: BackupPackageCompatibilityPostureV1 = .frozenLegacyCallersOnly
+    ) throws -> BackupRestoreCurrentSummaryV1 {
+        guard !modelContext.hasChanges else {
+            throw BackupRestoreServiceError.contextHasChanges
+        }
+        let preview = try BackupExportService(
+            modelContext: modelContext,
+            generationRootURL: generationRootURL,
+            compatibilityPosture: compatibilityPosture
         ).prepare()
         let packets = try modelContext.fetch(FetchDescriptor<Packet>())
         let roots = packets.filter(\.evaluationCounted).map(\.stableRootID)
@@ -204,6 +277,11 @@ final class BackupRestoreService {
             throw BackupRestoreServiceError.contextHasChanges
         }
         try ensureGenerationAuthority()
+        try validateLifecycleScope(
+            currentModelContext,
+            generationID: currentGenerationID,
+            generationRootURL: currentGenerationRootURL
+        )
         try generationAuthority.requireNoEraseAuthority()
         let initialRetiredIDs = try generationAuthority.retiredGenerationIDs()
         guard try generationFactory.currentGenerationID(
@@ -247,7 +325,7 @@ final class BackupRestoreService {
             guard !initialIsEmpty else {
                 throw BackupRestoreServiceError.currentGenerationEmpty
             }
-            _ = try Self.currentSummary(
+            _ = try currentSummary(
                 modelContext: currentModelContext,
                 generationRootURL: currentGenerationRootURL
             )
@@ -256,13 +334,17 @@ final class BackupRestoreService {
             frozenCurrentRecords = try records(in: currentModelContext)
         }
         do {
-            _ = try BackupPackageValidatorV1().validate(
+            _ = try BackupPackageValidatorV1(
+                route: packageValidationRoute()
+            ).validate(
                 stagedPackageURL: validatedPackage.stagedPackageURL
             )
         } catch {
             throw BackupRestoreServiceError.invalidPackage
         }
-        guard try BackupPackageValidatorV1().validate(
+        guard try BackupPackageValidatorV1(
+            route: packageValidationRoute()
+        ).validate(
             stagedPackageURL: validatedPackage.stagedPackageURL
         ) == validatedPackage else {
             throw BackupRestoreServiceError.invalidPackage
@@ -299,7 +381,7 @@ final class BackupRestoreService {
             guard !Self.isEmptyCurrent(currentModelContext) else {
                 throw BackupRestoreServiceError.currentGenerationEmpty
             }
-            _ = try Self.currentSummary(
+            _ = try currentSummary(
                 modelContext: currentModelContext,
                 generationRootURL: currentGenerationRootURL
             )
@@ -903,6 +985,113 @@ final class BackupRestoreService {
 }
 
 private extension BackupRestoreService {
+    func packageValidationRoute() -> BackupPackageValidationRouteV1 {
+        switch lifecycleRoute {
+        case let .live(dependencies):
+            return .live(dependencies.profileRegistry)
+        case let .expiringCompatibility(posture):
+            return .expiringCompatibility(.illuminatedSignV1, posture)
+        }
+    }
+
+    func currentSummary(
+        modelContext: ModelContext,
+        generationRootURL: URL
+    ) throws -> BackupRestoreCurrentSummaryV1 {
+        switch lifecycleRoute {
+        case let .live(dependencies):
+            return try Self.currentSummary(
+                modelContext: modelContext,
+                generationRootURL: generationRootURL,
+                lifecycleDependencies: dependencies
+            )
+        case let .expiringCompatibility(posture):
+            return try Self.currentSummary(
+                modelContext: modelContext,
+                generationRootURL: generationRootURL,
+                compatibilityPosture: posture
+            )
+        }
+    }
+
+    func validateLifecycleScope(
+        _ context: ModelContext,
+        generationID: UUID,
+        generationRootURL: URL
+    ) throws {
+        do {
+            try KernelBackupRestoreRegistryV4.validate()
+            let schema = try KernelPersistenceV4Schema.descriptor()
+            guard schema.runtimePosture == .dormantStatic,
+                  !schema.activationEnabled else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            guard case let .live(lifecycleDependencies) = lifecycleRoute else {
+                guard case let .expiringCompatibility(posture) = lifecycleRoute,
+                      posture == .frozenLegacyCallersOnly else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                return
+            }
+            guard lifecycleDependencies.generationID == generationID,
+                  lifecycleDependencies.generationRootURL.standardizedFileURL
+                    == generationRootURL.standardizedFileURL else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            let assetRows = try context.fetch(FetchDescriptor<Asset>())
+            let pairs: [(WorkspaceEntityKindV1, UUID)] =
+                try context.fetch(FetchDescriptor<Site>()).map { (.site, $0.id) }
+                + assetRows.map { (.asset, $0.id) }
+                + context.fetch(FetchDescriptor<WorkflowRecord>()).map { (.workflowRecord, $0.id) }
+                + context.fetch(FetchDescriptor<EvidenceFile>()).map { (.evidenceFile, $0.id) }
+                + context.fetch(FetchDescriptor<Issue>()).map { (.issue, $0.id) }
+                + context.fetch(FetchDescriptor<Packet>()).map { (.packet, $0.id) }
+                + context.fetch(FetchDescriptor<Report>()).map { (.report, $0.id) }
+            let identities = try pairs.map { try WorkspaceEntityIdentityV1(kind: $0.0, id: $0.1) }
+            let revision = try lifecycleDependencies.writer.currentRevision()
+            guard revision.workspaceID == lifecycleDependencies.workspaceID,
+                  revision.generationID == generationID else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            for start in stride(from: 0, to: max(identities.count, 1), by: 256) {
+                let slice = identities.isEmpty ? [] : Array(
+                    identities[start..<min(start + 256, identities.count)]
+                )
+                let request = try WorkspacePackageLifecycleQueryRequestV1(
+                    workspaceID: lifecycleDependencies.workspaceID,
+                    generationID: generationID,
+                    operation: .restore,
+                    identities: slice
+                )
+                let result = try lifecycleDependencies.writer.query(request)
+                guard result.existingIdentities == request.identities,
+                      result.revision.revision == revision.revision else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                let expectedBindings = assetRows.filter { asset in
+                    slice.contains(where: { $0.kind == .asset && $0.id == asset.id })
+                }.map {
+                    WorkspacePackageBindingV1(
+                        assetID: $0.id,
+                        packageID: $0.packID,
+                        packageSchemaVersion: $0.packSchemaVersion,
+                        packageContentVersion: $0.packContentVersion
+                    )
+                }.sorted { $0.assetID.uuidString < $1.assetID.uuidString }
+                guard result.packageBindings == expectedBindings else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+            }
+            guard try lifecycleDependencies.writer.currentRevision() == revision else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+        } catch let failure as BackupRestoreServiceError {
+            throw failure
+        } catch {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+    }
+
     func requireCurrentPointerBinding(
         _ intent: RestoreIntentV1,
         currentID: UUID
@@ -2469,11 +2658,31 @@ private extension BackupRestoreService {
             try validateRows(session.modelContext, expected: expected)
         }
         do {
-            _ = try BackupExportService(
-                modelContext: session.modelContext,
-                generationRootURL: session.generationRootURL,
-                now: { Date(timeIntervalSince1970: 0) }
-            ).prepareStreaming()
+            switch lifecycleRoute {
+            case let .live(lifecycleDependencies):
+                let coordinator = try StoreSessionCoordinator(
+                    validatingSession: session,
+                    clock: lifecycleDependencies.clock,
+                    idSource: lifecycleDependencies.idSource,
+                    fileAuthority: lifecycleDependencies.fileAuthority
+                )
+                let dependencies = try coordinator.packageLifecycleDependencies(
+                    profileRegistry: lifecycleDependencies.profileRegistry
+                )
+                _ = try BackupExportService(
+                    modelContext: session.modelContext,
+                    generationRootURL: session.generationRootURL,
+                    lifecycleDependencies: dependencies,
+                    now: { Date(timeIntervalSince1970: 0) }
+                ).prepareStreaming()
+            case let .expiringCompatibility(posture):
+                _ = try BackupExportService(
+                    modelContext: session.modelContext,
+                    generationRootURL: session.generationRootURL,
+                    now: { Date(timeIntervalSince1970: 0) },
+                    compatibilityPosture: posture
+                ).prepareStreaming()
+            }
         } catch let failure as ProtectedFilePolicyError
             where failure == .protectedDataUnavailable {
             throw failure

@@ -18,6 +18,12 @@ enum BackupExportServiceError: Error, Equatable {
 }
 
 @MainActor
+enum BackupPackageLifecycleRouteV1 {
+    case live(WorkspacePackageLifecycleDependenciesV1)
+    case expiringCompatibility(BackupPackageCompatibilityPostureV1)
+}
+
+@MainActor
 final class BackupExportService {
     private struct Rows {
         let sites: [Site]
@@ -59,6 +65,7 @@ final class BackupExportService {
 
     private let modelContext: ModelContext
     private let generationRootURL: URL
+    private let lifecycleRoute: BackupPackageLifecycleRouteV1
     private let rootIdentity: ReportPDFAnchoredFile.RootIdentity?
     private let storagePreflight: StoragePreflightService
     private let archiveLimits: StreamingArchiveLimitsV1
@@ -75,6 +82,7 @@ final class BackupExportService {
     init(
         modelContext: ModelContext,
         generationRootURL: URL,
+        lifecycleRoute: BackupPackageLifecycleRouteV1,
         storagePreflight: StoragePreflightService = StoragePreflightService(),
         archiveLimits: StreamingArchiveLimitsV1 = .card17,
         now: @escaping () -> Date = Date.init,
@@ -92,6 +100,7 @@ final class BackupExportService {
     ) {
         self.modelContext = modelContext
         self.generationRootURL = generationRootURL.standardizedFileURL
+        self.lifecycleRoute = lifecycleRoute
         self.storagePreflight = storagePreflight
         self.archiveLimits = archiveLimits
         self.archiveService = StreamingArchiveService(
@@ -115,6 +124,74 @@ final class BackupExportService {
         } else {
             rootIdentity = nil
         }
+    }
+
+    convenience init(
+        modelContext: ModelContext,
+        generationRootURL: URL,
+        lifecycleDependencies: WorkspacePackageLifecycleDependenciesV1,
+        storagePreflight: StoragePreflightService = StoragePreflightService(),
+        archiveLimits: StreamingArchiveLimitsV1 = .card17,
+        now: @escaping () -> Date = Date.init,
+        makeUUID: @escaping @Sendable () -> UUID = UUID.init,
+        appVersion: @escaping () -> String = {
+            Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")
+                as? String ?? "0"
+        },
+        appBuild: @escaping () -> String = {
+            Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion")
+                as? String ?? "0"
+        },
+        fileManager: FileManager = .default,
+        generationLeaseValidation: @escaping @Sendable () throws -> Void = {}
+    ) {
+        self.init(
+            modelContext: modelContext,
+            generationRootURL: generationRootURL,
+            lifecycleRoute: .live(lifecycleDependencies),
+            storagePreflight: storagePreflight,
+            archiveLimits: archiveLimits,
+            now: now,
+            makeUUID: makeUUID,
+            appVersion: appVersion,
+            appBuild: appBuild,
+            fileManager: fileManager,
+            generationLeaseValidation: generationLeaseValidation
+        )
+    }
+
+    convenience init(
+        modelContext: ModelContext,
+        generationRootURL: URL,
+        storagePreflight: StoragePreflightService = StoragePreflightService(),
+        archiveLimits: StreamingArchiveLimitsV1 = .card17,
+        now: @escaping () -> Date = Date.init,
+        makeUUID: @escaping @Sendable () -> UUID = UUID.init,
+        appVersion: @escaping () -> String = {
+            Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")
+                as? String ?? "0"
+        },
+        appBuild: @escaping () -> String = {
+            Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion")
+                as? String ?? "0"
+        },
+        fileManager: FileManager = .default,
+        generationLeaseValidation: @escaping @Sendable () throws -> Void = {},
+        compatibilityPosture: BackupPackageCompatibilityPostureV1 = .frozenLegacyCallersOnly
+    ) {
+        self.init(
+            modelContext: modelContext,
+            generationRootURL: generationRootURL,
+            lifecycleRoute: .expiringCompatibility(compatibilityPosture),
+            storagePreflight: storagePreflight,
+            archiveLimits: archiveLimits,
+            now: now,
+            makeUUID: makeUUID,
+            appVersion: appVersion,
+            appBuild: appBuild,
+            fileManager: fileManager,
+            generationLeaseValidation: generationLeaseValidation
+        )
     }
 
     func prepare() throws -> BackupExportPreviewV1 {
@@ -161,6 +238,7 @@ final class BackupExportService {
         previewID: UUID,
         to destinationDirectoryURL: URL
     ) throws -> URL {
+        try validateLifecycleScope(try fetchRows(), operation: .exportOpen)
         try exportStreaming(
             previewID: previewID,
             to: destinationDirectoryURL,
@@ -174,6 +252,7 @@ final class BackupExportService {
         previewID: UUID,
         to destinationDirectoryURL: URL
     ) throws -> URL {
+        try validateLifecycleScope(try fetchRows(), operation: .exportOpen)
         guard !modelContext.hasChanges else {
             throw BackupExportServiceError.contextHasChanges
         }
@@ -271,6 +350,7 @@ final class BackupExportService {
         to destinationDirectoryURL: URL,
         cancellation: StreamingArchiveCancellationV1 = .none
     ) throws -> URL {
+        try validateLifecycleScope(try fetchRows(), operation: .exportOpen)
         try validateGenerationLease()
         guard !modelContext.hasChanges else {
             throw BackupExportServiceError.contextHasChanges
@@ -495,6 +575,8 @@ private extension BackupExportService {
         let sourceIdentity = try currentStreamingWorkspaceIdentity()
         let generationID = try currentStreamingGenerationID()
         let rows = try fetchRows()
+        try validateLifecycleScope(rows, operation: .backup)
+        try validateLifecycleScope(rows, operation: .archive)
         try validateGraph(rows)
         let deletionLedger: DeletionLedgerV2
         do {
@@ -588,23 +670,22 @@ private extension BackupExportService {
             ))
         }
 
-        let delivery: ReportDeliveryCoordinator
-        do {
-            delivery = try ReportDeliveryCoordinator(
-                modelContext: modelContext,
-                generationRootURL: generationRootURL,
-                signPack: .illuminatedSignV1,
-                expectedRootIdentity: rootIdentity
-            )
-        } catch {
-            throw BackupExportServiceError.invalidAuthority
-        }
         for report in rows.reports.sorted(by: { uuid($0.id) < uuid($1.id) }) {
             guard !Task.isCancelled else {
                 throw BackupExportServiceError.cancelled
             }
             try validateGenerationLease()
-            do { try delivery.validateRecoveryAuthority(id: report.id) }
+            let profile = try lifecycleProfile(for: report, rows: rows)
+            let delivery: ReportDeliveryCoordinator
+            do {
+                delivery = try ReportDeliveryCoordinator(
+                    modelContext: modelContext,
+                    generationRootURL: generationRootURL,
+                    signPack: profile.package,
+                    expectedRootIdentity: rootIdentity
+                )
+                try delivery.validateRecoveryAuthority(id: report.id)
+            }
             catch { throw BackupExportServiceError.invalidAuthority }
             let canonicalID = uuid(report.id)
             guard (report.snapshotSchemaVersion == 1
@@ -696,29 +777,7 @@ private extension BackupExportService {
                 sha256: source.sha256
             )
         }
-        let packValues = Set(
-            rows.assets.map { "\($0.packID)|\($0.packSchemaVersion)|\($0.packContentVersion)" }
-                + rows.records.map {
-                    "\($0.packID)|\($0.packSchemaVersion)|\($0.packContentVersion)"
-                }
-        )
-        let packs = packValues.compactMap { value -> V4BackupPackV1? in
-            let parts = value.split(separator: "|", omittingEmptySubsequences: false)
-            guard parts.count == 3,
-                  let schema = Int(parts[1]),
-                  let content = Int(parts[2]) else { return nil }
-            return .init(
-                contentVersion: content,
-                packID: String(parts[0]),
-                schemaVersion: schema
-            )
-        }.sorted {
-            ($0.packID, $0.schemaVersion, $0.contentVersion)
-                < ($1.packID, $1.schemaVersion, $1.contentVersion)
-        }
-        guard packs.count == packValues.count else {
-            throw BackupExportServiceError.invalidAuthority
-        }
+        let packs = try manifestPacks(rows)
         let manifest = V4BackupManifestV1(
             backupSchemaVersion: 4,
             consumedEvaluationRootIDs: rows.packets
@@ -801,6 +860,8 @@ private extension BackupExportService {
             throw BackupExportServiceError.invalidGeneration
         }
         let rows = try fetchRows()
+        try validateLifecycleScope(rows, operation: .backup)
+        try validateLifecycleScope(rows, operation: .archive)
         try validateGraph(rows)
         let records = try makeRecords(rows)
         let recordsData: Data
@@ -855,19 +916,18 @@ private extension BackupExportService {
             ))
         }
 
-        let delivery: ReportDeliveryCoordinator
-        do {
-            delivery = try ReportDeliveryCoordinator(
-                modelContext: modelContext,
-                generationRootURL: generationRootURL,
-                signPack: .illuminatedSignV1,
-                expectedRootIdentity: rootIdentity
-            )
-        } catch {
-            throw BackupExportServiceError.invalidAuthority
-        }
         for report in rows.reports.sorted(by: { uuid($0.id) < uuid($1.id) }) {
-            do { try delivery.validateRecoveryAuthority(id: report.id) }
+            let profile = try lifecycleProfile(for: report, rows: rows)
+            let delivery: ReportDeliveryCoordinator
+            do {
+                delivery = try ReportDeliveryCoordinator(
+                    modelContext: modelContext,
+                    generationRootURL: generationRootURL,
+                    signPack: profile.package,
+                    expectedRootIdentity: rootIdentity
+                )
+                try delivery.validateRecoveryAuthority(id: report.id)
+            }
             catch { throw BackupExportServiceError.invalidAuthority }
             let canonicalID = uuid(report.id)
             guard (report.snapshotSchemaVersion == 1
@@ -938,29 +998,7 @@ private extension BackupExportService {
                 sha256: CanonicalJSONV1.sha256(member.data)
             ))
         }
-        let packValues = Set(
-            rows.assets.map { "\($0.packID)|\($0.packSchemaVersion)|\($0.packContentVersion)" }
-                + rows.records.map {
-                    "\($0.packID)|\($0.packSchemaVersion)|\($0.packContentVersion)"
-                }
-        )
-        let packs = packValues.compactMap { value -> V4BackupPackV1? in
-            let parts = value.split(separator: "|", omittingEmptySubsequences: false)
-            guard parts.count == 3,
-                  let schema = Int(parts[1]),
-                  let content = Int(parts[2]) else { return nil }
-            return .init(
-                contentVersion: content,
-                packID: String(parts[0]),
-                schemaVersion: schema
-            )
-        }.sorted {
-            ($0.packID, $0.schemaVersion, $0.contentVersion)
-                < ($1.packID, $1.schemaVersion, $1.contentVersion)
-        }
-        guard packs.count == packValues.count else {
-            throw BackupExportServiceError.invalidAuthority
-        }
+        let packs = try manifestPacks(rows)
         let manifest = V4BackupManifestV1(
             backupSchemaVersion: 1,
             consumedEvaluationRootIDs: rows.packets
@@ -1265,6 +1303,16 @@ private extension BackupExportService {
     }
 
     private func validateGraph(_ rows: Rows) throws {
+        do {
+            try KernelBackupRestoreRegistryV4.validate()
+            let schema = try KernelPersistenceV4Schema.descriptor()
+            guard schema.runtimePosture == .dormantStatic,
+                  !schema.activationEnabled else {
+                throw BackupExportServiceError.invalidAuthority
+            }
+        } catch {
+            throw BackupExportServiceError.invalidAuthority
+        }
         guard unique(rows.sites.map(\.id)),
               unique(rows.assets.map(\.id)),
               unique(rows.records.map(\.id)),
@@ -1291,9 +1339,27 @@ private extension BackupExportService {
         let issuesByID = Dictionary(uniqueKeysWithValues: rows.issues.map { ($0.id, $0) })
         let packetsByID = Dictionary(uniqueKeysWithValues: rows.packets.map { ($0.id, $0) })
         let reportsByID = Dictionary(uniqueKeysWithValues: rows.reports.map { ($0.id, $0) })
-        let exactPack = SignPack.illuminatedSignV1
+        let profilesByAsset: [UUID: WorkspacePackageLifecycleProfileV1]
+        do {
+            profilesByAsset = try Dictionary(uniqueKeysWithValues: rows.assets.map { asset in
+                let release = try PackageReleaseIdentityV1(
+                    packageID: asset.packID,
+                    schemaVersion: asset.packSchemaVersion,
+                    contentVersion: asset.packContentVersion
+                )
+                return (asset.id, try lifecycleProfile(release))
+            })
+        } catch {
+            throw BackupExportServiceError.invalidAuthority
+        }
         let validRecordRelationships = rows.records.allSatisfy { record in
             guard let revisionKind = WorkflowRevisionKind(rawValue: record.revisionKind),
+                  let state = WorkflowState(rawValue: record.state),
+                  let profile = profilesByAsset[record.assetID],
+                  let stage = try? profile.stage(record.stage),
+                  (state == .draft && record.outcomeKey == nil)
+                    || (state == .completed
+                        && stage.outcomeKeys.contains(record.outcomeKey ?? "")),
                   let revisionRoot = recordsByID[record.recordRevisionRootID],
                   revisionRoot.assetID == record.assetID,
                   revisionRoot.revisionKind == WorkflowRevisionKind.original.rawValue,
@@ -1346,12 +1412,11 @@ private extension BackupExportService {
         }
         guard rows.assets.allSatisfy({ asset in
                   siteIDs.contains(asset.siteID)
-                    && asset.packID == exactPack.packID
-                    && asset.packSchemaVersion == exactPack.schemaVersion
-                    && asset.packContentVersion == exactPack.contentVersion
+                    && profilesByAsset[asset.id] != nil
               }),
               rows.records.allSatisfy({ record in
-                  assetIDs.contains(record.assetID)
+                  let profile = profilesByAsset[record.assetID]
+                  return assetIDs.contains(record.assetID)
                     && record.packetID.map(packetIDs.contains) ?? true
                     && record.issueID.map(issueIDs.contains) ?? true
                     && record.parentRecordID.map(recordIDs.contains) ?? true
@@ -1362,17 +1427,30 @@ private extension BackupExportService {
                     && WorkflowStage(rawValue: record.stage) != nil
                     && WorkflowState(rawValue: record.state) != nil
                     && record.draftStepKey.map({ WorkflowDraftStep(rawValue: $0) != nil }) ?? true
-                    && record.packID == exactPack.packID
-                    && record.packSchemaVersion == exactPack.schemaVersion
-                    && record.packContentVersion == exactPack.contentVersion
-                    && record.pdfTemplateID == "field.evidence.pdf.worklight.v1"
-                    && record.pdfTemplateVersion == 1
+                    && record.packID == profile?.release.packageID
+                    && record.packSchemaVersion == profile?.release.schemaVersion
+                    && record.packContentVersion == profile?.release.contentVersion
+                    && record.pdfTemplateID == profile?.pdfTemplate.id
+                    && record.pdfTemplateVersion == profile?.pdfTemplate.version
               }),
               validRecordRelationships,
-              rows.evidence.allSatisfy({ recordIDs.contains($0.recordID) }),
+              rows.evidence.allSatisfy({ evidence in
+                  guard let owner = recordsByID[evidence.recordID],
+                        let profile = profilesByAsset[owner.assetID] else {
+                      return false
+                  }
+                  return profile.evidencePurposes.contains {
+                      $0.key == evidence.purposeKey
+                  }
+              }),
               rows.issues.allSatisfy({ issue in
-                  assetIDs.contains(issue.assetID)
+                  let profile = profilesByAsset[issue.assetID]
+                  return assetIDs.contains(issue.assetID)
                     && recordsByID[issue.openedByRecordID]?.assetID == issue.assetID
+                    && profile?.package.issueLabels.contains(where: {
+                        $0.key == issue.labelKey
+                            && $0.display == issue.labelDisplaySnapshot
+                    }) == true
                     && issue.resolvedByRecordID.map({
                         recordsByID[$0]?.assetID == issue.assetID
                     }) ?? true
@@ -1408,6 +1486,150 @@ private extension BackupExportService {
         try requireAcyclic(rows.reports, id: \.id, next: \.replacesReportID)
         guard unique(rows.records.compactMap(\.revisesRecordID)),
               unique(rows.reports.compactMap(\.replacesReportID)) else {
+            throw BackupExportServiceError.invalidAuthority
+        }
+    }
+
+    private func lifecycleProfile(
+        for report: Report,
+        rows: Rows
+    ) throws -> WorkspacePackageLifecycleProfileV1 {
+        guard let record = rows.records.first(where: { $0.id == report.sourceRecordID }) else {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        do {
+            return try lifecycleProfile(
+                PackageReleaseIdentityV1(
+                    packageID: record.packID,
+                    schemaVersion: record.packSchemaVersion,
+                    contentVersion: record.packContentVersion
+                )
+            )
+        } catch {
+            throw BackupExportServiceError.invalidAuthority
+        }
+    }
+
+    private func validateLifecycleScope(
+        _ rows: Rows,
+        operation: WorkspacePackageLifecycleOperationV1
+    ) throws {
+        guard case let .live(lifecycleDependencies) = lifecycleRoute else {
+            guard case let .expiringCompatibility(posture) = lifecycleRoute,
+                  posture == .frozenLegacyCallersOnly else {
+                throw BackupExportServiceError.invalidAuthority
+            }
+            return
+        }
+        guard lifecycleDependencies.generationRootURL.standardizedFileURL
+                == generationRootURL,
+              lifecycleDependencies.generationID == (try currentStreamingGenerationID()),
+              lifecycleDependencies.workspaceID
+                == (try currentStreamingWorkspaceIdentity()).workspaceID else {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        let pairs: [(WorkspaceEntityKindV1, UUID)] =
+            rows.sites.map { (.site, $0.id) }
+            + rows.assets.map { (.asset, $0.id) }
+            + rows.records.map { (.workflowRecord, $0.id) }
+            + rows.evidence.map { (.evidenceFile, $0.id) }
+            + rows.issues.map { (.issue, $0.id) }
+            + rows.packets.map { (.packet, $0.id) }
+            + rows.reports.map { (.report, $0.id) }
+        let identities: [WorkspaceEntityIdentityV1]
+        do {
+            identities = try pairs.map { try .init(kind: $0.0, id: $0.1) }
+        } catch {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        let initial = try lifecycleDependencies.writer.currentRevision()
+        guard initial.workspaceID == lifecycleDependencies.workspaceID,
+              initial.generationID == lifecycleDependencies.generationID else {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        for start in stride(from: 0, to: identities.count, by: 256) {
+            let slice = Array(identities[start..<min(start + 256, identities.count)])
+            let request: WorkspacePackageLifecycleQueryRequestV1
+            do {
+                request = try .init(
+                    workspaceID: lifecycleDependencies.workspaceID,
+                    generationID: lifecycleDependencies.generationID,
+                    operation: operation,
+                    identities: slice
+                )
+                let result = try lifecycleDependencies.writer.query(request)
+                guard result.existingIdentities == request.identities,
+                      result.revision.revision == initial.revision else {
+                    throw BackupExportServiceError.invalidAuthority
+                }
+                let expectedBindings = rows.assets.filter { asset in
+                    slice.contains(where: { $0.kind == .asset && $0.id == asset.id })
+                }.map {
+                    WorkspacePackageBindingV1(
+                        assetID: $0.id,
+                        packageID: $0.packID,
+                        packageSchemaVersion: $0.packSchemaVersion,
+                        packageContentVersion: $0.packContentVersion
+                    )
+                }.sorted { $0.assetID.uuidString < $1.assetID.uuidString }
+                guard result.packageBindings == expectedBindings else {
+                    throw BackupExportServiceError.invalidAuthority
+                }
+            } catch {
+                throw BackupExportServiceError.invalidAuthority
+            }
+        }
+        guard try lifecycleDependencies.writer.currentRevision() == initial else {
+            throw BackupExportServiceError.invalidAuthority
+        }
+    }
+
+    private func lifecycleProfile(
+        _ release: PackageReleaseIdentityV1
+    ) throws -> WorkspacePackageLifecycleProfileV1 {
+        do {
+            switch lifecycleRoute {
+            case let .live(dependencies):
+                return try dependencies.profileRegistry.resolve(release)
+            case let .expiringCompatibility(posture):
+                guard posture == .frozenLegacyCallersOnly else {
+                    throw BackupExportServiceError.invalidAuthority
+                }
+                let profile = try WorkspacePackageLifecycleCompatibilityV1
+                    .legacyV3Profile(package: .illuminatedSignV1)
+                guard profile.release == release else {
+                    throw BackupExportServiceError.invalidAuthority
+                }
+                return profile
+            }
+        } catch {
+            throw BackupExportServiceError.invalidAuthority
+        }
+    }
+
+    private func manifestPacks(_ rows: Rows) throws -> [V4BackupPackV1] {
+        do {
+            let releases = try rows.assets.map {
+                try PackageReleaseIdentityV1(
+                    packageID: $0.packID,
+                    schemaVersion: $0.packSchemaVersion,
+                    contentVersion: $0.packContentVersion
+                )
+            } + rows.records.map {
+                try PackageReleaseIdentityV1(
+                    packageID: $0.packID,
+                    schemaVersion: $0.packSchemaVersion,
+                    contentVersion: $0.packContentVersion
+                )
+            }
+            return Set(releases).sorted().map {
+                V4BackupPackV1(
+                    contentVersion: $0.contentVersion,
+                    packID: $0.packageID,
+                    schemaVersion: $0.schemaVersion
+                )
+            }
+        } catch {
             throw BackupExportServiceError.invalidAuthority
         }
     }

@@ -500,6 +500,547 @@ enum WorkspaceMutationContractFailureV1: Error, Equatable {
 @MainActor
 protocol WorkspaceQueryClientV1: AnyObject {
     func currentRevision() throws -> WorkspaceRevisionV1
+    func query(
+        _ request: WorkspacePackageLifecycleQueryRequestV1
+    ) throws -> WorkspacePackageLifecycleQueryResultV1
+}
+
+enum WorkspacePackageLifecycleOperationV1: String, Codable, CaseIterable, Sendable {
+    case acknowledge = "ACKNOWLEDGE"
+    case archive = "ARCHIVE"
+    case backup = "BACKUP"
+    case capture = "CAPTURE"
+    case complete = "COMPLETE"
+    case delete = "DELETE"
+    case erase = "ERASE"
+    case exportOpen = "EXPORT_OPEN"
+    case finalize = "FINALIZE"
+    case query = "QUERY"
+    case recover = "RECOVER"
+    case reportPDF = "REPORT_PDF"
+    case restore = "RESTORE"
+}
+
+struct PackageReleaseIdentityV1: Codable, Equatable, Hashable, Comparable, Sendable {
+    let packageID: String
+    let schemaVersion: Int
+    let contentVersion: Int
+
+    init(packageID: String, schemaVersion: Int, contentVersion: Int) throws {
+        guard !packageID.isEmpty,
+              packageID == packageID.trimmingCharacters(in: .whitespacesAndNewlines),
+              schemaVersion > 0, contentVersion > 0 else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+        self.packageID = packageID
+        self.schemaVersion = schemaVersion
+        self.contentVersion = contentVersion
+    }
+
+    init(package: SignPack) throws {
+        try self.init(
+            packageID: package.packID,
+            schemaVersion: package.schemaVersion,
+            contentVersion: package.contentVersion
+        )
+    }
+
+    func matches(_ package: SignPack) -> Bool {
+        packageID == package.packID
+            && schemaVersion == package.schemaVersion
+            && contentVersion == package.contentVersion
+    }
+
+    static func < (lhs: Self, rhs: Self) -> Bool {
+        if lhs.packageID != rhs.packageID { return lhs.packageID < rhs.packageID }
+        if lhs.schemaVersion != rhs.schemaVersion { return lhs.schemaVersion < rhs.schemaVersion }
+        return lhs.contentVersion < rhs.contentVersion
+    }
+}
+
+enum WorkspacePackageOutcomeRoleV1: String, Codable, CaseIterable, Hashable, Sendable {
+    case noFinding = "NO_FINDING"
+    case findingObserved = "FINDING_OBSERVED"
+    case couldNotVerify = "COULD_NOT_VERIFY"
+    case resolved = "RESOLVED"
+    case findingStillPresent = "FINDING_STILL_PRESENT"
+    case originalResolvedDifferentFinding = "ORIGINAL_RESOLVED_DIFFERENT_FINDING"
+    case workRecorded = "WORK_RECORDED"
+}
+
+struct WorkspacePackageOutcomeProfileV1: Equatable, Sendable {
+    let key: String
+    let display: String
+    let role: WorkspacePackageOutcomeRoleV1
+
+    init(key: String, display: String, role: WorkspacePackageOutcomeRoleV1) throws {
+        guard !key.isEmpty, key == key.trimmingCharacters(in: .whitespacesAndNewlines),
+              !display.isEmpty, display == display.trimmingCharacters(in: .whitespacesAndNewlines) else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+        self.key = key
+        self.display = display
+        self.role = role
+    }
+}
+
+enum WorkspacePackageEvidenceRoleV1: String, Codable, CaseIterable, Hashable, Sendable {
+    case captureRequired = "CAPTURE_REQUIRED"
+    case captureSupplementary = "CAPTURE_SUPPLEMENTARY"
+    case workSupplementary = "WORK_SUPPLEMENTARY"
+}
+
+struct WorkspacePackageEvidenceProfileV1: Equatable, Sendable {
+    let key: String
+    let role: WorkspacePackageEvidenceRoleV1
+
+    init(key: String, role: WorkspacePackageEvidenceRoleV1) throws {
+        guard !key.isEmpty, key == key.trimmingCharacters(in: .whitespacesAndNewlines) else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+        self.key = key
+        self.role = role
+    }
+}
+
+struct WorkspacePackageStageProfileV1: Equatable, Sendable {
+    let stageKey: String
+    let stageDisplay: String
+    let outcomes: [WorkspacePackageOutcomeProfileV1]
+
+    var outcomeKeys: [String] { outcomes.map(\.key) }
+
+    init(
+        stageKey: String,
+        stageDisplay: String,
+        outcomes: [WorkspacePackageOutcomeProfileV1]
+    ) throws {
+        guard !stageKey.isEmpty, !outcomes.isEmpty,
+              Set(outcomes.map(\.key)).count == outcomes.count,
+              Set(outcomes.map(\.role)).count == outcomes.count,
+              outcomes.allSatisfy({ !$0.key.isEmpty }),
+              stageKey == stageKey.trimmingCharacters(in: .whitespacesAndNewlines),
+              !stageDisplay.isEmpty,
+              stageDisplay == stageDisplay.trimmingCharacters(in: .whitespacesAndNewlines) else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+        self.stageKey = stageKey
+        self.stageDisplay = stageDisplay
+        self.outcomes = outcomes
+    }
+}
+
+struct WorkspacePackageLifecycleProfileV1: Equatable, Sendable {
+    let package: SignPack
+    let release: PackageReleaseIdentityV1
+    let stages: [WorkspacePackageStageProfileV1]
+    let evidencePurposes: [WorkspacePackageEvidenceProfileV1]
+    let requiredAcknowledgementKeys: [String]
+    let pdfTemplate: PDFTemplateReferenceV1
+
+    init(
+        package: SignPack,
+        release: PackageReleaseIdentityV1,
+        stages: [WorkspacePackageStageProfileV1],
+        evidencePurposes: [WorkspacePackageEvidenceProfileV1],
+        requiredAcknowledgementKeys: [String],
+        pdfTemplate: PDFTemplateReferenceV1
+    ) throws {
+        let packageStages = package.stageDisplays
+        let packageOutcomes = package.outcomeDisplays
+        let packagePurposeKeys = package.evidencePurposes.map(\.key)
+        let profileOutcomes = stages.flatMap(\.outcomes)
+        let packageStageProfiles = stages.filter { profile in
+            packageStages.contains {
+                $0.key == profile.stageKey && $0.display == profile.stageDisplay
+            }
+        }
+        let supplementalStages = stages.filter { !packageStageProfiles.contains($0) }
+        let packageOutcomeProfiles = packageStageProfiles.flatMap(\.outcomes)
+        let profilePurposeKeys = evidencePurposes.map(\.key)
+        let supportsWork = evidencePurposes.contains { $0.role == .workSupplementary }
+        let declaredOutcomeKeys = Set(packageOutcomes.map(\.key))
+        let packageOutcomesAreCovered = declaredOutcomeKeys.isSubset(
+            of: Set(packageOutcomeProfiles.map(\.key))
+        )
+        let packageOutcomeMappingsAreExact = packageOutcomeProfiles.allSatisfy { profile in
+            packageOutcomes.contains { $0.key == profile.key && $0.display == profile.display }
+        }
+        let repeatedOutcomeMappingsAreConsistent = Dictionary(
+            grouping: packageOutcomeProfiles,
+            by: \.key
+        ).values.allSatisfy { values in
+            Set(values.map(\.role)).count == 1 && Set(values.map(\.display)).count == 1
+        }
+        guard release.matches(package),
+              packageStageProfiles.map({ "\($0.stageKey)\u{0}\($0.stageDisplay)" })
+                == packageStages.map({ "\($0.key)\u{0}\($0.display)" }),
+              Set(stages.map(\.stageKey)).count == stages.count,
+              packageOutcomesAreCovered,
+              packageOutcomeMappingsAreExact,
+              repeatedOutcomeMappingsAreConsistent,
+              supplementalStages.count == (supportsWork ? 1 : 0),
+              supplementalStages.first.map({ $0.outcomes.count == 1 && $0.outcomes[0].role == .workRecorded }) ?? !supportsWork,
+              supplementalStages.allSatisfy({ supplemental in
+                  !packageStages.contains(where: {
+                      $0.key == supplemental.stageKey || $0.display == supplemental.stageDisplay
+                  }) && supplemental.outcomes.allSatisfy({ outcome in
+                      !packageOutcomes.contains(where: {
+                          $0.key == outcome.key || $0.display == outcome.display
+                      })
+                  })
+              }),
+              evidencePurposes.contains(where: { $0.role == .captureRequired }),
+              profilePurposeKeys == packagePurposeKeys,
+              Set(profilePurposeKeys).count == profilePurposeKeys.count,
+              Set(requiredAcknowledgementKeys).count == requiredAcknowledgementKeys.count,
+              requiredAcknowledgementKeys == package.acknowledgements.map(\.key),
+              !pdfTemplate.id.isEmpty, pdfTemplate.version > 0 else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+        self.package = package
+        self.release = release
+        self.stages = stages
+        self.evidencePurposes = evidencePurposes
+        self.requiredAcknowledgementKeys = requiredAcknowledgementKeys
+        self.pdfTemplate = pdfTemplate
+    }
+
+    func stage(_ key: String) throws -> WorkspacePackageStageProfileV1 {
+        guard let value = stages.first(where: { $0.stageKey == key }) else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+        return value
+    }
+
+    func evidencePurposes(
+        for role: WorkspacePackageEvidenceRoleV1
+    ) -> [WorkspacePackageEvidenceProfileV1] {
+        evidencePurposes.filter { $0.role == role }
+    }
+
+    func evidencePurposeKeys(for role: WorkspacePackageEvidenceRoleV1) -> [String] {
+        evidencePurposes(for: role).map(\.key)
+    }
+}
+
+struct WorkspacePackageLifecycleProfileRegistryV1: Sendable {
+    private let profiles: [WorkspacePackageLifecycleProfileV1]
+
+    init(profiles: [WorkspacePackageLifecycleProfileV1]) throws {
+        let ordered = profiles.sorted { $0.release < $1.release }
+        guard !ordered.isEmpty,
+              Set(ordered.map(\.release)).count == ordered.count else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+        self.profiles = ordered
+    }
+
+    func resolve(
+        _ release: PackageReleaseIdentityV1
+    ) throws -> WorkspacePackageLifecycleProfileV1 {
+        guard let value = profiles.first(where: { $0.release == release }) else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+        return value
+    }
+}
+
+enum WorkspacePackageLifecycleCompatibilityV1 {
+    static let expiration = "AFTER_ACCEPTED_S10_6_RECONCILIATION"
+
+    static func legacyV3Profile(
+        package: SignPack
+    ) throws -> WorkspacePackageLifecycleProfileV1 {
+        let baseOutcomeRoles: [String: WorkspacePackageOutcomeRoleV1] = [
+            "no_visible_issue": .noFinding,
+            "visible_issue": .findingObserved,
+            "could_not_verify": .couldNotVerify,
+        ]
+        let recheckOutcomeRoles: [String: WorkspacePackageOutcomeRoleV1] = [
+            "resolved": .resolved,
+            "issue_still_visible": .findingStillPresent,
+            "original_resolved_different_issue": .originalResolvedDifferentFinding,
+        ]
+        let purposeRoles: [String: WorkspacePackageEvidenceRoleV1] = [
+            "wide_context": .captureRequired,
+            "close_detail": .captureRequired,
+            "work_context": .workSupplementary,
+        ]
+        let stageKeys = package.stageDisplays.map(\.key)
+        let outcomeKeys = package.outcomeDisplays.map(\.key)
+        let purposeKeys = package.evidencePurposes.map(\.key)
+        let acknowledgementKeys = package.acknowledgements.map(\.key)
+        let baseOutcomeKeys = Set(baseOutcomeRoles.keys)
+        let completeOutcomeKeys = baseOutcomeKeys.union(recheckOutcomeRoles.keys)
+        let hasRecheckOutcomes = Set(outcomeKeys) == completeOutcomeKeys
+        let hasWorkPurpose = purposeKeys.contains("work_context")
+        guard legacyPackageStructureIsValid(package),
+              Set(stageKeys) == Set(["check"]) || Set(stageKeys) == Set(["check", "recheck"]),
+              Set(stageKeys).count == stageKeys.count,
+              Set(outcomeKeys) == baseOutcomeKeys || hasRecheckOutcomes,
+              !hasRecheckOutcomes || stageKeys.contains("recheck"),
+              Set(purposeKeys) == Set(["wide_context", "close_detail"])
+                || Set(purposeKeys) == Set(["wide_context", "close_detail", "work_context"]),
+              Set(acknowledgementKeys) == Set(["safe_authorized_position"])
+                || Set(acknowledgementKeys) == Set(["after_dark", "safe_authorized_position"]) else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+        let outcomesByKey = Dictionary(
+            uniqueKeysWithValues: package.outcomeDisplays.map { ($0.key, $0) }
+        )
+        func outcome(
+            _ key: String,
+            role: WorkspacePackageOutcomeRoleV1
+        ) throws -> WorkspacePackageOutcomeProfileV1 {
+            guard let entry = outcomesByKey[key] else {
+                throw WorkspaceMutationContractFailureV1.invalidPlan
+            }
+            return try WorkspacePackageOutcomeProfileV1(
+                key: entry.key,
+                display: entry.display,
+                role: role
+            )
+        }
+        var stages: [WorkspacePackageStageProfileV1] = []
+        for entry in package.stageDisplays {
+            let mappings: [(String, WorkspacePackageOutcomeRoleV1)]
+            switch entry.key {
+            case "check":
+                mappings = [
+                    ("no_visible_issue", .noFinding),
+                    ("visible_issue", .findingObserved),
+                    ("could_not_verify", .couldNotVerify),
+                ]
+            case "recheck" where hasRecheckOutcomes:
+                mappings = [
+                    ("could_not_verify", .couldNotVerify),
+                    ("resolved", .resolved),
+                    ("issue_still_visible", .findingStillPresent),
+                    ("original_resolved_different_issue", .originalResolvedDifferentFinding),
+                ]
+            case "recheck":
+                mappings = [
+                    ("no_visible_issue", .noFinding),
+                    ("visible_issue", .findingObserved),
+                    ("could_not_verify", .couldNotVerify),
+                ]
+            default:
+                throw WorkspaceMutationContractFailureV1.invalidPlan
+            }
+            stages.append(try WorkspacePackageStageProfileV1(
+                stageKey: entry.key,
+                stageDisplay: entry.display,
+                outcomes: try mappings.map { try outcome($0.0, role: $0.1) }
+            ))
+        }
+        if hasWorkPurpose {
+            stages.append(try WorkspacePackageStageProfileV1(
+                stageKey: "work",
+                stageDisplay: "Work",
+                outcomes: [
+                    try WorkspacePackageOutcomeProfileV1(
+                        key: "work_recorded",
+                        display: "Work recorded",
+                        role: .workRecorded
+                    ),
+                ]
+            ))
+        }
+        return try WorkspacePackageLifecycleProfileV1(
+            package: package,
+            release: PackageReleaseIdentityV1(package: package),
+            stages: stages,
+            evidencePurposes: try package.evidencePurposes.map { purpose in
+                guard let role = purposeRoles[purpose.key] else {
+                    throw WorkspaceMutationContractFailureV1.invalidPlan
+                }
+                return try WorkspacePackageEvidenceProfileV1(key: purpose.key, role: role)
+            },
+            requiredAcknowledgementKeys: acknowledgementKeys,
+            pdfTemplate: PDFTemplateReferenceV1(
+                id: "field.evidence.pdf.worklight.v1",
+                version: 1
+            )
+        )
+    }
+
+    static func legacyV3Registry(
+        package: SignPack
+    ) throws -> WorkspacePackageLifecycleProfileRegistryV1 {
+        try WorkspacePackageLifecycleProfileRegistryV1(
+            profiles: [legacyV3Profile(package: package)]
+        )
+    }
+
+    static func shippingProfile() throws -> WorkspacePackageLifecycleProfileV1 {
+        try legacyV3Profile(package: .illuminatedSignV1)
+    }
+
+    static func shippingRegistry() throws -> WorkspacePackageLifecycleProfileRegistryV1 {
+        try WorkspacePackageLifecycleProfileRegistryV1(profiles: [shippingProfile()])
+    }
+
+    private static func legacyPackageStructureIsValid(_ package: SignPack) -> Bool {
+        func valid(_ value: String) -> Bool {
+            !value.isEmpty
+                && value == value.trimmingCharacters(in: .whitespacesAndNewlines)
+                && value.unicodeScalars.allSatisfy {
+                    !CharacterSet.controlCharacters.contains($0) || $0.value == 10
+                }
+        }
+        func unique(_ values: [String]) -> Bool {
+            Set(values).count == values.count
+        }
+        let registries = [
+            package.stageDisplays,
+            package.outcomeDisplays,
+            package.issueLabels,
+            package.couldNotVerifyReasons.entries,
+        ]
+        return package.schemaVersion > 0
+            && package.contentVersion > 0
+            && valid(package.packID)
+            && valid(package.nouns.asset.singular)
+            && valid(package.nouns.asset.plural)
+            && valid(package.nouns.check.singular)
+            && valid(package.nouns.check.plural)
+            && valid(package.nouns.issue.singular)
+            && valid(package.nouns.issue.plural)
+            && valid(package.couldNotVerifyReasons.version)
+            && valid(package.disclaimer)
+            && registries.allSatisfy { entries in
+                !entries.isEmpty
+                    && unique(entries.map(\.key))
+                    && entries.allSatisfy { valid($0.key) && valid($0.display) }
+            }
+            && !package.evidencePurposes.isEmpty
+            && unique(package.evidencePurposes.map(\.key))
+            && package.evidencePurposes.allSatisfy {
+                valid($0.key) && valid($0.display) && valid($0.instruction)
+            }
+            && !package.acknowledgements.isEmpty
+            && unique(package.acknowledgements.map(\.key))
+            && package.acknowledgements.allSatisfy {
+                valid($0.key) && valid($0.copy) && valid($0.version)
+            }
+    }
+}
+
+struct WorkspacePackageLifecycleQueryRequestV1: Equatable, Sendable {
+    let workspaceID: WorkspaceID
+    let generationID: UUID
+    let operation: WorkspacePackageLifecycleOperationV1
+    let identities: [WorkspaceEntityIdentityV1]
+
+    init(
+        workspaceID: WorkspaceID,
+        generationID: UUID,
+        operation: WorkspacePackageLifecycleOperationV1,
+        identities: [WorkspaceEntityIdentityV1]
+    ) throws {
+        let ordered = identities.sorted { $0.stableKey < $1.stableKey }
+        guard generationID != Self.zero,
+              identities.count <= 256,
+              Set(ordered).count == ordered.count else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+        self.workspaceID = workspaceID
+        self.generationID = generationID
+        self.operation = operation
+        self.identities = ordered
+    }
+
+    private static let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+}
+
+struct WorkspacePackageBindingV1: Equatable, Sendable {
+    let assetID: UUID
+    let packageID: String
+    let packageSchemaVersion: Int
+    let packageContentVersion: Int
+}
+
+struct WorkspacePackageLifecycleQueryResultV1: Equatable, Sendable {
+    let workspaceID: WorkspaceID
+    let generationID: UUID
+    let operation: WorkspacePackageLifecycleOperationV1
+    let revision: WorkspaceRevisionV1
+    let existingIdentities: [WorkspaceEntityIdentityV1]
+    let packageBindings: [WorkspacePackageBindingV1]
+
+    init(
+        request: WorkspacePackageLifecycleQueryRequestV1,
+        revision: WorkspaceRevisionV1,
+        existingIdentities: [WorkspaceEntityIdentityV1],
+        packageBindings: [WorkspacePackageBindingV1]
+    ) throws {
+        let identities = existingIdentities.sorted { $0.stableKey < $1.stableKey }
+        let bindings = packageBindings.sorted { $0.assetID.uuidString < $1.assetID.uuidString }
+        let existingAssetIDs = Set(identities.compactMap {
+            $0.kind == .asset ? $0.id : nil
+        })
+        guard revision.workspaceID == request.workspaceID,
+              revision.generationID == request.generationID,
+              Set(identities).count == identities.count,
+              Set(identities).isSubset(of: Set(request.identities)),
+              Set(bindings.map(\.assetID)).count == bindings.count,
+              bindings.allSatisfy({
+                  existingAssetIDs.contains($0.assetID)
+                    && !$0.packageID.isEmpty
+                    && $0.packageID == $0.packageID.trimmingCharacters(in: .whitespacesAndNewlines)
+                    && $0.packageSchemaVersion > 0
+                    && $0.packageContentVersion > 0
+              }) else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+        workspaceID = request.workspaceID
+        generationID = request.generationID
+        operation = request.operation
+        self.revision = revision
+        self.existingIdentities = identities
+        self.packageBindings = bindings
+    }
+}
+
+@MainActor
+struct WorkspacePackageLifecycleDependenciesV1 {
+    let workspaceID: WorkspaceID
+    let generationID: UUID
+    let generationRootURL: URL
+    let writer: WorkspaceWriterV1
+    let queryClient: any WorkspaceQueryClientV1
+    let clock: any ApplicationClock
+    let idSource: any ApplicationIDSource
+    let fileAuthority: any ApplicationFileAuthorityV1
+    let profileRegistry: WorkspacePackageLifecycleProfileRegistryV1
+
+    init(
+        workspaceID: WorkspaceID,
+        generationID: UUID,
+        generationRootURL: URL,
+        writer: WorkspaceWriterV1,
+        clock: any ApplicationClock,
+        idSource: any ApplicationIDSource,
+        fileAuthority: any ApplicationFileAuthorityV1,
+        profileRegistry: WorkspacePackageLifecycleProfileRegistryV1
+    ) throws {
+        let revision = try writer.currentRevision()
+        guard revision.workspaceID == workspaceID,
+              revision.generationID == generationID,
+              generationRootURL.isFileURL else {
+            throw WorkspaceMutationFailureV1.wrongWorkspace
+        }
+        self.workspaceID = workspaceID
+        self.generationID = generationID
+        self.generationRootURL = generationRootURL.standardizedFileURL
+        self.writer = writer
+        queryClient = writer
+        self.clock = clock
+        self.idSource = idSource
+        self.fileAuthority = fileAuthority
+        self.profileRegistry = profileRegistry
+    }
 }
 
 enum MutationReversalDispositionV1: String, Codable, Sendable {

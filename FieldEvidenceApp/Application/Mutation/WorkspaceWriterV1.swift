@@ -7,10 +7,25 @@ protocol WorkspaceWriterAdapterPortV1: AnyObject {
         occurredAt: Date,
         temporaryRelativePath: String
     ) throws -> WorkspaceMutationEffectV1
+    func queryExisting(
+        identities: [WorkspaceEntityIdentityV1]
+    ) throws -> (
+        identities: [WorkspaceEntityIdentityV1],
+        packageBindings: [WorkspacePackageBindingV1]
+    )
     func rollback()
 }
 
 extension WorkspaceWriterAdapterPortV1 {
+    func queryExisting(
+        identities: [WorkspaceEntityIdentityV1]
+    ) throws -> (
+        identities: [WorkspaceEntityIdentityV1],
+        packageBindings: [WorkspacePackageBindingV1]
+    ) {
+        throw WorkspaceMutationFailureV1.unsupportedCommand
+    }
+
     func rollback() {}
 }
 
@@ -103,8 +118,49 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
         )
     }
 
+    func query(
+        _ request: WorkspacePackageLifecycleQueryRequestV1
+    ) throws -> WorkspacePackageLifecycleQueryResultV1 {
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard request.workspaceID == identity.workspaceID else {
+            throw WorkspaceMutationFailureV1.wrongWorkspace
+        }
+        guard request.generationID == generationID else {
+            throw WorkspaceMutationFailureV1.wrongGeneration
+        }
+        let observed = try adapter.queryExisting(identities: request.identities)
+        return try WorkspacePackageLifecycleQueryResultV1(
+            request: request,
+            revision: currentRevision(),
+            existingIdentities: observed.identities,
+            packageBindings: observed.packageBindings
+        )
+    }
+
     /// This operation is synchronous by design: no canonical transaction can
     /// suspend and admit another command on the main actor.
+    func execute(_ command: WorkspaceCommandV1) throws -> WorkspaceMutationOutcomeV1 {
+        let current = try currentRevision()
+        let targets = try Self.targetIdentities(for: command)
+        let known = Dictionary(
+            uniqueKeysWithValues: current.entityRevisions.map { ($0.identity, $0.revision) }
+        )
+        let scoped = try WorkspaceRevisionV1(
+            workspaceID: current.workspaceID,
+            generationID: current.generationID,
+            writerInstanceID: current.writerInstanceID,
+            revision: current.revision,
+            entityRevisions: targets.map {
+                WorkspaceEntityRevisionV1(identity: $0, revision: known[$0, default: 0])
+            }
+        )
+        return try execute(WorkspaceMutationRequestV1(
+            mutationID: makeMutationID(),
+            expectedRevision: WorkspaceExpectedRevisionV1(snapshot: scoped),
+            command: command
+        ))
+    }
+
     func execute(_ request: WorkspaceMutationRequestV1) throws -> WorkspaceMutationOutcomeV1 {
         try executeInternal(request, reversalPlan: nil, semanticReversalExecution: nil, semanticReversalReplayIdentitySHA256: nil)
     }

@@ -54,8 +54,8 @@ struct WorklightPDFRendererV1 {
 
     func render(_ validated: ValidatedReportSnapshotV1) throws -> RenderedPDFV1 {
         let snapshot = validated.snapshot
-        guard snapshot.pdfTemplate.id == "field.evidence.pdf.worklight.v1",
-              snapshot.pdfTemplate.version == 1,
+        guard !snapshot.pdfTemplate.id.isEmpty,
+              snapshot.pdfTemplate.version > 0,
               snapshot.snapshotSchemaVersion == 1 || snapshot.snapshotSchemaVersion == 2,
               snapshot.reportID.uuidString.lowercased().count == 36,
               validated.snapshotSHA256.utf8.count == 64 else {
@@ -245,11 +245,10 @@ private extension WorklightPDFRendererV1 {
         text(identity, style: .body, role: "identity.body")
 
         let current = snapshot.evidence.filter { $0.recordID == snapshot.evidenceSourceRecordID }
-        for purpose in ["wide_context", "close_detail"] {
-            let role = purpose == "wide_context" ? "current.wide_context" : "current.close_detail"
-            let fallback = purpose == "wide_context" ? "Wide view" : "Close view"
-            section(current.first(where: { $0.purposeKey == purpose })?.purposeDisplay ?? fallback, role: role + ".heading")
-            if let evidence = current.first(where: { $0.purposeKey == purpose }),
+        for purpose in validated.currentEvidencePurposes {
+            let role = "current.\(purpose.key)"
+            section(purpose.display, role: role + ".heading")
+            if let evidence = current.first(where: { $0.purposeKey == purpose.key }),
                let bytes = validated.originalJPEG(for: evidence.evidenceID) {
                 let image = try decode(bytes)
                 let fragment = ImageFragment(

@@ -1,0 +1,464 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "adoptionEnabled": false,
+  "artifactDigest": "cf7be810796e0a3b0e7756644239d8fd164078ca04a3aab5732a9aadaa1d0b7f",
+  "authority": {
+    "appBaseHead": "d6d61b81a9793f34f7c72d62dd333037b8b51968",
+    "appBaseTree": "2be6a038fcd19247467c69105e2283dedb534e28",
+    "contextDigest": "9727fa77756ca1512af153d68bdf69c9c09a1fac02261f3967aa691c62b6e547",
+    "coordinationHead": "cf61d9e230c5a0f350d9bd4b1e2ca73c572ae003",
+    "coordinationTree": "57e70906a7b64f31232b90965474f3ceec6fb2ba",
+    "dossierDigest": "e51077f451b306467c057d6b490a620db085cd8713c3610989815669e4c27219",
+    "fenceDigest": "89d6c2a346c3d944ae655c8f786cc3606e3e0529ba0ab1a80dc74878340f38e6",
+    "inheritedBlueprintBlockDigest": "ca9a4d6b80db8de8a1b443ac82945fad787b21b94cb835182c7e51e9b4e3ef9a",
+    "prerequisiteDigest": "d6278c9e68c969a0c6023b86f0c8f70f6467d6a282872bc47d0284e8ee725041",
+    "registerRowDigest": "2cdf89a94441873cc6e15d983d0cae4e9f249212f17167882812e10511cee510",
+    "s10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+  },
+  "backupBehaviorDelta": true,
+  "cardID": "V23-P03-C08",
+  "deleteBehaviorDelta": true,
+  "downgradeDisposition": "FORWARD_FIX_ONLY",
+  "evidenceIDs": [
+    "V23-P03-C08-G01",
+    "V23-P03-C08-A01",
+    "V23-P03-C08-H01",
+    "V23-P03-C08-I01",
+    "V23-P03-C08-R01"
+  ],
+  "exportBehaviorDelta": true,
+  "failureCases": [
+    "AUTHORITY_CONSTRUCTION_DUPLICATE",
+    "CROSS_WORKSPACE_READ",
+    "CROSS_WORKSPACE_WRITE",
+    "DUPLICATE_CONTAINER",
+    "DUPLICATE_WRITER",
+    "HARDCODED_PURPOSE_BRANCH",
+    "INTERRUPTED_LIFECYCLE",
+    "LEGACY_ARCHIVE_DRIFT",
+    "LEGACY_REPORT_DRIFT",
+    "OPTIONAL_FALLBACK_ADAPTER",
+    "PARTIAL_LIFECYCLE",
+    "UNRESOLVED_SCHEMA_REFERENCE"
+  ],
+  "hostedDispatchRan": false,
+  "migrationBehaviorDelta": false,
+  "nativeCompileRan": false,
+  "packages": [
+    {
+      "commandSet": [
+        "ACKNOWLEDGE",
+        "ARCHIVE",
+        "BACKUP",
+        "CAPTURE",
+        "COMPLETE",
+        "DELETE",
+        "ERASE",
+        "EXPORT_OPEN",
+        "FINALIZE",
+        "QUERY",
+        "RECOVER",
+        "REPORT_PDF",
+        "RESTORE"
+      ],
+      "packageID": "ALTERNATE_PACK",
+      "purposeKey": "alternate",
+      "querySet": [
+        "ACTIVITY",
+        "EVIDENCE",
+        "REPORT",
+        "WORKSPACE"
+      ],
+      "shipping": false
+    },
+    {
+      "commandSet": [
+        "ACKNOWLEDGE",
+        "ARCHIVE",
+        "BACKUP",
+        "CAPTURE",
+        "COMPLETE",
+        "DELETE",
+        "ERASE",
+        "EXPORT_OPEN",
+        "FINALIZE",
+        "QUERY",
+        "RECOVER",
+        "REPORT_PDF",
+        "RESTORE"
+      ],
+      "packageID": "SHIPPING_SIGN_PACK",
+      "purposeKey": "sign",
+      "querySet": [
+        "ACTIVITY",
+        "EVIDENCE",
+        "REPORT",
+        "WORKSPACE"
+      ],
+      "shipping": true
+    }
+  ],
+  "persistentChangeMode": "CONTENT_ONLY",
+  "phase10PollingRan": false,
+  "recoveryBoundaries": [
+    "AFTER_COMMAND_RECEIPT",
+    "AFTER_FINALIZATION_WRITE",
+    "AFTER_REPORT_WRITE",
+    "BEFORE_COMMAND_RECEIPT",
+    "BEFORE_FINALIZATION_WRITE",
+    "BEFORE_REPORT_WRITE",
+    "COMPETING_DELETE",
+    "COMPETING_EXPORT",
+    "COMPETING_FINALIZE"
+  ],
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "restoreBehaviorDelta": true,
+  "routes": [
+    {
+      "authorityOwner": "CheckRunnerCoordinator",
+      "commandOrQuery": "COMMAND",
+      "operation": "ACKNOWLEDGE",
+      "packageID": "ALTERNATE_PACK",
+      "recoveryDisposition": "REPLAY_SAFE",
+      "routeID": "ALTERNATE_PACK.ACKNOWLEDGE",
+      "workspaceScoped": true
+    },
+    {
+      "authorityOwner": "BackupExportService",
+      "commandOrQuery": "COMMAND",
+      "operation": "ARCHIVE",
+      "packageID": "ALTERNATE_PACK",
+      "recoveryDisposition": "REPLAY_SAFE",
+      "routeID": "ALTERNATE_PACK.ARCHIVE",
+      "workspaceScoped": true
+    },
+    {
+      "authorityOwner": "BackupExportService",
+      "commandOrQuery": "COMMAND",
+      "operation": "BACKUP",
+      "packageID": "ALTERNATE_PACK",
+      "recoveryDisposition": "IDEMPOTENT_RESUME",
+      "routeID": "ALTERNATE_PACK.BACKUP",
+      "workspaceScoped": true
+    },
+    {
+      "authorityOwner": "FirstSignCoordinator",
+      "commandOrQuery": "COMMAND",
+      "operation": "CAPTURE",
+      "packageID": "ALTERNATE_PACK",
+      "recoveryDisposition": "REPLAY_SAFE",
+      "routeID": "ALTERNATE_PACK.CAPTURE",
+      "workspaceScoped": true
+    },
+    {
+      "authorityOwner": "CheckRunnerCoordinator",
+      "commandOrQuery": "COMMAND",
+      "operation": "COMPLETE",
+      "packageID": "ALTERNATE_PACK",
+      "recoveryDisposition": "REPLAY_SAFE",
+      "routeID": "ALTERNATE_PACK.COMPLETE",
+      "workspaceScoped": true
+    },
+    {
+      "authorityOwner": "WholeSignDeletionService",
+      "commandOrQuery": "COMMAND",
+      "operation": "DELETE",
+      "packageID": "ALTERNATE_PACK",
+      "recoveryDisposition": "IDEMPOTENT_RESUME",
+      "routeID": "ALTERNATE_PACK.DELETE",
+      "workspaceScoped": true
+    },
+    {
+      "authorityOwner": "EraseAllService",
+      "commandOrQuery": "COMMAND",
+      "operation": "ERASE",
+      "packageID": "ALTERNATE_PACK",
+      "recoveryDisposition": "IDEMPOTENT_RESUME",
+      "routeID": "ALTERNATE_PACK.ERASE",
+      "workspaceScoped": true
+    },
+    {
+      "authorityOwner": "BackupExportService",
+      "commandOrQuery": "COMMAND",
+      "operation": "EXPORT_OPEN",
+      "packageID": "ALTERNATE_PACK",
+      "recoveryDisposition": "REPLAY_SAFE",
+      "routeID": "ALTERNATE_PACK.EXPORT_OPEN",
+      "workspaceScoped": true
+    },
+    {
+      "authorityOwner": "PackFinalizationAdapterV1",
+      "commandOrQuery": "COMMAND",
+      "operation": "FINALIZE",
+      "packageID": "ALTERNATE_PACK",
+      "recoveryDisposition": "IDEMPOTENT_RESUME",
+      "routeID": "ALTERNATE_PACK.FINALIZE",
+      "workspaceScoped": true
+    },
+    {
+      "authorityOwner": "StoreSessionCoordinator",
+      "commandOrQuery": "QUERY",
+      "operation": "QUERY",
+      "packageID": "ALTERNATE_PACK",
+      "recoveryDisposition": "REPLAY_SAFE",
+      "routeID": "ALTERNATE_PACK.QUERY",
+      "workspaceScoped": true
+    },
+    {
+      "authorityOwner": "PackFinalizationRecoveryAdapterV1",
+      "commandOrQuery": "COMMAND",
+      "operation": "RECOVER",
+      "packageID": "ALTERNATE_PACK",
+      "recoveryDisposition": "IDEMPOTENT_RESUME",
+      "routeID": "ALTERNATE_PACK.RECOVER",
+      "workspaceScoped": true
+    },
+    {
+      "authorityOwner": "ReportRenderService",
+      "commandOrQuery": "COMMAND",
+      "operation": "REPORT_PDF",
+      "packageID": "ALTERNATE_PACK",
+      "recoveryDisposition": "IDEMPOTENT_RESUME",
+      "routeID": "ALTERNATE_PACK.REPORT_PDF",
+      "workspaceScoped": true
+    },
+    {
+      "authorityOwner": "BackupRestoreService",
+      "commandOrQuery": "COMMAND",
+      "operation": "RESTORE",
+      "packageID": "ALTERNATE_PACK",
+      "recoveryDisposition": "IDEMPOTENT_RESUME",
+      "routeID": "ALTERNATE_PACK.RESTORE",
+      "workspaceScoped": true
+    },
+    {
+      "authorityOwner": "CheckRunnerCoordinator",
+      "commandOrQuery": "COMMAND",
+      "operation": "ACKNOWLEDGE",
+      "packageID": "SHIPPING_SIGN_PACK",
+      "recoveryDisposition": "REPLAY_SAFE",
+      "routeID": "SHIPPING_SIGN_PACK.ACKNOWLEDGE",
+      "workspaceScoped": true
+    },
+    {
+      "authorityOwner": "BackupExportService",
+      "commandOrQuery": "COMMAND",
+      "operation": "ARCHIVE",
+      "packageID": "SHIPPING_SIGN_PACK",
+      "recoveryDisposition": "REPLAY_SAFE",
+      "routeID": "SHIPPING_SIGN_PACK.ARCHIVE",
+      "workspaceScoped": true
+    },
+    {
+      "authorityOwner": "BackupExportService",
+      "commandOrQuery": "COMMAND",
+      "operation": "BACKUP",
+      "packageID": "SHIPPING_SIGN_PACK",
+      "recoveryDisposition": "IDEMPOTENT_RESUME",
+      "routeID": "SHIPPING_SIGN_PACK.BACKUP",
+      "workspaceScoped": true
+    },
+    {
+      "authorityOwner": "FirstSignCoordinator",
+      "commandOrQuery": "COMMAND",
+      "operation": "CAPTURE",
+      "packageID": "SHIPPING_SIGN_PACK",
+      "recoveryDisposition": "REPLAY_SAFE",
+      "routeID": "SHIPPING_SIGN_PACK.CAPTURE",
+      "workspaceScoped": true
+    },
+    {
+      "authorityOwner": "CheckRunnerCoordinator",
+      "commandOrQuery": "COMMAND",
+      "operation": "COMPLETE",
+      "packageID": "SHIPPING_SIGN_PACK",
+      "recoveryDisposition": "REPLAY_SAFE",
+      "routeID": "SHIPPING_SIGN_PACK.COMPLETE",
+      "workspaceScoped": true
+    },
+    {
+      "authorityOwner": "WholeSignDeletionService",
+      "commandOrQuery": "COMMAND",
+      "operation": "DELETE",
+      "packageID": "SHIPPING_SIGN_PACK",
+      "recoveryDisposition": "IDEMPOTENT_RESUME",
+      "routeID": "SHIPPING_SIGN_PACK.DELETE",
+      "workspaceScoped": true
+    },
+    {
+      "authorityOwner": "EraseAllService",
+      "commandOrQuery": "COMMAND",
+      "operation": "ERASE",
+      "packageID": "SHIPPING_SIGN_PACK",
+      "recoveryDisposition": "IDEMPOTENT_RESUME",
+      "routeID": "SHIPPING_SIGN_PACK.ERASE",
+      "workspaceScoped": true
+    },
+    {
+      "authorityOwner": "BackupExportService",
+      "commandOrQuery": "COMMAND",
+      "operation": "EXPORT_OPEN",
+      "packageID": "SHIPPING_SIGN_PACK",
+      "recoveryDisposition": "REPLAY_SAFE",
+      "routeID": "SHIPPING_SIGN_PACK.EXPORT_OPEN",
+      "workspaceScoped": true
+    },
+    {
+      "authorityOwner": "PackFinalizationAdapterV1",
+      "commandOrQuery": "COMMAND",
+      "operation": "FINALIZE",
+      "packageID": "SHIPPING_SIGN_PACK",
+      "recoveryDisposition": "IDEMPOTENT_RESUME",
+      "routeID": "SHIPPING_SIGN_PACK.FINALIZE",
+      "workspaceScoped": true
+    },
+    {
+      "authorityOwner": "StoreSessionCoordinator",
+      "commandOrQuery": "QUERY",
+      "operation": "QUERY",
+      "packageID": "SHIPPING_SIGN_PACK",
+      "recoveryDisposition": "REPLAY_SAFE",
+      "routeID": "SHIPPING_SIGN_PACK.QUERY",
+      "workspaceScoped": true
+    },
+    {
+      "authorityOwner": "PackFinalizationRecoveryAdapterV1",
+      "commandOrQuery": "COMMAND",
+      "operation": "RECOVER",
+      "packageID": "SHIPPING_SIGN_PACK",
+      "recoveryDisposition": "IDEMPOTENT_RESUME",
+      "routeID": "SHIPPING_SIGN_PACK.RECOVER",
+      "workspaceScoped": true
+    },
+    {
+      "authorityOwner": "ReportRenderService",
+      "commandOrQuery": "COMMAND",
+      "operation": "REPORT_PDF",
+      "packageID": "SHIPPING_SIGN_PACK",
+      "recoveryDisposition": "IDEMPOTENT_RESUME",
+      "routeID": "SHIPPING_SIGN_PACK.REPORT_PDF",
+      "workspaceScoped": true
+    },
+    {
+      "authorityOwner": "BackupRestoreService",
+      "commandOrQuery": "COMMAND",
+      "operation": "RESTORE",
+      "packageID": "SHIPPING_SIGN_PACK",
+      "recoveryDisposition": "IDEMPOTENT_RESUME",
+      "routeID": "SHIPPING_SIGN_PACK.RESTORE",
+      "workspaceScoped": true
+    }
+  ],
+  "schema": "V23P03C08PackLifecycleContractV1",
+  "schemaBehaviorDelta": false,
+  "schemaVersion": 1,
+  "sourceArtifacts": [
+    {
+      "path": "FieldEvidenceApp/App/Composition/ProductionCompositionRoot.swift",
+      "sha256": "2f35140133426a0757c85d32b15214db6ff87032aaafb6f93633a836e44c065a"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift",
+      "sha256": "79be21cc886b9319256caf6ba87ccb43d1ae155435c3e31f40b30172c27aefc7"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Mutation/WorkspaceMutationContractsV1.swift",
+      "sha256": "f843573ff95c8d1001dddd98c5560a1f778d94c3d80e062e649f053cea5c41df"
+    },
+    {
+      "path": "FieldEvidenceApp/Application/Mutation/WorkspaceWriterV1.swift",
+      "sha256": "bffbac7da0ccc2f3976840a7ea084cb2dbb459cd3bf170c7e33ba139859c2fa6"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift",
+      "sha256": "418338d9939e110d715827c7437e7b9b97cf14744b95b8b43f79739832556457"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Signs/FirstSignCoordinator.swift",
+      "sha256": "82654714a5ef639ec645931f1f0f4ac1b9d8f77f53ef254efc5d96f1caa802fd"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerContracts.swift",
+      "sha256": "c6e875ebb83239fc5b6fb2ff38225abde15b073c511b9c1fe60397357cbf2f06"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "sha256": "224f0e58c581bd7c5544c8dfc269aa3871e8b945ef74892cdbe572576ed6125e"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Finalization/PackFinalizationAdapterV1.swift",
+      "sha256": "6c05b19fea070ee88e17b3347ae9b4bac7eadee409337e28eb8bc7d7548c793d"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Finalization/PackFinalizationRecoveryAdapterV1.swift",
+      "sha256": "8c1b45a1a3e7071ef26f72b5863d15b706ab8bdb0be6490545284add5e3fde8c"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/SnapshotValidatorV1.swift",
+      "sha256": "9bfd4fdc0e7b1361f86d1be92105fdc799c01a98f5b6d607dacb0b4b27126e17"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/WorklightPDFRendererV1.swift",
+      "sha256": "25c5c741219e819de4eecb0da9b3463959edfbcad7b67d0a7ddc5eabfe3e2c6e"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportRenderService.swift",
+      "sha256": "64125c92996420990803de8450689a5ee635a8aef53be89ee2828ea772d79326"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportRecoveryService.swift",
+      "sha256": "c5150355dec8f6577bbf50a8838e8ab78c64f7fd9df60388f710d9e3db83f946"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift",
+      "sha256": "2f107d9592e6b67a987fc1fde6f6e546a962f077f8b8d367da8c3f47d6ca4b16"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+      "sha256": "b4325edb83be386d048daafb313faaf47e67416834532c16f231c2aba314b67b"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift",
+      "sha256": "71e7ac7faa69744ba9427c5c4744928fafd2ea2563c3e4c400e86ccd4cccb298"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+      "sha256": "99de535bf7c4bbf19f89d13b1930e861d72c31ce38f60378625a1ec419dff86c"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift",
+      "sha256": "13082f5a3b7d791344819b0aedc7d2ab497bb83aabfb4511d01577761e7b81cc"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/OrphanFileCleanupService.swift",
+      "sha256": "0c288b725eafd3ac619a85e5b297160db98dc980d37bd9e5285ec66cb31c5739"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+      "sha256": "5b8437a332e80d149a2d85a336fd818066741333a10a90e0732e029a6009fe1a"
+    },
+    {
+      "path": "FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests.swift",
+      "sha256": "e2fa4825423289e02e6fd0d73c28621388333cfbbc1f18ba62aea2b4becf4e4f"
+    },
+    {
+      "path": "FieldEvidenceAppTests/Fixtures/V21/Integration/V21P03C08PackLifecycleIntegrationCorpusV1.json",
+      "sha256": "e137fc21f135dcaff70e3a0204886ae01bc94ce2d958a9126f1a1f8f1eb2ad0e"
+    }
+  ],
+  "title": "Workspace-scoped pack-driven commands/queries and runner/finalizer/report/backup/delete/recovery integration",
+  "verificationMode": "STATIC_ONLY",
+  "workspaceIsolation": {
+    "commandWorkspaceBindingRequired": true,
+    "crossWorkspaceReadsAllowed": false,
+    "crossWorkspaceWritesAllowed": false,
+    "queryWorkspaceBindingRequired": true,
+    "workspaceIDs": [
+      "00000000-0000-4000-8000-000000000001",
+      "00000000-0000-4000-8000-000000000002"
+    ]
+  }
+}

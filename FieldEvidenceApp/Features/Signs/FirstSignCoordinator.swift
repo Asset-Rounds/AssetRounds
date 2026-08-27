@@ -63,14 +63,25 @@ enum FirstSignCoordinatorError: Error, Equatable {
     case saveFailed
 }
 
+enum FirstSignCompatibilityPostureV1: String, Sendable {
+    case frozenS10CallersOnly = "FROZEN_S10_CALLERS_ONLY_EXPIRES_AFTER_ACCEPTED_S10_6_RECONCILIATION"
+}
+
 @MainActor
 final class FirstSignCoordinator: ObservableObject {
+    private enum MutationRoute {
+        case live(WorkspacePackageLifecycleDependenciesV1)
+        case expiringCompatibility(
+            WorkspaceWriterAdapterV1,
+            any ApplicationFileAuthorityV1,
+            FirstSignCompatibilityPostureV1
+        )
+    }
+
     private let modelContext: ModelContext
-    private let workspaceWriter: WorkspaceWriterV1?
-    private let mutationAdapter: WorkspaceWriterAdapterV1
+    private let mutationRoute: MutationRoute
     private let clock: any ApplicationClock
     private let idSource: any ApplicationIDSource
-    private let fileAuthority: any ApplicationFileAuthorityV1
     private let diagnosticsStore: DiagnosticsStore
     private let signPack: SignPack
     private let accessState: (@MainActor () -> DraftAccessNormalizedStateV1)?
@@ -78,19 +89,42 @@ final class FirstSignCoordinator: ObservableObject {
     init(
         modelContext: ModelContext,
         diagnosticsStore: DiagnosticsStore,
+        packageLifecycleDependencies: WorkspacePackageLifecycleDependenciesV1,
+        packageLifecycleProfile: WorkspacePackageLifecycleProfileV1,
+        accessState: (@MainActor () -> DraftAccessNormalizedStateV1)? = nil
+    ) throws {
+        guard try packageLifecycleDependencies.profileRegistry.resolve(
+            packageLifecycleProfile.release
+        ) == packageLifecycleProfile else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+        self.modelContext = modelContext
+        mutationRoute = .live(packageLifecycleDependencies)
+        self.clock = packageLifecycleDependencies.clock
+        self.idSource = packageLifecycleDependencies.idSource
+        self.diagnosticsStore = diagnosticsStore
+        self.signPack = packageLifecycleProfile.package
+        self.accessState = accessState
+    }
+
+    init(
+        modelContext: ModelContext,
+        diagnosticsStore: DiagnosticsStore,
         signPack: SignPack,
-        workspaceWriter: WorkspaceWriterV1? = nil,
         clock: any ApplicationClock = SystemApplicationClock(),
         idSource: any ApplicationIDSource = SystemApplicationIDSource(),
         fileAuthority: any ApplicationFileAuthorityV1 = SystemApplicationFileAuthorityV1(),
-        accessState: (@MainActor () -> DraftAccessNormalizedStateV1)? = nil
+        accessState: (@MainActor () -> DraftAccessNormalizedStateV1)? = nil,
+        compatibilityPosture: FirstSignCompatibilityPostureV1 = .frozenS10CallersOnly
     ) {
         self.modelContext = modelContext
-        self.workspaceWriter = workspaceWriter
-        self.mutationAdapter = WorkspaceWriterAdapterV1(modelContext: modelContext)
+        mutationRoute = .expiringCompatibility(
+            WorkspaceWriterAdapterV1(modelContext: modelContext),
+            fileAuthority,
+            compatibilityPosture
+        )
         self.clock = clock
         self.idSource = idSource
-        self.fileAuthority = fileAuthority
         self.diagnosticsStore = diagnosticsStore
         self.signPack = signPack
         self.accessState = accessState
@@ -256,38 +290,14 @@ final class FirstSignCoordinator: ObservableObject {
         _ command: WorkspaceCommandV1,
         occurredAt: Date
     ) throws {
-        let mutationID = try workspaceWriter?.makeMutationID()
-            ?? MutationIDV1(rawValue: idSource.makeID())
-        if let workspaceWriter {
-            let current = try workspaceWriter.currentRevision()
-            let targets: [WorkspaceEntityIdentityV1]
-            switch command {
-            case let .createFirstSign(value):
-                targets = try [
-                    WorkspaceEntityIdentityV1(kind: .site, id: value.siteID),
-                    WorkspaceEntityIdentityV1(kind: .asset, id: value.assetID),
-                ]
-            default:
+        switch mutationRoute {
+        case let .live(dependencies):
+            _ = try dependencies.writer.execute(command)
+        case let .expiringCompatibility(mutationAdapter, fileAuthority, posture):
+            guard posture == .frozenS10CallersOnly else {
                 throw WorkspaceMutationFailureV1.unsupportedCommand
             }
-            let known = Dictionary(
-                uniqueKeysWithValues: current.entityRevisions.map { ($0.identity, $0.revision) }
-            )
-            let scoped = try WorkspaceRevisionV1(
-                workspaceID: current.workspaceID,
-                generationID: current.generationID,
-                writerInstanceID: current.writerInstanceID,
-                revision: current.revision,
-                entityRevisions: targets.map {
-                    WorkspaceEntityRevisionV1(identity: $0, revision: known[$0, default: 0])
-                }
-            )
-            _ = try workspaceWriter.execute(WorkspaceMutationRequestV1(
-                mutationID: mutationID,
-                expectedRevision: WorkspaceExpectedRevisionV1(snapshot: scoped),
-                command: command
-            ))
-        } else {
+            let mutationID = try MutationIDV1(rawValue: idSource.makeID())
             let temporaryPath = try fileAuthority.temporaryRelativePath(
                 mutationID: mutationID,
                 component: command.kind.rawValue

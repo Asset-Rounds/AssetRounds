@@ -18,6 +18,15 @@ struct BackupValidationSummaryV1: Equatable, Sendable {
     let tombstonedSlotCount: Int
 }
 
+enum BackupPackageCompatibilityPostureV1: String, Sendable {
+    case frozenLegacyCallersOnly = "FROZEN_LEGACY_CALLERS_ONLY"
+}
+
+enum BackupPackageValidationRouteV1: Sendable {
+    case live(WorkspacePackageLifecycleProfileRegistryV1)
+    case expiringCompatibility(SignPack, BackupPackageCompatibilityPostureV1)
+}
+
 struct ValidatedV4BackupPackageV1: Equatable, Sendable {
     let stagedPackageURL: URL
     let manifest: V4BackupManifestV1
@@ -186,16 +195,37 @@ enum BackupPackageAnchoredFile {
 
 struct BackupPackageValidatorV1: Sendable {
     private let fileManager: FileManager
-    private let signPack: SignPack
+    private let profileRoute: BackupPackageValidationRouteV1
     private let limits: StreamingArchiveLimitsV1
+
+    init(
+        route: BackupPackageValidationRouteV1,
+        fileManager: FileManager = .default,
+        limits: StreamingArchiveLimitsV1 = .card17
+    ) {
+        self.fileManager = fileManager
+        self.profileRoute = route
+        self.limits = limits
+    }
+
+    init(
+        profileRegistry: WorkspacePackageLifecycleProfileRegistryV1,
+        fileManager: FileManager = .default,
+        limits: StreamingArchiveLimitsV1 = .card17
+    ) {
+        self.fileManager = fileManager
+        self.profileRoute = .live(profileRegistry)
+        self.limits = limits
+    }
 
     init(
         fileManager: FileManager = .default,
         signPack: SignPack = .illuminatedSignV1,
-        limits: StreamingArchiveLimitsV1 = .card17
+        limits: StreamingArchiveLimitsV1 = .card17,
+        compatibilityPosture: BackupPackageCompatibilityPostureV1 = .frozenLegacyCallersOnly
     ) {
         self.fileManager = fileManager
-        self.signPack = signPack
+        self.profileRoute = .expiringCompatibility(signPack, compatibilityPosture)
         self.limits = limits
     }
 
@@ -247,6 +277,22 @@ struct BackupPackageValidatorV1: Sendable {
 }
 
 private extension BackupPackageValidatorV1 {
+    func resolvedProfileRegistry() throws
+        -> WorkspacePackageLifecycleProfileRegistryV1 {
+        switch profileRoute {
+        case let .live(registry):
+            return registry
+        case let .expiringCompatibility(package, posture):
+            guard posture == .frozenLegacyCallersOnly else { throw invalid() }
+            do {
+                return try WorkspacePackageLifecycleCompatibilityV1
+                    .legacyV3Registry(package: package)
+            } catch {
+                throw invalid()
+            }
+        }
+    }
+
     func validatePackage(
         stagedPackageURL: URL,
         cancellation: StreamingArchiveCancellationV1
@@ -565,10 +611,99 @@ private extension BackupPackageValidatorV1 {
 }
 
 private extension BackupPackageValidatorV1 {
+    func releaseIdentity(
+        packageID: String,
+        schemaVersion: Int,
+        contentVersion: Int
+    ) throws -> PackageReleaseIdentityV1 {
+        do {
+            return try PackageReleaseIdentityV1(
+                packageID: packageID,
+                schemaVersion: schemaVersion,
+                contentVersion: contentVersion
+            )
+        } catch {
+            throw invalid()
+        }
+    }
+
+    func releaseIdentity(
+        for asset: V4BackupAssetDTO
+    ) throws -> PackageReleaseIdentityV1 {
+        try releaseIdentity(
+            packageID: asset.packID,
+            schemaVersion: asset.packSchemaVersion,
+            contentVersion: asset.packContentVersion
+        )
+    }
+
+    func releaseIdentity(
+        for record: V4BackupWorkflowRecordDTO
+    ) throws -> PackageReleaseIdentityV1 {
+        try releaseIdentity(
+            packageID: record.packID,
+            schemaVersion: record.packSchemaVersion,
+            contentVersion: record.packContentVersion
+        )
+    }
+
+    func profile(
+        packageID: String,
+        schemaVersion: Int,
+        contentVersion: Int
+    ) throws -> WorkspacePackageLifecycleProfileV1 {
+        do {
+            return try resolvedProfileRegistry().resolve(releaseIdentity(
+                packageID: packageID,
+                schemaVersion: schemaVersion,
+                contentVersion: contentVersion
+            ))
+        } catch {
+            throw invalid()
+        }
+    }
+
+    func profile(
+        _ value: V4BackupPackV1
+    ) throws -> WorkspacePackageLifecycleProfileV1 {
+        try profile(
+            packageID: value.id,
+            schemaVersion: value.schemaVersion,
+            contentVersion: value.contentVersion
+        )
+    }
+
+    func profile(
+        for asset: V4BackupAssetDTO
+    ) throws -> WorkspacePackageLifecycleProfileV1 {
+        try resolvedProfileRegistry().resolve(releaseIdentity(for: asset))
+    }
+
+    func profile(
+        for record: V4BackupWorkflowRecordDTO
+    ) throws -> WorkspacePackageLifecycleProfileV1 {
+        try resolvedProfileRegistry().resolve(releaseIdentity(for: record))
+    }
+
+    func outcomeProfile(
+        _ key: String?,
+        in stage: WorkspacePackageStageProfileV1
+    ) throws -> WorkspacePackageOutcomeProfileV1 {
+        guard let key,
+              let value = stage.outcomes.first(where: { $0.key == key }) else {
+            throw invalid()
+        }
+        return value
+    }
+
     func validateGraph(
         _ records: V4BackupRecordsV1,
         manifest: V4BackupManifestV1
     ) throws {
+        try KernelBackupRestoreRegistryV4.validate()
+        let kernelSchema = try KernelPersistenceV4Schema.descriptor()
+        guard kernelSchema.runtimePosture == .dormantStatic,
+              !kernelSchema.activationEnabled else { throw invalid() }
         try validateDeletionLedger(records, manifest: manifest)
         try validateObservationAndTime(records)
         let allIDs = records.sites.map(\.id) + records.assets.map(\.id)
@@ -582,7 +717,10 @@ private extension BackupPackageValidatorV1 {
         let issues = Dictionary(uniqueKeysWithValues: records.issues.map { ($0.id, $0) })
         let packets = Dictionary(uniqueKeysWithValues: records.packets.map { ($0.id, $0) })
         let reports = Dictionary(uniqueKeysWithValues: records.reports.map { ($0.id, $0) })
-        let exactPack = signPack
+        let declaredProfiles = try manifest.packs.map { try profile($0) }
+        guard Set(declaredProfiles.map(\.release)).count == declaredProfiles.count else {
+            throw invalid()
+        }
         guard records.sites.allSatisfy({ site in
                   site.schemaVersion == 1
                     && site.updatedAt >= site.createdAt
@@ -596,15 +734,6 @@ private extension BackupPackageValidatorV1 {
                         ) && TimeZone.knownTimeZoneIdentifiers.contains(value)
                     }) ?? true)
               }),
-              records.assets.allSatisfy({ asset in
-                  asset.schemaVersion == 1
-                    && asset.updatedAt >= asset.createdAt
-                    && validRequiredTrimmed(asset.label, maximum: .max)
-                    && sites[asset.siteID] != nil
-                    && asset.packID == exactPack.packID
-                    && asset.packSchemaVersion == exactPack.schemaVersion
-                    && asset.packContentVersion == exactPack.contentVersion
-              }),
               records.evidenceFiles.allSatisfy({ $0.schemaVersion == 1 }),
               records.issues.allSatisfy({ $0.schemaVersion == 1 }),
               records.packets.allSatisfy({ $0.schemaVersion == 1 }),
@@ -613,16 +742,27 @@ private extension BackupPackageValidatorV1 {
             throw invalid()
         }
 
+        for asset in records.assets {
+            _ = try profile(
+                packageID: asset.packID,
+                schemaVersion: asset.packSchemaVersion,
+                contentVersion: asset.packContentVersion
+            )
+            guard asset.schemaVersion == 1,
+                  asset.updatedAt >= asset.createdAt,
+                  validRequiredTrimmed(asset.label, maximum: .max),
+                  sites[asset.siteID] != nil else { throw invalid() }
+        }
+
         for record in records.workflowRecords {
-            guard assets[record.assetID] != nil,
+            guard let asset = assets[record.assetID] else { throw invalid() }
+            let lifecycle = try profile(for: record)
+            guard lifecycle.release == (try releaseIdentity(for: asset)),
                   let kind = WorkflowRevisionKind(rawValue: record.revisionKind),
                   WorkflowStage(rawValue: record.stage) != nil,
                   let state = WorkflowState(rawValue: record.state),
-                  record.packID == exactPack.packID,
-                  record.packSchemaVersion == exactPack.schemaVersion,
-                  record.packContentVersion == exactPack.contentVersion,
-                  record.pdfTemplateID == "field.evidence.pdf.worklight.v1",
-                  record.pdfTemplateVersion == 1,
+                  record.pdfTemplateID == lifecycle.pdfTemplate.id,
+                  record.pdfTemplateVersion == lifecycle.pdfTemplate.version,
                   record.parentRecordID.map({ workflow[$0]?.assetID == record.assetID }) ?? true,
                   record.issueID.map({ issues[$0]?.assetID == record.assetID }) ?? true else {
                 throw invalid()
@@ -634,6 +774,7 @@ private extension BackupPackageValidatorV1 {
                       record.outcomeKey == nil,
                       validDraftSemantics(
                           record,
+                          profile: lifecycle,
                           workflow: workflow,
                           issues: issues
                       ) else {
@@ -644,7 +785,7 @@ private extension BackupPackageValidatorV1 {
                       record.finalizationMutationID != nil,
                       record.outcomeKey != nil,
                       record.draftStepKey == nil,
-                      validCompletedSemantics(record),
+                      validCompletedSemantics(record, profile: lifecycle),
                       record.packetID.map({ packets[$0] != nil }) ?? true else {
                     throw invalid()
                 }
@@ -683,10 +824,12 @@ private extension BackupPackageValidatorV1 {
             throw invalid()
         }
 
-        let allowedPurposes = Set(exactPack.evidencePurposes.map(\.key))
         for evidence in records.evidenceFiles {
             let id = uuid(evidence.id)
-            guard let owner = workflow[evidence.recordID],
+            guard let owner = workflow[evidence.recordID] else { throw invalid() }
+            let lifecycle = try profile(for: owner)
+            let allowedPurposes = Set(lifecycle.package.evidencePurposes.map(\.key))
+            guard
                   owner.revisionKind == WorkflowRevisionKind.original.rawValue,
                   evidence.createdAt >= owner.startedAt,
                   owner.completedAt.map({ evidence.createdAt <= $0 }) ?? true,
@@ -702,42 +845,66 @@ private extension BackupPackageValidatorV1 {
         for record in records.workflowRecords {
             let owned = records.evidenceFiles.filter { $0.recordID == record.id }
             guard unique(owned.map(\.purposeKey)) else { throw invalid() }
+            let lifecycle = try profile(for: record)
             if record.state == WorkflowState.completed.rawValue {
+                let observed = Set(owned.map(\.purposeKey))
                 switch WorkflowStage(rawValue: record.stage) {
                 case .check, .recheck:
-                    let required = Set(["wide_context", "close_detail"])
-                    if record.outcomeKey == "could_not_verify" {
-                        guard Set(owned.map(\.purposeKey)).isSubset(of: required) else {
-                            throw invalid()
-                        }
+                    let stage = try lifecycle.stage(record.stage)
+                    let required = Set(lifecycle.evidencePurposeKeys(for: .captureRequired))
+                    let allowed = required.union(
+                        lifecycle.evidencePurposeKeys(for: .captureSupplementary)
+                    )
+                    guard observed.isSubset(of: allowed) else { throw invalid() }
+                    let outcome = try outcomeProfile(record.outcomeKey, in: stage)
+                    if outcome.role == .couldNotVerify {
+                        guard observed.isSubset(of: required) else { throw invalid() }
                     } else if record.revisionKind == WorkflowRevisionKind.original.rawValue {
-                        guard Set(owned.map(\.purposeKey)) == required else { throw invalid() }
+                        guard required.isSubset(of: observed) else { throw invalid() }
                     }
                 case .work:
-                    guard Set(owned.map(\.purposeKey)).isSubset(of: ["work_context"]),
-                          owned.count <= 1 else { throw invalid() }
+                    let allowed = Set(
+                        lifecycle.evidencePurposeKeys(for: .workSupplementary)
+                    )
+                    guard observed.isSubset(of: allowed) else { throw invalid() }
                 case nil:
                     throw invalid()
                 }
             } else if record.state == WorkflowState.draft.rawValue {
-                guard validDraftEvidence(record, owned: owned) else {
+                guard validDraftEvidence(
+                    record,
+                    profile: lifecycle,
+                    owned: owned
+                ) else {
                     throw invalid()
                 }
             }
         }
         for issue in records.issues {
-            guard assets[issue.assetID] != nil,
+            guard let asset = assets[issue.assetID] else { throw invalid() }
+            let lifecycle = try profile(for: asset)
+            let package = lifecycle.package
+            let openingRole = try lifecycle.stage(
+                workflow[issue.openedByRecordID]?.stage ?? ""
+            ).outcomes.first(where: {
+                $0.key == workflow[issue.openedByRecordID]?.outcomeKey
+            })?.role
+            guard
                   let opened = workflow[issue.openedByRecordID],
                   opened.assetID == issue.assetID,
-                  signPack.issueLabels.filter({
+                  package.issueLabels.filter({
                       $0.key == issue.labelKey
                         && $0.display == issue.labelDisplaySnapshot
                   }).count == 1,
-                  ((opened.outcomeKey == "visible_issue" && opened.issueID == issue.id)
-                    || opened.outcomeKey == "original_resolved_different_issue"),
+                  ((openingRole == .findingObserved && opened.issueID == issue.id)
+                    || openingRole == .originalResolvedDifferentFinding),
                   issue.updatedAt >= issue.createdAt,
                   IssueStatus(rawValue: issue.status) != nil,
-                  try validCurrentIssueState(issue, workflow: workflow) else {
+                  try validCurrentIssueState(
+                      issue,
+                      workflow: workflow,
+                      profile: lifecycle
+                  ) else {
                 throw invalid()
             }
         }
@@ -831,14 +998,16 @@ private extension BackupPackageValidatorV1 {
 
         let counted = records.packets.filter(\.evaluationCounted)
             .map(\.stableRootID).sorted { uuid($0) < uuid($1) }
-        let expectedPacks: [V4BackupPackV1] =
-            records.assets.isEmpty && records.workflowRecords.isEmpty
-            ? []
-            : [.init(
-                contentVersion: exactPack.contentVersion,
-                packID: exactPack.packID,
-                schemaVersion: exactPack.schemaVersion
-            )]
+        let expectedPacks = Set(
+            try records.assets.map { try releaseIdentity(for: $0) }
+                + records.workflowRecords.map { try releaseIdentity(for: $0) }
+        ).sorted().map {
+            V4BackupPackV1(
+                contentVersion: $0.contentVersion,
+                packID: $0.packageID,
+                schemaVersion: $0.schemaVersion
+            )
+        }
         guard unique(records.packets.map(\.stableRootID)),
               counted == manifest.consumedEvaluationRootIDs,
               manifest.packs == expectedPacks else { throw invalid() }
@@ -962,7 +1131,8 @@ private extension BackupPackageValidatorV1 {
 
     func validCurrentIssueState(
         _ issue: V4BackupIssueDTO,
-        workflow: [UUID: V4BackupWorkflowRecordDTO]
+        workflow: [UUID: V4BackupWorkflowRecordDTO],
+        profile: WorkspacePackageLifecycleProfileV1
     ) throws -> Bool {
         guard let opening = workflow[issue.openedByRecordID],
               opening.revisionKind == WorkflowRevisionKind.original.rawValue,
@@ -971,11 +1141,15 @@ private extension BackupPackageValidatorV1 {
               openingCompletedAt == issue.createdAt else {
             return false
         }
+        let openingOutcome = try outcomeProfile(
+            opening.outcomeKey,
+            in: profile.stage(opening.stage)
+        )
         let ordinaryOpening = opening.stage == WorkflowStage.check.rawValue
-            && opening.outcomeKey == "visible_issue"
+            && openingOutcome.role == .findingObserved
             && opening.issueID == issue.id
         let differentIssueOpening = opening.stage == WorkflowStage.recheck.rawValue
-            && opening.outcomeKey == "original_resolved_different_issue"
+            && openingOutcome.role == .originalResolvedDifferentFinding
             && opening.issueID != issue.id
         guard ordinaryOpening || differentIssueOpening else { return false }
 
@@ -1026,16 +1200,20 @@ private extension BackupPackageValidatorV1 {
                 guard expectedStatus == IssueStatus.recheckDue.rawValue else {
                     return false
                 }
-                switch record.outcomeKey {
-                case "resolved", "original_resolved_different_issue":
+                let role = try outcomeProfile(
+                    record.outcomeKey,
+                    in: profile.stage(record.stage)
+                ).role
+                switch role {
+                case .resolved, .originalResolvedDifferentFinding:
                     expectedStatus = IssueStatus.resolved.rawValue
                     expectedResolvedByRecordID = record.id
                     expectedUpdatedAt = completedAt
-                case "issue_still_visible":
+                case .findingStillPresent:
                     expectedStatus = IssueStatus.open.rawValue
                     expectedResolvedByRecordID = nil
                     expectedUpdatedAt = completedAt
-                case "could_not_verify":
+                case .couldNotVerify:
                     break
                 default:
                     return false
@@ -1131,6 +1309,7 @@ private extension BackupPackageValidatorV1 {
 private extension BackupPackageValidatorV1 {
     func validDraftSemantics(
         _ record: V4BackupWorkflowRecordDTO,
+        profile: WorkspacePackageLifecycleProfileV1,
         workflow: [UUID: V4BackupWorkflowRecordDTO],
         issues: [UUID: V4BackupIssueDTO]
     ) -> Bool {
@@ -1152,11 +1331,11 @@ private extension BackupPackageValidatorV1 {
         case .check:
             return record.parentRecordID == nil && record.issueID == nil
                 && validCaptureStep
-                && validFrozenTimeAndAcknowledgements(record)
+                && validFrozenTimeAndAcknowledgements(record, profile: profile)
         case .recheck:
             return record.parentRecordID != nil && record.issueID != nil
                 && validCaptureStep
-                && validFrozenTimeAndAcknowledgements(record)
+                && validFrozenTimeAndAcknowledgements(record, profile: profile)
                 && validDraftParentAuthority(
                     record,
                     workflow: workflow,
@@ -1166,6 +1345,9 @@ private extension BackupPackageValidatorV1 {
             return record.parentRecordID != nil && record.issueID != nil
                 && record.draftStepKey == nil
                 && hasNoAcknowledgements && hasNoTime
+                && profile.stages.contains(where: {
+                    $0.stageKey == WorkflowStage.work.rawValue
+                })
                 && validDraftParentAuthority(
                     record,
                     workflow: workflow,
@@ -1203,11 +1385,31 @@ private extension BackupPackageValidatorV1 {
     }
 
     func validFrozenTimeAndAcknowledgements(
-        _ record: V4BackupWorkflowRecordDTO
+        _ record: V4BackupWorkflowRecordDTO,
+        profile: WorkspacePackageLifecycleProfileV1
     ) -> Bool {
-        guard signPack.acknowledgements.count == 2,
-              signPack.acknowledgements[0].key == "after_dark",
-              signPack.acknowledgements[1].key == "safe_authorized_position",
+        let acknowledgements = profile.requiredAcknowledgementKeys.compactMap { key in
+            profile.package.acknowledgements.first(where: { $0.key == key })
+        }
+        let stored = [
+            (
+                record.afterDarkAcknowledgementKey,
+                record.afterDarkAcknowledgementCopy,
+                record.afterDarkAcknowledgementVersion,
+                record.afterDarkAcknowledgementAccepted
+            ),
+            (
+                record.safePositionAcknowledgementKey,
+                record.safePositionAcknowledgementCopy,
+                record.safePositionAcknowledgementVersion,
+                record.safePositionAcknowledgementAccepted
+            ),
+        ]
+        guard acknowledgements.count == profile.requiredAcknowledgementKeys.count,
+              stored.filter({ $0.0 != nil }).count == acknowledgements.count,
+              stored.filter({ $0.0 == nil }).allSatisfy({
+                  $0.1 == nil && $0.2 == nil && $0.3 == nil
+              }),
               let observedAtUTC = record.observedAtUTC,
               let timeZoneID = record.timeZoneID,
               observedAtUTC == record.startedAt,
@@ -1218,20 +1420,12 @@ private extension BackupPackageValidatorV1 {
               frozen.utcOffsetMinutes == record.utcOffsetMinutes,
               frozen.localDate == record.localDate,
               frozen.localTime == record.localTime,
-              record.afterDarkAcknowledgementKey
-                == signPack.acknowledgements[0].key,
-              record.afterDarkAcknowledgementCopy
-                == signPack.acknowledgements[0].copy,
-              record.afterDarkAcknowledgementVersion
-                == signPack.acknowledgements[0].version,
-              record.afterDarkAcknowledgementAccepted == true,
-              record.safePositionAcknowledgementKey
-                == signPack.acknowledgements[1].key,
-              record.safePositionAcknowledgementCopy
-                == signPack.acknowledgements[1].copy,
-              record.safePositionAcknowledgementVersion
-                == signPack.acknowledgements[1].version,
-              record.safePositionAcknowledgementAccepted == true else {
+              acknowledgements.allSatisfy({ expected in
+                  stored.filter({ row in
+                      row.0 == expected.key && row.1 == expected.copy
+                        && row.2 == expected.version && row.3 == true
+                  }).count == 1
+              }) else {
             return false
         }
         return true
@@ -1293,28 +1487,38 @@ private extension BackupPackageValidatorV1 {
 
     func validDraftEvidence(
         _ record: V4BackupWorkflowRecordDTO,
+        profile: WorkspacePackageLifecycleProfileV1,
         owned: [V4BackupEvidenceFileDTO]
     ) -> Bool {
         switch WorkflowStage(rawValue: record.stage) {
         case .work:
-            return record.draftStepKey == nil && owned.isEmpty
+            return profile.stages.contains(where: {
+                $0.stageKey == WorkflowStage.work.rawValue
+            }) && record.draftStepKey == nil && owned.isEmpty
         case .check, .recheck:
             guard let step = record.draftStepKey.flatMap({
                 WorkflowDraftStep(rawValue: $0)
             }) else { return false }
             let purposes = Set(owned.map(\.purposeKey))
+            let orderedRequired = profile.evidencePurposeKeys(for: .captureRequired)
+            let allowed = Set(
+                orderedRequired
+                    + profile.evidencePurposeKeys(for: .captureSupplementary)
+            )
             guard purposes.count == owned.count,
-                  purposes.isSubset(of: ["wide_context", "close_detail"]) else {
+                  purposes.isSubset(of: allowed) else {
                 return false
             }
             switch step {
             case .wide:
                 return owned.isEmpty
             case .close:
-                return purposes == ["wide_context"]
+                return orderedRequired.first.map { purposes == [$0] }
+                    ?? owned.isEmpty
             case .outcome:
-                return !purposes.contains("close_detail")
-                    || purposes.contains("wide_context")
+                guard orderedRequired.count > 1 else { return true }
+                return !purposes.contains(orderedRequired[1])
+                    || purposes.contains(orderedRequired[0])
             case .review:
                 return false
             }
@@ -1323,7 +1527,10 @@ private extension BackupPackageValidatorV1 {
         }
     }
 
-    func validCompletedSemantics(_ record: V4BackupWorkflowRecordDTO) -> Bool {
+    func validCompletedSemantics(
+        _ record: V4BackupWorkflowRecordDTO,
+        profile: WorkspacePackageLifecycleProfileV1
+    ) -> Bool {
         let hasNoAcknowledgements = acknowledgementPresence(record).allSatisfy { !$0 }
         let hasNoTime = timeFields(record).allSatisfy { !$0 }
         let hasAnyCNV = record.couldNotVerifyKey != nil
@@ -1332,12 +1539,16 @@ private extension BackupPackageValidatorV1 {
         let hasCompleteCNV = record.couldNotVerifyKey != nil
             && record.couldNotVerifyDisplaySnapshot != nil
             && record.couldNotVerifyRegistryVersion != nil
-        guard (record.outcomeKey == "could_not_verify") == hasCompleteCNV,
+        let stageProfile = try? profile.stage(record.stage)
+        let outcome = stageProfile.flatMap { stage in
+            stage.outcomes.first(where: { $0.key == record.outcomeKey })
+        }
+        guard (outcome?.role == .couldNotVerify) == hasCompleteCNV,
               hasCompleteCNV || !hasAnyCNV,
               validOptionalTrimmed(record.note, maximum: 1_000) else { return false }
         if hasCompleteCNV {
-            guard record.couldNotVerifyRegistryVersion == signPack.couldNotVerifyReasons.version,
-                  signPack.couldNotVerifyReasons.entries.contains(where: {
+            guard record.couldNotVerifyRegistryVersion == profile.package.couldNotVerifyReasons.version,
+                  profile.package.couldNotVerifyReasons.entries.contains(where: {
                       $0.key == record.couldNotVerifyKey
                         && $0.display == record.couldNotVerifyDisplaySnapshot
                   }) else { return false }
@@ -1345,23 +1556,22 @@ private extension BackupPackageValidatorV1 {
         switch WorkflowStage(rawValue: record.stage) {
         case .check:
             return record.parentRecordID == nil && record.packetID != nil
-                && ["no_visible_issue", "visible_issue", "could_not_verify"]
-                    .contains(record.outcomeKey ?? "")
-                && ((record.outcomeKey == "visible_issue") == (record.issueID != nil))
+                && outcome != nil
+                && ((outcome?.role == .findingObserved) == (record.issueID != nil))
                 && record.workPerformedLocalDate == nil && record.workDescription == nil
-                && validFrozenTimeAndAcknowledgements(record)
+                && validFrozenTimeAndAcknowledgements(record, profile: profile)
         case .recheck:
             return record.parentRecordID != nil && record.issueID != nil
                 && record.packetID != nil
-                && [
-                    "resolved", "issue_still_visible",
-                    "original_resolved_different_issue", "could_not_verify",
-                ].contains(record.outcomeKey ?? "")
+                && outcome != nil
                 && record.workPerformedLocalDate == nil && record.workDescription == nil
-                && validFrozenTimeAndAcknowledgements(record)
+                && validFrozenTimeAndAcknowledgements(record, profile: profile)
         case .work:
+            let workOutcome = profile.stages.first(where: {
+                $0.stageKey == record.stage
+            })?.outcomes.first(where: { $0.key == record.outcomeKey })
             return record.parentRecordID != nil && record.issueID != nil
-                && record.packetID == nil && record.outcomeKey == "work_recorded"
+                && record.packetID == nil && workOutcome?.role == .workRecorded
                 && record.workPerformedLocalDate.map(validLocalDate) == true
                 && validRequiredTrimmed(record.workDescription, maximum: 160)
                 && hasNoAcknowledgements && hasNoTime
@@ -1421,17 +1631,22 @@ private extension BackupPackageValidatorV1 {
         return formatter.string(from: date) == value
     }
 
-    func stageDisplay(_ value: String) -> String? {
-        if value == WorkflowStage.work.rawValue { return "Work" }
-        let matches = signPack.stageDisplays.filter { $0.key == value }
-        return matches.count == 1 ? matches[0].display : nil
+    func stageDisplay(
+        _ value: String,
+        profile: WorkspacePackageLifecycleProfileV1
+    ) -> String? {
+        (try? profile.stage(value))?.stageDisplay
     }
 
-    func outcomeDisplay(_ value: String?) -> String? {
+    func outcomeDisplay(
+        _ value: String?,
+        profile: WorkspacePackageLifecycleProfileV1
+    ) -> String? {
         guard let value else { return nil }
-        if value == "work_recorded" { return "Work recorded" }
-        let matches = signPack.outcomeDisplays.filter { $0.key == value }
-        return matches.count == 1 ? matches[0].display : nil
+        let matches = profile.stages.flatMap(\.outcomes).filter { $0.key == value }
+        guard let display = matches.first?.display,
+              matches.allSatisfy({ $0.display == display }) else { return nil }
+        return display
     }
 
     func frozenCouldNotVerify(
@@ -1468,6 +1683,7 @@ private extension BackupPackageValidatorV1 {
                   let packet = packets[report.packetID],
                   let asset = assets[source.assetID],
                   let site = sites[asset.siteID] else { throw invalid() }
+            let lifecycle = try profile(for: source)
             let snapshot = try ReportSnapshotEncoderV1().decode(bytes)
             let effectiveSourceID = source.evidenceSourceRecordID ?? source.id
             guard snapshot.reportID == report.id,
@@ -1481,26 +1697,26 @@ private extension BackupPackageValidatorV1 {
                   snapshot.outcome == source.outcomeKey,
                   snapshot.note == source.note,
                   snapshot.couldNotVerify == frozenCouldNotVerify(source),
-                  snapshot.pack.id == signPack.packID,
-                  snapshot.pack.schemaVersion == signPack.schemaVersion,
-                  snapshot.pack.contentVersion == signPack.contentVersion,
+                  snapshot.pack.id == lifecycle.release.packageID,
+                  snapshot.pack.schemaVersion == lifecycle.release.schemaVersion,
+                  snapshot.pack.contentVersion == lifecycle.release.contentVersion,
                   snapshot.pdfTemplate.id == source.pdfTemplateID,
                   snapshot.pdfTemplate.version == source.pdfTemplateVersion,
                   snapshot.asset.label == asset.label,
                   snapshot.site.label == site.label,
                   snapshot.site.address == site.address,
-                  snapshot.disclaimer == signPack.disclaimer,
-                  snapshot.display.assetSingular == signPack.nouns.asset.singular,
-                  snapshot.display.checkSingular == signPack.nouns.check.singular,
-                  snapshot.display.issueSingular == signPack.nouns.issue.singular,
-                  snapshot.display.stage == stageDisplay(source.stage),
-                  snapshot.display.outcome == outcomeDisplay(source.outcomeKey),
+                  snapshot.disclaimer == lifecycle.package.disclaimer,
+                  snapshot.display.assetSingular == lifecycle.package.nouns.asset.singular,
+                  snapshot.display.checkSingular == lifecycle.package.nouns.check.singular,
+                  snapshot.display.issueSingular == lifecycle.package.nouns.issue.singular,
+                  snapshot.display.stage == stageDisplay(source.stage, profile: lifecycle),
+                  snapshot.display.outcome == outcomeDisplay(source.outcomeKey, profile: lifecycle),
                   snapshot.timeContext.observedAtUTC == source.observedAtUTC,
                   snapshot.timeContext.timeZoneID == source.timeZoneID,
                   snapshot.timeContext.utcOffsetMinutes == source.utcOffsetMinutes,
                   snapshot.timeContext.localDate == source.localDate,
                   snapshot.timeContext.localTime == source.localTime else { throw invalid() }
-            try validateAcknowledgements(snapshot, source: source)
+            try validateAcknowledgements(snapshot, source: source, profile: lifecycle)
 
             guard let effective = workflow[effectiveSourceID],
                   let effectiveCompletedAt = effective.completedAt else {
@@ -1511,7 +1727,8 @@ private extension BackupPackageValidatorV1 {
                 effectiveSourceID: effectiveSourceID,
                 assetID: source.assetID,
                 workflow: workflow,
-                issues: issues
+                issues: issues,
+                profile: lifecycle
             )
             let expectedHistory = expectedIssues.isEmpty
                 ? []
@@ -1532,12 +1749,12 @@ private extension BackupPackageValidatorV1 {
 
             var orderedEvidence = records.evidenceFiles.filter {
                 $0.recordID == effectiveSourceID
-            }.sorted(by: evidenceOrder)
+            }.sorted { evidenceOrder($0, $1, profile: lifecycle) }
             var seenEvidenceIDs = Set(orderedEvidence.map(\.id))
             for (history, record) in zip(snapshot.history, expectedHistory) {
                 let historyEvidence = records.evidenceFiles.filter {
                     $0.recordID == record.id
-                }.sorted(by: evidenceOrder)
+                }.sorted { evidenceOrder($0, $1, profile: lifecycle) }
                 guard record.assetID == source.assetID,
                       record.state == WorkflowState.completed.rawValue,
                       record.completedAt == history.completedAt,
@@ -1547,8 +1764,8 @@ private extension BackupPackageValidatorV1 {
                       record.note == history.note,
                       record.workDescription == history.workDescription,
                       record.workPerformedLocalDate == history.workPerformedLocalDate,
-                      history.stageDisplay == stageDisplay(record.stage),
-                      history.outcomeDisplay == outcomeDisplay(record.outcomeKey),
+                      history.stageDisplay == stageDisplay(record.stage, profile: lifecycle),
+                      history.outcomeDisplay == outcomeDisplay(record.outcomeKey, profile: lifecycle),
                       history.evidenceIDs == historyEvidence.map(\.id),
                       history.issueIDs == (try historyIssueIDs(
                           record: record,
@@ -1576,7 +1793,7 @@ private extension BackupPackageValidatorV1 {
                       value.thumbnailSHA256 == row.thumbnailSHA256,
                       value.thumbnailRelativePath == row.thumbnailRelativePath,
                       value.createdAt == row.createdAt,
-                      signPack.evidencePurposes.first(where: { $0.key == row.purposeKey })?.display
+                      lifecycle.package.evidencePurposes.first(where: { $0.key == row.purposeKey })?.display
                         == value.purposeDisplay else { throw invalid() }
             }
         }
@@ -1662,27 +1879,28 @@ private extension BackupPackageValidatorV1 {
 
     func evidenceOrder(
         _ lhs: V4BackupEvidenceFileDTO,
-        _ rhs: V4BackupEvidenceFileDTO
+        _ rhs: V4BackupEvidenceFileDTO,
+        profile: WorkspacePackageLifecycleProfileV1
     ) -> Bool {
-        let left = purposeOrder(lhs.purposeKey)
-        let right = purposeOrder(rhs.purposeKey)
+        let left = purposeOrder(lhs.purposeKey, profile: profile)
+        let right = purposeOrder(rhs.purposeKey, profile: profile)
         return left == right ? uuid(lhs.id) < uuid(rhs.id) : left < right
     }
 
-    func purposeOrder(_ value: String) -> Int {
-        switch value {
-        case "wide_context": 0
-        case "close_detail": 1
-        case "work_context": 2
-        default: 3
-        }
+    func purposeOrder(
+        _ value: String,
+        profile: WorkspacePackageLifecycleProfileV1
+    ) -> Int {
+        profile.evidencePurposes.firstIndex(where: { $0.key == value })
+            ?? profile.evidencePurposes.count
     }
 
     func issueSnapshots(
         effectiveSourceID: UUID,
         assetID: UUID,
         workflow: [UUID: V4BackupWorkflowRecordDTO],
-        issues: [UUID: V4BackupIssueDTO]
+        issues: [UUID: V4BackupIssueDTO],
+        profile: WorkspacePackageLifecycleProfileV1
     ) throws -> [IssueSnapshotV1] {
         guard let effective = workflow[effectiveSourceID],
               effective.assetID == assetID,
@@ -1705,7 +1923,7 @@ private extension BackupPackageValidatorV1 {
                       $0.id == issue.openedByRecordID
                   }),
                   issue.createdAt == opening.completedAt,
-                  signPack.issueLabels.filter({
+                  profile.package.issueLabels.filter({
                       $0.key == issue.labelKey
                         && $0.display == issue.labelDisplaySnapshot
                   }).count == 1 else {
@@ -1722,16 +1940,20 @@ private extension BackupPackageValidatorV1 {
                     resolvedByRecordID = nil
                     updatedAt = completedAt
                 case .recheck:
-                    switch record.outcomeKey {
-                    case "resolved", "original_resolved_different_issue":
+                    let role = try outcomeProfile(
+                        record.outcomeKey,
+                        in: profile.stage(record.stage)
+                    ).role
+                    switch role {
+                    case .resolved, .originalResolvedDifferentFinding:
                         status = IssueStatus.resolved.rawValue
                         resolvedByRecordID = record.id
                         updatedAt = completedAt
-                    case "issue_still_visible":
+                    case .findingStillPresent:
                         status = IssueStatus.open.rawValue
                         resolvedByRecordID = nil
                         updatedAt = completedAt
-                    case "could_not_verify":
+                    case .couldNotVerify:
                         break
                     default:
                         throw invalid()
@@ -1786,9 +2008,14 @@ private extension BackupPackageValidatorV1 {
 
     func validateAcknowledgements(
         _ snapshot: ReportSnapshotV1,
-        source: V4BackupWorkflowRecordDTO
+        source: V4BackupWorkflowRecordDTO,
+        profile: WorkspacePackageLifecycleProfileV1
     ) throws {
-        guard snapshot.acknowledgements.count == signPack.acknowledgements.count else {
+        let acknowledgements = profile.requiredAcknowledgementKeys.compactMap { key in
+            profile.package.acknowledgements.first(where: { $0.key == key })
+        }
+        guard acknowledgements.count == profile.requiredAcknowledgementKeys.count,
+              snapshot.acknowledgements.count == acknowledgements.count else {
             throw invalid()
         }
         let stored = [
@@ -1807,8 +2034,10 @@ private extension BackupPackageValidatorV1 {
         ]
         for index in snapshot.acknowledgements.indices {
             let value = snapshot.acknowledgements[index]
-            let expected = signPack.acknowledgements[index]
-            let row = stored[index]
+            let expected = acknowledgements[index]
+            guard let row = stored.first(where: { $0.0 == expected.key }) else {
+                throw invalid()
+            }
             guard value.key == expected.key, value.copy == expected.copy,
                   value.version == expected.version, value.accepted,
                   row.0 == value.key, row.1 == value.copy,

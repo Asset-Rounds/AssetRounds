@@ -104,6 +104,57 @@ final class WholeSignDeletionFailureInjection: @unchecked Sendable {
 }
 
 @MainActor
+private enum WholeSignDeletionLifecycleRouteV1 {
+    case live(dependencies: WorkspacePackageLifecycleDependenciesV1)
+    case expiringCompatibility(package: SignPack, posture: String)
+
+    func validate(generationRootURL: URL) throws {
+        let root = generationRootURL.standardizedFileURL
+        switch self {
+        case .live(let dependencies):
+            guard dependencies.generationRootURL.standardizedFileURL == root,
+                  dependencies.generationRootURL.isFileURL,
+                  dependencies.generationID.uuidString.lowercased()
+                    == root.lastPathComponent else {
+                throw WholeSignDeletionServiceError.invalidGeneration
+            }
+        case .expiringCompatibility(let package, let posture):
+            guard posture == WorkspacePackageLifecycleCompatibilityV1.expiration else {
+                throw WholeSignDeletionServiceError.invalidGeneration
+            }
+            do {
+                let profile = try WorkspacePackageLifecycleCompatibilityV1
+                    .legacyV3Profile(package: package)
+                guard profile.release.matches(profile.package) else {
+                    throw WholeSignDeletionServiceError.invalidGeneration
+                }
+            } catch let error as WholeSignDeletionServiceError {
+                throw error
+            } catch {
+                throw WholeSignDeletionServiceError.invalidGeneration
+            }
+        }
+    }
+
+    func compatibilityProfile() throws -> WorkspacePackageLifecycleProfileV1 {
+        switch self {
+        case .live:
+            throw WholeSignDeletionServiceError.graphInvalid
+        case .expiringCompatibility(let package, let posture):
+            guard posture == WorkspacePackageLifecycleCompatibilityV1.expiration else {
+                throw WholeSignDeletionServiceError.graphInvalid
+            }
+            do {
+                return try WorkspacePackageLifecycleCompatibilityV1
+                    .legacyV3Profile(package: package)
+            } catch {
+                throw WholeSignDeletionServiceError.graphInvalid
+            }
+        }
+    }
+}
+
+@MainActor
 final class WholeSignDeletionService {
     private static let maximumSnapshotByteCount = 32 * 1_024 * 1_024
     private static let maximumPDFByteCount = 128 * 1_024 * 1_024
@@ -119,14 +170,56 @@ final class WholeSignDeletionService {
     private let now: () -> Date
     private let makeUUID: () -> UUID
     private let failureInjection: WholeSignDeletionFailureInjection?
+    private let lifecycleRoute: WholeSignDeletionLifecycleRouteV1
 
-    init(
+    convenience init(
         modelContext: ModelContext,
         generationRootURL: URL,
         fileManager: FileManager = .default,
         now: @escaping () -> Date = Date.init,
         makeUUID: @escaping () -> UUID = UUID.init,
+        failureInjection: WholeSignDeletionFailureInjection? = nil,
+        signPack: SignPack = .illuminatedSignV1
+    ) {
+        self.init(
+            modelContext: modelContext,
+            generationRootURL: generationRootURL,
+            fileManager: fileManager,
+            now: now,
+            makeUUID: makeUUID,
+            failureInjection: failureInjection,
+            lifecycleRoute: .expiringCompatibility(
+                package: signPack,
+                posture: WorkspacePackageLifecycleCompatibilityV1.expiration
+            )
+        )
+    }
+
+    convenience init(
+        modelContext: ModelContext,
+        lifecycleDependencies dependencies: WorkspacePackageLifecycleDependenciesV1,
+        fileManager: FileManager = .default,
         failureInjection: WholeSignDeletionFailureInjection? = nil
+    ) {
+        self.init(
+            modelContext: modelContext,
+            generationRootURL: dependencies.generationRootURL,
+            fileManager: fileManager,
+            now: dependencies.clock.now,
+            makeUUID: dependencies.idSource.makeID,
+            failureInjection: failureInjection,
+            lifecycleRoute: .live(dependencies: dependencies)
+        )
+    }
+
+    private init(
+        modelContext: ModelContext,
+        generationRootURL: URL,
+        fileManager: FileManager = .default,
+        now: @escaping () -> Date = Date.init,
+        makeUUID: @escaping () -> UUID = UUID.init,
+        failureInjection: WholeSignDeletionFailureInjection? = nil,
+        lifecycleRoute: WholeSignDeletionLifecycleRouteV1
     ) {
         self.modelContext = modelContext
         ledgerStore = DeletionLedgerStore(context: modelContext)
@@ -134,6 +227,7 @@ final class WholeSignDeletionService {
         self.now = now
         self.makeUUID = makeUUID
         self.failureInjection = failureInjection
+        self.lifecycleRoute = lifecycleRoute
 
         let root = generationRootURL.standardizedFileURL
         let generations = root.deletingLastPathComponent()
@@ -221,6 +315,7 @@ final class WholeSignDeletionService {
         let frozenMutationHistory = try mutationHistorySnapshot()
 
         let rows = try fetchRows()
+        _ = try lifecycleProfile(for: assetID, rows: rows)
         let deletionID = makeUUID()
         let deletedAt = now()
         let input = makeRuleInput(
@@ -253,8 +348,15 @@ final class WholeSignDeletionService {
             siteIDToDelete: rulePlan.siteIDToDelete,
             workflowRecordIDs: rulePlan.workflowRecordIDs
         )
+        if case .live = lifecycleRoute {
+            try validateKernelDeletionMappings()
+            try validateDeleteCommand(for: plan)
+        }
         try requireLedgerEntriesUnseen(plan.intent)
-        try validateOwnedFiles(plan: plan, rows: rows)
+        try validateOwnedFiles(
+            plan: plan,
+            rows: rows
+        )
         try journal.create(plan.intent)
         try inject(.preparedJournal)
 
@@ -321,6 +423,11 @@ final class WholeSignDeletionService {
         guard let site = rows.sites.first(where: { $0.id == siteID }) else {
             throw WholeSignDeletionServiceError.graphInvalid
         }
+        _ = try packageProfiles(
+            for: rows.assets.filter { $0.siteID == siteID }.map(\.id),
+            rows: rows,
+            additional: [try WorkspaceEntityIdentityV1(kind: .site, id: siteID)]
+        )
         do {
             return try WholeSignDeletionRule.makeExplicitSiteDeletionPreview(
                 try explicitSiteInput(
@@ -368,8 +475,20 @@ final class WholeSignDeletionService {
         guard current == preview else {
             throw WholeSignDeletionServiceError.graphInvalid
         }
+        _ = try packageProfiles(
+            for: preview.assetPlans.map(\.assetID),
+            rows: rows,
+            additional: [try WorkspaceEntityIdentityV1(kind: .site, id: preview.siteID)]
+        )
+        if case .live = lifecycleRoute {
+            try validateKernelDeletionMappings()
+            try validateDeleteSiteCommand(for: preview)
+        }
         for plan in preview.assetPlans {
-            try validateOwnedFiles(plan: plan, rows: rows)
+            try validateOwnedFiles(
+                plan: plan,
+                rows: rows
+            )
         }
         try requireLedgerIdentitiesUnseen(preview.ledgerEntries.map(\.identity))
         let packetStates = Dictionary(uniqueKeysWithValues: rows.packets.map {
@@ -442,11 +561,18 @@ final class WholeSignDeletionService {
             guard intent.generationID == generationID else {
                 throw WholeSignDeletionServiceError.journalInvalid
             }
+            if case .live = lifecycleRoute {
+                try validateKernelDeletionMappings()
+            }
             let rows = try fetchRows()
             if rows.assets.contains(where: { $0.id == intent.assetID }) {
+                _ = try lifecycleProfile(for: intent.assetID, rows: rows)
                 if intent.schemaVersion == 1 {
                     guard intent.phase == .prepared,
-                          try legacyPreparedIntentMatches(intent, rows: rows) else {
+                          try legacyPreparedIntentMatches(
+                              intent,
+                              rows: rows
+                          ) else {
                         throw WholeSignDeletionServiceError.journalInvalid
                     }
                     try journal.remove(intent)
@@ -454,8 +580,14 @@ final class WholeSignDeletionService {
                     continue
                 }
                 guard intent.phase == .prepared,
-                      let plan = try preparedPlan(intent, rows: rows) else {
+                      let plan = try preparedPlan(
+                          intent,
+                          rows: rows
+                      ) else {
                     throw WholeSignDeletionServiceError.journalInvalid
+                }
+                if case .live = lifecycleRoute {
+                    try validateDeleteCommand(for: plan)
                 }
                 try requireLedgerEntriesUnseen(intent)
                 let packetStates = Dictionary(uniqueKeysWithValues: rows.packets.map {
@@ -508,6 +640,7 @@ final class WholeSignDeletionService {
     }
 
     private func requireAuthority() throws {
+        try lifecycleRoute.validate(generationRootURL: generationRootURL)
         guard files.isValid, journal.isValid,
               files.generationID == generationID else {
             throw WholeSignDeletionServiceError.invalidGeneration
@@ -613,6 +746,259 @@ final class WholeSignDeletionService {
 }
 
 private extension WholeSignDeletionService {
+    func lifecycleProfile(
+        for assetID: UUID,
+        rows: Rows
+    ) throws -> WorkspacePackageLifecycleProfileV1 {
+        switch lifecycleRoute {
+        case .live:
+            guard let profile = try packageProfiles(
+                for: [assetID],
+                rows: rows,
+                additional: []
+            )[assetID] else {
+                throw WholeSignDeletionServiceError.graphInvalid
+            }
+            return profile
+        case .expiringCompatibility:
+            return try lifecycleRoute.compatibilityProfile()
+        }
+    }
+
+    func packageProfiles(
+        for assetIDs: [UUID],
+        rows: Rows,
+        additional: [WorkspaceEntityIdentityV1]
+    ) throws -> [UUID: WorkspacePackageLifecycleProfileV1] {
+        guard case let .live(dependencies) = lifecycleRoute else { return [:] }
+        guard Set(assetIDs).count == assetIDs.count,
+              assetIDs.allSatisfy({ assetID in
+                  rows.assets.contains(where: { asset in asset.id == assetID })
+              }) else {
+            throw WholeSignDeletionServiceError.graphInvalid
+        }
+        let sortedAssetIDs = assetIDs.sorted { $0.uuidString < $1.uuidString }
+        let assetIdentities = try sortedAssetIDs.map {
+            try WorkspaceEntityIdentityV1(kind: .asset, id: $0)
+        }
+        let result = try packageLifecycleQuery(
+            operation: .delete,
+            identities: assetIdentities + additional,
+            requireAllExisting: true
+        )
+        let bindings = Dictionary(
+            uniqueKeysWithValues: result.packageBindings.map { ($0.assetID, $0) }
+        )
+        guard Set(bindings.keys) == Set(sortedAssetIDs) else {
+            throw WholeSignDeletionServiceError.graphInvalid
+        }
+
+        var profiles: [UUID: WorkspacePackageLifecycleProfileV1] = [:]
+        for assetID in sortedAssetIDs {
+            guard let asset = rows.assets.first(where: { $0.id == assetID }),
+                  let binding = bindings[assetID],
+                  binding.packageID == asset.packID,
+                  binding.packageSchemaVersion == asset.packSchemaVersion,
+                  binding.packageContentVersion == asset.packContentVersion else {
+                throw WholeSignDeletionServiceError.graphInvalid
+            }
+            do {
+                let release = try PackageReleaseIdentityV1(
+                    packageID: binding.packageID,
+                    schemaVersion: binding.packageSchemaVersion,
+                    contentVersion: binding.packageContentVersion
+                )
+                profiles[assetID] = try dependencies.profileRegistry.resolve(release)
+            } catch {
+                // Unknown package releases are not implicitly assigned to the
+                // shipping pack. They fail closed at the package boundary.
+                throw WholeSignDeletionServiceError.graphInvalid
+            }
+        }
+        return profiles
+    }
+
+    func packageLifecycleQuery(
+        operation: WorkspacePackageLifecycleOperationV1,
+        identities: [WorkspaceEntityIdentityV1],
+        requireAllExisting: Bool
+    ) throws -> WorkspacePackageLifecycleQueryResultV1 {
+        guard case let .live(dependencies) = lifecycleRoute else {
+            throw WholeSignDeletionServiceError.graphInvalid
+        }
+        guard dependencies.generationID == generationID,
+              dependencies.generationRootURL.standardizedFileURL == generationRootURL,
+              dependencies.generationRootURL.isFileURL else {
+            throw WholeSignDeletionServiceError.invalidGeneration
+        }
+        do {
+            let request = try WorkspacePackageLifecycleQueryRequestV1(
+                workspaceID: dependencies.workspaceID,
+                generationID: dependencies.generationID,
+                operation: operation,
+                identities: identities
+            )
+            let result = try dependencies.queryClient.query(request)
+            let expected = Set(request.identities)
+            guard result.workspaceID == dependencies.workspaceID,
+                  result.generationID == generationID,
+                  result.operation == operation,
+                  result.revision.workspaceID == dependencies.workspaceID,
+                  result.revision.generationID == generationID,
+                  Set(result.existingIdentities).isSubset(of: expected),
+                  !requireAllExisting
+                    || Set(result.existingIdentities) == expected,
+                  try dependencies.queryClient.currentRevision() == result.revision else {
+                throw WholeSignDeletionServiceError.graphInvalid
+            }
+            return result
+        } catch let error as WholeSignDeletionServiceError {
+            throw error
+        } catch {
+            throw WholeSignDeletionServiceError.graphInvalid
+        }
+    }
+
+    func validateDeleteCommand(for plan: WholeSignDeletionPlan) throws {
+        guard case let .live(dependencies) = lifecycleRoute else { return }
+        let identity = try WorkspaceEntityIdentityV1(kind: .asset, id: plan.assetID)
+        let scope = try packageLifecycleQuery(
+            operation: .delete,
+            identities: [identity],
+            requireAllExisting: true
+        )
+        let command = WorkspaceCommandV1.deleteAsset(
+            DeleteAssetMutationV1(
+                deletionID: plan.intent.deletionID,
+                assetID: plan.assetID,
+                planDigest: try deletionPlanDigest(plan.intent)
+            )
+        )
+        let request = WorkspaceMutationRequestV1(
+            mutationID: try MutationIDV1(rawValue: plan.intent.deletionID),
+            expectedRevision: WorkspaceExpectedRevisionV1(snapshot: scope.revision),
+            command: command
+        )
+        guard request.command.kind == .deleteAsset,
+              case let .deleteAsset(value) = request.command,
+              value.assetID == plan.assetID,
+              value.deletionID == plan.intent.deletionID,
+              Self.isSHA256(value.planDigest),
+              scope.existingIdentities == [identity] else {
+            throw WholeSignDeletionServiceError.graphInvalid
+        }
+        // The adapter remains the owner of command application. This request
+        // is the immutable command/query identity checked before the legacy
+        // deletion journal performs its effect.
+        _ = dependencies.writer
+    }
+
+    func validateDeleteSiteCommand(
+        for preview: ExplicitSiteDeletionPreviewV1
+    ) throws {
+        guard case let .live(dependencies) = lifecycleRoute else { return }
+        let identities = try [
+            WorkspaceEntityIdentityV1(kind: .site, id: preview.siteID),
+        ] + preview.assetPlans.map {
+            try WorkspaceEntityIdentityV1(kind: .asset, id: $0.assetID)
+        }
+        let scope = try packageLifecycleQuery(
+            operation: .delete,
+            identities: identities,
+            requireAllExisting: true
+        )
+        let command = WorkspaceCommandV1.deleteSite(
+            DeleteSiteMutationV1(
+                deletionID: preview.deletionID,
+                siteID: preview.siteID,
+                planDigest: try deletionSitePlanDigest(preview)
+            )
+        )
+        let request = WorkspaceMutationRequestV1(
+            mutationID: try MutationIDV1(rawValue: preview.deletionID),
+            expectedRevision: WorkspaceExpectedRevisionV1(snapshot: scope.revision),
+            command: command
+        )
+        guard request.command.kind == .deleteSite,
+              case let .deleteSite(value) = request.command,
+              value.siteID == preview.siteID,
+              value.deletionID == preview.deletionID,
+              Self.isSHA256(value.planDigest) else {
+            throw WholeSignDeletionServiceError.graphInvalid
+        }
+        _ = dependencies.writer
+    }
+
+    func deletionPlanDigest(_ intent: DeletionIntentV1) throws -> String {
+        sha256(try DeletionIntentEncoderV1().encode(intent).data)
+    }
+
+    func deletionSitePlanDigest(
+        _ preview: ExplicitSiteDeletionPreviewV1
+    ) throws -> String {
+        var components = [
+            preview.siteID.uuidString.lowercased(),
+            preview.generationID.uuidString.lowercased(),
+            preview.deletionID.uuidString.lowercased(),
+        ]
+        for plan in preview.assetPlans.sorted(by: { $0.assetID.uuidString < $1.assetID.uuidString }) {
+            components.append(
+                try DeletionIntentEncoderV1().encode(plan.intent).data.base64EncodedString()
+            )
+        }
+        components.append(contentsOf: preview.ledgerEntries.map { $0.identity.typedID }.sorted())
+        return sha256(Data(components.map { "\($0.count):\($0)" }.joined().utf8))
+    }
+
+    static func isSHA256(_ value: String) -> Bool {
+        value.count == 64 && value.unicodeScalars.allSatisfy {
+            (48...57).contains(Int($0.value)) || (97...102).contains(Int($0.value))
+        }
+    }
+
+    func validateKernelDeletionMappings() throws {
+        do {
+            for kind in DeletionRecordKindV2.allCases {
+                let registration = try KernelDeletionEraseRegistryV4.registration(
+                    for: kernelKind(for: kind)
+                )
+                guard !registration.clearsTombstonesOnDelete else {
+                    throw WholeSignDeletionServiceError.graphInvalid
+                }
+                if kind == .packet {
+                    guard registration.deletion == .tombstonePreservingHistory,
+                          registration.clearsTombstonesOnErase else {
+                        throw WholeSignDeletionServiceError.graphInvalid
+                    }
+                }
+            }
+            let ledger = try KernelDeletionEraseRegistryV4.registration(
+                for: .deletionLedgerRow
+            )
+            guard ledger.deletion == .preserveUntilErase,
+                  !ledger.clearsTombstonesOnDelete,
+                  ledger.clearsTombstonesOnErase else {
+                throw WholeSignDeletionServiceError.graphInvalid
+            }
+        } catch let error as WholeSignDeletionServiceError {
+            throw error
+        } catch {
+            throw WholeSignDeletionServiceError.graphInvalid
+        }
+    }
+
+    func kernelKind(for kind: DeletionRecordKindV2) -> KernelPersistenceV4RecordKind {
+        switch kind {
+        case .site: .site
+        case .asset: .asset
+        case .workflowRecord: .workflowRecord
+        case .evidenceFile: .evidenceFile
+        case .issue: .issue
+        case .packet: .packet
+        case .report: .report
+        }
+    }
+
     func mutationHistoryAuthorityMatches(
         _ before: MutationHistorySnapshotV1?,
         _ after: MutationHistorySnapshotV1?
@@ -942,15 +1328,34 @@ private extension WholeSignDeletionService {
         )
     }
 
-    func validateOwnedFiles(plan: WholeSignDeletionPlan, rows: Rows) throws {
+    func validateOwnedFiles(
+        plan: WholeSignDeletionPlan,
+        rows: Rows
+    ) throws {
         if !plan.reportIDs.isEmpty {
             let coordinator: ReportDeliveryCoordinator
             do {
-                coordinator = try ReportDeliveryCoordinator(
-                    modelContext: modelContext,
-                    generationRootURL: generationRootURL,
-                    signPack: .illuminatedSignV1
+                let packageProfile = try lifecycleProfile(
+                    for: plan.assetID,
+                    rows: rows
                 )
+                switch lifecycleRoute {
+                case .live:
+                    coordinator = try ReportDeliveryCoordinator(
+                        modelContext: modelContext,
+                        generationRootURL: generationRootURL,
+                        signPack: packageProfile.package
+                    )
+                case .expiringCompatibility:
+                    // Legacy XCTest stores predate the package dependency
+                    // boundary. The explicit compatibility route resolves
+                    // the requested package's legacy V3 profile.
+                    coordinator = try ReportDeliveryCoordinator(
+                        modelContext: modelContext,
+                        generationRootURL: generationRootURL,
+                        signPack: packageProfile.package
+                    )
+                }
                 for reportID in plan.reportIDs {
                     try coordinator.validateRecoveryAuthority(id: reportID)
                 }
@@ -1076,7 +1481,13 @@ private extension WholeSignDeletionService {
         )
         guard let plan = try? WholeSignDeletionRule.makePlan(input),
               plan.intent == intent else { return nil }
-        try validateOwnedFiles(plan: plan, rows: rows)
+        if case .live = lifecycleRoute {
+            try validateDeleteCommand(for: plan)
+        }
+        try validateOwnedFiles(
+            plan: plan,
+            rows: rows
+        )
         return plan
     }
 
@@ -1105,7 +1516,13 @@ private extension WholeSignDeletionService {
             schemaVersion: 1
         )
         guard legacy == intent else { return false }
-        try validateOwnedFiles(plan: plan, rows: rows)
+        if case .live = lifecycleRoute {
+            try validateDeleteCommand(for: plan)
+        }
+        try validateOwnedFiles(
+            plan: plan,
+            rows: rows
+        )
         return true
     }
 

@@ -77,6 +77,8 @@ final class ReportDeliveryCoordinator {
     private let generationRootURL: URL
     private let diagnosticsStore: DiagnosticsStore?
     private let signPack: SignPack
+    private let lifecycleProfile: WorkspacePackageLifecycleProfileV1
+    private let lifecycleRoute: ReportingPackageLifecycleRouteV1
     private let renderService: ReportRenderService
     private let finalizationStoreFailureInjection: FinalizationIntentStoreFailureInjection?
     private let finalizationServiceFailureInjection: FinalizationServiceFailureInjection?
@@ -84,7 +86,7 @@ final class ReportDeliveryCoordinator {
     private let rootIdentity: ReportPDFAnchoredFile.RootIdentity
     private var receiptAttempts: Set<UUID> = []
 
-    init(
+    convenience init(
         modelContext: ModelContext,
         generationRootURL: URL,
         diagnosticsStore: DiagnosticsStore? = nil,
@@ -95,7 +97,66 @@ final class ReportDeliveryCoordinator {
         finalizationServiceOperationBarrier: FinalizationServiceOperationBarrier? = nil,
         expectedRootIdentity: ReportPDFAnchoredFile.RootIdentity? = nil
     ) throws {
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(
+            package: signPack
+        )
+        try self.init(
+            modelContext: modelContext,
+            generationRootURL: generationRootURL,
+            diagnosticsStore: diagnosticsStore,
+            lifecycleRoute: .expiringCompatibility(
+                profile: profile,
+                posture: WorkspacePackageLifecycleCompatibilityV1.expiration
+            ),
+            renderFailureInjection: renderFailureInjection,
+            finalizationStoreFailureInjection: finalizationStoreFailureInjection,
+            finalizationServiceFailureInjection: finalizationServiceFailureInjection,
+            finalizationServiceOperationBarrier: finalizationServiceOperationBarrier,
+            expectedRootIdentity: expectedRootIdentity
+        )
+    }
+
+    convenience init(
+        modelContext: ModelContext,
+        lifecycleDependencies: WorkspacePackageLifecycleDependenciesV1,
+        lifecycleProfile: WorkspacePackageLifecycleProfileV1,
+        diagnosticsStore: DiagnosticsStore? = nil,
+        renderFailureInjection: ReportRenderFailureInjection? = nil,
+        finalizationStoreFailureInjection: FinalizationIntentStoreFailureInjection? = nil,
+        finalizationServiceFailureInjection: FinalizationServiceFailureInjection? = nil,
+        finalizationServiceOperationBarrier: FinalizationServiceOperationBarrier? = nil,
+        expectedRootIdentity: ReportPDFAnchoredFile.RootIdentity? = nil
+    ) throws {
+        try self.init(
+            modelContext: modelContext,
+            generationRootURL: lifecycleDependencies.generationRootURL,
+            diagnosticsStore: diagnosticsStore,
+            lifecycleRoute: .live(
+                dependencies: lifecycleDependencies,
+                profile: lifecycleProfile
+            ),
+            renderFailureInjection: renderFailureInjection,
+            finalizationStoreFailureInjection: finalizationStoreFailureInjection,
+            finalizationServiceFailureInjection: finalizationServiceFailureInjection,
+            finalizationServiceOperationBarrier: finalizationServiceOperationBarrier,
+            expectedRootIdentity: expectedRootIdentity
+        )
+    }
+
+    private init(
+        modelContext: ModelContext,
+        generationRootURL: URL,
+        diagnosticsStore: DiagnosticsStore?,
+        lifecycleRoute: ReportingPackageLifecycleRouteV1,
+        renderFailureInjection: ReportRenderFailureInjection?,
+        finalizationStoreFailureInjection: FinalizationIntentStoreFailureInjection?,
+        finalizationServiceFailureInjection: FinalizationServiceFailureInjection?,
+        finalizationServiceOperationBarrier: FinalizationServiceOperationBarrier?,
+        expectedRootIdentity: ReportPDFAnchoredFile.RootIdentity?
+    ) throws {
         let root = generationRootURL.standardizedFileURL
+        try lifecycleRoute.validate(generationRootURL: root)
+        let lifecycleProfile = lifecycleRoute.profile
         guard generationRootURL.isFileURL,
               root.deletingLastPathComponent().lastPathComponent == "generations",
               root.deletingLastPathComponent().deletingLastPathComponent()
@@ -111,12 +172,22 @@ final class ReportDeliveryCoordinator {
             }
             let capturedRootIdentity = expectedRootIdentity ?? observedRootIdentity
             self.rootIdentity = capturedRootIdentity
-            self.renderService = try ReportRenderService(
-                modelContext: modelContext,
-                generationRootURL: root,
-                signPack: signPack,
-                failureInjection: renderFailureInjection
-            )
+            switch lifecycleRoute {
+            case .live(let lifecycleDependencies, _):
+                self.renderService = try ReportRenderService(
+                    modelContext: modelContext,
+                    lifecycleDependencies: lifecycleDependencies,
+                    lifecycleProfile: lifecycleProfile,
+                    failureInjection: renderFailureInjection
+                )
+            case .expiringCompatibility:
+                self.renderService = try ReportRenderService(
+                    modelContext: modelContext,
+                    generationRootURL: root,
+                    signPack: lifecycleProfile.package,
+                    failureInjection: renderFailureInjection
+                )
+            }
             guard try ReportPDFAnchoredFile.rootIdentity(at: root)
                     == capturedRootIdentity else {
                 throw ReportDeliveryCoordinatorError.invalidGeneration
@@ -127,7 +198,9 @@ final class ReportDeliveryCoordinator {
         self.modelContext = modelContext
         self.generationRootURL = root
         self.diagnosticsStore = diagnosticsStore
-        self.signPack = signPack
+        self.signPack = lifecycleProfile.package
+        self.lifecycleProfile = lifecycleProfile
+        self.lifecycleRoute = lifecycleRoute
         self.finalizationStoreFailureInjection = finalizationStoreFailureInjection
         self.finalizationServiceFailureInjection = finalizationServiceFailureInjection
         self.finalizationServiceOperationBarrier = finalizationServiceOperationBarrier
@@ -785,7 +858,8 @@ final class ReportDeliveryCoordinator {
         do {
             return try ReadyReportAuthorityValidator(
                 modelContext: modelContext,
-                signPack: signPack,
+                lifecycleProfile: lifecycleProfile,
+                lifecycleRoute: lifecycleRoute,
                 anchoredRead: anchoredRead(relativePath:)
             ).validate(
                 report: report,
@@ -1139,20 +1213,23 @@ private struct ReadyReportAuthorityValidation: Sendable {
 }
 @MainActor
 private struct ReadyReportAuthorityValidator {
-    private static let templateID = "field.evidence.pdf.worklight.v1"
-
     private let modelContext: ModelContext
     private let signPack: SignPack
+    private let lifecycleProfile: WorkspacePackageLifecycleProfileV1
+    private let lifecycleRoute: ReportingPackageLifecycleRouteV1
     private let anchoredRead: @MainActor (String) throws -> Data
     private let mediaValidator = MediaNormalizerV1()
 
     init(
         modelContext: ModelContext,
-        signPack: SignPack,
+        lifecycleProfile: WorkspacePackageLifecycleProfileV1,
+        lifecycleRoute: ReportingPackageLifecycleRouteV1,
         anchoredRead: @escaping @MainActor (String) throws -> Data
     ) {
         self.modelContext = modelContext
-        self.signPack = signPack
+        self.signPack = lifecycleProfile.package
+        self.lifecycleProfile = lifecycleProfile
+        self.lifecycleRoute = lifecycleRoute
         self.anchoredRead = anchoredRead
     }
 
@@ -1214,8 +1291,7 @@ private struct ReadyReportAuthorityValidator {
               snapshot.reportID == report.id,
               snapshot.packetID == report.packetID,
               snapshot.sourceRecordID == report.sourceRecordID,
-              snapshot.pdfTemplate.id == Self.templateID,
-              snapshot.pdfTemplate.version == 1,
+              snapshot.pdfTemplate == lifecycleProfile.pdfTemplate,
               snapshot.pack.id == signPack.packID,
               snapshot.pack.schemaVersion == signPack.schemaVersion,
               snapshot.pack.contentVersion == signPack.contentVersion,
@@ -1276,6 +1352,7 @@ private struct ReadyReportAuthorityValidator {
               validCompletedRecord(source) else {
             throw SnapshotValidationErrorV1.invalidAuthority
         }
+        try validateWorkspaceScope(report: report, source: source)
         try validateFrozenSourceFields(snapshot: snapshot, source: source)
 
         let effectiveID = source.evidenceSourceRecordID ?? source.id
@@ -1438,6 +1515,35 @@ private struct ReadyReportAuthorityValidator {
         )
     }
 
+    private func validateWorkspaceScope(report: Report, source: WorkflowRecord) throws {
+        guard case .live(let lifecycleDependencies, _) = lifecycleRoute else { return }
+        let identities = [
+            try WorkspaceEntityIdentityV1(kind: .report, id: report.id),
+            try WorkspaceEntityIdentityV1(kind: .asset, id: source.assetID),
+        ]
+        let request = try WorkspacePackageLifecycleQueryRequestV1(
+            workspaceID: lifecycleDependencies.workspaceID,
+            generationID: lifecycleDependencies.generationID,
+            operation: .reportPDF,
+            identities: identities
+        )
+        let result = try lifecycleDependencies.writer.query(request)
+        guard result.workspaceID == lifecycleDependencies.workspaceID,
+              result.generationID == lifecycleDependencies.generationID,
+              result.operation == .reportPDF,
+              result.revision.workspaceID == lifecycleDependencies.workspaceID,
+              result.revision.generationID == lifecycleDependencies.generationID,
+              Set(result.existingIdentities) == Set(identities),
+              result.packageBindings.count == 1,
+              let binding = result.packageBindings.first,
+              binding.assetID == source.assetID,
+              binding.packageID == lifecycleProfile.release.packageID,
+              binding.packageSchemaVersion == lifecycleProfile.release.schemaVersion,
+              binding.packageContentVersion == lifecycleProfile.release.contentVersion else {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+    }
+
     private func validateFrozenSourceFields(
         snapshot: ReportSnapshotV1,
         source: WorkflowRecord
@@ -1458,7 +1564,12 @@ private struct ReadyReportAuthorityValidator {
             observationAndTimeMatches = snapshot.observationBasis == expectedBasis
                 && snapshot.temporalContext == expectedTemporal
         }
-        guard signPack.acknowledgements.count == 2,
+        let requiredAcknowledgements = signPack.acknowledgements.filter {
+            lifecycleProfile.requiredAcknowledgementKeys.contains($0.key)
+        }
+        guard let sourceAcknowledgements = acknowledgementSourceValues(source),
+              requiredAcknowledgements.map(\.key)
+                == lifecycleProfile.requiredAcknowledgementKeys,
               snapshot.couldNotVerify == expectedCNV,
               observationAndTimeMatches,
               canonicalOptionalDateEqual(
@@ -1469,31 +1580,49 @@ private struct ReadyReportAuthorityValidator {
               snapshot.timeContext.utcOffsetMinutes == source.utcOffsetMinutes,
               snapshot.timeContext.localDate == source.localDate,
               snapshot.timeContext.localTime == source.localTime,
-              snapshot.acknowledgements.count == 2,
-              snapshot.acknowledgements[0].key == source.afterDarkAcknowledgementKey,
-              snapshot.acknowledgements[0].copy == source.afterDarkAcknowledgementCopy,
-              snapshot.acknowledgements[0].version == source.afterDarkAcknowledgementVersion,
-              snapshot.acknowledgements[0].accepted
-                == source.afterDarkAcknowledgementAccepted,
-              snapshot.acknowledgements[0].key
-                == signPack.acknowledgements[0].key,
-              snapshot.acknowledgements[0].copy
-                == signPack.acknowledgements[0].copy,
-              snapshot.acknowledgements[0].version
-                == signPack.acknowledgements[0].version,
-              snapshot.acknowledgements[1].key == source.safePositionAcknowledgementKey,
-              snapshot.acknowledgements[1].copy == source.safePositionAcknowledgementCopy,
-              snapshot.acknowledgements[1].version == source.safePositionAcknowledgementVersion,
-              snapshot.acknowledgements[1].accepted
-                == source.safePositionAcknowledgementAccepted,
-              snapshot.acknowledgements[1].key
-                == signPack.acknowledgements[1].key,
-              snapshot.acknowledgements[1].copy
-                == signPack.acknowledgements[1].copy,
-              snapshot.acknowledgements[1].version
-                == signPack.acknowledgements[1].version else {
+              snapshot.acknowledgements.count == requiredAcknowledgements.count,
+              sourceAcknowledgements.count == requiredAcknowledgements.count,
+              snapshot.acknowledgements.indices.allSatisfy({ index in
+                  let snapshotValue = snapshot.acknowledgements[index]
+                  let sourceValue = sourceAcknowledgements[index]
+                  let packageValue = requiredAcknowledgements[index]
+                  return snapshotValue.key == sourceValue.key
+                      && snapshotValue.copy == sourceValue.copy
+                      && snapshotValue.version == sourceValue.version
+                      && snapshotValue.accepted == sourceValue.accepted
+                      && snapshotValue.key == packageValue.key
+                      && snapshotValue.copy == packageValue.copy
+                      && snapshotValue.version == packageValue.version
+              }) else {
             throw SnapshotValidationErrorV1.invalidAuthority
         }
+    }
+
+    private func acknowledgementSourceValues(
+        _ record: WorkflowRecord
+    ) -> [(key: String, copy: String, version: String, accepted: Bool)]? {
+        let groups: [(String?, String?, String?, Bool?)] = [
+            (
+                record.afterDarkAcknowledgementKey,
+                record.afterDarkAcknowledgementCopy,
+                record.afterDarkAcknowledgementVersion,
+                record.afterDarkAcknowledgementAccepted
+            ),
+            (
+                record.safePositionAcknowledgementKey,
+                record.safePositionAcknowledgementCopy,
+                record.safePositionAcknowledgementVersion,
+                record.safePositionAcknowledgementAccepted
+            ),
+        ]
+        var result: [(key: String, copy: String, version: String, accepted: Bool)] = []
+        for group in groups {
+            if group.0 == nil, group.1 == nil, group.2 == nil, group.3 == nil { continue }
+            guard let key = group.0, let copy = group.1,
+                  let version = group.2, let accepted = group.3 else { return nil }
+            result.append((key, copy, version, accepted))
+        }
+        return result
     }
 
     private func validCompletedRecord(_ record: WorkflowRecord) -> Bool {
@@ -1506,8 +1635,8 @@ private struct ReadyReportAuthorityValidator {
               record.packID == signPack.packID,
               record.packSchemaVersion == signPack.schemaVersion,
               record.packContentVersion == signPack.contentVersion,
-              record.pdfTemplateID == Self.templateID,
-              record.pdfTemplateVersion == 1,
+              record.pdfTemplateID == lifecycleProfile.pdfTemplate.id,
+              record.pdfTemplateVersion == lifecycleProfile.pdfTemplate.version,
               validOptionalTrimmed(record.note, maximum: 1_000),
               validObservationAndTime(record) else {
             return false
@@ -1536,7 +1665,7 @@ private struct ReadyReportAuthorityValidator {
         let hasCompleteCNV = record.couldNotVerifyKey != nil
             && record.couldNotVerifyDisplaySnapshot != nil
             && record.couldNotVerifyRegistryVersion != nil
-        guard record.outcomeKey == "could_not_verify"
+        guard outcomeRole(for: record) == .couldNotVerify
                 ? hasCompleteCNV
                 : !hasAnyCNV else {
             return false
@@ -1552,14 +1681,12 @@ private struct ReadyReportAuthorityValidator {
             }
         }
 
-        let hasAllAcknowledgements = record.afterDarkAcknowledgementKey != nil
-            && record.afterDarkAcknowledgementCopy != nil
-            && record.afterDarkAcknowledgementVersion != nil
-            && record.afterDarkAcknowledgementAccepted != nil
-            && record.safePositionAcknowledgementKey != nil
-            && record.safePositionAcknowledgementCopy != nil
-            && record.safePositionAcknowledgementVersion != nil
-            && record.safePositionAcknowledgementAccepted != nil
+        let hasRequiredAcknowledgements = acknowledgementSourceValues(record).map {
+            $0.map(\.key) == lifecycleProfile.requiredAcknowledgementKeys
+        } ?? false
+        let allRequiredAcknowledgementsAccepted = acknowledgementSourceValues(record)?.allSatisfy {
+            $0.accepted
+        } ?? false
         let hasNoAcknowledgements = record.afterDarkAcknowledgementKey == nil
             && record.afterDarkAcknowledgementCopy == nil
             && record.afterDarkAcknowledgementVersion == nil
@@ -1581,40 +1708,41 @@ private struct ReadyReportAuthorityValidator {
 
         switch record.stage {
         case WorkflowStage.check.rawValue:
+            guard let stage = try? lifecycleProfile.stage(record.stage),
+                  let outcomeKey = record.outcomeKey,
+                  let role = outcomeRole(for: record) else { return false }
             return record.parentRecordID == nil
                 && record.packetID != nil
-                && ["no_visible_issue", "visible_issue", "could_not_verify"]
-                    .contains(record.outcomeKey ?? "")
-                && ((record.outcomeKey == "visible_issue") == (record.issueID != nil))
+                && stage.outcomeKeys.contains(outcomeKey)
+                && ((role == .findingObserved) == (record.issueID != nil))
                 && record.workPerformedLocalDate == nil
                 && record.workDescription == nil
-                && hasAllAcknowledgements
+                && hasRequiredAcknowledgements
                 && hasAllTimeFields
-                && record.afterDarkAcknowledgementAccepted == true
-                && record.safePositionAcknowledgementAccepted == true
+                && allRequiredAcknowledgementsAccepted
 
         case WorkflowStage.recheck.rawValue:
+            guard let stage = try? lifecycleProfile.stage(record.stage),
+                  let outcomeKey = record.outcomeKey else { return false }
             return record.parentRecordID != nil
                 && record.issueID != nil
                 && record.packetID != nil
-                && [
-                    "resolved",
-                    "issue_still_visible",
-                    "original_resolved_different_issue",
-                    "could_not_verify",
-                ].contains(record.outcomeKey ?? "")
+                && stage.outcomeKeys.contains(outcomeKey)
                 && record.workPerformedLocalDate == nil
                 && record.workDescription == nil
-                && hasAllAcknowledgements
+                && hasRequiredAcknowledgements
                 && hasAllTimeFields
-                && record.afterDarkAcknowledgementAccepted == true
-                && record.safePositionAcknowledgementAccepted == true
+                && allRequiredAcknowledgementsAccepted
 
         case WorkflowStage.work.rawValue:
+            guard let stage = try? lifecycleProfile.stage(record.stage),
+                  let outcomeKey = record.outcomeKey,
+                  stage.outcomes.contains(where: {
+                      $0.key == outcomeKey && $0.role == .workRecorded
+                  }) else { return false }
             return record.parentRecordID != nil
                 && record.issueID != nil
                 && record.packetID == nil
-                && record.outcomeKey == "work_recorded"
                 && record.workPerformedLocalDate?.range(
                     of: #"^\d{4}-\d{2}-\d{2}$"#,
                     options: .regularExpression
@@ -1728,6 +1856,17 @@ private struct ReadyReportAuthorityValidator {
         )
     }
 
+    private func outcomeRole(
+        for record: WorkflowRecord
+    ) -> WorkspacePackageOutcomeRoleV1? {
+        guard let outcomeKey = record.outcomeKey,
+              let stage = try? lifecycleProfile.stage(record.stage),
+              let outcome = stage.outcomes.first(where: { $0.key == outcomeKey }) else {
+            return nil
+        }
+        return outcome.role
+    }
+
     private func validRequiredTrimmed(_ value: String?, maximum: Int) -> Bool {
         guard let value else { return false }
         return !value.isEmpty
@@ -1748,14 +1887,17 @@ private struct ReadyReportAuthorityValidator {
                 || effective.stage == WorkflowStage.recheck.rawValue else {
             throw SnapshotValidationErrorV1.invalidAuthority
         }
-        if effective.outcomeKey == "could_not_verify" {
-            guard rows.count <= 2,
+        let requiredKeys = lifecycleProfile.evidencePurposeKeys(for: .captureRequired)
+        let supplementaryKeys = lifecycleProfile.evidencePurposeKeys(for: .captureSupplementary)
+        let allowedKeys = requiredKeys + supplementaryKeys
+        if outcomeRole(for: effective) == .couldNotVerify {
+            guard rows.count <= allowedKeys.count,
                   Set(keys).count == keys.count,
-                  keys.allSatisfy({ $0 == "wide_context" || $0 == "close_detail" }) else {
+                  keys.allSatisfy(allowedKeys.contains) else {
                 throw SnapshotValidationErrorV1.invalidAuthority
             }
         } else {
-            guard keys == ["wide_context", "close_detail"] else {
+            guard keys == requiredKeys else {
                 throw SnapshotValidationErrorV1.invalidAuthority
             }
         }
@@ -1768,21 +1910,24 @@ private struct ReadyReportAuthorityValidator {
         let keys = rows.map(\.purposeKey)
         switch record.stage {
         case WorkflowStage.work.rawValue:
-            guard rows.count <= 1,
-                  keys.allSatisfy({ $0 == "work_context" }) else {
+            let allowedKeys = lifecycleProfile.evidencePurposeKeys(for: .workSupplementary)
+            guard rows.count <= allowedKeys.count,
+                  Set(keys).count == keys.count,
+                  keys.allSatisfy(allowedKeys.contains) else {
                 throw SnapshotValidationErrorV1.invalidAuthority
             }
         case WorkflowStage.check.rawValue, WorkflowStage.recheck.rawValue:
-            if record.outcomeKey == "could_not_verify" {
-                guard rows.count <= 2,
+            let requiredKeys = lifecycleProfile.evidencePurposeKeys(for: .captureRequired)
+            let supplementaryKeys = lifecycleProfile.evidencePurposeKeys(for: .captureSupplementary)
+            let allowedKeys = requiredKeys + supplementaryKeys
+            if outcomeRole(for: record) == .couldNotVerify {
+                guard rows.count <= allowedKeys.count,
                       Set(keys).count == keys.count,
-                      keys.allSatisfy({
-                        $0 == "wide_context" || $0 == "close_detail"
-                      }) else {
+                      keys.allSatisfy(allowedKeys.contains) else {
                     throw SnapshotValidationErrorV1.invalidAuthority
                 }
             } else {
-                guard keys == ["wide_context", "close_detail"] else {
+                guard keys == requiredKeys else {
                     throw SnapshotValidationErrorV1.invalidAuthority
                 }
             }
@@ -1920,16 +2065,16 @@ private struct ReadyReportAuthorityValidator {
                     resolvedBy = nil
                     updatedAt = completed
                 } else if record.stage == WorkflowStage.recheck.rawValue {
-                    switch record.outcomeKey {
-                    case "resolved", "original_resolved_different_issue":
+                    switch outcomeRole(for: record) {
+                    case .resolved, .originalResolvedDifferentFinding:
                         status = IssueStatus.resolved.rawValue
                         resolvedBy = record.id
                         updatedAt = completed
-                    case "issue_still_visible":
+                    case .findingStillPresent:
                         status = IssueStatus.open.rawValue
                         resolvedBy = nil
                         updatedAt = completed
-                    case "could_not_verify":
+                    case .couldNotVerify:
                         break
                     default:
                         throw SnapshotValidationErrorV1.invalidAuthority
@@ -1961,16 +2106,13 @@ private struct ReadyReportAuthorityValidator {
         let allIssues = try modelContext.fetch(FetchDescriptor<Issue>())
         for record in chain {
             let opened = allIssues.filter { $0.openedByRecordID == record.id }
-            switch (record.stage, record.outcomeKey) {
-            case (WorkflowStage.check.rawValue, "visible_issue"):
+            switch (record.stage, outcomeRole(for: record)) {
+            case (WorkflowStage.check.rawValue, .findingObserved):
                 guard opened.count == 1,
                       opened[0].id == record.issueID else {
                     throw SnapshotValidationErrorV1.invalidAuthority
                 }
-            case (
-                WorkflowStage.recheck.rawValue,
-                "original_resolved_different_issue"
-            ):
+            case (WorkflowStage.recheck.rawValue, .originalResolvedDifferentFinding):
                 guard opened.count == 1,
                       opened[0].id != record.issueID else {
                     throw SnapshotValidationErrorV1.invalidAuthority
@@ -1992,7 +2134,7 @@ private struct ReadyReportAuthorityValidator {
                 throw SnapshotValidationErrorV1.invalidAuthority
             }
             if childIssueID != parent.issueID {
-                guard parent.outcomeKey == "original_resolved_different_issue",
+                guard outcomeRole(for: parent) == .originalResolvedDifferentFinding,
                       let opened = unique(allIssues.filter {
                         $0.id == childIssueID && $0.openedByRecordID == parent.id
                       }),
@@ -2163,25 +2305,22 @@ private struct ReadyReportAuthorityValidator {
     }
 
     private func purposeOrder(_ value: String) -> Int {
-        switch value {
-        case "wide_context": 0
-        case "close_detail": 1
-        case "work_context": 2
-        default: 3
-        }
+        lifecycleProfile.evidencePurposes.firstIndex(where: { $0.key == value })
+            ?? lifecycleProfile.evidencePurposes.count
     }
 
     private func stageDisplay(_ value: String) -> String? {
-        if value == WorkflowStage.work.rawValue { return "Work" }
-        let matches = signPack.stageDisplays.filter { $0.key == value }
-        return matches.count == 1 ? matches[0].display : nil
+        try? lifecycleProfile.stage(value).stageDisplay
     }
 
     private func outcomeDisplay(_ value: String?) -> String? {
         guard let value else { return nil }
-        if value == "work_recorded" { return "Work recorded" }
-        let matches = signPack.outcomeDisplays.filter { $0.key == value }
-        return matches.count == 1 ? matches[0].display : nil
+        let matches = lifecycleProfile.stages.flatMap(\.outcomes).filter {
+            $0.key == value
+        }
+        guard let first = matches.first,
+              matches.allSatisfy({ $0.display == first.display }) else { return nil }
+        return first.display
     }
 
     private func recordChronology(_ lhs: WorkflowRecord, _ rhs: WorkflowRecord) -> Bool {

@@ -36,6 +36,33 @@ enum EraseAllFailurePoint: CaseIterable, Equatable, Sendable {
 }
 
 @MainActor
+private enum EraseAllLifecycleRouteV1 {
+    case live(dependencies: WorkspacePackageLifecycleDependenciesV1)
+    case expiringCompatibility(posture: String)
+
+    func validate(generationRootURL: URL, generationID: UUID) throws {
+        let root = generationRootURL.standardizedFileURL
+        switch self {
+        case .live(let dependencies):
+            guard dependencies.generationID == generationID,
+                  dependencies.generationRootURL.standardizedFileURL == root,
+                  dependencies.generationRootURL.isFileURL else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        case .expiringCompatibility(let posture):
+            guard posture == WorkspacePackageLifecycleCompatibilityV1.expiration else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        }
+    }
+}
+
+private enum EraseAllLifecycleCheckpointV1 {
+    case live(WorkspaceRevisionV1)
+    case compatibility
+}
+
+@MainActor
 final class EraseAllFailureInjection {
     private var pending: EraseAllFailurePoint?
 
@@ -120,12 +147,50 @@ final class EraseAllService {
         diagnosticsStore: DiagnosticsStore,
         activate: @escaping @MainActor (StoreGenerationSession) async -> Void
     ) async throws -> EraseAllOutcome {
+        try await erase(
+            confirmation: confirmation,
+            coordinator: coordinator,
+            diagnosticsStore: diagnosticsStore,
+            activate: activate,
+            lifecycleRoute: .expiringCompatibility(
+                posture: WorkspacePackageLifecycleCompatibilityV1.expiration
+            )
+        )
+    }
+
+    func erase(
+        confirmation: String,
+        coordinator: StoreSessionCoordinator,
+        diagnosticsStore: DiagnosticsStore,
+        activate: @escaping @MainActor (StoreGenerationSession) async -> Void,
+        lifecycleDependencies dependencies: WorkspacePackageLifecycleDependenciesV1
+    ) async throws -> EraseAllOutcome {
+        try await erase(
+            confirmation: confirmation,
+            coordinator: coordinator,
+            diagnosticsStore: diagnosticsStore,
+            activate: activate,
+            lifecycleRoute: .live(dependencies: dependencies)
+        )
+    }
+
+    private func erase(
+        confirmation: String,
+        coordinator: StoreSessionCoordinator,
+        diagnosticsStore: DiagnosticsStore,
+        activate: @escaping @MainActor (StoreGenerationSession) async -> Void,
+        lifecycleRoute: EraseAllLifecycleRouteV1
+    ) async throws -> EraseAllOutcome {
         guard confirmation == Self.requiredConfirmation else {
             throw EraseAllServiceError.invalidConfirmation
         }
         guard !coordinator.modelContext.hasChanges else {
             throw EraseAllServiceError.contextHasChanges
         }
+        try lifecycleRoute.validate(
+            generationRootURL: coordinator.generationRootURL,
+            generationID: coordinator.generationID
+        )
         let auxiliary = try makeAuxiliaryAuthority()
         try auxiliary.requireNoEraseIntent()
         try auxiliary.requireNoRestoreIntent()
@@ -148,6 +213,19 @@ final class EraseAllService {
             retiredIDs: priorRetired,
             authority: generationAuthority
         )
+        try validateKernelEraseMappings()
+        let lifecycleCheckpoint: EraseAllLifecycleCheckpointV1
+        switch lifecycleRoute {
+        case .live(let dependencies):
+            lifecycleCheckpoint = .live(
+                try validatePackageLifecycleScope(
+                    dependencies: dependencies,
+                    coordinator: coordinator
+                )
+            )
+        case .expiringCompatibility:
+            lifecycleCheckpoint = .compatibility
+        }
         try auxiliary.verifyTargets()
         try auxiliary.requireNoEraseIntent()
         try auxiliary.requireNoRestoreIntent()
@@ -236,6 +314,17 @@ final class EraseAllService {
                   created.pointer.knownReplicaIDs
                     == [targetIdentity.replicaID.rawValue] else {
                 throw EraseAllServiceError.invalidAuthority
+            }
+            if case let .live(expectedRevision) = lifecycleCheckpoint {
+                try validateEraseCommand(
+                    lifecycleRoute: lifecycleRoute,
+                    coordinator: coordinator,
+                    eraseID: eraseID,
+                    targetGenerationID: newGenerationID,
+                    oldPointer: oldPointer,
+                    expectedEmptyLedger: expectedEmptyLedger,
+                    expectedRevision: expectedRevision
+                )
             }
             let intent = EraseIntentV1(
                 auxiliaryRoots: EraseIntentV1.canonicalAuxiliaryRoots,
@@ -495,6 +584,85 @@ final class EraseAllService {
 }
 
 private extension EraseAllService {
+    func validatePackageLifecycleScope(
+        dependencies: WorkspacePackageLifecycleDependenciesV1,
+        coordinator: StoreSessionCoordinator
+    ) throws -> WorkspaceRevisionV1 {
+        guard dependencies.workspaceID == coordinator.workspaceID,
+              dependencies.generationID == coordinator.generationID,
+              dependencies.generationRootURL.standardizedFileURL
+                == coordinator.generationRootURL.standardizedFileURL else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        do {
+            let request = try WorkspacePackageLifecycleQueryRequestV1(
+                workspaceID: dependencies.workspaceID,
+                generationID: dependencies.generationID,
+                operation: .erase,
+                identities: []
+            )
+            let result = try dependencies.queryClient.query(request)
+            let current = try dependencies.queryClient.currentRevision()
+            guard result.workspaceID == dependencies.workspaceID,
+                  result.generationID == dependencies.generationID,
+                  result.operation == .erase,
+                  result.existingIdentities.isEmpty,
+                  result.packageBindings.isEmpty,
+                  result.revision == current,
+                  current.workspaceID == coordinator.workspaceID,
+                  current.generationID == coordinator.generationID else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            return current
+        } catch let error as EraseAllServiceError {
+            throw error
+        } catch {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+
+    func validateEraseCommand(
+        lifecycleRoute: EraseAllLifecycleRouteV1,
+        coordinator: StoreSessionCoordinator,
+        eraseID: UUID,
+        targetGenerationID: UUID,
+        oldPointer: RestorePointerIdentityV1,
+        expectedEmptyLedger: DeletionLedgerProofV2,
+        expectedRevision: WorkspaceRevisionV1
+    ) throws {
+        guard case let .live(dependencies) = lifecycleRoute,
+              dependencies.workspaceID == coordinator.workspaceID,
+              dependencies.generationID == coordinator.generationID,
+              try dependencies.queryClient.currentRevision() == expectedRevision else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let command = WorkspaceCommandV1.eraseWorkspace(
+            EraseWorkspaceMutationV1(
+                eraseID: eraseID,
+                targetGenerationID: targetGenerationID,
+                oldPointerDigest: try WorkspaceMutationCanonicalV1.sha256(oldPointer),
+                emptyLedgerDigest: try WorkspaceMutationCanonicalV1.sha256(expectedEmptyLedger)
+            )
+        )
+        let request = WorkspaceMutationRequestV1(
+            mutationID: try MutationIDV1(rawValue: eraseID),
+            expectedRevision: WorkspaceExpectedRevisionV1(snapshot: expectedRevision),
+            command: command
+        )
+        guard request.command.kind == .eraseWorkspace,
+              case let .eraseWorkspace(value) = request.command,
+              value.eraseID == eraseID,
+              value.targetGenerationID == targetGenerationID,
+              value.oldPointerDigest.utf8.count == 64,
+              value.emptyLedgerDigest.utf8.count == 64 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        // The generation switch remains the authoritative effect. The live
+        // writer and query establish the immutable command identity before
+        // the existing crash-safe erase journal publishes that switch.
+        _ = dependencies.writer
+    }
+
     func makeAuxiliaryAuthority() throws -> EraseAuxiliaryAuthority {
         guard bundleIdentifier == "com.palatis3.fieldrecord" else {
             throw EraseAllServiceError.invalidAuthority

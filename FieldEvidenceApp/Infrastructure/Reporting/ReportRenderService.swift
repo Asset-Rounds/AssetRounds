@@ -729,7 +729,7 @@ final class ReportRenderService {
     private let failureInjection: ReportRenderFailureInjection?
     private let offMainWorker = DeterministicOffMainWorkerV1()
 
-    init(
+    convenience init(
         modelContext: ModelContext,
         generationRootURL: URL,
         storagePreflight: StoragePreflightService = StoragePreflightService(),
@@ -738,7 +738,58 @@ final class ReportRenderService {
         failNextRenderAttempt: Bool = false,
         failureInjection: ReportRenderFailureInjection? = nil
     ) throws {
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(
+            package: signPack
+        )
+        try self.init(
+            modelContext: modelContext,
+            generationRootURL: generationRootURL,
+            storagePreflight: storagePreflight,
+            fileManager: fileManager,
+            lifecycleRoute: .expiringCompatibility(
+                profile: profile,
+                posture: WorkspacePackageLifecycleCompatibilityV1.expiration
+            ),
+            failNextRenderAttempt: failNextRenderAttempt,
+            failureInjection: failureInjection
+        )
+    }
+
+    convenience init(
+        modelContext: ModelContext,
+        lifecycleDependencies: WorkspacePackageLifecycleDependenciesV1,
+        lifecycleProfile: WorkspacePackageLifecycleProfileV1,
+        storagePreflight: StoragePreflightService = StoragePreflightService(),
+        fileManager: FileManager = .default,
+        failNextRenderAttempt: Bool = false,
+        failureInjection: ReportRenderFailureInjection? = nil
+    ) throws {
+        try self.init(
+            modelContext: modelContext,
+            generationRootURL: lifecycleDependencies.generationRootURL,
+            storagePreflight: storagePreflight,
+            fileManager: fileManager,
+            lifecycleRoute: .live(
+                dependencies: lifecycleDependencies,
+                profile: lifecycleProfile
+            ),
+            failNextRenderAttempt: failNextRenderAttempt,
+            failureInjection: failureInjection
+        )
+    }
+
+    private init(
+        modelContext: ModelContext,
+        generationRootURL: URL,
+        storagePreflight: StoragePreflightService,
+        fileManager: FileManager,
+        lifecycleRoute: ReportingPackageLifecycleRouteV1,
+        failNextRenderAttempt: Bool,
+        failureInjection: ReportRenderFailureInjection?
+    ) throws {
         let root = generationRootURL.standardizedFileURL
+        try lifecycleRoute.validate(generationRootURL: root)
+        let lifecycleProfile = lifecycleRoute.profile
         guard root.deletingLastPathComponent().lastPathComponent == "generations",
               root.deletingLastPathComponent().deletingLastPathComponent()
                 .lastPathComponent == "FieldEvidenceData",
@@ -757,12 +808,23 @@ final class ReportRenderService {
         }
         self.storagePreflight = storagePreflight
         self.fileManager = fileManager
-        self.validator = try SnapshotValidatorV1(
-            modelContext: modelContext,
-            generationRootURL: root,
-            fileManager: fileManager,
-            signPack: signPack
-        )
+        switch lifecycleRoute {
+        case .live(let lifecycleDependencies, _):
+            self.validator = try SnapshotValidatorV1(
+                modelContext: modelContext,
+                generationRootURL: root,
+                fileManager: fileManager,
+                lifecycleProfile: lifecycleProfile,
+                lifecycleDependencies: lifecycleDependencies
+            )
+        case .expiringCompatibility:
+            self.validator = try SnapshotValidatorV1(
+                modelContext: modelContext,
+                generationRootURL: root,
+                fileManager: fileManager,
+                signPack: lifecycleProfile.package
+            )
+        }
         self.renderer = WorklightPDFRendererV1()
         self.failNextRenderAttempt = failNextRenderAttempt
         self.failureInjection = failureInjection

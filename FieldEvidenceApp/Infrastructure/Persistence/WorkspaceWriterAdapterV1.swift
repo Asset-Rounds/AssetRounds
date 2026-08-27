@@ -68,6 +68,106 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         }
     }
 
+    func queryExisting(
+        identities: [WorkspaceEntityIdentityV1]
+    ) throws -> (
+        identities: [WorkspaceEntityIdentityV1],
+        packageBindings: [WorkspacePackageBindingV1]
+    ) {
+        guard !modelContext.hasChanges,
+              identities.count <= 256,
+              Set(identities).count == identities.count else {
+            throw WorkspaceMutationFailureV1.persistenceFailed
+        }
+        var existing: [WorkspaceEntityIdentityV1] = []
+        var bindings: [WorkspacePackageBindingV1] = []
+        let deletionLedgerRows: [DeletionLedgerRow]
+        let deletionLedgerIdentities: [DeletionIdentityV2]
+        if identities.contains(where: { $0.kind == .deletionLedgerEntry }) {
+            deletionLedgerRows = try modelContext.fetch(FetchDescriptor<DeletionLedgerRow>())
+            guard Set(deletionLedgerRows.map(\.typedID)).count == deletionLedgerRows.count else {
+                throw WorkspaceMutationFailureV1.persistenceFailed
+            }
+            do {
+                deletionLedgerIdentities = try deletionLedgerRows.map {
+                    try DeletionIdentityV2(typedID: $0.typedID)
+                }
+            } catch {
+                throw WorkspaceMutationFailureV1.persistenceFailed
+            }
+        } else {
+            deletionLedgerRows = []
+            deletionLedgerIdentities = []
+        }
+        for identity in identities {
+            let id = identity.id
+            let exists: Bool
+            switch identity.kind {
+            case .site:
+                let values = try modelContext.fetch(FetchDescriptor<Site>(
+                    predicate: #Predicate { $0.id == id }
+                ))
+                guard values.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }
+                exists = values.count == 1
+            case .asset:
+                let assets = try modelContext.fetch(FetchDescriptor<Asset>(
+                    predicate: #Predicate { $0.id == id }
+                ))
+                guard assets.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }
+                exists = assets.count == 1
+                if let asset = assets.first {
+                    bindings.append(WorkspacePackageBindingV1(
+                        assetID: asset.id,
+                        packageID: asset.packID,
+                        packageSchemaVersion: asset.packSchemaVersion,
+                        packageContentVersion: asset.packContentVersion
+                    ))
+                }
+            case .workflowRecord:
+                let values = try modelContext.fetch(FetchDescriptor<WorkflowRecord>(
+                    predicate: #Predicate { $0.id == id }
+                ))
+                guard values.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }
+                exists = values.count == 1
+            case .evidenceFile:
+                let values = try modelContext.fetch(FetchDescriptor<EvidenceFile>(
+                    predicate: #Predicate { $0.id == id }
+                ))
+                guard values.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }
+                exists = values.count == 1
+            case .issue:
+                let values = try modelContext.fetch(FetchDescriptor<Issue>(
+                    predicate: #Predicate { $0.id == id }
+                ))
+                guard values.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }
+                exists = values.count == 1
+            case .packet:
+                let values = try modelContext.fetch(FetchDescriptor<Packet>(
+                    predicate: #Predicate { $0.id == id }
+                ))
+                guard values.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }
+                exists = values.count == 1
+            case .report:
+                let values = try modelContext.fetch(FetchDescriptor<Report>(
+                    predicate: #Predicate { $0.id == id }
+                ))
+                guard values.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }
+                exists = values.count == 1
+            case .deletionLedgerEntry:
+                let matches = deletionLedgerIdentities.filter { $0.id == identity.id }
+                guard matches.count <= 1 else {
+                    throw WorkspaceMutationFailureV1.persistenceFailed
+                }
+                exists = matches.count == 1
+            }
+            if exists { existing.append(identity) }
+        }
+        return (
+            existing.sorted { $0.stableKey < $1.stableKey },
+            bindings.sorted { $0.assetID.uuidString < $1.assetID.uuidString }
+        )
+    }
+
     func createFirstSign(
         _ value: FirstSignMutationV1,
         occurredAt: Date,
