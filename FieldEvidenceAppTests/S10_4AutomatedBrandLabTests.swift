@@ -21006,6 +21006,151 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertFalse(settingsHubDiagnosticSource.contains(prohibited), prohibited)
         }
 
+        let signSelectionDiagnosticSource = try boundedSource(
+            uiSource,
+            from:
+                "    @MainActor\n" +
+                    "    private func diagnoseSegment3AXTextSignSelectionNativeContrast(",
+            before: "\n\n    private func publicAuditSignatureObject("
+        )
+        XCTAssertEqual(signSelectionDiagnosticSource.utf8.count, 11_417)
+        XCTAssertEqual(
+            Data(signSelectionDiagnosticSource.utf8).sha256,
+            "FA7DBF64ED337AB953CA5FB3B4C9191AC00F55A97B01748DB34912E872A86067"
+        )
+        for exact in [
+            #"let stateID = "state.sign-selection.ready""#,
+            #"Self.segmentedRouteStateIDs[50..<66]"#,
+            #"Self.segmentedRouteStateIDs[50..<65]"#,
+            #""state.report-correction.validation-error""#,
+            #"shard.shardID == "s10.4.current.ax-text""#,
+            #"automationSegment == .segment3"#,
+            #"automationSegment.replayCount == 22"#,
+            #"automationSegment.ownedStartOrdinal == 51"#,
+            #"automationSegment.ownedCount == 17"#,
+            #"automationSegment.finalOrdinal == 67"#,
+            #"Self.segmentedRouteStateIDs[65] == stateID"#,
+            #"segmentedRouteStateCursor == 65"#,
+            #"migratedStateIDs == expectedMigratedStateIDs"#,
+            #"automationAXTreeDigests.keys.sorted()"#,
+            #"automationContrastExceptions.keys.sorted()"#,
+            #"!automatedSegmentFinished"#,
+            #"app.state == .runningForeground"#,
+            #""stateOrdinal": 66"#,
+            #""predecessorStateID": "state.subscription.active""#,
+            #""predecessorOrdinal": 65"#,
+            #""successorStateID": "state.subscription.no-entitlement""#,
+            #""successorOrdinal": 67"#,
+            #""applicationStateRawValue": app.state.rawValue"#,
+            #""applicationForeground": app.state == .runningForeground"#,
+            #""applicationFrame": auditFrameObject(app.frame)"#,
+            #""application": diagnosticElementObject(app)"#,
+            #""queries": diagnosticQueryObjects"#,
+            #""exists": element.exists"#,
+            #""isEnabled": element.isEnabled"#,
+            #""isHittable": element.isHittable"#,
+            #""identifier": element.identifier"#,
+            #""label": element.label"#,
+            #""value": valueObject"#,
+            #""elementTypeRawValue": element.elementType.rawValue"#,
+            #""elementTypeDescription": String(describing: element.elementType)"#,
+            #""frame": self.auditFrameObject(element.frame)"#,
+            #""auditTypeRawValue": String(issue.auditType.rawValue)"#,
+            #""compactDescription": issue.compactDescription"#,
+            #""detailedDescription": issue.detailedDescription"#,
+            #""elementExists": NSNull()"#,
+            #""elementEnabled": NSNull()"#,
+            #""elementHittable": NSNull()"#,
+            #""elementIdentifier": NSNull()"#,
+            #""elementLabel": NSNull()"#,
+            #""elementValue": NSNull()"#,
+            #""elementTypeRawValue": NSNull()"#,
+            #""elementTypeDescription": NSNull()"#,
+            #""elementFrame": NSNull()"#,
+            #""observedIssueCount": observedIssueCount"#,
+            #""auditedElementCount": auditedElementCount"#,
+            #"options: [.prettyPrinted, .sortedKeys]"#,
+            #"try app.performAccessibilityAudit(for: .contrast)"#,
+            #"screenshot: auditedElement.screenshot()"#,
+            #"return true"#,
+            #"S10.4 AX-text sign-selection native contrast diagnostic completed nonaccepting"#,
+        ] {
+            XCTAssertTrue(signSelectionDiagnosticSource.contains(exact), exact)
+        }
+        var signSelectionQueryTail =
+            signSelectionDiagnosticSource[signSelectionDiagnosticSource.startIndex...]
+        for queryName in [
+            "selectionScreens", "selectionScrollViews", "monumentSignStaticTexts",
+            "northCampusStaticTexts", "signRowButtons", "addSignButtons",
+            "navigationBars", "tabBars", "keyboards", "inputViews",
+        ] {
+            let token = "\"\(queryName)\""
+            let range = try XCTUnwrap(signSelectionQueryTail.range(of: token), queryName)
+            signSelectionQueryTail = signSelectionQueryTail[range.upperBound...]
+        }
+        for prefix in [
+            "S10_4_AX_TEXT_SIGN_SELECTION_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
+            "S10_4_AX_TEXT_SIGN_SELECTION_NATIVE_CONTRAST_ISSUE_DIAGNOSTIC",
+            "S10_4_AX_TEXT_SIGN_SELECTION_NATIVE_CONTRAST_COUNT_DIAGNOSTIC",
+        ] {
+            XCTAssertEqual(
+                signSelectionDiagnosticSource.components(separatedBy: prefix).count - 1,
+                1,
+                prefix
+            )
+        }
+        XCTAssertEqual(
+            signSelectionDiagnosticSource.components(
+                separatedBy: "performAccessibilityAudit(for: .contrast)"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            signSelectionDiagnosticSource.components(separatedBy: "return true").count - 1,
+            1
+        )
+        XCTAssertEqual(
+            signSelectionDiagnosticSource.components(
+                separatedBy: ".lifetime = .keepAlways"
+            ).count - 1,
+            4
+        )
+        XCTAssertEqual(
+            signSelectionDiagnosticSource.components(separatedBy: "add(").count - 1,
+            4
+        )
+        var signSelectionDiagnosticTail =
+            signSelectionDiagnosticSource[signSelectionDiagnosticSource.startIndex...]
+        for orderedToken in [
+            "let diagnosticContext: [String: Any] = [",
+            "S10_4_AX_TEXT_SIGN_SELECTION_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
+            "let appAttachment = XCTAttachment(screenshot: app.screenshot())",
+            "let treeAttachment = XCTAttachment(string: app.debugDescription)",
+            "let contextAttachment = XCTAttachment(",
+            "try app.performAccessibilityAudit(for: .contrast)",
+            "S10_4_AX_TEXT_SIGN_SELECTION_NATIVE_CONTRAST_ISSUE_DIAGNOSTIC",
+            "screenshot: auditedElement.screenshot()",
+            "S10_4_AX_TEXT_SIGN_SELECTION_NATIVE_CONTRAST_COUNT_DIAGNOSTIC",
+            "throw AutomationConfigurationError.invalid(",
+        ] {
+            let range = try XCTUnwrap(
+                signSelectionDiagnosticTail.range(of: orderedToken),
+                orderedToken
+            )
+            signSelectionDiagnosticTail =
+                signSelectionDiagnosticTail[range.upperBound...]
+        }
+        for prohibited in [
+            "captureBaseline(", "S10_MIGRATION_STATE", "S10_4_AX_STATE",
+            "S10_4_CONTRAST\"", "S10_4_CANDIDATE", ".tap()", ".typeText(",
+            "setToggle(", "navigateBack(", "waitForExistence(", ".swipe",
+            "sleep(", "NotificationCenter", "migratedStateIDs.append",
+            "segmentedRouteStateCursor +=", "automatedSegmentFinished = true",
+            "ContrastAuditExceptionSignature(", "exceptionIssueID", "tolerance",
+        ] {
+            XCTAssertFalse(signSelectionDiagnosticSource.contains(prohibited), prohibited)
+        }
+
         let monthlyPaywallSource = try boundedSource(
             uiSource,
             from:
@@ -21039,10 +21184,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "    private func captureBaseline(\n",
             before: "\n\n    @MainActor\n    private func shouldPrepareNormalEvidence("
         )
-        XCTAssertEqual(captureSource.utf8.count, 8_446)
+        XCTAssertEqual(captureSource.utf8.count, 8_843)
         XCTAssertEqual(
             Data(captureSource.utf8).sha256,
-            "EB987FE672AE2804733C3E0428CD68E7F072307531C415C550EB90D679919ABC"
+            "9F331ADA24FA51AFF9B6E9AD3B33A061CA166E0760D9EACB45B51805E1C7E5D4"
         )
         let captureReplayGateSource = try boundedSource(
             captureSource,
@@ -21068,6 +21213,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let normalMarker = try XCTUnwrap(
             captureSource.range(of: "print(\"S10_MIGRATION_STATE state=\\(stateID)\")")
         )
+        let signSelectionDiagnosticCall = try XCTUnwrap(
+            captureSource.range(
+                of: "try diagnoseSegment3AXTextSignSelectionNativeContrast(in: app)"
+            )
+        )
         let normalExceptionLookup = try XCTUnwrap(
             captureSource.range(of: "let eligibleExceptions =")
         )
@@ -21076,6 +21226,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertLessThan(issueResolvedDiagnosticCall.lowerBound, normalExceptionLookup.lowerBound)
         XCTAssertLessThan(normalAppend.lowerBound, normalMarker.lowerBound)
         XCTAssertLessThan(normalMarker.lowerBound, normalExceptionLookup.lowerBound)
+        XCTAssertLessThan(normalMarker.lowerBound, signSelectionDiagnosticCall.lowerBound)
+        XCTAssertLessThan(signSelectionDiagnosticCall.lowerBound, normalExceptionLookup.lowerBound)
         XCTAssertTrue(
             captureReplayGateSource.contains(
                 "automationShard?.shardID == \"s10.4.current.ax-text\""
@@ -21091,6 +21243,16 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(captureSource.contains("printJSONLine(prefix: \"S10_4_AX_STATE\""))
         XCTAssertTrue(captureSource.contains("printJSONLine(prefix: \"S10_4_CONTRAST\""))
         XCTAssertTrue(captureSource.contains("XCUIScreen.main.screenshot().pngRepresentation"))
+        XCTAssertTrue(captureSource.contains("automationSegment == .segment3"))
+        XCTAssertTrue(
+            captureSource.contains("stateID == \"state.sign-selection.ready\"")
+        )
+        XCTAssertEqual(
+            captureSource.components(
+                separatedBy: "try diagnoseSegment3AXTextSignSelectionNativeContrast(in: app)"
+            ).count - 1,
+            1
+        )
         XCTAssertFalse(
             captureSource.contains(
                 "try diagnoseSegment3AXTextSettingsHubNativeContrast(in: app)"
