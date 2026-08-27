@@ -6661,6 +6661,240 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && liveFrame.width == frozenFrame.width
                 && liveFrame.height == frozenFrame.height
         }
+        func diagnoseSegment2InvalidRestorationInterval(
+            applicationFrame: CGRect,
+            screenFrame: CGRect,
+            scrollFrame: CGRect,
+            liveScrollFrame: CGRect,
+            navigationFrame: CGRect,
+            tabFrame: CGRect,
+            keyboardFrame: CGRect,
+            fieldLabelFrame: CGRect,
+            descriptionFrame: CGRect,
+            validationFrame: CGRect,
+            noteFrame: CGRect,
+            liveFramesAreValid: Bool,
+            liveTop: CGFloat,
+            liveBottom: CGFloat,
+            safeTop: CGFloat,
+            safeBottom: CGFloat,
+            receiverTop: CGFloat,
+            receiverBottom: CGFloat,
+            receiverLeft: CGFloat,
+            receiverRight: CGFloat,
+            receiverCapacity: CGFloat,
+            remainingShift: CGFloat,
+            remainingDistance: CGFloat,
+            previousRemainingDistance: CGFloat?,
+            restorationDirection: CGFloat?,
+            intervalRelations: [(String, Bool)]
+        ) -> Bool {
+            guard automationSegment == .segment2,
+                  let shard = automationShard,
+                  shard.shardID == "s10.4.current.ax-text",
+                  automationSegment.replayCount == 22,
+                  automationSegment.ownedCount == 28,
+                  automationSegment.finalOrdinal == 50,
+                  segmentedRouteStateCursor == 22,
+                  migratedStateIDs.isEmpty,
+                  !automatedSegmentFinished,
+                  app.state == .runningForeground else {
+                XCTFail(
+                    "S10.4 AX-text work-validation restoration-interval diagnostic context drifted"
+                )
+                return false
+            }
+            let publicNodeObject: (XCUIElement) -> [String: Any] = { element in
+                [
+                    "exists": element.exists,
+                    "isEnabled": element.isEnabled,
+                    "isHittable": element.isHittable,
+                    "identifier": element.identifier,
+                    "label": element.label,
+                    "value": (element.value as? String).map { $0 as Any }
+                        ?? NSNull(),
+                    "elementTypeRawValue": element.elementType.rawValue,
+                    "elementTypeDescription": String(describing: element.elementType),
+                    "frame": self.auditFrameObject(element.frame),
+                ]
+            }
+            let publicQueryObject: (XCUIElementQuery) -> [String: Any] = { query in
+                let actualCount = query.count
+                return [
+                    "count": actualCount,
+                    "elements": (0..<actualCount).map { index in
+                        publicNodeObject(query.element(boundBy: index))
+                    },
+                ]
+            }
+            let orderedStableRouteRelations = stablePrePositionRouteRelations().map {
+                relation in
+                [
+                    "name": relation.0,
+                    "passed": relation.1,
+                ]
+            }
+            let currentGeometryRelations: [(String, Bool)] = [
+                ("liveFramesAreValid", liveFramesAreValid),
+                ("liveScrollFrameValid", isValidFrame(liveScrollFrame)),
+                ("screenFrameEqualsScrollFrame", screenFrame == scrollFrame),
+                (
+                    "applicationFrameEqualsFrozenApplicationFrame",
+                    applicationFrame == frozenApplicationFrame
+                ),
+                (
+                    "keyboardFrameEqualsFrozenKeyboardFrame",
+                    keyboardFrame == frozenKeyboardFrame
+                ),
+            ]
+            let orderedCurrentGeometryRelations = currentGeometryRelations.map {
+                relation in
+                [
+                    "name": relation.0,
+                    "passed": relation.1,
+                ]
+            }
+            let orderedIntervalRelations = intervalRelations.map { relation in
+                [
+                    "name": relation.0,
+                    "passed": relation.1,
+                ]
+            }
+            let failedIntervalRelations = intervalRelations.compactMap { relation in
+                relation.1 ? nil : relation.0
+            }
+            let context: [String: Any] = [
+                "schemaVersion": 1,
+                "acceptanceEligible": false,
+                "shardID": shard.shardID,
+                "requirementID": shard.requirementID,
+                "deviceProfileID": shard.deviceProfileID,
+                "segmentID": automationSegment.rawValue,
+                "segmentReplayCount": automationSegment.replayCount,
+                "segmentOwnedCount": automationSegment.ownedCount,
+                "segmentFinalOrdinal": automationSegment.finalOrdinal,
+                "segmentStateCursor": segmentedRouteStateCursor,
+                "migratedStateIDs": migratedStateIDs,
+                "stateID": "state.work.validation-error",
+                "stateOrdinal": 23,
+                "predecessorStateID": "state.sign-detail.open-issue",
+                "predecessorOrdinal": 22,
+                "successorStateID": "state.work.editing",
+                "successorOrdinal": 24,
+                "applicationState": String(describing: app.state),
+                "applicationStateRawValue": app.state.rawValue,
+                "applicationForeground": app.state == .runningForeground,
+                "applicationFrame": self.auditFrameObject(applicationFrame),
+                "constants": [
+                    "targetFieldLabelMinY": Double(targetFieldLabelMinY),
+                    "verticalInset": Double(verticalInset),
+                    "receiverInset": Double(receiverInset),
+                    "minimumGestureDistance": Double(minimumGestureDistance),
+                ],
+                "intervalTerms": [
+                    "liveTop": Double(liveTop),
+                    "liveBottom": Double(liveBottom),
+                    "safeTop": Double(safeTop),
+                    "safeBottom": Double(safeBottom),
+                    "receiverTop": Double(receiverTop),
+                    "receiverBottom": Double(receiverBottom),
+                    "receiverLeft": Double(receiverLeft),
+                    "receiverRight": Double(receiverRight),
+                    "receiverCapacity": Double(receiverCapacity),
+                    "remainingShift": Double(remainingShift),
+                    "remainingDistance": Double(remainingDistance),
+                    "previousRemainingDistance": previousRemainingDistance.map {
+                        Double($0) as Any
+                    } ?? NSNull(),
+                    "restorationDirection": restorationDirection.map {
+                        Double($0) as Any
+                    } ?? NSNull(),
+                ],
+                "orderedStableRouteRelations": orderedStableRouteRelations,
+                "stablePrePositionFramesAreValid": stablePrePositionFramesAreValid(),
+                "orderedCurrentGeometryRelations": orderedCurrentGeometryRelations,
+                "orderedRestorationIntervalRelations": orderedIntervalRelations,
+                "failedRestorationIntervalRelations": failedIntervalRelations,
+                "queries": [
+                    "workScreens": publicQueryObject(workScreens),
+                    "descriptionFields": publicQueryObject(descriptionFields),
+                    "focusedDescriptionFields": publicQueryObject(
+                        focusedDescriptionFields
+                    ),
+                    "validationLabels": publicQueryObject(validationLabels),
+                    "shortDescriptionStaticTexts": publicQueryObject(
+                        shortDescriptionStaticTexts
+                    ),
+                    "shortDescriptionFieldLabels": publicQueryObject(
+                        shortDescriptionFieldLabels
+                    ),
+                    "noteStaticTexts": publicQueryObject(noteStaticTexts),
+                    "descriptionScrollViews": publicQueryObject(
+                        descriptionScrollViews
+                    ),
+                    "navigationBars": publicQueryObject(navigationBars),
+                    "tabBars": publicQueryObject(tabBars),
+                    "keyboards": publicQueryObject(keyboards),
+                ],
+                "frozenFrames": [
+                    "application": self.auditFrameObject(frozenApplicationFrame),
+                    "keyboard": self.auditFrameObject(frozenKeyboardFrame),
+                    "fieldLabel": self.auditFrameObject(frozenFieldLabelFrame),
+                    "description": self.auditFrameObject(frozenDescriptionFrame),
+                    "validation": self.auditFrameObject(frozenValidationFrame),
+                    "note": self.auditFrameObject(frozenNoteFrame),
+                ],
+                "currentFrames": [
+                    "application": self.auditFrameObject(applicationFrame),
+                    "workScreen": self.auditFrameObject(screenFrame),
+                    "descriptionScrollView": self.auditFrameObject(scrollFrame),
+                    "liveScrollView": self.auditFrameObject(liveScrollFrame),
+                    "navigationBar": self.auditFrameObject(navigationFrame),
+                    "tabBar": self.auditFrameObject(tabFrame),
+                    "keyboard": self.auditFrameObject(keyboardFrame),
+                    "fieldLabel": self.auditFrameObject(fieldLabelFrame),
+                    "description": self.auditFrameObject(descriptionFrame),
+                    "validation": self.auditFrameObject(validationFrame),
+                    "note": self.auditFrameObject(noteFrame),
+                ],
+            ]
+            guard JSONSerialization.isValidJSONObject(context),
+                  let contextData = try? JSONSerialization.data(
+                    withJSONObject: context,
+                    options: [.sortedKeys]
+                  ),
+                  let contextText = String(data: contextData, encoding: .utf8),
+                  !contextText.contains("\n") else {
+                XCTFail(
+                    "S10.4 AX-text work-validation restoration-interval diagnostic JSON is invalid"
+                )
+                return false
+            }
+            self.printJSONLine(
+                prefix:
+                    "S10_4_AX_TEXT_WORK_VALIDATION_RESTORATION_INTERVAL_DIAGNOSTIC",
+                object: context
+            )
+            let appAttachment = XCTAttachment(screenshot: app.screenshot())
+            appAttachment.name =
+                "S10.4 AX-text work-validation restoration interval diagnostic app"
+            appAttachment.lifetime = .keepAlways
+            add(appAttachment)
+            let treeAttachment = XCTAttachment(string: app.debugDescription)
+            treeAttachment.name =
+                "S10.4 AX-text work-validation restoration interval diagnostic tree"
+            treeAttachment.lifetime = .keepAlways
+            add(treeAttachment)
+            let contextAttachment = XCTAttachment(string: contextText)
+            contextAttachment.name =
+                "S10.4 AX-text work-validation restoration interval diagnostic context"
+            contextAttachment.lifetime = .keepAlways
+            add(contextAttachment)
+            XCTFail(
+                "S10.4 AX-text work-validation restoration-interval diagnostic is nonaccepting"
+            )
+            return false
+        }
         let hasFinalPositionComposition: () -> Bool = {
             guard hasStablePrePositionRoute() else {
                 return false
@@ -6976,6 +7210,29 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let receiverCapacity = receiverBottom - receiverTop
             let remainingShift = targetFieldLabelMinY - fieldLabelFrame.minY
             let remainingDistance = abs(remainingShift)
+            let restorationIntervalRelations: [(String, Bool)] = [
+                ("safeTopFinite", safeTop.isFinite),
+                ("safeBottomFinite", safeBottom.isFinite),
+                ("receiverTopFinite", receiverTop.isFinite),
+                ("receiverBottomFinite", receiverBottom.isFinite),
+                ("receiverLeftFinite", receiverLeft.isFinite),
+                ("receiverRightFinite", receiverRight.isFinite),
+                ("receiverCapacityFinite", receiverCapacity.isFinite),
+                ("remainingShiftFinite", remainingShift.isFinite),
+                ("remainingDistanceFinite", remainingDistance.isFinite),
+                ("safeTopAtMostSafeBottom", safeTop <= safeBottom),
+                ("receiverLeftAtMostReceiverRight", receiverLeft <= receiverRight),
+                ("receiverTopAtMostReceiverBottom", receiverTop <= receiverBottom),
+                (
+                    "receiverCapacityAtLeastMinimumGestureDistance",
+                    receiverCapacity >= minimumGestureDistance
+                ),
+                ("remainingShiftNonzero", remainingShift != 0),
+                (
+                    "remainingDistanceAtLeastMinimumGestureDistance",
+                    remainingDistance >= minimumGestureDistance
+                ),
+            ]
             guard safeTop.isFinite,
                   safeBottom.isFinite,
                   receiverTop.isFinite,
@@ -6991,6 +7248,36 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                   receiverCapacity >= minimumGestureDistance,
                   remainingShift != 0,
                   remainingDistance >= minimumGestureDistance else {
+                if automationSegment == .segment2 {
+                    return diagnoseSegment2InvalidRestorationInterval(
+                        applicationFrame: applicationFrame,
+                        screenFrame: screenFrame,
+                        scrollFrame: scrollFrame,
+                        liveScrollFrame: liveScrollFrame,
+                        navigationFrame: navigationFrame,
+                        tabFrame: tabFrame,
+                        keyboardFrame: keyboardFrame,
+                        fieldLabelFrame: fieldLabelFrame,
+                        descriptionFrame: descriptionFrame,
+                        validationFrame: validationFrame,
+                        noteFrame: noteFrame,
+                        liveFramesAreValid: liveFramesAreValid,
+                        liveTop: liveTop,
+                        liveBottom: liveBottom,
+                        safeTop: safeTop,
+                        safeBottom: safeBottom,
+                        receiverTop: receiverTop,
+                        receiverBottom: receiverBottom,
+                        receiverLeft: receiverLeft,
+                        receiverRight: receiverRight,
+                        receiverCapacity: receiverCapacity,
+                        remainingShift: remainingShift,
+                        remainingDistance: remainingDistance,
+                        previousRemainingDistance: previousRemainingDistance,
+                        restorationDirection: restorationDirection,
+                        intervalRelations: restorationIntervalRelations
+                    )
+                }
                 XCTFail("AX-text work-validation live restoration interval is invalid.")
                 return false
             }
