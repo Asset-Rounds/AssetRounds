@@ -12949,10 +12949,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ]
         )
         for restoredNonthrowingStoreKitCallChainLock in [
-            "        captureAlternativeCompletedCheckStates(in: app)",
-            "    private func captureAlternativeCompletedCheckStates(\n" +
-                "        in app: XCUIApplication\n" +
-                "    ) {",
             "        purchaseBlockedEvaluationAndBeginFreshCheck(in: app)",
             "    private func purchaseBlockedEvaluationAndBeginFreshCheck(\n" +
                 "        in app: XCUIApplication\n" +
@@ -12972,10 +12968,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
         for removedThrowingStoreKitDiagnosticCallChainLock in [
-            "        try captureAlternativeCompletedCheckStates(in: app)",
-            "    private func captureAlternativeCompletedCheckStates(\n" +
-                "        in app: XCUIApplication\n" +
-                "    ) throws {",
             "        try purchaseBlockedEvaluationAndBeginFreshCheck(in: app)",
             "    private func purchaseBlockedEvaluationAndBeginFreshCheck(\n" +
                 "        in app: XCUIApplication\n" +
@@ -20639,7 +20631,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             before: "        recoverInjectedPDFFailureAtXXXL(in: app)"
         )
         for preservedOrdinaryRoute in [
-            "captureAlternativeCompletedCheckStates(in: app)",
+            "try captureAlternativeCompletedCheckStates(in: app)",
             "captureDifferentIssueStatesBeforeRecovery(in: app)",
             "if automatedSegmentFinished { return }",
             "app.terminate()",
@@ -20664,10 +20656,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     "    @discardableResult\n" +
                     "    private func performAlternativeRecheck("
         )
-        XCTAssertEqual(segment3ResumeSource.utf8.count, 10_883)
+        XCTAssertEqual(segment3ResumeSource.utf8.count, 10_887)
         XCTAssertEqual(
             Data(segment3ResumeSource.utf8).sha256,
-            "35F39D4B749ACAAB1A30777747D2F342E668BAAA8D63BCC21800ECC6338987D7"
+            "6FFE3ACD1F33B35151B3B27D9B03903A57B39458E42704CBB33A01C5859481C5"
         )
         for exactResumeGuard in [
             "guard automationSegment == .segment3 else { return false }",
@@ -20686,6 +20678,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"identifier: "s5.1.sign-detail.recheck-due""#,
             "try purchaseSubscriptionWithoutBaseline(in: app)",
             #"emitsEvidence: false"#,
+            "try performAlternativeRecheck(",
             "pendingDifferentIssueReceiptVerified",
             #"identifier: "s5.2.sign-detail.resolved""#,
             "resumedStateIDs.first == \"state.work.validation-error\"",
@@ -20753,15 +20746,16 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     "    private func performAlternativeRecheck(",
             before:
                 "\n    @MainActor\n" +
-                    "    private func captureDifferentIssueStatesBeforeRecovery("
+                    "    private func diagnoseSegment2AXTextRecheckOutcomeDifferentIssueInterval("
         )
-        XCTAssertEqual(alternativeRecheckSource.utf8.count, 8_265)
+        XCTAssertEqual(alternativeRecheckSource.utf8.count, 9_272)
         XCTAssertEqual(
             Data(alternativeRecheckSource.utf8).sha256,
-            "8DB985F14D144326276BC8A606351CD03AB778EFFDE6EEB42742592604330545"
+            "5295F944FC65C83F4D23156710693B36A9E9C245C729A60273902DD7507C1D7B"
         )
         for exact in [
             "emitsEvidence: Bool = true",
+            ") throws -> Bool {",
             "if emitsEvidence && shouldPrepareNormalEvidence(",
             #"for: "state.recheck-outcome.different-issue""#,
             #"captureBaseline("state.recheck-outcome.different-issue", in: app)"#,
@@ -20771,6 +20765,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "viewReportValues.count == 0",
             "return true",
             "return false",
+            "try diagnoseSegment2AXTextRecheckOutcomeDifferentIssueInterval(",
         ] {
             XCTAssertTrue(alternativeRecheckSource.contains(exact), exact)
         }
@@ -20780,6 +20775,89 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             0
         )
+        let differentIssueIntervalDiagnosticSource = try boundedSource(
+            uiSource,
+            from:
+                "    @MainActor\n" +
+                    "    private func diagnoseSegment2AXTextRecheckOutcomeDifferentIssueInterval(",
+            before:
+                "\n    @MainActor\n" +
+                    "    private func captureDifferentIssueStatesBeforeRecovery("
+        )
+        XCTAssertEqual(differentIssueIntervalDiagnosticSource.utf8.count, 14_781)
+        XCTAssertEqual(
+            Data(differentIssueIntervalDiagnosticSource.utf8).sha256,
+            "66E3C2F613FEC3BA3142EB1F5F1C07BD1F0BC4BDF2ECA18978598B86BA76505B"
+        )
+        for exact in [
+            #"let stateID = "state.recheck-outcome.different-issue""#,
+            "Self.segmentedRouteStateIDs[22..<47]",
+            "Self.segmentedRouteStateIDs[47] == stateID",
+            "segmentedRouteStateCursor == 47",
+            "minimumShift == derivedMinimumShift",
+            "maximumShift == derivedMaximumShift",
+            "minimumShift > maximumShift",
+            #""stateOrdinal": 48"#,
+            #""predecessorStateID": "state.issue.open""#,
+            #""successorStateID": "state.recheck-review.different-issue""#,
+            #""issueStillVisibleTopShift""#,
+            #""originalResolvedDifferentIssueTopShift""#,
+            #""resolvedAboveNavigationShift""#,
+            #""physicalDamageBottomShift""#,
+            #""intervalWidth""#,
+            #""minimumShiftAtMostMaximumShift""#,
+            #""outcomeScreens""#,
+            #""outcomeScrollViews""#,
+            #""resolvedControls""#,
+            #""issueStillVisibleControls""#,
+            #""originalResolvedDifferentIssueControls""#,
+            #""physicalDamageControls""#,
+            #""navigationBars""#,
+            #""tabBars""#,
+            #""keyboards""#,
+            #""inputViews""#,
+            "S10_4_AX_TEXT_RECHECK_OUTCOME_DIFFERENT_ISSUE_INTERVAL_CONTEXT_DIAGNOSTIC",
+            "S10_4_AX_TEXT_RECHECK_OUTCOME_DIFFERENT_ISSUE_INTERVAL_ISSUE_DIAGNOSTIC",
+            "S10_4_AX_TEXT_RECHECK_OUTCOME_DIFFERENT_ISSUE_INTERVAL_COUNT_DIAGNOSTIC",
+            "try app.performAccessibilityAudit(for: .contrast)",
+            "return true",
+            "S10.4 AX-text recheck-outcome different-issue interval diagnostic completed nonaccepting",
+        ] {
+            XCTAssertTrue(
+                differentIssueIntervalDiagnosticSource.contains(exact),
+                exact
+            )
+        }
+        XCTAssertEqual(
+            differentIssueIntervalDiagnosticSource.components(
+                separatedBy: "try app.performAccessibilityAudit(for: .contrast)"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            differentIssueIntervalDiagnosticSource.components(
+                separatedBy: "return true"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            differentIssueIntervalDiagnosticSource.components(
+                separatedBy: ".lifetime = .keepAlways"
+            ).count - 1,
+            4
+        )
+        for prohibited in [
+            "captureBaseline(", "attachCandidate(", "S10_MIGRATION_STATE",
+            "S10_4_AX_STATE", "S10_4_CONTRAST", "S10_4_CANDIDATE",
+            "migratedStateIDs.append", "segmentedRouteStateCursor +=",
+            "swipeUp", "swipeDown", ".tap()", "press(", "sleep(",
+            "return false",
+        ] {
+            XCTAssertFalse(
+                differentIssueIntervalDiagnosticSource.contains(prohibited),
+                prohibited
+            )
+        }
         for preservedResumeRouteAction in [
             "due.tap()", "start.tap()", "value.tap()", "label.tap()",
             "continueToReview(in: app)", "save.tap()", "done.tap()",

@@ -947,7 +947,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         try completeWorkAndResolvedRecheckAtXXXL(in: app)
         if automatedSegmentFinished { return }
         if !segment3ResumePrepared {
-            captureAlternativeCompletedCheckStates(in: app)
+            try captureAlternativeCompletedCheckStates(in: app)
             captureDifferentIssueStatesBeforeRecovery(in: app)
             if automatedSegmentFinished { return }
             app.terminate()
@@ -5737,7 +5737,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     @MainActor
     private func captureAlternativeCompletedCheckStates(
         in app: XCUIApplication
-    ) {
+    ) throws {
         beginFreshCheck(in: app)
         acceptImportedPhotoWithoutBaseline(
             in: app,
@@ -5783,15 +5783,15 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
         createVisibleIssueWithoutBaseline(in: app)
         recordWorkWithoutBaseline(in: app)
-        performAlternativeRecheck(.couldNotVerify, in: app)
-        performAlternativeRecheck(.issueStillVisible, in: app)
+        try performAlternativeRecheck(.couldNotVerify, in: app)
+        try performAlternativeRecheck(.issueStillVisible, in: app)
         recordWorkWithoutBaseline(in: app)
         app.terminate()
         app.launchArguments.append("--s4-2-ui-test-render-failure-once")
         app.launch()
         XCTAssertTrue(element("s2.sign-detail.screen", in: app)
             .waitForExistence(timeout: 30))
-        performAlternativeRecheck(
+        try performAlternativeRecheck(
             .differentIssue,
             leavesPendingReceipt: true,
             in: app
@@ -6092,7 +6092,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 "Segment-3 resume did not relaunch the recheck-due route"
             )
         }
-        let pendingDifferentIssueReceiptVerified = performAlternativeRecheck(
+        let pendingDifferentIssueReceiptVerified = try performAlternativeRecheck(
             .differentIssue,
             leavesPendingReceipt: true,
             emitsEvidence: false,
@@ -6210,7 +6210,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         leavesPendingReceipt: Bool = false,
         emitsEvidence: Bool = true,
         in app: XCUIApplication
-    ) -> Bool {
+    ) throws -> Bool {
         let due = element("s5.1.sign-detail.recheck-due", in: app)
         scroll(due, in: app)
         assertControl(due, label: "Recheck due")
@@ -6281,7 +6281,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     "s5.2.outcome.issue-still-visible",
                     in: app
                 )
-                for _ in 0..<6 {
+                for attemptIndex in 0..<6 {
                     let minimumShift = max(
                         navigationBottom - issueStillVisible.frame.minY,
                         navigationBottom - value.frame.minY
@@ -6292,6 +6292,24 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     )
                     if minimumShift <= 0, maximumShift >= 0 {
                         break
+                    }
+                    if minimumShift > maximumShift,
+                       emitsEvidence,
+                       automationSegment == .segment2,
+                       automationShard?.shardID == "s10.4.current.ax-text" {
+                        return try diagnoseSegment2AXTextRecheckOutcomeDifferentIssueInterval(
+                            in: app,
+                            attemptOrdinal: attemptIndex + 1,
+                            outcomeScreen: outcomeScreen,
+                            resolved: resolved,
+                            issueStillVisible: issueStillVisible,
+                            originalResolvedDifferentIssue: value,
+                            physicalDamage: label,
+                            navigationBottom: navigationBottom,
+                            viewportBottom: viewportBottom,
+                            minimumShift: minimumShift,
+                            maximumShift: maximumShift
+                        )
                     }
                     XCTAssertLessThanOrEqual(minimumShift, maximumShift)
                     let dragDistance = minimumShift > 0 ? maximumShift : minimumShift
@@ -6390,6 +6408,338 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         XCTAssertTrue(element("s2.sign-detail.screen", in: app)
             .waitForExistence(timeout: 25))
         return false
+    }
+
+    @MainActor
+    private func diagnoseSegment2AXTextRecheckOutcomeDifferentIssueInterval(
+        in app: XCUIApplication,
+        attemptOrdinal: Int,
+        outcomeScreen: XCUIElement,
+        resolved: XCUIElement,
+        issueStillVisible: XCUIElement,
+        originalResolvedDifferentIssue: XCUIElement,
+        physicalDamage: XCUIElement,
+        navigationBottom: CGFloat,
+        viewportBottom: CGFloat,
+        minimumShift: CGFloat,
+        maximumShift: CGFloat
+    ) throws -> Bool {
+        let stateID = "state.recheck-outcome.different-issue"
+        let expectedMigratedStateIDs = Array(
+            Self.segmentedRouteStateIDs[22..<47]
+        )
+        let expectedContrastExceptionStateIDs = [
+            "state.issue.open",
+            "state.issue.recheck-due",
+            "state.issue.resolved",
+            "state.paywall.purchase-complete",
+            "state.recheck-capture.wide-ready",
+            "state.recheck-preflight.ready",
+            "state.work.validation-error",
+        ]
+        let issueStillVisibleTopShift =
+            navigationBottom - issueStillVisible.frame.minY
+        let originalResolvedDifferentIssueTopShift =
+            navigationBottom - originalResolvedDifferentIssue.frame.minY
+        let resolvedAboveNavigationShift =
+            navigationBottom - resolved.frame.maxY
+        let physicalDamageBottomShift =
+            viewportBottom - physicalDamage.frame.maxY
+        let derivedMinimumShift = max(
+            issueStillVisibleTopShift,
+            originalResolvedDifferentIssueTopShift
+        )
+        let derivedMaximumShift = min(
+            resolvedAboveNavigationShift,
+            physicalDamageBottomShift
+        )
+        guard let shard = automationShard,
+              shard.shardID == "s10.4.current.ax-text",
+              automationSegment == .segment2,
+              automationSegment.replayCount == 22,
+              automationSegment.ownedStartOrdinal == 23,
+              automationSegment.ownedCount == 28,
+              automationSegment.finalOrdinal == 50,
+              Self.segmentedRouteStateIDs.count == 67,
+              Set(Self.segmentedRouteStateIDs).count == 67,
+              Self.segmentedRouteStateIDs[47] == stateID,
+              segmentedRouteStateCursor == 47,
+              migratedStateIDs == expectedMigratedStateIDs,
+              automationAXTreeDigests.keys.sorted()
+                == expectedMigratedStateIDs.sorted(),
+              automationContrastExceptions.keys.sorted()
+                == expectedContrastExceptionStateIDs,
+              !automatedSegmentFinished,
+              app.state == .runningForeground,
+              minimumShift == derivedMinimumShift,
+              maximumShift == derivedMaximumShift,
+              minimumShift > maximumShift else {
+            throw AutomationConfigurationError.invalid(
+                "S10.4 AX-text recheck-outcome different-issue interval diagnostic gate is invalid"
+            )
+        }
+
+        let diagnosticQueryBindings: [(
+            name: String,
+            query: XCUIElementQuery
+        )] = [
+            (
+                "outcomeScreens",
+                app.descendants(matching: .any).matching(
+                    identifier: "s3.outcome.screen"
+                )
+            ),
+            (
+                "outcomeScrollViews",
+                app.scrollViews.matching(identifier: "s3.outcome.screen")
+            ),
+            (
+                "resolvedControls",
+                app.descendants(matching: .any).matching(
+                    identifier: "s5.2.outcome.resolved"
+                )
+            ),
+            (
+                "issueStillVisibleControls",
+                app.descendants(matching: .any).matching(
+                    identifier: "s5.2.outcome.issue-still-visible"
+                )
+            ),
+            (
+                "originalResolvedDifferentIssueControls",
+                app.descendants(matching: .any).matching(
+                    identifier: "s5.3.outcome.original-resolved-different-issue"
+                )
+            ),
+            (
+                "physicalDamageControls",
+                app.descendants(matching: .any).matching(
+                    identifier: "s3.outcome.issue.physical_damage"
+                )
+            ),
+            ("navigationBars", app.navigationBars),
+            ("tabBars", app.tabBars),
+            ("keyboards", app.keyboards),
+            (
+                "inputViews",
+                app.otherElements.matching(
+                    NSPredicate(format: "identifier == %@", "inputView")
+                )
+            ),
+        ]
+        let diagnosticElementObject: (XCUIElement) -> [String: Any] = {
+            element in
+            [
+                "exists": element.exists,
+                "isEnabled": element.isEnabled,
+                "isHittable": element.isHittable,
+                "identifier": element.identifier,
+                "label": element.label,
+                "value": (element.value as? String).map { $0 as Any }
+                    ?? NSNull(),
+                "elementTypeRawValue": element.elementType.rawValue,
+                "elementTypeDescription": String(describing: element.elementType),
+                "frame": self.auditFrameObject(element.frame),
+            ]
+        }
+        let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {
+            query in
+            let count = query.count
+            return [
+                "count": count,
+                "elements": (0..<count).map { index in
+                    diagnosticElementObject(query.element(boundBy: index))
+                },
+            ]
+        }
+        var diagnosticQueryObjects: [String: Any] = [:]
+        for binding in diagnosticQueryBindings {
+            diagnosticQueryObjects[binding.name] = diagnosticQueryObject(binding.query)
+        }
+        let intervalTerms: [String: Any] = [
+            "navigationBottom": Double(navigationBottom),
+            "viewportBottom": Double(viewportBottom),
+            "issueStillVisibleTopShift": Double(issueStillVisibleTopShift),
+            "originalResolvedDifferentIssueTopShift": Double(
+                originalResolvedDifferentIssueTopShift
+            ),
+            "resolvedAboveNavigationShift": Double(resolvedAboveNavigationShift),
+            "physicalDamageBottomShift": Double(physicalDamageBottomShift),
+            "minimumShift": Double(minimumShift),
+            "maximumShift": Double(maximumShift),
+            "intervalWidth": Double(maximumShift - minimumShift),
+        ]
+        let intervalRelations: [String: Bool] = [
+            "allTermsFinite": [
+                navigationBottom,
+                viewportBottom,
+                issueStillVisibleTopShift,
+                originalResolvedDifferentIssueTopShift,
+                resolvedAboveNavigationShift,
+                physicalDamageBottomShift,
+                minimumShift,
+                maximumShift,
+            ].allSatisfy(\.isFinite),
+            "minimumMatchesMaximumTopRequirement":
+                minimumShift == max(
+                    issueStillVisibleTopShift,
+                    originalResolvedDifferentIssueTopShift
+                ),
+            "maximumMatchesMinimumBottomAllowance":
+                maximumShift == min(
+                    resolvedAboveNavigationShift,
+                    physicalDamageBottomShift
+                ),
+            "minimumShiftAtMostMaximumShift": minimumShift <= maximumShift,
+        ]
+        let diagnosticContext: [String: Any] = [
+            "schemaVersion": 1,
+            "acceptanceEligible": false,
+            "shardID": shard.shardID,
+            "requirementID": shard.requirementID,
+            "deviceProfileID": shard.deviceProfileID,
+            "segmentID": automationSegment.rawValue,
+            "segmentReplayCount": automationSegment.replayCount,
+            "segmentOwnedStartOrdinal": automationSegment.ownedStartOrdinal,
+            "segmentOwnedCount": automationSegment.ownedCount,
+            "segmentFinalOrdinal": automationSegment.finalOrdinal,
+            "segmentStateCursor": segmentedRouteStateCursor,
+            "stateID": stateID,
+            "stateOrdinal": 48,
+            "predecessorStateID": "state.issue.open",
+            "predecessorOrdinal": 47,
+            "successorStateID": "state.recheck-review.different-issue",
+            "successorOrdinal": 49,
+            "attemptOrdinal": attemptOrdinal,
+            "migratedStateIDs": migratedStateIDs,
+            "axTreeDigestStateIDs": automationAXTreeDigests.keys.sorted(),
+            "contrastExceptionStateIDs": automationContrastExceptions.keys.sorted(),
+            "applicationState": String(describing: app.state),
+            "applicationStateRawValue": app.state.rawValue,
+            "applicationForeground": app.state == .runningForeground,
+            "applicationFrame": auditFrameObject(app.frame),
+            "application": diagnosticElementObject(app),
+            "intervalTerms": intervalTerms,
+            "intervalRelations": intervalRelations,
+            "queries": diagnosticQueryObjects,
+            "routeElements": [
+                "outcomeScreen": diagnosticElementObject(outcomeScreen),
+                "resolved": diagnosticElementObject(resolved),
+                "issueStillVisible": diagnosticElementObject(issueStillVisible),
+                "originalResolvedDifferentIssue": diagnosticElementObject(
+                    originalResolvedDifferentIssue
+                ),
+                "physicalDamage": diagnosticElementObject(physicalDamage),
+            ],
+        ]
+        printJSONLine(
+            prefix:
+                "S10_4_AX_TEXT_RECHECK_OUTCOME_DIFFERENT_ISSUE_INTERVAL_CONTEXT_DIAGNOSTIC",
+            object: diagnosticContext
+        )
+
+        let appAttachment = XCTAttachment(screenshot: app.screenshot())
+        appAttachment.name =
+            "S10.4 AX-text recheck-outcome different-issue interval diagnostic app"
+        appAttachment.lifetime = .keepAlways
+        add(appAttachment)
+        let treeAttachment = XCTAttachment(string: app.debugDescription)
+        treeAttachment.name =
+            "S10.4 AX-text recheck-outcome different-issue interval diagnostic tree"
+        treeAttachment.lifetime = .keepAlways
+        add(treeAttachment)
+        let contextData = try JSONSerialization.data(
+            withJSONObject: diagnosticContext,
+            options: [.prettyPrinted, .sortedKeys]
+        )
+        let contextAttachment = XCTAttachment(
+            string: String(decoding: contextData, as: UTF8.self)
+        )
+        contextAttachment.name =
+            "S10.4 AX-text recheck-outcome different-issue interval diagnostic context"
+        contextAttachment.lifetime = .keepAlways
+        add(contextAttachment)
+
+        var observedIssueCount = 0
+        var auditedElementCount = 0
+        try app.performAccessibilityAudit(for: .contrast) { issue in
+            observedIssueCount += 1
+            let auditedElement = issue.element
+            var diagnosticIssue: [String: Any] = [
+                "schemaVersion": 1,
+                "acceptanceEligible": false,
+                "shardID": shard.shardID,
+                "requirementID": shard.requirementID,
+                "deviceProfileID": shard.deviceProfileID,
+                "segmentID": self.automationSegment.rawValue,
+                "segmentStateCursor": self.segmentedRouteStateCursor,
+                "stateID": stateID,
+                "stateOrdinal": 48,
+                "issueOrdinal": observedIssueCount,
+                "auditTypeRawValue": String(issue.auditType.rawValue),
+                "compactDescription": issue.compactDescription,
+                "detailedDescription": issue.detailedDescription,
+                "elementExists": NSNull(),
+                "elementEnabled": NSNull(),
+                "elementHittable": NSNull(),
+                "elementIdentifier": NSNull(),
+                "elementLabel": NSNull(),
+                "elementValue": NSNull(),
+                "elementTypeRawValue": NSNull(),
+                "elementTypeDescription": NSNull(),
+                "elementFrame": NSNull(),
+                "applicationFrame": self.auditFrameObject(app.frame),
+            ]
+            if let auditedElement {
+                auditedElementCount += 1
+                let auditedElementObject = diagnosticElementObject(auditedElement)
+                diagnosticIssue["elementExists"] = auditedElementObject["exists"]
+                diagnosticIssue["elementEnabled"] = auditedElementObject["isEnabled"]
+                diagnosticIssue["elementHittable"] = auditedElementObject["isHittable"]
+                diagnosticIssue["elementIdentifier"] = auditedElementObject["identifier"]
+                diagnosticIssue["elementLabel"] = auditedElementObject["label"]
+                diagnosticIssue["elementValue"] = auditedElementObject["value"]
+                diagnosticIssue["elementTypeRawValue"] =
+                    auditedElementObject["elementTypeRawValue"]
+                diagnosticIssue["elementTypeDescription"] =
+                    auditedElementObject["elementTypeDescription"]
+                diagnosticIssue["elementFrame"] = auditedElementObject["frame"]
+            }
+            self.printJSONLine(
+                prefix:
+                    "S10_4_AX_TEXT_RECHECK_OUTCOME_DIFFERENT_ISSUE_INTERVAL_ISSUE_DIAGNOSTIC",
+                object: diagnosticIssue
+            )
+            if let auditedElement {
+                let issueAttachment = XCTAttachment(
+                    screenshot: auditedElement.screenshot()
+                )
+                issueAttachment.name =
+                    "S10.4 AX-text recheck-outcome different-issue interval diagnostic audited element "
+                        + String(observedIssueCount)
+                issueAttachment.lifetime = .keepAlways
+                self.add(issueAttachment)
+            }
+            return true
+        }
+        printJSONLine(
+            prefix:
+                "S10_4_AX_TEXT_RECHECK_OUTCOME_DIFFERENT_ISSUE_INTERVAL_COUNT_DIAGNOSTIC",
+            object: [
+                "schemaVersion": 1,
+                "acceptanceEligible": false,
+                "shardID": shard.shardID,
+                "segmentID": automationSegment.rawValue,
+                "stateID": stateID,
+                "stateOrdinal": 48,
+                "segmentStateCursor": segmentedRouteStateCursor,
+                "observedIssueCount": observedIssueCount,
+                "auditedElementCount": auditedElementCount,
+            ]
+        )
+        throw AutomationConfigurationError.invalid(
+            "S10.4 AX-text recheck-outcome different-issue interval diagnostic completed nonaccepting"
+        )
     }
 
     @MainActor
