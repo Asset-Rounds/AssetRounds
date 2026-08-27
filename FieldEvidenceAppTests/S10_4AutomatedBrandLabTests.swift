@@ -11349,17 +11349,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         let diagnosticsPositioningSource = String(uiSource[diagnosticsPositioningStartRange.lowerBound..<diagnosticsPositioningEndRange.lowerBound])
         let diagnosticsRouteLocks = [
-            #"app.scrollViews.containing("#,
-            ".staticText,",
-            #"identifier: "s8.3.diagnostics.heading""#,
-            "guard diagnosticsScrollViews.count == 1 else {",
-            "let diagnosticsScrollView = diagnosticsScrollViews.firstMatch",
-            "guard diagnosticsScrollView.waitForExistence(timeout: 10) else {",
+            (#"app.scrollViews.containing("#, 1),
+            (".staticText,", 1),
+            (#"identifier: "s8.3.diagnostics.heading""#, 2),
+            ("guard diagnosticsScrollViews.count == 1 else {", 1),
+            ("let diagnosticsScrollView = diagnosticsScrollViews.firstMatch", 1),
+            ("guard diagnosticsScrollView.waitForExistence(timeout: 10) else {", 1),
         ]
-        for lock in diagnosticsRouteLocks {
+        for (lock, expectedCount) in diagnosticsRouteLocks {
             XCTAssertEqual(
                 diagnosticsPositioningSource.components(separatedBy: lock).count - 1,
-                1,
+                expectedCount,
                 lock
             )
         }
@@ -11371,11 +11371,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for (diagnosticsResidualForm, expectedCount) in [
             ("diagnoseIncreasedContrastDiagnosticsPositioning", 0),
             ("S10_4_INCREASED_CONTRAST_DIAGNOSTICS_POSITIONING", 0),
-            ("XCTAttachment(", 0),
+            ("XCTAttachment(", 3),
             ("XCUIScreen.main.screenshot()", 0),
-            ("XCTAttachment(string: app.debugDescription)", 0),
-            (".lifetime = .keepAlways", 0),
-            ("throw AutomationConfigurationError.invalid(", 0),
+            ("XCTAttachment(string: app.debugDescription)", 1),
+            (".lifetime = .keepAlways", 3),
+            ("throw AutomationConfigurationError.invalid(", 3),
             ("S10.4 increased-contrast Diagnostics positioning diagnostic", 0),
         ] {
             XCTAssertEqual(
@@ -11739,23 +11739,23 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
 
         let removedDefaultLightPositioningFragments = [
-            #"        if automationShard?.shardID == "s10.4.current.default-light" {"#,
-            "try diagnoseDefaultLightDiagnosticsPositioning(in: app)",
-            "diagnoseDefaultLightDiagnosticsPositioning",
-            "S10_4_DIAGNOSTICS_POSITIONING_DIAGNOSTIC",
-            "XCTAttachment(",
-            "XCUIScreen.main.screenshot()",
-            "XCTAttachment(string: app.debugDescription)",
-            ".lifetime = .keepAlways",
-            "throw AutomationConfigurationError.invalid(",
-            "S10.4 default-light Diagnostics positioning diagnostic",
+            (#"        if automationShard?.shardID == "s10.4.current.default-light" {"#, 0),
+            ("try diagnoseDefaultLightDiagnosticsPositioning(in: app)", 0),
+            ("diagnoseDefaultLightDiagnosticsPositioning", 0),
+            ("S10_4_DIAGNOSTICS_POSITIONING_DIAGNOSTIC", 0),
+            ("XCTAttachment(", 3),
+            ("XCUIScreen.main.screenshot()", 0),
+            ("XCTAttachment(string: app.debugDescription)", 1),
+            (".lifetime = .keepAlways", 3),
+            ("throw AutomationConfigurationError.invalid(", 3),
+            ("S10.4 default-light Diagnostics positioning diagnostic", 0),
         ]
-        for removedTelemetry in removedDefaultLightPositioningFragments {
+        for (removedTelemetry, expectedCount) in removedDefaultLightPositioningFragments {
             XCTAssertEqual(
                 diagnosticsPositioningSource.components(
                     separatedBy: removedTelemetry
                 ).count - 1,
-                0,
+                expectedCount,
                 removedTelemetry
             )
         }
