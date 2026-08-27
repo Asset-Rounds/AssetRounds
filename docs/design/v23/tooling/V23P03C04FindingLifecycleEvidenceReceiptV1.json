@@ -1,0 +1,253 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "acceptanceOrReleaseClaimed": false,
+  "adoptionEnabled": false,
+  "artifactDigest": "2e91e6fb11bc7aa4c3ef2e520109d89b3290660af7ccd6a43abbc10cb042a822",
+  "authority": {
+    "appBaseHead": "c7ec5971598837bfabae62011dbe0900dc240502",
+    "appBaseTree": "9fe3e63517d68c86e46c14efe8362944810e8b1b",
+    "attemptID": 1,
+    "branch": "phase/v23-expansion",
+    "cardID": "V23-P03-C04",
+    "classification": "IMPLEMENT_NOW",
+    "contextDigest": "08b416bc888cf2ce2cc408b1ad93163a23022ff078af002bb9aedc83baaf12ab",
+    "coordinationAuthorityHead": "99765a544d0d5a5a2d0b39636928ef337441b3c7",
+    "coordinationAuthorityTree": "68f3a0d250227a8359e8a9f0bee922d2008d88f4",
+    "coordinationCASSequence": 148,
+    "coordinationLedgerDigest": "225aab4d7ef7818d1b0a81703456274c7fb74dd1bf16c62d1f672bbf090c6b0a",
+    "deterministicEvidenceIDs": [
+      "V23-P03-C04-G01",
+      "V23-P03-C04-A01",
+      "V23-P03-C04-H01",
+      "V23-P03-C04-I01",
+      "V23-P03-C04-R01"
+    ],
+    "directPrerequisites": [
+      "V23-P03-C03"
+    ],
+    "dossierDigest": "d6f920d2ccee0b21fd6952e4fdc39f30eac9de4775228ba94b35fc7de41a66e3",
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationProjectionDigest": "14857ad67f63d5c492d613e706190d50041ed31aa637f8c3ef80879e5c66b650",
+    "inheritedV21BlockDigest": "46d7bb5238d24f1eb8efe341ffc6f0554101a9203c4173c33f63bdfc4f261c10",
+    "invalidationConsumers": [
+      "V23-P03-C05",
+      "V23-P04-C27:STATE_INVENTORY",
+      "V23-P04-C29:EXACT_CANDIDATE",
+      "V23-P05-C01:RELEASE_SELECTOR"
+    ],
+    "lineage": "EXACT_WITH_GENERATION_REBIND",
+    "lineageSource": "V21-P03-C04",
+    "pathFenceDigest": "cafb01052cd0eb74fb7a90f0815439d3e3b29811c3a8b920fbae4d948d5c166c",
+    "planningStatus": "NOT_STARTED",
+    "provisionalPrerequisiteDigest": "19c5febfafc1574a9b3c15e9621b3d149996c8b9458e04ced71475359751adab",
+    "registerOrdinal": 35,
+    "registerRowDigest": "ec4c18100d9104105174641677eb0bb9512e916af88177d1a992068d71cd9d03",
+    "registerSectionDigest": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+    "title": "Finding, human-recorded operational disposition, corrective work, verified recheck, release-to-service, and duplicate-link lifecycle",
+    "transitionDigest": "f88bc4a4adc884137d6a6b238df0b8037b65d7a76b4d8907c7e09fa3fb7f700e"
+  },
+  "backupBehaviorDelta": false,
+  "backupRestoreRequired": false,
+  "brandSurfaceDelta": false,
+  "canonicalAggregate": {
+    "canonicalSortedExactBytes": true,
+    "codec": "FindingLifecycleCanonicalEvidenceCodecV1",
+    "failClosedError": "canonicalEvidenceIncomplete",
+    "findingAndSubjectScoped": true,
+    "relatedSuggestionScopeFields": [
+      "subjectID",
+      "categoryID"
+    ],
+    "requiredFields": [
+      "finding",
+      "lifecycle",
+      "correctiveWorkLinks",
+      "verifiedRechecks",
+      "releasesToService",
+      "operationalDispositionEvents",
+      "relatedWorkSuggestions",
+      "workRelationships",
+      "workRelationshipDecisions"
+    ],
+    "type": "FindingLifecycleCanonicalEvidenceV1"
+  },
+  "cardID": "V23-P03-C04",
+  "crossRecordFailureCases": [
+    "ARBITRARY_RESOLUTION_RECHECK",
+    "CORRECTIVE_TARGET_MISSING_OR_REMOVED",
+    "FABRICATED_SUGGESTION_DIVERGENT_BASIS",
+    "RELEASE_ACTUAL_RECHECK_MISSING_OR_MISMATCHED",
+    "RETURNED_DISPOSITION_RELEASE_MISMATCH",
+    "ORPHAN_RELATIONSHIP"
+  ],
+  "deleteBehaviorDelta": false,
+  "deleteEraseRequired": false,
+  "downgradeDisposition": "DORMANT_REVERT_ALLOWED",
+  "evidence": [
+    {
+      "evidenceID": "V23-P03-C04-G01",
+      "family": "G01",
+      "outcome": "COMPLETE_FINDING_LIFECYCLE_AND_REOPEN_MATRIX_IS_EXPLICIT_ORDERED_AND_RECONSTRUCTABLE",
+      "sourceSetDigest": "f6778d64b7c3044f60ee4b7afe75236596095f13969fdd9622ee14f65b910fe2",
+      "testMethod": "testV9_14G01CompleteLifecycleReopenAndHumanOperationalDispositionMatrix"
+    },
+    {
+      "evidenceID": "V23-P03-C04-A01",
+      "family": "A01",
+      "outcome": "INVALID_TRANSITION_AND_TERMINAL_NEGATIVES_FAIL_CLOSED_WITHOUT_HISTORY_REWRITE",
+      "sourceSetDigest": "f6778d64b7c3044f60ee4b7afe75236596095f13969fdd9622ee14f65b910fe2",
+      "testMethod": "testV9_14A01InvalidTransitionMissingTargetAndUnpermittedResolutionFailClosed"
+    },
+    {
+      "evidenceID": "V23-P03-C04-H01",
+      "family": "H01",
+      "outcome": "CONCURRENT_CORRECTION_RECHECK_AND_STALE_MUTATIONS_PRESERVE_EXPECTED_REVISION_TRUTH",
+      "sourceSetDigest": "f6778d64b7c3044f60ee4b7afe75236596095f13969fdd9622ee14f65b910fe2",
+      "testMethod": "testV9_14H01StaleConcurrentCorrectiveRecheckAndHistoryMutationFailClosed"
+    },
+    {
+      "evidenceID": "V23-P03-C04-I01",
+      "family": "I01",
+      "outcome": "INTERRUPTED_DORMANT_REGISTRY_PUBLICATION_EXPOSES_ZERO_OR_COMPLETE_CANONICAL_RESULT",
+      "sourceSetDigest": "f6778d64b7c3044f60ee4b7afe75236596095f13969fdd9622ee14f65b910fe2",
+      "testMethod": "testV9_14I01EveryDormantRegistryPublicationBoundaryRecoversZeroOrCompleteExactBytes"
+    },
+    {
+      "evidenceID": "V23-P03-C04-R01",
+      "family": "R01",
+      "outcome": "SNAPSHOT_LINEAGE_AND_RELATED_WORK_REBUILD_RECONCILE_WITHOUT_AUTO_MERGE_CLOSE_OR_COPY",
+      "sourceSetDigest": "f6778d64b7c3044f60ee4b7afe75236596095f13969fdd9622ee14f65b910fe2",
+      "testMethod": "testV9_14R01SnapshotFixtureLineageAndExplicitRelatedWorkSafeguardsReconcile"
+    }
+  ],
+  "evidenceIDs": [
+    "V23-P03-C04-G01",
+    "V23-P03-C04-A01",
+    "V23-P03-C04-H01",
+    "V23-P03-C04-I01",
+    "V23-P03-C04-R01"
+  ],
+  "exportBehaviorDelta": false,
+  "exportReportRequired": false,
+  "fixtureProjection": {
+    "bytes": 3060,
+    "canonicalSHA256": "f841b657cf353930b85a92400d770bd091c0bbc9deec6ed9fa85fbb1597e7054",
+    "path": "FieldEvidenceAppTests/Fixtures/V21/InspectionKernel/V21P03C04FindingLifecycleCorpusV1.json",
+    "schema": "V21P03C04FindingLifecycleCorpusV1",
+    "schemaVersion": 1,
+    "sha256": "539a62326bc72106897c226a61377106691874d5bf199ff937ebbe957276b889",
+    "testOnly": true,
+    "topLevelKeys": [
+      "canonicalAggregate",
+      "declarationOnlyFlags",
+      "dispositionStates",
+      "failureDisposition",
+      "historicC03",
+      "lifecycle",
+      "lifecycleStates",
+      "negativeCases",
+      "publication",
+      "relationshipDecisions",
+      "relationshipDirections",
+      "relationshipKinds",
+      "releaseToService",
+      "schema",
+      "schemaVersion",
+      "severityBinding",
+      "testOnly"
+    ]
+  },
+  "fixtureSHA256": "539a62326bc72106897c226a61377106691874d5bf199ff937ebbe957276b889",
+  "hostedDispatchEnabled": false,
+  "hostedDispatchRan": false,
+  "interruptionBoundaries": [
+    "BEFORE_VALIDATION",
+    "AFTER_VALIDATION_BEFORE_PUBLICATION",
+    "AFTER_PUBLICATION_BEFORE_RECEIPT"
+  ],
+  "migrationBehaviorDelta": false,
+  "migrationRequired": false,
+  "nativeCompileRan": false,
+  "nativeOrHostedEvidenceClaimed": false,
+  "persistentChangeMode": "DECLARATION_ONLY",
+  "persistentContractSchema": "KERNEL_FINDING_V1",
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "physicalLockedState": "REQUIRED_PENDING_OWNER",
+  "provisionalKernelOnly": true,
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiredEvidence": [
+    "transition table",
+    "lifecycle fixtures",
+    "lineage reconciliation",
+    "canonical aggregate exact-byte reconciliation"
+  ],
+  "requiresAcceptedS10_6Reconciliation": true,
+  "restoreBehaviorDelta": false,
+  "schema": "V23P03C04FindingLifecycleEvidenceReceiptV1",
+  "schemaBehaviorDelta": false,
+  "schemaVersion": 1,
+  "shippingBoundaryAdoption": "DEFERRED_UNTIL_ACCEPTED_S10_6_RECONCILIATION",
+  "sourceProjection": {
+    "pathCount": 9,
+    "paths": [
+      {
+        "bytes": 9157,
+        "path": "FieldEvidenceApp/Domain/InspectionKernel/FindingContractsV1.swift",
+        "sha256": "e12486440182f41ab54ad69b655af9b118d328621ab14a8c04e979035c2e73ff"
+      },
+      {
+        "bytes": 19618,
+        "path": "FieldEvidenceApp/Domain/InspectionKernel/FindingLifecycleV1.swift",
+        "sha256": "893aef8d32974c3b14c2495b959ea3725cb8b838629e78810445f39234c14cff"
+      },
+      {
+        "bytes": 5699,
+        "path": "FieldEvidenceApp/Domain/InspectionKernel/CorrectiveWorkContractsV1.swift",
+        "sha256": "2c9ce7bc8919daee82d489f7eb9f99bd8dcddec10c6a2b2005c841349db372bf"
+      },
+      {
+        "bytes": 6329,
+        "path": "FieldEvidenceApp/Domain/InspectionKernel/VerifiedRecheckContractsV1.swift",
+        "sha256": "a9679557fb79d920105e8d451c12bd9953393de44d3884ddb39177dc1a94dee5"
+      },
+      {
+        "bytes": 5996,
+        "path": "FieldEvidenceApp/Domain/InspectionKernel/ReleaseToServiceContractsV1.swift",
+        "sha256": "1a99ce9bdc304e06c98f8cb96456f8256e3b7a5822926920b5aa781e62c390d2"
+      },
+      {
+        "bytes": 20477,
+        "path": "FieldEvidenceApp/Domain/InspectionKernel/RelatedWorkContractsV1.swift",
+        "sha256": "4f06536c065bac1b45714f9e9bade92d37d5a80e1d349aceae840b599829287a"
+      },
+      {
+        "bytes": 25559,
+        "path": "FieldEvidenceApp/Domain/InspectionKernel/FindingContractRegistryV1.swift",
+        "sha256": "b51bb99e348da213a35b715c35183e43f4ea86c0c632c991d0a982aaa8005e96"
+      },
+      {
+        "bytes": 32490,
+        "path": "FieldEvidenceAppTests/V9_14FindingLifecycleTests.swift",
+        "sha256": "0490dcced9c0ea2e8de8a0614045a32cc2a69ebd5cfd2b5b85872a2617b0a0e1"
+      },
+      {
+        "bytes": 3060,
+        "path": "FieldEvidenceAppTests/Fixtures/V21/InspectionKernel/V21P03C04FindingLifecycleCorpusV1.json",
+        "sha256": "539a62326bc72106897c226a61377106691874d5bf199ff937ebbe957276b889"
+      }
+    ],
+    "sourceSetDigest": "f6778d64b7c3044f60ee4b7afe75236596095f13969fdd9622ee14f65b910fe2"
+  },
+  "testMethods": [
+    "testV9_14G01CompleteLifecycleReopenAndHumanOperationalDispositionMatrix",
+    "testV9_14A01InvalidTransitionMissingTargetAndUnpermittedResolutionFailClosed",
+    "testV9_14H01StaleConcurrentCorrectiveRecheckAndHistoryMutationFailClosed",
+    "testV9_14I01EveryDormantRegistryPublicationBoundaryRecoversZeroOrCompleteExactBytes",
+    "testV9_14R01SnapshotFixtureLineageAndExplicitRelatedWorkSafeguardsReconcile"
+  ],
+  "uiSurfaceDelta": false
+}

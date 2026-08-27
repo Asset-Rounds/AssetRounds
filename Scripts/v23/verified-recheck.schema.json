@@ -1,0 +1,103 @@
+{
+  "$id": "https://assetrounds.invalid/v23/VerifiedRecheckV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "correctiveWorkID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "correctiveWorkRevision": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "effectiveAt": {
+      "type": "string"
+    },
+    "evidenceRevisionIDs": {
+      "items": {
+        "maxLength": 128,
+        "pattern": "^[a-z0-9._-]+$",
+        "type": "string"
+      },
+      "maxItems": 32,
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "expectedRecheckRevision": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "findingID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "findingRevision": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "mutationID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "outcome": {
+      "enum": [
+        "PASSED",
+        "FAILED",
+        "INCONCLUSIVE"
+      ],
+      "type": "string"
+    },
+    "priorRecheckID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "reason": {
+      "type": "string"
+    },
+    "recheckID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "resultingRecheckRevision": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "verifierActorID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "verifierAuthority": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "recheckID",
+    "findingID",
+    "findingRevision",
+    "correctiveWorkID",
+    "correctiveWorkRevision",
+    "evidenceRevisionIDs",
+    "expectedRecheckRevision",
+    "resultingRecheckRevision",
+    "mutationID",
+    "outcome",
+    "verifierActorID",
+    "verifierAuthority",
+    "reason",
+    "effectiveAt"
+  ],
+  "title": "VerifiedRecheckV1",
+  "type": "object"
+}

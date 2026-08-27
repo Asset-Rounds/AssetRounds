@@ -1,0 +1,91 @@
+{
+  "$id": "https://assetrounds.invalid/v23/FindingLifecycleEvidenceReceiptV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptanceCredit": {
+      "const": false
+    },
+    "cardID": {
+      "const": "V23-P03-C04"
+    },
+    "evidence": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "evidenceID": {
+            "enum": [
+              "V23-P03-C04-G01",
+              "V23-P03-C04-A01",
+              "V23-P03-C04-H01",
+              "V23-P03-C04-I01",
+              "V23-P03-C04-R01"
+            ],
+            "type": "string"
+          },
+          "family": {
+            "enum": [
+              "G01",
+              "A01",
+              "H01",
+              "I01",
+              "R01"
+            ],
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "sourceSetDigest": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "testMethod": {
+            "pattern": "^testV9_14[GAHIR]01[A-Za-z0-9_]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "evidenceID",
+          "family",
+          "testMethod",
+          "outcome",
+          "sourceSetDigest"
+        ],
+        "type": "object"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "fixtureSHA256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "hostedDispatchRan": {
+      "const": false
+    },
+    "nativeCompileRan": {
+      "const": false
+    },
+    "releaseCredit": {
+      "const": false
+    },
+    "schemaVersion": {
+      "const": 1
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "cardID",
+    "evidence",
+    "fixtureSHA256",
+    "nativeCompileRan",
+    "hostedDispatchRan",
+    "acceptanceCredit",
+    "releaseCredit"
+  ],
+  "title": "FindingLifecycleEvidenceReceiptV1",
+  "type": "object"
+}

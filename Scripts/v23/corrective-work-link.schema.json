@@ -1,0 +1,105 @@
+{
+  "$id": "https://assetrounds.invalid/v23/CorrectiveWorkLinkV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "REMOVED"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "required": [
+          "supersedesLinkEventID"
+        ]
+      }
+    }
+  ],
+  "properties": {
+    "action": {
+      "enum": [
+        "LINKED",
+        "REMOVED"
+      ],
+      "type": "string"
+    },
+    "actorID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "effectiveAt": {
+      "type": "string"
+    },
+    "expectedLinkRevision": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "findingID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "findingRevision": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "linkID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "mutationID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "reason": {
+      "type": "string"
+    },
+    "resultingLinkRevision": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "supersedesLinkEventID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "workID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "workRevision": {
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "linkID",
+    "findingID",
+    "findingRevision",
+    "workID",
+    "workRevision",
+    "expectedLinkRevision",
+    "resultingLinkRevision",
+    "mutationID",
+    "action",
+    "actorID",
+    "reason",
+    "effectiveAt"
+  ],
+  "title": "CorrectiveWorkLinkV1",
+  "type": "object"
+}
