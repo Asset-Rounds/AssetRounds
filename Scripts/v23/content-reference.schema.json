@@ -1,0 +1,227 @@
+{
+  "$id": "https://assetrounds.invalid/v23/v23-p03-c05/ContentReferenceV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "byteLength": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "byteRole": {
+      "enum": [
+        "IMMUTABLE_ORIGINAL",
+        "DERIVATIVE"
+      ],
+      "type": "string"
+    },
+    "contentID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "createdAt": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "digests": {
+      "additionalProperties": false,
+      "properties": {
+        "values": {
+          "allOf": [
+            {
+              "not": {
+                "contains": {
+                  "properties": {
+                    "algorithm": {
+                      "const": "SHA256"
+                    }
+                  },
+                  "required": [
+                    "algorithm"
+                  ]
+                },
+                "minContains": 2
+              }
+            },
+            {
+              "not": {
+                "contains": {
+                  "properties": {
+                    "algorithm": {
+                      "const": "SHA512"
+                    }
+                  },
+                  "required": [
+                    "algorithm"
+                  ]
+                },
+                "minContains": 2
+              }
+            }
+          ],
+          "items": {
+            "additionalProperties": false,
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "algorithm": {
+                      "const": "SHA256"
+                    }
+                  },
+                  "required": [
+                    "algorithm"
+                  ]
+                },
+                "then": {
+                  "properties": {
+                    "hexadecimalValue": {
+                      "maxLength": 64,
+                      "minLength": 64
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "algorithm": {
+                      "const": "SHA512"
+                    }
+                  },
+                  "required": [
+                    "algorithm"
+                  ]
+                },
+                "then": {
+                  "properties": {
+                    "hexadecimalValue": {
+                      "maxLength": 128,
+                      "minLength": 128
+                    }
+                  }
+                }
+              }
+            ],
+            "properties": {
+              "algorithm": {
+                "enum": [
+                  "SHA256",
+                  "SHA512"
+                ],
+                "type": "string"
+              },
+              "hexadecimalValue": {
+                "maxLength": 128,
+                "minLength": 64,
+                "pattern": "^[0-9a-f]+$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "algorithm",
+              "hexadecimalValue"
+            ],
+            "type": "object"
+          },
+          "maxItems": 2,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "additionalProperties": false,
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "algorithm": {
+                        "const": "SHA256"
+                      }
+                    },
+                    "required": [
+                      "algorithm"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "hexadecimalValue": {
+                        "maxLength": 64,
+                        "minLength": 64
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "algorithm": {
+                        "const": "SHA512"
+                      }
+                    },
+                    "required": [
+                      "algorithm"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "hexadecimalValue": {
+                        "maxLength": 128,
+                        "minLength": 128
+                      }
+                    }
+                  }
+                }
+              ],
+              "properties": {
+                "algorithm": {
+                  "const": "SHA256"
+                },
+                "hexadecimalValue": {
+                  "maxLength": 128,
+                  "minLength": 64,
+                  "pattern": "^[0-9a-f]+$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "algorithm",
+                "hexadecimalValue"
+              ],
+              "type": "object"
+            }
+          ],
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "values"
+      ],
+      "type": "object"
+    },
+    "mediaType": {
+      "maxLength": 127,
+      "pattern": "^[a-z0-9.+-]+/[a-z0-9.+-]+$",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "workspaceID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "workspaceID",
+    "contentID",
+    "byteLength",
+    "mediaType",
+    "digests",
+    "byteRole",
+    "createdAt"
+  ],
+  "title": "ContentReferenceV1",
+  "type": "object"
+}

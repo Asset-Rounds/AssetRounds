@@ -1,0 +1,261 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "acceptanceOrReleaseClaimed": false,
+  "adoptionEnabled": false,
+  "artifactCount": 23,
+  "artifactDigest": "61c7b9b35dd6bc803124edc14b5b2824e80cbf8ceccb5333087a0e4abfde2ef7",
+  "artifactSetDigest": "1a2266b29e59235136ae8c307063535c0796e427dfa77a5c1518fe03fa5e1c07",
+  "artifacts": [
+    {
+      "bytes": 7700,
+      "path": "FieldEvidenceApp/Domain/Content/ContentReferenceContractsV1.swift",
+      "role": "source",
+      "sha256": "5f761e7093b83740da399fe16328ed22c77f4801626eb30d69a3f9cafa660b32"
+    },
+    {
+      "bytes": 11292,
+      "path": "FieldEvidenceApp/Domain/Content/ContentLocatorManifestContractsV1.swift",
+      "role": "source",
+      "sha256": "60b313b7dad4e6dd16e7cac1b38ef6f5a488d3c55feb75ffeaf6ecad6ba4346b"
+    },
+    {
+      "bytes": 18641,
+      "path": "FieldEvidenceApp/Domain/Content/ContentProvenanceContractsV1.swift",
+      "role": "source",
+      "sha256": "6abe42882d1f82d0b8d7c8b6a80c8e56a7fcec9c4a26ab05b51163cf83db915c"
+    },
+    {
+      "bytes": 16728,
+      "path": "FieldEvidenceApp/Domain/Evidence/EvidenceAssociationContractsV1.swift",
+      "role": "source",
+      "sha256": "4b179316567ad5333b9261d63c20b8629d4f6260b36c82a99027359973f73df0"
+    },
+    {
+      "bytes": 5633,
+      "path": "FieldEvidenceApp/Infrastructure/Content/LocalContentStoreContractsV1.swift",
+      "role": "source",
+      "sha256": "c429eccff4805744cc9ccf1992032566990b1832857aa691d6caec702299b428"
+    },
+    {
+      "bytes": 8773,
+      "path": "FieldEvidenceApp/Infrastructure/Content/ContentIntegrityV1.swift",
+      "role": "source",
+      "sha256": "e9ddc81cb158bc4fe82a245815be9067b65cf63489009e9a1b511f904485c5e4"
+    },
+    {
+      "bytes": 7074,
+      "path": "FieldEvidenceApp/Infrastructure/Content/ContentContractRegistryV1.swift",
+      "role": "source",
+      "sha256": "2dab1bf4dcebfb255d3ba5ab4a4bc0ca7f0958fcb7931dfaf2ef3ce4d3fc77ff"
+    },
+    {
+      "bytes": 29873,
+      "path": "FieldEvidenceAppTests/V9_15ContentReferenceProvenanceTests.swift",
+      "role": "source",
+      "sha256": "0f48b276eeaf1276bf229a2820f2de7df47460e0ee3855471026a26108454131"
+    },
+    {
+      "bytes": 2642,
+      "path": "FieldEvidenceAppTests/Fixtures/V21/Content/V21P03C05ContentReferenceProvenanceCorpusV1.json",
+      "role": "source",
+      "sha256": "a7461a3131878243d4ad4143cbce348795b999bc7a15b39182732874de8ca27d"
+    },
+    {
+      "bytes": 19204,
+      "path": "Scripts/v23/p03_c05_contracts.py",
+      "role": "tooling",
+      "sha256": "1320b123d2f4df8c8b5ee766a7c45d60b37e1f73db45be33f8dc040d30b7b6c8"
+    },
+    {
+      "bytes": 1597,
+      "path": "Scripts/v23/generate_p03_c05_contracts.py",
+      "role": "tooling",
+      "sha256": "bef052ba15a4b5266d1262540f8cd69bf11739a7dd7fe46a309f9fc835f91b59"
+    },
+    {
+      "bytes": 19797,
+      "path": "Scripts/v23/verify_p03_c05_contracts.py",
+      "role": "tooling",
+      "sha256": "1dcee63c0b9bd84d2ae0ac41a8c0f5a2cb1f10d25665a9d1783e8e6290ed4cd8"
+    },
+    {
+      "bytes": 5762,
+      "path": "Scripts/v23/content-reference.schema.json",
+      "role": "tooling",
+      "sha256": "18d9c23239d9d240aad78fe03c1acea3d9b09c46fefccee924588c9c1bccb14d"
+    },
+    {
+      "bytes": 2329,
+      "path": "Scripts/v23/content-locator.schema.json",
+      "role": "tooling",
+      "sha256": "998d1483e2a53121a69c9137a06f1769729fb7293e75dfb0d24d1bba8d77defd"
+    },
+    {
+      "bytes": 3606,
+      "path": "Scripts/v23/content-manifest.schema.json",
+      "role": "tooling",
+      "sha256": "5ad57ca3d6358f825014e9bc901673fab6fba781e4a6f917553e84c2c5a6592b"
+    },
+    {
+      "bytes": 5569,
+      "path": "Scripts/v23/evidence-association.schema.json",
+      "role": "tooling",
+      "sha256": "3799ee7e45dde958d66a3c1be7b3b049176134da2a989eca660cb9483c9cad65"
+    },
+    {
+      "bytes": 10612,
+      "path": "Scripts/v23/content-derivative-provenance.schema.json",
+      "role": "tooling",
+      "sha256": "a87fff9b8e017521aeb17f89a654dcdbe01b77426e88c6db538ea12f917d0e20"
+    },
+    {
+      "bytes": 1998,
+      "path": "Scripts/v23/content-evidence-receipt.schema.json",
+      "role": "tooling",
+      "sha256": "a3e5145a8c574cdfdb41e65850e062e7253f416aaad3bf6765d84022dfebe010"
+    },
+    {
+      "bytes": 3852,
+      "path": "docs/design/v23/tooling/V23P03C05ContentReferenceContractV1.json",
+      "role": "tooling",
+      "sha256": "7037e2d8d61d6fef3d0c2b527efcd7f8932c320b6e02b86dbfc58307b6d5788b"
+    },
+    {
+      "bytes": 3861,
+      "path": "docs/design/v23/tooling/V23P03C05ContentLocatorManifestContractV1.json",
+      "role": "tooling",
+      "sha256": "1af3b99c5cd2651e60e9ab19b22dc5d5b2114b9dc3d8ce0b0d9b1895fa4ba93e"
+    },
+    {
+      "bytes": 3851,
+      "path": "docs/design/v23/tooling/V23P03C05EvidenceAssociationContractV1.json",
+      "role": "tooling",
+      "sha256": "6f1eb6339772834550fcf5f67d3821b4e183dcef72023e56864a8c6978d4d277"
+    },
+    {
+      "bytes": 3937,
+      "path": "docs/design/v23/tooling/V23P03C05DerivativeProvenanceContractV1.json",
+      "role": "tooling",
+      "sha256": "d546b97c4da86c501803534f0a81f830a4a6b0711be1c18cabd0e51f7bac040f"
+    },
+    {
+      "bytes": 2252,
+      "path": "docs/design/v23/tooling/V23P03C05ContentEvidenceReceiptV1.json",
+      "role": "tooling",
+      "sha256": "4a1160f7c48baa437b4897940833c1ad4bbae39b008afc0907f9c0b9a7b2e488"
+    }
+  ],
+  "authority": {
+    "appBaseHead": "db25f74734b233b31ef5c08a4af4c5c85dbda342",
+    "appBaseTree": "62a98c7e63f44fad33c1ad55d10acc8828553308",
+    "contextDigest": "2d545ecac82e81fc931b0aff1b5469165f4ed09345284f77fff2a212cb6d0bc7",
+    "coordinationAuthorityHead": "bbefbcafdb00d83fa4c62c58f16826fc0d006fe0",
+    "coordinationAuthorityTree": "90d0ad767cc5363f1a6a049ef2bf2eea066ca7c5",
+    "coordinationCASSequence": 152,
+    "coordinationLedgerDigest": "8b0778a101e86e82964e977d1617ee190dcf649525615b6c2aa205ac3815217d",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationProjectionDigest": "0ca503fa85ac55dc729f068355ce364b42cd1f0492211ad069104d128a4d09cc",
+    "hydrationTransitionDigest": "068def66e4bbe824d620c67d9f3dc3f9b80582af16e6baaaa1ffe41b1d0b7334",
+    "pathFenceDigest": "f6ef2e304901fc4ccc103c5c210eee65b26faefb6b96a2cd8ae3a171debab614",
+    "provisionalPrerequisiteDigest": "76991e8d7727e00111695225ccda54ea19119f7773616a372a1ba684f343fa5c"
+  },
+  "cardID": "V23-P03-C05",
+  "downgradeDisposition": "DORMANT_REVERT_ALLOWED",
+  "evidenceIDs": [
+    "V23-P03-C05-G01",
+    "V23-P03-C05-A01",
+    "V23-P03-C05-H01",
+    "V23-P03-C05-I01",
+    "V23-P03-C05-R01"
+  ],
+  "existingPaths": [],
+  "generatedArtifactCount": 12,
+  "hostedDispatchEnabled": false,
+  "hostedDispatchRan": false,
+  "nativeCompileRan": false,
+  "nativeOrHostedEvidenceClaimed": false,
+  "newPaths": [
+    "FieldEvidenceApp/Domain/Content/ContentReferenceContractsV1.swift",
+    "FieldEvidenceApp/Domain/Content/ContentLocatorManifestContractsV1.swift",
+    "FieldEvidenceApp/Domain/Content/ContentProvenanceContractsV1.swift",
+    "FieldEvidenceApp/Domain/Evidence/EvidenceAssociationContractsV1.swift",
+    "FieldEvidenceApp/Infrastructure/Content/LocalContentStoreContractsV1.swift",
+    "FieldEvidenceApp/Infrastructure/Content/ContentIntegrityV1.swift",
+    "FieldEvidenceApp/Infrastructure/Content/ContentContractRegistryV1.swift",
+    "FieldEvidenceAppTests/V9_15ContentReferenceProvenanceTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/Content/V21P03C05ContentReferenceProvenanceCorpusV1.json",
+    "Scripts/v23/p03_c05_contracts.py",
+    "Scripts/v23/generate_p03_c05_contracts.py",
+    "Scripts/v23/verify_p03_c05_contracts.py",
+    "Scripts/v23/content-reference.schema.json",
+    "Scripts/v23/content-locator.schema.json",
+    "Scripts/v23/content-manifest.schema.json",
+    "Scripts/v23/evidence-association.schema.json",
+    "Scripts/v23/content-derivative-provenance.schema.json",
+    "Scripts/v23/content-evidence-receipt.schema.json",
+    "docs/design/v23/tooling/V23P03C05ContentReferenceContractV1.json",
+    "docs/design/v23/tooling/V23P03C05ContentLocatorManifestContractV1.json",
+    "docs/design/v23/tooling/V23P03C05EvidenceAssociationContractV1.json",
+    "docs/design/v23/tooling/V23P03C05DerivativeProvenanceContractV1.json",
+    "docs/design/v23/tooling/V23P03C05ContentEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23-P03-C05-tooling-manifest.json"
+  ],
+  "pathFence": [
+    "FieldEvidenceApp/Domain/Content/ContentReferenceContractsV1.swift",
+    "FieldEvidenceApp/Domain/Content/ContentLocatorManifestContractsV1.swift",
+    "FieldEvidenceApp/Domain/Content/ContentProvenanceContractsV1.swift",
+    "FieldEvidenceApp/Domain/Evidence/EvidenceAssociationContractsV1.swift",
+    "FieldEvidenceApp/Infrastructure/Content/LocalContentStoreContractsV1.swift",
+    "FieldEvidenceApp/Infrastructure/Content/ContentIntegrityV1.swift",
+    "FieldEvidenceApp/Infrastructure/Content/ContentContractRegistryV1.swift",
+    "FieldEvidenceAppTests/V9_15ContentReferenceProvenanceTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/Content/V21P03C05ContentReferenceProvenanceCorpusV1.json",
+    "Scripts/v23/p03_c05_contracts.py",
+    "Scripts/v23/generate_p03_c05_contracts.py",
+    "Scripts/v23/verify_p03_c05_contracts.py",
+    "Scripts/v23/content-reference.schema.json",
+    "Scripts/v23/content-locator.schema.json",
+    "Scripts/v23/content-manifest.schema.json",
+    "Scripts/v23/evidence-association.schema.json",
+    "Scripts/v23/content-derivative-provenance.schema.json",
+    "Scripts/v23/content-evidence-receipt.schema.json",
+    "docs/design/v23/tooling/V23P03C05ContentReferenceContractV1.json",
+    "docs/design/v23/tooling/V23P03C05ContentLocatorManifestContractV1.json",
+    "docs/design/v23/tooling/V23P03C05EvidenceAssociationContractV1.json",
+    "docs/design/v23/tooling/V23P03C05DerivativeProvenanceContractV1.json",
+    "docs/design/v23/tooling/V23P03C05ContentEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23-P03-C05-tooling-manifest.json"
+  ],
+  "pathFenceCount": 24,
+  "pendingArtifactCount": 0,
+  "persistentChangeMode": "DECLARATION_ONLY",
+  "persistentContractSchema": "KERNEL_MEDIA_V1",
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "V23P03C05ToolingManifestV1",
+  "schemaVersion": 1,
+  "sourcePathCount": 9,
+  "sourceSHA256": {
+    "FieldEvidenceApp/Domain/Content/ContentLocatorManifestContractsV1.swift": "60b313b7dad4e6dd16e7cac1b38ef6f5a488d3c55feb75ffeaf6ecad6ba4346b",
+    "FieldEvidenceApp/Domain/Content/ContentProvenanceContractsV1.swift": "6abe42882d1f82d0b8d7c8b6a80c8e56a7fcec9c4a26ab05b51163cf83db915c",
+    "FieldEvidenceApp/Domain/Content/ContentReferenceContractsV1.swift": "5f761e7093b83740da399fe16328ed22c77f4801626eb30d69a3f9cafa660b32",
+    "FieldEvidenceApp/Domain/Evidence/EvidenceAssociationContractsV1.swift": "4b179316567ad5333b9261d63c20b8629d4f6260b36c82a99027359973f73df0",
+    "FieldEvidenceApp/Infrastructure/Content/ContentContractRegistryV1.swift": "2dab1bf4dcebfb255d3ba5ab4a4bc0ca7f0958fcb7931dfaf2ef3ce4d3fc77ff",
+    "FieldEvidenceApp/Infrastructure/Content/ContentIntegrityV1.swift": "e9ddc81cb158bc4fe82a245815be9067b65cf63489009e9a1b511f904485c5e4",
+    "FieldEvidenceApp/Infrastructure/Content/LocalContentStoreContractsV1.swift": "c429eccff4805744cc9ccf1992032566990b1832857aa691d6caec702299b428",
+    "FieldEvidenceAppTests/Fixtures/V21/Content/V21P03C05ContentReferenceProvenanceCorpusV1.json": "a7461a3131878243d4ad4143cbce348795b999bc7a15b39182732874de8ca27d",
+    "FieldEvidenceAppTests/V9_15ContentReferenceProvenanceTests.swift": "0f48b276eeaf1276bf229a2820f2de7df47460e0ee3855471026a26108454131"
+  },
+  "testMethods": [
+    "testV9_15G01LocatorReplacementPreservesCanonicalContentIdentity",
+    "testV9_15A01MatchingDigestNeverAliasesAcrossWorkspacesAndUnknownAlgorithmsFailClosed",
+    "testV9_15H01AssociationOrphanTamperAndRoleConfusionFailClosed",
+    "testV9_15I01InterruptedPublicationAndStoreFailuresExposeZeroOrCompleteState",
+    "testV9_15R01DerivativeOnlyRecoveryRetainsImmutableOriginalAndProvenance"
+  ],
+  "toolPathCount": 15
+}

@@ -1,0 +1,450 @@
+{
+  "$id": "https://assetrounds.invalid/v23/v23-p03-c05/ContentDerivativeProvenanceV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "createdAt": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "derivativeContentID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "derivativeDigest": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "algorithm": {
+                "const": "SHA256"
+              }
+            },
+            "required": [
+              "algorithm"
+            ]
+          },
+          "then": {
+            "properties": {
+              "hexadecimalValue": {
+                "maxLength": 64,
+                "minLength": 64
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "algorithm": {
+                "const": "SHA512"
+              }
+            },
+            "required": [
+              "algorithm"
+            ]
+          },
+          "then": {
+            "properties": {
+              "hexadecimalValue": {
+                "maxLength": 128,
+                "minLength": 128
+              }
+            }
+          }
+        }
+      ],
+      "properties": {
+        "algorithm": {
+          "enum": [
+            "SHA256",
+            "SHA512"
+          ],
+          "type": "string"
+        },
+        "hexadecimalValue": {
+          "maxLength": 128,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "algorithm",
+        "hexadecimalValue"
+      ],
+      "type": "object"
+    },
+    "metadataSanitizerID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "metadataSanitizerVersion": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "provenanceID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "sources": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "contentID": {
+            "maxLength": 128,
+            "pattern": "^[a-z0-9._-]+$",
+            "type": "string"
+          },
+          "digest": {
+            "additionalProperties": false,
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "algorithm": {
+                      "const": "SHA256"
+                    }
+                  },
+                  "required": [
+                    "algorithm"
+                  ]
+                },
+                "then": {
+                  "properties": {
+                    "hexadecimalValue": {
+                      "maxLength": 64,
+                      "minLength": 64
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "algorithm": {
+                      "const": "SHA512"
+                    }
+                  },
+                  "required": [
+                    "algorithm"
+                  ]
+                },
+                "then": {
+                  "properties": {
+                    "hexadecimalValue": {
+                      "maxLength": 128,
+                      "minLength": 128
+                    }
+                  }
+                }
+              }
+            ],
+            "properties": {
+              "algorithm": {
+                "enum": [
+                  "SHA256",
+                  "SHA512"
+                ],
+                "type": "string"
+              },
+              "hexadecimalValue": {
+                "maxLength": 128,
+                "minLength": 64,
+                "pattern": "^[0-9a-f]+$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "algorithm",
+              "hexadecimalValue"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "contentID",
+          "digest"
+        ],
+        "type": "object"
+      },
+      "maxItems": 32,
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "transform": {
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "thumbnail"
+                ]
+              },
+              {
+                "required": [
+                  "annotation"
+                ]
+              },
+              {
+                "required": [
+                  "sequence"
+                ]
+              }
+            ]
+          },
+          "properties": {
+            "kind": {
+              "const": "SANITIZED"
+            }
+          },
+          "required": [
+            "sanitized"
+          ]
+        },
+        {
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "sanitized"
+                ]
+              },
+              {
+                "required": [
+                  "annotation"
+                ]
+              },
+              {
+                "required": [
+                  "sequence"
+                ]
+              }
+            ]
+          },
+          "properties": {
+            "kind": {
+              "const": "THUMBNAIL"
+            }
+          },
+          "required": [
+            "thumbnail"
+          ]
+        },
+        {
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "sanitized"
+                ]
+              },
+              {
+                "required": [
+                  "thumbnail"
+                ]
+              },
+              {
+                "required": [
+                  "sequence"
+                ]
+              }
+            ]
+          },
+          "properties": {
+            "kind": {
+              "const": "ANNOTATION"
+            }
+          },
+          "required": [
+            "annotation"
+          ]
+        },
+        {
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "sanitized"
+                ]
+              },
+              {
+                "required": [
+                  "thumbnail"
+                ]
+              },
+              {
+                "required": [
+                  "annotation"
+                ]
+              }
+            ]
+          },
+          "properties": {
+            "kind": {
+              "const": "SEQUENCE"
+            }
+          },
+          "required": [
+            "sequence"
+          ]
+        }
+      ],
+      "properties": {
+        "annotation": {
+          "additionalProperties": false,
+          "properties": {
+            "annotationManifestSHA256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "rendererID": {
+              "maxLength": 128,
+              "pattern": "^[a-z0-9._-]+$",
+              "type": "string"
+            },
+            "rendererVersion": {
+              "maxLength": 128,
+              "pattern": "^[a-z0-9._-]+$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "rendererID",
+            "rendererVersion",
+            "annotationManifestSHA256"
+          ],
+          "type": "object"
+        },
+        "kind": {
+          "enum": [
+            "SANITIZED",
+            "THUMBNAIL",
+            "ANNOTATION",
+            "SEQUENCE"
+          ],
+          "type": "string"
+        },
+        "sanitized": {
+          "additionalProperties": false,
+          "properties": {
+            "sanitizerID": {
+              "maxLength": 128,
+              "pattern": "^[a-z0-9._-]+$",
+              "type": "string"
+            },
+            "sanitizerVersion": {
+              "maxLength": 128,
+              "pattern": "^[a-z0-9._-]+$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "sanitizerID",
+            "sanitizerVersion"
+          ],
+          "type": "object"
+        },
+        "sequence": {
+          "additionalProperties": false,
+          "properties": {
+            "assemblerID": {
+              "maxLength": 128,
+              "pattern": "^[a-z0-9._-]+$",
+              "type": "string"
+            },
+            "assemblerVersion": {
+              "maxLength": 128,
+              "pattern": "^[a-z0-9._-]+$",
+              "type": "string"
+            },
+            "orderedSourceCount": {
+              "maximum": 32,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "assemblerID",
+            "assemblerVersion",
+            "orderedSourceCount"
+          ],
+          "type": "object"
+        },
+        "thumbnail": {
+          "additionalProperties": false,
+          "properties": {
+            "pixelHeight": {
+              "maximum": 16384,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "pixelWidth": {
+              "maximum": 16384,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "rendererID": {
+              "maxLength": 128,
+              "pattern": "^[a-z0-9._-]+$",
+              "type": "string"
+            },
+            "rendererVersion": {
+              "maxLength": 128,
+              "pattern": "^[a-z0-9._-]+$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "rendererID",
+            "rendererVersion",
+            "pixelWidth",
+            "pixelHeight"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "workspaceID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "provenanceID",
+    "workspaceID",
+    "sources",
+    "derivativeContentID",
+    "derivativeDigest",
+    "transform",
+    "metadataSanitizerID",
+    "metadataSanitizerVersion",
+    "createdAt"
+  ],
+  "title": "ContentDerivativeProvenanceV1",
+  "type": "object",
+  "x-assetrounds-runtimeSemanticConstraints": [
+    "SOURCE_CONTENT_ID_UNIQUE",
+    "SOURCE_NOT_DERIVATIVE_SELF",
+    "NON_SEQUENCE_HAS_ONE_SOURCE",
+    "SEQUENCE_COUNT_EQUALS_SOURCE_COUNT",
+    "INSTANT_UTF8_BOUNDS"
+  ]
+}

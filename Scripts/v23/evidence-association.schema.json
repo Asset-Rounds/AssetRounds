@@ -1,0 +1,265 @@
+{
+  "$id": "https://assetrounds.invalid/v23/v23-p03-c05/EvidenceAssociationV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "ASSIGNED"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "previousContentID"
+              ]
+            },
+            {
+              "required": [
+                "previousTarget"
+              ]
+            },
+            {
+              "required": [
+                "supersedesAssociationEventID"
+              ]
+            }
+          ]
+        },
+        "required": [
+          "contentID",
+          "target"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "REASSIGNED"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "required": [
+          "contentID",
+          "target",
+          "previousContentID",
+          "previousTarget",
+          "supersedesAssociationEventID"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "REMOVED"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "contentID"
+              ]
+            },
+            {
+              "required": [
+                "target"
+              ]
+            }
+          ]
+        },
+        "required": [
+          "previousContentID",
+          "previousTarget",
+          "supersedesAssociationEventID"
+        ]
+      }
+    }
+  ],
+  "properties": {
+    "action": {
+      "enum": [
+        "ASSIGNED",
+        "REASSIGNED",
+        "REMOVED"
+      ],
+      "type": "string"
+    },
+    "actorID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "associationEventID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "contentID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "effectiveAt": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "evidenceID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "expectedEvidenceRevision": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "mutationID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "previousContentID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "previousTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "INSPECTION_NODE",
+            "INSPECTION_RESPONSE",
+            "FINDING",
+            "CORRECTIVE_WORK",
+            "ASSET",
+            "WORK_RECORD"
+          ],
+          "type": "string"
+        },
+        "targetID": {
+          "maxLength": 128,
+          "pattern": "^[a-z0-9._-]+$",
+          "type": "string"
+        },
+        "targetRevision": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "workspaceID": {
+          "maxLength": 128,
+          "pattern": "^[a-z0-9._-]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "workspaceID",
+        "kind",
+        "targetID",
+        "targetRevision"
+      ],
+      "type": "object"
+    },
+    "reason": {
+      "maxLength": 1024,
+      "minLength": 1,
+      "pattern": ".*\\S.*",
+      "type": "string"
+    },
+    "resultingEvidenceRevision": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "supersedesAssociationEventID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "target": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "INSPECTION_NODE",
+            "INSPECTION_RESPONSE",
+            "FINDING",
+            "CORRECTIVE_WORK",
+            "ASSET",
+            "WORK_RECORD"
+          ],
+          "type": "string"
+        },
+        "targetID": {
+          "maxLength": 128,
+          "pattern": "^[a-z0-9._-]+$",
+          "type": "string"
+        },
+        "targetRevision": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "workspaceID": {
+          "maxLength": 128,
+          "pattern": "^[a-z0-9._-]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "workspaceID",
+        "kind",
+        "targetID",
+        "targetRevision"
+      ],
+      "type": "object"
+    },
+    "workspaceID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "associationEventID",
+    "workspaceID",
+    "evidenceID",
+    "expectedEvidenceRevision",
+    "resultingEvidenceRevision",
+    "mutationID",
+    "action",
+    "actorID",
+    "reason",
+    "effectiveAt"
+  ],
+  "title": "EvidenceAssociationV1",
+  "type": "object",
+  "x-assetrounds-runtimeSemanticConstraints": [
+    "RESULTING_REVISION_EQUALS_EXPECTED_PLUS_ONE",
+    "ACTION_REVISION_MATRIX",
+    "REASSIGNMENT_CHANGES_BINDING",
+    "TARGET_WORKSPACE_EQUALS_ASSOCIATION_WORKSPACE",
+    "TEXT_UTF8_BOUNDS"
+  ]
+}

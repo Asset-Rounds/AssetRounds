@@ -1,0 +1,63 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "acceptanceOrReleaseClaimed": false,
+  "adoptionEnabled": false,
+  "algorithmScopedDigests": true,
+  "artifactDigest": "ba12ca33e2187dcb39ab466fcb3f526f8b4c59c674a6ee79b634ffc5adb70798",
+  "authority": {
+    "appBaseHead": "db25f74734b233b31ef5c08a4af4c5c85dbda342",
+    "appBaseTree": "62a98c7e63f44fad33c1ad55d10acc8828553308",
+    "contextDigest": "2d545ecac82e81fc931b0aff1b5469165f4ed09345284f77fff2a212cb6d0bc7",
+    "coordinationAuthorityHead": "bbefbcafdb00d83fa4c62c58f16826fc0d006fe0",
+    "coordinationAuthorityTree": "90d0ad767cc5363f1a6a049ef2bf2eea066ca7c5",
+    "coordinationCASSequence": 152,
+    "coordinationLedgerDigest": "8b0778a101e86e82964e977d1617ee190dcf649525615b6c2aa205ac3815217d",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationProjectionDigest": "0ca503fa85ac55dc729f068355ce364b42cd1f0492211ad069104d128a4d09cc",
+    "hydrationTransitionDigest": "068def66e4bbe824d620c67d9f3dc3f9b80582af16e6baaaa1ffe41b1d0b7334",
+    "pathFenceDigest": "f6ef2e304901fc4ccc103c5c210eee65b26faefb6b96a2cd8ae3a171debab614",
+    "provisionalPrerequisiteDigest": "76991e8d7727e00111695225ccda54ea19119f7773616a372a1ba684f343fa5c"
+  },
+  "cardID": "V23-P03-C05",
+  "downgradeDisposition": "DORMANT_REVERT_ALLOWED",
+  "fixtureSHA256": "a7461a3131878243d4ad4143cbce348795b999bc7a15b39182732874de8ca27d",
+  "hostedDispatchEnabled": false,
+  "hostedDispatchRan": false,
+  "identityFields": [
+    "workspaceID",
+    "contentID"
+  ],
+  "immutableOriginal": true,
+  "locationIndependent": true,
+  "nativeCompileRan": false,
+  "nativeOrHostedEvidenceClaimed": false,
+  "persistentChangeMode": "DECLARATION_ONLY",
+  "persistentContractSchema": "KERNEL_MEDIA_V1",
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "V23P03C05ContentReferenceContractV1",
+  "schemaVersion": 1,
+  "sourceSHA256": {
+    "FieldEvidenceApp/Domain/Content/ContentLocatorManifestContractsV1.swift": "60b313b7dad4e6dd16e7cac1b38ef6f5a488d3c55feb75ffeaf6ecad6ba4346b",
+    "FieldEvidenceApp/Domain/Content/ContentProvenanceContractsV1.swift": "6abe42882d1f82d0b8d7c8b6a80c8e56a7fcec9c4a26ab05b51163cf83db915c",
+    "FieldEvidenceApp/Domain/Content/ContentReferenceContractsV1.swift": "5f761e7093b83740da399fe16328ed22c77f4801626eb30d69a3f9cafa660b32",
+    "FieldEvidenceApp/Domain/Evidence/EvidenceAssociationContractsV1.swift": "4b179316567ad5333b9261d63c20b8629d4f6260b36c82a99027359973f73df0",
+    "FieldEvidenceApp/Infrastructure/Content/ContentContractRegistryV1.swift": "2dab1bf4dcebfb255d3ba5ab4a4bc0ca7f0958fcb7931dfaf2ef3ce4d3fc77ff",
+    "FieldEvidenceApp/Infrastructure/Content/ContentIntegrityV1.swift": "e9ddc81cb158bc4fe82a245815be9067b65cf63489009e9a1b511f904485c5e4",
+    "FieldEvidenceApp/Infrastructure/Content/LocalContentStoreContractsV1.swift": "c429eccff4805744cc9ccf1992032566990b1832857aa691d6caec702299b428",
+    "FieldEvidenceAppTests/Fixtures/V21/Content/V21P03C05ContentReferenceProvenanceCorpusV1.json": "a7461a3131878243d4ad4143cbce348795b999bc7a15b39182732874de8ca27d",
+    "FieldEvidenceAppTests/V9_15ContentReferenceProvenanceTests.swift": "0f48b276eeaf1276bf229a2820f2de7df47460e0ee3855471026a26108454131"
+  },
+  "testMethods": [
+    "testV9_15G01LocatorReplacementPreservesCanonicalContentIdentity",
+    "testV9_15A01MatchingDigestNeverAliasesAcrossWorkspacesAndUnknownAlgorithmsFailClosed",
+    "testV9_15H01AssociationOrphanTamperAndRoleConfusionFailClosed",
+    "testV9_15I01InterruptedPublicationAndStoreFailuresExposeZeroOrCompleteState",
+    "testV9_15R01DerivativeOnlyRecoveryRetainsImmutableOriginalAndProvenance"
+  ],
+  "unknownAlgorithmsFailClosed": true
+}

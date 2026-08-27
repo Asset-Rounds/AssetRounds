@@ -1,0 +1,92 @@
+{
+  "$id": "https://assetrounds.invalid/v23/v23-p03-c05/ContentEvidenceReceiptV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptanceCredit": {
+      "const": false
+    },
+    "evidenceIDs": {
+      "items": {
+        "pattern": "^V23-P03-C05-(G01|A01|H01|I01|R01)$",
+        "type": "string"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "fixtureSHA256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "hostedDispatchRan": {
+      "const": false
+    },
+    "nativeCompileRan": {
+      "const": false
+    },
+    "receiptID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "registrySHA256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "releaseCredit": {
+      "const": false
+    },
+    "requiresAcceptedS10_6Reconciliation": {
+      "const": true
+    },
+    "result": {
+      "const": "PASS"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "sourceArtifacts": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "sha256"
+        ],
+        "type": "object"
+      },
+      "maxItems": 9,
+      "minItems": 9,
+      "type": "array",
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "receiptID",
+    "registrySHA256",
+    "fixtureSHA256",
+    "sourceArtifacts",
+    "evidenceIDs",
+    "result",
+    "nativeCompileRan",
+    "hostedDispatchRan",
+    "acceptanceCredit",
+    "releaseCredit",
+    "requiresAcceptedS10_6Reconciliation"
+  ],
+  "title": "ContentEvidenceReceiptV1",
+  "type": "object"
+}

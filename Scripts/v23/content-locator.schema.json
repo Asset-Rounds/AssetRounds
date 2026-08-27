@@ -1,0 +1,109 @@
+{
+  "$id": "https://assetrounds.invalid/v23/v23-p03-c05/ContentLocatorV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "contentDigest": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "algorithm": {
+                "const": "SHA256"
+              }
+            },
+            "required": [
+              "algorithm"
+            ]
+          },
+          "then": {
+            "properties": {
+              "hexadecimalValue": {
+                "maxLength": 64,
+                "minLength": 64
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "algorithm": {
+                "const": "SHA512"
+              }
+            },
+            "required": [
+              "algorithm"
+            ]
+          },
+          "then": {
+            "properties": {
+              "hexadecimalValue": {
+                "maxLength": 128,
+                "minLength": 128
+              }
+            }
+          }
+        }
+      ],
+      "properties": {
+        "algorithm": {
+          "enum": [
+            "SHA256",
+            "SHA512"
+          ],
+          "type": "string"
+        },
+        "hexadecimalValue": {
+          "maxLength": 128,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "algorithm",
+        "hexadecimalValue"
+      ],
+      "type": "object"
+    },
+    "contentID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "expectedByteLength": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "locatorID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "locatorRevision": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "workspaceID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "locatorID",
+    "workspaceID",
+    "contentID",
+    "locatorRevision",
+    "contentDigest",
+    "expectedByteLength"
+  ],
+  "title": "ContentLocatorV1",
+  "type": "object"
+}

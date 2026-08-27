@@ -1,0 +1,57 @@
+{
+  "acceptanceCredit": false,
+  "evidenceIDs": [
+    "V23-P03-C05-G01",
+    "V23-P03-C05-A01",
+    "V23-P03-C05-H01",
+    "V23-P03-C05-I01",
+    "V23-P03-C05-R01"
+  ],
+  "fixtureSHA256": "a7461a3131878243d4ad4143cbce348795b999bc7a15b39182732874de8ca27d",
+  "hostedDispatchRan": false,
+  "nativeCompileRan": false,
+  "receiptID": "v23-p03-c05-static-receipt",
+  "registrySHA256": "0b20a53ea3213abbda1a28b17bd53b86a36becb169e4871c74cb8022d48e642d",
+  "releaseCredit": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "result": "PASS",
+  "schemaVersion": 1,
+  "sourceArtifacts": [
+    {
+      "path": "FieldEvidenceApp/Domain/Content/ContentReferenceContractsV1.swift",
+      "sha256": "5f761e7093b83740da399fe16328ed22c77f4801626eb30d69a3f9cafa660b32"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Content/ContentLocatorManifestContractsV1.swift",
+      "sha256": "60b313b7dad4e6dd16e7cac1b38ef6f5a488d3c55feb75ffeaf6ecad6ba4346b"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Content/ContentProvenanceContractsV1.swift",
+      "sha256": "6abe42882d1f82d0b8d7c8b6a80c8e56a7fcec9c4a26ab05b51163cf83db915c"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Evidence/EvidenceAssociationContractsV1.swift",
+      "sha256": "4b179316567ad5333b9261d63c20b8629d4f6260b36c82a99027359973f73df0"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Content/LocalContentStoreContractsV1.swift",
+      "sha256": "c429eccff4805744cc9ccf1992032566990b1832857aa691d6caec702299b428"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Content/ContentIntegrityV1.swift",
+      "sha256": "e9ddc81cb158bc4fe82a245815be9067b65cf63489009e9a1b511f904485c5e4"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Content/ContentContractRegistryV1.swift",
+      "sha256": "2dab1bf4dcebfb255d3ba5ab4a4bc0ca7f0958fcb7931dfaf2ef3ce4d3fc77ff"
+    },
+    {
+      "path": "FieldEvidenceAppTests/V9_15ContentReferenceProvenanceTests.swift",
+      "sha256": "0f48b276eeaf1276bf229a2820f2de7df47460e0ee3855471026a26108454131"
+    },
+    {
+      "path": "FieldEvidenceAppTests/Fixtures/V21/Content/V21P03C05ContentReferenceProvenanceCorpusV1.json",
+      "sha256": "a7461a3131878243d4ad4143cbce348795b999bc7a15b39182732874de8ca27d"
+    }
+  ]
+}
