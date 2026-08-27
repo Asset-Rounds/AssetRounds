@@ -14,6 +14,15 @@ enum BundledInspectionPackageRegistryV2 {
     static let runtimeDownloadsAllowed = false
     static let shippingPackageIDs = [ShippingIlluminatedSignAdapterV1.packageID]
 
+    static func shippingDraftRelease(
+        workflow: WorkflowDefinitionV1
+    ) throws -> InspectionPackageReleaseV1 {
+        try InspectionPackageReleaseV1.makeDraft(
+            package: ShippingIlluminatedSignAdapterV1.inspectionPackage(),
+            workflow: workflow
+        )
+    }
+
     static func load(bundle: Bundle = .main) -> BundledInspectionPackageRegistryLoadResultV2 {
         guard case let .available(signPack) = SignPackLoader.loadBundled(bundle: bundle) else {
             return .unavailable(.bundledPackageUnavailable)

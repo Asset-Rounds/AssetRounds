@@ -1,0 +1,268 @@
+{
+  "$id": "https://assetrounds.invalid/v23/WorkflowGraphEvidenceReceiptV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "brandImpact": {
+      "additionalProperties": false,
+      "properties": {
+        "affectedConsumers": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 5,
+          "minItems": 0,
+          "type": "array"
+        },
+        "changedScreens": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 0,
+          "minItems": 0,
+          "type": "array"
+        },
+        "changedStates": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 0,
+          "minItems": 0,
+          "type": "array"
+        },
+        "completenessRationale": {
+          "type": "string"
+        },
+        "manifestCount": {
+          "const": 1
+        },
+        "manifestType": {
+          "const": "BrandImpactManifestV1"
+        }
+      },
+      "required": [
+        "manifestType",
+        "manifestCount",
+        "changedScreens",
+        "changedStates",
+        "affectedConsumers",
+        "completenessRationale"
+      ],
+      "type": "object"
+    },
+    "cardID": {
+      "const": "V23-P03-C02"
+    },
+    "evidence": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "evidenceID": {
+            "pattern": "^V23-P03-C02-[GAHIR]01$",
+            "type": "string"
+          },
+          "family": {
+            "enum": [
+              "G01",
+              "A01",
+              "H01",
+              "I01",
+              "R01"
+            ],
+            "type": "string"
+          },
+          "requiredOutcome": {
+            "type": "string"
+          },
+          "testMethod": {
+            "pattern": "^testV9_12[GAHIR]01[A-Za-z0-9_]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "evidenceID",
+          "family",
+          "testMethod",
+          "requiredOutcome"
+        ],
+        "type": "object"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array"
+    },
+    "fixture": {
+      "additionalProperties": false,
+      "properties": {
+        "canonicalSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "repeat": {
+          "additionalProperties": false,
+          "properties": {
+            "activitySequence": {
+              "items": {
+                "enum": [
+                  "ACTIVE",
+                  "INACTIVE_BY_PATH",
+                  "REACTIVATION_REVIEW_REQUIRED"
+                ],
+                "type": "string"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            },
+            "instanceID": {
+              "pattern": "^[a-z0-9._-]{1,128}$",
+              "type": "string"
+            },
+            "multiNodeBodyIDs": {
+              "items": {
+                "pattern": "^[a-z0-9._-]{1,128}$",
+                "type": "string"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            },
+            "nestedBodyIDs": {
+              "items": {
+                "pattern": "^[a-z0-9._-]{1,128}$",
+                "type": "string"
+              },
+              "maxItems": 5,
+              "minItems": 5,
+              "type": "array"
+            },
+            "nestedRepeatCount": {
+              "const": 2
+            },
+            "repeatNodeID": {
+              "pattern": "^[a-z0-9._-]{1,128}$",
+              "type": "string"
+            },
+            "stableOrder": {
+              "const": 0
+            }
+          },
+          "required": [
+            "activitySequence",
+            "instanceID",
+            "multiNodeBodyIDs",
+            "nestedBodyIDs",
+            "nestedRepeatCount",
+            "repeatNodeID",
+            "stableOrder"
+          ],
+          "type": "object"
+        },
+        "requiredMarkers": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 7,
+          "minItems": 0,
+          "type": "array"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "sourceSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "testOnly": {
+          "const": true
+        },
+        "topLevelKeys": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 15,
+          "minItems": 0,
+          "type": "array"
+        }
+      },
+      "required": [
+        "path",
+        "schemaVersion",
+        "topLevelKeys",
+        "sourceSHA256",
+        "canonicalSHA256",
+        "requiredMarkers",
+        "repeat",
+        "testOnly"
+      ],
+      "type": "object"
+    },
+    "interruptionBoundaries": {
+      "items": {
+        "enum": [
+          "BEFORE_VALIDATION",
+          "AFTER_VALIDATION_BEFORE_PUBLICATION",
+          "AFTER_PUBLICATION_BEFORE_RECEIPT"
+        ],
+        "type": "string"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+    },
+    "privacy": {
+      "additionalProperties": false,
+      "properties": {
+        "customerDataInContracts": {
+          "const": false
+        },
+        "customerDataInWorkflowDeclarations": {
+          "const": false
+        },
+        "networkTransport": {
+          "const": false
+        },
+        "secretsInArtifacts": {
+          "const": false
+        },
+        "userAuthoredCode": {
+          "const": false
+        }
+      },
+      "required": [
+        "customerDataInContracts",
+        "customerDataInWorkflowDeclarations",
+        "networkTransport",
+        "userAuthoredCode",
+        "secretsInArtifacts"
+      ],
+      "type": "object"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "testMethods": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "cardID",
+    "evidence",
+    "testMethods",
+    "interruptionBoundaries",
+    "fixture",
+    "brandImpact",
+    "privacy"
+  ],
+  "title": "WorkflowGraphEvidenceReceiptV1",
+  "type": "object"
+}

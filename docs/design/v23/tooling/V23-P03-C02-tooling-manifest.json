@@ -1,0 +1,670 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "acceptanceOrReleaseClaimed": false,
+  "adoptionEnabled": false,
+  "artifactCount": 23,
+  "artifactDigest": "3109a2887976444046841881b2e177032f78849713a3c151c488886c3958011e",
+  "artifactSetDigest": "72639b2e2b4cfbd509693da09c20ab4e998487d52fe92cfcd194475513d28dca",
+  "artifacts": [
+    {
+      "bytes": 22790,
+      "path": "FieldEvidenceApp/Domain/Packs/InspectionPackageContractsV2.swift",
+      "sha256": "80f042ff71d3a229af654bfeaeef5489cf69760e7afa756d53471f628f0126d3"
+    },
+    {
+      "bytes": 1945,
+      "path": "FieldEvidenceApp/Infrastructure/Packs/BundledInspectionPackageRegistryV2.swift",
+      "sha256": "d389e5b936f22c192f8f82032e1c982bc898c6cf910233384224cc404eb0be18"
+    },
+    {
+      "bytes": 15053,
+      "path": "FieldEvidenceApp/Domain/InspectionKernel/WorkflowGrammarContractsV1.swift",
+      "sha256": "f05449653af24ce35cf1bf95cc80a3c0bfe1820b0c92c6485a2895a9705f2ede"
+    },
+    {
+      "bytes": 9027,
+      "path": "FieldEvidenceApp/Domain/InspectionKernel/WorkflowDefinitionV1.swift",
+      "sha256": "2a4f76f653677ae3ce0e2793ee133ae81ffcf5c811297dd5b90119139873e137"
+    },
+    {
+      "bytes": 11081,
+      "path": "FieldEvidenceApp/Domain/InspectionKernel/WorkflowGraphValidatorV1.swift",
+      "sha256": "bae956b4030891aa101951705d9213ff3e669f854ac84cc5a4d1a643e9df2db1"
+    },
+    {
+      "bytes": 15605,
+      "path": "FieldEvidenceApp/Domain/InspectionKernel/InspectionPackageReleaseV1.swift",
+      "sha256": "78c1140bca6ebe280f85be1d6256b231ee22893416c169ed05d5ad41954f47a7"
+    },
+    {
+      "bytes": 7112,
+      "path": "FieldEvidenceApp/Domain/InspectionKernel/PackageReleaseBindingV1.swift",
+      "sha256": "5fde4cf87303af126ec98e990abf4fb4c0b0c83007f8dd5ef760c320cd155042"
+    },
+    {
+      "bytes": 40517,
+      "path": "FieldEvidenceAppTests/V9_12WorkflowGraphTests.swift",
+      "sha256": "f210bf6003775bdc524ea346b9da7fddb2462704098597f5078a241b3f13d680"
+    },
+    {
+      "bytes": 11284,
+      "path": "FieldEvidenceAppTests/Fixtures/V21/InspectionKernel/V21P03C02WorkflowGraphCorpusV1.json",
+      "sha256": "1676ba3644de68526dddc0155a5a5392cdc21f83bfaa007bff53d14f1da1be75"
+    },
+    {
+      "bytes": 64403,
+      "path": "Scripts/v23/p03_c02_contracts.py",
+      "sha256": "4c951c3dfdf722885f447398eb3defb89b435e42dff3c0c254ecd45168d2f122"
+    },
+    {
+      "bytes": 1661,
+      "path": "Scripts/v23/generate_p03_c02_contracts.py",
+      "sha256": "8f35af02ce3ecaaa8a34848ee5f2d53407783dcd6ff2d6f67a176f82d15c4921"
+    },
+    {
+      "bytes": 31131,
+      "path": "Scripts/v23/verify_p03_c02_contracts.py",
+      "sha256": "34fb092d3dd228deb8377a5e3ee97b0419c09aa7ec7d22040e158e0ce42b11c8"
+    },
+    {
+      "bytes": 1197,
+      "path": "Scripts/v23/inspection-package-release.schema.json",
+      "sha256": "dea6bf74aaa6d2e40f7b2649c74ac7714f862e8d5b5cbbad6444a7cb995a705f"
+    },
+    {
+      "bytes": 6315,
+      "path": "Scripts/v23/workflow-definition.schema.json",
+      "sha256": "0973cbec03eb93b87241a72a0e794560dd339a927c27a2d13e33064508d535c8"
+    },
+    {
+      "bytes": 5028,
+      "path": "Scripts/v23/workflow-node.schema.json",
+      "sha256": "3f9ad0c507414634ebc65c29a1c6fe9f4589e4def02d103ee500c26a3933356e"
+    },
+    {
+      "bytes": 3652,
+      "path": "Scripts/v23/branch-predicate.schema.json",
+      "sha256": "815194cf0daf0d37203b26b51600e5ba6c14e52d3c8de0eb8b2068473e0c45d6"
+    },
+    {
+      "bytes": 1335,
+      "path": "Scripts/v23/package-release-binding.schema.json",
+      "sha256": "fc019f4f06e60559b9407084b16b4cb3e72bba30642b6af3df050fe8a1d68ded"
+    },
+    {
+      "bytes": 6305,
+      "path": "Scripts/v23/workflow-graph-evidence-receipt.schema.json",
+      "sha256": "74dde75b7439f1b58f4694d0c8b51fd3e96a96792d6dbcf343e8aa0e3f119a8a"
+    },
+    {
+      "bytes": 20082,
+      "path": "docs/design/v23/tooling/V23P03C02InspectionPackageReleaseContractV1.json",
+      "sha256": "2d35f40df99d4157a2a7418166dfa6ff47ab63e003094558581bf7ed1a1f9564"
+    },
+    {
+      "bytes": 20881,
+      "path": "docs/design/v23/tooling/V23P03C02WorkflowGrammarContractV1.json",
+      "sha256": "76f948463e36c750add23e47d6c75134705d01ca4f3eb4fcfb82a7d4d0747a07"
+    },
+    {
+      "bytes": 20213,
+      "path": "docs/design/v23/tooling/V23P03C02WorkflowGraphValidationContractV1.json",
+      "sha256": "0a5905bdc7c3b6c84ea60ee86272477c73d9b1b3897b317b39df5f02073b2dd3"
+    },
+    {
+      "bytes": 19728,
+      "path": "docs/design/v23/tooling/V23P03C02PackageReleasePinningContractV1.json",
+      "sha256": "2390646af30a9c73c1ba4aeae23cc4b0bdcab1772480a1ad7dc37e19a6bf3b93"
+    },
+    {
+      "bytes": 22859,
+      "path": "docs/design/v23/tooling/V23P03C02WorkflowGraphEvidenceReceiptV1.json",
+      "sha256": "9620cfd30fd83258dee990d4baa69a04e6278aa8899e6cb3b578f2eaf018f450"
+    }
+  ],
+  "authority": {
+    "aggregateAcceptanceMemberships": [
+      "AutonomousRequiredAcceptedSetV1"
+    ],
+    "appBaseHead": "76039ad7d48f04f11f19937ed623dd28b12ea49a",
+    "appBaseTree": "80418a317e75216c8ccc26d7acba5c6cce293d1d",
+    "attemptID": 1,
+    "branch": "phase/v23-expansion",
+    "cardID": "V23-P03-C02",
+    "classification": "IMPLEMENT_NOW",
+    "conformanceSubjects": [
+      "KernelConformanceSubjectSetV1"
+    ],
+    "contextDigest": "3c238ced11eeffb0b7eb93f968c0e6fc7df555f64e45154bf43b696f25cf5cac",
+    "coordinationAuthorityHead": "710bee763bbc98b323d7c6c3d8b79c5124a4b5bb",
+    "coordinationAuthorityTree": "1b15a4dd0870f8a8d83d0fbeabe654ccc7d1b543",
+    "coordinationCASSequence": 140,
+    "coordinationLedgerDigest": "ae2c41c95a677ed6984a9d1f4964ee91229da8796008844d6a86df3e7b09cf23",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "deterministicEvidenceIDs": [
+      "V23-P03-C02-G01",
+      "V23-P03-C02-A01",
+      "V23-P03-C02-H01",
+      "V23-P03-C02-I01",
+      "V23-P03-C02-R01"
+    ],
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "directPrerequisites": [
+      "V23-P03-C01"
+    ],
+    "dossierDigest": "bd917763a48633bc4d33a21749ada804ad0406e269e3ad06168ea10d823205d7",
+    "dossierLength": 7101,
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "foundationRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationProjectionDigest": "03d5143ae59a79430fbbd508aa1b948768a989bb5fcfdfc1dae870409500b227",
+    "impactManifestDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "inheritedV21BlockDigest": "97946a92ee5dec964b2f4a88df62ff05f413c852f7e44338ff184016234bb243",
+    "inheritedV21BlockLength": 7062,
+    "invalidationConsumers": [
+      "V23-P03-C03",
+      "V23-P04-C27:STATE_INVENTORY",
+      "V23-P04-C29:EXACT_CANDIDATE",
+      "V23-P05-C01:RELEASE_SELECTOR"
+    ],
+    "lineage": "REFINED_WITHOUT_LOSS",
+    "lineageSource": "V21-P03-C02",
+    "pathFenceDigest": "41823769e2170704e7c6144cb1fa4033dcbcd24f291fc6d35b496e8f78e02bba",
+    "planningStatus": "NOT_STARTED",
+    "provisionalPrerequisiteDigest": "3e8602995e4e0ef35abd72c0b56fbd274b377bd1739afb5317c63caee0b40d91",
+    "registerOrdinal": 33,
+    "registerRowDigest": "b1ebc559d01849908f82f944073dbbb62fa16ff67cf1e032acbb4c3fd2b3e3e3",
+    "registerSectionDigest": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+    "registerSectionLength": 44217,
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "title": "Immutable package release and exact finite workflow-node, branch, predicate, and repeat grammar"
+  },
+  "backupBehaviorDelta": false,
+  "backupRestoreRequired": false,
+  "brandSurfaceDelta": false,
+  "cardID": "V23-P03-C02",
+  "contractDocumentCount": 5,
+  "declarationOnly": true,
+  "deleteBehaviorDelta": false,
+  "deleteEraseRequired": false,
+  "downgradeDisposition": "DORMANT_REVERT_ALLOWED",
+  "evidenceIDs": [
+    "V23-P03-C02-G01",
+    "V23-P03-C02-A01",
+    "V23-P03-C02-H01",
+    "V23-P03-C02-I01",
+    "V23-P03-C02-R01"
+  ],
+  "existingPaths": [
+    "FieldEvidenceApp/Domain/Packs/InspectionPackageContractsV2.swift",
+    "FieldEvidenceApp/Infrastructure/Packs/BundledInspectionPackageRegistryV2.swift"
+  ],
+  "exportBehaviorDelta": false,
+  "exportReportRequired": false,
+  "fenceProof": {
+    "activeS10Overlap": false,
+    "activeS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "allowedDeletePaths": [],
+    "allowedPathCount": 24,
+    "allowedRenamePaths": [],
+    "authorizedOverlapEdges": [
+      {
+        "boundEvidence": {
+          "attemptID": 1,
+          "candidateHead": "76039ad7d48f04f11f19937ed623dd28b12ea49a",
+          "candidateTree": "80418a317e75216c8ccc26d7acba5c6cce293d1d",
+          "cardID": "V23-P03-C01",
+          "checkpointDigest": "d4500fb867fe334245f83dc8de20267af377aa30ad41ebfdc60c650f951f49be",
+          "contextDigest": "4221ebc43e391f9b81cad953b9ab2f4c188da324e6c434a92efb2687f941a028",
+          "pathFenceDigest": "fae827d3757adfaf3af7485b3b5076db54ebbf92193a450a37e7ce8e042fb1d3",
+          "verificationReceiptDigest": "49665b4d712469087dd81f9aec9c95279e24b54405251a82bd93540c6c4bcfb2"
+        },
+        "disposition": "EXTEND_C01_CANONICAL_PACKAGE_AND_BUNDLED_REGISTRY_WITH_IMMUTABLE_RELEASE_AND_FINITE_WORKFLOW_BINDING_WHILE_PRESERVING_C01_SCHEMA2_BYTES_CLOSED_REGISTRY_AND_SIGN_PARITY",
+        "path": "FieldEvidenceApp/Domain/Packs/InspectionPackageContractsV2.swift",
+        "priorCardID": "V23-P03-C01",
+        "priorFenceDigest": "fae827d3757adfaf3af7485b3b5076db54ebbf92193a450a37e7ce8e042fb1d3"
+      },
+      {
+        "boundEvidence": {
+          "attemptID": 1,
+          "candidateHead": "76039ad7d48f04f11f19937ed623dd28b12ea49a",
+          "candidateTree": "80418a317e75216c8ccc26d7acba5c6cce293d1d",
+          "cardID": "V23-P03-C01",
+          "checkpointDigest": "d4500fb867fe334245f83dc8de20267af377aa30ad41ebfdc60c650f951f49be",
+          "contextDigest": "4221ebc43e391f9b81cad953b9ab2f4c188da324e6c434a92efb2687f941a028",
+          "pathFenceDigest": "fae827d3757adfaf3af7485b3b5076db54ebbf92193a450a37e7ce8e042fb1d3",
+          "verificationReceiptDigest": "49665b4d712469087dd81f9aec9c95279e24b54405251a82bd93540c6c4bcfb2"
+        },
+        "disposition": "EXTEND_C01_CANONICAL_PACKAGE_AND_BUNDLED_REGISTRY_WITH_IMMUTABLE_RELEASE_AND_FINITE_WORKFLOW_BINDING_WHILE_PRESERVING_C01_SCHEMA2_BYTES_CLOSED_REGISTRY_AND_SIGN_PARITY",
+        "path": "FieldEvidenceApp/Infrastructure/Packs/BundledInspectionPackageRegistryV2.swift",
+        "priorCardID": "V23-P03-C01",
+        "priorFenceDigest": "fae827d3757adfaf3af7485b3b5076db54ebbf92193a450a37e7ce8e042fb1d3"
+      }
+    ],
+    "authorizedPriorFenceOverlapCount": 2,
+    "baseHead": "76039ad7d48f04f11f19937ed623dd28b12ea49a",
+    "baseTree": "80418a317e75216c8ccc26d7acba5c6cce293d1d",
+    "existingPathCount": 2,
+    "newPathCount": 22,
+    "pathFenceDigest": "41823769e2170704e7c6144cb1fa4033dcbcd24f291fc6d35b496e8f78e02bba",
+    "priorFenceCount": 33,
+    "priorFenceOverlapCount": 2,
+    "priorOwnedPathCount": 528,
+    "unauthorizedPriorFenceOverlapCount": 0
+  },
+  "fixtureProjection": {
+    "bindingKinds": [
+      "ACTIVE",
+      "AMENDMENT",
+      "COMPLETED",
+      "DRAFT",
+      "EXPORT"
+    ],
+    "canonicalSHA256": "169c1f1b570240a56b7dd2c356a5a967c12d6fb062872e99c3cf077da9ed57dc",
+    "interruptionBoundaries": [
+      "AFTER_PUBLICATION_BEFORE_RECEIPT",
+      "AFTER_VALIDATION_BEFORE_PUBLICATION",
+      "BEFORE_VALIDATION"
+    ],
+    "limits": {
+      "maximumBranchCount": 32,
+      "maximumEdgeCount": 384,
+      "maximumFieldCount": 128,
+      "maximumGraphDepth": 32,
+      "maximumNodeCount": 128,
+      "maximumPredicateDepth": 8,
+      "maximumPredicateOperands": 16,
+      "maximumRepeatCount": 32,
+      "maximumSetOperandCount": 32,
+      "maximumTotalExecutions": 4096
+    },
+    "negativeCases": [
+      "COUNT_LIMIT",
+      "CYCLE",
+      "DEPTH_LIMIT",
+      "FIELD_COUNT_LIMIT",
+      "FORWARD_PREDICATE_REFERENCE",
+      "MISSING_FIELD_ID",
+      "MISSING_TARGET",
+      "NESTED_REPEAT_ESCAPE",
+      "PREDICATE_DEPTH_LIMIT",
+      "REPEAT_BODY_ESCAPE",
+      "REPEAT_BODY_OUTSIDE_ENTRY",
+      "UNKNOWN_NODE_KIND",
+      "UNKNOWN_PREDICATE_KIND"
+    ],
+    "nodeKinds": [
+      "BRANCH",
+      "EVIDENCE_REQUEST",
+      "FACT",
+      "INSTRUCTION",
+      "REPEAT_GROUP",
+      "REVIEW",
+      "SECTION",
+      "TERMINAL"
+    ],
+    "predicateKinds": [
+      "ALL",
+      "ANY",
+      "COMPARE_FIXED",
+      "EQUALS",
+      "EXISTS",
+      "IN_SET",
+      "IS_KNOWN",
+      "NOT"
+    ],
+    "releaseStates": [
+      "DRAFT",
+      "TESTED",
+      "PUBLISHED"
+    ],
+    "repeat": {
+      "activitySequence": [
+        "ACTIVE",
+        "INACTIVE_BY_PATH",
+        "REACTIVATION_REVIEW_REQUIRED"
+      ],
+      "instanceID": "fixture.repeat.instance.0001",
+      "multiNodeBodyIDs": [
+        "node.body.entry",
+        "node.body.exit",
+        "node.body.interior"
+      ],
+      "nestedBodyIDs": [
+        "node.inner.branch",
+        "node.inner.exit",
+        "node.inner.repeat",
+        "node.outer.entry",
+        "node.outer.exit"
+      ],
+      "nestedRepeatCount": 2,
+      "repeatNodeID": "node.repeat",
+      "stableOrder": 0
+    },
+    "requiredMarkers": [
+      "DRAFT",
+      "ACTIVE",
+      "COMPLETED",
+      "BEFORE_VALIDATION",
+      "AFTER_PUBLICATION_BEFORE_RECEIPT",
+      "FAIL_CLOSED",
+      "NESTED_REPEAT_ESCAPE"
+    ],
+    "schema": "V21P03C02WorkflowGraphCorpusV1",
+    "schemaVersion": 1,
+    "sha256": "1676ba3644de68526dddc0155a5a5392cdc21f83bfaa007bff53d14f1da1be75",
+    "testOnly": true,
+    "topLevelKeys": [
+      "bindingKinds",
+      "failureDisposition",
+      "interruptionBoundaries",
+      "limits",
+      "negativeCases",
+      "nodeKinds",
+      "olderResume",
+      "predicateKinds",
+      "releaseStates",
+      "repeat",
+      "schema",
+      "schemaVersion",
+      "testOnly",
+      "truthDestinations",
+      "workflowID"
+    ],
+    "truthDestinations": {
+      "FALSE": "node.review",
+      "TRUE": "node.repeat",
+      "UNKNOWN": "node.terminal"
+    },
+    "truthResolution": "ONE_TRUTH_VALUE_SELECTS_EXACTLY_ONE_DESTINATION"
+  },
+  "generatedPaths": [
+    "Scripts/v23/inspection-package-release.schema.json",
+    "Scripts/v23/workflow-definition.schema.json",
+    "Scripts/v23/workflow-node.schema.json",
+    "Scripts/v23/branch-predicate.schema.json",
+    "Scripts/v23/package-release-binding.schema.json",
+    "Scripts/v23/workflow-graph-evidence-receipt.schema.json",
+    "docs/design/v23/tooling/V23P03C02InspectionPackageReleaseContractV1.json",
+    "docs/design/v23/tooling/V23P03C02WorkflowGrammarContractV1.json",
+    "docs/design/v23/tooling/V23P03C02WorkflowGraphValidationContractV1.json",
+    "docs/design/v23/tooling/V23P03C02PackageReleasePinningContractV1.json",
+    "docs/design/v23/tooling/V23P03C02WorkflowGraphEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23-P03-C02-tooling-manifest.json"
+  ],
+  "generator": {
+    "seed": 230302,
+    "version": "p03-c02-contracts-v1"
+  },
+  "hostedDispatchEnabled": false,
+  "hostedDispatchRan": false,
+  "migrationBehaviorDelta": false,
+  "migrationRequired": false,
+  "nativeCompileRan": false,
+  "nativeOrHostedEvidenceClaimed": false,
+  "newPaths": [
+    "FieldEvidenceApp/Domain/InspectionKernel/WorkflowGrammarContractsV1.swift",
+    "FieldEvidenceApp/Domain/InspectionKernel/WorkflowDefinitionV1.swift",
+    "FieldEvidenceApp/Domain/InspectionKernel/WorkflowGraphValidatorV1.swift",
+    "FieldEvidenceApp/Domain/InspectionKernel/InspectionPackageReleaseV1.swift",
+    "FieldEvidenceApp/Domain/InspectionKernel/PackageReleaseBindingV1.swift",
+    "FieldEvidenceAppTests/V9_12WorkflowGraphTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/InspectionKernel/V21P03C02WorkflowGraphCorpusV1.json",
+    "Scripts/v23/p03_c02_contracts.py",
+    "Scripts/v23/generate_p03_c02_contracts.py",
+    "Scripts/v23/verify_p03_c02_contracts.py",
+    "Scripts/v23/inspection-package-release.schema.json",
+    "Scripts/v23/workflow-definition.schema.json",
+    "Scripts/v23/workflow-node.schema.json",
+    "Scripts/v23/branch-predicate.schema.json",
+    "Scripts/v23/package-release-binding.schema.json",
+    "Scripts/v23/workflow-graph-evidence-receipt.schema.json",
+    "docs/design/v23/tooling/V23P03C02InspectionPackageReleaseContractV1.json",
+    "docs/design/v23/tooling/V23P03C02WorkflowGrammarContractV1.json",
+    "docs/design/v23/tooling/V23P03C02WorkflowGraphValidationContractV1.json",
+    "docs/design/v23/tooling/V23P03C02PackageReleasePinningContractV1.json",
+    "docs/design/v23/tooling/V23P03C02WorkflowGraphEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23-P03-C02-tooling-manifest.json"
+  ],
+  "noNetwork": true,
+  "noNewSwiftDataV6Entity": true,
+  "noRuntimeDownloads": true,
+  "pathFence": [
+    "FieldEvidenceApp/Domain/Packs/InspectionPackageContractsV2.swift",
+    "FieldEvidenceApp/Infrastructure/Packs/BundledInspectionPackageRegistryV2.swift",
+    "FieldEvidenceApp/Domain/InspectionKernel/WorkflowGrammarContractsV1.swift",
+    "FieldEvidenceApp/Domain/InspectionKernel/WorkflowDefinitionV1.swift",
+    "FieldEvidenceApp/Domain/InspectionKernel/WorkflowGraphValidatorV1.swift",
+    "FieldEvidenceApp/Domain/InspectionKernel/InspectionPackageReleaseV1.swift",
+    "FieldEvidenceApp/Domain/InspectionKernel/PackageReleaseBindingV1.swift",
+    "FieldEvidenceAppTests/V9_12WorkflowGraphTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/InspectionKernel/V21P03C02WorkflowGraphCorpusV1.json",
+    "Scripts/v23/p03_c02_contracts.py",
+    "Scripts/v23/generate_p03_c02_contracts.py",
+    "Scripts/v23/verify_p03_c02_contracts.py",
+    "Scripts/v23/inspection-package-release.schema.json",
+    "Scripts/v23/workflow-definition.schema.json",
+    "Scripts/v23/workflow-node.schema.json",
+    "Scripts/v23/branch-predicate.schema.json",
+    "Scripts/v23/package-release-binding.schema.json",
+    "Scripts/v23/workflow-graph-evidence-receipt.schema.json",
+    "docs/design/v23/tooling/V23P03C02InspectionPackageReleaseContractV1.json",
+    "docs/design/v23/tooling/V23P03C02WorkflowGrammarContractV1.json",
+    "docs/design/v23/tooling/V23P03C02WorkflowGraphValidationContractV1.json",
+    "docs/design/v23/tooling/V23P03C02PackageReleasePinningContractV1.json",
+    "docs/design/v23/tooling/V23P03C02WorkflowGraphEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23-P03-C02-tooling-manifest.json"
+  ],
+  "pathFenceCount": 24,
+  "pendingArtifactCount": 0,
+  "pendingFencePaths": [],
+  "persistentChangeMode": "DECLARATION_ONLY",
+  "persistentContractSchema": "KERNEL_CONTRACT_V1",
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "physicalLockedState": "REQUIRED_PENDING_OWNER",
+  "privacyAllowlistOnly": true,
+  "provisional": true,
+  "provisionalKernelOnly": true,
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "restoreBehaviorDelta": false,
+  "schema": "V23-P03-C02-tooling-manifest",
+  "schemaBehaviorDelta": false,
+  "schemaVersion": 1,
+  "shippingBoundaryAdoption": "DEFERRED_UNTIL_ACCEPTED_S10_6_RECONCILIATION",
+  "sourcePathCount": 9,
+  "sourcePaths": [
+    "FieldEvidenceApp/Domain/Packs/InspectionPackageContractsV2.swift",
+    "FieldEvidenceApp/Infrastructure/Packs/BundledInspectionPackageRegistryV2.swift",
+    "FieldEvidenceApp/Domain/InspectionKernel/WorkflowGrammarContractsV1.swift",
+    "FieldEvidenceApp/Domain/InspectionKernel/WorkflowDefinitionV1.swift",
+    "FieldEvidenceApp/Domain/InspectionKernel/WorkflowGraphValidatorV1.swift",
+    "FieldEvidenceApp/Domain/InspectionKernel/InspectionPackageReleaseV1.swift",
+    "FieldEvidenceApp/Domain/InspectionKernel/PackageReleaseBindingV1.swift",
+    "FieldEvidenceAppTests/V9_12WorkflowGraphTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/InspectionKernel/V21P03C02WorkflowGraphCorpusV1.json"
+  ],
+  "sourceProjection": {
+    "grammar": {
+      "branchRule": "TRUE_FALSE_UNKNOWN_DESTINATIONS_ARE_EXPLICIT_VALID_IDS_CONVERGENCE_ALLOWED",
+      "comparisonOperators": [
+        "LESS_THAN",
+        "LESS_THAN_OR_EQUAL",
+        "EQUAL",
+        "GREATER_THAN_OR_EQUAL",
+        "GREATER_THAN"
+      ],
+      "failureKinds": [
+        "invalidValue",
+        "unknownKind",
+        "limitExceeded",
+        "duplicateIdentity",
+        "missingTarget",
+        "missingFieldID",
+        "forwardPredicateReference",
+        "unreachableNode",
+        "cycleDetected",
+        "invalidCardinality",
+        "incompatibleVersion",
+        "hashMismatch",
+        "immutableRelease",
+        "invalidTransition",
+        "releaseNotFound",
+        "publicationInterrupted"
+      ],
+      "identifierRule": "NONEMPTY_LOWERCASE_ASCII_DASH_DOT_UNDERSCORE_WITHIN_MAXIMUM_ID_BYTES",
+      "limits": {
+        "maximumBranchCount": 32,
+        "maximumEdgeCount": 384,
+        "maximumFieldCount": 128,
+        "maximumGraphDepth": 32,
+        "maximumIDBytes": 128,
+        "maximumNodeCount": 128,
+        "maximumPredicateDepth": 8,
+        "maximumPredicateOperands": 16,
+        "maximumRepeatCount": 32,
+        "maximumSetOperandCount": 32,
+        "maximumTotalExecutions": 4096
+      },
+      "nodeKinds": [
+        "SECTION",
+        "INSTRUCTION",
+        "FACT",
+        "EVIDENCE_REQUEST",
+        "BRANCH",
+        "REPEAT_GROUP",
+        "REVIEW",
+        "TERMINAL"
+      ],
+      "predicateKinds": [
+        "EXISTS",
+        "IS_KNOWN",
+        "EQUALS",
+        "IN_SET",
+        "COMPARE_FIXED",
+        "NOT",
+        "ALL",
+        "ANY"
+      ],
+      "predicateRule": "KIND_SPECIFIC_EXACT_FIELDS_AND_RECURSIVE_DEPTH_BOUNDED_OPERANDS",
+      "repeatRule": "BOUNDED_REPEAT_GROUP_WITH_EXPLICIT_BODY_ENTRY_EXIT_AND_MAXIMUM_INSTANCES",
+      "truthResolution": "ONE_TRUTH_VALUE_SELECTS_EXACTLY_ONE_DESTINATION",
+      "truthValues": [
+        "TRUE",
+        "FALSE",
+        "UNKNOWN"
+      ]
+    },
+    "kernelFailureKinds": [
+      "invalidValue",
+      "unknownKind",
+      "limitExceeded",
+      "duplicateIdentity",
+      "missingTarget",
+      "missingFieldID",
+      "forwardPredicateReference",
+      "unreachableNode",
+      "cycleDetected",
+      "invalidCardinality",
+      "incompatibleVersion",
+      "hashMismatch",
+      "immutableRelease",
+      "invalidTransition",
+      "releaseNotFound",
+      "publicationInterrupted"
+    ],
+    "packageReleaseBinding": {
+      "canonicalCodec": "PackageReleaseBindingCanonicalCodecV1",
+      "changedOrUnknownReleaseDisposition": "FAIL_CLOSED",
+      "kinds": [
+        "DRAFT",
+        "ACTIVE",
+        "COMPLETED",
+        "AMENDMENT",
+        "EXPORT"
+      ],
+      "requiredFields": [
+        "schemaVersion",
+        "bindingID",
+        "kind",
+        "packageReleaseID",
+        "packageID",
+        "packageContentVersion",
+        "packageSHA256",
+        "canonicalPackageBytes",
+        "workflowSHA256",
+        "canonicalWorkflowBytes"
+      ],
+      "resumeValidation": "EXACT_PUBLISHED_RELEASE_ID_PACKAGE_BYTES_AND_WORKFLOW_BYTES",
+      "sourceDigest": "5fde4cf87303af126ec98e990abf4fb4c0b0c83007f8dd5ef760c320cd155042",
+      "type": "PackageReleaseBindingV1"
+    },
+    "packageReleaseBindingSHA256": "5fde4cf87303af126ec98e990abf4fb4c0b0c83007f8dd5ef760c320cd155042",
+    "predecessorBundledRegistrySHA256": "d389e5b936f22c192f8f82032e1c982bc898c6cf910233384224cc404eb0be18",
+    "predecessorPackageContractSHA256": "80f042ff71d3a229af654bfeaeef5489cf69760e7afa756d53471f628f0126d3",
+    "release": {
+      "canonicalCodec": "InspectionPackageReleaseCanonicalCodecV1",
+      "canonicalRules": [
+        "UTF8",
+        "SORTED_KEYS",
+        "WITHOUT_ESCAPING_SLASHES",
+        "NO_FLOATING_POINT",
+        "MAXIMUM_CANONICAL_BYTES_1048576",
+        "ROUND_TRIP_BYTE_EQUALITY"
+      ],
+      "draftTestPublishTransitions": true,
+      "immutableAfterPublication": true,
+      "releaseSourceDigest": "78c1140bca6ebe280f85be1d6256b231ee22893416c169ed05d5ad41954f47a7",
+      "requiredBindings": [
+        "packageReleaseID",
+        "packageID",
+        "packageContentVersion",
+        "packageSHA256",
+        "canonicalPackageBytes",
+        "workflowSHA256",
+        "canonicalWorkflowBytes"
+      ],
+      "statuses": [
+        "DRAFT",
+        "TESTED",
+        "PUBLISHED"
+      ],
+      "type": "InspectionPackageReleaseV1"
+    },
+    "sourceCount": 9,
+    "workflowDefinitionSHA256": "2a4f76f653677ae3ce0e2793ee133ae81ffcf5c811297dd5b90119139873e137",
+    "workflowGraphValidatorSHA256": "bae956b4030891aa101951705d9213ff3e669f854ac84cc5a4d1a643e9df2db1"
+  },
+  "strictSchemaCount": 6,
+  "testMethods": [
+    "testV9_12G01PositiveWorkflowGraphMatrixValidates",
+    "testV9_12A01CycleCountDepthPredicateUnknownAndMissingFailClosed",
+    "testV9_12H01PublishedPackageReleaseIsImmutable",
+    "testV9_12I01InterruptedPublicationExposesZeroOrCompleteRelease",
+    "testV9_12R01OlderPackageResumeUsesExactValidatedRelease"
+  ],
+  "toolingPathCount": 15,
+  "toolingPaths": [
+    "Scripts/v23/p03_c02_contracts.py",
+    "Scripts/v23/generate_p03_c02_contracts.py",
+    "Scripts/v23/verify_p03_c02_contracts.py",
+    "Scripts/v23/inspection-package-release.schema.json",
+    "Scripts/v23/workflow-definition.schema.json",
+    "Scripts/v23/workflow-node.schema.json",
+    "Scripts/v23/branch-predicate.schema.json",
+    "Scripts/v23/package-release-binding.schema.json",
+    "Scripts/v23/workflow-graph-evidence-receipt.schema.json",
+    "docs/design/v23/tooling/V23P03C02InspectionPackageReleaseContractV1.json",
+    "docs/design/v23/tooling/V23P03C02WorkflowGrammarContractV1.json",
+    "docs/design/v23/tooling/V23P03C02WorkflowGraphValidationContractV1.json",
+    "docs/design/v23/tooling/V23P03C02PackageReleasePinningContractV1.json",
+    "docs/design/v23/tooling/V23P03C02WorkflowGraphEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23-P03-C02-tooling-manifest.json"
+  ],
+  "uiSurfaceDelta": false
+}

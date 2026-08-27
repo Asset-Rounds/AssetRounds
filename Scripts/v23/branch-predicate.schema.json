@@ -1,0 +1,185 @@
+{
+  "$defs": {
+    "BranchPredicateV1": {
+      "additionalProperties": false,
+      "properties": {
+        "comparison": {
+          "anyOf": [
+            {
+              "enum": [
+                "LESS_THAN",
+                "LESS_THAN_OR_EQUAL",
+                "EQUAL",
+                "GREATER_THAN_OR_EQUAL",
+                "GREATER_THAN"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fieldID": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z0-9._-]{1,128}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fixedValue": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "enum": [
+            "EXISTS",
+            "IS_KNOWN",
+            "EQUALS",
+            "IN_SET",
+            "COMPARE_FIXED",
+            "NOT",
+            "ALL",
+            "ANY"
+          ],
+          "type": "string"
+        },
+        "operands": {
+          "items": {
+            "$ref": "#/$defs/BranchPredicateV1"
+          },
+          "maxItems": 16,
+          "minItems": 0,
+          "type": "array"
+        },
+        "optionID": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z0-9._-]{1,128}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "optionIDs": {
+          "items": {
+            "pattern": "^[a-z0-9._-]{1,128}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 0,
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "optionIDs",
+        "operands"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://assetrounds.invalid/v23/BranchPredicateV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "comparison": {
+      "anyOf": [
+        {
+          "enum": [
+            "LESS_THAN",
+            "LESS_THAN_OR_EQUAL",
+            "EQUAL",
+            "GREATER_THAN_OR_EQUAL",
+            "GREATER_THAN"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "fieldID": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z0-9._-]{1,128}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "fixedValue": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "kind": {
+      "enum": [
+        "EXISTS",
+        "IS_KNOWN",
+        "EQUALS",
+        "IN_SET",
+        "COMPARE_FIXED",
+        "NOT",
+        "ALL",
+        "ANY"
+      ],
+      "type": "string"
+    },
+    "operands": {
+      "items": {
+        "$ref": "#/$defs/BranchPredicateV1"
+      },
+      "maxItems": 16,
+      "minItems": 0,
+      "type": "array"
+    },
+    "optionID": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z0-9._-]{1,128}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "optionIDs": {
+      "items": {
+        "pattern": "^[a-z0-9._-]{1,128}$",
+        "type": "string"
+      },
+      "maxItems": 32,
+      "minItems": 0,
+      "type": "array"
+    }
+  },
+  "required": [
+    "kind",
+    "optionIDs",
+    "operands"
+  ],
+  "title": "BranchPredicateV1",
+  "type": "object"
+}
