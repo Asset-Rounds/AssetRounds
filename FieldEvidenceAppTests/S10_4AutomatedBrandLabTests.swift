@@ -755,7 +755,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(workerExecutionSource.utf8.count, 99_798)
         XCTAssertEqual(
             Data(workerExecutionSource.utf8).sha256,
-            "7A2C1CEF5B531BBC418D6619FC49BE2009052F1D806918D49ADDC0B40EA32A4C"
+            "E64C3F923AC2B02A42751D7F53B0B2724340368CFECDF0593A103CAE0AF98771"
         )
         let warpScopeSource = String(
             warpJobSource[warpScopeStart.lowerBound..<warpExecutionStart.lowerBound]
@@ -11269,7 +11269,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             contrastAuthoritySource.components(
                 separatedBy: "ContrastAuditExceptionSignature("
             ).count - 1,
-            23
+            24
         )
         let purchaseCompleteNoSyncExceptionSource = try boundedSource(
             contrastAuthoritySource,
@@ -15863,37 +15863,37 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(
             uiSource.components(separatedBy: "ContrastAuditExceptionSignature(").count - 1,
-            23
+            24
         )
         XCTAssertEqual(
             uiSource.components(
                 separatedBy: #"issueID: "S10.4-XCUI-CONTRAST-FP-"#
             ).count - 1,
-            23
+            24
         )
         XCTAssertEqual(
             workflowSource.components(
                 separatedBy: #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-"#
             ).count - 1,
-            46
+            48
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: #"owner: "palatis3""#).count - 1,
-            23
+            24
         )
         XCTAssertEqual(
             workflowSource.components(separatedBy: #"exceptionOwner: "palatis3""#)
                 .count - 1,
-            23
+            24
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: #"expiresAt: "2026-11-20""#).count - 1,
-            23
+            24
         )
         XCTAssertEqual(
             workflowSource.components(separatedBy: #"exceptionExpiresAt: "2026-11-20""#)
                 .count - 1,
-            23
+            24
         )
 
         let signatureLocks = [
@@ -19975,7 +19975,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             workflowSource.components(
                 separatedBy: #"taskID: "work_and_recheck""#
             ).count - 1,
-            12
+            14
         )
         XCTAssertFalse(workflowSource.contains("S10_4_AUDIT_DIAGNOSTIC"))
         XCTAssertFalse(
@@ -20515,7 +20515,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             evidenceKernelData.sha256,
-            "BB035D2E46DA61C5C19DD3000B4E25A5E199E44CCF9173EBC894669666D0A97E"
+            "6F04A1A7FD51C3A0338F124E9C62F9CEAED0ED74ED7C0F5742AFF835E0A24E4A"
         )
         XCTAssertEqual(
             try string(plan, "evidenceKernelSHA256"),
