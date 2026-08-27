@@ -8304,6 +8304,18 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         settings.tap()
         XCTAssertTrue(element("s1.settings.screen", in: app)
             .waitForExistence(timeout: 20))
+        if automationShard?.shardID == "s10.4.current.ax-text",
+           automationSegment == .segment3,
+           shouldPrepareNormalEvidence(
+               for: "state.settings.hub",
+               in: app
+           ) {
+            guard positionSettingsHubDiagnosticsEntryForAXText(in: app) else {
+                throw AutomationConfigurationError.invalid(
+                    "S10.4 AX-text settings-hub positioning failed"
+                )
+            }
+        }
         captureBaseline("state.settings.hub", in: app)
 
         captureSettingsDataSurfaces(in: app)
@@ -9964,16 +9976,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         print("S10_MIGRATION_STATE state=\(stateID)")
 
         guard let shard = automationShard else { return }
-        if shard.shardID == "s10.4.current.ax-text",
-           automationSegment == .segment3,
-           stateID == "state.settings.hub" {
-            do {
-                try diagnoseSegment3AXTextSettingsHubNativeContrast(in: app)
-            } catch {
-                XCTFail(String(describing: error), file: file, line: line)
-            }
-            return
-        }
         dismissHostedAppleIntelligenceNotificationIfPresent(
             in: app,
             file: file,
@@ -11149,288 +11151,262 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
-    private func diagnoseSegment3AXTextSettingsHubNativeContrast(
+    private func positionSettingsHubDiagnosticsEntryForAXText(
         in app: XCUIApplication
-    ) throws {
-        let stateID = "state.settings.hub"
-        let expectedMigratedStateIDs = Array(
-            Self.segmentedRouteStateIDs[50..<59]
+    ) -> Bool {
+        let settingsScreens = app.descendants(matching: .any).matching(
+            identifier: "s1.settings.screen"
         )
-        let expectedAXTreeDigestStateIDs = Array(
-            Self.segmentedRouteStateIDs[50..<58]
+        let settingsScrollViews = app.scrollViews.matching(
+            identifier: "s1.settings.screen"
         )
-        let expectedContrastExceptionStateIDs = [
-            "state.report-correction.validation-error",
-        ]
-        guard let shard = automationShard,
-              shard.shardID == "s10.4.current.ax-text",
-              automationSegment == .segment3,
-              automationSegment.replayCount == 22,
-              automationSegment.ownedStartOrdinal == 51,
-              automationSegment.ownedCount == 17,
-              automationSegment.finalOrdinal == 67,
-              Self.segmentedRouteStateIDs.count == 67,
-              Set(Self.segmentedRouteStateIDs).count == 67,
-              Self.segmentedRouteStateIDs[58] == stateID,
-              segmentedRouteStateCursor == 59,
-              migratedStateIDs == expectedMigratedStateIDs,
-              automationAXTreeDigests.keys.sorted()
-                == expectedAXTreeDigestStateIDs.sorted(),
-              automationContrastExceptions.keys.sorted()
-                == expectedContrastExceptionStateIDs,
-              !automatedSegmentFinished,
-              app.state == .runningForeground else {
-            throw AutomationConfigurationError.invalid(
-                "S10.4 AX-text settings-hub native contrast diagnostic gate is invalid"
+        let diagnosticsEntries = app.descendants(matching: .any).matching(
+            identifier: "s8.3.diagnostics.settings-entry"
+        )
+        let navigationBars = app.navigationBars
+        let tabBars = app.tabBars
+        let keyboards = app.keyboards
+        let inputViews = app.otherElements.matching(
+            NSPredicate(format: "identifier == %@", "inputView")
+        )
+        let settingsScreen = settingsScreens.firstMatch
+        let settingsScrollView = settingsScrollViews.firstMatch
+        let diagnosticsEntry = diagnosticsEntries.firstMatch
+        let navigationBar = navigationBars.firstMatch
+        let tabBar = tabBars.firstMatch
+        let contentInset: CGFloat = 16
+        let receiverInset: CGFloat = 24
+        let minimumGestureDistance: CGFloat = 44
+        let isValidFrame: (CGRect) -> Bool = { frame in
+            !frame.isNull
+                && !frame.isEmpty
+                && !frame.isInfinite
+                && frame.origin.x.isFinite
+                && frame.origin.y.isFinite
+                && frame.size.width.isFinite
+                && frame.size.height.isFinite
+        }
+
+        guard app.state == .runningForeground,
+              settingsScreens.count == 1,
+              settingsScrollViews.count == 1,
+              diagnosticsEntries.count == 1,
+              navigationBars.count == 1,
+              tabBars.count == 1,
+              keyboards.count == 0,
+              inputViews.count == 0,
+              settingsScreen.exists,
+              settingsScreen.identifier == "s1.settings.screen",
+              settingsScrollView.exists,
+              settingsScrollView.identifier == "s1.settings.screen",
+              settingsScrollView.elementType == .scrollView,
+              diagnosticsEntry.exists,
+              diagnosticsEntry.isEnabled,
+              diagnosticsEntry.identifier == "s8.3.diagnostics.settings-entry",
+              diagnosticsEntry.label == "View diagnostics",
+              diagnosticsEntry.elementType == .button,
+              navigationBar.exists,
+              tabBar.exists else {
+            XCTFail("AX-text settings-hub positioning route is invalid.")
+            return false
+        }
+
+        let frozenApplicationFrame = app.frame
+        let frozenScreenFrame = settingsScreen.frame
+        let frozenScrollFrame = settingsScrollView.frame
+        let frozenNavigationFrame = navigationBar.frame
+        let frozenTabBarFrame = tabBar.frame
+        guard isValidFrame(frozenApplicationFrame),
+              isValidFrame(frozenScreenFrame),
+              isValidFrame(frozenScrollFrame),
+              isValidFrame(frozenNavigationFrame),
+              isValidFrame(frozenTabBarFrame),
+              frozenScreenFrame == frozenScrollFrame else {
+            XCTFail("AX-text settings-hub positioning geometry is invalid.")
+            return false
+        }
+
+        for _ in 0..<4 {
+            guard app.state == .runningForeground,
+                  settingsScreens.count == 1,
+                  settingsScrollViews.count == 1,
+                  diagnosticsEntries.count == 1,
+                  navigationBars.count == 1,
+                  tabBars.count == 1,
+                  keyboards.count == 0,
+                  inputViews.count == 0,
+                  settingsScreen.exists,
+                  settingsScreen.identifier == "s1.settings.screen",
+                  settingsScreen.frame == frozenScreenFrame,
+                  settingsScrollView.exists,
+                  settingsScrollView.identifier == "s1.settings.screen",
+                  settingsScrollView.elementType == .scrollView,
+                  settingsScrollView.frame == frozenScrollFrame,
+                  diagnosticsEntry.exists,
+                  diagnosticsEntry.isEnabled,
+                  diagnosticsEntry.identifier == "s8.3.diagnostics.settings-entry",
+                  diagnosticsEntry.label == "View diagnostics",
+                  diagnosticsEntry.elementType == .button,
+                  navigationBar.exists,
+                  navigationBar.frame == frozenNavigationFrame,
+                  tabBar.exists,
+                  tabBar.frame == frozenTabBarFrame,
+                  app.frame == frozenApplicationFrame else {
+                XCTFail("AX-text settings-hub route changed during positioning.")
+                return false
+            }
+
+            let applicationFrame = app.frame
+            let scrollFrame = settingsScrollView.frame
+            let navigationFrame = navigationBar.frame
+            let tabBarFrame = tabBar.frame
+            let liveScrollFrame = scrollFrame.intersection(applicationFrame)
+            let liveTop = max(liveScrollFrame.minY, navigationFrame.maxY)
+            let liveBottom = min(
+                liveScrollFrame.maxY,
+                min(applicationFrame.maxY, tabBarFrame.minY)
             )
-        }
-
-        let diagnosticQueryBindings: [(
-            name: String,
-            query: XCUIElementQuery
-        )] = [
-            (
-                "settingsScreens",
-                app.descendants(matching: .any).matching(
-                    identifier: "s1.settings.screen"
-                )
-            ),
-            (
-                "settingsScrollViews",
-                app.scrollViews.matching(identifier: "s1.settings.screen")
-            ),
-            (
-                "backupEntries",
-                app.descendants(matching: .any).matching(
-                    identifier: "s6.2.backup.settings-entry"
-                )
-            ),
-            (
-                "diagnosticsEntries",
-                app.descendants(matching: .any).matching(
-                    identifier: "s8.3.diagnostics.settings-entry"
-                )
-            ),
-            (
-                "feedbackEntries",
-                app.descendants(matching: .any).matching(
-                    identifier: "s8.4.feedback.settings-entry"
-                )
-            ),
-            (
-                "restoreEntries",
-                app.descendants(matching: .any).matching(
-                    identifier: "s6.5.restore.settings-entry"
-                )
-            ),
-            (
-                "paywallEntries",
-                app.descendants(matching: .any).matching(
-                    identifier: "s7.2.settings.paywall"
-                )
-            ),
-            (
-                "restorePurchaseEntries",
-                app.descendants(matching: .any).matching(
-                    identifier: "s7.3.settings.restore-purchases"
-                )
-            ),
-            (
-                "eraseEntries",
-                app.descendants(matching: .any).matching(
-                    identifier: "s6.6.settings.erase-all"
-                )
-            ),
-            ("navigationBars", app.navigationBars),
-            ("tabBars", app.tabBars),
-            ("keyboards", app.keyboards),
-            (
-                "inputViews",
-                app.otherElements.matching(
-                    NSPredicate(format: "identifier == %@", "inputView")
-                )
-            ),
-        ]
-        let diagnosticElementObject: (XCUIElement) -> [String: Any] = {
-            element in
-            let valueObject: Any
-            if let value = element.value as? String {
-                valueObject = value
-            } else {
-                valueObject = NSNull()
+            let safeTop = liveTop + contentInset
+            let safeBottom = liveBottom - contentInset
+            let receiverTop = liveTop + receiverInset
+            let receiverBottom = liveBottom - receiverInset
+            let entryFrame = diagnosticsEntry.frame
+            guard isValidFrame(liveScrollFrame),
+                  isValidFrame(entryFrame),
+                  safeBottom > safeTop,
+                  receiverBottom > receiverTop,
+                  entryFrame.height <= safeBottom - safeTop else {
+                XCTFail("AX-text settings-hub live geometry is invalid.")
+                return false
             }
-            return [
-                "exists": element.exists,
-                "isEnabled": element.isEnabled,
-                "isHittable": element.isHittable,
-                "identifier": element.identifier,
-                "label": element.label,
-                "value": valueObject,
-                "elementTypeRawValue": element.elementType.rawValue,
-                "elementTypeDescription": String(describing: element.elementType),
-                "frame": self.auditFrameObject(element.frame),
-            ]
-        }
-        let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {
-            query in
-            let count = query.count
-            var elements: [[String: Any]] = []
-            for index in 0..<count {
-                elements.append(
-                    diagnosticElementObject(query.element(boundBy: index))
-                )
+            if entryFrame.minY >= safeTop,
+               entryFrame.maxY <= safeBottom,
+               diagnosticsEntry.isHittable {
+                return true
             }
-            return [
-                "count": count,
-                "elements": elements,
-            ]
-        }
-        var diagnosticQueryObjects: [String: Any] = [:]
-        for binding in diagnosticQueryBindings {
-            diagnosticQueryObjects[binding.name] = diagnosticQueryObject(binding.query)
-        }
-        let diagnosticContext: [String: Any] = [
-            "schemaVersion": 1,
-            "acceptanceEligible": false,
-            "shardID": shard.shardID,
-            "requirementID": shard.requirementID,
-            "deviceProfileID": shard.deviceProfileID,
-            "segmentID": automationSegment.rawValue,
-            "segmentReplayCount": automationSegment.replayCount,
-            "segmentOwnedStartOrdinal": automationSegment.ownedStartOrdinal,
-            "segmentOwnedCount": automationSegment.ownedCount,
-            "segmentFinalOrdinal": automationSegment.finalOrdinal,
-            "segmentStateCursor": segmentedRouteStateCursor,
-            "stateID": stateID,
-            "stateOrdinal": 59,
-            "predecessorStateID": "state.feedback.review-ready",
-            "predecessorOrdinal": 58,
-            "successorStateID": "state.backup.ready",
-            "successorOrdinal": 60,
-            "migratedStateIDs": migratedStateIDs,
-            "axTreeDigestStateIDs": automationAXTreeDigests.keys.sorted(),
-            "contrastExceptionStateIDs": automationContrastExceptions.keys.sorted(),
-            "applicationState": String(describing: app.state),
-            "applicationStateRawValue": app.state.rawValue,
-            "applicationForeground": app.state == .runningForeground,
-            "applicationFrame": auditFrameObject(app.frame),
-            "application": diagnosticElementObject(app),
-            "queries": diagnosticQueryObjects,
-        ]
-        printJSONLine(
-            prefix:
-                "S10_4_AX_TEXT_SETTINGS_HUB_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
-            object: diagnosticContext
-        )
 
-        let appAttachment = XCTAttachment(screenshot: app.screenshot())
-        appAttachment.name =
-            "S10.4 AX-text settings-hub native contrast diagnostic app"
-        appAttachment.lifetime = .keepAlways
-        add(appAttachment)
-        let treeAttachment = XCTAttachment(string: app.debugDescription)
-        treeAttachment.name =
-            "S10.4 AX-text settings-hub native contrast diagnostic tree"
-        treeAttachment.lifetime = .keepAlways
-        add(treeAttachment)
-        let contextData = try JSONSerialization.data(
-            withJSONObject: diagnosticContext,
-            options: [.prettyPrinted, .sortedKeys]
-        )
-        let contextAttachment = XCTAttachment(
-            string: String(decoding: contextData, as: UTF8.self)
-        )
-        contextAttachment.name =
-            "S10.4 AX-text settings-hub native contrast diagnostic context"
-        contextAttachment.lifetime = .keepAlways
-        add(contextAttachment)
-
-        var observedIssueCount = 0
-        var auditedElementCount = 0
-        try app.performAccessibilityAudit(for: .contrast) { issue in
-            observedIssueCount += 1
-            let auditedElement = issue.element
-            var diagnosticIssue: [String: Any] = [
-                "schemaVersion": 1,
-                "acceptanceEligible": false,
-                "shardID": shard.shardID,
-                "requirementID": shard.requirementID,
-                "deviceProfileID": shard.deviceProfileID,
-                "segmentID": self.automationSegment.rawValue,
-                "segmentStateCursor": self.segmentedRouteStateCursor,
-                "stateID": stateID,
-                "stateOrdinal": 59,
-                "issueOrdinal": observedIssueCount,
-                "auditTypeRawValue": String(issue.auditType.rawValue),
-                "compactDescription": issue.compactDescription,
-                "detailedDescription": issue.detailedDescription,
-                "elementExists": NSNull(),
-                "elementEnabled": NSNull(),
-                "elementHittable": NSNull(),
-                "elementIdentifier": NSNull(),
-                "elementLabel": NSNull(),
-                "elementValue": NSNull(),
-                "elementTypeRawValue": NSNull(),
-                "elementTypeDescription": NSNull(),
-                "elementFrame": NSNull(),
-                "applicationFrame": self.auditFrameObject(app.frame),
-            ]
-            if let auditedElement {
-                auditedElementCount += 1
-                let valueObject: Any
-                if let value = auditedElement.value as? String {
-                    valueObject = value
-                } else {
-                    valueObject = NSNull()
-                }
-                diagnosticIssue["elementExists"] = auditedElement.exists
-                diagnosticIssue["elementEnabled"] = auditedElement.isEnabled
-                diagnosticIssue["elementHittable"] = auditedElement.isHittable
-                diagnosticIssue["elementIdentifier"] = auditedElement.identifier
-                diagnosticIssue["elementLabel"] = auditedElement.label
-                diagnosticIssue["elementValue"] = valueObject
-                diagnosticIssue["elementTypeRawValue"] =
-                    auditedElement.elementType.rawValue
-                diagnosticIssue["elementTypeDescription"] =
-                    String(describing: auditedElement.elementType)
-                diagnosticIssue["elementFrame"] =
-                    self.auditFrameObject(auditedElement.frame)
+            let minimumShift = safeTop - entryFrame.minY
+            let maximumShift = safeBottom - entryFrame.maxY
+            let receiverCapacity = receiverBottom - receiverTop
+            guard minimumShift <= maximumShift,
+                  maximumShift < 0,
+                  receiverCapacity >= minimumGestureDistance else {
+                XCTFail("AX-text settings-hub requires no feasible upward shift.")
+                return false
             }
-            self.printJSONLine(
-                prefix:
-                    "S10_4_AX_TEXT_SETTINGS_HUB_NATIVE_CONTRAST_ISSUE_DIAGNOSTIC",
-                object: diagnosticIssue
+            let recognizedMinimum = max(
+                minimumShift,
+                -receiverCapacity
             )
-            if let auditedElement {
-                let issueAttachment = XCTAttachment(
-                    screenshot: auditedElement.screenshot()
-                )
-                issueAttachment.name =
-                    "S10.4 AX-text settings-hub native contrast diagnostic audited element "
-                        + String(observedIssueCount)
-                issueAttachment.lifetime = .keepAlways
-                self.add(issueAttachment)
+            let recognizedMaximum = min(
+                maximumShift,
+                -minimumGestureDistance
+            )
+            guard recognizedMinimum <= recognizedMaximum,
+                  recognizedMaximum < 0 else {
+                XCTFail("AX-text settings-hub upward shift is not recognizable.")
+                return false
             }
-            return true
+            let dragDistance = recognizedMaximum
+            let scrollOrigin = settingsScrollView.coordinate(
+                withNormalizedOffset: CGVector(dx: 0, dy: 0)
+            )
+            let dragStart = scrollOrigin.withOffset(
+                CGVector(
+                    dx: scrollFrame.width / 2,
+                    dy: receiverBottom - scrollFrame.minY
+                )
+            )
+            let dragEnd = dragStart.withOffset(
+                CGVector(dx: 0, dy: dragDistance)
+            )
+            let entryMinYBeforeDrag = entryFrame.minY
+            dragStart.press(
+                forDuration: 0.2,
+                thenDragTo: dragEnd,
+                withVelocity: .slow,
+                thenHoldForDuration: 0.2
+            )
+            guard app.state == .runningForeground,
+                  settingsScreens.count == 1,
+                  settingsScrollViews.count == 1,
+                  diagnosticsEntries.count == 1,
+                  navigationBars.count == 1,
+                  tabBars.count == 1,
+                  keyboards.count == 0,
+                  inputViews.count == 0,
+                  settingsScreen.exists,
+                  settingsScreen.frame == frozenScreenFrame,
+                  settingsScrollView.exists,
+                  settingsScrollView.frame == frozenScrollFrame,
+                  diagnosticsEntry.exists,
+                  diagnosticsEntry.identifier == "s8.3.diagnostics.settings-entry",
+                  diagnosticsEntry.label == "View diagnostics",
+                  diagnosticsEntry.elementType == .button,
+                  navigationBar.exists,
+                  navigationBar.frame == frozenNavigationFrame,
+                  tabBar.exists,
+                  tabBar.frame == frozenTabBarFrame,
+                  app.frame == frozenApplicationFrame else {
+                XCTFail("AX-text settings-hub route changed after positioning.")
+                return false
+            }
+            let observedShift = diagnosticsEntry.frame.minY - entryMinYBeforeDrag
+            guard observedShift < 0,
+                  observedShift * dragDistance > 0 else {
+                XCTFail("AX-text settings-hub positioning gesture made no signed progress.")
+                return false
+            }
         }
-        printJSONLine(
-            prefix:
-                "S10_4_AX_TEXT_SETTINGS_HUB_NATIVE_CONTRAST_COUNT_DIAGNOSTIC",
-            object: [
-                "schemaVersion": 1,
-                "acceptanceEligible": false,
-                "shardID": shard.shardID,
-                "segmentID": automationSegment.rawValue,
-                "stateID": stateID,
-                "stateOrdinal": 59,
-                "segmentStateCursor": segmentedRouteStateCursor,
-                "observedIssueCount": observedIssueCount,
-                "auditedElementCount": auditedElementCount,
-            ]
+
+        guard app.state == .runningForeground,
+              settingsScreens.count == 1,
+              settingsScrollViews.count == 1,
+              diagnosticsEntries.count == 1,
+              navigationBars.count == 1,
+              tabBars.count == 1,
+              keyboards.count == 0,
+              inputViews.count == 0,
+              settingsScreen.exists,
+              settingsScreen.frame == frozenScreenFrame,
+              settingsScrollView.exists,
+              settingsScrollView.frame == frozenScrollFrame,
+              diagnosticsEntry.exists,
+              diagnosticsEntry.isEnabled,
+              diagnosticsEntry.identifier == "s8.3.diagnostics.settings-entry",
+              diagnosticsEntry.label == "View diagnostics",
+              diagnosticsEntry.elementType == .button,
+              navigationBar.exists,
+              navigationBar.frame == frozenNavigationFrame,
+              tabBar.exists,
+              tabBar.frame == frozenTabBarFrame,
+              app.frame == frozenApplicationFrame else {
+            XCTFail("AX-text settings-hub final route changed.")
+            return false
+        }
+        let finalApplicationFrame = app.frame
+        let finalScrollFrame = settingsScrollView.frame.intersection(
+            finalApplicationFrame
         )
-        throw AutomationConfigurationError.invalid(
-            "S10.4 AX-text settings-hub native contrast diagnostic completed nonaccepting"
-        )
+        let finalSafeTop = max(
+            finalScrollFrame.minY,
+            navigationBar.frame.maxY
+        ) + contentInset
+        let finalSafeBottom = min(
+            finalScrollFrame.maxY,
+            min(finalApplicationFrame.maxY, tabBar.frame.minY)
+        ) - contentInset
+        let finalEntryFrame = diagnosticsEntry.frame
+        guard isValidFrame(finalScrollFrame),
+              isValidFrame(finalEntryFrame),
+              finalSafeBottom > finalSafeTop,
+              finalEntryFrame.minY >= finalSafeTop,
+              finalEntryFrame.maxY <= finalSafeBottom,
+              diagnosticsEntry.isHittable else {
+            XCTFail("AX-text settings-hub final composition is unsafe.")
+            return false
+        }
+        return true
     }
 
     private func publicAuditSignatureObject(
