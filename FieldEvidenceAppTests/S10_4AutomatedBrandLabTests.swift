@@ -11522,13 +11522,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             diagnosticsPositioningSource.range(
                 of: diagnosticsReadyIntervalDiagnosticEnd,
                 range: diagnosticsReadyIntervalDiagnosticStartRange.upperBound
-                    ..<diagnosticsPositioningSource.endIndex
+                    ..< diagnosticsPositioningSource.endIndex
             )
         )
         let diagnosticsReadyIntervalDiagnosticSource = String(
             diagnosticsPositioningSource[
                 diagnosticsReadyIntervalDiagnosticStartRange.lowerBound
-                    ..<diagnosticsReadyIntervalDiagnosticEndRange.lowerBound
+                    ..< diagnosticsReadyIntervalDiagnosticEndRange.lowerBound
             ]
         )
         XCTAssertEqual(
