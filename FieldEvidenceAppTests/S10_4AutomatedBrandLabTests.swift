@@ -9857,10 +9857,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     issueRecheckDuePositioningHelperEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 8_461)
+        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 8_529)
         XCTAssertEqual(
             Data(restoredCaptureBaselineSource.utf8).sha256,
-            "3CA42F8D3D5A4231652F7031E1A9334779B9E2FF48D3DE87FB7CD323A5670E35"
+            "8C9C109EF74F4B283C1CB63488BDF7D16A92023E50E6AD8BAB18AA3F8C38FA79"
         )
         XCTAssertEqual(issueRecheckDuePositioningHelperSource.utf8.count, 23_849)
         XCTAssertEqual(
@@ -15842,7 +15842,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             uiSource.components(
                 separatedBy: #"issueID: "S10.4-XCUI-CONTRAST-FP-"#
             ).count - 1,
-            20
+            21
         )
         XCTAssertEqual(
             workflowSource.components(
@@ -18437,6 +18437,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                && (\n" +
                 #"                    stateID == "state.check-preflight.ready""# + "\n" +
                 #"                        || stateID == "state.reports-index.ready""# + "\n" +
+                #"                        || stateID == "state.work.validation-error""# + "\n" +
                 "                ) ? 2 : 1"
         XCTAssertEqual(
             restoredCaptureBaselineSource.components(
@@ -18714,7 +18715,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let axReportComprehensionTaskParitySource = try boundedSource(
             uiSource,
             from: #"            case ("s10.4.current.ax-text", "report_comprehension"):"#,
-            before: "\n                taskIssueLimit = 2"
+            before: "\n                taskIssueLimit = 5"
         )
         XCTAssertEqual(axReportComprehensionTaskParitySource.utf8.count, 429)
         XCTAssertEqual(
@@ -21887,10 +21888,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "    private func captureBaseline(\n",
             before: "\n\n    @MainActor\n    private func shouldPrepareNormalEvidence("
         )
-        XCTAssertEqual(captureSource.utf8.count, 8_446)
+        XCTAssertEqual(captureSource.utf8.count, 8_514)
         XCTAssertEqual(
             Data(captureSource.utf8).sha256,
-            "EB987FE672AE2804733C3E0428CD68E7F072307531C415C550EB90D679919ABC"
+            "5659AFE4DCD07845EE8C2FE29E38BA284DAC96D3FB5F37D1531977E5A1CAF5C7"
         )
         let captureReplayGateSource = try boundedSource(
             captureSource,
