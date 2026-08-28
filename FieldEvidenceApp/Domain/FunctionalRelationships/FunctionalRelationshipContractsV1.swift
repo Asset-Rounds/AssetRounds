@@ -7,6 +7,15 @@ enum FunctionalRelationshipFailureV1: Error, Equatable, Sendable {
     case invalidTransition, staleRevision, incomplete, nonCanonicalData
 }
 
+extension CompletedFunctionalRelationshipSnapshotV1 {
+    func inspectionReviewEvidenceReference() throws -> ReviewEvidenceReferenceV1 {
+        try validate()
+        return try .init(kind: .functionalRelationshipSnapshot,
+                         referenceID: snapshotID.uuidString.lowercased(),
+                         revision: UInt64(Self.schemaVersion), sha256: snapshotSHA256)
+    }
+}
+
 enum FunctionalRelationshipLimitsV1 {
     static let maximumDescriptors = 256
     static let maximumEvents = 20_000

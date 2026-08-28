@@ -295,6 +295,136 @@ enum EvidenceVisibilityAccessibilityPolicyV1 {
 
 typealias EvidenceAssuranceAccessibilityPolicyV1 = EvidenceVisibilityAccessibilityPolicyV1
 
+/// Closed C14 identifiers for review, change-request, and corrective-action
+/// projections.  These IDs are stable semantic identities, not localized text
+/// or record IDs.  Recorded indeterminate states carry a next-step hint so
+/// their meaning does not depend on color or an icon alone.
+enum InspectionReviewAccessibilityIDV1: String, Codable, CaseIterable, Sendable {
+    case screen = "inspection.review.screen"
+    case heading = "inspection.review.heading"
+    case state = "inspection.review.state"
+    case draft = "inspection.review.state.draft"
+    case fieldComplete = "inspection.review.state.field-complete"
+    case readyForReview = "inspection.review.state.ready-for-review"
+    case changesRequested = "inspection.review.state.changes-requested"
+    case accepted = "inspection.review.state.accepted"
+    case finalized = "inspection.review.state.finalized"
+    case amended = "inspection.review.state.amended"
+    case superseded = "inspection.review.state.superseded"
+    case disposition = "inspection.review.disposition"
+    case dispositionChangesRequested = "inspection.review.disposition.changes-requested"
+    case dispositionAccepted = "inspection.review.disposition.accepted"
+    case changeRequest = "inspection.review.change-request"
+    case changeRequestState = "inspection.review.change-request.state"
+    case changeRequestOpen = "inspection.review.change-request.state.open"
+    case changeRequestResolved = "inspection.review.change-request.state.resolved"
+    case changeRequestWithdrawn = "inspection.review.change-request.state.withdrawn"
+    case changeRequestSuperseded = "inspection.review.change-request.state.superseded"
+    case changeRequestResolution = "inspection.review.change-request.resolution"
+    case changeRequestResolutionFulfilled = "inspection.review.change-request.resolution.fulfilled"
+    case changeRequestResolutionWithdrawnWithReason = "inspection.review.change-request.resolution.withdrawn-with-reason"
+    case changeRequestResolutionSuperseded = "inspection.review.change-request.resolution.superseded"
+    case correctiveAction = "inspection.review.corrective-action"
+    case correctiveActionState = "inspection.review.corrective-action.state"
+    case correctiveActionOpen = "inspection.review.corrective-action.state.open"
+    case correctiveActionInProgress = "inspection.review.corrective-action.state.in-progress"
+    case correctiveActionAwaitingVerification = "inspection.review.corrective-action.state.awaiting-verification"
+    case correctiveActionClosed = "inspection.review.corrective-action.state.closed"
+    case correctiveActionReopened = "inspection.review.corrective-action.state.reopened"
+    case correctiveActionSuperseded = "inspection.review.corrective-action.state.superseded"
+    case nextStep = "inspection.review.next-step"
+    case minimumNextRequirement = "inspection.review.next-step.minimum-requirement"
+
+    static var reviewHeading: Self { .heading }
+    static var reviewState: Self { .state }
+    static var fieldCompleteState: Self { .fieldComplete }
+    static var readyState: Self { .readyForReview }
+    static var changesRequestedState: Self { .changesRequested }
+    static var acceptedState: Self { .accepted }
+    static var finalizedState: Self { .finalized }
+    static var amendedState: Self { .amended }
+    static var supersededState: Self { .superseded }
+    static var changeRequestHeading: Self { .changeRequest }
+    static var correctiveActionHeading: Self { .correctiveAction }
+    static var actionableNextStep: Self { .nextStep }
+}
+
+typealias ReviewCorrectiveActionAccessibilityIDV1 = InspectionReviewAccessibilityIDV1
+typealias ReviewAndCorrectiveActionAccessibilityIDV1 = InspectionReviewAccessibilityIDV1
+
+/// Accessibility policy for C14's recorded review/action states.  The
+/// contract deliberately says nothing about color or icon assets; consumers
+/// must provide text, and indeterminate states also expose an actionable hint.
+enum InspectionReviewAccessibilityPolicyV1 {
+    static let semanticIDs = InspectionReviewAccessibilityIDV1.allCases.map(\.rawValue)
+    static let stateSemanticIDs: Set<String> = [
+        InspectionReviewAccessibilityIDV1.draft.rawValue,
+        InspectionReviewAccessibilityIDV1.fieldComplete.rawValue,
+        InspectionReviewAccessibilityIDV1.readyForReview.rawValue,
+        InspectionReviewAccessibilityIDV1.changesRequested.rawValue,
+        InspectionReviewAccessibilityIDV1.accepted.rawValue,
+        InspectionReviewAccessibilityIDV1.finalized.rawValue,
+        InspectionReviewAccessibilityIDV1.amended.rawValue,
+        InspectionReviewAccessibilityIDV1.superseded.rawValue,
+        InspectionReviewAccessibilityIDV1.dispositionChangesRequested.rawValue,
+        InspectionReviewAccessibilityIDV1.dispositionAccepted.rawValue,
+        InspectionReviewAccessibilityIDV1.changeRequestOpen.rawValue,
+        InspectionReviewAccessibilityIDV1.changeRequestResolved.rawValue,
+        InspectionReviewAccessibilityIDV1.changeRequestWithdrawn.rawValue,
+        InspectionReviewAccessibilityIDV1.changeRequestSuperseded.rawValue,
+        InspectionReviewAccessibilityIDV1.changeRequestResolutionFulfilled.rawValue,
+        InspectionReviewAccessibilityIDV1.changeRequestResolutionWithdrawnWithReason.rawValue,
+        InspectionReviewAccessibilityIDV1.changeRequestResolutionSuperseded.rawValue,
+        InspectionReviewAccessibilityIDV1.correctiveActionOpen.rawValue,
+        InspectionReviewAccessibilityIDV1.correctiveActionInProgress.rawValue,
+        InspectionReviewAccessibilityIDV1.correctiveActionAwaitingVerification.rawValue,
+        InspectionReviewAccessibilityIDV1.correctiveActionClosed.rawValue,
+        InspectionReviewAccessibilityIDV1.correctiveActionReopened.rawValue,
+        InspectionReviewAccessibilityIDV1.correctiveActionSuperseded.rawValue,
+    ]
+    static let indeterminateSemanticIDs: Set<String> = [
+        InspectionReviewAccessibilityIDV1.draft.rawValue,
+        InspectionReviewAccessibilityIDV1.fieldComplete.rawValue,
+        InspectionReviewAccessibilityIDV1.readyForReview.rawValue,
+        InspectionReviewAccessibilityIDV1.changesRequested.rawValue,
+        InspectionReviewAccessibilityIDV1.amended.rawValue,
+        InspectionReviewAccessibilityIDV1.superseded.rawValue,
+        InspectionReviewAccessibilityIDV1.dispositionChangesRequested.rawValue,
+        InspectionReviewAccessibilityIDV1.changeRequestOpen.rawValue,
+        InspectionReviewAccessibilityIDV1.changeRequestResolutionSuperseded.rawValue,
+        InspectionReviewAccessibilityIDV1.correctiveActionOpen.rawValue,
+        InspectionReviewAccessibilityIDV1.correctiveActionInProgress.rawValue,
+        InspectionReviewAccessibilityIDV1.correctiveActionAwaitingVerification.rawValue,
+        InspectionReviewAccessibilityIDV1.correctiveActionReopened.rawValue,
+        InspectionReviewAccessibilityIDV1.correctiveActionSuperseded.rawValue,
+    ]
+    static let statusSemanticIDs = stateSemanticIDs
+    static let denyByDefault = true
+    static let nonColorStateTextRequired = true
+    static let textAndIconRequiredForIndeterminateStates = true
+    static let actionableNextStepRequiredForIndeterminateStates = true
+    static let colorOnlyStateAllowed = false
+    static let iconOnlyStateAllowed = false
+    static let rtlRequired = true
+    static let dynamicTypeRequired = true
+    static let voiceOverRequired = true
+    static let voiceControlRequired = true
+    static let switchControlRequired = true
+    static let actionableNextStepRequired = true
+    static let textIconActionableNextStepRequired = true
+
+    static func requiresTextAndIcon(for semanticID: String) -> Bool {
+        indeterminateSemanticIDs.contains(semanticID)
+    }
+
+    static func requiresActionableNextStep(for semanticID: String) -> Bool {
+        indeterminateSemanticIDs.contains(semanticID)
+    }
+}
+
+typealias ReviewCorrectiveActionAccessibilityPolicyV1 = InspectionReviewAccessibilityPolicyV1
+typealias ReviewAndCorrectiveActionAccessibilityPolicyV1 = InspectionReviewAccessibilityPolicyV1
+
 struct AccessibilityContractV1: Codable, Equatable, Sendable {
     let semanticID: String
     let role: SemanticAccessibilityRoleV1

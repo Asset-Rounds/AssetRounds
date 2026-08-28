@@ -103,6 +103,14 @@ struct RestoreIdentityV1: Equatable, Sendable {
     func destinationEvidenceAssuranceWorkspaceID() -> WorkspaceID {
         WorkspaceID(rawValue: targetPointer.workspaceID)
     }
+
+    func destinationInspectionReviewWorkspaceID() -> WorkspaceID {
+        WorkspaceID(rawValue: targetPointer.workspaceID)
+    }
+
+    func destinationInspectionReviewRecordID(for sourceID: UUID) -> UUID? {
+        destinationRecordID(for: sourceID)
+    }
 }
 
 enum RestoreIdentityDecisionErrorV1: Error, Equatable {

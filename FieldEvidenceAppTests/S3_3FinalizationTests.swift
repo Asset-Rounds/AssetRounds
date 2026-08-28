@@ -545,3 +545,20 @@ private struct ReadyHarness {
 private enum TestFixtureError: Error {
     case couldNotCreateImage
 }
+
+extension S3_3FinalizationTests {
+    func testV23P03C14FinalizedReviewRequiresTheExplicitFinalizedState() throws {
+        let fixture = try C14InspectionReviewTestSupportV1.makeFixture(seed: 145_233)
+        XCTAssertEqual(fixture.transitions[5].toState, .finalized)
+        XCTAssertTrue(
+            InspectionReviewTransitionTableV1.permits(
+                from: .accepted, to: .finalized
+            )
+        )
+        XCTAssertFalse(
+            InspectionReviewTransitionTableV1.permits(
+                from: .draft, to: .finalized
+            )
+        )
+    }
+}

@@ -2044,3 +2044,13 @@ extension S6_3BackupValidationTests {
         XCTAssertEqual(fixture.added.mutationID.rawValue, C41FunctionalRelationshipTestSupportV1.mutation(41_641).rawValue)
     }
 }
+
+extension S6_3BackupValidationTests {
+    func testV23P03C14BackupValidatorRequiresRecordsSchema13AndFiveKinds() throws {
+        try V14InspectionReviewImportBoundaryV1.validate(persistent: 14, records: 13)
+        XCTAssertEqual(V14BackupInspectionReviewRecordV1.Kind.allCases.count, 5)
+        XCTAssertThrowsError(
+            try V14InspectionReviewImportBoundaryV1.validate(persistent: 14, records: 12)
+        )
+    }
+}

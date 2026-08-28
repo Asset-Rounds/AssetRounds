@@ -958,6 +958,369 @@
           }
         }
       }
+    },
+    "inspection.review.heading" : {
+      "comment" : "Heading for recorded inspection review facts.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inspection review"
+          }
+        }
+      }
+    },
+    "inspection.review.state" : {
+      "comment" : "Localized label for the recorded inspection review state.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Review state"
+          }
+        }
+      }
+    },
+    "inspection.review.state.draft" : {
+      "comment" : "Accessible text for a review still in draft state.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draft"
+          }
+        }
+      }
+    },
+    "inspection.review.state.field_complete" : {
+      "comment" : "Accessible text for a review with its field record complete.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Field complete"
+          }
+        }
+      }
+    },
+    "inspection.review.state.ready_for_review" : {
+      "comment" : "Accessible text for a review ready for a recorded review decision.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ready for review"
+          }
+        }
+      }
+    },
+    "inspection.review.state.changes_requested" : {
+      "comment" : "Accessible text for a review with recorded changes requested.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Changes requested"
+          }
+        }
+      }
+    },
+    "inspection.review.state.accepted" : {
+      "comment" : "Accessible text for a review with an accepted recorded disposition.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accepted"
+          }
+        }
+      }
+    },
+    "inspection.review.state.finalized" : {
+      "comment" : "Accessible text for a review with a recorded final state.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finalized"
+          }
+        }
+      }
+    },
+    "inspection.review.state.amended" : {
+      "comment" : "Accessible text for a review amended in a later recorded revision.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Amended"
+          }
+        }
+      }
+    },
+    "inspection.review.state.superseded" : {
+      "comment" : "Accessible text for a review superseded by a later recorded subject.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Superseded"
+          }
+        }
+      }
+    },
+    "inspection.review.disposition" : {
+      "comment" : "Localized label for a recorded review disposition.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Review disposition"
+          }
+        }
+      }
+    },
+    "inspection.review.disposition.changes_requested" : {
+      "comment" : "Accessible text for a disposition that records requested changes.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Changes requested"
+          }
+        }
+      }
+    },
+    "inspection.review.disposition.accepted" : {
+      "comment" : "Accessible text for an accepted recorded review disposition.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accepted"
+          }
+        }
+      }
+    },
+    "inspection.review.change_request" : {
+      "comment" : "Localized label for an immutable recorded change request.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change request"
+          }
+        }
+      }
+    },
+    "inspection.review.change_request.state" : {
+      "comment" : "Localized label for the recorded change request state.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change request state"
+          }
+        }
+      }
+    },
+    "inspection.review.change_request.state.open" : {
+      "comment" : "Accessible text for an open recorded change request.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open"
+          }
+        }
+      }
+    },
+    "inspection.review.change_request.state.resolved" : {
+      "comment" : "Accessible text for a resolved recorded change request.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resolved"
+          }
+        }
+      }
+    },
+    "inspection.review.change_request.state.withdrawn" : {
+      "comment" : "Accessible text for a withdrawn recorded change request.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Withdrawn"
+          }
+        }
+      }
+    },
+    "inspection.review.change_request.state.superseded" : {
+      "comment" : "Accessible text for a change request superseded by a later record.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Superseded"
+          }
+        }
+      }
+    },
+    "inspection.review.change_request.resolution" : {
+      "comment" : "Localized label for the recorded resolution of a change request.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change request resolution"
+          }
+        }
+      }
+    },
+    "inspection.review.change_request.resolution.fulfilled" : {
+      "comment" : "Accessible text for a fulfilled recorded change request.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fulfilled"
+          }
+        }
+      }
+    },
+    "inspection.review.change_request.resolution.withdrawn_with_reason" : {
+      "comment" : "Accessible text for a change request withdrawn with a recorded reason.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Withdrawn with reason"
+          }
+        }
+      }
+    },
+    "inspection.review.change_request.resolution.superseded" : {
+      "comment" : "Accessible text for a resolution superseded by a later record.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Superseded"
+          }
+        }
+      }
+    },
+    "inspection.review.corrective_action" : {
+      "comment" : "Localized label for a recorded corrective action.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corrective action"
+          }
+        }
+      }
+    },
+    "inspection.review.corrective_action.state" : {
+      "comment" : "Localized label for the recorded corrective action state.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corrective action state"
+          }
+        }
+      }
+    },
+    "inspection.review.corrective_action.state.open" : {
+      "comment" : "Accessible text for an open recorded corrective action.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open"
+          }
+        }
+      }
+    },
+    "inspection.review.corrective_action.state.in_progress" : {
+      "comment" : "Accessible text for a corrective action in progress.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In progress"
+          }
+        }
+      }
+    },
+    "inspection.review.corrective_action.state.awaiting_verification" : {
+      "comment" : "Accessible text for a corrective action awaiting a recorded check.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Awaiting recorded check"
+          }
+        }
+      }
+    },
+    "inspection.review.corrective_action.state.closed" : {
+      "comment" : "Accessible text for a corrective action closed with its recorded evidence.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Closed"
+          }
+        }
+      }
+    },
+    "inspection.review.corrective_action.state.reopened" : {
+      "comment" : "Accessible text for a corrective action reopened by a recorded trigger.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reopened"
+          }
+        }
+      }
+    },
+    "inspection.review.corrective_action.state.superseded" : {
+      "comment" : "Accessible text for a corrective action superseded by a later record.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Superseded"
+          }
+        }
+      }
+    },
+    "inspection.review.next_step" : {
+      "comment" : "Actionable label for the next recorded step accompanying a review state.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next step"
+          }
+        }
+      }
+    },
+    "inspection.review.next_step.minimum_requirement" : {
+      "comment" : "Actionable label for the minimum recorded requirement before the next review step.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minimum requirement"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

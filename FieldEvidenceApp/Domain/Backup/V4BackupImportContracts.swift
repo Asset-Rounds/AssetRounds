@@ -28,3 +28,14 @@ enum V13EvidenceAssuranceImportBoundaryV1 {
         }
     }
 }
+
+enum V14InspectionReviewImportBoundaryV1 {
+    static let persistentSchemaVersion = 14
+    static let recordsSchemaVersion = 13
+    static func validate(persistent: Int, records: Int) throws {
+        guard persistent == persistentSchemaVersion, records == recordsSchemaVersion,
+              V14BackupInspectionReviewRecordV1.Kind.allCases.count == 5 else {
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
+        }
+    }
+}

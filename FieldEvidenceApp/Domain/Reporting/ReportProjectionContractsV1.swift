@@ -967,3 +967,176 @@ struct OutputScopedContentReferenceV1: Codable, Equatable, Hashable, Comparable,
         try validate()
     }
 }
+
+// MARK: - C14 inspection review projection
+
+/// C14's report section is a typed, read-only history projection.  Reasons,
+/// actor snapshots, private assignment details, and evidence content remain
+/// out of this public semantic surface; exact facts and their digests stay
+/// available in the completed-snapshot contract.
+enum ReportInspectionReviewHistoryProjectionPolicyV1 {
+    static let sectionID = "inspection-review-history"
+    static let sectionVersion = 1
+    static let projectionVersion = "report-inspection-review-history-v1"
+    static let requiredTypedLabels = true
+    static let excludesClaims = true
+    static let excludesTelemetry = true
+    static let excludesOwnershipAndAuthorization = true
+    static let excludesActorPrivateDetail = true
+    static let supportsOpenJSON = true
+    static let supportsStructuredText = true
+
+    static func supports(_ format: ReportProjectionFormatV1) -> Bool {
+        switch format {
+        case .openJSON, .structuredText: return true
+        default: return false
+        }
+    }
+}
+
+struct ReportInspectionReviewHistoryProjectionV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let projectionVersion: String
+    let sourceSnapshotSHA256: String
+    let historySnapshotSHA256: String
+    let bindingSHA256: String
+    let reviewTransitionIDs: [String]
+    let reviewStateLabels: [String]
+    let reviewDispositionIDs: [String]
+    let reviewDispositionLabels: [String]
+    let changeRequestRevisionIDs: [String]
+    let changeStateLabels: [String]
+    let actionEventIDs: [String]
+    let actionStateLabels: [String]
+
+    var reviewCount: Int { reviewTransitionIDs.count + reviewDispositionIDs.count }
+    var changeCount: Int { changeRequestRevisionIDs.count }
+    var actionCount: Int { actionEventIDs.count }
+
+    init(history: CompletedInspectionReviewHistorySnapshotV1) throws {
+        try history.validate()
+        schemaVersion = Self.schemaVersion
+        projectionVersion = ReportInspectionReviewHistoryProjectionPolicyV1.projectionVersion
+        sourceSnapshotSHA256 = history.sourceSnapshotSHA256
+        historySnapshotSHA256 = history.snapshotSHA256
+        bindingSHA256 = try WorkspaceMutationCanonicalV1.sha256(Basis(
+            schemaVersion: Self.schemaVersion,
+            projectionVersion: projectionVersion,
+            sourceSnapshotSHA256: sourceSnapshotSHA256,
+            historySnapshotSHA256: historySnapshotSHA256,
+            reviewTransitionIDs: history.reviewTransitions.map { $0.transitionID.uuidString.lowercased() },
+            reviewStateLabels: history.reviewTransitions.map { $0.toState.rawValue },
+            reviewDispositionIDs: history.reviewDispositions.map { $0.dispositionID.uuidString.lowercased() },
+            reviewDispositionLabels: history.reviewDispositions.map { $0.kind.rawValue },
+            changeRequestRevisionIDs: history.changeRequests.map { $0.requestRevisionID.uuidString.lowercased() },
+            changeStateLabels: history.changeRequests.map { $0.state.rawValue },
+            actionEventIDs: history.correctiveActions.map { $0.eventID.uuidString.lowercased() },
+            actionStateLabels: history.correctiveActions.map { $0.state.rawValue }
+        ))
+        reviewTransitionIDs = history.reviewTransitions.map { $0.transitionID.uuidString.lowercased() }
+        reviewStateLabels = history.reviewTransitions.map { $0.toState.rawValue }
+        reviewDispositionIDs = history.reviewDispositions.map { $0.dispositionID.uuidString.lowercased() }
+        reviewDispositionLabels = history.reviewDispositions.map { $0.kind.rawValue }
+        changeRequestRevisionIDs = history.changeRequests.map { $0.requestRevisionID.uuidString.lowercased() }
+        changeStateLabels = history.changeRequests.map { $0.state.rawValue }
+        actionEventIDs = history.correctiveActions.map { $0.eventID.uuidString.lowercased() }
+        actionStateLabels = history.correctiveActions.map { $0.state.rawValue }
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              projectionVersion == ReportInspectionReviewHistoryProjectionPolicyV1.projectionVersion,
+              KernelCanonicalHashV1.validSHA256(sourceSnapshotSHA256),
+              KernelCanonicalHashV1.validSHA256(historySnapshotSHA256),
+              KernelCanonicalHashV1.validSHA256(bindingSHA256),
+              reviewTransitionIDs.count == reviewStateLabels.count,
+              reviewDispositionIDs.count == reviewDispositionLabels.count,
+              changeRequestRevisionIDs.count == changeStateLabels.count,
+              actionEventIDs.count == actionStateLabels.count,
+              reviewTransitionIDs.allSatisfy(SnapshotProjectionValidationV1.validID),
+              reviewDispositionIDs.allSatisfy(SnapshotProjectionValidationV1.validID),
+              changeRequestRevisionIDs.allSatisfy(SnapshotProjectionValidationV1.validID),
+              actionEventIDs.allSatisfy(SnapshotProjectionValidationV1.validID),
+              reviewTransitionIDs == reviewTransitionIDs.sorted(),
+              reviewDispositionIDs == reviewDispositionIDs.sorted(),
+              changeRequestRevisionIDs == changeRequestRevisionIDs.sorted(),
+              actionEventIDs == actionEventIDs.sorted(),
+              Set(reviewTransitionIDs).count == reviewTransitionIDs.count,
+              Set(reviewDispositionIDs).count == reviewDispositionIDs.count,
+              Set(changeRequestRevisionIDs).count == changeRequestRevisionIDs.count,
+              Set(actionEventIDs).count == actionEventIDs.count,
+              reviewStateLabels.allSatisfy(SnapshotProjectionValidationV1.validText),
+              reviewDispositionLabels.allSatisfy(SnapshotProjectionValidationV1.validText),
+              changeStateLabels.allSatisfy(SnapshotProjectionValidationV1.validText),
+              actionStateLabels.allSatisfy(SnapshotProjectionValidationV1.validText) else {
+            throw SnapshotProjectionFailureV1.invalidValue
+        }
+        let expected = try WorkspaceMutationCanonicalV1.sha256(Basis(
+            schemaVersion: schemaVersion,
+            projectionVersion: projectionVersion,
+            sourceSnapshotSHA256: sourceSnapshotSHA256,
+            historySnapshotSHA256: historySnapshotSHA256,
+            reviewTransitionIDs: reviewTransitionIDs,
+            reviewStateLabels: reviewStateLabels,
+            reviewDispositionIDs: reviewDispositionIDs,
+            reviewDispositionLabels: reviewDispositionLabels,
+            changeRequestRevisionIDs: changeRequestRevisionIDs,
+            changeStateLabels: changeStateLabels,
+            actionEventIDs: actionEventIDs,
+            actionStateLabels: actionStateLabels
+        ))
+        guard bindingSHA256 == expected else { throw SnapshotProjectionFailureV1.digestMismatch }
+    }
+
+    private struct Basis: Codable {
+        let schemaVersion: Int
+        let projectionVersion: String
+        let sourceSnapshotSHA256: String
+        let historySnapshotSHA256: String
+        let reviewTransitionIDs: [String]
+        let reviewStateLabels: [String]
+        let reviewDispositionIDs: [String]
+        let reviewDispositionLabels: [String]
+        let changeRequestRevisionIDs: [String]
+        let changeStateLabels: [String]
+        let actionEventIDs: [String]
+        let actionStateLabels: [String]
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, projectionVersion, sourceSnapshotSHA256
+        case historySnapshotSHA256, bindingSHA256, reviewTransitionIDs
+        case reviewStateLabels, reviewDispositionIDs, reviewDispositionLabels
+        case changeRequestRevisionIDs, changeStateLabels, actionEventIDs
+        case actionStateLabels
+    }
+
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(
+            decoder,
+            allowed: Set(CodingKeys.allCases.map(\.rawValue))
+        )
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        // The projection's public wire form is deliberately decoded directly;
+        // no private actor/reason data is needed to validate a report copy.
+        self.schemaVersion = try values.decode(Int.self, forKey: .schemaVersion)
+        self.projectionVersion = try values.decode(String.self, forKey: .projectionVersion)
+        self.sourceSnapshotSHA256 = try values.decode(String.self, forKey: .sourceSnapshotSHA256)
+        self.historySnapshotSHA256 = try values.decode(String.self, forKey: .historySnapshotSHA256)
+        self.bindingSHA256 = try values.decode(String.self, forKey: .bindingSHA256)
+        self.reviewTransitionIDs = try values.decode([String].self, forKey: .reviewTransitionIDs)
+        self.reviewStateLabels = try values.decode([String].self, forKey: .reviewStateLabels)
+        self.reviewDispositionIDs = try values.decode([String].self, forKey: .reviewDispositionIDs)
+        self.reviewDispositionLabels = try values.decode([String].self, forKey: .reviewDispositionLabels)
+        self.changeRequestRevisionIDs = try values.decode([String].self, forKey: .changeRequestRevisionIDs)
+        self.changeStateLabels = try values.decode([String].self, forKey: .changeStateLabels)
+        self.actionEventIDs = try values.decode([String].self, forKey: .actionEventIDs)
+        self.actionStateLabels = try values.decode([String].self, forKey: .actionStateLabels)
+        try validate()
+    }
+}
+
+typealias ReportReviewChangeActionHistoryProjectionV1 = ReportInspectionReviewHistoryProjectionV1

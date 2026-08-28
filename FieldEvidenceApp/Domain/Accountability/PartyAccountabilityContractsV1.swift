@@ -403,6 +403,27 @@ extension ActorSnapshotV1 {
     init(from decoder: Decoder) throws { let v = try Decoded(from: decoder); guard v.schemaVersion == Self.schemaVersion else { throw PartyAccountabilityFailureV1.incompatibleVersion }; try self.init(snapshotID: v.snapshotID, workspaceID: v.workspaceID, actor: v.actor, responsibility: v.responsibility, displayNameAtTime: v.displayNameAtTime, capturedAt: v.capturedAt); guard snapshotSHA256 == v.snapshotSHA256 else { throw PartyAccountabilityFailureV1.digestMismatch } }
 }
 
+extension ActorSnapshotV1 {
+    func validateInspectionReviewResponsibility(
+        _ expected: ResponsibilityKindV1,
+        workspaceID: WorkspaceID
+    ) throws {
+        try validate()
+        guard self.workspaceID == workspaceID, responsibility == expected else {
+            throw PartyAccountabilityFailureV1.unsupportedClaim
+        }
+    }
+}
+
+extension LocalActorReferenceV1 {
+    func validateInspectionReviewAssignee(workspaceID: WorkspaceID) throws {
+        try validate()
+        guard self.workspaceID == workspaceID else {
+            throw PartyAccountabilityFailureV1.crossWorkspaceReference
+        }
+    }
+}
+
 extension QualificationSnapshotV1 {
     private struct Decoded: Decodable { let schemaVersion: Int; let snapshotID: UUID; let workspaceID: WorkspaceID; let declaredScope: String; let issuerDisplay: String?; let credentialLocator: String?; let effectiveAt: Date?; let expiresAt: Date?; let provenance: QualificationProvenanceV1; let capturedAt: Date; let snapshotSHA256: String }
     init(from decoder: Decoder) throws { let v = try Decoded(from: decoder); guard v.schemaVersion == Self.schemaVersion else { throw PartyAccountabilityFailureV1.incompatibleVersion }; try self.init(snapshotID: v.snapshotID, workspaceID: v.workspaceID, declaredScope: v.declaredScope, issuerDisplay: v.issuerDisplay, credentialLocator: v.credentialLocator, effectiveAt: v.effectiveAt, expiresAt: v.expiresAt, provenance: v.provenance, capturedAt: v.capturedAt); guard snapshotSHA256 == v.snapshotSHA256 else { throw PartyAccountabilityFailureV1.digestMismatch } }

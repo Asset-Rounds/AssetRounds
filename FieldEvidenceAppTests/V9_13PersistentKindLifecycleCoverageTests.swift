@@ -1247,3 +1247,17 @@ extension V9_13PersistentKindLifecycleCoverageTests {
         try fixture.customerManifest.validateFresh(preview: fixture.customerPreview)
     }
 }
+
+extension V9_13PersistentKindLifecycleCoverageTests {
+    func testV23P03C14LifecycleIncludesEvidenceBoundClosedAction() throws {
+        let fixture = try C14InspectionReviewTestSupportV1.makeFixture(seed: 145_013)
+        try fixture.actions[3].validateSuccessor(of: fixture.actions[2], policy: fixture.policy)
+        XCTAssertEqual(fixture.actions[3].state, .closed)
+        XCTAssertEqual(fixture.actions[3].closureEvidence.count, 2)
+        XCTAssertTrue(
+            CorrectiveActionTransitionTableV1.permits(
+                from: .closed, to: .reopened
+            )
+        )
+    }
+}

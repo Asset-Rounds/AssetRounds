@@ -557,3 +557,13 @@ private extension XCTestCase {
         }
     }
 }
+
+extension S5_2RecheckOutcomeTests {
+    func testV23P03C14FailedRecheckReopensOnlyThroughDeclaredTrigger() throws {
+        let fixture = try C14InspectionReviewTestSupportV1.makeFixture(seed: 145_252)
+        try fixture.actions[4].validateSuccessor(of: fixture.actions[3], policy: fixture.policy)
+        XCTAssertEqual(fixture.actions[4].state, .reopened)
+        XCTAssertEqual(fixture.actions[4].reopenTrigger, .failedVerifiedRecheck)
+        XCTAssertTrue(fixture.policy.reopenTriggers.contains(.failedVerifiedRecheck))
+    }
+}

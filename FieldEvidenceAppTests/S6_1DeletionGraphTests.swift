@@ -856,3 +856,16 @@ extension S6_1DeletionGraphTests {
         XCTAssertEqual(preview.snapshotSHA256, fixture.customerManifest.snapshotSHA256)
     }
 }
+
+extension S6_1DeletionGraphTests {
+    func testV23P03C14SuccessorGraphRetainsReviewSubjectBinding() throws {
+        let fixture = try C14InspectionReviewTestSupportV1.makeFixture(seed: 145_161)
+        try fixture.supersedingTransition.validateSuccessor(of: fixture.transitions.last!)
+        XCTAssertEqual(fixture.supersedingTransition.subject, fixture.subject)
+        XCTAssertEqual(fixture.supersedingTransition.successorSubject?.workspaceID, fixture.workspaceID)
+        XCTAssertNotEqual(
+            fixture.supersedingTransition.successorSubject?.subjectID,
+            fixture.supersedingTransition.subject.subjectID
+        )
+    }
+}

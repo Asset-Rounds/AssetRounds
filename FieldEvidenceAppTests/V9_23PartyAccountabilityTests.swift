@@ -481,3 +481,14 @@ private extension V9_23PartyAccountabilityTests {
         )
     }
 }
+
+extension V9_23PartyAccountabilityTests {
+    func testV23P03C14ReviewActorsRemainLocalResponsibilitySnapshots() throws {
+        let fixture = try C14InspectionReviewTestSupportV1.makeFixture(seed: 145_223)
+        XCTAssertEqual(fixture.reviewer.responsibility, .reviewedBy)
+        XCTAssertEqual(fixture.reviewer.actor.workspaceID, fixture.workspaceID)
+        XCTAssertEqual(fixture.verifier.responsibility, .verifiedBy)
+        XCTAssertNotEqual(fixture.verifier.actor.actorReferenceID, fixture.reviewer.actor.actorReferenceID)
+        XCTAssertNotNil(fixture.verifier.actor.partyID)
+    }
+}

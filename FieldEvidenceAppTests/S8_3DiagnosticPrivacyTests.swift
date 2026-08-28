@@ -396,6 +396,70 @@ final class S8_3DiagnosticPrivacyTests: XCTestCase {
             )
         )
     }
+
+    func testC14InspectionReviewLocalizationIsCustomerSafeAndClaimBounded() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let catalogURL = root
+            .appendingPathComponent("FieldEvidenceApp/Resources/Localizable.xcstrings")
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: catalogURL)) as? [String: Any]
+        )
+        XCTAssertEqual(object["sourceLanguage"] as? String, "en")
+        XCTAssertEqual(object["version"] as? String, "1.0")
+        let strings = try XCTUnwrap(object["strings"] as? [String: Any])
+        let c14Text = try InspectionReviewLocalizationKeyV1.allCases.flatMap { key in
+            let entry = try XCTUnwrap(strings[key.rawValue] as? [String: Any])
+            let comment = try XCTUnwrap(entry["comment"] as? String)
+            let localizations = try XCTUnwrap(entry["localizations"] as? [String: Any])
+            XCTAssertEqual(Set(localizations.keys), Set(["en"]))
+            let english = try XCTUnwrap(localizations["en"] as? [String: Any])
+            let unit = try XCTUnwrap(english["stringUnit"] as? [String: Any])
+            return [comment, try XCTUnwrap(unit["value"] as? String)]
+        }
+
+        XCTAssertFalse(
+            InspectionReviewLocalizationPolicyV1.containsProhibitedClaim(in: c14Text)
+        )
+        XCTAssertFalse(
+            InspectionReviewLocalizationPolicyV1.containsCustomerDataLeakage(in: c14Text)
+        )
+        XCTAssertTrue(InspectionReviewLocalizationPolicyV1.denyByDefault)
+        XCTAssertTrue(InspectionReviewLocalizationPolicyV1.requiresNonColorStateText)
+        XCTAssertTrue(InspectionReviewLocalizationPolicyV1.requiresTextAndIconForIndeterminateStates)
+        XCTAssertTrue(InspectionReviewLocalizationPolicyV1.requiresActionableNextStep)
+        XCTAssertFalse(InspectionReviewLocalizationPolicyV1.allowsColorOnlyState)
+        XCTAssertFalse(InspectionReviewLocalizationPolicyV1.allowsIconOnlyState)
+        XCTAssertTrue(InspectionReviewLocalizationPolicyV1.excludesCustomerDataLeakage)
+        XCTAssertTrue(InspectionReviewLocalizationPolicyV1.excludesPrivateLocators)
+        XCTAssertTrue(InspectionReviewLocalizationPolicyV1.excludesUnsupportedClaims)
+
+        let hostileClaims = [
+            "approval granted", "authorization granted", "verified identity",
+            "legal signature", "compliance result", "tamperproof history",
+            "nonrepudiation asserted", "secure delivery", "sent successfully",
+            "delivered successfully", "professional certification",
+        ]
+        XCTAssertTrue(hostileClaims.allSatisfy {
+            InspectionReviewClaimVocabularyV1.containsProhibitedClaim(in: [$0])
+        })
+        XCTAssertTrue(
+            InspectionReviewClaimVocabularyV1.containsCustomerDataLeakage(
+                in: ["customer data", "customer-data leak", "private data", "personal data"]
+            )
+        )
+        XCTAssertFalse(
+            InspectionReviewClaimVocabularyV1.containsProhibitedClaim(
+                in: ["Recorded review state", "Changes requested", "Awaiting recorded check"]
+            )
+        )
+        XCTAssertTrue(
+            AudiencePrivacyLexicalDetectorV1.containsProhibitedPattern(
+                in: ["https://review.example/request", "file:///Users/private/review"]
+            )
+        )
+    }
 }
 
 private final class DiagnosticsLogProbe: @unchecked Sendable {

@@ -949,3 +949,13 @@ private func XCTAssertThrowsErrorAsync<T>(
         XCTFail("Expected async expression to throw", file: file, line: line)
     } catch {}
 }
+
+extension V9_19LocalSearchTests {
+    func testV23P03C14SearchableReferencesRetainTypedSubjectAndItemScope() throws {
+        let fixture = try C14InspectionReviewTestSupportV1.makeFixture(seed: 145_019)
+        let terms = [fixture.subject.subjectID, fixture.changeRequest.item.itemID]
+        XCTAssertTrue(terms.contains(fixture.subject.subjectID))
+        XCTAssertEqual(fixture.changeRequest.item.kind, .finding)
+        XCTAssertEqual(fixture.subject.kind, .completedActivitySnapshot)
+    }
+}

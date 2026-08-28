@@ -684,3 +684,22 @@ extension V10_01WorkspaceWriterTests {
         XCTAssertEqual(try mutation.concurrencyIdentity, try mutation.affectedIdentity)
     }
 }
+
+extension V10_01WorkspaceWriterTests {
+    func testV23P03C14WriterMutationBindsAffectedAndConcurrencyIdentity() throws {
+        let fixture = try C14InspectionReviewTestSupportV1.makeFixture(seed: 145_101)
+        let transition = fixture.transitions[0]
+        let bundle = try InspectionReviewAtomicBundleV1(transition: transition)
+        let mutation = try InspectionReviewMutationV1(
+            workspaceID: fixture.workspaceID, expectedRevision: 0,
+            mutationID: transition.mutationID, postImage: .applyReviewBundle(bundle)
+        )
+        try mutation.validate()
+        XCTAssertEqual(try mutation.affectedIdentities.count, 1)
+        XCTAssertEqual(try mutation.concurrencyIdentities.count, 1)
+        XCTAssertNil(try mutation.predecessorIdentity)
+        XCTAssertEqual(try mutation.affectedIdentity.kind, .inspectionReviewTransition)
+        XCTAssertEqual(try mutation.affectedIdentity.id, transition.transitionID)
+        XCTAssertEqual(try mutation.concurrencyIdentity.id, transition.transitionID)
+    }
+}

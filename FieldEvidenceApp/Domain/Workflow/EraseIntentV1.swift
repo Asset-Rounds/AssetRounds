@@ -16,6 +16,11 @@ enum EvidenceAssuranceEraseBoundaryV1 {
     static let ordinaryDeletionIsZeroWrite = true
 }
 
+enum InspectionReviewEraseBoundaryV1 {
+    static let immutableReviewAndCorrectiveActionHistoryClearedOnlyByWorkspaceErase = true
+    static let ordinaryDeletionPreservesAcceptedFinalizedAndActionHistory = true
+}
+
 enum EraseIntentPhaseV1: String, CaseIterable, Codable, Sendable {
     case emptyGenerationPrepared = "empty_generation_prepared"
     case pointerSwitched = "pointer_switched"

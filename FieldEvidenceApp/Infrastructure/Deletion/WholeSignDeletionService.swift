@@ -70,6 +70,7 @@ enum WholeSignDeletionServiceError: Error, Equatable {
     case saveFailed
     case cleanupFailed
     case injectedFailure
+    case retainedInspectionReviewReferences([String])
 }
 
 enum WholeSignDeletionFailurePoint: Equatable, Sendable {
@@ -1238,6 +1239,11 @@ private extension WholeSignDeletionService {
         let claimEvidenceLinks: [ClaimEvidenceLinkRow]
         let assuranceManifests: [AssuranceManifestRow]
         let attestations: [AttestationRow]
+        let inspectionReviewTransitions: [InspectionReviewTransitionRow]
+        let reviewDispositions: [ReviewDispositionRow]
+        let changeRequests: [ChangeRequestRow]
+        let correctiveActionPolicies: [CorrectiveActionPolicyRow]
+        let correctiveActionEvents: [CorrectiveActionEventRow]
         let observationAndTime: [UUID: ObservationAndTimeRow]
         let recordPayloads: [WorkflowRecordPayloadV1]
         let evidence: [EvidenceFile]
@@ -1283,6 +1289,11 @@ private extension WholeSignDeletionService {
                 claimEvidenceLinks: try boundedFetch(ClaimEvidenceLinkRow.self),
                 assuranceManifests: try boundedFetch(AssuranceManifestRow.self),
                 attestations: try boundedFetch(AttestationRow.self),
+                inspectionReviewTransitions: try boundedFetch(InspectionReviewTransitionRow.self),
+                reviewDispositions: try boundedFetch(ReviewDispositionRow.self),
+                changeRequests: try boundedFetch(ChangeRequestRow.self),
+                correctiveActionPolicies: try boundedFetch(CorrectiveActionPolicyRow.self),
+                correctiveActionEvents: try boundedFetch(CorrectiveActionEventRow.self),
                 observationAndTime: observationAndTime,
                 recordPayloads: recordPayloads,
                 evidence: try boundedFetch(EvidenceFile.self),
@@ -1300,6 +1311,9 @@ private extension WholeSignDeletionService {
         deletingAssetID: UUID?,
         deletingSiteID: UUID?
     ) throws {
+        try validateInspectionReviewPreservation(
+            rows, deletingAssetID: deletingAssetID, deletingSiteID: deletingSiteID
+        )
         do {
             let descriptors = try rows.functionalRelationshipDescriptors.map { try $0.value() }
             let events = try rows.functionalRelationshipEvents.map { try $0.value() }
@@ -1344,6 +1358,71 @@ private extension WholeSignDeletionService {
         } catch {
             throw WholeSignDeletionServiceError.graphInvalid
         }
+    }
+
+    func validateInspectionReviewPreservation(
+        _ rows: Rows, deletingAssetID: UUID?, deletingSiteID: UUID?
+    ) throws {
+        do {
+            let transitions = try rows.inspectionReviewTransitions.map { try $0.value() }
+            let dispositions = try rows.reviewDispositions.map { try $0.value() }
+            let requests = try rows.changeRequests.map { try $0.value() }
+            let policies = try rows.correctiveActionPolicies.map { try $0.value() }
+            let actions = try rows.correctiveActionEvents.map { try $0.value() }
+            let inventory = InspectionReviewDeletionInventoryV1(
+                transitionIDs: Set(transitions.map(\.transitionID)),
+                dispositionIDs: Set(dispositions.map(\.dispositionID)),
+                requestRevisionIDs: Set(requests.map(\.requestRevisionID)),
+                policyReleaseIDs: Set(policies.map(\.releaseID)), actionEventIDs: Set(actions.map(\.eventID)))
+            try WholeSignDeletionRule.validateInspectionReviewLifecycle(
+                authority: .ordinaryAssetOrSiteDelete, before: inventory, after: inventory
+            )
+            var assetIDs = Set<UUID>()
+            if let deletingAssetID { assetIDs.insert(deletingAssetID) }
+            if let deletingSiteID { assetIDs.formUnion(rows.assets.filter { $0.siteID == deletingSiteID }.map(\.id)) }
+            let recordIDs = Set(rows.records.filter { assetIDs.contains($0.assetID) }.map(\.id))
+            let affectedPackets = rows.packets.filter {
+                $0.currentRecordID.map(recordIDs.contains) ?? false
+            }
+            let packetIDs = Set(affectedPackets.map(\.id))
+            let stableRootIDs = Set(affectedPackets.map(\.stableRootID))
+            let affectedReports = rows.reports.filter {
+                recordIDs.contains($0.sourceRecordID) || packetIDs.contains($0.packetID)
+            }
+            let reportIDs = Set(affectedReports.map(\.id))
+            let reportPacketIDs = Set(affectedReports.map(\.packetID))
+            let evidenceIDs = Set(rows.evidence.filter { recordIDs.contains($0.recordID) }.map(\.id))
+            let affected = Set((assetIDs.union(recordIDs).union(packetIDs).union(stableRootIDs)
+                .union(reportIDs).union(reportPacketIDs).union(evidenceIDs)).flatMap {
+                [$0.uuidString, $0.uuidString.lowercased()]
+            })
+            var diagnostics = Set<String>()
+            for value in transitions where [.accepted,.finalized,.amended,.superseded].contains(value.toState) {
+                if affected.contains(value.subject.subjectID) {
+                    diagnostics.insert("SUBJECT:\(value.subject.kind.rawValue):\(value.subject.subjectID):\(value.subject.subjectRevision):\(value.subject.subjectSHA256)")
+                }
+            }
+            for value in requests {
+                if affected.contains(value.item.itemID) {
+                    diagnostics.insert("CHANGE_ITEM:\(value.item.kind.rawValue):\(value.item.itemID):\(value.item.itemRevision):\(value.item.itemSHA256)")
+                }
+                for reference in value.resolution?.evidence ?? [] where affected.contains(reference.referenceID) {
+                    diagnostics.insert("CHANGE_EVIDENCE:\(reference.kind.rawValue):\(reference.referenceID):\(reference.revision):\(reference.sha256)")
+                }
+            }
+            for value in actions {
+                if affected.contains(value.source.itemID) {
+                    diagnostics.insert("ACTION_SOURCE:\(value.source.kind.rawValue):\(value.source.itemID):\(value.source.itemRevision):\(value.source.itemSHA256)")
+                }
+                for reference in value.closureEvidence where affected.contains(reference.referenceID) {
+                    diagnostics.insert("ACTION_EVIDENCE:\(reference.kind.rawValue):\(reference.referenceID):\(reference.revision):\(reference.sha256)")
+                }
+            }
+            guard diagnostics.isEmpty else {
+                throw WholeSignDeletionServiceError.retainedInspectionReviewReferences(diagnostics.sorted())
+            }
+        } catch let error as WholeSignDeletionServiceError { throw error }
+        catch { throw WholeSignDeletionServiceError.graphInvalid }
     }
 
     func boundedFetch<T: PersistentModel>(_ type: T.Type) throws -> [T] {

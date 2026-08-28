@@ -4832,3 +4832,469 @@ enum C13EvidenceAssuranceTestSupportV1 {
         )
     }
 }
+
+/// Deterministic C14 review/corrective-action values shared by the C14 lane
+/// and its boundary assertions.  Every reference is local to the synthetic
+/// workspace; no account, remote identity, or delivery claim is represented.
+enum C14InspectionReviewTestSupportV1 {
+    struct Fixture {
+        let workspaceID: WorkspaceID
+        let otherWorkspaceID: WorkspaceID
+        let reviewID: UUID
+        let actionID: UUID
+        let subject: InspectionReviewSubjectReferenceV1
+        let otherSubject: InspectionReviewSubjectReferenceV1
+        let actor: LocalActorReferenceV1
+        let reviewer: ActorSnapshotV1
+        let recorder: ActorSnapshotV1
+        let assignee: LocalActorReferenceV1
+        let verifier: ActorSnapshotV1
+        let transitions: [InspectionReviewTransitionV1]
+        let supersedingTransition: InspectionReviewTransitionV1
+        let changesRequestedDisposition: ReviewDispositionV1
+        let acceptedDisposition: ReviewDispositionV1
+        let changeRequest: ChangeRequestV1
+        let resolvedChangeRequest: ChangeRequestV1
+        let policy: CorrectiveActionPolicyV1
+        let supersedingPolicy: CorrectiveActionPolicyV1
+        let noDuePolicy: CorrectiveActionPolicyV1
+        let due: CorrectiveActionDueCalculationV1
+        let noDue: CorrectiveActionDueCalculationV1
+        let closureEvidence: [ReviewEvidenceReferenceV1]
+        let actions: [CorrectiveActionEventV1]
+        let noDueOpenAction: CorrectiveActionEventV1
+        let noDueClosedAction: CorrectiveActionEventV1
+    }
+
+    static let fixedDate = Date(timeIntervalSince1970: 1_740_000_000.125)
+    static let digest = String(repeating: "c", count: 64)
+
+    static func id(_ seed: Int) -> UUID {
+        UUID(uuidString: String(format: "00000000-0000-0000-0000-%012x", seed))!
+    }
+
+    static func workspace(_ seed: Int = 140_000) -> WorkspaceID {
+        WorkspaceID(rawValue: id(seed))
+    }
+
+    static func mutation(_ seed: Int) throws -> MutationIDV1 {
+        try MutationIDV1(rawValue: id(seed))
+    }
+
+    static func actorReference(
+        seed: Int,
+        workspaceID: WorkspaceID,
+        partyID: UUID? = nil,
+        name: String
+    ) throws -> LocalActorReferenceV1 {
+        try LocalActorReferenceV1(
+            actorReferenceID: id(seed), workspaceID: workspaceID,
+            partyID: partyID, displayName: name
+        )
+    }
+
+    static func actorSnapshot(
+        seed: Int,
+        workspaceID: WorkspaceID,
+        actor: LocalActorReferenceV1,
+        responsibility: ResponsibilityKindV1,
+        capturedAt: Date = fixedDate
+    ) throws -> ActorSnapshotV1 {
+        try ActorSnapshotV1(
+            snapshotID: id(seed), workspaceID: workspaceID, actor: actor,
+            responsibility: responsibility, displayNameAtTime: actor.displayName,
+            capturedAt: capturedAt
+        )
+    }
+
+    static func makeSubject(
+        seed: Int,
+        workspaceID: WorkspaceID,
+        kind: InspectionReviewSubjectKindV1 = .completedActivitySnapshot,
+        revision: UInt64 = 1
+    ) throws -> InspectionReviewSubjectReferenceV1 {
+        try InspectionReviewSubjectReferenceV1(
+            workspaceID: workspaceID, kind: kind,
+            subjectID: "c14-subject-\(seed)", subjectRevision: revision,
+            subjectSHA256: digest
+        )
+    }
+
+    static func changeItem(
+        kind: ChangeRequestItemKindV1 = .finding,
+        itemID: String = "c14-finding-001",
+        revision: UInt64 = 1
+    ) throws -> ChangeRequestItemReferenceV1 {
+        try ChangeRequestItemReferenceV1(
+            kind: kind, itemID: itemID, itemRevision: revision,
+            itemSHA256: digest
+        )
+    }
+
+    static func makeTransition(
+        seed: Int,
+        reviewID: UUID,
+        workspaceID: WorkspaceID,
+        subject: InspectionReviewSubjectReferenceV1,
+        from: InspectionReviewStateV1,
+        to: InspectionReviewStateV1,
+        actor: ActorSnapshotV1,
+        revision: UInt64,
+        mutationSeed: Int,
+        predecessor: UUID? = nil,
+        dispositionID: UUID? = nil,
+        changeRequestIDs: [UUID] = [],
+        successorReviewID: UUID? = nil,
+        successorSubject: InspectionReviewSubjectReferenceV1? = nil
+    ) throws -> InspectionReviewTransitionV1 {
+        let timestamp = fixedDate.addingTimeInterval(TimeInterval(revision))
+        return try InspectionReviewTransitionV1(
+            transitionID: id(seed), reviewID: reviewID, workspaceID: workspaceID,
+            subject: subject, fromState: from, toState: to, actor: actor,
+            reason: "C14 synthetic transition \(revision)",
+            dispositionID: dispositionID, changeRequestIDs: changeRequestIDs,
+            successorReviewID: successorReviewID, successorSubject: successorSubject,
+            occurredAt: timestamp, recordedAt: timestamp,
+            predecessorTransitionID: predecessor, revision: revision,
+            mutationID: try mutation(mutationSeed)
+        )
+    }
+
+    static func makePolicy(
+        seed: Int,
+        workspaceID: WorkspaceID,
+        assignmentRule: CorrectiveActionAssignmentRuleV1 = .required,
+        verifierRule: CorrectiveActionVerifierRuleV1 = .differentActorAndPartyRequired,
+        effectiveAt: Date = fixedDate,
+        supersedesReleaseID: UUID? = nil,
+        revision: UInt64 = 1,
+        noDue: Bool = false
+    ) throws -> CorrectiveActionPolicyV1 {
+        let rules: [CorrectiveActionPriorityRuleV1]
+        if noDue {
+            rules = [try CorrectiveActionPriorityRuleV1(
+                priority: .low,
+                dueRule: try CorrectiveActionDueRuleV1(kind: .noDueDate)
+            )]
+        } else {
+            rules = [
+                try CorrectiveActionPriorityRuleV1(
+                    priority: .urgent,
+                    dueRule: try CorrectiveActionDueRuleV1(kind: .elapsedSeconds, amount: 3_600),
+                    graceSeconds: 600
+                ),
+                try CorrectiveActionPriorityRuleV1(
+                    priority: .high,
+                    dueRule: try CorrectiveActionDueRuleV1(
+                        kind: .calendarDaysAtLocalTime, amount: 1, localHour: 9, localMinute: 0
+                    ), graceSeconds: 900
+                ),
+                try CorrectiveActionPriorityRuleV1(
+                    priority: .normal,
+                    dueRule: try CorrectiveActionDueRuleV1(kind: .elapsedSeconds, amount: 86_400),
+                    graceSeconds: 1_800
+                ),
+                try CorrectiveActionPriorityRuleV1(
+                    priority: .low,
+                    dueRule: try CorrectiveActionDueRuleV1(kind: .noDueDate)
+                )
+            ]
+        }
+        let evidence: [CorrectiveClosureEvidenceRequirementV1] = noDue ? [] : [
+            try CorrectiveClosureEvidenceRequirementV1(
+                requirementID: "c14-evidence-activity",
+                kind: .completedActivitySnapshot, minimumCount: 1
+            ),
+            try CorrectiveClosureEvidenceRequirementV1(
+                requirementID: "c14-evidence-recheck",
+                kind: .verifiedRecheck, minimumCount: 1
+            )
+        ]
+        return try CorrectiveActionPolicyV1(
+            releaseID: id(seed), policyID: id(seed + 1), workspaceID: workspaceID,
+            priorityRules: rules, assignmentRule: assignmentRule,
+            closureEvidenceRequirements: evidence, verifierRule: verifierRule,
+            reopenTriggers: noDue ? [.manualRecordedReason] : [
+                .failedVerifiedRecheck, .newEvidenceDigest, .subjectAmended,
+                .manualRecordedReason
+            ], effectiveAt: effectiveAt, supersedesReleaseID: supersedesReleaseID,
+            revision: revision, mutationID: try mutation(seed + 2)
+        )
+    }
+
+    static func makeAction(
+        seed: Int,
+        actionID: UUID,
+        workspaceID: WorkspaceID,
+        source: ChangeRequestItemReferenceV1,
+        policy: CorrectiveActionPolicyV1,
+        priority: CorrectiveActionPriorityV1,
+        state: CorrectiveActionStateV1,
+        recorder: ActorSnapshotV1,
+        assignee: LocalActorReferenceV1?,
+        due: CorrectiveActionDueCalculationV1,
+        closureEvidence: [ReviewEvidenceReferenceV1] = [],
+        verifier: ActorSnapshotV1? = nil,
+        reopenTrigger: CorrectiveActionReopenTriggerV1? = nil,
+        predecessor: UUID? = nil,
+        revision: UInt64
+    ) throws -> CorrectiveActionEventV1 {
+        let timestamp = fixedDate.addingTimeInterval(100 + TimeInterval(revision))
+        return try CorrectiveActionEventV1(
+            eventID: id(seed), actionID: actionID, workspaceID: workspaceID,
+            source: source, policy: try CorrectiveActionPolicyReferenceV1(policy),
+            priority: priority, state: state, assignee: assignee, recorder: recorder,
+            due: due, closureEvidence: closureEvidence, verifier: verifier,
+            reopenTrigger: reopenTrigger, reason: "C14 synthetic action \(revision)",
+            occurredAt: timestamp, recordedAt: timestamp,
+            predecessorEventID: predecessor, revision: revision,
+            mutationID: try mutation(seed + 50)
+        )
+    }
+
+    static func makeFixture(seed: Int = 140_000) throws -> Fixture {
+        let workspaceID = workspace(seed)
+        let otherWorkspaceID = workspace(seed + 900)
+        let reviewID = id(seed + 1)
+        let actionID = id(seed + 2)
+        let subject = try makeSubject(seed: seed + 3, workspaceID: workspaceID)
+        let otherSubject = try makeSubject(seed: seed + 4, workspaceID: otherWorkspaceID)
+        let partyID = id(seed + 10)
+        let assigneePartyID = id(seed + 11)
+        let verifierPartyID = id(seed + 12)
+        let actor = try actorReference(
+            seed: seed + 20, workspaceID: workspaceID, partyID: partyID,
+            name: "C14 local recorder"
+        )
+        let reviewerActor = try actorReference(
+            seed: seed + 21, workspaceID: workspaceID, partyID: partyID,
+            name: "C14 local reviewer"
+        )
+        let assignee = try actorReference(
+            seed: seed + 22, workspaceID: workspaceID, partyID: assigneePartyID,
+            name: "C14 local assignee"
+        )
+        let verifierActor = try actorReference(
+            seed: seed + 23, workspaceID: workspaceID, partyID: verifierPartyID,
+            name: "C14 local verifier"
+        )
+        let recorder = try actorSnapshot(
+            seed: seed + 30, workspaceID: workspaceID, actor: actor,
+            responsibility: .recordedBy
+        )
+        let reviewer = try actorSnapshot(
+            seed: seed + 31, workspaceID: workspaceID, actor: reviewerActor,
+            responsibility: .reviewedBy, capturedAt: fixedDate.addingTimeInterval(1)
+        )
+        let verifier = try actorSnapshot(
+            seed: seed + 32, workspaceID: workspaceID, actor: verifierActor,
+            responsibility: .verifiedBy, capturedAt: fixedDate.addingTimeInterval(2)
+        )
+
+        let item = try changeItem()
+        let requestID = id(seed + 40)
+        let requestRevisionID = id(seed + 41)
+        let requirementChange = try ChangeRequestRequirementV1(
+            requirementID: "c14-requirement-change",
+            kind: .recordedChange, description: "Record the requested corrective change."
+        )
+        let requirementEvidence = try ChangeRequestRequirementV1(
+            requirementID: "c14-requirement-evidence",
+            kind: .additionalEvidence, description: "Attach one local evidence reference."
+        )
+        let changesMutation = try mutation(seed + 51)
+        let changeRequest = try ChangeRequestV1(
+            requestRevisionID: requestRevisionID, requestID: requestID,
+            reviewID: reviewID, workspaceID: workspaceID, reviewRevision: 3,
+            item: item, reason: "C14 synthetic missing evidence reason",
+            requirements: [requirementChange, requirementEvidence], requester: reviewer,
+            state: .open, recordedAt: fixedDate.addingTimeInterval(3), revision: 1,
+            mutationID: changesMutation
+        )
+        let requestEvidence = try ReviewEvidenceReferenceV1(
+            kind: .requirementEvaluation, referenceID: "c14-requirement-evaluation",
+            revision: 1, sha256: digest
+        )
+        let resolution = try ChangeRequestResolutionV1(
+            kind: .fulfilled, resolver: reviewer, evidence: [requestEvidence],
+            reason: "C14 synthetic requirements fulfilled.",
+            resolvedAt: fixedDate.addingTimeInterval(5)
+        )
+        let resolvedChangeRequest = try ChangeRequestV1(
+            requestRevisionID: id(seed + 43), requestID: requestID,
+            reviewID: reviewID, workspaceID: workspaceID, reviewRevision: 3,
+            item: item, reason: changeRequest.reason, requirements: changeRequest.requirements,
+            requester: reviewer, state: .resolved, resolution: resolution,
+            recordedAt: fixedDate.addingTimeInterval(5),
+            supersedesRequestRevisionID: requestRevisionID, revision: 2,
+            mutationID: try mutation(seed + 44)
+        )
+
+        let changesDispositionID = id(seed + 50)
+        let changesDisposition = try ReviewDispositionV1(
+            dispositionID: changesDispositionID, reviewID: reviewID,
+            workspaceID: workspaceID, subject: subject, reviewRevision: 3,
+            kind: .changesRequested, reviewer: reviewer,
+            reason: "C14 synthetic change request disposition.",
+            changeRequestIDs: [requestID], recordedAt: fixedDate.addingTimeInterval(3),
+            mutationID: changesMutation
+        )
+        let acceptedDispositionID = id(seed + 52)
+        let acceptedMutation = try mutation(seed + 53)
+        let acceptedDisposition = try ReviewDispositionV1(
+            dispositionID: acceptedDispositionID, reviewID: reviewID,
+            workspaceID: workspaceID, subject: subject, reviewRevision: 5,
+            kind: .accepted, reviewer: reviewer,
+            reason: "C14 synthetic review accepted.",
+            recordedAt: fixedDate.addingTimeInterval(5), mutationID: acceptedMutation
+        )
+
+        let first = try makeTransition(
+            seed: seed + 60, reviewID: reviewID, workspaceID: workspaceID,
+            subject: subject, from: .draft, to: .fieldComplete, actor: recorder,
+            revision: 1, mutationSeed: seed + 61
+        )
+        let second = try makeTransition(
+            seed: seed + 62, reviewID: reviewID, workspaceID: workspaceID,
+            subject: subject, from: .fieldComplete, to: .readyForReview, actor: recorder,
+            revision: 2, mutationSeed: seed + 63, predecessor: first.transitionID
+        )
+        let third = try makeTransition(
+            seed: seed + 64, reviewID: reviewID, workspaceID: workspaceID,
+            subject: subject, from: .readyForReview, to: .changesRequested,
+            actor: reviewer, revision: 3, mutationSeed: seed + 51,
+            predecessor: second.transitionID, dispositionID: changesDispositionID,
+            changeRequestIDs: [requestID]
+        )
+        let fourth = try makeTransition(
+            seed: seed + 65, reviewID: reviewID, workspaceID: workspaceID,
+            subject: subject, from: .changesRequested, to: .readyForReview,
+            actor: recorder, revision: 4, mutationSeed: seed + 66,
+            predecessor: third.transitionID
+        )
+        let fifth = try makeTransition(
+            seed: seed + 67, reviewID: reviewID, workspaceID: workspaceID,
+            subject: subject, from: .readyForReview, to: .accepted, actor: reviewer,
+            revision: 5, mutationSeed: seed + 53, predecessor: fourth.transitionID,
+            dispositionID: acceptedDispositionID
+        )
+        let sixth = try makeTransition(
+            seed: seed + 68, reviewID: reviewID, workspaceID: workspaceID,
+            subject: subject, from: .accepted, to: .finalized, actor: recorder,
+            revision: 6, mutationSeed: seed + 69, predecessor: fifth.transitionID
+        )
+        let seventh = try makeTransition(
+            seed: seed + 70, reviewID: reviewID, workspaceID: workspaceID,
+            subject: subject, from: .finalized, to: .amended, actor: recorder,
+            revision: 7, mutationSeed: seed + 71, predecessor: sixth.transitionID
+        )
+        let successorReviewID = id(seed + 72)
+        let successorSubject = try makeSubject(
+            seed: seed + 73, workspaceID: workspaceID, revision: 2
+        )
+        let supersedingTransition = try makeTransition(
+            seed: seed + 74, reviewID: reviewID, workspaceID: workspaceID,
+            subject: subject, from: .amended, to: .superseded, actor: recorder,
+            revision: 8, mutationSeed: seed + 75, predecessor: seventh.transitionID,
+            successorReviewID: successorReviewID, successorSubject: successorSubject
+        )
+
+        let policy = try makePolicy(seed: seed + 80, workspaceID: workspaceID)
+        let supersedingPolicy = try makePolicy(
+            seed: seed + 83, workspaceID: workspaceID,
+            effectiveAt: fixedDate.addingTimeInterval(10),
+            supersedesReleaseID: policy.releaseID, revision: 2
+        )
+        let noDuePolicy = try makePolicy(
+            seed: seed + 86, workspaceID: workspaceID,
+            assignmentRule: .optional, verifierRule: .notRequired, noDue: true
+        )
+        let due = try CorrectiveActionDueCalculatorV1.calculate(
+            policy: policy, priority: .urgent,
+            openedAt: fixedDate.addingTimeInterval(101), timeZoneIdentifier: nil
+        )
+        let noDue = try CorrectiveActionDueCalculatorV1.calculate(
+            policy: noDuePolicy, priority: .low,
+            openedAt: fixedDate.addingTimeInterval(101), timeZoneIdentifier: nil
+        )
+        let activityEvidence = try ReviewEvidenceReferenceV1(
+            kind: .completedActivitySnapshot, referenceID: "c14-activity-result",
+            revision: 1, sha256: digest
+        )
+        let recheckEvidence = try ReviewEvidenceReferenceV1(
+            kind: .verifiedRecheck, referenceID: "c14-verified-recheck",
+            revision: 1, sha256: digest
+        )
+        let closureEvidence = [activityEvidence, recheckEvidence]
+        let actionOpen = try makeAction(
+            seed: seed + 100, actionID: actionID, workspaceID: workspaceID,
+            source: item, policy: policy, priority: .urgent, state: .open,
+            recorder: recorder, assignee: assignee, due: due, revision: 1
+        )
+        let actionInProgress = try makeAction(
+            seed: seed + 101, actionID: actionID, workspaceID: workspaceID,
+            source: item, policy: policy, priority: .urgent, state: .inProgress,
+            recorder: recorder, assignee: assignee, due: due,
+            predecessor: actionOpen.eventID, revision: 2
+        )
+        let actionAwaiting = try makeAction(
+            seed: seed + 102, actionID: actionID, workspaceID: workspaceID,
+            source: item, policy: policy, priority: .urgent,
+            state: .awaitingVerification, recorder: recorder, assignee: assignee,
+            due: due, predecessor: actionInProgress.eventID, revision: 3
+        )
+        let actionClosed = try makeAction(
+            seed: seed + 103, actionID: actionID, workspaceID: workspaceID,
+            source: item, policy: policy, priority: .urgent, state: .closed,
+            recorder: recorder, assignee: assignee, due: due,
+            closureEvidence: closureEvidence, verifier: verifier,
+            predecessor: actionAwaiting.eventID, revision: 4
+        )
+        let actionReopened = try makeAction(
+            seed: seed + 104, actionID: actionID, workspaceID: workspaceID,
+            source: item, policy: policy, priority: .urgent, state: .reopened,
+            recorder: recorder, assignee: assignee, due: due,
+            reopenTrigger: .failedVerifiedRecheck,
+            predecessor: actionClosed.eventID, revision: 5
+        )
+        let actionSuperseded = try makeAction(
+            seed: seed + 105, actionID: actionID, workspaceID: workspaceID,
+            source: item, policy: policy, priority: .urgent, state: .superseded,
+            recorder: recorder, assignee: assignee, due: due,
+            predecessor: actionReopened.eventID, revision: 6
+        )
+        let noDueItem = try changeItem(kind: .criterion, itemID: "c14-no-due-criterion")
+        let noDueOpenAction = try makeAction(
+            seed: seed + 110, actionID: id(seed + 111), workspaceID: workspaceID,
+            source: noDueItem, policy: noDuePolicy, priority: .low, state: .open,
+            recorder: recorder, assignee: nil, due: noDue, revision: 1
+        )
+        let noDueClosedAction = try makeAction(
+            seed: seed + 112, actionID: noDueOpenAction.actionID,
+            workspaceID: workspaceID, source: noDueItem, policy: noDuePolicy,
+            priority: .low, state: .closed, recorder: recorder, assignee: nil,
+            due: noDue, predecessor: noDueOpenAction.eventID, revision: 2
+        )
+        return Fixture(
+            workspaceID: workspaceID, otherWorkspaceID: otherWorkspaceID,
+            reviewID: reviewID, actionID: actionID, subject: subject,
+            otherSubject: otherSubject, actor: actor, reviewer: reviewer,
+            recorder: recorder, assignee: assignee, verifier: verifier,
+            transitions: [first, second, third, fourth, fifth, sixth, seventh],
+            supersedingTransition: supersedingTransition,
+            changesRequestedDisposition: changesDisposition,
+            acceptedDisposition: acceptedDisposition,
+            changeRequest: changeRequest, resolvedChangeRequest: resolvedChangeRequest,
+            policy: policy, supersedingPolicy: supersedingPolicy, noDuePolicy: noDuePolicy,
+            due: due, noDue: noDue, closureEvidence: closureEvidence,
+            actions: [actionOpen, actionInProgress, actionAwaiting, actionClosed, actionReopened, actionSuperseded],
+            noDueOpenAction: noDueOpenAction, noDueClosedAction: noDueClosedAction
+        )
+    }
+
+    static func corpusURL() -> URL {
+        KernelConformanceFixtureHarnessV1.sourceRoot().appendingPathComponent(
+            "FieldEvidenceAppTests/Fixtures/V21/ReviewAndCorrectiveAction/V21P03C14ReviewAndCorrectiveActionCorpusV1.json"
+        )
+    }
+}

@@ -35,4 +35,6 @@ final class FunctionalRelationshipCoordinatorV1 {
         try lifecycle.preview(change: change, relationshipID: relationshipID, workspaceID: workspaceID,
                               currentSiteID: currentSiteID, proposedSiteID: proposedSiteID)
     }
+
+    func currentRelationship(relationshipID:UUID,workspaceID:WorkspaceID)throws->AssetFunctionalRelationshipEventV1{try lifecycle.currentRelationship(relationshipID:relationshipID,workspaceID:workspaceID)}
 }

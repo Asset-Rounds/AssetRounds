@@ -863,3 +863,19 @@ private extension S6_4AtomicRestoreTests {
         }
     }
 }
+
+extension S6_4AtomicRestoreTests {
+    func testV23P03C14AtomicRestoreRoundTripsAllFivePersistentRows() throws {
+        let fixture = try C14InspectionReviewTestSupportV1.makeFixture(seed: 145_164)
+        let transitionRow = try InspectionReviewTransitionRow(fixture.transitions[0])
+        let dispositionRow = try ReviewDispositionRow(fixture.acceptedDisposition)
+        let requestRow = try ChangeRequestRow(fixture.resolvedChangeRequest)
+        let policyRow = try CorrectiveActionPolicyRow(fixture.policy)
+        let eventRow = try CorrectiveActionEventRow(fixture.actions[3])
+        XCTAssertEqual(try transitionRow.value(), fixture.transitions[0])
+        XCTAssertEqual(try dispositionRow.value(), fixture.acceptedDisposition)
+        XCTAssertEqual(try requestRow.value(), fixture.resolvedChangeRequest)
+        XCTAssertEqual(try policyRow.value(), fixture.policy)
+        XCTAssertEqual(try eventRow.value(), fixture.actions[3])
+    }
+}

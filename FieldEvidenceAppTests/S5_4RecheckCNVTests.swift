@@ -692,3 +692,17 @@ private extension XCTestCase {
         } catch {}
     }
 }
+
+extension S5_4RecheckCNVTests {
+    func testV23P03C14RecheckDueStatusIsRecordedWithoutExternalDelivery() throws {
+        let fixture = try C14InspectionReviewTestSupportV1.makeFixture(seed: 145_254)
+        try fixture.policy.validate()
+        XCTAssertEqual(
+            try CorrectiveActionDueCalculatorV1.status(
+                fixture.due, at: fixture.due.openedAt
+            ),
+            .notDue
+        )
+        XCTAssertEqual(fixture.actions[3].closureEvidence.count, 2)
+    }
+}

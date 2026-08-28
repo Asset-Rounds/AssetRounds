@@ -466,3 +466,18 @@ extension V9_06DeletionRightsTests {
         XCTAssertFalse(fixture.customerPreview.includedLinks.contains { $0.evidenceID == "evidence.internal-canary" })
     }
 }
+
+extension V9_06DeletionRightsTests {
+    func testV23P03C14DeletionBoundaryRequiresExactReviewSuccessor() throws {
+        XCTAssertFalse(
+            InspectionReviewTransitionTableV1.permits(
+                from: .draft, to: .superseded, hasExactSuccessorSubject: false
+            )
+        )
+        XCTAssertTrue(
+            InspectionReviewTransitionTableV1.permits(
+                from: .draft, to: .superseded, hasExactSuccessorSubject: true
+            )
+        )
+    }
+}

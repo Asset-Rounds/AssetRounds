@@ -1472,3 +1472,12 @@ extension V9_03MigrationRecoveryTests {
         XCTAssertEqual(fixture.customerPreview.excludedLinks.count, 1)
     }
 }
+
+extension V9_03MigrationRecoveryTests {
+    func testV23P03C14MigrationAddsOnlyTheFiveReviewRows() throws {
+        XCTAssertEqual(PersistentSchemaV14.versionIdentifier, Schema.Version(14, 0, 0))
+        XCTAssertEqual(PersistentSchemaV14.models.count, 53)
+        XCTAssertEqual(PersistentSchemaMigrationPlanV13.schemas.count, 2)
+        XCTAssertEqual(PersistentSchemaMigrationPlanV13.stages.count, 1)
+    }
+}

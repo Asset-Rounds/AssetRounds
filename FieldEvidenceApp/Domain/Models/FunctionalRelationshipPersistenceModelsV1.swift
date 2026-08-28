@@ -8,6 +8,8 @@ private func functionalRelationshipStoredRevision(_ value: UInt64) throws -> Int
     return Int64(value)
 }
 
+extension AssetFunctionalRelationshipEventRow{func exactCurrentReference(relationshipID:UUID,workspaceID:WorkspaceID)throws->AssetFunctionalRelationshipEventV1{let v=try value();guard v.relationshipID==relationshipID,v.workspaceID==workspaceID else{throw FunctionalRelationshipFailureV1.invalidValue};return v}}
+
 private func functionalRelationshipDomainRevision(_ value: Int64) throws -> UInt64 {
     guard value > 0 else { throw FunctionalRelationshipFailureV1.digestMismatch }
     return UInt64(value)

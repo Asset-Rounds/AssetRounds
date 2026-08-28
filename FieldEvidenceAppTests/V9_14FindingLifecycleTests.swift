@@ -577,3 +577,21 @@ private struct FindingLifecycleFixture: Decodable {
     let severityBinding: SeverityBinding
     let canonicalAggregate: CanonicalAggregate
 }
+
+extension V9_14FindingLifecycleTests {
+    func testV23P03C14FindingReviewCanRequestChangesBeforeAcceptance() throws {
+        let fixture = try C14InspectionReviewTestSupportV1.makeFixture(seed: 145_214)
+        XCTAssertTrue(
+            InspectionReviewTransitionTableV1.permits(
+                from: .readyForReview, to: .changesRequested
+            )
+        )
+        XCTAssertTrue(
+            InspectionReviewTransitionTableV1.permits(
+                from: .changesRequested, to: .readyForReview
+            )
+        )
+        XCTAssertEqual(fixture.changeRequest.item.kind, .finding)
+        XCTAssertEqual(fixture.acceptedDisposition.kind, .accepted)
+    }
+}

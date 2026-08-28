@@ -652,3 +652,13 @@ final class V9_16SnapshotProjectionTests: XCTestCase {
         return try Data(contentsOf: url)
     }
 }
+
+extension V9_16SnapshotProjectionTests {
+    func testV23P03C14SnapshotCandidateStartsAsDraftWithoutAcceptanceClaim() throws {
+        let fixture = try C14InspectionReviewTestSupportV1.makeFixture(seed: 145_016)
+        let candidate = try CheckRunnerInspectionReviewCandidateV1(subject: fixture.subject)
+        XCTAssertEqual(candidate.initialState, .draft)
+        XCTAssertEqual(candidate.subject.subjectRevision, 1)
+        XCTAssertEqual(candidate.subject.subjectSHA256, fixture.subject.subjectSHA256)
+    }
+}

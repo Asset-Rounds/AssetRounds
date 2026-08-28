@@ -945,3 +945,287 @@ extension EvidenceVisibilityLocalizationKeyV1 {
         attestationActionKey(action)
     }
 }
+
+/// C14's review and corrective-action labels are a closed, English-only
+/// presentation surface.  The review contracts retain the durable transition,
+/// request, resolution, and action values; these keys only describe recorded
+/// local facts and the next step a reader may take.
+enum InspectionReviewLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
+    case heading = "inspection.review.heading"
+    case state = "inspection.review.state"
+    case draft = "inspection.review.state.draft"
+    case fieldComplete = "inspection.review.state.field_complete"
+    case readyForReview = "inspection.review.state.ready_for_review"
+    case changesRequested = "inspection.review.state.changes_requested"
+    case accepted = "inspection.review.state.accepted"
+    case finalized = "inspection.review.state.finalized"
+    case amended = "inspection.review.state.amended"
+    case superseded = "inspection.review.state.superseded"
+    case disposition = "inspection.review.disposition"
+    case dispositionChangesRequested = "inspection.review.disposition.changes_requested"
+    case dispositionAccepted = "inspection.review.disposition.accepted"
+    case changeRequest = "inspection.review.change_request"
+    case changeRequestState = "inspection.review.change_request.state"
+    case changeRequestOpen = "inspection.review.change_request.state.open"
+    case changeRequestResolved = "inspection.review.change_request.state.resolved"
+    case changeRequestWithdrawn = "inspection.review.change_request.state.withdrawn"
+    case changeRequestSuperseded = "inspection.review.change_request.state.superseded"
+    case changeRequestResolution = "inspection.review.change_request.resolution"
+    case changeRequestResolutionFulfilled = "inspection.review.change_request.resolution.fulfilled"
+    case changeRequestResolutionWithdrawnWithReason = "inspection.review.change_request.resolution.withdrawn_with_reason"
+    case changeRequestResolutionSuperseded = "inspection.review.change_request.resolution.superseded"
+    case correctiveAction = "inspection.review.corrective_action"
+    case correctiveActionState = "inspection.review.corrective_action.state"
+    case correctiveActionOpen = "inspection.review.corrective_action.state.open"
+    case correctiveActionInProgress = "inspection.review.corrective_action.state.in_progress"
+    case correctiveActionAwaitingVerification = "inspection.review.corrective_action.state.awaiting_verification"
+    case correctiveActionClosed = "inspection.review.corrective_action.state.closed"
+    case correctiveActionReopened = "inspection.review.corrective_action.state.reopened"
+    case correctiveActionSuperseded = "inspection.review.corrective_action.state.superseded"
+    case nextStep = "inspection.review.next_step"
+    case minimumNextRequirement = "inspection.review.next_step.minimum_requirement"
+
+    static var reviewHeading: Self { .heading }
+    static var reviewState: Self { .state }
+    static var reviewDraft: Self { .draft }
+    static var fieldCompleteState: Self { .fieldComplete }
+    static var reviewFieldComplete: Self { .fieldComplete }
+    static var readyState: Self { .readyForReview }
+    static var reviewReadyForReview: Self { .readyForReview }
+    static var changesRequestedState: Self { .changesRequested }
+    static var reviewChangesRequested: Self { .changesRequested }
+    static var acceptedState: Self { .accepted }
+    static var reviewAccepted: Self { .accepted }
+    static var finalizedState: Self { .finalized }
+    static var reviewFinalized: Self { .finalized }
+    static var amendedState: Self { .amended }
+    static var reviewAmended: Self { .amended }
+    static var supersededState: Self { .superseded }
+    static var reviewSuperseded: Self { .superseded }
+    static var changeRequestHeading: Self { .changeRequest }
+    static var changeRequestOpenState: Self { .changeRequestOpen }
+    static var changeRequestResolvedState: Self { .changeRequestResolved }
+    static var changeRequestWithdrawnState: Self { .changeRequestWithdrawn }
+    static var changeRequestSupersededState: Self { .changeRequestSuperseded }
+    static var correctiveActionHeading: Self { .correctiveAction }
+    static var correctiveActionOpenState: Self { .correctiveActionOpen }
+    static var correctiveActionInProgressState: Self { .correctiveActionInProgress }
+    static var correctiveActionAwaitingVerificationState: Self { .correctiveActionAwaitingVerification }
+    static var correctiveActionClosedState: Self { .correctiveActionClosed }
+    static var correctiveActionReopenedState: Self { .correctiveActionReopened }
+    static var correctiveActionSupersededState: Self { .correctiveActionSuperseded }
+    static var actionableNextStep: Self { .nextStep }
+
+    var localizationKey: LocalizationKeyV1 {
+        // Construction is non-throwing for this closed repository-owned set;
+        // registry construction remains the validation boundary.
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+}
+
+typealias ReviewCorrectiveActionLocalizationKeyV1 = InspectionReviewLocalizationKeyV1
+typealias ReviewAndCorrectiveActionLocalizationKeyV1 = InspectionReviewLocalizationKeyV1
+typealias ReviewLocalizationKeyV1 = InspectionReviewLocalizationKeyV1
+typealias CorrectiveActionLocalizationKeyV1 = InspectionReviewLocalizationKeyV1
+
+enum InspectionReviewLocalizationPolicyV1 {
+    static let semanticNamespace = "inspection.review"
+    static let sourceLocale = "en"
+    static let shippingLocale = "en"
+    static let metadataLocale = "en-US"
+    static let testOnlyLocales = TestOnlyPseudoLocaleV1.allCases.map(\.rawValue).sorted()
+    static let keys = InspectionReviewLocalizationKeyV1.allCases.map(\.rawValue)
+    static let reportKeys = InspectionReviewLocalizationKeyV1.allCases.map(\.rawValue)
+    static let stateKeys = [
+        InspectionReviewLocalizationKeyV1.draft.rawValue,
+        InspectionReviewLocalizationKeyV1.fieldComplete.rawValue,
+        InspectionReviewLocalizationKeyV1.readyForReview.rawValue,
+        InspectionReviewLocalizationKeyV1.changesRequested.rawValue,
+        InspectionReviewLocalizationKeyV1.accepted.rawValue,
+        InspectionReviewLocalizationKeyV1.finalized.rawValue,
+        InspectionReviewLocalizationKeyV1.amended.rawValue,
+        InspectionReviewLocalizationKeyV1.superseded.rawValue,
+        InspectionReviewLocalizationKeyV1.dispositionChangesRequested.rawValue,
+        InspectionReviewLocalizationKeyV1.dispositionAccepted.rawValue,
+        InspectionReviewLocalizationKeyV1.changeRequestOpen.rawValue,
+        InspectionReviewLocalizationKeyV1.changeRequestResolved.rawValue,
+        InspectionReviewLocalizationKeyV1.changeRequestWithdrawn.rawValue,
+        InspectionReviewLocalizationKeyV1.changeRequestSuperseded.rawValue,
+        InspectionReviewLocalizationKeyV1.changeRequestResolutionFulfilled.rawValue,
+        InspectionReviewLocalizationKeyV1.changeRequestResolutionWithdrawnWithReason.rawValue,
+        InspectionReviewLocalizationKeyV1.changeRequestResolutionSuperseded.rawValue,
+        InspectionReviewLocalizationKeyV1.correctiveActionOpen.rawValue,
+        InspectionReviewLocalizationKeyV1.correctiveActionInProgress.rawValue,
+        InspectionReviewLocalizationKeyV1.correctiveActionAwaitingVerification.rawValue,
+        InspectionReviewLocalizationKeyV1.correctiveActionClosed.rawValue,
+        InspectionReviewLocalizationKeyV1.correctiveActionReopened.rawValue,
+        InspectionReviewLocalizationKeyV1.correctiveActionSuperseded.rawValue,
+    ]
+    static let indeterminateStateKeys: Set<String> = [
+        InspectionReviewLocalizationKeyV1.draft.rawValue,
+        InspectionReviewLocalizationKeyV1.fieldComplete.rawValue,
+        InspectionReviewLocalizationKeyV1.readyForReview.rawValue,
+        InspectionReviewLocalizationKeyV1.changesRequested.rawValue,
+        InspectionReviewLocalizationKeyV1.amended.rawValue,
+        InspectionReviewLocalizationKeyV1.superseded.rawValue,
+        InspectionReviewLocalizationKeyV1.dispositionChangesRequested.rawValue,
+        InspectionReviewLocalizationKeyV1.changeRequestOpen.rawValue,
+        InspectionReviewLocalizationKeyV1.changeRequestResolutionSuperseded.rawValue,
+        InspectionReviewLocalizationKeyV1.correctiveActionOpen.rawValue,
+        InspectionReviewLocalizationKeyV1.correctiveActionInProgress.rawValue,
+        InspectionReviewLocalizationKeyV1.correctiveActionAwaitingVerification.rawValue,
+        InspectionReviewLocalizationKeyV1.correctiveActionReopened.rawValue,
+        InspectionReviewLocalizationKeyV1.correctiveActionSuperseded.rawValue,
+    ]
+
+    static let denyByDefault = true
+    static let requiresNonColorStateText = true
+    static let requiresTextAndIconForIndeterminateStates = true
+    static let requiresActionableNextStep = true
+    static let allowsColorOnlyState = false
+    static let allowsIconOnlyState = false
+    static let excludesCustomerDataLeakage = true
+    static let excludesPrivateLocators = true
+    static let excludesUnsupportedClaims = true
+
+    /// Normalize punctuation and hyphenation before matching so a prohibited
+    /// claim cannot be smuggled through as a differently punctuated label.
+    static let prohibitedClaimPhrases: Set<String> = [
+        "approval", "approve", "approved",
+        "authorization", "authorize", "authorized",
+        "verified identity", "identity verified",
+        "legal", "legal signature",
+        "compliance", "compliant",
+        "tamperproof", "tamper proof", "tamper-proof",
+        "nonrepudiation", "non repudiation", "non-repudiation",
+        "secure", "secured", "sent", "delivered",
+        "professional", "certification", "certified",
+        "customer data", "customer data leakage", "customer information",
+        "private data", "personal data", "data leakage", "customer record",
+    ]
+
+    private static func normalized(_ value: String) -> String {
+        value
+            .folding(
+                options: [.caseInsensitive, .diacriticInsensitive],
+                locale: Locale(identifier: "en_US_POSIX")
+            )
+            .split { !$0.isLetter && !$0.isNumber }
+            .joined(separator: " ")
+    }
+
+    static func containsProhibitedClaim(in values: [String]) -> Bool {
+        values.contains { value in
+            let bounded = " \(normalized(value)) "
+            return prohibitedClaimPhrases.contains { phrase in
+                let normalizedPhrase = normalized(phrase)
+                return bounded.contains(" \(normalizedPhrase) ")
+            }
+        }
+    }
+
+    static func containsCustomerDataLeakage(in values: [String]) -> Bool {
+        values.contains { value in
+            let bounded = " \(normalized(value)) "
+            return [
+                "customer data", "customer information", "private data",
+                "personal data", "data leakage", "customer record",
+            ].contains { bounded.contains(" \($0) ") }
+        }
+    }
+}
+
+typealias ReviewCorrectiveActionLocalizationPolicyV1 = InspectionReviewLocalizationPolicyV1
+typealias ReviewAndCorrectiveActionLocalizationPolicyV1 = InspectionReviewLocalizationPolicyV1
+typealias ReviewLocalizationPolicyV1 = InspectionReviewLocalizationPolicyV1
+typealias CorrectiveActionLocalizationPolicyV1 = InspectionReviewLocalizationPolicyV1
+
+enum InspectionReviewClaimVocabularyV1 {
+    static let prohibitedTokens = InspectionReviewLocalizationPolicyV1.prohibitedClaimPhrases
+
+    static func containsProhibitedClaim(in values: [String]) -> Bool {
+        InspectionReviewLocalizationPolicyV1.containsProhibitedClaim(in: values)
+    }
+
+    static func containsCustomerDataLeakage(in values: [String]) -> Bool {
+        InspectionReviewLocalizationPolicyV1.containsCustomerDataLeakage(in: values)
+    }
+}
+
+typealias ReviewCorrectiveActionClaimVocabularyV1 = InspectionReviewClaimVocabularyV1
+
+extension InspectionReviewLocalizationKeyV1 {
+    static func stateKey(_ state: InspectionReviewStateV1) -> Self {
+        switch state {
+        case .draft: return .draft
+        case .fieldComplete: return .fieldComplete
+        case .readyForReview: return .readyForReview
+        case .changesRequested: return .changesRequested
+        case .accepted: return .accepted
+        case .finalized: return .finalized
+        case .amended: return .amended
+        case .superseded: return .superseded
+        }
+    }
+
+    static func reviewStateKey(_ state: InspectionReviewStateV1) -> Self {
+        stateKey(state)
+    }
+
+    static func reviewStateLocalizationKey(_ state: InspectionReviewStateV1) -> Self {
+        stateKey(state)
+    }
+
+    static func dispositionKey(_ disposition: ReviewDispositionKindV1) -> Self {
+        switch disposition {
+        case .changesRequested: return .dispositionChangesRequested
+        case .accepted: return .dispositionAccepted
+        }
+    }
+
+    static func dispositionStateKey(_ disposition: ReviewDispositionKindV1) -> Self {
+        dispositionKey(disposition)
+    }
+
+    static func changeRequestStateKey(_ state: ChangeRequestStateV1) -> Self {
+        switch state {
+        case .open: return .changeRequestOpen
+        case .resolved: return .changeRequestResolved
+        case .withdrawn: return .changeRequestWithdrawn
+        case .superseded: return .changeRequestSuperseded
+        }
+    }
+
+    static func changeRequestResolutionKey(
+        _ resolution: ChangeRequestResolutionKindV1
+    ) -> Self {
+        switch resolution {
+        case .fulfilled: return .changeRequestResolutionFulfilled
+        case .withdrawnWithReason: return .changeRequestResolutionWithdrawnWithReason
+        case .superseded: return .changeRequestResolutionSuperseded
+        }
+    }
+
+    static func resolutionKey(_ resolution: ChangeRequestResolutionKindV1) -> Self {
+        changeRequestResolutionKey(resolution)
+    }
+
+    static func correctiveActionStateKey(_ state: CorrectiveActionStateV1) -> Self {
+        switch state {
+        case .open: return .correctiveActionOpen
+        case .inProgress: return .correctiveActionInProgress
+        case .awaitingVerification: return .correctiveActionAwaitingVerification
+        case .closed: return .correctiveActionClosed
+        case .reopened: return .correctiveActionReopened
+        case .superseded: return .correctiveActionSuperseded
+        }
+    }
+
+    static func stateKey(_ state: CorrectiveActionStateV1) -> Self {
+        correctiveActionStateKey(state)
+    }
+
+    static func nextStepKey() -> Self { .nextStep }
+    static func minimumRequirementKey() -> Self { .minimumNextRequirement }
+}

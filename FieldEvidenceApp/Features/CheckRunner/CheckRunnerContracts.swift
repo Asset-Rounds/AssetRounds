@@ -250,3 +250,16 @@ enum RequirementAssuranceProvisionalReachabilityV1: String, Equatable, Sendable 
     case completedSnapshotCreation = "NOT_PROVEN_S10_RESERVED"
     case siteExitAccessibility = "NOT_RUN_NO_CREDIT_S10_RESERVED"
 }
+
+/// Read-only handoff from CheckRunner completion into the C14 review stream.
+/// It is not saved state and cannot claim review acceptance.
+struct CheckRunnerInspectionReviewCandidateV1: Equatable, Sendable {
+    let subject: InspectionReviewSubjectReferenceV1
+    let initialState: InspectionReviewStateV1
+
+    init(subject: InspectionReviewSubjectReferenceV1) throws {
+        try subject.validate()
+        self.subject = subject
+        initialState = .draft
+    }
+}

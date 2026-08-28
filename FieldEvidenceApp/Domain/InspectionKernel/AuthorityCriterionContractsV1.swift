@@ -1305,6 +1305,14 @@ extension RequirementBasisBindingV1 {
     var assuranceCriterionID: String { criterionID }
 }
 
+extension RequirementBasisBindingV1 {
+    func inspectionReviewItemReference() throws -> ChangeRequestItemReferenceV1 {
+        try validate()
+        return try .init(kind: .criterion, itemID: criterionID,
+                         itemRevision: revision, itemSHA256: bindingSHA256)
+    }
+}
+
 extension FindingClassificationBindingV1 {
     var assuranceCriterionID: String { criterionID }
     var assuranceClaimID: String {

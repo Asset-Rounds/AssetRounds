@@ -213,6 +213,41 @@ struct ReportSnapshotEncoderV1: Sendable {
         catch { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
     }
 
+    /// C14's additive completed snapshot codec. Review, change-request, and
+    /// corrective-action facts remain bound to the exact V7 source digest;
+    /// this route only encodes an already validated frozen value.
+    func encode(_ snapshot: CompletedActivitySnapshotV8) throws -> EncodedReportSnapshotV1 {
+        do {
+            let data = try CompletedActivitySnapshotCanonicalCodecV8.encode(snapshot)
+            return EncodedReportSnapshotV1(data: data, sha256: KernelCanonicalHashV1.sha256(data))
+        } catch { throw ReportSnapshotEncodingErrorV1.invalidSnapshot }
+    }
+
+    func decodeCompletedActivityV8(_ data: Data) throws -> CompletedActivitySnapshotV8 {
+        do { return try CompletedActivitySnapshotCanonicalCodecV8.decode(data) }
+        catch { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
+    }
+
+    func encode(
+        _ history: CompletedInspectionReviewHistorySnapshotV1
+    ) throws -> EncodedReportSnapshotV1 {
+        do {
+            let data = try InspectionReviewCanonicalCodecV1.encode(history)
+            return EncodedReportSnapshotV1(data: data, sha256: KernelCanonicalHashV1.sha256(data))
+        } catch { throw ReportSnapshotEncodingErrorV1.invalidSnapshot }
+    }
+
+    func decodeInspectionReviewHistory(
+        _ data: Data
+    ) throws -> CompletedInspectionReviewHistorySnapshotV1 {
+        do {
+            return try InspectionReviewCanonicalCodecV1.decode(
+                CompletedInspectionReviewHistorySnapshotV1.self,
+                from: data
+            )
+        } catch { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
+    }
+
     func encode(
         _ snapshot: RequirementAssuranceSnapshotV1
     ) throws -> EncodedReportSnapshotV1 {
@@ -243,7 +278,7 @@ struct ReportSnapshotEncoderV1: Sendable {
     }
 
     func encode(_ snapshot: ReportSnapshotV1) throws -> EncodedReportSnapshotV1 {
-        guard snapshot.snapshotSchemaVersion < 3 else {
+        guard (1...4).contains(snapshot.snapshotSchemaVersion) else {
             throw ReportSnapshotEncodingErrorV1.invalidSnapshot
         }
         return try canonicalEncoding(snapshot)
@@ -303,7 +338,7 @@ struct ReportSnapshotEncoderV1: Sendable {
     }
 
     private static func isValid(_ snapshot: ReportSnapshotV1) -> Bool {
-        guard (1...3).contains(snapshot.snapshotSchemaVersion),
+        guard (1...4).contains(snapshot.snapshotSchemaVersion),
               snapshot.stage == "check" || snapshot.stage == "recheck",
               snapshot.pdfTemplate.id == "field.evidence.pdf.worklight.v1",
               snapshot.pdfTemplate.version == 1,
@@ -324,7 +359,8 @@ struct ReportSnapshotEncoderV1: Sendable {
             return false
         }
 
-        guard (snapshot.snapshotSchemaVersion == 3) == (snapshot.authorityCriterion != nil) else {
+        guard (snapshot.snapshotSchemaVersion >= 3) == (snapshot.authorityCriterion != nil),
+              (snapshot.snapshotSchemaVersion >= 4) == (snapshot.inspectionReviewHistory != nil) else {
             return false
         }
 
@@ -356,6 +392,14 @@ struct ReportSnapshotEncoderV1: Sendable {
         }
         if let assurance = snapshot.assurance {
             guard ReportEvidenceAssuranceCanonicalCodecV1.isValid(assurance) else { return false }
+        }
+        if let inspectionReviewHistory = snapshot.inspectionReviewHistory {
+            guard (try? inspectionReviewHistory.validate()) != nil,
+                  snapshot.accountability != nil,
+                  snapshot.assetSemantics != nil,
+                  snapshot.authorityCriterion != nil,
+                  snapshot.functionalRelationships != nil,
+                  snapshot.assurance != nil else { return false }
         }
 
         guard validObservationAndTime(
@@ -484,7 +528,25 @@ extension CanonicalJSONV1 {
         if let assurance = value.assurance {
             object["assurance"] = Self.assurance(assurance)
         }
+        if let inspectionReviewHistory = value.inspectionReviewHistory {
+            object["inspectionReviewHistory"] = Self.inspectionReviewHistory(
+                inspectionReviewHistory
+            )
+        }
         return .object(object)
+    }
+
+    /// C14 history is owned by its canonical inspection-review codec. Keeping
+    /// that object intact in the report tree prevents a second report-specific
+    /// schema from drifting from the frozen review/change/action facts.
+    private static func inspectionReviewHistory(
+        _ value: CompletedInspectionReviewHistorySnapshotV1
+    ) -> CanonicalJSONValueV1 {
+        guard let data = try? InspectionReviewCanonicalCodecV1.encode(value),
+              let object = try? JSONSerialization.jsonObject(with: data) else {
+            return .null
+        }
+        return canonicalValue(object)
     }
 
     /// C41 relationship descriptors and event history are encoded by the

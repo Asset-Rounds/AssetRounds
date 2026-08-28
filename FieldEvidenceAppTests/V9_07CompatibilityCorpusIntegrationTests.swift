@@ -647,3 +647,14 @@ extension V9_07CompatibilityCorpusIntegrationTests {
         XCTAssertEqual(fixture.customerPreview.excludedLinks.first?.decision.disposition, .excluded)
     }
 }
+
+extension V9_07CompatibilityCorpusIntegrationTests {
+    func testV23P03C14CorpusDeclaresTheInspectionReviewBoundary() throws {
+        let data = try Data(contentsOf: C14InspectionReviewTestSupportV1.corpusURL())
+        let source = try XCTUnwrap(String(data: data, encoding: .utf8))
+        XCTAssertTrue(source.contains("V23-P03-C14"))
+        XCTAssertTrue(source.contains("V23-P03-C13"))
+        XCTAssertTrue(source.contains("\"persistentModelCount\": 53"))
+        XCTAssertTrue(source.contains("\"recordsSchemaVersion\": 13"))
+    }
+}

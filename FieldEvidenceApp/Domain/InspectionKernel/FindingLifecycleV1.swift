@@ -11,6 +11,17 @@ enum FindingStateV1: String, CaseIterable, Codable, Hashable, Sendable {
     var isTerminal: Bool { self == .closed }
 }
 
+extension FindingLifecycleV1 {
+    func validateCorrectiveActionAdmission(findingRevision: Int) throws {
+        try validate()
+        guard currentRevision == findingRevision,
+              currentState == .open || currentState == .correctiveWorkInProgress
+                || currentState == .reopened else {
+            throw FindingContractFailureV1.invalidTransition
+        }
+    }
+}
+
 struct FindingTransitionV1: Codable, Equatable, Identifiable, Sendable {
     static let schemaVersion = 1
     let schemaVersion: Int

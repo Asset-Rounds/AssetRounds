@@ -2070,3 +2070,11 @@ private struct TimeZoneResolution {
     let timeZoneID: String
     let requiresSave: Bool
 }
+
+extension CheckRunnerCoordinator {
+    nonisolated static func inspectionReviewCandidate(
+        subject: InspectionReviewSubjectReferenceV1
+    ) throws -> CheckRunnerInspectionReviewCandidateV1 {
+        try .init(subject: subject)
+    }
+}

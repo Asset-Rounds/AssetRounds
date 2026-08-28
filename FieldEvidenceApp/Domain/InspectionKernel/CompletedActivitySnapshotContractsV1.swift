@@ -2042,3 +2042,738 @@ enum CompletedActivitySnapshotCanonicalCodecV7 {
         return value
     }
 }
+
+// MARK: - C14 inspection review history
+
+/// The C14 history binding is the single provenance tuple for review,
+/// change-request, and corrective-action facts.  It intentionally carries
+/// only immutable digests across the preceding C13/C38/C40/C41 boundaries;
+/// the corresponding source values remain owned by those contracts.
+struct CompletedInspectionReviewBindingV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let workspaceID: WorkspaceID
+    let completedSnapshotSHA256: String
+    let c13AssuranceSHA256: String
+    let c38AccountabilitySHA256: String
+    let c40AuthorityCriterionSHA256: String
+    let c41FunctionalRelationshipsSHA256: String
+    let bindingSHA256: String
+
+    var evidenceAssuranceSHA256: String { c13AssuranceSHA256 }
+    var accountabilitySHA256: String { c38AccountabilitySHA256 }
+    var authorityCriterionSHA256: String { c40AuthorityCriterionSHA256 }
+    var functionalRelationshipsSHA256: String { c41FunctionalRelationshipsSHA256 }
+
+    init(
+        workspaceID: WorkspaceID,
+        completedSnapshotSHA256: String,
+        c13AssuranceSHA256: String,
+        c38AccountabilitySHA256: String,
+        c40AuthorityCriterionSHA256: String,
+        c41FunctionalRelationshipsSHA256: String
+    ) throws {
+        schemaVersion = Self.schemaVersion
+        self.workspaceID = workspaceID
+        self.completedSnapshotSHA256 = completedSnapshotSHA256
+        self.c13AssuranceSHA256 = c13AssuranceSHA256
+        self.c38AccountabilitySHA256 = c38AccountabilitySHA256
+        self.c40AuthorityCriterionSHA256 = c40AuthorityCriterionSHA256
+        self.c41FunctionalRelationshipsSHA256 = c41FunctionalRelationshipsSHA256
+        bindingSHA256 = try WorkspaceMutationCanonicalV1.sha256(Basis(
+            schemaVersion: Self.schemaVersion,
+            workspaceID: workspaceID,
+            completedSnapshotSHA256: completedSnapshotSHA256,
+            c13AssuranceSHA256: c13AssuranceSHA256,
+            c38AccountabilitySHA256: c38AccountabilitySHA256,
+            c40AuthorityCriterionSHA256: c40AuthorityCriterionSHA256,
+            c41FunctionalRelationshipsSHA256: c41FunctionalRelationshipsSHA256
+        ))
+        try validate()
+    }
+
+    func validate() throws {
+        let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+        guard schemaVersion == Self.schemaVersion,
+              workspaceID.rawValue != zero,
+              [completedSnapshotSHA256, c13AssuranceSHA256,
+               c38AccountabilitySHA256, c40AuthorityCriterionSHA256,
+               c41FunctionalRelationshipsSHA256, bindingSHA256]
+                .allSatisfy(KernelCanonicalHashV1.validSHA256),
+              bindingSHA256 == (try WorkspaceMutationCanonicalV1.sha256(Basis(
+                  schemaVersion: schemaVersion,
+                  workspaceID: workspaceID,
+                  completedSnapshotSHA256: completedSnapshotSHA256,
+                  c13AssuranceSHA256: c13AssuranceSHA256,
+                  c38AccountabilitySHA256: c38AccountabilitySHA256,
+                  c40AuthorityCriterionSHA256: c40AuthorityCriterionSHA256,
+                  c41FunctionalRelationshipsSHA256: c41FunctionalRelationshipsSHA256
+              ))) else {
+            throw SnapshotProjectionFailureV1.digestMismatch
+        }
+    }
+
+    private struct Basis: Codable {
+        let schemaVersion: Int
+        let workspaceID: WorkspaceID
+        let completedSnapshotSHA256: String
+        let c13AssuranceSHA256: String
+        let c38AccountabilitySHA256: String
+        let c40AuthorityCriterionSHA256: String
+        let c41FunctionalRelationshipsSHA256: String
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, workspaceID, completedSnapshotSHA256
+        case c13AssuranceSHA256, c38AccountabilitySHA256
+        case c40AuthorityCriterionSHA256, c41FunctionalRelationshipsSHA256
+        case bindingSHA256
+    }
+
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(
+            decoder,
+            allowed: Set(CodingKeys.allCases.map(\.rawValue))
+        )
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        let value = try Self(
+            workspaceID: values.decode(WorkspaceID.self, forKey: .workspaceID),
+            completedSnapshotSHA256: values.decode(String.self, forKey: .completedSnapshotSHA256),
+            c13AssuranceSHA256: values.decode(String.self, forKey: .c13AssuranceSHA256),
+            c38AccountabilitySHA256: values.decode(String.self, forKey: .c38AccountabilitySHA256),
+            c40AuthorityCriterionSHA256: values.decode(String.self, forKey: .c40AuthorityCriterionSHA256),
+            c41FunctionalRelationshipsSHA256: values.decode(String.self, forKey: .c41FunctionalRelationshipsSHA256)
+        )
+        guard try values.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion,
+              try values.decode(String.self, forKey: .bindingSHA256) == value.bindingSHA256 else {
+            throw SnapshotProjectionFailureV1.digestMismatch
+        }
+        self = value
+    }
+}
+
+/// A frozen C14 review/change/action history.  Review transitions and
+/// dispositions, change-request revisions, and corrective-action revisions
+/// are retained as their exact canonical facts.  No later projection is
+/// allowed to mutate this value; amendments are represented by a new V8
+/// snapshot whose predecessor remains readable.
+struct CompletedInspectionReviewHistorySnapshotV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let workspaceID: WorkspaceID
+    let sourceSnapshotSHA256: String
+    let binding: CompletedInspectionReviewBindingV1
+    let reviewTransitions: [InspectionReviewTransitionV1]
+    let reviewDispositions: [ReviewDispositionV1]
+    let changeRequests: [ChangeRequestV1]
+    let correctiveActions: [CorrectiveActionEventV1]
+    let snapshotSHA256: String
+
+    var reviewHistory: [InspectionReviewTransitionV1] { reviewTransitions }
+    var changeHistory: [ChangeRequestV1] { changeRequests }
+    var actionHistory: [CorrectiveActionEventV1] { correctiveActions }
+
+    init(
+        workspaceID: WorkspaceID,
+        sourceSnapshotSHA256: String,
+        binding: CompletedInspectionReviewBindingV1,
+        reviewHistory: [InspectionReviewTransitionV1],
+        reviewDispositions: [ReviewDispositionV1] = [],
+        changeHistory: [ChangeRequestV1],
+        actionHistory: [CorrectiveActionEventV1]
+    ) throws {
+        schemaVersion = Self.schemaVersion
+        self.workspaceID = workspaceID
+        self.sourceSnapshotSHA256 = sourceSnapshotSHA256
+        self.binding = binding
+        reviewTransitions = reviewHistory.sorted(by: Self.transitionOrder)
+        self.reviewDispositions = reviewDispositions.sorted(by: Self.dispositionOrder)
+        changeRequests = changeHistory.sorted(by: Self.changeOrder)
+        correctiveActions = actionHistory.sorted(by: Self.actionOrder)
+        snapshotSHA256 = try WorkspaceMutationCanonicalV1.sha256(Basis(
+            schemaVersion: Self.schemaVersion,
+            workspaceID: workspaceID,
+            sourceSnapshotSHA256: sourceSnapshotSHA256,
+            binding: binding,
+            reviewTransitions: reviewTransitions,
+            reviewDispositions: self.reviewDispositions,
+            changeRequests: changeRequests,
+            correctiveActions: correctiveActions
+        ))
+        try validate()
+    }
+
+    init(
+        workspaceID: WorkspaceID,
+        sourceSnapshotSHA256: String,
+        binding: CompletedInspectionReviewBindingV1,
+        reviewTransitions: [InspectionReviewTransitionV1],
+        dispositions: [ReviewDispositionV1] = [],
+        changeRequests: [ChangeRequestV1],
+        correctiveActions: [CorrectiveActionEventV1]
+    ) throws {
+        try self.init(
+            workspaceID: workspaceID,
+            sourceSnapshotSHA256: sourceSnapshotSHA256,
+            binding: binding,
+            reviewHistory: reviewTransitions,
+            reviewDispositions: dispositions,
+            changeHistory: changeRequests,
+            actionHistory: correctiveActions
+        )
+    }
+
+    func validate() throws {
+        let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+        guard schemaVersion == Self.schemaVersion,
+              workspaceID.rawValue != zero,
+              KernelCanonicalHashV1.validSHA256(sourceSnapshotSHA256),
+              binding.workspaceID == workspaceID,
+              binding.completedSnapshotSHA256 == sourceSnapshotSHA256,
+              reviewTransitions.count <= InspectionReviewLimitsV1.maximumHistory,
+              reviewDispositions.count <= InspectionReviewLimitsV1.maximumHistory,
+              changeRequests.count <= InspectionReviewLimitsV1.maximumHistory,
+              correctiveActions.count <= InspectionReviewLimitsV1.maximumHistory,
+              reviewTransitions == reviewTransitions.sorted(by: Self.transitionOrder),
+              reviewDispositions == reviewDispositions.sorted(by: Self.dispositionOrder),
+              changeRequests == changeRequests.sorted(by: Self.changeOrder),
+              correctiveActions == correctiveActions.sorted(by: Self.actionOrder),
+              uniqueTransitions,
+              uniqueDispositions,
+              uniqueChanges,
+              uniqueActions else {
+            throw SnapshotProjectionFailureV1.invalidValue
+        }
+        try binding.validate()
+        try reviewTransitions.forEach { transition in
+            try transition.validate()
+            guard transition.workspaceID == workspaceID,
+                  transition.subject.workspaceID == workspaceID,
+                  transition.actor.workspaceID == workspaceID else {
+                throw SnapshotProjectionFailureV1.wrongWorkspace
+            }
+            if transition.subject.kind == .completedActivitySnapshot {
+                guard transition.subject.subjectSHA256 == sourceSnapshotSHA256 else {
+                    throw SnapshotProjectionFailureV1.missingBinding
+                }
+            }
+        }
+        try reviewDispositions.forEach { disposition in
+            try disposition.validate()
+            guard disposition.workspaceID == workspaceID,
+                  disposition.subject.workspaceID == workspaceID,
+                  disposition.reviewer.workspaceID == workspaceID else {
+                throw SnapshotProjectionFailureV1.wrongWorkspace
+            }
+        }
+        try changeRequests.forEach { request in
+            try request.validate()
+            guard request.workspaceID == workspaceID,
+                  request.requester.workspaceID == workspaceID else {
+                throw SnapshotProjectionFailureV1.wrongWorkspace
+            }
+            try validateBoundItem(request.item)
+            if let resolution = request.resolution {
+                guard resolution.resolver.workspaceID == workspaceID else {
+                    throw SnapshotProjectionFailureV1.wrongWorkspace
+                }
+            }
+        }
+        try correctiveActions.forEach { action in
+            try action.validate()
+            guard action.workspaceID == workspaceID,
+                  action.recorder.workspaceID == workspaceID,
+                  (action.verifier?.workspaceID ?? workspaceID) == workspaceID else {
+                throw SnapshotProjectionFailureV1.wrongWorkspace
+            }
+            try validateBoundItem(action.source)
+        }
+
+        try validateTransitionChains()
+        try validateDispositionChains()
+        try validateChangeChains()
+        try validateActionChains()
+
+        let expected = try WorkspaceMutationCanonicalV1.sha256(Basis(
+            schemaVersion: schemaVersion,
+            workspaceID: workspaceID,
+            sourceSnapshotSHA256: sourceSnapshotSHA256,
+            binding: binding,
+            reviewTransitions: reviewTransitions,
+            reviewDispositions: reviewDispositions,
+            changeRequests: changeRequests,
+            correctiveActions: correctiveActions
+        ))
+        guard snapshotSHA256 == expected else { throw SnapshotProjectionFailureV1.digestMismatch }
+    }
+
+    /// Builds a history boundary only when all preceding C13/C38/C40/C41
+    /// projections are present and their exact digests can be carried forward.
+    static func freeze(
+        activity: CompletedActivitySnapshotV7,
+        reviewHistory: [InspectionReviewTransitionV1],
+        reviewDispositions: [ReviewDispositionV1] = [],
+        changeHistory: [ChangeRequestV1],
+        actionHistory: [CorrectiveActionEventV1]
+    ) throws -> Self {
+        try activity.validate()
+        let v6 = activity.payload.activity
+        let v5 = v6.payload.activity
+        let v4 = v5.activity
+        let v3 = v4.activity
+        let base = v3.activity.activity
+        guard let accountability = v3.accountability,
+              let workspaceUUID = UUID(uuidString: base.workspaceID) else {
+            throw SnapshotProjectionFailureV1.missingBinding
+        }
+        let assuranceData = try ReportEvidenceAssuranceCanonicalCodecV1.encode(activity.payload.assurance)
+        let assuranceSHA256 = KernelCanonicalHashV1.sha256(assuranceData)
+        let binding = try CompletedInspectionReviewBindingV1(
+            workspaceID: WorkspaceID(rawValue: workspaceUUID),
+            completedSnapshotSHA256: activity.snapshotSHA256,
+            c13AssuranceSHA256: assuranceSHA256,
+            c38AccountabilitySHA256: accountability.snapshotSHA256,
+            c40AuthorityCriterionSHA256: v5.authorityCriterion.snapshotSHA256,
+            c41FunctionalRelationshipsSHA256: v6.functionalRelationships.snapshotSHA256
+        )
+        return try Self(
+            workspaceID: binding.workspaceID,
+            sourceSnapshotSHA256: activity.snapshotSHA256,
+            binding: binding,
+            reviewHistory: reviewHistory,
+            reviewDispositions: reviewDispositions,
+            changeHistory: changeHistory,
+            actionHistory: actionHistory
+        )
+    }
+
+    func validateImmutableHistory(of prior: Self) throws {
+        try validate()
+        try prior.validate()
+        guard workspaceID == prior.workspaceID,
+              reviewTransitions == prior.reviewTransitions,
+              reviewDispositions == prior.reviewDispositions,
+              changeRequests == prior.changeRequests,
+              correctiveActions == prior.correctiveActions else {
+            throw SnapshotProjectionFailureV1.historyRewrite
+        }
+    }
+
+    private var uniqueTransitions: Bool {
+        let values = reviewTransitions.map { "\($0.reviewID.uuidString):\($0.revision)" }
+        return Set(values).count == values.count
+    }
+    private var uniqueDispositions: Bool {
+        let values = reviewDispositions.map { "\($0.dispositionID.uuidString):\($0.revision)" }
+        return Set(values).count == values.count
+    }
+    private var uniqueChanges: Bool {
+        let values = changeRequests.map { "\($0.requestID.uuidString):\($0.revision)" }
+        return Set(values).count == values.count
+    }
+    private var uniqueActions: Bool {
+        let values = correctiveActions.map { "\($0.actionID.uuidString):\($0.revision)" }
+        return Set(values).count == values.count
+    }
+
+    private func validateBoundItem(_ item: ChangeRequestItemReferenceV1) throws {
+        try item.validate()
+        let bindingDigests: Set<String> = [
+            sourceSnapshotSHA256,
+            binding.c13AssuranceSHA256,
+            binding.c38AccountabilitySHA256,
+            binding.c40AuthorityCriterionSHA256,
+            binding.c41FunctionalRelationshipsSHA256,
+        ]
+        switch item.kind {
+        case .review, .finding:
+            guard item.itemSHA256 == sourceSnapshotSHA256 || bindingDigests.contains(item.itemSHA256) else {
+                throw SnapshotProjectionFailureV1.missingBinding
+            }
+        case .evidence:
+            guard item.itemSHA256 == binding.c13AssuranceSHA256 else {
+                throw SnapshotProjectionFailureV1.missingBinding
+            }
+        case .criterion:
+            guard item.itemSHA256 == binding.c40AuthorityCriterionSHA256 else {
+                throw SnapshotProjectionFailureV1.missingBinding
+            }
+        case .functionalRelationship:
+            guard item.itemSHA256 == binding.c41FunctionalRelationshipsSHA256 else {
+                throw SnapshotProjectionFailureV1.missingBinding
+            }
+        }
+    }
+
+    private func validateTransitionChains() throws {
+        for values in Dictionary(grouping: reviewTransitions, by: \.reviewID).values {
+            let ordered = values.sorted(by: Self.transitionOrder)
+            for (index, value) in ordered.enumerated() {
+                if index == 0 {
+                    guard value.revision == 1, value.predecessorTransitionID == nil else {
+                        throw SnapshotProjectionFailureV1.historyRewrite
+                    }
+                } else {
+                    try value.validateSuccessor(of: ordered[index - 1])
+                }
+            }
+        }
+    }
+
+    private func validateDispositionChains() throws {
+        for values in Dictionary(grouping: reviewDispositions, by: \.reviewID).values {
+            let ordered = values.sorted(by: Self.dispositionOrder)
+            for (index, value) in ordered.enumerated() {
+                if index == 0 {
+                    guard value.revision == 1, value.supersedesDispositionID == nil else {
+                        throw SnapshotProjectionFailureV1.historyRewrite
+                    }
+                } else {
+                    try value.validateSuccessor(of: ordered[index - 1])
+                }
+            }
+        }
+    }
+
+    private func validateChangeChains() throws {
+        for values in Dictionary(grouping: changeRequests, by: \.requestID).values {
+            let ordered = values.sorted(by: Self.changeOrder)
+            for (index, value) in ordered.enumerated() {
+                if index == 0 {
+                    guard value.revision == 1, value.supersedesRequestRevisionID == nil else {
+                        throw SnapshotProjectionFailureV1.historyRewrite
+                    }
+                } else {
+                    try value.validateSuccessor(of: ordered[index - 1])
+                }
+            }
+        }
+    }
+
+    private func validateActionChains() throws {
+        for values in Dictionary(grouping: correctiveActions, by: \.actionID).values {
+            let ordered = values.sorted(by: Self.actionOrder)
+            for (index, value) in ordered.enumerated() {
+                if index == 0 {
+                    guard value.revision == 1, value.predecessorEventID == nil else {
+                        throw SnapshotProjectionFailureV1.historyRewrite
+                    }
+                } else {
+                    let prior = ordered[index - 1]
+                    let (next, overflow) = prior.revision.addingReportingOverflow(1)
+                    guard !overflow,
+                          value.revision == next,
+                          value.predecessorEventID == prior.eventID,
+                          value.workspaceID == prior.workspaceID,
+                          value.source == prior.source,
+                          value.recordedAt >= prior.recordedAt,
+                          value.mutationID != prior.mutationID,
+                          CorrectiveActionTransitionTableV1.permits(
+                              from: prior.state, to: value.state
+                          ) else {
+                        throw SnapshotProjectionFailureV1.historyRewrite
+                    }
+                }
+            }
+        }
+    }
+
+    private static func transitionOrder(
+        _ lhs: InspectionReviewTransitionV1,
+        _ rhs: InspectionReviewTransitionV1
+    ) -> Bool {
+        (lhs.reviewID.uuidString, lhs.revision, lhs.transitionID.uuidString)
+            < (rhs.reviewID.uuidString, rhs.revision, rhs.transitionID.uuidString)
+    }
+    private static func dispositionOrder(
+        _ lhs: ReviewDispositionV1,
+        _ rhs: ReviewDispositionV1
+    ) -> Bool {
+        (lhs.reviewID.uuidString, lhs.revision, lhs.dispositionID.uuidString)
+            < (rhs.reviewID.uuidString, rhs.revision, rhs.dispositionID.uuidString)
+    }
+    private static func changeOrder(
+        _ lhs: ChangeRequestV1,
+        _ rhs: ChangeRequestV1
+    ) -> Bool {
+        (lhs.requestID.uuidString, lhs.revision, lhs.requestRevisionID.uuidString)
+            < (rhs.requestID.uuidString, rhs.revision, rhs.requestRevisionID.uuidString)
+    }
+    private static func actionOrder(
+        _ lhs: CorrectiveActionEventV1,
+        _ rhs: CorrectiveActionEventV1
+    ) -> Bool {
+        (lhs.actionID.uuidString, lhs.revision, lhs.eventID.uuidString)
+            < (rhs.actionID.uuidString, rhs.revision, rhs.eventID.uuidString)
+    }
+
+    private struct Basis: Codable {
+        let schemaVersion: Int
+        let workspaceID: WorkspaceID
+        let sourceSnapshotSHA256: String
+        let binding: CompletedInspectionReviewBindingV1
+        let reviewTransitions: [InspectionReviewTransitionV1]
+        let reviewDispositions: [ReviewDispositionV1]
+        let changeRequests: [ChangeRequestV1]
+        let correctiveActions: [CorrectiveActionEventV1]
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, workspaceID, sourceSnapshotSHA256, binding
+        case reviewTransitions, reviewDispositions, changeRequests
+        case correctiveActions, snapshotSHA256
+    }
+
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(
+            decoder,
+            allowed: Set(CodingKeys.allCases.map(\.rawValue))
+        )
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        let value = try Self(
+            workspaceID: values.decode(WorkspaceID.self, forKey: .workspaceID),
+            sourceSnapshotSHA256: values.decode(String.self, forKey: .sourceSnapshotSHA256),
+            binding: values.decode(CompletedInspectionReviewBindingV1.self, forKey: .binding),
+            reviewTransitions: values.decode([InspectionReviewTransitionV1].self, forKey: .reviewTransitions),
+            dispositions: values.decode([ReviewDispositionV1].self, forKey: .reviewDispositions),
+            changeRequests: values.decode([ChangeRequestV1].self, forKey: .changeRequests),
+            correctiveActions: values.decode([CorrectiveActionEventV1].self, forKey: .correctiveActions)
+        )
+        guard try values.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion,
+              try values.decode(String.self, forKey: .snapshotSHA256) == value.snapshotSHA256 else {
+            throw SnapshotProjectionFailureV1.digestMismatch
+        }
+        self = value
+    }
+}
+
+typealias CompletedReviewChangeActionHistorySnapshotV1 = CompletedInspectionReviewHistorySnapshotV1
+
+/// V8 is an additive completed-snapshot wrapper.  V7 remains the immutable
+/// source of the C13 evidence assurance projection; the C14 history is a
+/// sibling fact bound to V7's exact digest.
+struct CompletedActivitySnapshotPayloadV8: Codable, Equatable, Sendable {
+    static let schemaVersion = 8
+    let schemaVersion: Int
+    let activity: CompletedActivitySnapshotV7
+    let inspectionReviewHistory: CompletedInspectionReviewHistorySnapshotV1
+
+    var reviewHistory: CompletedInspectionReviewHistorySnapshotV1 { inspectionReviewHistory }
+
+    init(
+        activity: CompletedActivitySnapshotV7,
+        inspectionReviewHistory: CompletedInspectionReviewHistorySnapshotV1
+    ) throws {
+        schemaVersion = Self.schemaVersion
+        self.activity = activity
+        self.inspectionReviewHistory = inspectionReviewHistory
+        try validate()
+    }
+
+    init(
+        activity: CompletedActivitySnapshotV7,
+        reviewHistory: CompletedInspectionReviewHistorySnapshotV1
+    ) throws {
+        try self.init(activity: activity, inspectionReviewHistory: reviewHistory)
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try activity.validate()
+        let v6 = activity.payload.activity
+        let v5 = v6.payload.activity
+        let v4 = v5.activity
+        let v3 = v4.activity
+        let base = v3.activity.activity
+        try inspectionReviewHistory.validate()
+        guard inspectionReviewHistory.workspaceID.rawValue.uuidString.lowercased()
+                == base.workspaceID.lowercased(),
+              inspectionReviewHistory.sourceSnapshotSHA256 == activity.snapshotSHA256,
+              inspectionReviewHistory.binding.c13AssuranceSHA256
+                == KernelCanonicalHashV1.sha256(
+                    try ReportEvidenceAssuranceCanonicalCodecV1.encode(activity.payload.assurance)
+                ) else {
+            throw SnapshotProjectionFailureV1.missingBinding
+        }
+        guard inspectionReviewHistory.binding.c38AccountabilitySHA256
+                == v3.accountability?.snapshotSHA256,
+              inspectionReviewHistory.binding.c40AuthorityCriterionSHA256
+                == v5.authorityCriterion.snapshotSHA256,
+              inspectionReviewHistory.binding.c41FunctionalRelationshipsSHA256
+                == v6.functionalRelationships.snapshotSHA256 else {
+            throw SnapshotProjectionFailureV1.missingBinding
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, activity, inspectionReviewHistory
+    }
+
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(
+            decoder,
+            allowed: Set(CodingKeys.allCases.map(\.rawValue))
+        )
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        guard try values.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try self.init(
+            activity: values.decode(CompletedActivitySnapshotV7.self, forKey: .activity),
+            inspectionReviewHistory: values.decode(
+                CompletedInspectionReviewHistorySnapshotV1.self,
+                forKey: .inspectionReviewHistory
+            )
+        )
+    }
+}
+
+struct CompletedActivitySnapshotV8: Codable, Equatable, Identifiable, Sendable {
+    static let schemaVersion = 8
+    let schemaVersion: Int
+    let payload: CompletedActivitySnapshotPayloadV8
+    let snapshotSHA256: String
+
+    var id: String { payload.activity.id }
+
+    private init(payload: CompletedActivitySnapshotPayloadV8, snapshotSHA256: String) throws {
+        schemaVersion = Self.schemaVersion
+        self.payload = payload
+        self.snapshotSHA256 = snapshotSHA256
+        try validate()
+    }
+
+    static func freezeOriginal(_ payload: CompletedActivitySnapshotPayloadV8) throws -> Self {
+        let v6 = payload.activity.payload.activity
+        let v5 = v6.payload.activity
+        let v4 = v5.activity
+        let v3 = v4.activity
+        let base = v3.activity.activity
+        guard base.snapshotRevision == 1,
+              base.supersedesSnapshotID == nil,
+              base.supersededSnapshotSHA256 == nil else {
+            throw SnapshotProjectionFailureV1.historyRewrite
+        }
+        return try Self(
+            payload: payload,
+            snapshotSHA256: KernelCanonicalHashV1.sha256(
+                try CompletedActivitySnapshotCanonicalCodecV8.encodePayload(payload)
+            )
+        )
+    }
+
+    static func freezeAmendment(
+        _ payload: CompletedActivitySnapshotPayloadV8,
+        superseding prior: Self
+    ) throws -> Self {
+        let value = try Self(
+            payload: payload,
+            snapshotSHA256: KernelCanonicalHashV1.sha256(
+                try CompletedActivitySnapshotCanonicalCodecV8.encodePayload(payload)
+            )
+        )
+        let currentV6 = payload.activity.payload.activity
+        let currentV5 = currentV6.payload.activity
+        let currentV4 = currentV5.activity
+        let currentV3 = currentV4.activity
+        let current = currentV3.activity.activity
+        let previousV6 = prior.payload.activity.payload.activity
+        let previousV5 = previousV6.payload.activity
+        let previousV4 = previousV5.activity
+        let previousV3 = previousV4.activity
+        let previous = previousV3.activity.activity
+        let (next, overflow) = previous.snapshotRevision.addingReportingOverflow(1)
+        guard !overflow,
+              current.workspaceID == previous.workspaceID,
+              current.snapshotRevision == next,
+              current.supersedesSnapshotID == previous.snapshotID,
+              current.supersededSnapshotSHA256 == prior.payload.activity.snapshotSHA256,
+              current.sourceActivityID == previous.sourceActivityID,
+              current.reportID == previous.reportID,
+              current.completedAt == previous.completedAt,
+              current.sourceRevision > previous.sourceRevision else {
+            throw SnapshotProjectionFailureV1.historyRewrite
+        }
+        try payload.inspectionReviewHistory.validateImmutableHistory(
+            of: prior.payload.inspectionReviewHistory
+        )
+        return value
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              KernelCanonicalHashV1.validSHA256(snapshotSHA256) else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try payload.validate()
+        guard snapshotSHA256 == KernelCanonicalHashV1.sha256(
+            try CompletedActivitySnapshotCanonicalCodecV8.encodePayload(payload)
+        ) else {
+            throw SnapshotProjectionFailureV1.digestMismatch
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, payload, snapshotSHA256
+    }
+
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(
+            decoder,
+            allowed: Set(CodingKeys.allCases.map(\.rawValue))
+        )
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        guard try values.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try self.init(
+            payload: values.decode(CompletedActivitySnapshotPayloadV8.self, forKey: .payload),
+            snapshotSHA256: values.decode(String.self, forKey: .snapshotSHA256)
+        )
+    }
+}
+
+enum CompletedActivitySnapshotCanonicalCodecV8 {
+    private static func encoder() -> JSONEncoder {
+        let value = JSONEncoder()
+        value.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        value.dateEncodingStrategy = .millisecondsSince1970
+        return value
+    }
+
+    static func encodePayload(_ payload: CompletedActivitySnapshotPayloadV8) throws -> Data {
+        try payload.validate()
+        let data = try encoder().encode(payload)
+        guard !data.isEmpty, data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        return data
+    }
+
+    static func encode(_ snapshot: CompletedActivitySnapshotV8) throws -> Data {
+        try snapshot.validate()
+        let data = try encoder().encode(snapshot)
+        guard !data.isEmpty, data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        return data
+    }
+
+    static func decode(_ data: Data) throws -> CompletedActivitySnapshotV8 {
+        guard !data.isEmpty, data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .millisecondsSince1970
+        let value = try decoder.decode(CompletedActivitySnapshotV8.self, from: data)
+        try value.validate()
+        guard try encode(value) == data else { throw SnapshotProjectionFailureV1.digestMismatch }
+        return value
+    }
+}
+
+typealias CompletedReviewHistorySnapshotV1 = CompletedInspectionReviewHistorySnapshotV1

@@ -907,3 +907,14 @@ extension V9_05RestoreIdentityTests {
         try attestation.validate(manifest: manifest)
     }
 }
+
+extension V9_05RestoreIdentityTests {
+    func testV23P03C14RestoreRebindPreservesSubjectRevisionAndDigest() throws {
+        let fixture = try C14InspectionReviewTestSupportV1.makeFixture(seed: 145_005)
+        let rebound = try fixture.subject.rebound(to: fixture.otherWorkspaceID)
+        XCTAssertEqual(rebound.workspaceID, fixture.otherWorkspaceID)
+        XCTAssertEqual(rebound.subjectRevision, fixture.subject.subjectRevision)
+        XCTAssertEqual(rebound.subjectSHA256, fixture.subject.subjectSHA256)
+        XCTAssertEqual(rebound.kind, fixture.subject.kind)
+    }
+}

@@ -943,3 +943,13 @@ extension V9_01VersionedSchemaIdentityTests {
         try fixture.customerAttestation.validate(manifest: fixture.customerManifest)
     }
 }
+
+extension V9_01VersionedSchemaIdentityTests {
+    func testV23P03C14SchemaIdentityIsVersionedAndReviewHistoryTyped() throws {
+        let fixture = try C14InspectionReviewTestSupportV1.makeFixture(seed: 145_001)
+        XCTAssertEqual(InspectionReviewTransitionV1.schemaVersion, 1)
+        XCTAssertEqual(ReviewDispositionV1.schemaVersion, 1)
+        XCTAssertEqual(fixture.transitions.count, 7)
+        XCTAssertEqual(fixture.transitions.last?.toState, .amended)
+    }
+}

@@ -69,6 +69,10 @@ enum SearchContractLimitsV1 {
     static let maximumAccountabilityAuthorityCriterionAssuranceFunctionalRelationshipFieldRegistrations = 30
     static let maximumAssetSemanticsAuthorityCriterionAssuranceFunctionalRelationshipFieldRegistrations = 31
     static let maximumAllProjectionAssuranceFunctionalRelationshipFieldRegistrations = 35
+    /// C14 inspection-review metadata is opt-in and adds only typed state and
+    /// projection-version fields. Review reasons, actor snapshots, and
+    /// evidence content are never searchable values.
+    static let maximumInspectionReviewFieldRegistrations = 40
     static let maximumFilters = 16
     static let maximumSuggestions = 5
     static let maximumSnippetBytes = 320
@@ -76,8 +80,12 @@ enum SearchContractLimitsV1 {
     static let maximumProjectionTokens = 128
     static let maximumCanonicalRecords = 10_000
     static let maximumC13SearchableFieldCount = maximumAllProjectionAssuranceFunctionalRelationshipFieldRegistrations
-    static let maximumSearchableFieldCount = maximumC13SearchableFieldCount
+    /// The C14 registry is the largest admitted projection. Older registries
+    /// remain valid by their exact identity-set checks below, but rebuild and
+    /// staging capacity must also cover an opted-in C14 index.
+    static let maximumSearchableFieldCount = maximumC14SearchableFieldCount
     static let maximumC41SearchableFieldCount = maximumAllProjectionFunctionalRelationshipFieldRegistrations
+    static let maximumC14SearchableFieldCount = maximumInspectionReviewFieldRegistrations
     static let maximumProjectionRecords = maximumCanonicalRecords * maximumSearchableFieldCount
     static let maximumAccountabilityProjectionFieldsPerRecord = 4
     static let maximumAccountabilityProjectionRecords = maximumCanonicalRecords
@@ -231,6 +239,11 @@ enum FrozenSearchableFieldV1: String, CaseIterable, Codable, Hashable, Sendable 
     case assuranceDisposition = "assurance_disposition"
     case assuranceLimitation = "assurance_limitation"
     case assuranceProjectionVersion = "assurance_projection_version"
+    case inspectionReviewState = "inspection_review_state"
+    case inspectionReviewDisposition = "inspection_review_disposition"
+    case changeRequestState = "change_request_state"
+    case correctiveActionState = "corrective_action_state"
+    case inspectionReviewProjectionVersion = "inspection_review_projection_version"
 
     var allowedSourceKinds: Set<SearchSourceKindV1> {
         switch self {
@@ -248,6 +261,9 @@ enum FrozenSearchableFieldV1: String, CaseIterable, Codable, Hashable, Sendable 
              .functionalRelationshipState, .functionalRelationshipEndpoint: return [.asset]
         case .assuranceAudience, .assuranceDisposition, .assuranceLimitation,
              .assuranceProjectionVersion: return [.report]
+        case .inspectionReviewState, .inspectionReviewDisposition,
+             .changeRequestState, .correctiveActionState,
+             .inspectionReviewProjectionVersion: return [.report]
         }
     }
 
@@ -370,7 +386,7 @@ struct SearchableFieldRegistryV1: Codable, Equatable, Sendable {
 
     func validate() throws {
         guard schemaVersion == Self.schemaVersion,
-              fields.count <= SearchContractLimitsV1.maximumAllProjectionFunctionalRelationshipFieldRegistrations else {
+              fields.count <= SearchContractLimitsV1.maximumInspectionReviewFieldRegistrations else {
             throw SearchContractFailureV1.limitExceeded
         }
         guard fields.count == SearchContractLimitsV1.maximumFieldRegistrations
@@ -404,7 +420,8 @@ struct SearchableFieldRegistryV1: Codable, Equatable, Sendable {
                 || fields.count == SearchContractLimitsV1.maximumAuthorityCriterionAssuranceFunctionalRelationshipFieldRegistrations
                 || fields.count == SearchContractLimitsV1.maximumAccountabilityAuthorityCriterionAssuranceFunctionalRelationshipFieldRegistrations
                 || fields.count == SearchContractLimitsV1.maximumAssetSemanticsAuthorityCriterionAssuranceFunctionalRelationshipFieldRegistrations
-                || fields.count == SearchContractLimitsV1.maximumAllProjectionAssuranceFunctionalRelationshipFieldRegistrations else {
+                || fields.count == SearchContractLimitsV1.maximumAllProjectionAssuranceFunctionalRelationshipFieldRegistrations
+                || fields.count == SearchContractLimitsV1.maximumInspectionReviewFieldRegistrations else {
             throw SearchContractFailureV1.invalidField
         }
         let identities = fields.map { $0.fieldID + ":" + $0.sourceKind.rawValue }
@@ -442,7 +459,8 @@ struct SearchableFieldRegistryV1: Codable, Equatable, Sendable {
                 || Set(identities) == Self.authorityCriterionAssuranceFunctionalRelationshipRegistrationIdentities
                 || Set(identities) == Self.accountabilityAuthorityCriterionAssuranceFunctionalRelationshipRegistrationIdentities
                 || Set(identities) == Self.assetSemanticsAuthorityCriterionAssuranceFunctionalRelationshipRegistrationIdentities
-                || Set(identities) == Self.allProjectionAssuranceFunctionalRelationshipRegistrationIdentities else {
+                || Set(identities) == Self.allProjectionAssuranceFunctionalRelationshipRegistrationIdentities
+                || Set(identities) == Self.inspectionReviewRegistrationIdentities else {
             throw SearchContractFailureV1.invalidField
         }
         try fields.forEach { try $0.validate() }
@@ -548,6 +566,9 @@ struct SearchableFieldRegistryV1: Codable, Equatable, Sendable {
     static let allProjectionAssuranceFunctionalRelationshipRegistrationIdentities: Set<String> =
         allProjectionAssuranceRegistrationIdentities.union(functionalRelationshipFields)
 
+    static let inspectionReviewRegistrationIdentities: Set<String> =
+        allProjectionAssuranceFunctionalRelationshipRegistrationIdentities.union(inspectionReviewFields)
+
     private static let authorityCriterionFields: Set<String> = [
         "authority_source:WORK", "applicability_disposition:WORK",
         "criterion_result:WORK", "severity_level:WORK", "measurement_protocol:WORK",
@@ -565,6 +586,14 @@ struct SearchableFieldRegistryV1: Codable, Equatable, Sendable {
         "assurance_disposition:REPORT",
         "assurance_limitation:REPORT",
         "assurance_projection_version:REPORT",
+    ]
+
+    private static let inspectionReviewFields: Set<String> = [
+        "inspection_review_state:REPORT",
+        "inspection_review_disposition:REPORT",
+        "change_request_state:REPORT",
+        "corrective_action_state:REPORT",
+        "inspection_review_projection_version:REPORT",
     ]
 
     func descriptor(fieldID: String, sourceKind: SearchSourceKindV1) throws -> SearchableFieldDescriptorV1 {

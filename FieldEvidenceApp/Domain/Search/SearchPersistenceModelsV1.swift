@@ -158,6 +158,83 @@ enum SearchEvidenceAssurancePersistencePolicyV1 {
     }
 }
 
+/// C14 search admits only bounded typed review/change/action state metadata.
+/// The exact histories, reasons, actors, and evidence references remain in the
+/// completed snapshot and are rebuilt from the canonical source when needed.
+enum SearchInspectionReviewPersistencePolicyV1 {
+    static let semanticLabel = "INSPECTION_REVIEW_HISTORY_SEARCH_PROJECTION_V1"
+    static let sourceKind = "REPORT"
+    static let fieldIDs = [
+        "inspection_review_state",
+        "inspection_review_disposition",
+        "change_request_state",
+        "corrective_action_state",
+        "inspection_review_projection_version",
+    ]
+    static let indexesCurrentHeadsOnly = true
+    static let excludesReviewReasons = true
+    static let excludesActorPrivateDetail = true
+    static let excludesEvidenceContentAndIdentifiers = true
+    static let excludesOwnershipAuthorizationAndClaims = true
+    static let acceptedProjectionVersionMarkers = [
+        "C14_INSPECTION_REVIEW_V1",
+        "report-inspection-review-history-v1",
+    ]
+
+    static func accepts(fieldID: String) -> Bool { fieldIDs.contains(fieldID) }
+
+    static func acceptsMetadata(
+        fieldID: String,
+        tokens: [String],
+        snippet: String?
+    ) -> Bool {
+        guard accepts(fieldID: fieldID), !tokens.isEmpty,
+              tokens.allSatisfy(SearchContractValidationV1.isCanonicalSearchToken),
+              tokens.count <= 8,
+              let snippet,
+              SearchContractValidationV1.validDisplayText(
+                  snippet,
+                  maximumBytes: SearchContractLimitsV1.maximumSnippetBytes
+              ),
+              normalizedMetadataTokens(snippet) == tokens else {
+            return false
+        }
+        let allowed: Set<String>
+        switch fieldID {
+        case "inspection_review_state":
+            allowed = Set(InspectionReviewStateV1.allCases.map { $0.rawValue.lowercased() })
+        case "inspection_review_disposition":
+            allowed = Set(ReviewDispositionKindV1.allCases.map { $0.rawValue.lowercased() })
+        case "change_request_state":
+            allowed = Set(ChangeRequestStateV1.allCases.map { $0.rawValue.lowercased() })
+        case "corrective_action_state":
+            allowed = Set(CorrectiveActionStateV1.allCases.map { $0.rawValue.lowercased() })
+        case "inspection_review_projection_version":
+            return acceptedProjectionVersionMarkers.contains {
+                normalizedMetadataTokens($0) == tokens
+            }
+        default:
+            return false
+        }
+        let allowedTokens = Set(allowed.flatMap {
+            SearchContractValidationV1.normalizeSearchText($0)
+                .split { !CharacterSet.alphanumerics.contains($0) }
+                .map(String.init)
+        })
+        return Set(tokens).isSubset(of: allowedTokens)
+            && Set(tokens).count == tokens.count
+    }
+
+    private static func normalizedMetadataTokens(_ value: String) -> [String] {
+        SearchContractValidationV1.normalizeSearchText(value)
+            .unicodeScalars
+            .split { !CharacterSet.alphanumerics.contains($0) }
+            .map(String.init)
+    }
+}
+
+typealias SearchReviewHistoryPersistencePolicyV1 = SearchInspectionReviewPersistencePolicyV1
+
 typealias SearchFunctionalRelationshipPersistencePolicyV1 =
     SearchFunctionalRelationshipsPersistencePolicyV1
 

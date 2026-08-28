@@ -50,6 +50,11 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case claimEvidenceLink
     case assuranceManifest
     case attestation
+    case inspectionReviewTransition
+    case reviewDisposition
+    case changeRequest
+    case correctiveActionPolicy
+    case correctiveActionEvent
     case workflowRecord
     case evidenceFile
     case issue
@@ -1215,6 +1220,16 @@ struct EvidenceAssuranceMutationV1: Codable, Equatable, Sendable {
     var affectedIdentity:WorkspaceEntityIdentityV1{get throws{try postImage.affectedIdentity}};var concurrencyIdentity:WorkspaceEntityIdentityV1{get throws{try postImage.predecessorIdentity ?? postImage.affectedIdentity}}
     func canonicalData()throws->Data{try validate();return try WorkspaceMutationCanonicalV1.data(self)};func canonicalSHA256()throws->String{try validate();return try WorkspaceMutationCanonicalV1.sha256(self)}
 }
+struct InspectionReviewAtomicBundleV1:Codable,Equatable,Sendable{let transition:InspectionReviewTransitionV1;let disposition:ReviewDispositionV1?;let changeRequests:[ChangeRequestV1];init(transition:InspectionReviewTransitionV1,disposition:ReviewDispositionV1?=nil,changeRequests:[ChangeRequestV1]=[])throws{self.transition=transition;self.disposition=disposition;self.changeRequests=changeRequests.sorted{$0.requestRevisionID.uuidString<$1.requestRevisionID.uuidString};try validate()}func validate()throws{try transition.validate();try disposition?.validate();try changeRequests.forEach{$0.validate()};guard changeRequests.count<=InspectionReviewLimitsV1.maximumItems,Set(changeRequests.map(\.requestRevisionID)).count==changeRequests.count,transition.dispositionID==disposition?.dispositionID,transition.changeRequestIDs==changeRequests.map(\.requestID).sorted{$0.uuidString<$1.uuidString},disposition.map({$0.workspaceID==transition.workspaceID&&$0.reviewID==transition.reviewID&&$0.subject==transition.subject&&$0.reviewRevision==transition.revision&&$0.mutationID==transition.mutationID&&$0.changeRequestIDs==transition.changeRequestIDs}) ?? transition.dispositionID==nil,changeRequests.allSatisfy{$0.workspaceID==transition.workspaceID&&$0.reviewID==transition.reviewID&&$0.reviewRevision==transition.revision&&$0.mutationID==transition.mutationID}else{throw WorkspaceMutationContractFailureV1.invalidPlan}}}
+enum InspectionReviewMutationPayloadV1:Codable,Equatable,Sendable{case applyReviewBundle(InspectionReviewAtomicBundleV1);case appendCorrectivePolicy(CorrectiveActionPolicyV1);case supersedeCorrectivePolicy(CorrectiveActionPolicyV1);case appendCorrectiveEvent(CorrectiveActionEventV1);case appendCorrectiveEventSuccessor(CorrectiveActionEventV1)
+var workspaceID:WorkspaceID{switch self{case let .applyReviewBundle(v):v.transition.workspaceID;case let .appendCorrectivePolicy(v),let .supersedeCorrectivePolicy(v):v.workspaceID;case let .appendCorrectiveEvent(v),let .appendCorrectiveEventSuccessor(v):v.workspaceID}}
+var mutationID:MutationIDV1{switch self{case let .applyReviewBundle(v):v.transition.mutationID;case let .appendCorrectivePolicy(v),let .supersedeCorrectivePolicy(v):v.mutationID;case let .appendCorrectiveEvent(v),let .appendCorrectiveEventSuccessor(v):v.mutationID}}
+var revision:UInt64{switch self{case let .applyReviewBundle(v):v.transition.revision;case let .appendCorrectivePolicy(v),let .supersedeCorrectivePolicy(v):v.revision;case let .appendCorrectiveEvent(v),let .appendCorrectiveEventSuccessor(v):v.revision}}
+var affectedIdentities:[WorkspaceEntityIdentityV1]{get throws{switch self{case let .applyReviewBundle(v):var result=[try WorkspaceEntityIdentityV1(kind:.inspectionReviewTransition,id:v.transition.transitionID)];if let d=v.disposition{result.append(try .init(kind:.reviewDisposition,id:d.dispositionID))};result += try v.changeRequests.map{try .init(kind:.changeRequest,id:$0.requestRevisionID)};return result.sorted{$0.stableKey<$1.stableKey};case let .appendCorrectivePolicy(v),let .supersedeCorrectivePolicy(v):return[try .init(kind:.correctiveActionPolicy,id:v.releaseID)];case let .appendCorrectiveEvent(v),let .appendCorrectiveEventSuccessor(v):return[try .init(kind:.correctiveActionEvent,id:v.eventID)]}}}
+var concurrencyIdentities:[WorkspaceEntityIdentityV1]{get throws{switch self{case let .applyReviewBundle(v):var result=[try WorkspaceEntityIdentityV1(kind:.inspectionReviewTransition,id:v.transition.predecessorTransitionID ?? v.transition.transitionID)];if let d=v.disposition{result.append(try .init(kind:.reviewDisposition,id:d.supersedesDispositionID ?? d.dispositionID))};result += try v.changeRequests.map{try WorkspaceEntityIdentityV1(kind:.changeRequest,id:$0.supersedesRequestRevisionID ?? $0.requestRevisionID)};return result.sorted{$0.stableKey<$1.stableKey};default:return[try predecessorIdentity ?? affectedIdentities[0]]}}}
+var predecessorIdentity:WorkspaceEntityIdentityV1?{get throws{switch self{case let .applyReviewBundle(v):return try v.transition.predecessorTransitionID.map{try .init(kind:.inspectionReviewTransition,id:$0)};case .appendCorrectivePolicy,.appendCorrectiveEvent:return nil;case let .supersedeCorrectivePolicy(v):return try v.supersedesReleaseID.map{try .init(kind:.correctiveActionPolicy,id:$0)};case let .appendCorrectiveEventSuccessor(v):return try v.predecessorEventID.map{try .init(kind:.correctiveActionEvent,id:$0)}}}}
+func validate()throws{switch self{case let .applyReviewBundle(v):try v.validate();case let .appendCorrectivePolicy(v):try v.validate();guard v.supersedesReleaseID==nil else{throw WorkspaceMutationContractFailureV1.invalidPlan};case let .supersedeCorrectivePolicy(v):try v.validate();guard v.supersedesReleaseID != nil else{throw WorkspaceMutationContractFailureV1.invalidPlan};case let .appendCorrectiveEvent(v):try v.validate();guard v.predecessorEventID==nil else{throw WorkspaceMutationContractFailureV1.invalidPlan};case let .appendCorrectiveEventSuccessor(v):try v.validate();guard v.predecessorEventID != nil else{throw WorkspaceMutationContractFailureV1.invalidPlan}}}}
+struct InspectionReviewMutationV1:Codable,Equatable,Sendable{static let schemaVersion=1;let schemaVersion:Int;let workspaceID:WorkspaceID;let expectedRevision:UInt64;let mutationID:MutationIDV1;let postImage:InspectionReviewMutationPayloadV1;init(workspaceID:WorkspaceID,expectedRevision:UInt64,mutationID:MutationIDV1,postImage:InspectionReviewMutationPayloadV1)throws{schemaVersion=Self.schemaVersion;self.workspaceID=workspaceID;self.expectedRevision=expectedRevision;self.mutationID=mutationID;self.postImage=postImage;try validate()}func validate()throws{try postImage.validate();let p=try postImage.predecessorIdentity;guard schemaVersion==Self.schemaVersion,workspaceID==postImage.workspaceID,mutationID==postImage.mutationID,(p==nil ? expectedRevision==0&&postImage.revision==1:expectedRevision>0&&expectedRevision<UInt64.max&&postImage.revision==expectedRevision+1)else{throw WorkspaceMutationContractFailureV1.invalidPlan}}var affectedIdentities:[WorkspaceEntityIdentityV1]{get throws{try postImage.affectedIdentities}}var concurrencyIdentities:[WorkspaceEntityIdentityV1]{get throws{try postImage.concurrencyIdentities}}var affectedIdentity:WorkspaceEntityIdentityV1{get throws{switch postImage{case let .applyReviewBundle(b):try .init(kind:.inspectionReviewTransition,id:b.transition.transitionID);default:try affectedIdentities[0]}}}var concurrencyIdentity:WorkspaceEntityIdentityV1{get throws{try postImage.predecessorIdentity ?? affectedIdentity}}func canonicalSHA256()throws->String{try validate();return try WorkspaceMutationCanonicalV1.sha256(self)}}
 
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
@@ -1239,6 +1254,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyAuthorityCriterion(AuthorityCriterionMutationV1)
     case applyFunctionalRelationship(FunctionalRelationshipMutationV1)
     case applyEvidenceAssurance(EvidenceAssuranceMutationV1)
+    case applyInspectionReview(InspectionReviewMutationV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -1264,6 +1280,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyAuthorityCriterion: .applyAuthorityCriterion
         case .applyFunctionalRelationship: .applyFunctionalRelationship
         case .applyEvidenceAssurance: .applyEvidenceAssurance
+        case .applyInspectionReview:.applyInspectionReview
         }
     }
 }
@@ -1291,6 +1308,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyAuthorityCriterion = "apply_authority_criterion"
     case applyFunctionalRelationship = "apply_functional_relationship"
     case applyEvidenceAssurance = "apply_evidence_assurance"
+    case applyInspectionReview="apply_inspection_review"
 }
 
 extension WorkspaceCommandV1 {
@@ -2030,6 +2048,7 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind: .applyAuthorityCriterion, disposition: .compensatable, stableReason: "append_authority_criterion_successor_only"),
         .init(commandKind: .applyFunctionalRelationship, disposition: .compensatable, stableReason: "append_functional_relationship_successor_only"),
         .init(commandKind: .applyEvidenceAssurance, disposition: .compensatable, stableReason: "append_evidence_assurance_successor_only"),
+        .init(commandKind:.applyInspectionReview,disposition:.compensatable,stableReason:"append_review_corrective_successor_only"),
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {

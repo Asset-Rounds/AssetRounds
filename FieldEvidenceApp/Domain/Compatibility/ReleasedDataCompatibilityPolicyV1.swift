@@ -410,7 +410,7 @@ struct ReleasedDataCompatibilityPolicyV1: Codable, Equatable, Sendable {
             switch value.family {
             case .liveStore:
                 return path(.liveStore, .publiclyPersisted, [
-                    "1.0.0", "2.0.0", "3.0.0", "4.0.0", "5.0.0", "6.0.0", "7.0.0", "8.0.0", "9.0.0", "10.0.0", "11.0.0", "12.0.0", "13.0.0",
+                    "1.0.0", "2.0.0", "3.0.0", "4.0.0", "5.0.0", "6.0.0", "7.0.0", "8.0.0", "9.0.0", "10.0.0", "11.0.0", "12.0.0", "13.0.0", "14.0.0",
                 ], "13.0.0", transitions: [
                     .init(fromVersion: "1.0.0", toVersion: "2.0.0"),
                     .init(fromVersion: "2.0.0", toVersion: "3.0.0"),
@@ -424,6 +424,7 @@ struct ReleasedDataCompatibilityPolicyV1: Codable, Equatable, Sendable {
                     .init(fromVersion: "10.0.0", toVersion: "11.0.0"),
                     .init(fromVersion: "11.0.0", toVersion: "12.0.0"),
                     .init(fromVersion: "12.0.0", toVersion: "13.0.0"),
+                    .init(fromVersion: "13.0.0", toVersion: "14.0.0"),
                 ], search: .available, rebuild: .available)
             case .backupPackage:
                 return path(.backupPackage, .publiclyPersisted, [
@@ -437,12 +438,13 @@ struct ReleasedDataCompatibilityPolicyV1: Codable, Equatable, Sendable {
                     "archive1-backup4-persistent11-records10",
                     "archive1-backup4-persistent12-records11",
                     "archive1-backup4-persistent13-records12",
+                    "archive1-backup4-persistent14-records13",
                     "directory-v4-backup1-persistent1-records1",
-                ], "archive1-backup4-persistent13-records12",
+                ], "archive1-backup4-persistent14-records13",
                 search: .available, rebuild: .available)
             case .reportOpenJSON:
                 return path(.reportOpenJSON, .publiclyPersisted,
-                    ["snapshot1", "snapshot2", "snapshot3"], "snapshot2",
+                    ["snapshot1", "snapshot2", "snapshot3", "snapshot4"], "snapshot4",
                     search: .deferredToV23P03C09, rebuild: .notApplicable)
             default:
                 return value

@@ -6,6 +6,15 @@ enum VerifiedRecheckOutcomeV1: String, CaseIterable, Codable, Hashable, Sendable
     case inconclusive = "INCONCLUSIVE"
 }
 
+extension VerifiedRecheckV1 {
+    func inspectionReviewEvidenceReference() throws -> ReviewEvidenceReferenceV1 {
+        guard resultingRecheckRevision > 0 else { throw FindingContractFailureV1.invalidValue }
+        return try .init(kind: .verifiedRecheck, referenceID: recheckID,
+                         revision: UInt64(resultingRecheckRevision),
+                         sha256: WorkspaceMutationCanonicalV1.sha256(self))
+    }
+}
+
 struct VerifiedRecheckV1: Codable, Equatable, Identifiable, Sendable {
     static let schemaVersion = 1
     let schemaVersion: Int

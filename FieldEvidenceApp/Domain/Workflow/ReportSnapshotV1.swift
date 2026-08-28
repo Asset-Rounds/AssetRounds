@@ -47,6 +47,23 @@ struct ReportSnapshotV1: Codable, Equatable, Sendable {
     /// read-only projection and never grants publication, delivery, approval,
     /// or release authority.
     var assurance: ReportEvidenceAssuranceProjectionV1? = nil
+    /// Optional C14 frozen review, change-request, and corrective-action
+    /// history. The value is an immutable projection over the exact completed
+    /// snapshot boundary; amendments create a replacement snapshot and never
+    /// rewrite this history in place.
+    var inspectionReviewHistory: CompletedInspectionReviewHistorySnapshotV1? = nil
+
+    var reviewHistory: [InspectionReviewTransitionV1] {
+        inspectionReviewHistory?.reviewHistory ?? []
+    }
+
+    var changeHistory: [ChangeRequestV1] {
+        inspectionReviewHistory?.changeHistory ?? []
+    }
+
+    var actionHistory: [CorrectiveActionEventV1] {
+        inspectionReviewHistory?.actionHistory ?? []
+    }
 }
 
 struct AcknowledgementSnapshotV1: Codable, Equatable, Sendable {

@@ -195,6 +195,11 @@ final class BackupRestoreService {
             ).isEmpty
             return try modelContext.fetchCount(FetchDescriptor<Site>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<Asset>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<InspectionReviewTransitionRow>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<ReviewDispositionRow>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<ChangeRequestRow>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<CorrectiveActionPolicyRow>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<CorrectiveActionEventRow>()) == 0
                 && modelContext.fetchCount(
                     FetchDescriptor<AssetKindBindingEventRow>()
                 ) == 0
@@ -1514,6 +1519,7 @@ private extension BackupRestoreService {
         with packets: [V4BackupPacketDTO]
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            inspectionReview: records.inspectionReview,
             evidenceAssurance: records.evidenceAssurance,
             functionalRelationships: records.functionalRelationships,
             authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
@@ -1562,6 +1568,7 @@ private extension BackupRestoreService {
         with history: MutationHistorySnapshotV1
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            inspectionReview: records.inspectionReview,
             evidenceAssurance: records.evidenceAssurance,
             functionalRelationships: records.functionalRelationships,
             authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
@@ -1674,6 +1681,7 @@ private extension BackupRestoreService {
             return try V8BackupRequirementAssuranceRecordV1(row)
         }.sorted { canonical($0.workflowRecordID) < canonical($1.workflowRecordID) }
         return V4BackupRecordsV1(
+            inspectionReview: records.inspectionReview,
             evidenceAssurance: records.evidenceAssurance,
             functionalRelationships: records.functionalRelationships,
             authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
@@ -1892,8 +1900,20 @@ private extension BackupRestoreService {
         let reports = try rebindingReportDTOs(
             records.reports, members: members, workspaceID: workspaceID
         )
+        let inspectionReview = try rebindingInspectionReview(
+            records.inspectionReview, workspaceID: workspaceID,
+            sourceEvidenceAssurance: records.evidenceAssurance,
+            evidenceAssurance: evidenceAssurance,
+            sourceAuthorityCriterion: records.authorityCriterion,
+            authorityCriterion: authorityCriterion,
+            sourceFunctionalRelationships: records.functionalRelationships,
+            functionalRelationships: functionalRelationships,
+            sourceReports: records.reports, reboundReports: reports,
+            members: members
+        )
         guard let archived = records.locationMigrationReceipts.first else {
             return V4BackupRecordsV1(
+                inspectionReview: inspectionReview,
                 evidenceAssurance: evidenceAssurance,
                 functionalRelationships: functionalRelationships,
                 authorityCriterion: authorityCriterion, assetSemantics: assetSemantics,
@@ -1928,6 +1948,7 @@ private extension BackupRestoreService {
            authorityCriterion == records.authorityCriterion,
            functionalRelationships == records.functionalRelationships,
            evidenceAssurance == records.evidenceAssurance,
+           inspectionReview == records.inspectionReview,
            reports == records.reports {
             return records
         }
@@ -1940,6 +1961,7 @@ private extension BackupRestoreService {
             bindings: receipt.bindings
         )
         return V4BackupRecordsV1(
+            inspectionReview: inspectionReview,
             evidenceAssurance: evidenceAssurance,
             functionalRelationships: functionalRelationships,
             authorityCriterion: authorityCriterion, assetSemantics: assetSemantics,
@@ -2394,6 +2416,217 @@ private extension BackupRestoreService {
         }
     }
 
+    func rebindingInspectionReview(
+        _ records: [V14BackupInspectionReviewRecordV1], workspaceID: WorkspaceID,
+        sourceEvidenceAssurance: [V13BackupEvidenceAssuranceRecordV1],
+        evidenceAssurance: [V13BackupEvidenceAssuranceRecordV1],
+        sourceAuthorityCriterion: [V11BackupAuthorityCriterionRecordV1],
+        authorityCriterion: [V11BackupAuthorityCriterionRecordV1],
+        sourceFunctionalRelationships: [V12BackupFunctionalRelationshipRecordV1],
+        functionalRelationships: [V12BackupFunctionalRelationshipRecordV1],
+        sourceReports: [V4BackupReportDTO], reboundReports: [V4BackupReportDTO],
+        members: ValidatedV4BackupMembersV1
+    ) throws -> [V14BackupInspectionReviewRecordV1] {
+        let reboundPolicies = try Dictionary(uniqueKeysWithValues: records.compactMap { record -> (UUID, CorrectiveActionPolicyV1)? in
+            guard record.kind == .correctiveActionPolicy else { return nil }
+            let source = try InspectionReviewCanonicalCodecV1.decode(CorrectiveActionPolicyV1.self, from: record.canonicalData)
+            let rebound = try source.rebound(to: workspaceID)
+            return (rebound.releaseID, rebound)
+        })
+        let reboundManifests = try Dictionary(uniqueKeysWithValues: evidenceAssurance.compactMap { record -> (UUID, AssuranceManifestV1)? in
+            guard record.kind == .manifest else { return nil }
+            let value = try EvidenceAssuranceCanonicalCodecV1.decode(AssuranceManifestV1.self, from: record.canonicalData)
+            return (value.manifestID, value)
+        })
+        let reboundLinks = try Dictionary(uniqueKeysWithValues: evidenceAssurance.compactMap { record -> (UUID, ClaimEvidenceLinkV1)? in
+            guard record.kind == .evidenceLink else { return nil }
+            let value = try EvidenceAssuranceCanonicalCodecV1.decode(ClaimEvidenceLinkV1.self, from: record.canonicalData)
+            return (value.linkID, value)
+        })
+        var digestRebindings: [String: String] = [:]
+        func normalizedReferenceID(_ id: String) -> String { UUID(uuidString:id)?.uuidString ?? id }
+        func key(_ family: String, _ id: String, _ revision: UInt64, _ digest: String) -> String {
+            "\(family)\u{0}\(normalizedReferenceID(id))\u{0}\(revision)\u{0}\(digest)"
+        }
+        func bind(_ family: String, _ id: String, _ revision: UInt64, _ old: String, _ new: String) {
+            digestRebindings[key(family, id, revision, old)] = new
+        }
+        let reboundReportByID = Dictionary(uniqueKeysWithValues: reboundReports.map { ($0.id, $0) })
+        for source in sourceReports {
+            guard let rebound = reboundReportByID[source.id],
+                  let bytes = members[source.snapshotRelativePath] else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            let snapshot = try ReportSnapshotEncoderV1().decode(bytes)
+            for id in [source.id.uuidString, snapshot.reportID.uuidString,
+                       snapshot.sourceRecordID.uuidString, snapshot.stableRootID.uuidString] {
+                bind("reportSnapshot", id, UInt64(source.snapshotSchemaVersion), source.snapshotSHA256, rebound.snapshotSHA256)
+                bind("completedActivitySnapshot", id, UInt64(source.snapshotSchemaVersion), source.snapshotSHA256, rebound.snapshotSHA256)
+            }
+            if let old = snapshot.functionalRelationships {
+                let reboundData = try reboundReportSnapshotData(bytes, workspaceID: workspaceID)
+                if let new = try ReportSnapshotEncoderV1().decode(reboundData).functionalRelationships {
+                    bind("functionalRelationshipSnapshot", old.snapshotID.uuidString,
+                         UInt64(old.schemaVersion), old.snapshotSHA256, new.snapshotSHA256)
+                }
+            }
+        }
+        let sourceLinks = try Dictionary(uniqueKeysWithValues: sourceEvidenceAssurance.compactMap { record -> (UUID, ClaimEvidenceLinkV1)? in
+            guard record.kind == .evidenceLink else { return nil }
+            let value = try EvidenceAssuranceCanonicalCodecV1.decode(ClaimEvidenceLinkV1.self, from: record.canonicalData)
+            return (value.linkID, value)
+        })
+        for (id, rebound) in reboundLinks {
+            guard let source = sourceLinks[id] else { throw BackupRestoreServiceError.invalidPackage }
+            bind("claimEvidenceLink", id.uuidString, source.revision, source.linkSHA256, rebound.linkSHA256)
+            bind("evidence", id.uuidString, source.revision, source.linkSHA256, rebound.linkSHA256)
+        }
+        let reboundClassifications = try Dictionary(uniqueKeysWithValues: authorityCriterion.compactMap { record -> (UUID, FindingClassificationBindingV1)? in
+            guard record.kind == .findingClassificationBinding else { return nil }
+            let value = try AuthorityCriterionCanonicalCodecV1.decode(FindingClassificationBindingV1.self, from: record.canonicalData)
+            return (value.bindingID, value)
+        })
+        for record in sourceAuthorityCriterion where record.kind == .findingClassificationBinding {
+            let source = try AuthorityCriterionCanonicalCodecV1.decode(FindingClassificationBindingV1.self, from: record.canonicalData)
+            guard let rebound = reboundClassifications[source.bindingID] else { throw BackupRestoreServiceError.invalidPackage }
+            bind("finding", source.findingID.uuidString, source.revision, source.bindingSHA256, rebound.bindingSHA256)
+            bind("criterion", source.criterionID, source.revision, source.bindingSHA256, rebound.bindingSHA256)
+        }
+        let reboundRelationshipEvents = try Dictionary(uniqueKeysWithValues: functionalRelationships.compactMap { record -> (UUID, AssetFunctionalRelationshipEventV1)? in
+            guard record.kind == .event else { return nil }
+            let value = try FunctionalRelationshipCanonicalCodecV1.decode(AssetFunctionalRelationshipEventV1.self, from: record.canonicalData)
+            return (value.eventID, value)
+        })
+        for record in sourceFunctionalRelationships where record.kind == .event {
+            let source = try FunctionalRelationshipCanonicalCodecV1.decode(AssetFunctionalRelationshipEventV1.self, from: record.canonicalData)
+            guard let rebound = reboundRelationshipEvents[source.eventID] else { throw BackupRestoreServiceError.invalidPackage }
+            for id in [source.relationshipID.uuidString, source.eventID.uuidString] {
+                bind("functionalRelationship", id, source.revision, source.eventSHA256, rebound.eventSHA256)
+            }
+        }
+        func reboundDigest(_ family: String, _ id: String, _ revision: UInt64, _ digest: String) -> String {
+            digestRebindings[key(family, id, revision, digest)] ?? digest
+        }
+        func reboundItem(_ value: ChangeRequestItemReferenceV1) throws -> ChangeRequestItemReferenceV1 {
+            let family: String
+            switch value.kind { case .review: family="review";case .finding:family="finding";case .criterion:family="criterion";case .evidence:family="evidence";case .functionalRelationship:family="functionalRelationship" }
+            return try .init(kind:value.kind,itemID:value.itemID,itemRevision:value.itemRevision,
+                             itemSHA256:reboundDigest(family,value.itemID,value.itemRevision,value.itemSHA256))
+        }
+        func reboundSubject(_ value: InspectionReviewSubjectReferenceV1) throws -> InspectionReviewSubjectReferenceV1 {
+            let family: String
+            switch value.kind { case .completedActivitySnapshot:family="completedActivitySnapshot";case .reportSnapshot:family="reportSnapshot";case .finding:family="finding" }
+            return try .init(workspaceID:workspaceID,kind:value.kind,subjectID:value.subjectID,
+                             subjectRevision:value.subjectRevision,
+                             subjectSHA256:reboundDigest(family,value.subjectID,value.subjectRevision,value.subjectSHA256),
+                             packageRelease:value.packageRelease)
+        }
+        let reboundTransitions = try Dictionary(uniqueKeysWithValues: records.compactMap { record -> (UUID, InspectionReviewTransitionV1)? in
+            guard record.kind == .reviewTransition else { return nil }
+            let source = try InspectionReviewCanonicalCodecV1.decode(InspectionReviewTransitionV1.self, from: record.canonicalData)
+            let base = try source.rebound(to: workspaceID)
+            let rebound = try InspectionReviewTransitionV1(
+                transitionID:base.transitionID,reviewID:base.reviewID,workspaceID:workspaceID,
+                subject:reboundSubject(source.subject),fromState:base.fromState,toState:base.toState,
+                actor:base.actor,reason:base.reason,dispositionID:base.dispositionID,
+                changeRequestIDs:base.changeRequestIDs,successorReviewID:base.successorReviewID,
+                successorSubject:try source.successorSubject.map(reboundSubject),occurredAt:base.occurredAt,
+                recordedAt:base.recordedAt,predecessorTransitionID:base.predecessorTransitionID,
+                revision:base.revision,mutationID:base.mutationID)
+            bind("review", source.reviewID.uuidString, source.revision, source.transitionSHA256, rebound.transitionSHA256)
+            return (source.transitionID, rebound)
+        })
+        func reboundEvidence(_ values: [ReviewEvidenceReferenceV1]) throws -> [ReviewEvidenceReferenceV1] {
+            try values.map { value in
+                let family: String
+                switch value.kind {case .claimEvidenceLink:family="claimEvidenceLink";case .verifiedRecheck:family="verifiedRecheck";case .completedActivitySnapshot:family="completedActivitySnapshot";case .requirementEvaluation:family="requirementEvaluation";case .functionalRelationshipSnapshot:family="functionalRelationshipSnapshot";case .externalEvidenceReference:family="externalEvidenceReference"}
+                return try ReviewEvidenceReferenceV1(
+                    kind: value.kind, referenceID: value.referenceID,
+                    revision: value.revision,
+                    sha256: reboundDigest(family,value.referenceID,value.revision,value.sha256)
+                )
+            }
+        }
+        return try records.map { record in
+            let data: Data
+            let identity: (UUID, UInt64)
+            switch record.kind {
+            case .reviewTransition:
+                let source = try InspectionReviewCanonicalCodecV1.decode(InspectionReviewTransitionV1.self, from: record.canonicalData)
+                guard let rebound = reboundTransitions[source.transitionID] else { throw BackupRestoreServiceError.invalidPackage }
+                data = try InspectionReviewCanonicalCodecV1.encode(rebound); identity = (rebound.transitionID, rebound.revision)
+            case .reviewDisposition:
+                let source = try InspectionReviewCanonicalCodecV1.decode(ReviewDispositionV1.self, from: record.canonicalData)
+                let base = try source.rebound(to: workspaceID)
+                let manifest = try base.assuranceManifestID.map { id -> AssuranceManifestV1 in
+                    guard let value = reboundManifests[id] else { throw BackupRestoreServiceError.invalidPackage }
+                    return value
+                }
+                let rebound = try ReviewDispositionV1(
+                    dispositionID: base.dispositionID, reviewID: base.reviewID,
+                    workspaceID: workspaceID, subject: reboundSubject(source.subject),
+                    reviewRevision: base.reviewRevision, kind: base.kind,
+                    reviewer: base.reviewer, reason: base.reason,
+                    changeRequestIDs: base.changeRequestIDs,
+                    assuranceManifestID: manifest?.manifestID,
+                    assuranceManifestRevision: manifest?.revision,
+                    assuranceManifestSHA256: manifest?.manifestSHA256,
+                    recordedAt: base.recordedAt,
+                    supersedesDispositionID: base.supersedesDispositionID,
+                    revision: base.revision, mutationID: base.mutationID
+                )
+                data = try InspectionReviewCanonicalCodecV1.encode(rebound); identity = (rebound.dispositionID, rebound.revision)
+            case .changeRequest:
+                let source = try InspectionReviewCanonicalCodecV1.decode(ChangeRequestV1.self, from: record.canonicalData)
+                let base = try source.rebound(to: workspaceID)
+                let resolution = try base.resolution.map { value in
+                    try ChangeRequestResolutionV1(
+                        kind: value.kind, resolver: value.resolver,
+                        evidence: reboundEvidence(value.evidence), reason: value.reason,
+                        resolvedAt: value.resolvedAt
+                    )
+                }
+                let rebound = try ChangeRequestV1(
+                    requestRevisionID: base.requestRevisionID, requestID: base.requestID,
+                    reviewID: base.reviewID, workspaceID: workspaceID,
+                    reviewRevision: base.reviewRevision, item: reboundItem(source.item), reason: base.reason,
+                    requirements: base.requirements, requester: base.requester, state: base.state,
+                    resolution: resolution, recordedAt: base.recordedAt,
+                    supersedesRequestRevisionID: base.supersedesRequestRevisionID,
+                    revision: base.revision, mutationID: base.mutationID
+                )
+                data = try InspectionReviewCanonicalCodecV1.encode(rebound); identity = (rebound.requestRevisionID, rebound.revision)
+            case .correctiveActionPolicy:
+                let source = try InspectionReviewCanonicalCodecV1.decode(CorrectiveActionPolicyV1.self, from: record.canonicalData)
+                let rebound = try source.rebound(to: workspaceID)
+                data = try InspectionReviewCanonicalCodecV1.encode(rebound); identity = (rebound.releaseID, rebound.revision)
+            case .correctiveActionEvent:
+                let source = try InspectionReviewCanonicalCodecV1.decode(CorrectiveActionEventV1.self, from: record.canonicalData)
+                let base = try source.rebound(to: workspaceID)
+                guard let policy = reboundPolicies[base.policy.releaseID] else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                let rebound = try CorrectiveActionEventV1(
+                    eventID: base.eventID, actionID: base.actionID, workspaceID: workspaceID,
+                    source: reboundItem(source.source), policy: CorrectiveActionPolicyReferenceV1(policy),
+                    priority: base.priority, state: base.state, assignee: base.assignee,
+                    recorder: base.recorder, due: base.due,
+                    closureEvidence: reboundEvidence(base.closureEvidence),
+                    verifier: base.verifier, reopenTrigger: base.reopenTrigger, reason: base.reason,
+                    occurredAt: base.occurredAt, recordedAt: base.recordedAt,
+                    predecessorEventID: base.predecessorEventID, revision: base.revision,
+                    mutationID: base.mutationID
+                )
+                data = try InspectionReviewCanonicalCodecV1.encode(rebound); identity = (rebound.eventID, rebound.revision)
+            }
+            guard identity == (record.id, record.revision) else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            return .init(kind: record.kind, id: identity.0, workspaceID: workspaceID.rawValue,
+                         revision: identity.1, canonicalData: data)
+        }
+    }
+
     func rebindingEvidenceAssurance(
         _ records: [V13BackupEvidenceAssuranceRecordV1], workspaceID: WorkspaceID,
         sourcePreviews: [UUID: AssuranceProjectionPreviewV1]
@@ -2633,7 +2866,8 @@ private extension BackupRestoreService {
                 || records.recordsSchemaVersion == 9
                 || records.recordsSchemaVersion == 10
                 || records.recordsSchemaVersion == 11
-                || records.recordsSchemaVersion == 12)
+                || records.recordsSchemaVersion == 12
+                || records.recordsSchemaVersion == 13)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -2887,7 +3121,8 @@ private extension BackupRestoreService {
             || records.recordsSchemaVersion == 8 || records.recordsSchemaVersion == 9
             || records.recordsSchemaVersion == 10
             || records.recordsSchemaVersion == 11
-            || records.recordsSchemaVersion == 12 {
+            || records.recordsSchemaVersion == 12
+            || records.recordsSchemaVersion == 13 {
             do {
                 for record in records.savedSmartViews {
                     let descriptor = try record.descriptor()
@@ -3054,6 +3289,19 @@ private extension BackupRestoreService {
                 }
             } catch { throw BackupRestoreServiceError.invalidPackage }
         }
+        if records.recordsSchemaVersion >= 13 {
+            do {
+                for record in records.inspectionReview {
+                    switch record.kind {
+                    case .reviewTransition: context.insert(try InspectionReviewTransitionRow(InspectionReviewCanonicalCodecV1.decode(InspectionReviewTransitionV1.self, from: record.canonicalData)))
+                    case .reviewDisposition: context.insert(try ReviewDispositionRow(InspectionReviewCanonicalCodecV1.decode(ReviewDispositionV1.self, from: record.canonicalData)))
+                    case .changeRequest: context.insert(try ChangeRequestRow(InspectionReviewCanonicalCodecV1.decode(ChangeRequestV1.self, from: record.canonicalData)))
+                    case .correctiveActionPolicy: context.insert(try CorrectiveActionPolicyRow(InspectionReviewCanonicalCodecV1.decode(CorrectiveActionPolicyV1.self, from: record.canonicalData)))
+                    case .correctiveActionEvent: context.insert(try CorrectiveActionEventRow(InspectionReviewCanonicalCodecV1.decode(CorrectiveActionEventV1.self, from: record.canonicalData)))
+                    }
+                }
+            } catch { throw BackupRestoreServiceError.invalidPackage }
+        }
         if let mutationHistory = records.mutationHistory {
             guard records.recordsSchemaVersion == 3
                     || records.recordsSchemaVersion == 4
@@ -3064,7 +3312,8 @@ private extension BackupRestoreService {
                     || records.recordsSchemaVersion == 9
                     || records.recordsSchemaVersion == 10
                     || records.recordsSchemaVersion == 11
-                    || records.recordsSchemaVersion == 12 else {
+                    || records.recordsSchemaVersion == 12
+                    || records.recordsSchemaVersion == 13 else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {
@@ -4144,7 +4393,8 @@ private extension BackupRestoreService {
         guard expected.recordsSchemaVersion < 9,
               (actual.recordsSchemaVersion == 9 || actual.recordsSchemaVersion == 10
                 || actual.recordsSchemaVersion == 11
-                || actual.recordsSchemaVersion == 12) else {
+                || actual.recordsSchemaVersion == 12
+                || actual.recordsSchemaVersion == 13) else {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
         if expected.recordsSchemaVersion == 5 || expected.recordsSchemaVersion == 6 {
@@ -4163,6 +4413,7 @@ private extension BackupRestoreService {
         schemaVersion: Int
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            inspectionReview: schemaVersion >= 13 ? records.inspectionReview : [],
             evidenceAssurance: schemaVersion >= 12 ? records.evidenceAssurance : [],
             functionalRelationships: schemaVersion >= 11 ? records.functionalRelationships : [],
             authorityCriterion: schemaVersion >= 10 ? records.authorityCriterion : [],
@@ -4194,6 +4445,7 @@ private extension BackupRestoreService {
         expected: V4BackupRecordsV1
     ) throws -> Bool {
         let predecessor = V4BackupRecordsV1(
+            inspectionReview: expected.recordsSchemaVersion >= 13 ? expected.inspectionReview : [],
             evidenceAssurance: expected.recordsSchemaVersion >= 12 ? expected.evidenceAssurance : [],
             functionalRelationships: expected.recordsSchemaVersion >= 11 ? expected.functionalRelationships : [],
             authorityCriterion: expected.recordsSchemaVersion >= 10 ? expected.authorityCriterion : [],
@@ -4365,6 +4617,11 @@ private extension BackupRestoreService {
         let measurementProtocols = try context.fetch(FetchDescriptor<MeasurementProtocolReleaseRow>())
         let evaluators = try context.fetch(FetchDescriptor<DerivedFactEvaluatorDescriptorRow>())
         let derivedFacts = try context.fetch(FetchDescriptor<DerivedFactProvenanceRow>())
+        let inspectionReviewTransitions = try context.fetch(FetchDescriptor<InspectionReviewTransitionRow>())
+        let reviewDispositions = try context.fetch(FetchDescriptor<ReviewDispositionRow>())
+        let changeRequests = try context.fetch(FetchDescriptor<ChangeRequestRow>())
+        let correctiveActionPolicies = try context.fetch(FetchDescriptor<CorrectiveActionPolicyRow>())
+        let correctiveActionEvents = try context.fetch(FetchDescriptor<CorrectiveActionEventRow>())
         let evidenceVisibilities = try context.fetch(FetchDescriptor<EvidenceVisibilityRow>())
         let claimEvidenceLinks = try context.fetch(FetchDescriptor<ClaimEvidenceLinkRow>())
         let assuranceManifests = try context.fetch(FetchDescriptor<AssuranceManifestRow>())
@@ -4393,6 +4650,13 @@ private extension BackupRestoreService {
             mutationHistory = nil
         }
         return V4BackupRecordsV1(
+            inspectionReview: try (
+                inspectionReviewTransitions.map { let v=try $0.value(); return .init(kind:.reviewTransition,id:v.transitionID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData) }
+                + reviewDispositions.map { let v=try $0.value(); return .init(kind:.reviewDisposition,id:v.dispositionID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData) }
+                + changeRequests.map { let v=try $0.value(); return .init(kind:.changeRequest,id:v.requestRevisionID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData) }
+                + correctiveActionPolicies.map { let v=try $0.value(); return .init(kind:.correctiveActionPolicy,id:v.releaseID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData) }
+                + correctiveActionEvents.map { let v=try $0.value(); return .init(kind:.correctiveActionEvent,id:v.eventID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData) }
+            ).sorted { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)" },
             evidenceAssurance: try (
                 evidenceVisibilities.map { let v=try $0.value(); return .init(kind:.visibility,id:v.visibilityID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData) }
                 + claimEvidenceLinks.map { let v=try $0.value(); return .init(kind:.evidenceLink,id:v.linkID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData) }
@@ -4558,7 +4822,10 @@ private extension BackupRestoreService {
                 "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
                     < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
             },
-            recordsSchemaVersion: evidenceVisibilities.isEmpty && claimEvidenceLinks.isEmpty
+            recordsSchemaVersion: inspectionReviewTransitions.isEmpty && reviewDispositions.isEmpty
+                    && changeRequests.isEmpty && correctiveActionPolicies.isEmpty
+                    && correctiveActionEvents.isEmpty
+                ? (evidenceVisibilities.isEmpty && claimEvidenceLinks.isEmpty
                     && assuranceManifests.isEmpty && attestations.isEmpty
                 ? (functionalRelationshipDescriptors.isEmpty
                     && functionalRelationshipEvents.isEmpty
@@ -4574,7 +4841,8 @@ private extension BackupRestoreService {
                     ? (mutationHistory == nil ? (includingDeletionLedger ? 2 : 1) : 9)
                     : 10)
                     : 11)
-                : 12,
+                : 12)
+                : 13,
             reports: reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,

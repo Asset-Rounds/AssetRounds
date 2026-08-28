@@ -946,3 +946,17 @@ extension V9_ChangeJournalCheckpointReplayTests {
         try replayedAttestation.validate(manifest: replayedManifest)
     }
 }
+
+extension V9_ChangeJournalCheckpointReplayTests {
+    func testV23P03C14JournalReplayRoundTripsResolvedChangeRequestBytes() throws {
+        let fixture = try C14InspectionReviewTestSupportV1.makeFixture(seed: 145_104)
+        let bytes = try InspectionReviewCanonicalCodecV1.encode(fixture.resolvedChangeRequest)
+        let replayed = try InspectionReviewCanonicalCodecV1.decode(
+            ChangeRequestV1.self, from: bytes
+        )
+        XCTAssertEqual(replayed, fixture.resolvedChangeRequest)
+        XCTAssertEqual(try InspectionReviewCanonicalCodecV1.encode(replayed), bytes)
+        XCTAssertEqual(replayed.state, .resolved)
+        XCTAssertEqual(replayed.supersedesRequestRevisionID, fixture.changeRequest.requestRevisionID)
+    }
+}

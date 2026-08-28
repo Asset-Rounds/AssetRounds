@@ -18,6 +18,15 @@ enum EvidenceAssuranceEraseIntentStorePolicyV1 {
     }
 }
 
+enum InspectionReviewEraseIntentStorePolicyV1 {
+    static func validate() throws {
+        guard InspectionReviewEraseBoundaryV1.immutableReviewAndCorrectiveActionHistoryClearedOnlyByWorkspaceErase,
+              InspectionReviewEraseBoundaryV1.ordinaryDeletionPreservesAcceptedFinalizedAndActionHistory else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+    }
+}
+
 enum EraseIntentStoreError: Error, Equatable {
     case invalidAuthority
     case invalidIntent
@@ -331,6 +340,9 @@ final class EraseIntentStore {
         fileManager: FileManager = .default,
         expectedApplicationSupportIdentity: StoreApplicationSupportIdentity? = nil
     ) throws {
+        try FunctionalRelationshipEraseIntentStorePolicyV1.validate()
+        try EvidenceAssuranceEraseIntentStorePolicyV1.validate()
+        try InspectionReviewEraseIntentStorePolicyV1.validate()
         let root = applicationSupportURL.standardizedFileURL
         guard root.isFileURL else { throw EraseIntentStoreError.invalidAuthority }
         if expectedApplicationSupportIdentity == nil {

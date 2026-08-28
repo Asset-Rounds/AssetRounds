@@ -44,6 +44,11 @@ final class BackupExportService {
     private static let checkpointBasisExportedAt = Date(timeIntervalSince1970: 0)
 
     private struct Rows {
+        let inspectionReviewTransitions: [InspectionReviewTransitionRow]
+        let reviewDispositions: [ReviewDispositionRow]
+        let changeRequests: [ChangeRequestRow]
+        let correctiveActionPolicies: [CorrectiveActionPolicyRow]
+        let correctiveActionEvents: [CorrectiveActionEventRow]
         let evidenceVisibilities: [EvidenceVisibilityRow]
         let claimEvidenceLinks: [ClaimEvidenceLinkRow]
         let assuranceManifests: [AssuranceManifestRow]
@@ -902,9 +907,9 @@ private extension BackupExportService {
             source: .init(
                 appBuild: appBuild(),
                 appVersion: appVersion(),
-                persistentSchemaVersion: 13,
+                persistentSchemaVersion: 14,
                 replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: 12,
+                recordsSchemaVersion: 13,
                 sourceGenerationID: generationID,
                 workspaceID: sourceIdentity.workspaceID.rawValue
             )
@@ -1419,6 +1424,11 @@ private extension BackupExportService {
     private func fetchRows() throws -> Rows {
         do {
             return Rows(
+                inspectionReviewTransitions: try modelContext.fetch(FetchDescriptor<InspectionReviewTransitionRow>()),
+                reviewDispositions: try modelContext.fetch(FetchDescriptor<ReviewDispositionRow>()),
+                changeRequests: try modelContext.fetch(FetchDescriptor<ChangeRequestRow>()),
+                correctiveActionPolicies: try modelContext.fetch(FetchDescriptor<CorrectiveActionPolicyRow>()),
+                correctiveActionEvents: try modelContext.fetch(FetchDescriptor<CorrectiveActionEventRow>()),
                 evidenceVisibilities: try modelContext.fetch(FetchDescriptor<EvidenceVisibilityRow>()),
                 claimEvidenceLinks: try modelContext.fetch(FetchDescriptor<ClaimEvidenceLinkRow>()),
                 assuranceManifests: try modelContext.fetch(FetchDescriptor<AssuranceManifestRow>()),
@@ -1906,7 +1916,9 @@ private extension BackupExportService {
         let authorityCriterion = mutationHistory == nil ? [] : try authorityCriterionRecords(rows)
         let functionalRelationships = mutationHistory == nil ? [] : try functionalRelationshipRecords(rows)
         let evidenceAssurance = mutationHistory == nil ? [] : try evidenceAssuranceRecords(rows)
+        let inspectionReview = mutationHistory == nil ? [] : try inspectionReviewRecords(rows)
         return V4BackupRecordsV1(
+            inspectionReview: inspectionReview,
             evidenceAssurance: evidenceAssurance,
             functionalRelationships: functionalRelationships,
             authorityCriterion: authorityCriterion,
@@ -1959,7 +1971,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : 12,
+                : 13,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -1991,6 +2003,28 @@ private extension BackupExportService {
                 return workflowDTO(record, observationAndTime: companion)
             }.sorted(by: dtoOrder)
         )
+    }
+
+    private func inspectionReviewRecords(
+        _ rows: Rows
+    ) throws -> [V14BackupInspectionReviewRecordV1] {
+        var result: [V14BackupInspectionReviewRecordV1] = []
+        result += try rows.inspectionReviewTransitions.map { let v = try $0.value(); return .init(
+            kind: .reviewTransition, id: v.transitionID, workspaceID: v.workspaceID.rawValue,
+            revision: v.revision, canonicalData: try InspectionReviewCanonicalCodecV1.encode(v)) }
+        result += try rows.reviewDispositions.map { let v = try $0.value(); return .init(
+            kind: .reviewDisposition, id: v.dispositionID, workspaceID: v.workspaceID.rawValue,
+            revision: v.revision, canonicalData: try InspectionReviewCanonicalCodecV1.encode(v)) }
+        result += try rows.changeRequests.map { let v = try $0.value(); return .init(
+            kind: .changeRequest, id: v.requestRevisionID, workspaceID: v.workspaceID.rawValue,
+            revision: v.revision, canonicalData: try InspectionReviewCanonicalCodecV1.encode(v)) }
+        result += try rows.correctiveActionPolicies.map { let v = try $0.value(); return .init(
+            kind: .correctiveActionPolicy, id: v.releaseID, workspaceID: v.workspaceID.rawValue,
+            revision: v.revision, canonicalData: try InspectionReviewCanonicalCodecV1.encode(v)) }
+        result += try rows.correctiveActionEvents.map { let v = try $0.value(); return .init(
+            kind: .correctiveActionEvent, id: v.eventID, workspaceID: v.workspaceID.rawValue,
+            revision: v.revision, canonicalData: try InspectionReviewCanonicalCodecV1.encode(v)) }
+        return result.sorted { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)" }
     }
 
     private func functionalRelationshipRecords(

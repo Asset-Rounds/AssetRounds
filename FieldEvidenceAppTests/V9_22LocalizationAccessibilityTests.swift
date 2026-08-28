@@ -1051,6 +1051,150 @@ final class V9_22LocalizationAccessibilityTests: XCTestCase {
         XCTAssertTrue(KernelCanonicalHashV1.validSHA256(receipt.release.releaseSHA256))
     }
 
+    func testV23P03C14InspectionReviewLocalizationAndAccessibilityIsEnglishOnly() throws {
+        let registry = try BundledLocalizationCatalogV1.inspectionReviewRegistry()
+        try registry.validate()
+
+        let expectedKeys = Set(InspectionReviewLocalizationKeyV1.allCases.map(\.rawValue))
+        XCTAssertEqual(Set(InspectionReviewLocalizationPolicyV1.keys), expectedKeys)
+        XCTAssertEqual(Set(InspectionReviewLocalizationPolicyV1.reportKeys), expectedKeys)
+        XCTAssertTrue(expectedKeys.isSubset(of: Set(registry.definitions.map { $0.key.rawValue })))
+        XCTAssertEqual(InspectionReviewLocalizationPolicyV1.sourceLocale, "en")
+        XCTAssertEqual(InspectionReviewLocalizationPolicyV1.shippingLocale, "en")
+        XCTAssertEqual(InspectionReviewLocalizationPolicyV1.metadataLocale, "en-US")
+        XCTAssertEqual(
+            Set(InspectionReviewLocalizationPolicyV1.testOnlyLocales),
+            Set(TestOnlyPseudoLocaleV1.allCases.map(\.rawValue))
+        )
+        XCTAssertTrue(InspectionReviewLocalizationPolicyV1.denyByDefault)
+        XCTAssertTrue(InspectionReviewLocalizationPolicyV1.requiresNonColorStateText)
+        XCTAssertTrue(InspectionReviewLocalizationPolicyV1.requiresTextAndIconForIndeterminateStates)
+        XCTAssertTrue(InspectionReviewLocalizationPolicyV1.requiresActionableNextStep)
+        XCTAssertFalse(InspectionReviewLocalizationPolicyV1.allowsColorOnlyState)
+        XCTAssertFalse(InspectionReviewLocalizationPolicyV1.allowsIconOnlyState)
+        XCTAssertTrue(InspectionReviewLocalizationPolicyV1.excludesCustomerDataLeakage)
+        XCTAssertTrue(InspectionReviewLocalizationPolicyV1.excludesPrivateLocators)
+
+        for state in InspectionReviewStateV1.allCases {
+            XCTAssertTrue(expectedKeys.contains(InspectionReviewLocalizationKeyV1.stateKey(state).rawValue))
+        }
+        for disposition in ReviewDispositionKindV1.allCases {
+            XCTAssertTrue(expectedKeys.contains(InspectionReviewLocalizationKeyV1.dispositionKey(disposition).rawValue))
+        }
+        for state in ChangeRequestStateV1.allCases {
+            XCTAssertTrue(expectedKeys.contains(InspectionReviewLocalizationKeyV1.changeRequestStateKey(state).rawValue))
+        }
+        for resolution in ChangeRequestResolutionKindV1.allCases {
+            XCTAssertTrue(expectedKeys.contains(InspectionReviewLocalizationKeyV1.changeRequestResolutionKey(resolution).rawValue))
+        }
+        for state in CorrectiveActionStateV1.allCases {
+            XCTAssertTrue(expectedKeys.contains(InspectionReviewLocalizationKeyV1.correctiveActionStateKey(state).rawValue))
+        }
+        XCTAssertEqual(InspectionReviewLocalizationKeyV1.nextStepKey(), .nextStep)
+        XCTAssertEqual(InspectionReviewLocalizationKeyV1.minimumRequirementKey(), .minimumNextRequirement)
+
+        let accessibility = try BundledLocalizationCatalogV1
+            .inspectionReviewAccessibilityRegistry(localization: registry)
+        let expectedIDs = Set(InspectionReviewAccessibilityIDV1.allCases.map(\.rawValue))
+        XCTAssertEqual(Set(InspectionReviewAccessibilityPolicyV1.semanticIDs), expectedIDs)
+        XCTAssertTrue(expectedIDs.isSubset(of: Set(accessibility.entries.map(\.semanticID))))
+        XCTAssertTrue(InspectionReviewAccessibilityPolicyV1.denyByDefault)
+        XCTAssertTrue(InspectionReviewAccessibilityPolicyV1.nonColorStateTextRequired)
+        XCTAssertTrue(InspectionReviewAccessibilityPolicyV1.textAndIconRequiredForIndeterminateStates)
+        XCTAssertTrue(InspectionReviewAccessibilityPolicyV1.actionableNextStepRequired)
+        XCTAssertFalse(InspectionReviewAccessibilityPolicyV1.colorOnlyStateAllowed)
+        XCTAssertFalse(InspectionReviewAccessibilityPolicyV1.iconOnlyStateAllowed)
+        XCTAssertTrue(accessibility.entries.allSatisfy {
+            $0.dynamicSuffixPolicy == .none && $0.deprecatedAliases.isEmpty
+        })
+
+        let entriesByID = Dictionary(uniqueKeysWithValues: accessibility.entries.map {
+            ($0.semanticID, $0)
+        })
+        for semanticID in InspectionReviewAccessibilityIDV1.allCases {
+            let entry = try XCTUnwrap(entriesByID[semanticID.rawValue])
+            XCTAssertEqual(
+                try accessibility.identifier(semanticID: semanticID.rawValue),
+                semanticID.rawValue
+            )
+            XCTAssertTrue(
+                registry.definitions.contains { $0.key == entry.labelKey },
+                "missing localized label for \(semanticID.rawValue)"
+            )
+        }
+        for semanticID in InspectionReviewAccessibilityPolicyV1.stateSemanticIDs {
+            XCTAssertEqual(try XCTUnwrap(entriesByID[semanticID]).role, .status)
+        }
+        for semanticID in InspectionReviewAccessibilityPolicyV1.indeterminateSemanticIDs {
+            let entry = try XCTUnwrap(entriesByID[semanticID])
+            XCTAssertNotNil(entry.hintKey, "\(semanticID) needs an actionable next step")
+            XCTAssertTrue(InspectionReviewAccessibilityPolicyV1.requiresTextAndIcon(for: semanticID))
+            XCTAssertTrue(InspectionReviewAccessibilityPolicyV1.requiresActionableNextStep(for: semanticID))
+        }
+
+        let source = try JSONSerialization.jsonObject(with: sourceCatalogData()) as? [String: Any]
+        let strings = try XCTUnwrap(source?["strings"] as? [String: Any])
+        var c14Text = [String]()
+        for key in InspectionReviewLocalizationKeyV1.allCases {
+            let entry = try XCTUnwrap(strings[key.rawValue] as? [String: Any])
+            let comment = try XCTUnwrap(entry["comment"] as? String)
+            XCTAssertFalse(comment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            let localizations = try XCTUnwrap(entry["localizations"] as? [String: Any])
+            XCTAssertEqual(Set(localizations.keys), Set(["en"]))
+            let english = try XCTUnwrap(localizations["en"] as? [String: Any])
+            let unit = try XCTUnwrap(english["stringUnit"] as? [String: Any])
+            let value = try XCTUnwrap(unit["value"] as? String)
+            XCTAssertFalse(value.isEmpty)
+            c14Text.append(contentsOf: [comment, value])
+            let bundledKey = try XCTUnwrap(BundledLocalizationKeyV1(rawValue: key.rawValue))
+            XCTAssertEqual(BundledLocalizationCatalogV1.localized(bundledKey), value)
+        }
+        XCTAssertFalse(InspectionReviewLocalizationPolicyV1.containsProhibitedClaim(in: c14Text))
+        XCTAssertFalse(InspectionReviewLocalizationPolicyV1.containsCustomerDataLeakage(in: c14Text))
+
+        let hostileClaims = [
+            "approval granted", "authorization granted", "verified identity",
+            "legal signature", "compliance result", "tamper-proof history",
+            "non-repudiation asserted", "secure delivery", "sent successfully",
+            "delivered successfully", "professional certification",
+        ]
+        XCTAssertTrue(hostileClaims.allSatisfy {
+            InspectionReviewClaimVocabularyV1.containsProhibitedClaim(in: [$0])
+        })
+        XCTAssertTrue(
+            InspectionReviewClaimVocabularyV1.containsCustomerDataLeakage(
+                in: ["customer data", "customer-information leak", "private data"]
+            )
+        )
+        XCTAssertFalse(
+            InspectionReviewClaimVocabularyV1.containsProhibitedClaim(
+                in: ["Recorded review state", "Changes requested", "Awaiting recorded check"]
+            )
+        )
+        XCTAssertTrue(
+            AudiencePrivacyLexicalDetectorV1.containsProhibitedPattern(
+                in: ["https://review.example/request", "file:///Users/private/review"]
+            )
+        )
+
+        let publication = try BundledLocalizationCatalogV1.publish(
+            sourceCatalogBytes: sourceCatalogData(),
+            legacy: legacyAllowlist(),
+            includeInspectionReview: true
+        )
+        guard case let .complete(
+            publishedRegistry, publishedAccessibility, _, _, receipt
+        ) = publication else {
+            return XCTFail("C14 requires one complete review and corrective-action catalog publication")
+        }
+        XCTAssertEqual(publishedRegistry, registry)
+        XCTAssertEqual(
+            Set(publishedAccessibility.entries.map(\.semanticID)),
+            Set(accessibility.entries.map(\.semanticID))
+        )
+        XCTAssertTrue(KernelCanonicalHashV1.validSHA256(receipt.release.releaseSHA256))
+    }
+
     private func corpus() throws -> Corpus {
         try JSONDecoder().decode(Corpus.self, from: Data(contentsOf: try fixtureURL()))
     }

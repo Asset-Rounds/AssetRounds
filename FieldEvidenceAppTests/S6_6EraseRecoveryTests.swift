@@ -926,3 +926,15 @@ extension S6_6EraseRecoveryTests {
         try restored.validate(manifest: fixture.customerManifest)
     }
 }
+
+extension S6_6EraseRecoveryTests {
+    func testV23P03C14RecoveryRebindPreservesCorrectiveActionEvidence() throws {
+        let fixture = try C14InspectionReviewTestSupportV1.makeFixture(seed: 145_166)
+        let rebound = try fixture.actions[3].rebound(to: fixture.otherWorkspaceID)
+        XCTAssertEqual(rebound.workspaceID, fixture.otherWorkspaceID)
+        XCTAssertEqual(rebound.state, .closed)
+        XCTAssertEqual(rebound.closureEvidence, fixture.actions[3].closureEvidence)
+        XCTAssertEqual(rebound.eventSHA256.count, 64)
+        XCTAssertNotEqual(rebound.eventSHA256, fixture.actions[3].eventSHA256)
+    }
+}

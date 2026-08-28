@@ -440,6 +440,7 @@ final class LocalChangeJournalV1 {
             try Self.validateAuthorityCriterionChange(change)
             try Self.validateFunctionalRelationshipChange(change)
             try Self.validateEvidenceAssuranceChange(change)
+            try Self.validateInspectionReviewChange(change)
             let disposition: MutationReplayDispositionV1
             if blocked {
                 disposition = try .init(mutationID: change.envelope.mutationID, disposition: .deferredGap, reasonCode: "PRIOR_CAUSAL_GAP")
@@ -1484,6 +1485,7 @@ final class LocalChangeJournalV1 {
         catch { throw ChangeJournalFailureV1.tamperedBatch }
     }
     private static func validateEvidenceAssuranceChange(_ change:JournalChangeV1)throws{guard case let .applyEvidenceAssurance(m)=change.envelope.command else{return};do{try m.validate();let i=try m.affectedIdentity;let images=change.receipt.postImages;guard change.envelope.commandKind == .applyEvidenceAssurance,change.envelope.mutationID==m.mutationID,change.receipt.mutationID==m.mutationID,images==[try m.postImage.mutationPostImage],change.entityChanges.map(\.identity)==[i],change.entityChanges.map(\.postImage)==images else{throw ChangeJournalFailureV1.tamperedBatch}}catch let f as ChangeJournalFailureV1{throw f}catch{throw ChangeJournalFailureV1.tamperedBatch}}
+    private static func validateInspectionReviewChange(_ change:JournalChangeV1)throws{do{try InspectionReviewJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)}catch let f as ChangeJournalFailureV1{throw f}catch{throw ChangeJournalFailureV1.tamperedBatch}}
 
     private static let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
 }

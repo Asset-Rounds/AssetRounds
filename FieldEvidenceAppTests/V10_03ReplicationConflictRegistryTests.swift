@@ -782,3 +782,13 @@ extension V10_03ReplicationConflictRegistryTests {
         XCTAssertEqual(successorVisibility.workspaceID, fixture.routineVisibility.workspaceID)
     }
 }
+
+extension V10_03ReplicationConflictRegistryTests {
+    func testV23P03C14PolicyReplicaRequiresDirectPredecessor() throws {
+        let fixture = try C14InspectionReviewTestSupportV1.makeFixture(seed: 145_103)
+        try fixture.supersedingPolicy.validateSuccessor(of: fixture.policy)
+        XCTAssertEqual(fixture.supersedingPolicy.supersedesReleaseID, fixture.policy.releaseID)
+        XCTAssertEqual(fixture.supersedingPolicy.revision, fixture.policy.revision + 1)
+        XCTAssertNotEqual(fixture.supersedingPolicy.policySHA256, fixture.policy.policySHA256)
+    }
+}

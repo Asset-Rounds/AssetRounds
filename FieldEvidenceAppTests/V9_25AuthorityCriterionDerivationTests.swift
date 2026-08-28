@@ -1081,3 +1081,13 @@ private extension V9_25AuthorityCriterionDerivationTests {
         )
     }
 }
+
+extension V9_25AuthorityCriterionDerivationTests {
+    func testV23P03C14AuthorityReviewSubjectIsExplicitlyBound() throws {
+        let fixture = try C14InspectionReviewTestSupportV1.makeFixture(seed: 145_225)
+        XCTAssertEqual(fixture.subject.kind, .completedActivitySnapshot)
+        XCTAssertEqual(fixture.subject.subjectRevision, 1)
+        XCTAssertEqual(fixture.subject.subjectSHA256.count, 64)
+        XCTAssertEqual(fixture.policy.verifierRule, .differentActorAndPartyRequired)
+    }
+}

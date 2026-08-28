@@ -50,6 +50,7 @@ struct BackupCanonicalDecoderV1: Sendable {
             try Self.validateAuthorityCriterion(value)
             try Self.validateFunctionalRelationships(value)
             try Self.validateEvidenceAssurance(value)
+            try Self.validateInspectionReview(value)
             let canonical = try BackupCanonicalEncoderV1().encodeRecords(value).data
             guard canonical == data else {
                 throw BackupCanonicalDecodingErrorV1.invalidRecords
@@ -62,6 +63,35 @@ struct BackupCanonicalDecoderV1: Sendable {
 }
 
 private extension BackupCanonicalDecoderV1 {
+    static func validateInspectionReview(_ records: V4BackupRecordsV1) throws {
+        guard records.recordsSchemaVersion >= 13 else {
+            guard records.inspectionReview.isEmpty else { throw BackupCanonicalDecodingErrorV1.invalidRecords }
+            return
+        }
+        for record in records.inspectionReview {
+            let identity: (UUID, WorkspaceID, UInt64)
+            switch record.kind {
+            case .reviewTransition:
+                let value = try InspectionReviewCanonicalCodecV1.decode(InspectionReviewTransitionV1.self, from: record.canonicalData)
+                identity = (value.transitionID, value.workspaceID, value.revision)
+            case .reviewDisposition:
+                let value = try InspectionReviewCanonicalCodecV1.decode(ReviewDispositionV1.self, from: record.canonicalData)
+                identity = (value.dispositionID, value.workspaceID, value.revision)
+            case .changeRequest:
+                let value = try InspectionReviewCanonicalCodecV1.decode(ChangeRequestV1.self, from: record.canonicalData)
+                identity = (value.requestRevisionID, value.workspaceID, value.revision)
+            case .correctiveActionPolicy:
+                let value = try InspectionReviewCanonicalCodecV1.decode(CorrectiveActionPolicyV1.self, from: record.canonicalData)
+                identity = (value.releaseID, value.workspaceID, value.revision)
+            case .correctiveActionEvent:
+                let value = try InspectionReviewCanonicalCodecV1.decode(CorrectiveActionEventV1.self, from: record.canonicalData)
+                identity = (value.eventID, value.workspaceID, value.revision)
+            }
+            guard identity.0 == record.id, identity.1.rawValue == record.workspaceID,
+                  identity.2 == record.revision else { throw BackupCanonicalDecodingErrorV1.invalidRecords }
+        }
+    }
+
     static func validateEvidenceAssurance(_ records: V4BackupRecordsV1) throws {
         guard records.recordsSchemaVersion >= 12 else {
             guard records.evidenceAssurance.isEmpty else { throw BackupCanonicalDecodingErrorV1.invalidRecords }

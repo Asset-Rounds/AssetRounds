@@ -19,6 +19,15 @@ enum FindingContractFailureV1: Error, Equatable, Sendable {
     case canonicalEvidenceIncomplete
 }
 
+extension FindingV1 {
+    func inspectionReviewItemReference() throws -> ChangeRequestItemReferenceV1 {
+        guard revision >= 0 else { throw FindingContractFailureV1.invalidValue }
+        return try .init(kind: .finding, itemID: findingID,
+                         itemRevision: UInt64(revision),
+                         itemSHA256: WorkspaceMutationCanonicalV1.sha256(self))
+    }
+}
+
 enum FindingContractLimitsV1 {
     static let maximumIDBytes = 128
     static let maximumTextBytes = 2_048

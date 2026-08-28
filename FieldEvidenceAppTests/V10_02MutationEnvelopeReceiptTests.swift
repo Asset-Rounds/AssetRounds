@@ -1575,3 +1575,21 @@ extension V10_02MutationEnvelopeReceiptTests {
         XCTAssertEqual(fixture.customerAttestation.manifestSHA256, fixture.customerManifest.manifestSHA256)
     }
 }
+
+extension V10_02MutationEnvelopeReceiptTests {
+    func testV23P03C14MutationReceiptUsesCanonicalTransitionDigest() throws {
+        let fixture = try C14InspectionReviewTestSupportV1.makeFixture(seed: 145_102)
+        let transition = fixture.transitions[0]
+        let bundle = try InspectionReviewAtomicBundleV1(transition: transition)
+        let mutation = try InspectionReviewMutationV1(
+            workspaceID: fixture.workspaceID, expectedRevision: 0,
+            mutationID: transition.mutationID, postImage: .applyReviewBundle(bundle)
+        )
+        let digest = try mutation.canonicalSHA256()
+        XCTAssertEqual(digest.count, 64)
+        XCTAssertTrue(digest.allSatisfy { $0.isHexDigit && !$0.isUppercase })
+        XCTAssertEqual(mutation.mutationID, transition.mutationID)
+        XCTAssertEqual(try mutation.affectedIdentities.count, 1)
+        XCTAssertEqual(try mutation.concurrencyIdentities.count, 1)
+    }
+}

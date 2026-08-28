@@ -295,3 +295,13 @@ extension V9_07CompatibilityPolicyTests {
         try decodedManifest.validateFresh(preview: fixture.customerPreview)
     }
 }
+
+extension V9_07CompatibilityPolicyTests {
+    func testV23P03C14PolicySupersessionIsRevisionBound() throws {
+        let fixture = try C14InspectionReviewTestSupportV1.makeFixture(seed: 145_007)
+        try fixture.supersedingPolicy.validateSuccessor(of: fixture.policy)
+        XCTAssertEqual(fixture.supersedingPolicy.revision, fixture.policy.revision + 1)
+        XCTAssertEqual(fixture.supersedingPolicy.supersedesReleaseID, fixture.policy.releaseID)
+        XCTAssertNotEqual(fixture.supersedingPolicy.mutationID, fixture.policy.mutationID)
+    }
+}

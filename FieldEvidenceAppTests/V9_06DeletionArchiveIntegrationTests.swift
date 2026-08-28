@@ -431,3 +431,13 @@ extension V9_06DeletionArchiveIntegrationTests {
         try restoredAttestation.validate(manifest: restoredManifest)
     }
 }
+
+extension V9_06DeletionArchiveIntegrationTests {
+    func testV23P03C14ArchivedReviewTransitionRetainsCanonicalRowIdentity() throws {
+        let fixture = try C14InspectionReviewTestSupportV1.makeFixture(seed: 145_006)
+        let row = try InspectionReviewTransitionRow(fixture.transitions[0])
+        XCTAssertEqual(try row.value(), fixture.transitions[0])
+        XCTAssertEqual(row.reviewID, fixture.reviewID)
+        XCTAssertEqual(row.revision, 1)
+    }
+}

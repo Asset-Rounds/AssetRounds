@@ -607,3 +607,28 @@ enum EvidenceAssuranceCanonicalCodecV1 {
         return value
     }
 }
+
+extension ClaimEvidenceLinkV1 {
+    /// Exact immutable evidence reference for C14. Visibility remains C13
+    /// truth and this conversion never implies review acceptance.
+    func inspectionReviewEvidenceReference() throws -> ReviewEvidenceReferenceV1 {
+        try validate()
+        guard evidenceID != nil, evidenceRevision != nil, evidenceSHA256 != nil,
+              decision.limitation != .evidenceUnavailable,
+              decision.limitation != .evidenceInvalid else {
+            throw EvidenceAssuranceFailureV1.invalidValue
+        }
+        return try .init(kind: .claimEvidenceLink,
+                         referenceID: linkID.uuidString.lowercased(),
+                         revision: revision, sha256: linkSHA256)
+    }
+}
+
+extension AssuranceManifestV1 {
+    func validateInspectionReviewBinding(id: UUID, revision: UInt64, sha256: String,
+                                         workspaceID: WorkspaceID) throws {
+        try validate()
+        guard manifestID == id, self.revision == revision, manifestSHA256 == sha256,
+              self.workspaceID == workspaceID else { throw EvidenceAssuranceFailureV1.invalidValue }
+    }
+}

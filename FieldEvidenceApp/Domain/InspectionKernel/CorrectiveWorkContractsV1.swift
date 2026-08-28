@@ -5,6 +5,19 @@ enum CorrectiveWorkLinkActionV1: String, CaseIterable, Codable, Hashable, Sendab
     case removed = "REMOVED"
 }
 
+extension CorrectiveWorkLinkV1 {
+    func validateCorrectiveActionSource(
+        findingID: String,
+        findingRevision: Int,
+        actionID: UUID
+    ) throws {
+        guard self.findingID == findingID, self.findingRevision == findingRevision,
+              workID == actionID.uuidString.lowercased(), action == .linked else {
+            throw FindingContractFailureV1.invalidValue
+        }
+    }
+}
+
 struct CorrectiveWorkLinkV1: Codable, Equatable, Identifiable, Sendable {
     static let schemaVersion = 1
     let schemaVersion: Int

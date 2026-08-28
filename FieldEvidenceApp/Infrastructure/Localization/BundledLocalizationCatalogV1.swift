@@ -87,6 +87,39 @@ enum BundledLocalizationKeyV1: String, CaseIterable, Sendable {
     case evidenceVisibilityAttestationSuperseded = "evidence.visibility.attestation.superseded"
     case evidenceVisibilityAttestationVoid = "evidence.visibility.attestation.void"
     case evidenceVisibilityNextStep = "evidence.visibility.next_step"
+    case inspectionReviewHeading = "inspection.review.heading"
+    case inspectionReviewState = "inspection.review.state"
+    case inspectionReviewDraft = "inspection.review.state.draft"
+    case inspectionReviewFieldComplete = "inspection.review.state.field_complete"
+    case inspectionReviewReadyForReview = "inspection.review.state.ready_for_review"
+    case inspectionReviewChangesRequested = "inspection.review.state.changes_requested"
+    case inspectionReviewAccepted = "inspection.review.state.accepted"
+    case inspectionReviewFinalized = "inspection.review.state.finalized"
+    case inspectionReviewAmended = "inspection.review.state.amended"
+    case inspectionReviewSuperseded = "inspection.review.state.superseded"
+    case inspectionReviewDisposition = "inspection.review.disposition"
+    case inspectionReviewDispositionChangesRequested = "inspection.review.disposition.changes_requested"
+    case inspectionReviewDispositionAccepted = "inspection.review.disposition.accepted"
+    case inspectionReviewChangeRequest = "inspection.review.change_request"
+    case inspectionReviewChangeRequestState = "inspection.review.change_request.state"
+    case inspectionReviewChangeRequestOpen = "inspection.review.change_request.state.open"
+    case inspectionReviewChangeRequestResolved = "inspection.review.change_request.state.resolved"
+    case inspectionReviewChangeRequestWithdrawn = "inspection.review.change_request.state.withdrawn"
+    case inspectionReviewChangeRequestSuperseded = "inspection.review.change_request.state.superseded"
+    case inspectionReviewChangeRequestResolution = "inspection.review.change_request.resolution"
+    case inspectionReviewChangeRequestResolutionFulfilled = "inspection.review.change_request.resolution.fulfilled"
+    case inspectionReviewChangeRequestResolutionWithdrawnWithReason = "inspection.review.change_request.resolution.withdrawn_with_reason"
+    case inspectionReviewChangeRequestResolutionSuperseded = "inspection.review.change_request.resolution.superseded"
+    case inspectionReviewCorrectiveAction = "inspection.review.corrective_action"
+    case inspectionReviewCorrectiveActionState = "inspection.review.corrective_action.state"
+    case inspectionReviewCorrectiveActionOpen = "inspection.review.corrective_action.state.open"
+    case inspectionReviewCorrectiveActionInProgress = "inspection.review.corrective_action.state.in_progress"
+    case inspectionReviewCorrectiveActionAwaitingVerification = "inspection.review.corrective_action.state.awaiting_verification"
+    case inspectionReviewCorrectiveActionClosed = "inspection.review.corrective_action.state.closed"
+    case inspectionReviewCorrectiveActionReopened = "inspection.review.corrective_action.state.reopened"
+    case inspectionReviewCorrectiveActionSuperseded = "inspection.review.corrective_action.state.superseded"
+    case inspectionReviewNextStep = "inspection.review.next_step"
+    case inspectionReviewMinimumNextRequirement = "inspection.review.next_step.minimum_requirement"
 
     static var functionalRelationshipDirected: Self { .functionalRelationshipDirectedSourceToTarget }
     static var functionalRelationshipActive: Self { .functionalRelationshipActiveState }
@@ -119,6 +152,20 @@ enum BundledLocalizationKeyV1: String, CaseIterable, Sendable {
     static var evidenceAssuranceAttestationSuperseded: Self { .evidenceVisibilityAttestationSuperseded }
     static var evidenceAssuranceAttestationVoid: Self { .evidenceVisibilityAttestationVoid }
     static var evidenceAssuranceNextStep: Self { .evidenceVisibilityNextStep }
+
+    static var reviewHeading: Self { .inspectionReviewHeading }
+    static var reviewState: Self { .inspectionReviewState }
+    static var reviewDraft: Self { .inspectionReviewDraft }
+    static var reviewFieldComplete: Self { .inspectionReviewFieldComplete }
+    static var reviewReadyForReview: Self { .inspectionReviewReadyForReview }
+    static var reviewChangesRequested: Self { .inspectionReviewChangesRequested }
+    static var reviewAccepted: Self { .inspectionReviewAccepted }
+    static var reviewFinalized: Self { .inspectionReviewFinalized }
+    static var reviewAmended: Self { .inspectionReviewAmended }
+    static var reviewSuperseded: Self { .inspectionReviewSuperseded }
+    static var changeRequestHeading: Self { .inspectionReviewChangeRequest }
+    static var correctiveActionHeading: Self { .inspectionReviewCorrectiveAction }
+    static var reviewNextStep: Self { .inspectionReviewNextStep }
 }
 
 enum LocalizationCatalogPublicationBoundaryV1: String, CaseIterable, Sendable {
@@ -598,6 +645,175 @@ enum BundledLocalizationCatalogV1 {
 
     static func evidenceAssuranceRegistry() throws -> LocalizationKeyRegistryV1 {
         try evidenceVisibilityRegistry()
+    }
+
+    /// C14's additive key surface.  Review, change-request, and corrective
+    /// action values remain recorded domain facts; this registry only supplies
+    /// their closed English display labels and accessibility bindings.
+    static func inspectionReviewRegistry() throws -> LocalizationKeyRegistryV1 {
+        let base = try evidenceVisibilityRegistry()
+        let additions = [
+            try definition(
+                .inspectionReviewHeading, "inspection.review.heading", "Inspection review",
+                "Heading for recorded inspection review facts."
+            ),
+            try definition(
+                .inspectionReviewState, "inspection.review.state", "Review state",
+                "Localized label for the recorded inspection review state."
+            ),
+            try definition(
+                .inspectionReviewDraft, "inspection.review.state.draft", "Draft",
+                "Accessible text for a review still in draft state."
+            ),
+            try definition(
+                .inspectionReviewFieldComplete, "inspection.review.state.field_complete", "Field complete",
+                "Accessible text for a review with its field record complete."
+            ),
+            try definition(
+                .inspectionReviewReadyForReview, "inspection.review.state.ready_for_review", "Ready for review",
+                "Accessible text for a review ready for a recorded review decision."
+            ),
+            try definition(
+                .inspectionReviewChangesRequested, "inspection.review.state.changes_requested", "Changes requested",
+                "Accessible text for a review with recorded changes requested."
+            ),
+            try definition(
+                .inspectionReviewAccepted, "inspection.review.state.accepted", "Accepted",
+                "Accessible text for a review with an accepted recorded disposition."
+            ),
+            try definition(
+                .inspectionReviewFinalized, "inspection.review.state.finalized", "Finalized",
+                "Accessible text for a review with a recorded final state."
+            ),
+            try definition(
+                .inspectionReviewAmended, "inspection.review.state.amended", "Amended",
+                "Accessible text for a review amended in a later recorded revision."
+            ),
+            try definition(
+                .inspectionReviewSuperseded, "inspection.review.state.superseded", "Superseded",
+                "Accessible text for a review superseded by a later recorded subject."
+            ),
+            try definition(
+                .inspectionReviewDisposition, "inspection.review.disposition", "Review disposition",
+                "Localized label for a recorded review disposition."
+            ),
+            try definition(
+                .inspectionReviewDispositionChangesRequested,
+                "inspection.review.disposition.changes_requested", "Changes requested",
+                "Accessible text for a disposition that records requested changes."
+            ),
+            try definition(
+                .inspectionReviewDispositionAccepted,
+                "inspection.review.disposition.accepted", "Accepted",
+                "Accessible text for an accepted recorded review disposition."
+            ),
+            try definition(
+                .inspectionReviewChangeRequest, "inspection.review.change_request", "Change request",
+                "Localized label for an immutable recorded change request."
+            ),
+            try definition(
+                .inspectionReviewChangeRequestState, "inspection.review.change_request.state", "Change request state",
+                "Localized label for the recorded change request state."
+            ),
+            try definition(
+                .inspectionReviewChangeRequestOpen,
+                "inspection.review.change_request.state.open", "Open",
+                "Accessible text for an open recorded change request."
+            ),
+            try definition(
+                .inspectionReviewChangeRequestResolved,
+                "inspection.review.change_request.state.resolved", "Resolved",
+                "Accessible text for a resolved recorded change request."
+            ),
+            try definition(
+                .inspectionReviewChangeRequestWithdrawn,
+                "inspection.review.change_request.state.withdrawn", "Withdrawn",
+                "Accessible text for a withdrawn recorded change request."
+            ),
+            try definition(
+                .inspectionReviewChangeRequestSuperseded,
+                "inspection.review.change_request.state.superseded", "Superseded",
+                "Accessible text for a change request superseded by a later record."
+            ),
+            try definition(
+                .inspectionReviewChangeRequestResolution,
+                "inspection.review.change_request.resolution", "Change request resolution",
+                "Localized label for the recorded resolution of a change request."
+            ),
+            try definition(
+                .inspectionReviewChangeRequestResolutionFulfilled,
+                "inspection.review.change_request.resolution.fulfilled", "Fulfilled",
+                "Accessible text for a fulfilled recorded change request."
+            ),
+            try definition(
+                .inspectionReviewChangeRequestResolutionWithdrawnWithReason,
+                "inspection.review.change_request.resolution.withdrawn_with_reason", "Withdrawn with reason",
+                "Accessible text for a change request withdrawn with a recorded reason."
+            ),
+            try definition(
+                .inspectionReviewChangeRequestResolutionSuperseded,
+                "inspection.review.change_request.resolution.superseded", "Superseded",
+                "Accessible text for a resolution superseded by a later record."
+            ),
+            try definition(
+                .inspectionReviewCorrectiveAction,
+                "inspection.review.corrective_action", "Corrective action",
+                "Localized label for a recorded corrective action."
+            ),
+            try definition(
+                .inspectionReviewCorrectiveActionState,
+                "inspection.review.corrective_action.state", "Corrective action state",
+                "Localized label for the recorded corrective action state."
+            ),
+            try definition(
+                .inspectionReviewCorrectiveActionOpen,
+                "inspection.review.corrective_action.state.open", "Open",
+                "Accessible text for an open recorded corrective action."
+            ),
+            try definition(
+                .inspectionReviewCorrectiveActionInProgress,
+                "inspection.review.corrective_action.state.in_progress", "In progress",
+                "Accessible text for a corrective action in progress."
+            ),
+            try definition(
+                .inspectionReviewCorrectiveActionAwaitingVerification,
+                "inspection.review.corrective_action.state.awaiting_verification", "Awaiting recorded check",
+                "Accessible text for a corrective action awaiting a recorded check."
+            ),
+            try definition(
+                .inspectionReviewCorrectiveActionClosed,
+                "inspection.review.corrective_action.state.closed", "Closed",
+                "Accessible text for a corrective action closed with its recorded evidence."
+            ),
+            try definition(
+                .inspectionReviewCorrectiveActionReopened,
+                "inspection.review.corrective_action.state.reopened", "Reopened",
+                "Accessible text for a corrective action reopened by a recorded trigger."
+            ),
+            try definition(
+                .inspectionReviewCorrectiveActionSuperseded,
+                "inspection.review.corrective_action.state.superseded", "Superseded",
+                "Accessible text for a corrective action superseded by a later record."
+            ),
+            try definition(
+                .inspectionReviewNextStep, "inspection.review.next_step", "Next step",
+                "Actionable label for the next recorded step accompanying a review state."
+            ),
+            try definition(
+                .inspectionReviewMinimumNextRequirement,
+                "inspection.review.next_step.minimum_requirement", "Minimum requirement",
+                "Actionable label for the minimum recorded requirement before the next review step."
+            ),
+        ]
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+
+    static func reviewCorrectiveActionRegistry() throws -> LocalizationKeyRegistryV1 {
+        try inspectionReviewRegistry()
+    }
+
+    static func reviewAndCorrectiveActionRegistry() throws -> LocalizationKeyRegistryV1 {
+        try inspectionReviewRegistry()
     }
 
     static func accessibilityRegistry(
@@ -1301,6 +1517,83 @@ enum BundledLocalizationCatalogV1 {
         try evidenceVisibilityAccessibilityRegistry(localization: localization)
     }
 
+    /// C14's semantic IDs inherit the earlier catalog bindings and add the
+    /// recorded review, request, resolution, and corrective-action states.
+    /// Indeterminate states carry the localized next-step hint so their
+    /// meaning remains available without color or icon inference.
+    static func inspectionReviewAccessibilityRegistry(
+        localization: LocalizationKeyRegistryV1
+    ) throws -> SemanticAccessibilityIDRegistryV1 {
+        let base = try evidenceVisibilityAccessibilityRegistry(localization: localization)
+        let nextStep = try LocalizationKeyV1(
+            BundledLocalizationKeyV1.inspectionReviewNextStep.rawValue
+        )
+        let values: [
+            (InspectionReviewAccessibilityIDV1, SemanticAccessibilityRoleV1, BundledLocalizationKeyV1)
+        ] = [
+            (.screen, .screen, .inspectionReviewHeading),
+            (.heading, .heading, .inspectionReviewHeading),
+            (.state, .group, .inspectionReviewState),
+            (.draft, .status, .inspectionReviewDraft),
+            (.fieldComplete, .status, .inspectionReviewFieldComplete),
+            (.readyForReview, .status, .inspectionReviewReadyForReview),
+            (.changesRequested, .status, .inspectionReviewChangesRequested),
+            (.accepted, .status, .inspectionReviewAccepted),
+            (.finalized, .status, .inspectionReviewFinalized),
+            (.amended, .status, .inspectionReviewAmended),
+            (.superseded, .status, .inspectionReviewSuperseded),
+            (.disposition, .group, .inspectionReviewDisposition),
+            (.dispositionChangesRequested, .status, .inspectionReviewDispositionChangesRequested),
+            (.dispositionAccepted, .status, .inspectionReviewDispositionAccepted),
+            (.changeRequest, .group, .inspectionReviewChangeRequest),
+            (.changeRequestState, .group, .inspectionReviewChangeRequestState),
+            (.changeRequestOpen, .status, .inspectionReviewChangeRequestOpen),
+            (.changeRequestResolved, .status, .inspectionReviewChangeRequestResolved),
+            (.changeRequestWithdrawn, .status, .inspectionReviewChangeRequestWithdrawn),
+            (.changeRequestSuperseded, .status, .inspectionReviewChangeRequestSuperseded),
+            (.changeRequestResolution, .group, .inspectionReviewChangeRequestResolution),
+            (.changeRequestResolutionFulfilled, .status, .inspectionReviewChangeRequestResolutionFulfilled),
+            (.changeRequestResolutionWithdrawnWithReason, .status, .inspectionReviewChangeRequestResolutionWithdrawnWithReason),
+            (.changeRequestResolutionSuperseded, .status, .inspectionReviewChangeRequestResolutionSuperseded),
+            (.correctiveAction, .group, .inspectionReviewCorrectiveAction),
+            (.correctiveActionState, .group, .inspectionReviewCorrectiveActionState),
+            (.correctiveActionOpen, .status, .inspectionReviewCorrectiveActionOpen),
+            (.correctiveActionInProgress, .status, .inspectionReviewCorrectiveActionInProgress),
+            (.correctiveActionAwaitingVerification, .status, .inspectionReviewCorrectiveActionAwaitingVerification),
+            (.correctiveActionClosed, .status, .inspectionReviewCorrectiveActionClosed),
+            (.correctiveActionReopened, .status, .inspectionReviewCorrectiveActionReopened),
+            (.correctiveActionSuperseded, .status, .inspectionReviewCorrectiveActionSuperseded),
+            (.nextStep, .button, .inspectionReviewNextStep),
+            (.minimumNextRequirement, .button, .inspectionReviewMinimumNextRequirement),
+        ]
+        let entries = try values.map { id, role, key in
+            AccessibilityContractV1(
+                semanticID: id.rawValue,
+                role: role,
+                reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(key.rawValue),
+                hintKey: InspectionReviewAccessibilityPolicyV1
+                    .indeterminateSemanticIDs.contains(id.rawValue) ? nextStep : nil,
+                valueKey: nil,
+                dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            )
+        }
+        return try base.appending(entries, localization: localization)
+    }
+
+    static func reviewCorrectiveActionAccessibilityRegistry(
+        localization: LocalizationKeyRegistryV1
+    ) throws -> SemanticAccessibilityIDRegistryV1 {
+        try inspectionReviewAccessibilityRegistry(localization: localization)
+    }
+
+    static func reviewAndCorrectiveActionAccessibilityRegistry(
+        localization: LocalizationKeyRegistryV1
+    ) throws -> SemanticAccessibilityIDRegistryV1 {
+        try inspectionReviewAccessibilityRegistry(localization: localization)
+    }
+
     static func publish(
         sourceCatalogBytes: Data,
         packagePublications: [InspectionPackagePublishedReleaseV1] = [],
@@ -1313,6 +1606,9 @@ enum BundledLocalizationCatalogV1 {
         includeFunctionalRelationships: Bool = false,
         includeEvidenceVisibility: Bool = false,
         includeEvidenceAssurance: Bool = false,
+        includeInspectionReview: Bool = false,
+        includeReviewCorrectiveAction: Bool = false,
+        includeReviewAndCorrectiveAction: Bool = false,
         interruption: Interruption = { _ in }
     ) throws -> LocalizationCatalogPublicationV1 {
         try interruption(.beforeValidation)
@@ -1320,7 +1616,9 @@ enum BundledLocalizationCatalogV1 {
         let locales = LocalizationLocaleManifestV1.shippingV1()
         try locales.validate()
         let keys: LocalizationKeyRegistryV1
-        if includeEvidenceVisibility || includeEvidenceAssurance {
+        if includeInspectionReview || includeReviewCorrectiveAction || includeReviewAndCorrectiveAction {
+            keys = try inspectionReviewRegistry()
+        } else if includeEvidenceVisibility || includeEvidenceAssurance {
             keys = try evidenceVisibilityRegistry()
         } else if includeFunctionalRelationships {
             keys = try functionalRelationshipRegistry()
@@ -1341,7 +1639,9 @@ enum BundledLocalizationCatalogV1 {
         }
         if let previousLegacy { try previousLegacy.validateObserved(legacy.entries) }
         let accessibility: SemanticAccessibilityIDRegistryV1
-        if includeEvidenceVisibility || includeEvidenceAssurance {
+        if includeInspectionReview || includeReviewCorrectiveAction || includeReviewAndCorrectiveAction {
+            accessibility = try inspectionReviewAccessibilityRegistry(localization: keys)
+        } else if includeEvidenceVisibility || includeEvidenceAssurance {
             accessibility = try evidenceVisibilityAccessibilityRegistry(localization: keys)
         } else if includeFunctionalRelationships {
             accessibility = try functionalRelationshipAccessibilityRegistry(localization: keys)
@@ -1397,7 +1697,10 @@ enum BundledLocalizationCatalogV1 {
         includeAuthorityCriteria: Bool = false,
         includeFunctionalRelationships: Bool = false,
         includeEvidenceVisibility: Bool = false,
-        includeEvidenceAssurance: Bool = false
+        includeEvidenceAssurance: Bool = false,
+        includeInspectionReview: Bool = false,
+        includeReviewCorrectiveAction: Bool = false,
+        includeReviewAndCorrectiveAction: Bool = false
     ) throws -> LocalizationCatalogPublicationV1 {
         switch (sourceCatalogBytes, receipt) {
         case (nil, nil): return .zero
@@ -1411,7 +1714,10 @@ enum BundledLocalizationCatalogV1 {
                 includeAuthorityCriteria: includeAuthorityCriteria,
                 includeFunctionalRelationships: includeFunctionalRelationships,
                 includeEvidenceVisibility: includeEvidenceVisibility,
-                includeEvidenceAssurance: includeEvidenceAssurance
+                includeEvidenceAssurance: includeEvidenceAssurance,
+                includeInspectionReview: includeInspectionReview,
+                includeReviewCorrectiveAction: includeReviewCorrectiveAction,
+                includeReviewAndCorrectiveAction: includeReviewAndCorrectiveAction
             )
             guard case let .complete(_, _, _, _, actual) = publication,
                   actual == expected else { throw LocalizationContractFailureV1.digestMismatch }
@@ -1595,6 +1901,72 @@ enum BundledLocalizationCatalogV1 {
             return String(localized: "evidence.visibility.attestation.void", defaultValue: "Void", bundle: bundle, locale: locale, comment: "Accessible text for an attestation marked void in the local record.")
         case .evidenceVisibilityNextStep:
             return String(localized: "evidence.visibility.next_step", defaultValue: "Next step", bundle: bundle, locale: locale, comment: "Actionable label for the next step accompanying a limited projection.")
+        case .inspectionReviewHeading:
+            return String(localized: "inspection.review.heading", defaultValue: "Inspection review", bundle: bundle, locale: locale, comment: "Heading for recorded inspection review facts.")
+        case .inspectionReviewState:
+            return String(localized: "inspection.review.state", defaultValue: "Review state", bundle: bundle, locale: locale, comment: "Localized label for the recorded inspection review state.")
+        case .inspectionReviewDraft:
+            return String(localized: "inspection.review.state.draft", defaultValue: "Draft", bundle: bundle, locale: locale, comment: "Accessible text for a review still in draft state.")
+        case .inspectionReviewFieldComplete:
+            return String(localized: "inspection.review.state.field_complete", defaultValue: "Field complete", bundle: bundle, locale: locale, comment: "Accessible text for a review with its field record complete.")
+        case .inspectionReviewReadyForReview:
+            return String(localized: "inspection.review.state.ready_for_review", defaultValue: "Ready for review", bundle: bundle, locale: locale, comment: "Accessible text for a review ready for a recorded review decision.")
+        case .inspectionReviewChangesRequested:
+            return String(localized: "inspection.review.state.changes_requested", defaultValue: "Changes requested", bundle: bundle, locale: locale, comment: "Accessible text for a review with recorded changes requested.")
+        case .inspectionReviewAccepted:
+            return String(localized: "inspection.review.state.accepted", defaultValue: "Accepted", bundle: bundle, locale: locale, comment: "Accessible text for a review with an accepted recorded disposition.")
+        case .inspectionReviewFinalized:
+            return String(localized: "inspection.review.state.finalized", defaultValue: "Finalized", bundle: bundle, locale: locale, comment: "Accessible text for a review with a recorded final state.")
+        case .inspectionReviewAmended:
+            return String(localized: "inspection.review.state.amended", defaultValue: "Amended", bundle: bundle, locale: locale, comment: "Accessible text for a review amended in a later recorded revision.")
+        case .inspectionReviewSuperseded:
+            return String(localized: "inspection.review.state.superseded", defaultValue: "Superseded", bundle: bundle, locale: locale, comment: "Accessible text for a review superseded by a later recorded subject.")
+        case .inspectionReviewDisposition:
+            return String(localized: "inspection.review.disposition", defaultValue: "Review disposition", bundle: bundle, locale: locale, comment: "Localized label for a recorded review disposition.")
+        case .inspectionReviewDispositionChangesRequested:
+            return String(localized: "inspection.review.disposition.changes_requested", defaultValue: "Changes requested", bundle: bundle, locale: locale, comment: "Accessible text for a disposition that records requested changes.")
+        case .inspectionReviewDispositionAccepted:
+            return String(localized: "inspection.review.disposition.accepted", defaultValue: "Accepted", bundle: bundle, locale: locale, comment: "Accessible text for an accepted recorded review disposition.")
+        case .inspectionReviewChangeRequest:
+            return String(localized: "inspection.review.change_request", defaultValue: "Change request", bundle: bundle, locale: locale, comment: "Localized label for an immutable recorded change request.")
+        case .inspectionReviewChangeRequestState:
+            return String(localized: "inspection.review.change_request.state", defaultValue: "Change request state", bundle: bundle, locale: locale, comment: "Localized label for the recorded change request state.")
+        case .inspectionReviewChangeRequestOpen:
+            return String(localized: "inspection.review.change_request.state.open", defaultValue: "Open", bundle: bundle, locale: locale, comment: "Accessible text for an open recorded change request.")
+        case .inspectionReviewChangeRequestResolved:
+            return String(localized: "inspection.review.change_request.state.resolved", defaultValue: "Resolved", bundle: bundle, locale: locale, comment: "Accessible text for a resolved recorded change request.")
+        case .inspectionReviewChangeRequestWithdrawn:
+            return String(localized: "inspection.review.change_request.state.withdrawn", defaultValue: "Withdrawn", bundle: bundle, locale: locale, comment: "Accessible text for a withdrawn recorded change request.")
+        case .inspectionReviewChangeRequestSuperseded:
+            return String(localized: "inspection.review.change_request.state.superseded", defaultValue: "Superseded", bundle: bundle, locale: locale, comment: "Accessible text for a change request superseded by a later record.")
+        case .inspectionReviewChangeRequestResolution:
+            return String(localized: "inspection.review.change_request.resolution", defaultValue: "Change request resolution", bundle: bundle, locale: locale, comment: "Localized label for the recorded resolution of a change request.")
+        case .inspectionReviewChangeRequestResolutionFulfilled:
+            return String(localized: "inspection.review.change_request.resolution.fulfilled", defaultValue: "Fulfilled", bundle: bundle, locale: locale, comment: "Accessible text for a fulfilled recorded change request.")
+        case .inspectionReviewChangeRequestResolutionWithdrawnWithReason:
+            return String(localized: "inspection.review.change_request.resolution.withdrawn_with_reason", defaultValue: "Withdrawn with reason", bundle: bundle, locale: locale, comment: "Accessible text for a change request withdrawn with a recorded reason.")
+        case .inspectionReviewChangeRequestResolutionSuperseded:
+            return String(localized: "inspection.review.change_request.resolution.superseded", defaultValue: "Superseded", bundle: bundle, locale: locale, comment: "Accessible text for a resolution superseded by a later record.")
+        case .inspectionReviewCorrectiveAction:
+            return String(localized: "inspection.review.corrective_action", defaultValue: "Corrective action", bundle: bundle, locale: locale, comment: "Localized label for a recorded corrective action.")
+        case .inspectionReviewCorrectiveActionState:
+            return String(localized: "inspection.review.corrective_action.state", defaultValue: "Corrective action state", bundle: bundle, locale: locale, comment: "Localized label for the recorded corrective action state.")
+        case .inspectionReviewCorrectiveActionOpen:
+            return String(localized: "inspection.review.corrective_action.state.open", defaultValue: "Open", bundle: bundle, locale: locale, comment: "Accessible text for an open recorded corrective action.")
+        case .inspectionReviewCorrectiveActionInProgress:
+            return String(localized: "inspection.review.corrective_action.state.in_progress", defaultValue: "In progress", bundle: bundle, locale: locale, comment: "Accessible text for a corrective action in progress.")
+        case .inspectionReviewCorrectiveActionAwaitingVerification:
+            return String(localized: "inspection.review.corrective_action.state.awaiting_verification", defaultValue: "Awaiting recorded check", bundle: bundle, locale: locale, comment: "Accessible text for a corrective action awaiting a recorded check.")
+        case .inspectionReviewCorrectiveActionClosed:
+            return String(localized: "inspection.review.corrective_action.state.closed", defaultValue: "Closed", bundle: bundle, locale: locale, comment: "Accessible text for a corrective action closed with its recorded evidence.")
+        case .inspectionReviewCorrectiveActionReopened:
+            return String(localized: "inspection.review.corrective_action.state.reopened", defaultValue: "Reopened", bundle: bundle, locale: locale, comment: "Accessible text for a corrective action reopened by a recorded trigger.")
+        case .inspectionReviewCorrectiveActionSuperseded:
+            return String(localized: "inspection.review.corrective_action.state.superseded", defaultValue: "Superseded", bundle: bundle, locale: locale, comment: "Accessible text for a corrective action superseded by a later record.")
+        case .inspectionReviewNextStep:
+            return String(localized: "inspection.review.next_step", defaultValue: "Next step", bundle: bundle, locale: locale, comment: "Actionable label for the next recorded step accompanying a review state.")
+        case .inspectionReviewMinimumNextRequirement:
+            return String(localized: "inspection.review.next_step.minimum_requirement", defaultValue: "Minimum requirement", bundle: bundle, locale: locale, comment: "Actionable label for the minimum recorded requirement before the next review step.")
         }
     }
 
@@ -1647,7 +2019,7 @@ enum BundledLocalizationCatalogV1 {
         // additive projection, while the selected registry still controls the
         // required subset.  This keeps C16/C38 compatibility callers frozen
         // and lets each additive typed surface publish atomically.
-        let supportedKeys = Set((try? evidenceVisibilityRegistry())?.definitions.map(\.key.rawValue) ?? [])
+        let supportedKeys = Set((try? inspectionReviewRegistry())?.definitions.map(\.key.rawValue) ?? [])
         guard registeredKeys.isSubset(of: Set(strings.keys)),
               Set(strings.keys).isSubset(of: supportedKeys) else {
             throw LocalizationContractFailureV1.invalidValue

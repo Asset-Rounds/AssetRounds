@@ -414,3 +414,14 @@ final class V9_27EvidenceAssuranceTests: XCTestCase {
         XCTAssertEqual(try EvidenceAssuranceCanonicalCodecV1.encode(decoded), data)
     }
 }
+
+extension V9_27EvidenceAssuranceTests {
+    func testV23P03C14ClosureEvidenceUsesTypedC13BoundaryReferences() throws {
+        let fixture = try C14InspectionReviewTestSupportV1.makeFixture(seed: 145_227)
+        XCTAssertEqual(fixture.closureEvidence.count, 2)
+        XCTAssertTrue(fixture.closureEvidence.contains { $0.kind == .completedActivitySnapshot })
+        XCTAssertTrue(fixture.closureEvidence.contains { $0.kind == .verifiedRecheck })
+        XCTAssertEqual(fixture.actions[3].closureEvidence, fixture.closureEvidence)
+        XCTAssertEqual(fixture.actions[3].verifier?.responsibility, .verifiedBy)
+    }
+}

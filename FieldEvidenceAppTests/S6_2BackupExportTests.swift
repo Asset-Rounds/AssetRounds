@@ -573,3 +573,20 @@ extension S6_2BackupExportTests {
         XCTAssertEqual(fixture.customerAttestation.action, .recorded)
     }
 }
+
+extension S6_2BackupExportTests {
+    func testV23P03C14BackupRecordPreservesTransitionCanonicalBytes() throws {
+        let fixture = try C14InspectionReviewTestSupportV1.makeFixture(seed: 145_162)
+        let transition = fixture.transitions[0]
+        let canonicalData = try InspectionReviewCanonicalCodecV1.encode(transition)
+        let record = V14BackupInspectionReviewRecordV1(
+            kind: .reviewTransition, id: transition.transitionID,
+            workspaceID: fixture.workspaceID.rawValue, revision: transition.revision,
+            canonicalData: canonicalData
+        )
+        XCTAssertEqual(record.kind, .reviewTransition)
+        XCTAssertEqual(record.id, transition.transitionID)
+        XCTAssertEqual(record.workspaceID, fixture.workspaceID.rawValue)
+        XCTAssertEqual(record.canonicalData, canonicalData)
+    }
+}

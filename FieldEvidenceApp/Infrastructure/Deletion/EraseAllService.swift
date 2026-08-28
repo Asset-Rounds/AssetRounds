@@ -24,6 +24,18 @@ enum EvidenceAssuranceEraseAllPolicyV1 {
     }
 }
 
+enum InspectionReviewEraseAllPolicyV1 {
+    static func validatePublishedEmptyGeneration(_ context: ModelContext) throws {
+        guard try context.fetchCount(FetchDescriptor<InspectionReviewTransitionRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<ReviewDispositionRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<ChangeRequestRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<CorrectiveActionPolicyRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<CorrectiveActionEventRow>()) == 0 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+}
+
 enum EraseAllServiceError: Error, Equatable {
     case contextHasChanges
     case invalidAuthority
@@ -1184,6 +1196,9 @@ private extension EraseAllService {
             throw EraseAllServiceError.invalidAuthority
         }
         try EvidenceAssuranceEraseAllPolicyV1.validatePublishedEmptyGeneration(
+            session.modelContext
+        )
+        try InspectionReviewEraseAllPolicyV1.validatePublishedEmptyGeneration(
             session.modelContext
         )
         if let identity {

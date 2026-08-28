@@ -123,8 +123,7 @@ struct ReportCorrectionRule {
               report.schemaVersion == 1,
               report.packetID == packet.id,
               report.sourceRecordID == old.id,
-              (report.snapshotSchemaVersion == 1
-                || report.snapshotSchemaVersion == 2),
+              (1...4).contains(report.snapshotSchemaVersion),
               report.snapshotRelativePath
                 == "snapshots/\(report.id.uuidString.lowercased()).json",
               isLowercaseSHA256(report.snapshotSHA256),
@@ -237,7 +236,13 @@ struct ReportCorrectionRule {
             stage: snapshot.stage,
             temporalContext: snapshot.temporalContext,
             timeContext: snapshot.timeContext,
-            requirementAssurance: snapshot.requirementAssurance
+            requirementAssurance: snapshot.requirementAssurance,
+            accountability: snapshot.accountability,
+            assetSemantics: snapshot.assetSemantics,
+            authorityCriterion: snapshot.authorityCriterion,
+            functionalRelationships: snapshot.functionalRelationships,
+            assurance: snapshot.assurance,
+            inspectionReviewHistory: snapshot.inspectionReviewHistory
         )
         let encodedSnapshot: EncodedReportSnapshotV1
         do {

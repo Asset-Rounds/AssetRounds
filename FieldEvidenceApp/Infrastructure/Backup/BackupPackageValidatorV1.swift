@@ -570,7 +570,8 @@ private extension BackupPackageValidatorV1 {
         ) {
         case (1, 1, 1), (2, 1, 1), (2, 3, 2), (3, 4, 3),
              (4, 5, 4), (4, 6, 5), (4, 7, 6), (4, 8, 7), (4, 9, 8),
-             (4, 10, 9):
+             (4, 10, 9), (4, 11, 10), (4, 12, 11), (4, 13, 12),
+             (4, 14, 13):
             schemaPairIsValid = true
         default:
             schemaPairIsValid = false
@@ -723,6 +724,7 @@ private extension BackupPackageValidatorV1 {
         try validateAuthorityCriterion(records, manifest: manifest)
         try validateFunctionalRelationships(records, manifest: manifest)
         try validateEvidenceAssurance(records, manifest: manifest, members: members)
+        try validateInspectionReview(records, manifest: manifest, members: members)
         let savedSmartViews: [SavedSmartViewDescriptorV1]
         do {
             savedSmartViews = try records.savedSmartViews.map { try $0.descriptor() }
@@ -737,7 +739,8 @@ private extension BackupPackageValidatorV1 {
                         || records.recordsSchemaVersion == 9
                         || records.recordsSchemaVersion == 10
                         || records.recordsSchemaVersion == 11
-                        || records.recordsSchemaVersion == 12)
+                        || records.recordsSchemaVersion == 12
+                        || records.recordsSchemaVersion == 13)
                     && savedSmartViews.allSatisfy({
                         $0.workspaceID == manifest.source.workspaceID
                     }))) else {
@@ -791,7 +794,8 @@ private extension BackupPackageValidatorV1 {
                         || records.recordsSchemaVersion == 9
                         || records.recordsSchemaVersion == 10
                         || records.recordsSchemaVersion == 11
-                        || records.recordsSchemaVersion == 12)
+                        || records.recordsSchemaVersion == 12
+                        || records.recordsSchemaVersion == 13)
                     && assuranceSnapshots.allSatisfy({ snapshot in
                         snapshot.workspaceID == manifest.source.workspaceID
                             && workflow[snapshot.workflowRecordID] != nil
@@ -1082,7 +1086,7 @@ private extension BackupPackageValidatorV1 {
             }) else { throw invalid() }
             return
         }
-        guard (4...12).contains(records.recordsSchemaVersion) else { throw invalid() }
+        guard (4...13).contains(records.recordsSchemaVersion) else { throw invalid() }
         for record in records.workflowRecords {
             guard let basisData = record.observationBasisV1Data,
                   let temporalData = record.temporalContextV1Data else {
@@ -1130,12 +1134,13 @@ private extension BackupPackageValidatorV1 {
             guard records.partyAccountability.isEmpty else { throw invalid() }
             return
         }
-        guard (8...12).contains(records.recordsSchemaVersion),
+        guard (8...13).contains(records.recordsSchemaVersion),
               (manifest.source.persistentSchemaVersion == 9
                 || manifest.source.persistentSchemaVersion == 10
                 || manifest.source.persistentSchemaVersion == 11
                 || manifest.source.persistentSchemaVersion == 12
-                || manifest.source.persistentSchemaVersion == 13),
+                || manifest.source.persistentSchemaVersion == 13
+                || manifest.source.persistentSchemaVersion == 14),
               let workspaceID = manifest.source.workspaceID else { throw invalid() }
         let keys = records.partyAccountability.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
@@ -1215,11 +1220,12 @@ private extension BackupPackageValidatorV1 {
             guard records.assetSemantics.isEmpty else { throw invalid() }
             return
         }
-        guard (9...12).contains(records.recordsSchemaVersion),
+        guard (9...13).contains(records.recordsSchemaVersion),
               (manifest.source.persistentSchemaVersion == 10
                 || manifest.source.persistentSchemaVersion == 11
                 || manifest.source.persistentSchemaVersion == 12
-                || manifest.source.persistentSchemaVersion == 13),
+                || manifest.source.persistentSchemaVersion == 13
+                || manifest.source.persistentSchemaVersion == 14),
               let sourceWorkspaceID = manifest.source.workspaceID else { throw invalid() }
         let keys = records.assetSemantics.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         guard keys == keys.sorted(), Set(keys).count == keys.count,
@@ -1420,10 +1426,11 @@ private extension BackupPackageValidatorV1 {
             guard records.authorityCriterion.isEmpty else { throw invalid() }
             return
         }
-        guard (10...12).contains(records.recordsSchemaVersion),
+        guard (10...13).contains(records.recordsSchemaVersion),
               (manifest.source.persistentSchemaVersion == 11
                 || manifest.source.persistentSchemaVersion == 12
-                || manifest.source.persistentSchemaVersion == 13),
+                || manifest.source.persistentSchemaVersion == 13
+                || manifest.source.persistentSchemaVersion == 14),
               let workspaceID = manifest.source.workspaceID else { throw invalid() }
         let keys = records.authorityCriterion.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         guard keys == keys.sorted(), Set(keys).count == keys.count,
@@ -1565,9 +1572,10 @@ private extension BackupPackageValidatorV1 {
             guard records.functionalRelationships.isEmpty else { throw invalid() }
             return
         }
-        guard (11...12).contains(records.recordsSchemaVersion),
+        guard (11...13).contains(records.recordsSchemaVersion),
               (manifest.source.persistentSchemaVersion == 12
-                || manifest.source.persistentSchemaVersion == 13),
+                || manifest.source.persistentSchemaVersion == 13
+                || manifest.source.persistentSchemaVersion == 14),
               let sourceWorkspaceID = manifest.source.workspaceID else { throw invalid() }
         do {
             let workspaceID = WorkspaceID(rawValue: sourceWorkspaceID)
@@ -1630,8 +1638,8 @@ private extension BackupPackageValidatorV1 {
             guard records.evidenceAssurance.isEmpty else { throw invalid() }
             return
         }
-        guard records.recordsSchemaVersion == 12,
-              manifest.source.persistentSchemaVersion == 13,
+        guard (12...13).contains(records.recordsSchemaVersion),
+              (manifest.source.persistentSchemaVersion == 13 || manifest.source.persistentSchemaVersion == 14),
               let rawWorkspaceID = manifest.source.workspaceID else { throw invalid() }
         do {
             let workspaceID = WorkspaceID(rawValue: rawWorkspaceID)
@@ -1698,6 +1706,276 @@ private extension BackupPackageValidatorV1 {
                 try value.validate(manifest: assuranceManifest)
             }
         } catch { throw invalid() }
+    }
+
+    func validateInspectionReview(
+        _ records: V4BackupRecordsV1, manifest: V4BackupManifestV1,
+        members: ValidatedV4BackupMembersV1
+    ) throws {
+        guard records.recordsSchemaVersion >= 13 else {
+            guard records.inspectionReview.isEmpty else { throw invalid() }
+            return
+        }
+        guard records.recordsSchemaVersion == 13,
+              manifest.source.persistentSchemaVersion == 14,
+              records.inspectionReview.count <= InspectionReviewLimitsV1.maximumHistory,
+              let rawWorkspaceID = manifest.source.workspaceID else { throw invalid() }
+        do {
+            let workspaceID = WorkspaceID(rawValue: rawWorkspaceID)
+            var transitions: [UUID: InspectionReviewTransitionV1] = [:]
+            var dispositions: [UUID: ReviewDispositionV1] = [:]
+            var requests: [UUID: ChangeRequestV1] = [:]
+            var policies: [UUID: CorrectiveActionPolicyV1] = [:]
+            var actions: [UUID: CorrectiveActionEventV1] = [:]
+            var actorSnapshots: [UUID: ActorSnapshotV1] = [:]
+            var partyIDs = Set<UUID>()
+            var assuranceManifests: [UUID: AssuranceManifestV1] = [:]
+            var evidenceLinks: [UUID: ClaimEvidenceLinkV1] = [:]
+            var exactReferences: [String: Set<String>] = [:]
+            func normalizedReferenceID(_ id: String) -> String {
+                UUID(uuidString: id)?.uuidString ?? id
+            }
+            func addReference(_ family: String, _ id: String, _ revision: UInt64, _ digest: String) {
+                exactReferences["\(family)\u{0}\(normalizedReferenceID(id))", default: []].insert("\(revision)\u{0}\(digest)")
+            }
+            func hasReference(_ family: String, _ id: String, _ revision: UInt64, _ digest: String) -> Bool {
+                exactReferences["\(family)\u{0}\(normalizedReferenceID(id))"]?.contains("\(revision)\u{0}\(digest)") == true
+            }
+            for row in records.partyAccountability {
+                switch row.kind {
+                case .serviceParty:
+                    let party = try PartyAccountabilitySnapshotCodecV1.decode(ServicePartyReferenceV1.self, from: row.canonicalData)
+                    partyIDs.insert(party.partyID)
+                case .actorSnapshot:
+                    let actor = try PartyAccountabilitySnapshotCodecV1.decode(ActorSnapshotV1.self, from: row.canonicalData)
+                    actorSnapshots[actor.snapshotID] = actor
+                case .sitePartyRoleEvent, .qualificationSnapshot, .signoffSnapshot: break
+                }
+            }
+            for row in records.evidenceAssurance where row.kind == .manifest {
+                let manifest = try EvidenceAssuranceCanonicalCodecV1.decode(AssuranceManifestV1.self, from: row.canonicalData)
+                assuranceManifests[manifest.manifestID] = manifest
+            }
+            for row in records.evidenceAssurance where row.kind == .evidenceLink {
+                let link = try EvidenceAssuranceCanonicalCodecV1.decode(ClaimEvidenceLinkV1.self, from: row.canonicalData)
+                evidenceLinks[link.linkID] = link
+                addReference("evidence", link.linkID.uuidString, link.revision, link.linkSHA256)
+                addReference("claimEvidenceLink", link.linkID.uuidString, link.revision, link.linkSHA256)
+            }
+            for report in records.reports {
+                guard let bytes = members[report.snapshotRelativePath] else { throw invalid() }
+                let snapshot = try ReportSnapshotEncoderV1().decode(bytes)
+                guard let reportRevision = UInt64(exactly: report.snapshotSchemaVersion) else { throw invalid() }
+                for id in [report.id.uuidString, snapshot.reportID.uuidString,
+                           snapshot.sourceRecordID.uuidString, snapshot.stableRootID.uuidString] {
+                    addReference("reportSnapshot", id, reportRevision, report.snapshotSHA256)
+                    addReference("completedActivitySnapshot", id, reportRevision, report.snapshotSHA256)
+                }
+                if let relationship = snapshot.functionalRelationships {
+                    guard let relationshipRevision = UInt64(exactly: relationship.schemaVersion) else { throw invalid() }
+                    addReference("functionalRelationshipSnapshot", relationship.snapshotID.uuidString,
+                                 relationshipRevision, relationship.snapshotSHA256)
+                }
+                for evaluation in snapshot.requirementAssurance?.evaluations ?? [] {
+                    addReference("requirementEvaluation", evaluation.requirementID,
+                                 evaluation.evaluatedRevision,
+                                 try WorkspaceMutationCanonicalV1.sha256(evaluation))
+                }
+            }
+            for record in records.functionalRelationships where record.kind == .event {
+                let value = try FunctionalRelationshipCanonicalCodecV1.decode(AssetFunctionalRelationshipEventV1.self, from: record.canonicalData)
+                addReference("functionalRelationship", value.relationshipID.uuidString, value.revision, value.eventSHA256)
+                addReference("functionalRelationship", value.eventID.uuidString, value.revision, value.eventSHA256)
+            }
+            for record in records.authorityCriterion where record.kind == .findingClassificationBinding {
+                let value = try AuthorityCriterionCanonicalCodecV1.decode(FindingClassificationBindingV1.self, from: record.canonicalData)
+                addReference("finding", value.findingID.uuidString, value.revision, value.bindingSHA256)
+                addReference("criterion", value.criterionID, value.revision, value.bindingSHA256)
+            }
+            for evidence in records.evidenceFiles {
+                addReference("externalEvidenceReference", evidence.id.uuidString, 1, evidence.sha256)
+            }
+            for row in records.inspectionReview {
+                switch row.kind {
+                case .reviewTransition:
+                    let value = try InspectionReviewCanonicalCodecV1.decode(InspectionReviewTransitionV1.self, from: row.canonicalData)
+                    guard value.transitionID == row.id, value.workspaceID == workspaceID, value.revision == row.revision,
+                          transitions.updateValue(value, forKey: value.transitionID) == nil else { throw invalid() }
+                case .reviewDisposition:
+                    let value = try InspectionReviewCanonicalCodecV1.decode(ReviewDispositionV1.self, from: row.canonicalData)
+                    guard value.dispositionID == row.id, value.workspaceID == workspaceID, value.revision == row.revision,
+                          dispositions.updateValue(value, forKey: value.dispositionID) == nil else { throw invalid() }
+                case .changeRequest:
+                    let value = try InspectionReviewCanonicalCodecV1.decode(ChangeRequestV1.self, from: row.canonicalData)
+                    guard value.requestRevisionID == row.id, value.workspaceID == workspaceID, value.revision == row.revision,
+                          requests.updateValue(value, forKey: value.requestRevisionID) == nil else { throw invalid() }
+                case .correctiveActionPolicy:
+                    let value = try InspectionReviewCanonicalCodecV1.decode(CorrectiveActionPolicyV1.self, from: row.canonicalData)
+                    guard value.releaseID == row.id, value.workspaceID == workspaceID, value.revision == row.revision,
+                          policies.updateValue(value, forKey: value.releaseID) == nil else { throw invalid() }
+                case .correctiveActionEvent:
+                    let value = try InspectionReviewCanonicalCodecV1.decode(CorrectiveActionEventV1.self, from: row.canonicalData)
+                    guard value.eventID == row.id, value.workspaceID == workspaceID, value.revision == row.revision,
+                          actions.updateValue(value, forKey: value.eventID) == nil else { throw invalid() }
+                }
+            }
+            try validateInspectionReviewChains(transitions, dispositions, requests, policies, actions)
+            for value in transitions.values {
+                addReference("review", value.reviewID.uuidString, value.revision, value.transitionSHA256)
+            }
+            let requestsByStableID = Dictionary(grouping: requests.values, by: \.requestID)
+            func known(_ actor: ActorSnapshotV1) -> Bool {
+                actorSnapshots[actor.snapshotID] == actor
+                    && (actor.actor.partyID.map(partyIDs.contains) ?? true)
+            }
+            func known(_ evidence: [ReviewEvidenceReferenceV1]) -> Bool {
+                evidence.allSatisfy { value in
+                    let family: String
+                    switch value.kind {
+                    case .claimEvidenceLink: family = "claimEvidenceLink"
+                    case .verifiedRecheck: family = "verifiedRecheck"
+                    case .completedActivitySnapshot: family = "completedActivitySnapshot"
+                    case .requirementEvaluation: family = "requirementEvaluation"
+                    case .functionalRelationshipSnapshot: family = "functionalRelationshipSnapshot"
+                    case .externalEvidenceReference: family = "externalEvidenceReference"
+                    }
+                    return hasReference(family, value.referenceID, value.revision, value.sha256)
+                }
+            }
+            func known(_ subject: InspectionReviewSubjectReferenceV1) -> Bool {
+                let family: String
+                switch subject.kind {
+                case .completedActivitySnapshot: family = "completedActivitySnapshot"
+                case .reportSnapshot: family = "reportSnapshot"
+                case .finding: family = "finding"
+                }
+                return hasReference(family, subject.subjectID, subject.subjectRevision, subject.subjectSHA256)
+            }
+            func known(_ item: ChangeRequestItemReferenceV1) -> Bool {
+                let family: String
+                switch item.kind {
+                case .review: family = "review"
+                case .finding: family = "finding"
+                case .criterion: family = "criterion"
+                case .evidence: family = "evidence"
+                case .functionalRelationship: family = "functionalRelationship"
+                }
+                return hasReference(family, item.itemID, item.itemRevision, item.itemSHA256)
+            }
+            guard transitions.values.allSatisfy({ value in
+                (value.dispositionID.map { id in
+                    dispositions[id].map {
+                        (value.toState == .accepted || value.toState == .changesRequested)
+                            && $0.reviewID == value.reviewID && $0.subject == value.subject
+                            && $0.reviewRevision == value.revision && $0.mutationID == value.mutationID
+                            && $0.changeRequestIDs == value.changeRequestIDs
+                            && $0.kind == (value.toState == .accepted ? .accepted : .changesRequested)
+                    } ?? false
+                } ?? true)
+                    && value.changeRequestIDs.allSatisfy { id in
+                        requestsByStableID[id]?.filter {
+                            $0.reviewID == value.reviewID && $0.reviewRevision == value.revision
+                                && $0.mutationID == value.mutationID
+                        }.count == 1
+                    } && known(value.actor) && known(value.subject)
+            }), dispositions.values.allSatisfy({ value in
+                transitions.values.filter {
+                    $0.dispositionID == value.dispositionID && $0.reviewID == value.reviewID
+                        && $0.revision == value.reviewRevision && $0.mutationID == value.mutationID
+                }.count == 1 && value.changeRequestIDs.allSatisfy { id in
+                    requestsByStableID[id]?.contains {
+                        $0.reviewID == value.reviewID && $0.reviewRevision == value.reviewRevision
+                            && $0.mutationID == value.mutationID
+                    } == true
+                } && known(value.reviewer)
+                    && (value.assuranceManifestID.map { id in
+                        assuranceManifests[id].map { manifest in
+                            guard let revision = value.assuranceManifestRevision,
+                                  let digest = value.assuranceManifestSHA256 else { return false }
+                            return manifest.revision == revision && manifest.manifestSHA256 == digest
+                        } ?? false
+                    } ?? true)
+            }), requests.values.allSatisfy({ value in
+                transitions.values.filter {
+                    $0.reviewID == value.reviewID && $0.revision == value.reviewRevision
+                        && $0.mutationID == value.mutationID
+                        && $0.changeRequestIDs.contains(value.requestID)
+                }.count == 1 && known(value.item) && known(value.requester) && (value.resolution.map {
+                    known($0.resolver) && known($0.evidence)
+                } ?? true)
+            }), actions.values.allSatisfy({ value in
+                (policies[value.policy.releaseID].map {
+                    $0.policyID == value.policy.policyID && $0.revision == value.policy.revision
+                        && $0.policySHA256 == value.policy.sha256
+                } ?? false)
+                    && known(value.recorder) && (value.verifier.map(known) ?? true)
+                    && known(value.closureEvidence)
+                    && known(value.source)
+                    && (value.assignee?.partyID.map(partyIDs.contains) ?? true)
+            }) else { throw invalid() }
+        } catch { throw invalid() }
+    }
+
+    func validateInspectionReviewChains(
+        _ transitions: [UUID: InspectionReviewTransitionV1],
+        _ dispositions: [UUID: ReviewDispositionV1], _ requests: [UUID: ChangeRequestV1],
+        _ policies: [UUID: CorrectiveActionPolicyV1], _ actions: [UUID: CorrectiveActionEventV1]
+    ) throws {
+        let transitionRoots = transitions.values.filter { $0.predecessorTransitionID == nil }
+        let dispositionRoots = dispositions.values.filter { $0.supersedesDispositionID == nil }
+        let requestRoots = requests.values.filter { $0.supersedesRequestRevisionID == nil }
+        let policyRoots = policies.values.filter { $0.supersedesReleaseID == nil }
+        let actionRoots = actions.values.filter { $0.predecessorEventID == nil }
+        guard Set(transitionRoots.map(\.reviewID)).count == transitionRoots.count,
+              Set(dispositionRoots.map(\.reviewID)).count == dispositionRoots.count,
+              Set(requestRoots.map(\.requestID)).count == requestRoots.count,
+              Set(policyRoots.map(\.policyID)).count == policyRoots.count,
+              Set(actionRoots.map(\.actionID)).count == actionRoots.count else { throw invalid() }
+        for value in actionRoots {
+            guard let policy = policies[value.policy.releaseID] else { throw invalid() }
+            try value.validateAdmission(policy: policy)
+        }
+        var claimed = Set<UUID>()
+        for value in transitions.values {
+            if let id = value.predecessorTransitionID {
+                guard let predecessor = transitions[id], claimed.insert(id).inserted else { throw invalid() }
+                try value.validateSuccessor(of: predecessor)
+            }
+        }
+        try requireAcyclic(Array(transitions.values), id: \.transitionID, next: \.predecessorTransitionID)
+        claimed.removeAll()
+        for value in dispositions.values {
+            if let id = value.supersedesDispositionID {
+                guard let predecessor = dispositions[id], claimed.insert(id).inserted else { throw invalid() }
+                try value.validateSuccessor(of: predecessor)
+            }
+        }
+        try requireAcyclic(Array(dispositions.values), id: \.dispositionID, next: \.supersedesDispositionID)
+        claimed.removeAll()
+        for value in requests.values {
+            if let id = value.supersedesRequestRevisionID {
+                guard let predecessor = requests[id], claimed.insert(id).inserted else { throw invalid() }
+                try value.validateSuccessor(of: predecessor)
+            }
+        }
+        try requireAcyclic(Array(requests.values), id: \.requestRevisionID, next: \.supersedesRequestRevisionID)
+        claimed.removeAll()
+        for value in policies.values {
+            if let id = value.supersedesReleaseID {
+                guard let predecessor = policies[id], claimed.insert(id).inserted else { throw invalid() }
+                try value.validateSuccessor(of: predecessor)
+            }
+        }
+        try requireAcyclic(Array(policies.values), id: \.releaseID, next: \.supersedesReleaseID)
+        claimed.removeAll()
+        for value in actions.values {
+            if let id = value.predecessorEventID {
+                guard let predecessor = actions[id], let policy = policies[value.policy.releaseID],
+                      claimed.insert(id).inserted else { throw invalid() }
+                try value.validateSuccessor(of: predecessor, policy: policy)
+            }
+        }
+        try requireAcyclic(Array(actions.values), id: \.eventID, next: \.predecessorEventID)
     }
 
     func validateEvidenceAssuranceChains(
@@ -1770,7 +2048,9 @@ private extension BackupPackageValidatorV1 {
                 || (records.recordsSchemaVersion == 11
                     && manifest.source.persistentSchemaVersion == 12)
                 || (records.recordsSchemaVersion == 12
-                    && manifest.source.persistentSchemaVersion == 13)),
+                    && manifest.source.persistentSchemaVersion == 13)
+                || (records.recordsSchemaVersion == 13
+                    && manifest.source.persistentSchemaVersion == 14)),
               let sourceWorkspaceID = manifest.source.workspaceID else {
             throw invalid()
         }

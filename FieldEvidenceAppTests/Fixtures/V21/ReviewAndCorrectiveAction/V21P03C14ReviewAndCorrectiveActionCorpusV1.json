@@ -1,0 +1,66 @@
+{
+  "cardID": "V23-P03-C14",
+  "ordinal": 51,
+  "phase": "P03",
+  "reviewStates": [
+    "DRAFT",
+    "FIELD_COMPLETE",
+    "READY_FOR_REVIEW",
+    "CHANGES_REQUESTED",
+    "ACCEPTED",
+    "FINALIZED",
+    "AMENDED",
+    "SUPERSEDED"
+  ],
+  "correctiveActionStates": [
+    "OPEN",
+    "IN_PROGRESS",
+    "AWAITING_VERIFICATION",
+    "CLOSED",
+    "REOPENED",
+    "SUPERSEDED"
+  ],
+  "declaredReviewTransitions": [
+    { "from": "DRAFT", "to": "FIELD_COMPLETE", "requiresExactSuccessorSubject": false },
+    { "from": "FIELD_COMPLETE", "to": "READY_FOR_REVIEW", "requiresExactSuccessorSubject": false },
+    { "from": "READY_FOR_REVIEW", "to": "CHANGES_REQUESTED", "requiresExactSuccessorSubject": false },
+    { "from": "CHANGES_REQUESTED", "to": "READY_FOR_REVIEW", "requiresExactSuccessorSubject": false },
+    { "from": "READY_FOR_REVIEW", "to": "ACCEPTED", "requiresExactSuccessorSubject": false },
+    { "from": "ACCEPTED", "to": "FINALIZED", "requiresExactSuccessorSubject": false },
+    { "from": "FINALIZED", "to": "AMENDED", "requiresExactSuccessorSubject": false },
+    { "from": "DRAFT", "to": "SUPERSEDED", "requiresExactSuccessorSubject": true },
+    { "from": "FIELD_COMPLETE", "to": "SUPERSEDED", "requiresExactSuccessorSubject": true },
+    { "from": "READY_FOR_REVIEW", "to": "SUPERSEDED", "requiresExactSuccessorSubject": true },
+    { "from": "CHANGES_REQUESTED", "to": "SUPERSEDED", "requiresExactSuccessorSubject": true },
+    { "from": "ACCEPTED", "to": "SUPERSEDED", "requiresExactSuccessorSubject": true },
+    { "from": "FINALIZED", "to": "SUPERSEDED", "requiresExactSuccessorSubject": true },
+    { "from": "AMENDED", "to": "SUPERSEDED", "requiresExactSuccessorSubject": true }
+  ],
+  "declaredCorrectiveActionTransitions": [
+    { "from": "OPEN", "to": "IN_PROGRESS" },
+    { "from": "OPEN", "to": "AWAITING_VERIFICATION" },
+    { "from": "IN_PROGRESS", "to": "AWAITING_VERIFICATION" },
+    { "from": "AWAITING_VERIFICATION", "to": "IN_PROGRESS" },
+    { "from": "AWAITING_VERIFICATION", "to": "CLOSED" },
+    { "from": "CLOSED", "to": "REOPENED" },
+    { "from": "REOPENED", "to": "IN_PROGRESS" },
+    { "from": "REOPENED", "to": "AWAITING_VERIFICATION" },
+    { "from": "OPEN", "to": "SUPERSEDED" },
+    { "from": "IN_PROGRESS", "to": "SUPERSEDED" },
+    { "from": "AWAITING_VERIFICATION", "to": "SUPERSEDED" },
+    { "from": "CLOSED", "to": "SUPERSEDED" },
+    { "from": "REOPENED", "to": "SUPERSEDED" }
+  ],
+  "boundaryRefs": ["V23-P03-C13", "V23-P03-C38", "V23-P03-C40", "V23-P03-C41"],
+  "coverage": ["GOLDEN", "ALTERNATE", "HOSTILE", "INTERRUPTION", "RECOVERY"],
+  "evidenceIDs": ["G01", "A01", "H01", "I01", "R01"],
+  "persistentModelCount": 53,
+  "recordsSchemaVersion": 13,
+  "provisionalFlags": {
+    "native": false,
+    "hosted": false,
+    "adoption": false,
+    "acceptance": false,
+    "release": false
+  }
+}

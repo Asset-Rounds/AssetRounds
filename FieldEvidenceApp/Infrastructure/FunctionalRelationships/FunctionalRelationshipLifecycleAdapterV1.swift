@@ -51,4 +51,6 @@ final class FunctionalRelationshipLifecycleAdapterV1 {
             currentSiteID: currentSiteID, proposedSiteID: proposedSiteID
         )
     }
+
+    func currentRelationship(relationshipID:UUID,workspaceID:WorkspaceID)throws->AssetFunctionalRelationshipEventV1{let projection=try projection(workspaceID:workspaceID);guard let current=projection.currentRelationships.first(where:{$0.relationshipID==relationshipID})else{throw FunctionalRelationshipFailureV1.invalidValue};let eventID=current.eventID;let rows=try modelContext.fetch(FetchDescriptor<AssetFunctionalRelationshipEventRow>(predicate:#Predicate{$0.eventID==eventID}));guard rows.count==1,let row=rows.first else{throw FunctionalRelationshipFailureV1.duplicateIdentity};return try row.exactCurrentReference(relationshipID:relationshipID,workspaceID:workspaceID)}
 }

@@ -1480,3 +1480,80 @@ enum EvidenceDetailAssuranceProjectionGuardV1 {
         "Evidence omitted: \(link.decision.limitation.rawValue)"
     }
 }
+
+/// C14 review/change/action evidence references remain bounded to the frozen
+/// completed-snapshot boundary. This guard is deliberately separate from the
+/// customer-facing card guard: a review history may retain exact provenance
+/// digests, but it must never make actor snapshots, reasons, or raw evidence
+/// content renderable as a detail card.
+enum EvidenceDetailInspectionReviewProjectionGuardV1 {
+    static let excludesActorPrivateDetail = true
+    static let excludesReviewReasons = true
+    static let excludesEvidenceContent = true
+    static let requiresExactC13Binding = true
+
+    static func validateHistory(
+        _ history: CompletedInspectionReviewHistorySnapshotV1,
+        assurance: ReportEvidenceAssuranceProjectionV1?
+    ) throws {
+        try history.validate()
+        let allowedDigests: Set<String> = [
+            history.binding.completedSnapshotSHA256,
+            history.binding.c13AssuranceSHA256,
+            history.binding.c38AccountabilitySHA256,
+            history.binding.c40AuthorityCriterionSHA256,
+            history.binding.c41FunctionalRelationshipsSHA256,
+        ]
+        for request in history.changeRequests {
+            if let resolution = request.resolution {
+                for reference in resolution.evidence {
+                    try validateReference(
+                        reference,
+                        history: history,
+                        assurance: assurance,
+                        allowedDigests: allowedDigests
+                    )
+                }
+            }
+        }
+        for action in history.correctiveActions {
+            for reference in action.closureEvidence {
+                try validateReference(
+                    reference,
+                    history: history,
+                    assurance: assurance,
+                    allowedDigests: allowedDigests
+                )
+            }
+        }
+    }
+
+    private static func validateReference(
+        _ reference: ReviewEvidenceReferenceV1,
+        history: CompletedInspectionReviewHistorySnapshotV1,
+        assurance: ReportEvidenceAssuranceProjectionV1?,
+        allowedDigests: Set<String>
+    ) throws {
+        try reference.validate()
+        guard allowedDigests.contains(reference.sha256) else {
+            throw SnapshotProjectionFailureV1.missingBinding
+        }
+        guard reference.kind == .claimEvidenceLink else { return }
+        guard let assurance else {
+            throw SnapshotProjectionFailureV1.missingBinding
+        }
+        try assurance.validate()
+        let links = assurance.preview.includedLinks + assurance.preview.excludedLinks
+        guard links.contains(where: { link in
+            let referenceMatches = reference.referenceID == link.linkID.uuidString.lowercased()
+                || reference.referenceID == (link.evidenceID ?? "")
+            let digestMatches = reference.sha256 == link.linkSHA256
+                || reference.sha256 == (link.evidenceSHA256 ?? "")
+            return referenceMatches && digestMatches
+                && link.workspaceID == history.workspaceID
+                && reference.revision == link.revision
+        }) else {
+            throw SnapshotProjectionFailureV1.missingBinding
+        }
+    }
+}

@@ -2591,3 +2591,14 @@ private extension Data {
         SHA256.hash(data: self).map { String(format: "%02x", $0) }.joined()
     }
 }
+
+extension S4_5CorrectionTests {
+    func testV23P03C14CorrectionClosesOnlyWithResolvedRequestAndEvidence() throws {
+        let fixture = try C14InspectionReviewTestSupportV1.makeFixture(seed: 145_245)
+        try fixture.resolvedChangeRequest.validateSuccessor(of: fixture.changeRequest)
+        try fixture.actions[3].validateSuccessor(of: fixture.actions[2], policy: fixture.policy)
+        XCTAssertEqual(fixture.resolvedChangeRequest.state, .resolved)
+        XCTAssertEqual(fixture.actions[3].state, .closed)
+        XCTAssertEqual(fixture.actions[3].closureEvidence.count, 2)
+    }
+}

@@ -350,6 +350,16 @@ struct RequirementEvaluationV1: Codable, Equatable, Hashable, Comparable, Sendab
 }
 
 extension RequirementEvaluationV1 {
+    func inspectionReviewEvidenceReference() throws -> ReviewEvidenceReferenceV1 {
+        try validate()
+        return try .init(kind: .requirementEvaluation,
+                         referenceID: requirementID,
+                         revision: evaluatedRevision,
+                         sha256: WorkspaceMutationCanonicalV1.sha256(self))
+    }
+}
+
+extension RequirementEvaluationV1 {
     /// C13 binds the exact evaluated C40 claim without changing its result,
     /// reasons, policy digest, or criterion semantics.
     var assuranceClaimID: String {

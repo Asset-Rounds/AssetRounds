@@ -178,6 +178,14 @@ final class SwiftDataSearchCanonicalProjectionSourceV1: SearchCanonicalProjectio
         let assuranceDispositionSummary: String = ""
         let assuranceLimitationSummary: String = ""
         let assuranceProjectionVersionSummary: String = ""
+        /// C14 search values are current-head, typed review/change/action
+        /// state only. Reasons, actor snapshots, evidence references, and
+        /// historical revisions never become disposable index text.
+        let inspectionReviewStateSummary: String = ""
+        let inspectionReviewDispositionSummary: String = ""
+        let changeRequestStateSummary: String = ""
+        let correctiveActionStateSummary: String = ""
+        let inspectionReviewProjectionVersionSummary: String = ""
     }
 
     let registry: SearchableFieldRegistryV1
@@ -191,6 +199,7 @@ final class SwiftDataSearchCanonicalProjectionSourceV1: SearchCanonicalProjectio
     private let includeAuthorityCriterion: Bool
     private let includeFunctionalRelationships: Bool
     private let includeAssurance: Bool
+    private let includeInspectionReview: Bool
     private var snapshotRevision: SearchSourceRevisionV1?
     private var snapshotValues: [CanonicalValue]?
     private var snapshotBackupStaleIdentities: Set<SearchCanonicalRecordIdentityV1> = []
@@ -205,7 +214,8 @@ final class SwiftDataSearchCanonicalProjectionSourceV1: SearchCanonicalProjectio
         includeAssetSemantics: Bool = false,
         includeAuthorityCriterion: Bool = false,
         includeFunctionalRelationships: Bool = false,
-        includeAssurance: Bool = false
+        includeAssurance: Bool = false,
+        includeInspectionReview: Bool = false
     ) throws {
         guard workspaceID != SearchContractValidationV1.zeroUUID,
               generationID != SearchContractValidationV1.zeroUUID else {
@@ -216,17 +226,28 @@ final class SwiftDataSearchCanonicalProjectionSourceV1: SearchCanonicalProjectio
         self.generationID = generationID
         self.revisionProvider = revisionProvider
         self.operationalStatusProvider = operationalStatusProvider
-        self.includeAccountability = includeAccountability
-        self.includeAssetSemantics = includeAssetSemantics
-        self.includeAuthorityCriterion = includeAuthorityCriterion
-        self.includeFunctionalRelationships = includeFunctionalRelationships
-        self.includeAssurance = includeAssurance
+        // C14 is a complete additive registry. Enabling its review history
+        // also enables every preceding public projection so the registry's
+        // exact identity set remains unambiguous.
+        let c14 = includeInspectionReview
+        let resolvedAccountability = includeAccountability || c14
+        let resolvedAssetSemantics = includeAssetSemantics || c14
+        let resolvedAuthorityCriterion = includeAuthorityCriterion || c14
+        let resolvedFunctionalRelationships = includeFunctionalRelationships || c14
+        let resolvedAssurance = includeAssurance || c14
+        self.includeAccountability = resolvedAccountability
+        self.includeAssetSemantics = resolvedAssetSemantics
+        self.includeAuthorityCriterion = resolvedAuthorityCriterion
+        self.includeFunctionalRelationships = resolvedFunctionalRelationships
+        self.includeAssurance = resolvedAssurance
+        self.includeInspectionReview = c14
         registry = try Self.makeExtendedRegistry(
-            includeAccountability: includeAccountability,
-            includeAssetSemantics: includeAssetSemantics,
-            includeAuthorityCriterion: includeAuthorityCriterion,
-            includeFunctionalRelationships: includeFunctionalRelationships,
-            includeAssurance: includeAssurance
+            includeAccountability: resolvedAccountability,
+            includeAssetSemantics: resolvedAssetSemantics,
+            includeAuthorityCriterion: resolvedAuthorityCriterion,
+            includeFunctionalRelationships: resolvedFunctionalRelationships,
+            includeAssurance: resolvedAssurance,
+            includeInspectionReview: c14
         )
     }
 
@@ -313,6 +334,9 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         let assuranceValues = includeAssurance
             ? try assuranceSearchValues()
             : []
+        let inspectionReviewValues = includeInspectionReview
+            ? try inspectionReviewSearchValues()
+            : []
         values += try modelContext.fetch(FetchDescriptor<Asset>()).map {
             let semantic = semanticByAsset[$0.id]
             return CanonicalValue(kind: .asset, stableID: try stableKey(kind: .asset, id: $0.id),
@@ -362,6 +386,7 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         }
         values += functionalRelationshipValues
         values += assuranceValues
+        values += inspectionReviewValues
         if includeAccountability {
             var rolesByParty: [UUID: Set<String>] = [:]
             let roleRows = try modelContext.fetch(FetchDescriptor<SitePartyRoleEventRow>())
@@ -649,6 +674,199 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         }
     }
 
+    private struct InspectionReviewSearchValue {
+        var reviewState: String = ""
+        var dispositions: Set<String> = []
+        var changeStates: Set<String> = []
+        var actionStates: Set<String> = []
+        var timestamp: Date?
+
+        mutating func record(_ value: Date) {
+            timestamp = max(timestamp ?? value, value)
+        }
+    }
+
+    /// Reads the C14 rows only through their current-head projections. The
+    /// resulting records carry typed state/version metadata; reasons, actor
+    /// snapshots, evidence references, and historical revisions stay in the
+    /// canonical completed snapshot and are never copied into the index.
+    func inspectionReviewSearchValues() throws -> [CanonicalValue] {
+        let expectedWorkspace = WorkspaceID(rawValue: workspaceID)
+        let transitions = try modelContext.fetch(
+            FetchDescriptor<InspectionReviewTransitionRow>()
+        ).filter { $0.workspaceID == workspaceID }.map { try $0.value() }
+        let dispositions = try modelContext.fetch(
+            FetchDescriptor<ReviewDispositionRow>()
+        ).filter { $0.workspaceID == workspaceID }.map { try $0.value() }
+        let requests = try modelContext.fetch(
+            FetchDescriptor<ChangeRequestRow>()
+        ).filter { $0.workspaceID == workspaceID }.map { try $0.value() }
+        let actions = try modelContext.fetch(
+            FetchDescriptor<CorrectiveActionEventRow>()
+        ).filter { $0.workspaceID == workspaceID }.map { try $0.value() }
+        let policies = try modelContext.fetch(
+            FetchDescriptor<CorrectiveActionPolicyRow>()
+        ).filter { $0.workspaceID == workspaceID }.map { try $0.value() }
+
+        guard !transitions.isEmpty else {
+            guard dispositions.isEmpty, requests.isEmpty, actions.isEmpty else {
+                throw SearchContractFailureV1.invalidContext
+            }
+            return []
+        }
+
+        try transitions.forEach {
+            try $0.validate()
+            guard $0.workspaceID == expectedWorkspace else {
+                throw SearchContractFailureV1.invalidContext
+            }
+        }
+        try dispositions.forEach {
+            try $0.validate()
+            guard $0.workspaceID == expectedWorkspace else {
+                throw SearchContractFailureV1.invalidContext
+            }
+        }
+        try requests.forEach {
+            try $0.validate()
+            guard $0.workspaceID == expectedWorkspace else {
+                throw SearchContractFailureV1.invalidContext
+            }
+        }
+        try actions.forEach {
+            try $0.validate()
+            guard $0.workspaceID == expectedWorkspace else {
+                throw SearchContractFailureV1.invalidContext
+            }
+        }
+        try policies.forEach {
+            try $0.validate()
+            guard $0.workspaceID == expectedWorkspace else {
+                throw SearchContractFailureV1.invalidContext
+            }
+        }
+
+        let transitionsByReview = Dictionary(grouping: transitions, by: \.reviewID)
+        var result: [UUID: InspectionReviewSearchValue] = [:]
+        for reviewID in transitionsByReview.keys.sorted(by: {
+            $0.uuidString.lowercased() < $1.uuidString.lowercased()
+        }) {
+            let reviewTransitions = transitionsByReview[reviewID] ?? []
+            let reviewDispositions = dispositions.filter { $0.reviewID == reviewID }
+            let reviewRequests = requests.filter { $0.reviewID == reviewID }
+            let projection = try InspectionReviewProjectionBuilderV1.rebuild(
+                workspaceID: expectedWorkspace,
+                reviewID: reviewID,
+                transitions: reviewTransitions,
+                dispositions: reviewDispositions,
+                changeRequests: reviewRequests
+            )
+            var value = InspectionReviewSearchValue(
+                reviewState: projection.state.rawValue,
+                timestamp: nil
+            )
+            for transition in reviewTransitions { value.record(transition.recordedAt) }
+
+            let dispositionHeads = try authorityCriterionUniqueHeadsV1(
+                values: reviewDispositions,
+                expectedWorkspace: expectedWorkspace,
+                id: { $0.dispositionID },
+                workspace: { $0.workspaceID },
+                predecessor: { $0.supersedesDispositionID },
+                group: { $0.reviewID }
+            )
+            for disposition in dispositionHeads {
+                value.dispositions.insert(disposition.kind.rawValue)
+                value.record(disposition.recordedAt)
+            }
+
+            let requestHeads = try authorityCriterionUniqueHeadsV1(
+                values: reviewRequests,
+                expectedWorkspace: expectedWorkspace,
+                id: { $0.requestRevisionID },
+                workspace: { $0.workspaceID },
+                predecessor: { $0.supersedesRequestRevisionID },
+                group: { $0.requestID }
+            )
+            for request in requestHeads {
+                value.changeStates.insert(request.state.rawValue)
+                value.record(request.recordedAt)
+            }
+            result[reviewID] = value
+        }
+
+        // Corrective-action rows name the exact change-request item rather
+        // than a review directly. Resolve that immutable item reference to
+        // one review; an orphan or ambiguous reference is rejected closed.
+        let actionHeads = try authorityCriterionUniqueHeadsV1(
+            values: actions,
+            expectedWorkspace: expectedWorkspace,
+            id: { $0.eventID },
+            workspace: { $0.workspaceID },
+            predecessor: { $0.predecessorEventID },
+            group: { $0.actionID }
+        )
+        let requestsByReview = Dictionary(grouping: requests, by: \.reviewID)
+        for action in actionHeads {
+            guard let policy = policies.first(where: {
+                guard let reference = try? CorrectiveActionPolicyReferenceV1($0) else {
+                    return false
+                }
+                return reference == action.policy
+            }) else {
+                throw SearchContractFailureV1.invalidContext
+            }
+            _ = try CorrectiveActionProjectionBuilderV1.rebuild(
+                workspaceID: expectedWorkspace,
+                actionID: action.actionID,
+                events: actions.filter { $0.actionID == action.actionID },
+                policies: [policy],
+                now: action.recordedAt
+            )
+            let candidateReviews = requestsByReview.compactMap { reviewID, values in
+                values.contains(where: {
+                    let candidate = $0.item.itemID.lowercased()
+                    let source = action.source.itemID.lowercased()
+                    return candidate == source
+                        || $0.requestID.uuidString.lowercased() == source
+                        || $0.requestRevisionID.uuidString.lowercased() == source
+                }) ? reviewID : nil
+            }
+            guard candidateReviews.count == 1,
+                  let reviewID = candidateReviews.first,
+                  var value = result[reviewID] else {
+                throw SearchContractFailureV1.invalidContext
+            }
+            value.actionStates.insert(action.state.rawValue)
+            value.record(action.recordedAt)
+            result[reviewID] = value
+        }
+
+        return try result.keys.sorted(by: {
+            $0.uuidString.lowercased() < $1.uuidString.lowercased()
+        }).map { reviewID in
+            guard let value = result[reviewID], let timestamp = value.timestamp else {
+                throw SearchContractFailureV1.invalidContext
+            }
+            return CanonicalValue(
+                kind: .report,
+                stableID: "inspection-review-\(reviewID.uuidString.lowercased())",
+                display: "Inspection review",
+                summary: "Inspection review",
+                breadcrumb: [],
+                status: value.reviewState,
+                dueAt: nil,
+                timestamp: timestamp,
+                inspectionReviewStateSummary: value.reviewState,
+                inspectionReviewDispositionSummary: value.dispositions.sorted().joined(separator: " "),
+                changeRequestStateSummary: value.changeStates.sorted().joined(separator: " "),
+                correctiveActionStateSummary: value.actionStates.sorted().joined(separator: " "),
+                inspectionReviewProjectionVersionSummary:
+                    SearchInspectionReviewPersistencePolicyV1.acceptedProjectionVersionMarkers[1]
+            )
+        }
+    }
+
     /// Builds only exact activity-bound summaries. Licensed content, clause/raw
     /// locators, external locator values, and derived facts without an explicit
     /// activity reference are intentionally excluded.
@@ -804,7 +1022,16 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
                 ].filter { !$0.1.isEmpty }
             }
         case .report:
-            if includeAssurance, value.stableID.hasPrefix("assurance-") {
+            if includeInspectionReview, value.stableID.hasPrefix("inspection-review-") {
+                fields = [
+                    ("inspection_review_state", value.inspectionReviewStateSummary),
+                    ("inspection_review_disposition", value.inspectionReviewDispositionSummary),
+                    ("change_request_state", value.changeRequestStateSummary),
+                    ("corrective_action_state", value.correctiveActionStateSummary),
+                    ("inspection_review_projection_version",
+                     value.inspectionReviewProjectionVersionSummary),
+                ].filter { !$0.1.isEmpty }
+            } else if includeAssurance, value.stableID.hasPrefix("assurance-") {
                 fields = [
                     ("assurance_audience", value.assuranceAudienceSummary),
                     ("assurance_disposition", value.assuranceDispositionSummary),
@@ -909,12 +1136,16 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
     }
 
     static func makeAssetSemanticsRegistry(
-        includeAccountability: Bool
+        includeAccountability: Bool,
+        includeInspectionReview: Bool = false
     ) throws -> SearchableFieldRegistryV1 {
         try makeExtendedRegistry(
-            includeAccountability: includeAccountability,
+            includeAccountability: includeAccountability || includeInspectionReview,
             includeAssetSemantics: true,
-            includeAuthorityCriterion: false
+            includeAuthorityCriterion: includeInspectionReview,
+            includeFunctionalRelationships: includeInspectionReview,
+            includeAssurance: includeInspectionReview,
+            includeInspectionReview: includeInspectionReview
         )
     }
 
@@ -922,14 +1153,16 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         includeAccountability: Bool = false,
         includeAssetSemantics: Bool = false,
         includeAuthorityCriterion: Bool = false,
-        includeFunctionalRelationships: Bool = false
+        includeFunctionalRelationships: Bool = false,
+        includeInspectionReview: Bool = false
     ) throws -> SearchableFieldRegistryV1 {
         try makeExtendedRegistry(
-            includeAccountability: includeAccountability,
-            includeAssetSemantics: includeAssetSemantics,
-            includeAuthorityCriterion: includeAuthorityCriterion,
-            includeFunctionalRelationships: includeFunctionalRelationships,
-            includeAssurance: true
+            includeAccountability: includeAccountability || includeInspectionReview,
+            includeAssetSemantics: includeAssetSemantics || includeInspectionReview,
+            includeAuthorityCriterion: includeAuthorityCriterion || includeInspectionReview,
+            includeFunctionalRelationships: includeFunctionalRelationships || includeInspectionReview,
+            includeAssurance: true,
+            includeInspectionReview: includeInspectionReview
         )
     }
 
@@ -937,14 +1170,27 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         includeAccountability: Bool = false,
         includeAssetSemantics: Bool = false,
         includeAuthorityCriterion: Bool = false,
-        includeAssurance: Bool = false
+        includeAssurance: Bool = false,
+        includeInspectionReview: Bool = false
     ) throws -> SearchableFieldRegistryV1 {
         try makeExtendedRegistry(
-            includeAccountability: includeAccountability,
-            includeAssetSemantics: includeAssetSemantics,
-            includeAuthorityCriterion: includeAuthorityCriterion,
+            includeAccountability: includeAccountability || includeInspectionReview,
+            includeAssetSemantics: includeAssetSemantics || includeInspectionReview,
+            includeAuthorityCriterion: includeAuthorityCriterion || includeInspectionReview,
             includeFunctionalRelationships: true,
-            includeAssurance: includeAssurance
+            includeAssurance: includeAssurance || includeInspectionReview,
+            includeInspectionReview: includeInspectionReview
+        )
+    }
+
+    static func makeInspectionReviewRegistry() throws -> SearchableFieldRegistryV1 {
+        try makeExtendedRegistry(
+            includeAccountability: true,
+            includeAssetSemantics: true,
+            includeAuthorityCriterion: true,
+            includeFunctionalRelationships: true,
+            includeAssurance: true,
+            includeInspectionReview: true
         )
     }
 
@@ -953,9 +1199,15 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         includeAssetSemantics: Bool,
         includeAuthorityCriterion: Bool,
         includeFunctionalRelationships: Bool = false,
-        includeAssurance: Bool = false
+        includeAssurance: Bool = false,
+        includeInspectionReview: Bool = false
     ) throws -> SearchableFieldRegistryV1 {
-        var fields = try (includeAccountability ? makeAccountabilityRegistry() : makeRegistry()).fields
+        let resolvedAccountability = includeAccountability || includeInspectionReview
+        let resolvedAssetSemantics = includeAssetSemantics || includeInspectionReview
+        let resolvedAuthorityCriterion = includeAuthorityCriterion || includeInspectionReview
+        let resolvedFunctionalRelationships = includeFunctionalRelationships || includeInspectionReview
+        let resolvedAssurance = includeAssurance || includeInspectionReview
+        var fields = try (resolvedAccountability ? makeAccountabilityRegistry() : makeRegistry()).fields
         func append(_ id: String, _ kind: SearchSourceKindV1) throws {
             fields.append(try SearchableFieldDescriptorV1(
                 fieldID: id, sourceKind: kind, privacyClass: .approvedCustomerText,
@@ -966,19 +1218,24 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
                 purgeOwner: .indexRebuildCoordinator
             ))
         }
-        if includeAssetSemantics {
+        if resolvedAssetSemantics {
             for id in SearchAssetSemanticsPersistencePolicyV1.fieldIDs { try append(id, .asset) }
         }
-        if includeAuthorityCriterion {
+        if resolvedAuthorityCriterion {
             for id in SearchAuthorityCriterionPersistencePolicyV1.fieldIDs { try append(id, .work) }
         }
-        if includeFunctionalRelationships {
+        if resolvedFunctionalRelationships {
             for id in SearchFunctionalRelationshipsPersistencePolicyV1.fieldIDs {
                 try append(id, .asset)
             }
         }
-        if includeAssurance {
+        if resolvedAssurance {
             for id in SearchEvidenceAssurancePersistencePolicyV1.fieldIDs {
+                try append(id, .report)
+            }
+        }
+        if includeInspectionReview {
+            for id in SearchInspectionReviewPersistencePolicyV1.fieldIDs {
                 try append(id, .report)
             }
         }
@@ -1206,7 +1463,10 @@ struct ProductionSearchServicesV1 {
         operationalStatusProvider: (any SearchOperationalStatusProvidingV1)? = nil,
         includeAccountability: Bool = false,
         includeAssetSemantics: Bool = true,
-        includeAuthorityCriterion: Bool = true
+        includeAuthorityCriterion: Bool = true,
+        includeFunctionalRelationships: Bool = false,
+        includeAssurance: Bool = false,
+        includeInspectionReview: Bool = false
     ) throws {
         let source = try SwiftDataSearchCanonicalProjectionSourceV1(
             modelContext: modelContext,
@@ -1216,7 +1476,10 @@ struct ProductionSearchServicesV1 {
             operationalStatusProvider: operationalStatusProvider,
             includeAccountability: includeAccountability,
             includeAssetSemantics: includeAssetSemantics,
-            includeAuthorityCriterion: includeAuthorityCriterion
+            includeAuthorityCriterion: includeAuthorityCriterion,
+            includeFunctionalRelationships: includeFunctionalRelationships,
+            includeAssurance: includeAssurance,
+            includeInspectionReview: includeInspectionReview
         )
         self.source = source
         registry = source.registry

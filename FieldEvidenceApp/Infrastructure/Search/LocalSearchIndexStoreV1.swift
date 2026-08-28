@@ -161,6 +161,16 @@ actor LocalSearchIndexStoreV1: SearchIndexSnapshotProvidingV1, SearchIndexLifecy
                           snippet: $0.permittedSnippet
                       )
                   },
+                  records.filter {
+                      $0.sourceKind == .report
+                          && SearchInspectionReviewPersistencePolicyV1.accepts(fieldID: $0.fieldID)
+                  }.allSatisfy {
+                      SearchInspectionReviewPersistencePolicyV1.acceptsMetadata(
+                          fieldID: $0.fieldID,
+                          tokens: $0.normalizedTokens,
+                          snippet: $0.permittedSnippet
+                      )
+                  },
                   records.allSatisfy({
                       $0.workspaceID == source.workspaceID
                           && $0.sourceRevision <= source.commitRevision
@@ -441,6 +451,45 @@ actor LocalSearchIndexStoreV1: SearchIndexSnapshotProvidingV1, SearchIndexLifecy
             throw LocalSearchIndexStoreFailureV1.corruptStore
         }
         return value
+    }
+
+    /// Reads the disposable C14 review/change/action projection through its
+    /// exact current-head metadata allowlist. History, reasons, actors,
+    /// evidence references, ownership, and claim text remain unavailable to
+    /// the search consumer.
+    func inspectionReviewProjection(
+        for source: SearchSourceRevisionV1,
+        registry: SearchableFieldRegistryV1
+    ) throws -> SearchIndexProjectionV1 {
+        guard registry.fields.contains(where: {
+            $0.sourceKind == .report
+                && SearchInspectionReviewPersistencePolicyV1.accepts(fieldID: $0.fieldID)
+        }) else {
+            throw SearchContractFailureV1.forbiddenField
+        }
+        let value = try projection(for: source, registry: registry)
+        guard value.records.filter({
+            $0.sourceKind == .report
+                && SearchInspectionReviewPersistencePolicyV1.accepts(fieldID: $0.fieldID)
+        }).allSatisfy({
+            SearchInspectionReviewPersistencePolicyV1.acceptsMetadata(
+                fieldID: $0.fieldID,
+                tokens: $0.normalizedTokens,
+                snippet: $0.permittedSnippet
+            )
+        }) else {
+            throw LocalSearchIndexStoreFailureV1.corruptStore
+        }
+        return value
+    }
+
+    /// Compatibility spelling for clients that call the section a review
+    /// history projection rather than an inspection-review projection.
+    func reviewHistoryProjection(
+        for source: SearchSourceRevisionV1,
+        registry: SearchableFieldRegistryV1
+    ) throws -> SearchIndexProjectionV1 {
+        try inspectionReviewProjection(for: source, registry: registry)
     }
 
     /// Singular compatibility spelling for callers that model one bounded

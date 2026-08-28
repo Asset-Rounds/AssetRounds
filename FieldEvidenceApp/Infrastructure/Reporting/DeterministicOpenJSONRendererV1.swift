@@ -284,6 +284,31 @@ enum ReportSemanticProjectorV1 {
         )
     }
 
+    /// C14's additive report boundary. The complete review/change/action
+    /// history remains frozen in V8; the semantic renderer emits only typed
+    /// states, revisions/identities, and digests so actor/private detail and
+    /// unverified claims cannot enter open JSON or structured text.
+    static func project(
+        snapshot: CompletedActivitySnapshotV8,
+        manifest: ContractManifestV1
+    ) throws -> ReportSemanticProjectionV1 {
+        let v7 = snapshot.payload.activity
+        let v6 = v7.payload.activity
+        return try project(
+            activity: v6.payload.activity.activity.activity.activity.activity,
+            snapshotSHA256: snapshot.snapshotSHA256,
+            locationComposition: v6.payload.activity.activity.activity.activity.locationComposition,
+            accountability: v6.payload.activity.activity.activity.accountability,
+            assetSemantics: v6.payload.activity.assetSemantics,
+            authorityCriterion: v6.payload.authorityCriterion,
+            functionalRelationships: v6.payload.functionalRelationships,
+            assurance: v7.payload.assurance,
+            assuranceSnapshotSHA256: v6.snapshotSHA256,
+            inspectionReviewHistory: snapshot.payload.inspectionReviewHistory,
+            manifest: manifest
+        )
+    }
+
     private static func project(
         activity: CompletedActivitySnapshotPayloadV1,
         snapshotSHA256: String,
@@ -294,6 +319,7 @@ enum ReportSemanticProjectorV1 {
         functionalRelationships: CompletedFunctionalRelationshipSnapshotV1? = nil,
         assurance: ReportEvidenceAssuranceProjectionV1? = nil,
         assuranceSnapshotSHA256: String? = nil,
+        inspectionReviewHistory: CompletedInspectionReviewHistorySnapshotV1? = nil,
         manifest: ContractManifestV1
     ) throws -> ReportSemanticProjectionV1 {
         let encoder = JSONEncoder()
@@ -387,6 +413,15 @@ enum ReportSemanticProjectorV1 {
                 assurance,
                 binding: binding,
                 expectedSnapshotSHA256: assuranceSnapshotSHA256,
+                append: append,
+                visibleID: visibleID,
+                visibleDigest: visibleDigest
+            )
+        }
+        if let inspectionReviewHistory {
+            try appendInspectionReviewHistory(
+                inspectionReviewHistory,
+                binding: binding,
                 append: append,
                 visibleID: visibleID,
                 visibleDigest: visibleDigest
@@ -667,6 +702,65 @@ enum ReportSemanticProjectorV1 {
                 EvidenceDetailAssuranceProjectionGuardV1.omissionLabel(for: link),
                 nil
             )
+        }
+    }
+
+    private static func appendInspectionReviewHistory(
+        _ history: CompletedInspectionReviewHistorySnapshotV1,
+        binding: FinalizedReportProfileBindingV1,
+        append: (
+            _ section: String,
+            _ role: String,
+            _ label: String,
+            _ value: String,
+            _ ref: String?
+        ) throws -> Void,
+        visibleID: (_ kind: String, _ value: String) -> String,
+        visibleDigest: (_ kind: String, _ value: String) -> String
+    ) throws {
+        try history.validate()
+        let section = ReportInspectionReviewHistoryProjectionPolicyV1.sectionID
+        guard binding.sectionIDs.contains(section) else {
+            throw SnapshotProjectionFailureV1.missingBinding
+        }
+        let projection = try ReportInspectionReviewHistoryProjectionV1(history: history)
+        try append(section, "heading", "Review and change history", "Review and change history", nil)
+        try append(section, "fact", "Review transitions", String(projection.reviewTransitionIDs.count), nil)
+        try append(section, "fact", "Review dispositions", String(projection.reviewDispositionIDs.count), nil)
+        try append(section, "fact", "Change requests", String(projection.changeRequestRevisionIDs.count), nil)
+        try append(section, "fact", "Corrective actions", String(projection.actionEventIDs.count), nil)
+        try append(
+            section,
+            "digest",
+            "Completed snapshot SHA-256",
+            visibleDigest("review-source-snapshot", history.sourceSnapshotSHA256),
+            nil
+        )
+        try append(
+            section,
+            "digest",
+            "History snapshot SHA-256",
+            visibleDigest("review-history-snapshot", history.snapshotSHA256),
+            nil
+        )
+        try append(
+            section,
+            "digest",
+            "History binding SHA-256",
+            visibleDigest("review-history-binding", projection.bindingSHA256),
+            nil
+        )
+        for (id, state) in zip(projection.reviewTransitionIDs, projection.reviewStateLabels) {
+            try append(section, "state", "Review state", state, visibleID("review-transition", id))
+        }
+        for (id, state) in zip(projection.reviewDispositionIDs, projection.reviewDispositionLabels) {
+            try append(section, "state", "Review disposition", state, visibleID("review-disposition", id))
+        }
+        for (id, state) in zip(projection.changeRequestRevisionIDs, projection.changeStateLabels) {
+            try append(section, "state", "Change request state", state, visibleID("change-request", id))
+        }
+        for (id, state) in zip(projection.actionEventIDs, projection.actionStateLabels) {
+            try append(section, "state", "Corrective action state", state, visibleID("corrective-action", id))
         }
     }
 

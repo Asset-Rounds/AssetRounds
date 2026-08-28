@@ -261,6 +261,16 @@ enum RequirementEvaluationEngineV1 {
     }
 }
 
+extension RequirementEvaluationEngineV1 {
+    static func validateInspectionReviewEvidence(
+        _ reference: ReviewEvidenceReferenceV1,
+        evaluation: RequirementEvaluationV1
+    ) throws {
+        let expected = try evaluation.inspectionReviewEvidenceReference()
+        guard reference == expected else { throw RequirementAssuranceFailureV1.invalidEvidence }
+    }
+}
+
 /// The closed, app-bundled evaluator registry for C40. Package declarations may
 /// bind these identities, versions, and digests, but never provide executable
 /// formulas or scripts.

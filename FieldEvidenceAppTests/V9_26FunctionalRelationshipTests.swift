@@ -322,3 +322,17 @@ final class V9_26FunctionalRelationshipTests: XCTestCase {
         XCTAssertEqual(try FunctionalRelationshipCanonicalCodecV1.encode(decoded), data)
     }
 }
+
+extension V9_26FunctionalRelationshipTests {
+    func testV23P03C14CorrectiveActionScopesFunctionalRelationshipEvidence() throws {
+        let fixture = try C14InspectionReviewTestSupportV1.makeFixture(seed: 145_226)
+        XCTAssertEqual(fixture.changeRequest.item.kind, .finding)
+        XCTAssertEqual(fixture.changeRequest.item.itemRevision, 1)
+        XCTAssertEqual(fixture.actions[0].source, fixture.changeRequest.item)
+        XCTAssertTrue(
+            fixture.policy.closureEvidenceRequirements.contains {
+                $0.kind == .verifiedRecheck
+            }
+        )
+    }
+}
