@@ -6289,6 +6289,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     "state.work.validation-error",
                 ]
                 let acceptsAXTextLowerSelectionComposition: () -> Bool = {
+                    let screenFrameQuantizationAllowance: CGFloat = 0.001
                     let frames = [
                         app.frame,
                         outcomeScreen.frame,
@@ -6342,7 +6343,14 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                         && outcomeScreen.isHittable
                         && outcomeScreen.identifier == "s3.outcome.screen"
                         && outcomeScreen.elementType == .scrollView
-                        && outcomeScreen.frame.intersection(app.frame) == app.frame
+                        && outcomeScreen.frame.insetBy(
+                            dx: -screenFrameQuantizationAllowance,
+                            dy: -screenFrameQuantizationAllowance
+                        ).contains(app.frame)
+                        && app.frame.insetBy(
+                            dx: -screenFrameQuantizationAllowance,
+                            dy: -screenFrameQuantizationAllowance
+                        ).contains(outcomeScreen.frame)
                         && app.navigationBars.firstMatch.exists
                         && app.navigationBars.firstMatch.isEnabled
                         && app.navigationBars.firstMatch.isHittable

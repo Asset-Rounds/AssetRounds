@@ -20278,10 +20278,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 748_289)
+        XCTAssertEqual(uiSource.utf8.count, 748_749)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "EA06BED764C308935585E11F046A65240225EAD1542FD059959BCDCB3AF9FBA4"
+            "76F5C1029E4CADACFCD563B302B50F7726A643DA710A8EBAABB2744D9B5744E0"
         )
         let assertControlSource = try boundedSource(
             uiSource,
@@ -20578,10 +20578,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "\n    @MainActor\n" +
                     "    private func diagnoseSegment2AXTextRecheckOutcomeDifferentIssueInterval("
         )
-        XCTAssertEqual(alternativeRecheckSource.utf8.count, 17_214)
+        XCTAssertEqual(alternativeRecheckSource.utf8.count, 17_674)
         XCTAssertEqual(
             Data(alternativeRecheckSource.utf8).sha256,
-            "E5FD8120199FDC3840184126D8BF9479B293CD33ED2981482B5495828F46FBE4"
+            "CAC823D4F71A7B5084B276F0BE7D7EF0CC917B3188A8B6A1176AD4886182751D"
         )
         for exact in [
             "emitsEvidence: Bool = true",
@@ -20619,7 +20619,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "issueStillVisible.frame.maxY <= value.frame.minY",
             "value.frame.maxY <= label.frame.minY",
             "allFrameTermsFinite",
-            "outcomeScreen.frame.intersection(app.frame) == app.frame",
+            "let screenFrameQuantizationAllowance: CGFloat = 0.001",
+            "outcomeScreen.frame.insetBy(",
+            "app.frame.insetBy(",
             "if !usesAXTextLowerSelectionComposition {",
             "XCTAssertTrue(acceptsAXTextLowerSelectionComposition())",
             "try diagnoseSegment2AXTextRecheckOutcomeDifferentIssueInterval(",
@@ -20646,10 +20648,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             before:
                 "                let usesAXTextLowerSelectionComposition ="
         )
-        XCTAssertEqual(lowerSelectionCompositionSource.utf8.count, 5_865)
+        XCTAssertEqual(lowerSelectionCompositionSource.utf8.count, 6_325)
         XCTAssertEqual(
             Data(lowerSelectionCompositionSource.utf8).sha256,
-            "49CE4BFF25C9B01BC24B16F7A8936664546D2BE9585246C0F900EBA512FB590C"
+            "D7EF6706C97D0471399570BD795C26DA409F6AEBF99023B6CB4CC425E5727AAD"
         )
         for prohibitedLowerSelectionToken in [
             "performAccessibilityAudit", "ContrastAuditExceptionSignature(",
@@ -20658,6 +20660,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "migratedStateIDs.append", "segmentedRouteStateCursor +=",
             ".tap()", "press(", "swipeUp", "swipeDown", "sleep(",
             "waitForExistence(", "app.frame.contains(outcomeScreen.frame)",
+            "outcomeScreen.frame.intersection(app.frame) == app.frame",
         ] {
             XCTAssertFalse(
                 lowerSelectionCompositionSource.contains(
