@@ -13179,14 +13179,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "FieldEvidenceApp/Features/Issues/RecordWorkView.swift"
         try assertFile(
             recordWorkSourcePath,
-            byteCount: 14_935,
-            sha256: "AE8A857D879ACC66D3B422259A09D6811C4FBBEE36884EFAD584795E804AE275"
+            byteCount: 14_934,
+            sha256: "B303DE94F5037D71D4B49D3E74F71644292C797170FCBDA92E5CD73D5AB68E59"
         )
         let recordWorkSource = try text(recordWorkSourcePath)
         let recordWorkSavingPresentationSelection =
             "        let minimumSavingPresentationNanoseconds: UInt64 =\n" +
                 "            usesImportedFixtureForUITest\n" +
-                "                ? (photos.isEmpty ? 45_000_000_000 : 75_000_000_000)\n" +
+                "                ? (photos.isEmpty ? 5_000_000_000 : 75_000_000_000)\n" +
                 "                : 5_000_000_000"
         XCTAssertEqual(
             recordWorkSource.components(
@@ -13197,6 +13197,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(
             recordWorkSource.components(
                 separatedBy: "45_000_000_000"
+            ).count - 1,
+            0
+        )
+        XCTAssertEqual(
+            recordWorkSource.components(
+                separatedBy: "photos.isEmpty ? 5_000_000_000 : 75_000_000_000"
             ).count - 1,
             1
         )
@@ -14592,8 +14598,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ),
             (
                 "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
-                14_935,
-                "AE8A857D879ACC66D3B422259A09D6811C4FBBEE36884EFAD584795E804AE275",
+                14_934,
+                "B303DE94F5037D71D4B49D3E74F71644292C797170FCBDA92E5CD73D5AB68E59",
                 [
                     #"AssetRoundsPrimaryAction("Record work", action: save)"#,
                     "AssetRoundsSecondaryAction(\n" +

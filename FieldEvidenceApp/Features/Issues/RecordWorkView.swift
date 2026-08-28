@@ -271,7 +271,7 @@ struct RecordWorkView: View {
         )
         let minimumSavingPresentationNanoseconds: UInt64 =
             usesImportedFixtureForUITest
-                ? (photos.isEmpty ? 45_000_000_000 : 75_000_000_000)
+                ? (photos.isEmpty ? 5_000_000_000 : 75_000_000_000)
                 : 5_000_000_000
         Task {
             let minimumSavingPresentation = Task<Void, Never> {
