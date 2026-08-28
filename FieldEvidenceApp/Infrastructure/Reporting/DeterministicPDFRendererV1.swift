@@ -189,3 +189,40 @@ enum DeterministicPDFRendererV1 {
             .replacingOccurrences(of: ")", with: "\\)")
     }
 }
+
+extension DeterministicPDFRendererV1 {
+    /// C18's PDF consumer records the same frozen package identity as Open
+    /// JSON. This sidecar is canonical metadata only; package bytes and draft
+    /// payloads remain outside rendered report output.
+    static func packageEvolutionMetadataData(
+        _ report: PackageEvolutionReportProjectionV1
+    ) throws -> Data {
+        try report.validate()
+        let data = try PackageEvolutionCanonicalCodecV1.encode(report)
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        return data
+    }
+
+    static func reopenPackageEvolutionMetadata(
+        _ data: Data
+    ) throws -> PackageEvolutionReportProjectionV1 {
+        let report = try PackageEvolutionCanonicalCodecV1.decode(
+            PackageEvolutionReportProjectionV1.self,
+            from: data
+        )
+        try report.validate()
+        guard try packageEvolutionMetadataData(report) == data else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return report
+    }
+
+    static func validatePackageEvolutionSandbox(
+        _ run: PackageSandboxRunV1
+    ) throws {
+        try PackageEvolutionReportConsumerPolicyV1.validateSandbox(run)
+    }
+}

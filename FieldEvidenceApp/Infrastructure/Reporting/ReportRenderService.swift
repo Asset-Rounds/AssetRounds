@@ -1322,3 +1322,17 @@ final class ReportRenderService {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 }
+
+extension ReportRenderService {
+    /// Report rendering may consume a package only after the non-activating
+    /// sandbox has passed. The render service receives the immutable projection
+    /// and never reaches into draft or package-byte storage.
+    static func validatePackageEvolutionRenderInputs(
+        report: PackageEvolutionReportProjectionV1,
+        sandboxRun: PackageSandboxRunV1
+    ) throws -> PackageEvolutionReportProjectionV1 {
+        try PackageEvolutionReportConsumerPolicyV1.validateSandbox(sandboxRun)
+        try report.validate()
+        return report
+    }
+}

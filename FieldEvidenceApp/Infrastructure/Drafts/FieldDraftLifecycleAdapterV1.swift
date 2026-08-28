@@ -15,3 +15,14 @@ import SwiftData
     func apply(discardTerminalBundle value:DraftDiscardTerminalBundleV1,expectedDraftRevision:UInt64)throws->MutationReceiptV1{try execute(.init(workspaceID:value.workspaceID,expectedRevision:expectedDraftRevision,expectedBaseCanonicalRevision:value.discardedCheckpoint.baseCanonicalRevision,mutationID:value.mutationID,postImage:.applyDiscardTerminal(value)))}
     private func execute(_ mutation:FieldDraftMutationV1)throws->MutationReceiptV1{_ = try writer.execute(.applyFieldDraft(mutation),mutationID:mutation.mutationID);guard let receipt=try journal.receipt(mutationID:mutation.mutationID)else{throw FieldDraftFailureV1.missingReceipt};_ = try FieldDraftMutationReceiptV1(mutation:mutation,mutationReceipt:receipt);return receipt}
 }
+
+extension FieldDraftLifecycleAdapterV1 {
+    func validatePackageUpgradeSource(_ checkpoint: FieldDraftCheckpointV1) throws {
+        try PackageEvolutionDraftBoundaryV1.validateSource(checkpoint)
+        guard let durable = try currentCheckpoint(
+            workspaceID: checkpoint.workspaceID, draftID: checkpoint.draftID
+        ), durable.checkpointSHA256 == checkpoint.checkpointSHA256 else {
+            throw PackageEvolutionFailureV1.staleSource
+        }
+    }
+}

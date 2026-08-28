@@ -29,6 +29,7 @@ enum InspectionReviewEraseIntentStorePolicyV1 {
 
 enum WorkPacketEraseIntentStorePolicyV1{static func validate()throws{guard WorkPacketEraseBoundaryV1.immutableManifestClaimLeaseReleaseAndHandoffHistoryClearedOnlyByWorkspaceErase,WorkPacketEraseBoundaryV1.ordinaryDeletionPreservesReplayHistory else{throw EraseIntentStoreError.invalidAuthority}}}
 enum FieldDraftEraseIntentStorePolicyV1{static func validate()throws{guard FieldDraftEraseBoundaryV1.operationalStateClearedOnlyByWorkspaceErase,FieldDraftEraseBoundaryV1.ordinaryDeletionPreservesLiveAndRecoveryRequiredDrafts,FieldDraftEraseBoundaryV1.byteCleanupRequiresTerminalDiscardOrOrphanQuarantine else{throw EraseIntentStoreError.invalidAuthority}}}
+enum PackageEvolutionEraseIntentStorePolicyV1{static func validate()throws{guard PackageEvolutionEraseBoundaryV1.atomicFamilyCount==4,PackageEvolutionEraseBoundaryV1.ordinaryDeletionPreservesPromotedHistory,PackageEvolutionEraseBoundaryV1.workspaceEraseClearsEntireClosure else{throw EraseIntentStoreError.invalidAuthority}}}
 
 enum EraseIntentStoreError: Error, Equatable {
     case invalidAuthority
@@ -348,6 +349,7 @@ final class EraseIntentStore {
         try InspectionReviewEraseIntentStorePolicyV1.validate()
         try WorkPacketEraseIntentStorePolicyV1.validate()
         try FieldDraftEraseIntentStorePolicyV1.validate()
+        try PackageEvolutionEraseIntentStorePolicyV1.validate()
         let root = applicationSupportURL.standardizedFileURL
         guard root.isFileURL else { throw EraseIntentStoreError.invalidAuthority }
         if expectedApplicationSupportIdentity == nil {

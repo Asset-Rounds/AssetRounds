@@ -53,6 +53,7 @@ struct BackupCanonicalDecoderV1: Sendable {
             try Self.validateInspectionReview(value)
             try Self.validateWorkPackets(value)
             try Self.validateFieldDrafts(value)
+            try Self.validatePackageEvolution(value)
             let canonical = try BackupCanonicalEncoderV1().encodeRecords(value).data
             guard canonical == data else {
                 throw BackupCanonicalDecodingErrorV1.invalidRecords
@@ -65,6 +66,22 @@ struct BackupCanonicalDecoderV1: Sendable {
 }
 
 private extension BackupCanonicalDecoderV1 {
+    static func validatePackageEvolution(_ records: V4BackupRecordsV1) throws {
+        guard records.recordsSchemaVersion >= 16 else {
+            guard records.packageEvolution.isEmpty else { throw BackupCanonicalDecodingErrorV1.invalidRecords }
+            return
+        }
+        var keys = Set<String>()
+        let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
+        for record in records.packageEvolution {
+            guard record.id != zero, record.workspaceID != zero, record.revision > 0,
+                  !record.canonicalData.isEmpty,
+                  keys.insert("\(record.kind.rawValue)|\(record.id.uuidString)").inserted else {
+                throw BackupCanonicalDecodingErrorV1.invalidRecords
+            }
+        }
+    }
+
     static func validateFieldDrafts(_ records: V4BackupRecordsV1) throws {
         guard records.recordsSchemaVersion >= 15 else {
             guard records.fieldDrafts.isEmpty else { throw BackupCanonicalDecodingErrorV1.invalidRecords }

@@ -500,6 +500,14 @@ final class V9_20KernelConformanceTests: XCTestCase {
 }
 
 extension V9_20KernelConformanceTests {
+    func testV23P03C18SurfaceIsClosedInPortableHarness() throws {
+        XCTAssertTrue(KernelConformanceFixtureHarnessV1.c18PackageEvolutionSurfaceIsClosed())
+        XCTAssertEqual(PackageSemanticDiffClassificationV1.allCases.count, 5)
+        XCTAssertEqual(PackageSandboxCheckKindV1.allCases.count, 12)
+    }
+}
+
+extension V9_20KernelConformanceTests {
     func testV23P03C36KernelConformanceCorpusHasFiveSelectorsAndPrivacyExclusions() throws {
         let data = try Data(contentsOf: C36FieldDraftTestSupportV1.corpusURL())
         let source = try XCTUnwrap(String(data: data, encoding: .utf8))

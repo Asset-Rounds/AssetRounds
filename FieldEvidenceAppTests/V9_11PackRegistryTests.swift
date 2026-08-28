@@ -551,3 +551,25 @@ final class V9_11PackRegistryTests: XCTestCase {
 private enum V911FixtureFailure: Error {
     case invalidFixture
 }
+
+extension V9_11PackRegistryTests {
+    func testV23P03C18ActivePointerCarriesReceiptAndReleaseDigests() throws {
+        let workspaceID = WorkspaceID(rawValue: UUID(uuidString: "00000000-0000-4000-8000-00000000c191")!)
+        let receiptID = UUID(uuidString: "c1910000-0000-4000-8000-000000000001")!
+        let pointer = try ActivePackageRegistryPointerV1(
+            pointerID: UUID(uuidString: "c1910000-0000-4000-8000-000000000002")!,
+            workspaceID: workspaceID,
+            packageID: "com.field-evidence.c18.registry",
+            activeReleaseRecordID: UUID(uuidString: "c1910000-0000-4000-8000-000000000003")!,
+            promotionReceiptID: receiptID,
+            activePackageReleaseID: String(repeating: "c", count: 64),
+            activeReleaseRecordSHA256: String(repeating: "d", count: 64),
+            revision: 1,
+            mutationID: try MutationIDV1(
+                rawValue: UUID(uuidString: "c1910000-0000-4000-8000-000000000004")!
+            )
+        )
+        XCTAssertNoThrow(try pointer.validate())
+        XCTAssertEqual(pointer.promotionReceiptID, receiptID)
+    }
+}

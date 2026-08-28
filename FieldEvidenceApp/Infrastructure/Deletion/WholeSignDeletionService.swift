@@ -1303,6 +1303,8 @@ private extension WholeSignDeletionService {
         let fieldDraftCheckpoints:[FieldDraftCheckpointRow];let attachmentStagingItems:[AttachmentStagingItemRow]
         let draftCommitSagas:[DraftCommitSagaRow];let draftContentReservations:[DraftContentReservationRow]
         let draftCommitReceipts:[DraftCommitReceiptRow];let draftDiscardReceipts:[DraftDiscardReceiptRow]
+        let promotedPackageReleases:[PromotedPackageReleaseRow];let packageSandboxRuns:[PackageSandboxRunRow]
+        let packagePromotionReceipts:[PackagePromotionReceiptRow];let activePackageRegistryPointers:[ActivePackageRegistryPointerRow]
         let observationAndTime: [UUID: ObservationAndTimeRow]
         let recordPayloads: [WorkflowRecordPayloadV1]
         let evidence: [EvidenceFile]
@@ -1355,6 +1357,7 @@ private extension WholeSignDeletionService {
                 correctiveActionEvents: try boundedFetch(CorrectiveActionEventRow.self),
                 workPacketManifests:try boundedFetch(WorkPacketManifestRow.self),workItemClaims:try boundedFetch(WorkItemClaimRow.self),workLeases:try boundedFetch(WorkLeaseRow.self),workReleases:try boundedFetch(WorkReleaseRow.self),workHandoffs:try boundedFetch(WorkHandoffRow.self),
                 fieldDraftCheckpoints:try boundedFetch(FieldDraftCheckpointRow.self),attachmentStagingItems:try boundedFetch(AttachmentStagingItemRow.self),draftCommitSagas:try boundedFetch(DraftCommitSagaRow.self),draftContentReservations:try boundedFetch(DraftContentReservationRow.self),draftCommitReceipts:try boundedFetch(DraftCommitReceiptRow.self),draftDiscardReceipts:try boundedFetch(DraftDiscardReceiptRow.self),
+                promotedPackageReleases:try boundedFetch(PromotedPackageReleaseRow.self),packageSandboxRuns:try boundedFetch(PackageSandboxRunRow.self),packagePromotionReceipts:try boundedFetch(PackagePromotionReceiptRow.self),activePackageRegistryPointers:try boundedFetch(ActivePackageRegistryPointerRow.self),
                 observationAndTime: observationAndTime,
                 recordPayloads: recordPayloads,
                 evidence: try boundedFetch(EvidenceFile.self),
@@ -1386,6 +1389,15 @@ private extension WholeSignDeletionService {
             commitReceiptIDs:Set(rows.draftCommitReceipts.map(\.receiptID)), discardReceiptIDs:Set(rows.draftDiscardReceipts.map(\.receiptID))
         )
         try WholeSignDeletionRule.validateFieldDraftLifecycle(authority:.ordinaryAssetOrSiteDelete,before:draftInventory,after:draftInventory)
+        let packageInventory = PackageEvolutionDeletionInventoryV1(
+            releaseRecordIDs: Set(rows.promotedPackageReleases.map(\.releaseRecordID)),
+            sandboxRunIDs: Set(rows.packageSandboxRuns.map(\.runID)),
+            promotionReceiptIDs: Set(rows.packagePromotionReceipts.map(\.receiptID)),
+            pointerIDs: Set(rows.activePackageRegistryPointers.map(\.pointerID))
+        )
+        try WholeSignDeletionRule.validatePackageEvolutionLifecycle(
+            authority: .ordinaryAssetOrSiteDelete, before: packageInventory, after: packageInventory
+        )
         do {
             let descriptors = try rows.functionalRelationshipDescriptors.map { try $0.value() }
             let events = try rows.functionalRelationshipEvents.map { try $0.value() }

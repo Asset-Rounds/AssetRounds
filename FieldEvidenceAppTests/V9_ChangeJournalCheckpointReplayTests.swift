@@ -759,6 +759,27 @@ final class V9_ChangeJournalCheckpointReplayTests: XCTestCase {
 }
 
 extension V9_ChangeJournalCheckpointReplayTests {
+    func testV23P03C18ReplayBoundaryUsesCanonicalSemanticDigest() throws {
+        let change = try PackageSemanticChangeV1(
+            kind: .guidanceChanged,
+            stableSubjectID: "c18.guidance"
+        )
+        let encoded = try PackageEvolutionCanonicalCodecV1.encode(change)
+        XCTAssertEqual(
+            try PackageEvolutionCanonicalCodecV1.decode(
+                PackageSemanticChangeV1.self,
+                from: encoded
+            ),
+            change
+        )
+        XCTAssertEqual(
+            PackageEvolutionLifecycleV1.interruption,
+            "OLD_COMPLETE_OR_NEW_COMPLETE_NEVER_HYBRID"
+        )
+    }
+}
+
+extension V9_ChangeJournalCheckpointReplayTests {
     func testV23P03C15JournalReplayRestoresExactManifestAndClaimBytes() throws {
         let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_204)
         let manifestBytes = try WorkPacketCanonicalCodecV1.encode(fixture.manifest)

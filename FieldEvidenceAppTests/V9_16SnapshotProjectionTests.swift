@@ -654,6 +654,24 @@ final class V9_16SnapshotProjectionTests: XCTestCase {
 }
 
 extension V9_16SnapshotProjectionTests {
+    func testV23P03C18SemanticReleaseBindingsIgnoreInputOrdering() throws {
+        let first = try PackageSemanticReleaseBindingsV1(
+            localizationReleaseSHA256: String(repeating: "1", count: 64),
+            assetSemanticCatalogSHA256s: [
+                String(repeating: "3", count: 64), String(repeating: "2", count: 64)
+            ]
+        )
+        let second = try PackageSemanticReleaseBindingsV1(
+            localizationReleaseSHA256: String(repeating: "1", count: 64),
+            assetSemanticCatalogSHA256s: [
+                String(repeating: "2", count: 64), String(repeating: "3", count: 64)
+            ]
+        )
+        XCTAssertEqual(first, second)
+    }
+}
+
+extension V9_16SnapshotProjectionTests {
     func testV23P03C17SnapshotEncoderExcludesDerivedIntegrationPayloads() throws {
         XCTAssertNoThrow(try IntegrationProjectionReportSnapshotExclusionV1.validate())
         let coverage = IntegrationEventJournalCoverageV1()

@@ -67,6 +67,17 @@ enum FieldDraftEraseAllPolicyV1 {
     }
 }
 
+enum PackageEvolutionEraseAllPolicyV1 {
+    static func validatePublishedEmptyGeneration(_ context: ModelContext) throws {
+        guard try context.fetchCount(FetchDescriptor<PromotedPackageReleaseRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<PackageSandboxRunRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<PackagePromotionReceiptRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<ActivePackageRegistryPointerRow>()) == 0 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+}
+
 enum EraseAllServiceError: Error, Equatable {
     case contextHasChanges
     case invalidAuthority
@@ -1235,6 +1246,7 @@ private extension EraseAllService {
         )
         try WorkPacketEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try FieldDraftEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
+        try PackageEvolutionEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         if let identity {
             let history = try MutationJournalStoreV1(
                 modelContext: session.modelContext,

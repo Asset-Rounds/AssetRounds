@@ -5,6 +5,30 @@ struct DeletionSitePayloadV1: Codable, Equatable, Sendable {
     let schemaVersion: Int
 }
 
+struct PackageEvolutionDeletionInventoryV1: Equatable, Sendable {
+    let releaseRecordIDs: Set<UUID>
+    let sandboxRunIDs: Set<UUID>
+    let promotionReceiptIDs: Set<UUID>
+    let pointerIDs: Set<UUID>
+    static let empty = Self(releaseRecordIDs: [], sandboxRunIDs: [], promotionReceiptIDs: [], pointerIDs: [])
+}
+
+extension WholeSignDeletionRule {
+    enum PackageEvolutionDeletionAuthorityV1: Sendable { case ordinaryAssetOrSiteDelete, workspaceErase }
+    static func validatePackageEvolutionLifecycle(
+        authority: PackageEvolutionDeletionAuthorityV1,
+        before: PackageEvolutionDeletionInventoryV1,
+        after: PackageEvolutionDeletionInventoryV1
+    ) throws {
+        switch authority {
+        case .ordinaryAssetOrSiteDelete:
+            guard before == after else { throw WholeSignDeletionRuleError.invalidGraph }
+        case .workspaceErase:
+            guard after == .empty else { throw WholeSignDeletionRuleError.invalidGraph }
+        }
+    }
+}
+
 struct DeletionAssetPayloadV1: Codable, Equatable, Sendable {
     let id: UUID
     let schemaVersion: Int

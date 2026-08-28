@@ -61,3 +61,10 @@ private func fieldDraftDomainRevision(_ value: Int64) throws -> UInt64 {
     init(_ value:DraftDiscardReceiptV1)throws{try value.validate();receiptID=value.receiptID;draftID=value.draftID;workspaceID=value.workspaceID.rawValue;revision=try fieldDraftStoredRevision(value.revision);mutationID=value.mutationID.rawValue;canonicalSHA256=value.receiptSHA256;canonicalData=try FieldDraftCanonicalCodecV1.encode(value)}
     func value()throws->DraftDiscardReceiptV1{let value=try FieldDraftCanonicalCodecV1.decode(DraftDiscardReceiptV1.self,from:canonicalData);guard value.receiptID==receiptID,value.draftID==draftID,value.workspaceID.rawValue==workspaceID,value.revision==(try fieldDraftDomainRevision(revision)),value.mutationID.rawValue==mutationID,value.receiptSHA256==canonicalSHA256 else{throw FieldDraftFailureV1.digestMismatch};return value}
 }
+
+/// Schema inventory marker: DraftUpgradePlanV1 previews deliberately add no
+/// C36 column or model. Only the resulting checkpoint successor is durable.
+enum PackageEvolutionDraftPersistenceBoundaryV1 {
+    static let addsPersistentModel = false
+    static let storedResultType = "FieldDraftCheckpointRow"
+}

@@ -1511,3 +1511,29 @@ extension V9_03MigrationRecoveryTests {
         XCTAssertEqual(PersistentSchemaMigrationPlanV13.stages.count, 1)
     }
 }
+
+extension V9_03MigrationRecoveryTests {
+    func testV23P03C18MigrationBackupAndForwardFixPolicyIsTyped() throws {
+        XCTAssertEqual(PackageEvolutionLifecycleV1.schema, "PACKAGE_EVOLUTION_V1")
+        XCTAssertTrue(PackageEvolutionLifecycleV1.migrationRequired)
+        XCTAssertTrue(PackageEvolutionLifecycleV1.backupRestoreRequired)
+        XCTAssertTrue(PackageEvolutionLifecycleV1.deleteEraseRequired)
+        XCTAssertEqual(
+            PackageEvolutionLifecycleV1.downgradePolicy,
+            "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_FIRST_V17_WRITE"
+        )
+
+        let payload = Data("c18-migration-payload".utf8)
+        let encoded = try PackageEvolutionCanonicalCodecV1.encode(payload)
+        XCTAssertEqual(
+            try PackageEvolutionCanonicalCodecV1.decode(Data.self, from: encoded),
+            payload
+        )
+        XCTAssertThrowsError(
+            try PackageEvolutionCanonicalCodecV1.decode(
+                PackagePromotionReceiptV1.self,
+                from: Data()
+            )
+        )
+    }
+}

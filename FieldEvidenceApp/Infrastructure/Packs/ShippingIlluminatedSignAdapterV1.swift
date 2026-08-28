@@ -73,7 +73,10 @@ enum ShippingIlluminatedSignAdapterV1 {
     static func inspectionPackage(
         from source: SignPack = .illuminatedSignV1
     ) throws -> InspectionPackageV2 {
-        guard SignPackLoader.valid(source), source == .illuminatedSignV1,
+        // The bundled V1 resource remains the canonical shipping parity
+        // source, while successor content versions may reuse this typed
+        // adapter after passing the closed loader contract.
+        guard SignPackLoader.valid(source),
               source.packID == packageID else {
             throw InspectionPackageFailureV2.unknownPackage
         }
@@ -140,7 +143,7 @@ enum ShippingIlluminatedSignAdapterV1 {
     static func signPack(from package: InspectionPackageV2) throws -> SignPack {
         try InspectionPackageCompatibilityValidatorV2.validate(package)
         let expected = try inspectionPackage()
-        guard package.packageID == packageID, package.contentVersion == 1,
+        guard package.packageID == packageID, package.contentVersion > 0,
               package.capabilities == expected.capabilities,
               package.permissions == expected.permissions,
               package.advisoryGuidance == expected.advisoryGuidance else {
@@ -171,7 +174,7 @@ enum ShippingIlluminatedSignAdapterV1 {
             outcomeDisplays: signEntries(value.outcomeDisplays),
             disclaimer: value.disclaimer
         )
-        guard result == .illuminatedSignV1 else {
+        guard SignPackLoader.valid(result), result.packID == packageID else {
             throw InspectionPackageFailureV2.incompatiblePackage
         }
         return result
@@ -200,7 +203,7 @@ enum ShippingIlluminatedSignAdapterV1 {
         from source: LegacySignResponseSourceV1,
         signPack: SignPack = .illuminatedSignV1
     ) throws -> LegacySignTypedResponseMappingV1 {
-        guard SignPackLoader.valid(signPack), signPack == .illuminatedSignV1,
+        guard SignPackLoader.valid(signPack),
               signPack.packID == packageID else {
             throw ResponseContractFailureV1.invalidValue
         }

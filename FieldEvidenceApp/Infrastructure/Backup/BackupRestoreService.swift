@@ -1625,6 +1625,7 @@ private extension BackupRestoreService {
         with packets: [V4BackupPacketDTO]
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            packageEvolution: records.packageEvolution,
             fieldDrafts: records.fieldDrafts, workPackets:records.workPackets, inspectionReview: records.inspectionReview,
             evidenceAssurance: records.evidenceAssurance,
             functionalRelationships: records.functionalRelationships,
@@ -1674,6 +1675,7 @@ private extension BackupRestoreService {
         with history: MutationHistorySnapshotV1
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            packageEvolution: records.packageEvolution,
             fieldDrafts: records.fieldDrafts, workPackets:records.workPackets, inspectionReview: records.inspectionReview,
             evidenceAssurance: records.evidenceAssurance,
             functionalRelationships: records.functionalRelationships,
@@ -1788,6 +1790,7 @@ private extension BackupRestoreService {
             return try V8BackupRequirementAssuranceRecordV1(row)
         }.sorted { canonical($0.workflowRecordID) < canonical($1.workflowRecordID) }
         return V4BackupRecordsV1(
+            packageEvolution: records.packageEvolution,
             fieldDrafts: records.fieldDrafts, workPackets:records.workPackets, inspectionReview: records.inspectionReview,
             evidenceAssurance: records.evidenceAssurance,
             functionalRelationships: records.functionalRelationships,
@@ -2021,8 +2024,14 @@ private extension BackupRestoreService {
         )
         let workPackets = try rebindingWorkPackets(records.workPackets, workspaceID:workspaceID)
         let fieldDrafts = try rebindingFieldDrafts(records.fieldDrafts, identity: identity)
+        let packageEvolution = try rebindingPackageEvolution(
+            records.packageEvolution, workspaceID: workspaceID,
+            sourcePartyAccountability: records.partyAccountability,
+            partyAccountability: partyAccountability
+        )
         guard let archived = records.locationMigrationReceipts.first else {
             return V4BackupRecordsV1(
+                packageEvolution: packageEvolution,
                 fieldDrafts: fieldDrafts, workPackets:workPackets,
                 inspectionReview: inspectionReview,
                 evidenceAssurance: evidenceAssurance,
@@ -2073,6 +2082,7 @@ private extension BackupRestoreService {
             bindings: receipt.bindings
         )
         return V4BackupRecordsV1(
+            packageEvolution: packageEvolution,
             fieldDrafts: fieldDrafts, workPackets:workPackets,
             inspectionReview: inspectionReview,
             evidenceAssurance: evidenceAssurance,
@@ -2645,6 +2655,71 @@ private extension BackupRestoreService {
             let value = try source.rebound(using: map, planSHA256: source.planSHA256, mutationID: mutation(source.mutationID, "discardReceipt"))
             output.append(.init(kind:.discardReceipt,id:value.receiptID,workspaceID:target.rawValue,revision:value.revision,canonicalData:try FieldDraftCanonicalCodecV1.encode(value)))
         }
+        return output.sorted { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)" }
+    }
+
+    func rebindingPackageEvolution(
+        _ records: [V17BackupPackageEvolutionRecordV1], workspaceID: WorkspaceID,
+        sourcePartyAccountability: [V9BackupPartyAccountabilityRecordV1],
+        partyAccountability: [V9BackupPartyAccountabilityRecordV1]
+    ) throws -> [V17BackupPackageEvolutionRecordV1] {
+        guard !records.isEmpty else { return [] }
+        let sourceActors = try Dictionary(uniqueKeysWithValues: sourcePartyAccountability.compactMap { row -> (String, UUID)? in
+            guard row.kind == .actorSnapshot else { return nil }
+            let value = try PartyAccountabilitySnapshotCodecV1.decode(ActorSnapshotV1.self, from: row.canonicalData)
+            return (value.snapshotSHA256, value.snapshotID)
+        })
+        let actors = try Dictionary(uniqueKeysWithValues: partyAccountability.compactMap { row -> (UUID, ActorSnapshotV1)? in
+            guard row.kind == .actorSnapshot else { return nil }
+            let value = try PartyAccountabilitySnapshotCodecV1.decode(ActorSnapshotV1.self, from: row.canonicalData)
+            return (value.snapshotID, value)
+        })
+        let sourceReleases = try records.filter { $0.kind == .promotedRelease }.map { try PackageEvolutionCanonicalCodecV1.decode(PromotedPackageReleaseV1.self, from: $0.canonicalData) }
+        let releases = try Dictionary(uniqueKeysWithValues: sourceReleases.map { source in
+            let value = source.workspaceID == workspaceID ? source : try source.rebound(to: workspaceID)
+            return (value.releaseRecordID, value)
+        })
+        let sourceRuns = try records.filter { $0.kind == .sandboxRun }.map { try PackageEvolutionCanonicalCodecV1.decode(PackageSandboxRunV1.self, from: $0.canonicalData) }
+        let runs = try Dictionary(uniqueKeysWithValues: sourceRuns.map { source in
+            let value = source.workspaceID == workspaceID ? source : try source.rebound(to: workspaceID)
+            return (value.runID, value)
+        })
+        let sourcePointers = try records.filter { $0.kind == .activePointer }.map { try PackageEvolutionCanonicalCodecV1.decode(ActivePackageRegistryPointerV1.self, from: $0.canonicalData) }
+        var pointers: [UUID: ActivePackageRegistryPointerV1] = [:]
+        for source in sourcePointers.sorted(by: { $0.revision < $1.revision }) {
+            guard let release = releases[source.activeReleaseRecordID] else { throw BackupRestoreServiceError.invalidPackage }
+            let value = source.workspaceID == workspaceID ? source : try source.rebound(to: workspaceID, activeReleaseRecord: release)
+            if let predecessorID = value.supersedesPointerID {
+                guard let predecessor = pointers[predecessorID] else { throw BackupRestoreServiceError.invalidPackage }
+                try value.validateSuccessor(of: predecessor, expectedRevision: predecessor.revision)
+            }
+            pointers[value.pointerID] = value
+        }
+        let sourceReceipts = try records.filter { $0.kind == .promotionReceipt }.map { try PackageEvolutionCanonicalCodecV1.decode(PackagePromotionReceiptV1.self, from: $0.canonicalData) }
+        var receipts: [UUID: PackagePromotionReceiptV1] = [:]
+        for source in sourceReceipts {
+            guard let release = releases[source.promotedReleaseRecordID], let run = runs[source.sandboxRunID],
+                  let pointer = pointers.values.first(where: { $0.promotionReceiptID == source.receiptID }),
+                  let actorID = sourceActors[source.actorSnapshotSHA256], let actor = actors[actorID] else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            let predecessor = pointer.supersedesPointerID.flatMap { pointers[$0] }
+            let value = source.workspaceID == workspaceID ? source : try source.rebound(
+                to: workspaceID, promotedRelease: release, sandboxRun: run,
+                predecessorPointer: predecessor, resultingPointer: pointer, actor: actor
+            )
+            receipts[value.receiptID] = value
+        }
+        let closure = try PackageEvolutionLifecycleClosureV1(
+            promotedReleases: Array(releases.values), sandboxRuns: Array(runs.values),
+            promotionReceipts: Array(receipts.values), activePointers: Array(pointers.values)
+        )
+        try closure.validate()
+        var output: [V17BackupPackageEvolutionRecordV1] = []
+        output += try releases.values.map { .init(kind:.promotedRelease,id:$0.releaseRecordID,workspaceID:workspaceID.rawValue,revision:$0.revision,canonicalData:try PackageEvolutionCanonicalCodecV1.encode($0)) }
+        output += try runs.values.map { .init(kind:.sandboxRun,id:$0.runID,workspaceID:workspaceID.rawValue,revision:$0.revision,canonicalData:try PackageEvolutionCanonicalCodecV1.encode($0)) }
+        output += try receipts.values.map { .init(kind:.promotionReceipt,id:$0.receiptID,workspaceID:workspaceID.rawValue,revision:$0.revision,canonicalData:try PackageEvolutionCanonicalCodecV1.encode($0)) }
+        output += try pointers.values.map { .init(kind:.activePointer,id:$0.pointerID,workspaceID:workspaceID.rawValue,revision:$0.revision,canonicalData:try PackageEvolutionCanonicalCodecV1.encode($0)) }
         return output.sorted { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)" }
     }
 
@@ -3293,7 +3368,8 @@ private extension BackupRestoreService {
                 || records.recordsSchemaVersion == 12
                 || records.recordsSchemaVersion == 13
                 || records.recordsSchemaVersion == 14
-                || records.recordsSchemaVersion == 15)
+                || records.recordsSchemaVersion == 15
+                || records.recordsSchemaVersion == 16)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -3549,7 +3625,8 @@ private extension BackupRestoreService {
             || records.recordsSchemaVersion == 11
             || records.recordsSchemaVersion == 12
             || records.recordsSchemaVersion == 13 || records.recordsSchemaVersion == 14
-            || records.recordsSchemaVersion == 15 {
+            || records.recordsSchemaVersion == 15
+            || records.recordsSchemaVersion == 16 {
             do {
                 for record in records.savedSmartViews {
                     let descriptor = try record.descriptor()
@@ -3752,6 +3829,18 @@ private extension BackupRestoreService {
                 }
             } catch { throw BackupRestoreServiceError.invalidPackage }
         }
+        if records.recordsSchemaVersion >= 16 {
+            do {
+                for record in records.packageEvolution {
+                    switch record.kind {
+                    case .promotedRelease: context.insert(try PromotedPackageReleaseRow(PackageEvolutionCanonicalCodecV1.decode(PromotedPackageReleaseV1.self, from: record.canonicalData)))
+                    case .sandboxRun: context.insert(try PackageSandboxRunRow(PackageEvolutionCanonicalCodecV1.decode(PackageSandboxRunV1.self, from: record.canonicalData)))
+                    case .promotionReceipt: context.insert(try PackagePromotionReceiptRow(PackageEvolutionCanonicalCodecV1.decode(PackagePromotionReceiptV1.self, from: record.canonicalData)))
+                    case .activePointer: context.insert(try ActivePackageRegistryPointerRow(PackageEvolutionCanonicalCodecV1.decode(ActivePackageRegistryPointerV1.self, from: record.canonicalData)))
+                    }
+                }
+            } catch { throw BackupRestoreServiceError.invalidPackage }
+        }
         if let mutationHistory = records.mutationHistory {
             guard records.recordsSchemaVersion == 3
                     || records.recordsSchemaVersion == 4
@@ -3765,7 +3854,8 @@ private extension BackupRestoreService {
                     || records.recordsSchemaVersion == 12
                     || records.recordsSchemaVersion == 13
                     || records.recordsSchemaVersion == 14
-                    || records.recordsSchemaVersion == 15 else {
+                    || records.recordsSchemaVersion == 15
+                    || records.recordsSchemaVersion == 16 else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {
@@ -4848,7 +4938,8 @@ private extension BackupRestoreService {
                 || actual.recordsSchemaVersion == 12
                 || actual.recordsSchemaVersion == 13
                 || actual.recordsSchemaVersion == 14
-                || actual.recordsSchemaVersion == 15) else {
+                || actual.recordsSchemaVersion == 15
+                || actual.recordsSchemaVersion == 16) else {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
         if expected.recordsSchemaVersion == 5 || expected.recordsSchemaVersion == 6 {
@@ -4867,6 +4958,7 @@ private extension BackupRestoreService {
         schemaVersion: Int
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            packageEvolution: schemaVersion >= 16 ? records.packageEvolution : [],
             fieldDrafts: schemaVersion >= 15 ? records.fieldDrafts : [],
             workPackets:schemaVersion>=14 ? records.workPackets:[],
             inspectionReview: schemaVersion >= 13 ? records.inspectionReview : [],
@@ -4901,6 +4993,7 @@ private extension BackupRestoreService {
         expected: V4BackupRecordsV1
     ) throws -> Bool {
         let predecessor = V4BackupRecordsV1(
+            packageEvolution: expected.recordsSchemaVersion >= 16 ? expected.packageEvolution : [],
             fieldDrafts: expected.recordsSchemaVersion >= 15 ? expected.fieldDrafts : [],
             workPackets:expected.recordsSchemaVersion>=14 ? expected.workPackets:[],
             inspectionReview: expected.recordsSchemaVersion >= 13 ? expected.inspectionReview : [],
@@ -5086,6 +5179,10 @@ private extension BackupRestoreService {
         let draftContentReservations = try context.fetch(FetchDescriptor<DraftContentReservationRow>())
         let draftCommitReceipts = try context.fetch(FetchDescriptor<DraftCommitReceiptRow>())
         let draftDiscardReceipts = try context.fetch(FetchDescriptor<DraftDiscardReceiptRow>())
+        let promotedPackageReleases = try context.fetch(FetchDescriptor<PromotedPackageReleaseRow>())
+        let packageSandboxRuns = try context.fetch(FetchDescriptor<PackageSandboxRunRow>())
+        let packagePromotionReceipts = try context.fetch(FetchDescriptor<PackagePromotionReceiptRow>())
+        let activePackageRegistryPointers = try context.fetch(FetchDescriptor<ActivePackageRegistryPointerRow>())
         let workPacketManifests=try context.fetch(FetchDescriptor<WorkPacketManifestRow>()),workItemClaims=try context.fetch(FetchDescriptor<WorkItemClaimRow>()),workLeases=try context.fetch(FetchDescriptor<WorkLeaseRow>()),workReleases=try context.fetch(FetchDescriptor<WorkReleaseRow>()),workHandoffs=try context.fetch(FetchDescriptor<WorkHandoffRow>())
         let evidenceVisibilities = try context.fetch(FetchDescriptor<EvidenceVisibilityRow>())
         let claimEvidenceLinks = try context.fetch(FetchDescriptor<ClaimEvidenceLinkRow>())
@@ -5115,6 +5212,12 @@ private extension BackupRestoreService {
             mutationHistory = nil
         }
         return V4BackupRecordsV1(
+            packageEvolution: try (
+                promotedPackageReleases.map { let v=try $0.value(); return .init(kind:.promotedRelease,id:v.releaseRecordID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData) }
+                + packageSandboxRuns.map { let v=try $0.value(); return .init(kind:.sandboxRun,id:v.runID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData) }
+                + packagePromotionReceipts.map { let v=try $0.value(); return .init(kind:.promotionReceipt,id:v.receiptID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData) }
+                + activePackageRegistryPointers.map { let v=try $0.value(); return .init(kind:.activePointer,id:v.pointerID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData) }
+            ).sorted { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)" },
             fieldDrafts: try (
                 fieldDraftCheckpoints.map { let v=try $0.value(); return .init(kind:.checkpoint,id:v.draftID,workspaceID:v.workspaceID.rawValue,revision:v.draftRevision,canonicalData:try FieldDraftCanonicalCodecV1.encode(v)) }
                 + attachmentStagingItems.map { let v=try $0.value(); return .init(kind:.stagingItem,id:v.stageID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try FieldDraftCanonicalCodecV1.encode(v)) }
@@ -5296,7 +5399,12 @@ private extension BackupRestoreService {
                 "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
                     < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
             },
-            recordsSchemaVersion: workPacketManifests.isEmpty && workItemClaims.isEmpty && workLeases.isEmpty && workReleases.isEmpty && workHandoffs.isEmpty
+            recordsSchemaVersion: !(promotedPackageReleases.isEmpty && packageSandboxRuns.isEmpty
+                && packagePromotionReceipts.isEmpty && activePackageRegistryPointers.isEmpty) ? 16
+                : !(fieldDraftCheckpoints.isEmpty && attachmentStagingItems.isEmpty
+                    && draftCommitSagas.isEmpty && draftContentReservations.isEmpty
+                    && draftCommitReceipts.isEmpty && draftDiscardReceipts.isEmpty) ? 15
+                : workPacketManifests.isEmpty && workItemClaims.isEmpty && workLeases.isEmpty && workReleases.isEmpty && workHandoffs.isEmpty
                 ? (inspectionReviewTransitions.isEmpty && reviewDispositions.isEmpty
                     && changeRequests.isEmpty && correctiveActionPolicies.isEmpty
                     && correctiveActionEvents.isEmpty

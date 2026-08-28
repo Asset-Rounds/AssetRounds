@@ -366,6 +366,86 @@ enum LocalizationLifecycleV1 {
     static let idempotentReceipt = "EXACT_CANONICAL_BYTES_ADOPTION"
 }
 
+/// C18 binds a package to localization by release digest and typed key IDs.
+/// Localized labels are presentation data and are never part of package
+/// identity, diff classification, or report replay.
+struct PackageEvolutionLocalizationBindingV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let packageReleaseID: String
+    let localizationReleaseSHA256: String?
+    let sourceLocale: String
+    let shippingLocales: [String]
+    let keyIDs: [String]
+
+    init(
+        metadata: PackageEvolutionConsumerMetadataV1,
+        keyIDs: [String] = []
+    ) throws {
+        try metadata.validate()
+        let orderedKeys = keyIDs.sorted()
+        guard Set(orderedKeys).count == orderedKeys.count,
+              orderedKeys.allSatisfy({ (try? LocalizationKeyV1($0)) != nil }) else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+        schemaVersion = Self.schemaVersion
+        packageReleaseID = metadata.packageReleaseID
+        localizationReleaseSHA256 = metadata.localizationReleaseSHA256
+        sourceLocale = "en"
+        shippingLocales = ["en"]
+        self.keyIDs = orderedKeys
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              KernelCanonicalHashV1.validSHA256(packageReleaseID),
+              localizationReleaseSHA256.map(KernelCanonicalHashV1.validSHA256) ?? true,
+              sourceLocale == "en",
+              shippingLocales == ["en"],
+              Set(keyIDs).count == keyIDs.count,
+              keyIDs == keyIDs.sorted(),
+              keyIDs.allSatisfy({ (try? LocalizationKeyV1($0)) != nil }) else {
+            throw LocalizationContractFailureV1.invalidShippingLocale
+        }
+    }
+
+    /// Equality of package localization bindings intentionally ignores all
+    /// translated/default label text and compares only stable key/release
+    /// identity.
+    func comparesKeysAndReleasesOnly(to other: Self) -> Bool {
+        packageReleaseID == other.packageReleaseID
+            && localizationReleaseSHA256 == other.localizationReleaseSHA256
+            && keyIDs == other.keyIDs
+    }
+}
+
+enum PackageEvolutionLocalizationPolicyV1 {
+    static let sourceLocale = "en"
+    static let shippingLocales = ["en"]
+    static let testOnlyPseudoLocales = TestOnlyPseudoLocaleV1.allCases
+        .map(\.rawValue).sorted()
+    static let comparesKeysAndReleasesNotLabels = true
+    static let pseudoLocalesMayShip = false
+    static let canonicalPackageBytesAreNeverTranslated = true
+    static let frozenReportDisplaysAreNeverReformatted = true
+
+    static func binding(
+        metadata: PackageEvolutionConsumerMetadataV1,
+        keyIDs: [String] = []
+    ) throws -> PackageEvolutionLocalizationBindingV1 {
+        try PackageEvolutionLocalizationBindingV1(metadata: metadata, keyIDs: keyIDs)
+    }
+}
+
+extension PackageEvolutionConsumerMetadataV1 {
+    func packageLocalizationBinding(keyIDs: [String] = []) throws
+        -> PackageEvolutionLocalizationBindingV1 {
+        try PackageEvolutionLocalizationBindingV1(metadata: self, keyIDs: keyIDs)
+    }
+}
+
 /// The C38 report/search slice consumes only these additive localization
 /// concepts.  Keeping the identifiers in the domain contract makes the
 /// locale truth explicit without changing the published V1 key registry's

@@ -461,3 +461,21 @@ final class S1PackTokenTests: XCTestCase {
             || abs(left.alpha - right.alpha) > tolerance
     }
 }
+
+extension S1PackTokenTests {
+    func testV23P03C18SemanticChangeUsesStableTypedToken() throws {
+        let change = try PackageSemanticChangeV1(
+            kind: .capabilityAdded,
+            stableSubjectID: "c18.pack.capability"
+        )
+        let bytes = try PackageEvolutionCanonicalCodecV1.encode(change)
+        XCTAssertEqual(
+            try PackageEvolutionCanonicalCodecV1.decode(
+                PackageSemanticChangeV1.self,
+                from: bytes
+            ),
+            change
+        )
+        XCTAssertEqual(change.stableKey, "CAPABILITY_ADDED:c18.pack.capability")
+    }
+}

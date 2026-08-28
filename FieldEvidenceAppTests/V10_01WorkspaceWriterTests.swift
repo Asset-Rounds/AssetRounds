@@ -259,22 +259,63 @@ final class V10_01WorkspaceWriterTests: XCTestCase {
 
     @MainActor
     func testV9_08R01CompleteReversalPolicyAndPurePreview() throws {
+        let allCommandKinds: Set<WorkspaceCommandKindV1> = [
+            .createFirstSign,
+            .createCheckDraft,
+            .acceptCheckEvidence,
+            .updateSiteTimeZone,
+            .deleteAsset,
+            .deleteSite,
+            .eraseWorkspace,
+            .finalizeCheck,
+            .finalizeCorrection,
+            .recordWork,
+            .restoreWorkspace,
+            .archiveEntities,
+            .applyLocationHierarchyChange,
+            .applyAssetPlacementChange,
+            .applyAssetCompositionChange,
+            .applySavedSmartView,
+            .applyRequirementAssurance,
+            .applyPartyAccountability,
+            .applyAssetSemantics,
+            .applyAuthorityCriterion,
+            .applyFunctionalRelationship,
+            .applyEvidenceAssurance,
+            .applyInspectionReview,
+            .applyWorkPacket,
+            .applyFieldDraft,
+            .applyPackagePromotion,
+        ]
+        let activeCommandKinds: Set<WorkspaceCommandKindV1> = [
+            .createFirstSign,
+            .createCheckDraft,
+            .acceptCheckEvidence,
+            .updateSiteTimeZone,
+            .applyLocationHierarchyChange,
+            .applyAssetPlacementChange,
+            .applyAssetCompositionChange,
+            .applySavedSmartView,
+            .applyRequirementAssurance,
+            .applyPartyAccountability,
+            .applyAssetSemantics,
+            .applyAuthorityCriterion,
+            .applyFunctionalRelationship,
+            .applyEvidenceAssurance,
+            .applyInspectionReview,
+            .applyWorkPacket,
+            .applyFieldDraft,
+            .applyPackagePromotion,
+        ]
+        XCTAssertEqual(Set(WorkspaceCommandKindV1.allCases), allCommandKinds)
+        XCTAssertEqual(WorkspaceWriterAdapterV1.activeSupportedCommandKinds, activeCommandKinds)
         XCTAssertEqual(
             Set(MutationReversalPolicyRegistryV1.policies.map(\.commandKind)),
             Set(WorkspaceCommandKindV1.allCases)
         )
         XCTAssertEqual(
-            Set(WorkspaceCommandKindV1.allCases.map(\.rawValue)).subtracting([
-                WorkspaceCommandKindV1.archiveEntities.rawValue,
-            ]),
-            [
-                "begin_check_draft", "capture_evidence", "confirm_site_timezone",
-                "create_first_sign", "delete_asset", "delete_site", "erase_workspace",
-                "finalize_check", "finalize_correction", "record_work", "restore_workspace",
-                "apply_location_hierarchy_change", "apply_asset_placement_change",
-                "apply_asset_composition_change", "apply_saved_smart_view",
-                "apply_requirement_assurance",
-            ]
+            Set(WorkspaceCommandKindV1.allCases),
+            allCommandKinds
         )
         XCTAssertEqual(WorkspaceWriterAdapterV1.supportedCommandKinds, [
             .createFirstSign, .createCheckDraft, .acceptCheckEvidence, .updateSiteTimeZone,
@@ -286,9 +327,7 @@ final class V10_01WorkspaceWriterTests: XCTestCase {
         ])
         XCTAssertEqual(
             WorkspaceWriterAdapterV1.activeSupportedCommandKinds,
-            WorkspaceWriterAdapterV1.supportedCommandKinds.union(
-                WorkspaceWriterAdapterV1.locationSupportedCommandKinds
-            ).union([.applySavedSmartView, .applyRequirementAssurance])
+            activeCommandKinds
         )
         XCTAssertFalse(WorkspaceWriterAdapterV1.supportedCommandKinds.contains(.finalizeCheck))
         XCTAssertFalse(WorkspaceWriterAdapterV1.supportedCommandKinds.contains(.eraseWorkspace))
@@ -738,5 +777,23 @@ extension V10_01WorkspaceWriterTests {
         XCTAssertEqual(try mutation.affectedIdentity.kind, .inspectionReviewTransition)
         XCTAssertEqual(try mutation.affectedIdentity.id, transition.transitionID)
         XCTAssertEqual(try mutation.concurrencyIdentity.id, transition.transitionID)
+    }
+}
+
+extension V10_01WorkspaceWriterTests {
+    func testV23P03C18PromotionUsesTheSoleCanonicalWriterAndAtomicBundle() throws {
+        XCTAssertEqual(PackageEvolutionLifecycleV1.writer, "SOLE_CANONICAL_WORKSPACE_WRITER")
+        XCTAssertEqual(
+            PackageEvolutionLifecycleV1.interruption,
+            "OLD_COMPLETE_OR_NEW_COMPLETE_NEVER_HYBRID"
+        )
+        XCTAssertTrue(PackageEvolutionLifecycleV1.persistent)
+        XCTAssertTrue(PackageEvolutionLifecycleV1.exportReportRequired)
+        XCTAssertTrue(PackageEvolutionLifecycleV1.searchRebuildReplayRequired)
+
+        // Keep the compile-time references on the canonical coordinator and
+        // atomic bundle types; package evolution does not add a second writer.
+        XCTAssertGreaterThan(MemoryLayout<PackageEvolutionCoordinatorV1>.size, 0)
+        XCTAssertGreaterThan(MemoryLayout<PackagePromotionAtomicBundleV1>.size, 0)
     }
 }

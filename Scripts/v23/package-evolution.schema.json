@@ -1,0 +1,483 @@
+{
+  "$id": "https://assetrounds.invalid/v23/package-evolution.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "cardID": {
+      "type": "string"
+    },
+    "claims": {
+      "additionalProperties": false,
+      "properties": {
+        "ACTIVE_COMPLETED_REWRITE_OR_HYBRID_ROLLBACK": {
+          "type": "boolean"
+        },
+        "LEGAL_REGULATORY_TAMPERPROOF_OR_NONREPUDIATION": {
+          "type": "boolean"
+        },
+        "NATIVE_IPAD_SURFACE_OR_PUBLIC_METADATA": {
+          "type": "boolean"
+        },
+        "NO_UI_BEFORE_S10_RECONCILIATION": {
+          "type": "boolean"
+        },
+        "PROVIDER_URL_CREDENTIAL_OR_SIGNATURE": {
+          "type": "boolean"
+        },
+        "REMOTE_CATALOG_DELIVERY_OR_ACCOUNT_ENTITLEMENT": {
+          "type": "boolean"
+        },
+        "REMOTE_EMAIL_BILLING_ANALYTICS_OR_TELEMETRY": {
+          "type": "boolean"
+        },
+        "S10_RELEASE_OR_BRAND_APPROVAL": {
+          "type": "boolean"
+        },
+        "SCRIPT_ENGINE_GENERIC_JSON_EAV_OR_SECOND_STORE": {
+          "type": "boolean"
+        },
+        "SIGNING_TESTFLIGHT_APP_STORE_OR_DEPLOYMENT": {
+          "type": "boolean"
+        },
+        "acceptance": {
+          "type": "boolean"
+        },
+        "acceptanceCredit": {
+          "type": "boolean"
+        },
+        "adoption": {
+          "type": "boolean"
+        },
+        "hosted": {
+          "type": "boolean"
+        },
+        "native": {
+          "type": "boolean"
+        },
+        "release": {
+          "type": "boolean"
+        },
+        "releaseCredit": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "ACTIVE_COMPLETED_REWRITE_OR_HYBRID_ROLLBACK",
+        "LEGAL_REGULATORY_TAMPERPROOF_OR_NONREPUDIATION",
+        "NATIVE_IPAD_SURFACE_OR_PUBLIC_METADATA",
+        "NO_UI_BEFORE_S10_RECONCILIATION",
+        "PROVIDER_URL_CREDENTIAL_OR_SIGNATURE",
+        "REMOTE_CATALOG_DELIVERY_OR_ACCOUNT_ENTITLEMENT",
+        "REMOTE_EMAIL_BILLING_ANALYTICS_OR_TELEMETRY",
+        "S10_RELEASE_OR_BRAND_APPROVAL",
+        "SCRIPT_ENGINE_GENERIC_JSON_EAV_OR_SECOND_STORE",
+        "SIGNING_TESTFLIGHT_APP_STORE_OR_DEPLOYMENT",
+        "acceptance",
+        "acceptanceCredit",
+        "adoption",
+        "hosted",
+        "native",
+        "release",
+        "releaseCredit"
+      ],
+      "type": "object"
+    },
+    "containsCustomerData": {
+      "type": "boolean"
+    },
+    "containsSecrets": {
+      "type": "boolean"
+    },
+    "diffDispositions": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "evidenceCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "assertion": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "assertion",
+          "id",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "maxItems": 9,
+      "minItems": 9,
+      "type": "array"
+    },
+    "forbiddenClaims": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 10,
+      "minItems": 10,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "graphCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "canonicalDigest": {
+            "type": "string"
+          },
+          "disposition": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "sourceRevision": {
+            "type": "integer"
+          },
+          "targetRevision": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "canonicalDigest",
+          "disposition",
+          "id",
+          "sourceRevision",
+          "targetRevision"
+        ],
+        "type": "object"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array"
+    },
+    "hostileCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedDisposition": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedDisposition",
+          "id"
+        ],
+        "type": "object"
+      },
+      "maxItems": 15,
+      "minItems": 15,
+      "type": "array"
+    },
+    "interruptionCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedDisposition": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedDisposition",
+          "id"
+        ],
+        "type": "object"
+      },
+      "maxItems": 9,
+      "minItems": 9,
+      "type": "array"
+    },
+    "lifecycleModes": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 4,
+      "minItems": 4,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "migrationInventedPackageEvolutionCount": {
+      "type": "integer"
+    },
+    "packageGraphKinds": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 8,
+      "minItems": 8,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "persistence": {
+      "additionalProperties": false,
+      "properties": {
+        "backupRestoreRequired": {
+          "type": "boolean"
+        },
+        "canonicalSourceOfTruth": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "canonicalWriter": {
+          "type": "string"
+        },
+        "currentProjectionRowCount": {
+          "type": "integer"
+        },
+        "deleteEraseRequired": {
+          "type": "boolean"
+        },
+        "downgrade": {
+          "type": "string"
+        },
+        "exportReportRequired": {
+          "type": "boolean"
+        },
+        "forwardFix": {
+          "type": "string"
+        },
+        "migrationRequired": {
+          "type": "boolean"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "nonPersistentFamilies": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "persistedFamilies": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "providerRows": {
+          "type": "integer"
+        },
+        "recordsSchemaVersion": {
+          "type": "integer"
+        },
+        "schemaRelease": {
+          "type": "string"
+        },
+        "schemaVersion": {
+          "type": "integer"
+        },
+        "secondStore": {
+          "type": "boolean"
+        },
+        "secondWriter": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "backupRestoreRequired",
+        "canonicalSourceOfTruth",
+        "canonicalWriter",
+        "currentProjectionRowCount",
+        "deleteEraseRequired",
+        "downgrade",
+        "exportReportRequired",
+        "forwardFix",
+        "migrationRequired",
+        "mode",
+        "nonPersistentFamilies",
+        "persistedFamilies",
+        "providerRows",
+        "recordsSchemaVersion",
+        "schemaRelease",
+        "schemaVersion",
+        "secondStore",
+        "secondWriter"
+      ],
+      "type": "object"
+    },
+    "persistentPackageEvolutionKindCount": {
+      "type": "integer"
+    },
+    "persistentSchemaVersion": {
+      "type": "integer"
+    },
+    "promotionStates": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "recordsSchemaVersion": {
+      "type": "integer"
+    },
+    "recoveryCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedDisposition": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedDisposition",
+          "id"
+        ],
+        "type": "object"
+      },
+      "maxItems": 9,
+      "minItems": 9,
+      "type": "array"
+    },
+    "requiredBehaviors": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "contract": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "requirement": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "contract",
+          "evidence",
+          "id",
+          "requirement"
+        ],
+        "type": "object"
+      },
+      "maxItems": 8,
+      "minItems": 8,
+      "type": "array"
+    },
+    "requiredContractNames": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 8,
+      "minItems": 8,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "sandboxCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "activation": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "receiptDisposition": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "activation",
+          "id",
+          "receiptDisposition",
+          "state"
+        ],
+        "type": "object"
+      },
+      "maxItems": 4,
+      "minItems": 4,
+      "type": "array"
+    },
+    "sandboxStates": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "integer"
+    },
+    "synthetic": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "cardID",
+    "claims",
+    "containsCustomerData",
+    "containsSecrets",
+    "diffDispositions",
+    "evidenceCases",
+    "forbiddenClaims",
+    "graphCases",
+    "hostileCases",
+    "interruptionCases",
+    "lifecycleModes",
+    "migrationInventedPackageEvolutionCount",
+    "packageGraphKinds",
+    "persistence",
+    "persistentPackageEvolutionKindCount",
+    "persistentSchemaVersion",
+    "promotionStates",
+    "recordsSchemaVersion",
+    "recoveryCases",
+    "requiredBehaviors",
+    "requiredContractNames",
+    "sandboxCases",
+    "sandboxStates",
+    "schema",
+    "schemaVersion",
+    "synthetic"
+  ],
+  "title": "V23 P03 C18 Package Evolution Corpus",
+  "type": "object"
+}

@@ -584,6 +584,15 @@ final class S3_1DraftSchemaTests: XCTestCase {
     }
 }
 
+extension S3_1DraftSchemaTests {
+    func testV23P03C18DraftPlanAndMigrationSchemaAreTyped() throws {
+        XCTAssertEqual(DraftUpgradePlanV1.schemaVersion, 1)
+        XCTAssertEqual(PackageEvolutionLifecycleV1.schema, "PACKAGE_EVOLUTION_V1")
+        XCTAssertTrue(PackageEvolutionLifecycleV1.migrationRequired)
+        XCTAssertTrue(PackageEvolutionLifecycleV1.backupRestoreRequired)
+    }
+}
+
 private struct FixtureIDs {
     let site = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
     let asset = UUID(uuidString: "00000000-0000-0000-0000-000000000002")!

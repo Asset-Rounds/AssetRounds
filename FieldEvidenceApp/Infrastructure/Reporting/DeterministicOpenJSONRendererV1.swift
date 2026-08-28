@@ -1320,3 +1320,79 @@ enum DeterministicOpenJSONRendererV1 {
         return projection
     }
 }
+
+/// Deterministic, metadata-only Open JSON for a promoted package report. The
+/// canonical package and draft bytes remain in the lifecycle store; this
+/// envelope is safe to reopen as historical report evidence.
+struct PackageEvolutionOpenJSONEnvelopeV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let schema = "PACKAGE_EVOLUTION_REPORT_OPEN_JSON_V1"
+
+    let schemaVersion: Int
+    let schema: String
+    let locale: String
+    let report: PackageEvolutionReportProjectionV1
+
+    init(report: PackageEvolutionReportProjectionV1, locale: String = "en") throws {
+        try report.validate()
+        guard locale == "en" else { throw PackageEvolutionConsumerFailureV1.invalidMetadata }
+        schemaVersion = Self.schemaVersion
+        schema = Self.schema
+        self.locale = locale
+        self.report = report
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion, schema == Self.schema,
+              locale == "en" else {
+            throw PackageEvolutionConsumerFailureV1.invalidMetadata
+        }
+        try report.validate()
+    }
+}
+
+extension DeterministicOpenJSONRendererV1 {
+    static func renderPackageEvolution(
+        _ report: PackageEvolutionReportProjectionV1
+    ) throws -> ReportProjectionOutputV1 {
+        let envelope = try PackageEvolutionOpenJSONEnvelopeV1(report: report)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let data = try encoder.encode(envelope)
+        let semanticData = try PackageEvolutionCanonicalCodecV1.encode(report)
+        guard !data.isEmpty, data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes,
+              try reopenPackageEvolution(data) == report else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return ReportProjectionOutputV1(
+            format: .openJSON,
+            data: data,
+            sha256: KernelCanonicalHashV1.sha256(data),
+            semanticSHA256: KernelCanonicalHashV1.sha256(semanticData),
+            orderedSemanticIDs: [
+                "package.evolution.\(report.metadata.packageID)",
+                "package.evolution.release.\(report.metadata.packageReleaseID)",
+            ],
+            taggedPDFAccessibilityEvidence: false
+        )
+    }
+
+    static func reopenPackageEvolution(
+        _ data: Data
+    ) throws -> PackageEvolutionReportProjectionV1 {
+        guard !data.isEmpty, data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        let envelope = try JSONDecoder().decode(
+            PackageEvolutionOpenJSONEnvelopeV1.self,
+            from: data
+        )
+        try envelope.validate()
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        guard try encoder.encode(envelope) == data else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return envelope.report
+    }
+}

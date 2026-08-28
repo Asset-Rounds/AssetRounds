@@ -34,6 +34,7 @@ actor IntegrationProjectionCheckpointStoreV1: IntegrationProjectionOperationalSt
         func validate(expectedGenerationID: UUID, expectedWorkspaceID: WorkspaceID,
                       expectedConsumerID: String, maximumStoredEvents: Int) throws {
             try checkpoint.validate()
+            try IntegrationProjectionCheckpointStoreV1.validatePackagePromotionEventPage(events)
             guard schemaVersion == Self.schemaVersion,
                   generationID == expectedGenerationID,
                   workspaceID == expectedWorkspaceID,
@@ -132,6 +133,8 @@ actor IntegrationProjectionCheckpointStoreV1: IntegrationProjectionOperationalSt
     private let rootURL: URL
     private let fileManager: FileManager
     private let maximumStoredEvents: Int
+
+    private static func validatePackagePromotionEventPage(_ events:[IntegrationEventV1])throws{let grouped=Dictionary(grouping:events,by:\.sourceReceiptID);for page in grouped.values{let kinds=Set(page.map{$0.subject.kind});let present=kinds.intersection(IntegrationEventProjectionV1.packagePromotionKinds);guard present.isEmpty || (page.count==4&&kinds==IntegrationEventProjectionV1.packagePromotionKinds)else{throw IntegrationEventFailureV1.divergentEvent}}}
 
     init(generationRootURL: URL, generationID: UUID, workspaceID: WorkspaceID,
          limits: IntegrationEventLimitsV1 = try! IntegrationEventLimitsV1(),

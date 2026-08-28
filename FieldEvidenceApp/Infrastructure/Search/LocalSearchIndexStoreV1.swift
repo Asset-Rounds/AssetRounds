@@ -908,6 +908,31 @@ actor LocalSearchIndexStoreV1: SearchIndexSnapshotProvidingV1, SearchIndexLifecy
     }
 }
 
+extension LocalSearchIndexStoreV1 {
+    /// Validates the disposable C18 package row at the local-index boundary.
+    /// This is intentionally separate from SearchIndexProjectionRecordV1 so a
+    /// package receipt can never be mistaken for a canonical search source.
+    static func packageEvolutionRecord(
+        metadata: PackageEvolutionConsumerMetadataV1
+    ) throws -> PackageEvolutionSearchRecordV1 {
+        try PackageEvolutionSearchRecordV1(metadata: metadata)
+    }
+
+    static func validatePackageEvolutionRecord(
+        _ record: PackageEvolutionSearchRecordV1
+    ) throws {
+        try record.validate()
+        guard PackageEvolutionSearchProjectionPolicyV1.fieldIDs.count ==
+                PackageEvolutionSearchFieldV1.allCases.count,
+              PackageEvolutionSearchProjectionPolicyV1.derivedOnly,
+              PackageEvolutionSearchProjectionPolicyV1.excludesCanonicalPackageBytes,
+              PackageEvolutionSearchProjectionPolicyV1.excludesDraftPayload,
+              PackageEvolutionSearchProjectionPolicyV1.excludesActorIdentity else {
+            throw PackageEvolutionConsumerFailureV1.forbiddenSensitiveMetadata
+        }
+    }
+}
+
 private extension LocalSearchIndexStoreV1 {
     nonisolated static func synchronouslyRemoveDerivedBytes(
         applicationSupportURL: URL,

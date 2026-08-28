@@ -650,6 +650,18 @@ final class S6_6EraseRecoveryTests: XCTestCase {
 }
 
 extension S6_6EraseRecoveryTests {
+    func testV23P03C18EraseRecoveryRetainsTypedLifecycleRequirement() throws {
+        XCTAssertTrue(PackageEvolutionLifecycleV1.deleteEraseRequired)
+        XCTAssertTrue(PackageEvolutionLifecycleV1.backupRestoreRequired)
+        XCTAssertTrue(PackageSandboxCheckKindV1.allCases.contains(.deleteErase))
+        XCTAssertEqual(
+            PackageEvolutionLifecycleV1.downgradePolicy,
+            "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_FIRST_V17_WRITE"
+        )
+    }
+}
+
+extension S6_6EraseRecoveryTests {
     func testV23P03C17DeleteAndEraseOwnOnlyDerivedProjectionCleanup() throws {
         XCTAssertNoThrow(try KernelDeletionEraseRegistryV4.validateIntegrationProjectionLifecycle())
         XCTAssertEqual(

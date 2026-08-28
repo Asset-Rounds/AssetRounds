@@ -278,6 +278,15 @@ struct KernelMutationReceiptV4: Codable, Equatable, Sendable {
 }
 
 enum KernelMutationReceiptRegistryV4 {
+    static func validatePackagePromotion(
+        mutation: PackagePromotionMutationV1,
+        receipt: MutationReceiptV1
+    ) throws {
+        _ = try PackagePromotionMutationReceiptV1(
+            mutation: mutation,
+            mutationReceipt: receipt
+        )
+    }
     static let registrations: [KernelMutationRegistrationV4] = {
         do {
             return try KernelPersistenceV4RecordKind.allCases.map { kind in

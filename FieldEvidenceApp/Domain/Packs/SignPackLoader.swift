@@ -73,7 +73,7 @@ enum SignPackLoader {
         ]
 
         guard pack.schemaVersion == 1,
-              pack.contentVersion == 1,
+              pack.contentVersion > 0,
               validLowercaseIdentifier(pack.packID, maximumLength: 200),
               validNoun(pack.nouns.asset),
               validNoun(pack.nouns.check),

@@ -7,6 +7,13 @@ enum BackupRestoreMode: String, CaseIterable, Codable, Equatable, Sendable {
     case fork
 }
 
+extension RestoreIdentityV1 {
+    func destinationPackageEvolutionWorkspaceID() -> WorkspaceID {
+        WorkspaceID(rawValue: targetPointer.workspaceID)
+    }
+    static let packageEvolutionIdentityRule = "PRESERVE_RELEASE_RUN_RECEIPT_POINTER_IDS_REBIND_WORKSPACE_AND_DIGESTS"
+}
+
 enum RestoreRecordIdentityDispositionV1: String, Codable, Equatable, Sendable {
     case preserve
 }

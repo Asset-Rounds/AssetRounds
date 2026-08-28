@@ -594,3 +594,51 @@ struct SupportBundleBuilderV1: Sendable {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 }
+
+/// Metadata-only C18 diagnostics. No package bytes, draft payload, actor
+/// identity, exact candidate head, or receipt digest is diagnostic material.
+struct PackageEvolutionDiagnosticMetadataV1: Codable, Equatable, Sendable {
+    let packageID: String
+    let packageReleaseID: String
+    let semanticClassification: PackageSemanticDiffClassificationV1
+    let promotionStatus: PackageEvolutionConsumerStatusV1
+
+    init(metadata: PackageEvolutionConsumerMetadataV1) throws {
+        try metadata.validate()
+        packageID = metadata.packageID
+        packageReleaseID = metadata.packageReleaseID
+        semanticClassification = metadata.semanticClassification
+        promotionStatus = metadata.promotionStatus
+        try validate()
+    }
+
+    init(bundle: PackagePromotionAtomicBundleV1) throws {
+        try self.init(metadata: PackageEvolutionConsumerMetadataV1(bundle: bundle))
+    }
+
+    func validate() throws {
+        guard InspectionPackageValidationV2.validIdentifier(packageID, maximumBytes: 200),
+              KernelCanonicalHashV1.validSHA256(packageReleaseID) else {
+            throw PackageEvolutionConsumerFailureV1.invalidMetadata
+        }
+    }
+
+    static let includesCanonicalPackageBytes = false
+    static let includesDraftPayload = false
+    static let includesActorIdentity = false
+    static let includesExactCandidateHead = false
+}
+
+extension DiagnosticExportV1 {
+    static func packageEvolutionDiagnosticMetadata(
+        _ metadata: PackageEvolutionConsumerMetadataV1
+    ) throws -> PackageEvolutionDiagnosticMetadataV1 {
+        try PackageEvolutionDiagnosticMetadataV1(metadata: metadata)
+    }
+
+    static func packageEvolutionDiagnosticMetadata(
+        _ bundle: PackagePromotionAtomicBundleV1
+    ) throws -> PackageEvolutionDiagnosticMetadataV1 {
+        try PackageEvolutionDiagnosticMetadataV1(bundle: bundle)
+    }
+}

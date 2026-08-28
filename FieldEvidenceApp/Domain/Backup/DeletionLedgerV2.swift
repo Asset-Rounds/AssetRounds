@@ -201,6 +201,7 @@ struct DeletionLedgerEntryV2: Codable, Equatable, Hashable, Sendable {
     }
 
     func validate() throws {
+        try PackageEvolutionDeletionLedgerPolicyV1.validate()
         try PartyAccountabilityDeletionLedgerPolicyV1.validate()
         try AssetSemanticDeletionLedgerPolicyV1.validate()
         try AuthorityCriterionDeletionLedgerPolicyV1.validate()
@@ -213,6 +214,20 @@ struct DeletionLedgerEntryV2: Codable, Equatable, Hashable, Sendable {
             throw DeletionLedgerFailureV2.invalidTimestamp
         }
         _ = try DeletionIdentityV2(typedID: identity.typedID)
+    }
+}
+
+enum PackageEvolutionDeletionLedgerPolicyV1 {
+    enum Disposition: String, Sendable { case preservePromotedHistoryUntilWorkspaceErase }
+    static func disposition(for kind: V17BackupPackageEvolutionRecordV1.Kind) -> Disposition {
+        _ = kind
+        return .preservePromotedHistoryUntilWorkspaceErase
+    }
+    static func validate() throws {
+        guard V17BackupPackageEvolutionRecordV1.Kind.allCases.count == 4,
+              V17BackupPackageEvolutionRecordV1.Kind.allCases.allSatisfy({
+                  disposition(for: $0) == .preservePromotedHistoryUntilWorkspaceErase
+              }) else { throw DeletionLedgerFailureV2.invalidSchemaVersion }
     }
 }
 

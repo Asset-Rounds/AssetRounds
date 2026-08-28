@@ -45,6 +45,7 @@ struct IntegrationConformanceConsumerV1: Sendable {
         guard acceptedReceipts.count <= ChangeJournalLimitsV1.productionMaximumEntitiesPerCheckpoint else {
             throw IntegrationEventFailureV1.limitExceeded
         }
+        try projection.validatePackagePromotionReplay(acceptedReceipts)
         let prior = try await store.checkpoint(
             consumerID: consumer.consumerID, workspaceID: workspaceID
         )
@@ -89,6 +90,7 @@ struct IntegrationConformanceConsumerV1: Sendable {
         guard acceptedReceipts.count <= ChangeJournalLimitsV1.productionMaximumEntitiesPerCheckpoint else {
             throw IntegrationEventFailureV1.limitExceeded
         }
+        try projection.validatePackagePromotionReplay(acceptedReceipts)
         try await store.dropDerivedProjection(
             consumerID: consumer.consumerID, workspaceID: workspaceID
         )

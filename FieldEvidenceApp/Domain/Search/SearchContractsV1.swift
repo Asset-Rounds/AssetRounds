@@ -1369,3 +1369,136 @@ struct SavedSmartViewDescriptorV1: Codable, Equatable, Sendable {
         )
     }
 }
+
+// C18 exposes package evolution to downstream consumers only as a bounded
+// metadata projection.  Package bytes, draft payloads, actor snapshots, exact
+// candidate heads, and receipt digests stay in the canonical lifecycle and are
+// deliberately absent from this type.
+enum PackageEvolutionConsumerFailureV1: Error, Equatable, Sendable {
+    case invalidMetadata
+    case incompleteSandbox
+    case mismatchedRelease
+    case forbiddenSensitiveMetadata
+}
+
+enum PackageEvolutionConsumerStatusV1: String, Codable, CaseIterable, Sendable {
+    case preview = "PREVIEW"
+    case promoted = "PROMOTED"
+    case rolledBack = "ROLLED_BACK"
+    case forwardFixRequired = "FORWARD_FIX_REQUIRED"
+    case void = "VOID"
+}
+
+struct PackageEvolutionConsumerMetadataV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let packageID: String
+    let packageReleaseID: String
+    let semanticClassification: PackageSemanticDiffClassificationV1
+    let promotionStatus: PackageEvolutionConsumerStatusV1
+    let sandboxDisposition: PackageSandboxDispositionV1
+    let localizationReleaseSHA256: String?
+
+    init(
+        packageID: String,
+        packageReleaseID: String,
+        semanticClassification: PackageSemanticDiffClassificationV1,
+        promotionStatus: PackageEvolutionConsumerStatusV1,
+        sandboxDisposition: PackageSandboxDispositionV1,
+        localizationReleaseSHA256: String? = nil
+    ) throws {
+        schemaVersion = Self.schemaVersion
+        self.packageID = packageID
+        self.packageReleaseID = packageReleaseID
+        self.semanticClassification = semanticClassification
+        self.promotionStatus = promotionStatus
+        self.sandboxDisposition = sandboxDisposition
+        self.localizationReleaseSHA256 = localizationReleaseSHA256
+        try validate()
+    }
+
+    init(bundle: PackagePromotionAtomicBundleV1) throws {
+        try bundle.validate()
+        try self.init(
+            packageID: bundle.promotedRelease.packageRelease.packageID,
+            packageReleaseID: bundle.promotedRelease.packageRelease.packageReleaseID,
+            semanticClassification: bundle.semanticDiff.classification,
+            promotionStatus: .promoted,
+            sandboxDisposition: bundle.sandboxRun.disposition,
+            localizationReleaseSHA256: bundle.semanticDiff.target
+                .semanticReleaseBindings.localizationReleaseSHA256
+        )
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              InspectionPackageValidationV2.validIdentifier(packageID, maximumBytes: 200),
+              KernelCanonicalHashV1.validSHA256(packageReleaseID),
+              localizationReleaseSHA256.map(KernelCanonicalHashV1.validSHA256) ?? true else {
+            throw PackageEvolutionConsumerFailureV1.invalidMetadata
+        }
+    }
+}
+
+enum PackageEvolutionSearchFieldV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case packageID = "package_id"
+    case packageReleaseID = "package_release_id"
+    case semanticClassification = "package_semantic_classification"
+    case promotionStatus = "package_promotion_status"
+}
+
+struct PackageEvolutionSearchRecordV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let packageID: String
+    let packageReleaseID: String
+    let semanticClassification: PackageSemanticDiffClassificationV1
+    let promotionStatus: PackageEvolutionConsumerStatusV1
+
+    init(metadata: PackageEvolutionConsumerMetadataV1) throws {
+        try metadata.validate()
+        schemaVersion = Self.schemaVersion
+        packageID = metadata.packageID
+        packageReleaseID = metadata.packageReleaseID
+        semanticClassification = metadata.semanticClassification
+        promotionStatus = metadata.promotionStatus
+        try validate()
+    }
+
+    var boundedFieldValues: [PackageEvolutionSearchFieldV1: String] {
+        [
+            .packageID: packageID,
+            .packageReleaseID: packageReleaseID,
+            .semanticClassification: semanticClassification.rawValue,
+            .promotionStatus: promotionStatus.rawValue,
+        ]
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              InspectionPackageValidationV2.validIdentifier(packageID, maximumBytes: 200),
+              KernelCanonicalHashV1.validSHA256(packageReleaseID),
+              boundedFieldValues.count == PackageEvolutionSearchFieldV1.allCases.count else {
+            throw PackageEvolutionConsumerFailureV1.invalidMetadata
+        }
+    }
+}
+
+enum PackageEvolutionSearchProjectionPolicyV1 {
+    static let sourceKind = "PACKAGE_EVOLUTION"
+    static let semanticLabel = "PACKAGE_EVOLUTION_SEARCH_METADATA_V1"
+    static let fieldIDs = PackageEvolutionSearchFieldV1.allCases.map(\.rawValue)
+    static let derivedOnly = true
+    static let dropAndRebuildAfterRestore = true
+    static let dropAndRebuildOnReplay = true
+    static let excludesCanonicalPackageBytes = true
+    static let excludesDraftPayload = true
+    static let excludesActorIdentity = true
+    static let excludesExactCandidateHead = true
+
+    static func accepts(_ field: PackageEvolutionSearchFieldV1) -> Bool {
+        fieldIDs.contains(field.rawValue)
+    }
+}

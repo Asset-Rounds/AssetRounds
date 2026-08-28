@@ -839,3 +839,26 @@ extension V10_03ReplicationConflictRegistryTests {
         XCTAssertNotEqual(fixture.supersedingPolicy.policySHA256, fixture.policy.policySHA256)
     }
 }
+
+extension V10_03ReplicationConflictRegistryTests {
+    func testV23P03C18RegistryPointerConflictAndRollbackPolicyRemainClosed() throws {
+        XCTAssertEqual(
+            PackageRollbackCompatibilityV1.preActivationDiscardable.rawValue,
+            "PRE_ACTIVATION_DISCARDABLE"
+        )
+        XCTAssertEqual(
+            PackageRollbackCompatibilityV1.activatedForwardFixRequired.rawValue,
+            "ACTIVATED_FORWARD_FIX_REQUIRED"
+        )
+        XCTAssertEqual(
+            PackageEvolutionLifecycleV1.downgradePolicy,
+            "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_FIRST_V17_WRITE"
+        )
+        XCTAssertTrue(PackageEvolutionLifecycleV1.persistent)
+        XCTAssertTrue(PackageEvolutionLifecycleV1.backupRestoreRequired)
+        XCTAssertEqual(
+            PackageEvolutionLifecycleV1.interruption,
+            "OLD_COMPLETE_OR_NEW_COMPLETE_NEVER_HYBRID"
+        )
+    }
+}

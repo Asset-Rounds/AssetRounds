@@ -1149,6 +1149,15 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
 }
 
 extension V9_13PersistentKindLifecycleCoverageTests {
+    func testV23P03C18PersistentSandboxKindsStayVersioned() throws {
+        XCTAssertEqual(PackageSandboxRunV1.schemaVersion, 1)
+        let required: Set<PackageSandboxCheckKindV1> = [.schema, .graph, .backupRestore, .searchRebuild]
+        XCTAssertTrue(required.isSubset(of: Set(PackageSandboxCheckKindV1.allCases)))
+        XCTAssertTrue(PackageEvolutionLifecycleV1.persistent)
+    }
+}
+
+extension V9_13PersistentKindLifecycleCoverageTests {
     func testV23P03C15DeclaredKindsAndReleaseStatesAreComplete() throws {
         let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_113)
         XCTAssertEqual(

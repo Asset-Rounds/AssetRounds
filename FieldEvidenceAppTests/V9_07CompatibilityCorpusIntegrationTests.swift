@@ -581,6 +581,24 @@ final class V9_07CompatibilityCorpusIntegrationTests: XCTestCase {
 }
 
 extension V9_07CompatibilityCorpusIntegrationTests {
+    func testV23P03C18CompatibilityEvidenceUsesCanonicalSemanticChange() throws {
+        let change = try PackageSemanticChangeV1(
+            kind: .workflowNodeChanged,
+            stableSubjectID: "c18.workflow.node"
+        )
+        let bytes = try PackageEvolutionCanonicalCodecV1.encode(change)
+        XCTAssertEqual(
+            try PackageEvolutionCanonicalCodecV1.decode(
+                PackageSemanticChangeV1.self,
+                from: bytes
+            ),
+            change
+        )
+        XCTAssertTrue(PackageEvolutionLifecycleV1.searchRebuildReplayRequired)
+    }
+}
+
+extension V9_07CompatibilityCorpusIntegrationTests {
     func testV23P03C15CorpusAdvertisesSchemaAndBoundaryCompatibility() throws {
         let data = try Data(contentsOf: C15WorkPacketManifestTestSupportV1.corpusURL())
         let source = try XCTUnwrap(String(data: data, encoding: .utf8))

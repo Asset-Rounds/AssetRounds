@@ -527,6 +527,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
             do{try value.validate();let target=try value.concurrencyIdentity;let expected=request.expectedRevision.entityRevisions.first(where:{$0.identity==target})?.revision;guard value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,sourceKind == .importedHistory || occurredAtOverride != nil || expected==value.expectedRevision else{throw WorkspaceMutationFailureV1.invalidCommand}}catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
         case .applyFieldDraft(let value):
             do{try value.validate();let targets=try value.concurrencyIdentities;let expected=Dictionary(uniqueKeysWithValues:request.expectedRevision.entityRevisions.map{($0.identity,$0.revision)});guard value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,sourceKind == .importedHistory || occurredAtOverride != nil || (try targets.allSatisfy{expected[$0] == (try value.expectedRevision(for:$0))}) else{throw WorkspaceMutationFailureV1.invalidCommand}}catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
+        case .applyPackagePromotion(let value):
+            do{try value.validate();let targets=try value.concurrencyIdentities;let expected=Dictionary(uniqueKeysWithValues:request.expectedRevision.entityRevisions.map{($0.identity,$0.revision)});guard value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,sourceKind == .importedHistory || occurredAtOverride != nil || (try targets.allSatisfy{expected[$0] == (try value.expectedRevision(for:$0))}) else{throw WorkspaceMutationFailureV1.invalidCommand}}catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
         default:
             break
         }
@@ -720,6 +722,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
             entityRevisions[try mutation.affectedIdentity]=mutation.postImage.revision
         } else if case let .applyFieldDraft(mutation) = request.command {
             for image in try mutation.postImage.mutationPostImages{entityRevisions[try image.identity]=image.revision}
+        } else if case let .applyPackagePromotion(mutation) = request.command {
+            for image in try mutation.mutationPostImages{entityRevisions[try image.identity]=image.revision}
         } else {
             for target in targets { entityRevisions[target, default: 0] += 1 }
         }
@@ -1171,6 +1175,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
             try value.validate();values=[try value.affectedIdentity]
         case let .applyFieldDraft(value):
             try value.validate();values=try value.affectedIdentities
+        case let .applyPackagePromotion(value):
+            try value.validate();values=try value.affectedIdentities
         }
         guard Set(values).count == values.count else {
             throw WorkspaceMutationFailureV1.invalidCommand
@@ -1193,6 +1199,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
         if case let .applyInspectionReview(value)=command{try value.validate();return try value.concurrencyIdentities}
         if case let .applyWorkPacket(value)=command{try value.validate();return[try value.concurrencyIdentity]}
         if case let .applyFieldDraft(value)=command{try value.validate();return try value.concurrencyIdentities}
+        if case let .applyPackagePromotion(value)=command{try value.validate();return try value.concurrencyIdentities}
         return try targetIdentities(for: command)
     }
 

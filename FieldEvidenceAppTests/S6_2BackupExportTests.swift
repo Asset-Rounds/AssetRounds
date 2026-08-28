@@ -320,6 +320,15 @@ final class S6_2BackupExportTests: XCTestCase {
 }
 
 extension S6_2BackupExportTests {
+    func testV23P03C18BackupAndExportAreRequiredSandboxChecks() throws {
+        let required: Set<PackageSandboxCheckKindV1> = [.backupRestore, .export]
+        XCTAssertEqual(required.intersection(Set(PackageSandboxCheckKindV1.allCases)), required)
+        XCTAssertTrue(PackageEvolutionLifecycleV1.backupRestoreRequired)
+        XCTAssertTrue(PackageEvolutionLifecycleV1.exportReportRequired)
+    }
+}
+
+extension S6_2BackupExportTests {
     func testV23P03C17DerivedIntegrationProjectionIsNotCanonicalBackupOrExport() throws {
         XCTAssertNoThrow(try IntegrationProjectionBackupExportExclusionV1.validate())
         XCTAssertFalse(IntegrationProjectionSchemaV1.canonicalBackupIncluded)

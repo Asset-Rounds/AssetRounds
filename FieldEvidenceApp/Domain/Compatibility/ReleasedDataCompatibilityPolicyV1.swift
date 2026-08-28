@@ -589,3 +589,87 @@ enum FieldDraftCompatibilityPolicyV1 {
     static func acceptsPersistentWriterVersion(_ version:String)->Bool{(try? validate()) != nil&&readablePersistentWriterVersions.contains(version)}
     static func acceptsBackupWriterVersion(_ version:String)->Bool{(try? validate()) != nil&&readableBackupWriterVersions.contains(version)}
 }
+
+/// C18's package-evolution rows are a new V17/records-16 durable family. The
+/// compatibility surface is intentionally separate from the released-data
+/// artifact-family table: old reports remain readable, while unknown package
+/// evolution writers and post-activation downgrades fail closed.
+struct PackageEvolutionCompatibilityV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let persistentSchemaVersion = 17
+    static let recordsSchemaVersion = 16
+    static let persistentContractSchema = PersistentSchemaReleaseV1.v17.compatibilityID
+    static let currentWriterVersion = "PACKAGE_EVOLUTION_WRITER_V1"
+
+    let schemaVersion: Int
+    let persistentSchemaVersion: Int
+    let recordsSchemaVersion: Int
+    let persistentContractSchema: String
+    let readableWriterVersions: [String]
+    let currentWriterVersion: String
+    let unknownVersionsFailClosed: Bool
+    let preActivationDowngradeAllowed: Bool
+    let postActivationRequiresForwardFix: Bool
+    let derivedSearchDropsAndRebuilds: Bool
+    let historicalReportsPinFrozenReleaseIdentity: Bool
+
+    init(
+        readableWriterVersions: [String] = ["PACKAGE_EVOLUTION_WRITER_V1"],
+        preActivationDowngradeAllowed: Bool = true,
+        postActivationRequiresForwardFix: Bool = true
+    ) {
+        schemaVersion = Self.schemaVersion
+        persistentSchemaVersion = Self.persistentSchemaVersion
+        recordsSchemaVersion = Self.recordsSchemaVersion
+        persistentContractSchema = Self.persistentContractSchema
+        self.readableWriterVersions = readableWriterVersions.sorted()
+        currentWriterVersion = Self.currentWriterVersion
+        unknownVersionsFailClosed = true
+        self.preActivationDowngradeAllowed = preActivationDowngradeAllowed
+        self.postActivationRequiresForwardFix = postActivationRequiresForwardFix
+        derivedSearchDropsAndRebuilds = true
+        historicalReportsPinFrozenReleaseIdentity = true
+    }
+
+    static let current = Self()
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              persistentSchemaVersion == Self.persistentSchemaVersion,
+              recordsSchemaVersion == Self.recordsSchemaVersion,
+              persistentContractSchema == Self.persistentContractSchema,
+              readableWriterVersions == readableWriterVersions.sorted(),
+              !readableWriterVersions.isEmpty,
+              readableWriterVersions.contains(currentWriterVersion),
+              currentWriterVersion == Self.currentWriterVersion,
+              unknownVersionsFailClosed,
+              preActivationDowngradeAllowed,
+              postActivationRequiresForwardFix,
+              derivedSearchDropsAndRebuilds,
+              historicalReportsPinFrozenReleaseIdentity else {
+            throw CompatibilityContractErrorV1.invalidSupportTable
+        }
+    }
+
+    func validateWriterVersion(_ version: String) throws {
+        try validate()
+        guard readableWriterVersions.contains(version) else {
+            throw CompatibilityContractErrorV1.unsupportedVersion
+        }
+        guard version == currentWriterVersion else {
+            throw CompatibilityContractErrorV1.noncurrentWriterVersion
+        }
+    }
+
+    func validateStorage(schemaVersion: Int, recordsSchemaVersion: Int) throws {
+        try validate()
+        guard schemaVersion == persistentSchemaVersion,
+              recordsSchemaVersion == Self.recordsSchemaVersion else {
+            throw CompatibilityContractErrorV1.unsupportedVersion
+        }
+    }
+}
+
+extension ReleasedDataCompatibilityPolicyV1 {
+    static let packageEvolutionCompatibility = PackageEvolutionCompatibilityV1.current
+}

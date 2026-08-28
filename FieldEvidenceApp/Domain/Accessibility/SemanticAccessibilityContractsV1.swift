@@ -887,3 +887,71 @@ enum WorkPacketAccessibilityPolicyV1 {
 
 typealias WorkPacketManifestAccessibilityPolicyV1 = WorkPacketAccessibilityPolicyV1
 typealias PacketCoordinationAccessibilityPolicyV1 = WorkPacketAccessibilityPolicyV1
+
+/// C18 package-evolution IDs describe local, recorded lifecycle facts. They
+/// are stable across localized labels and do not expose receipt, actor, or
+/// package-byte identities through accessibility.
+enum PackageEvolutionAccessibilityIDV1: String, Codable, CaseIterable, Sendable {
+    case screen = "package.evolution.screen"
+    case release = "package.evolution.release"
+    case semanticClassification = "package.evolution.semantic-classification"
+    case promotionStatus = "package.evolution.promotion-status"
+    case sandboxStatus = "package.evolution.sandbox-status"
+    case brandState = "package.evolution.brand-state"
+    case nextStep = "package.evolution.next-step"
+}
+
+struct PackageEvolutionAccessibilityContractV1: Codable, Equatable, Sendable {
+    let semanticID: PackageEvolutionAccessibilityIDV1
+    let role: SemanticAccessibilityRoleV1
+    let textAlternativeRequired: Bool
+    let iconIsSupplemental: Bool
+    let nonColorStateRequired: Bool
+    let actionableNextStep: Bool
+
+    init(
+        semanticID: PackageEvolutionAccessibilityIDV1,
+        role: SemanticAccessibilityRoleV1,
+        textAlternativeRequired: Bool = true,
+        iconIsSupplemental: Bool = true,
+        nonColorStateRequired: Bool = true,
+        actionableNextStep: Bool = false
+    ) {
+        self.semanticID = semanticID
+        self.role = role
+        self.textAlternativeRequired = textAlternativeRequired
+        self.iconIsSupplemental = iconIsSupplemental
+        self.nonColorStateRequired = nonColorStateRequired
+        self.actionableNextStep = actionableNextStep
+    }
+}
+
+enum PackageEvolutionAccessibilityPolicyV1 {
+    static let semanticIDs = PackageEvolutionAccessibilityIDV1.allCases.map(\.rawValue)
+    static let nonColorStateTextRequired = true
+    static let iconOnlyStateAllowed = false
+    static let motionOnlyStateAllowed = false
+    static let packageBytesAndActorIdentityExposed = false
+    static let contracts: [PackageEvolutionAccessibilityContractV1] = [
+        .init(semanticID: .screen, role: .screen),
+        .init(semanticID: .release, role: .heading),
+        .init(semanticID: .semanticClassification, role: .status),
+        .init(semanticID: .promotionStatus, role: .status),
+        .init(semanticID: .sandboxStatus, role: .status),
+        .init(semanticID: .brandState, role: .status),
+        .init(semanticID: .nextStep, role: .button, actionableNextStep: true),
+    ]
+
+    static func validate() -> Bool {
+        contracts.map { $0.semanticID.rawValue } == semanticIDs
+            && contracts.allSatisfy {
+                $0.textAlternativeRequired
+                    && $0.iconIsSupplemental
+                    && $0.nonColorStateRequired
+            }
+            && contracts.contains { $0.semanticID == .nextStep && $0.actionableNextStep }
+            && !iconOnlyStateAllowed
+            && !motionOnlyStateAllowed
+            && !packageBytesAndActorIdentityExposed
+    }
+}

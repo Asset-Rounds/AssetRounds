@@ -788,6 +788,15 @@ final class V9_12SystemHealthOperationalDiagnosticsTests: XCTestCase {
 }
 
 extension V9_12SystemHealthOperationalDiagnosticsTests {
+    func testV23P03C18ReplayClassificationIsPartOfOperationalLifecycle() throws {
+        let required: Set<PackageSandboxCheckKindV1> = [.classification, .replay, .searchRebuild]
+        XCTAssertTrue(required.isSubset(of: Set(PackageSandboxCheckKindV1.allCases)))
+        XCTAssertTrue(PackageEvolutionLifecycleV1.searchRebuildReplayRequired)
+        XCTAssertTrue(PackageEvolutionLifecycleV1.exportReportRequired)
+    }
+}
+
+extension V9_12SystemHealthOperationalDiagnosticsTests {
     func testV23P03C17DiagnosticsExcludeEventCheckpointAndSubjectPayloads() throws {
         let coverage = IntegrationEventJournalCoverageV1()
         XCTAssertNoThrow(try coverage.validate())

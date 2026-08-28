@@ -39,6 +39,35 @@ protocol DraftContentPromotionPortV1: Sendable {
 
     func append(_ item:AttachmentStagingItemV1,checkpoint:FieldDraftCheckpointV1,expectedRevision:UInt64)throws->MutationReceiptV1{try item.validate();try checkpoint.validate(registry:registry);guard item.workspaceID==checkpoint.workspaceID,item.draftID==checkpoint.draftID,checkpoint.stageIDs.contains(item.stageID)else{throw FieldDraftFailureV1.wrongWorkspace};return try writer.append(stagingItem:item,expectedRevision:expectedRevision)}
 
+    func applyPackageUpgrade(
+        plan: DraftUpgradePlanV1,
+        source: FieldDraftCheckpointV1,
+        diff: PackageSemanticDiffV1,
+        mutationID: MutationIDV1,
+        updatedAt: Date
+    ) throws -> MutationReceiptV1 {
+        try source.validate(registry: registry)
+        try plan.validate(source: source, diff: diff)
+        guard source.draftRevision < UInt64.max else {
+            throw PackageEvolutionFailureV1.staleSource
+        }
+        let successor = try FieldDraftCheckpointV1(
+            draftID: source.draftID, workspaceID: source.workspaceID,
+            scope: source.scope, purpose: source.purpose, codec: source.codec,
+            baseCanonicalRevision: source.baseCanonicalRevision,
+            draftRevision: source.draftRevision + 1,
+            payloadData: plan.targetPayloadData, stageIDs: source.stageIDs,
+            resumeAnchor: source.resumeAnchor, state: .active,
+            lastDurableMutationID: source.lastDurableMutationID,
+            lastReceiptSHA256: source.lastReceiptSHA256,
+            updatedAt: updatedAt, mutationID: mutationID
+        )
+        return try checkpoint(
+            successor, expectedDraftRevision: source.draftRevision,
+            expectedBaseRevision: source.baseCanonicalRevision
+        )
+    }
+
     func commit(plan:DraftCommitPlanV1,checkpoint:FieldDraftCheckpointV1,items:[AttachmentStagingItemV1],prepared:DraftCommitSagaV1,contentPromoted:DraftCommitSagaV1,targetCommitted:DraftCommitSagaV1,retirePending:DraftCommitSagaV1,retired:DraftCommitSagaV1,commitReceiptID:UUID,terminalCheckpointUpdatedAt:Date,rowMutationIDs:DraftCommitRowMutationIDsV1)async throws->DraftCommitReceiptV1{
         try plan.validate();try checkpoint.validate(registry:registry);try items.forEach{$0.validate()};try prepared.validate();try contentPromoted.validateSuccessor(of:prepared);try targetCommitted.validateSuccessor(of:contentPromoted);try retirePending.validateSuccessor(of:targetCommitted);try retired.validateSuccessor(of:retirePending)
         try rowMutationIDs.validate(stageIDs:items.map(\.stageID),targetMutationID:plan.mutationID,sagaMutationIDs:[prepared.mutationID,contentPromoted.mutationID,targetCommitted.mutationID,retirePending.mutationID])

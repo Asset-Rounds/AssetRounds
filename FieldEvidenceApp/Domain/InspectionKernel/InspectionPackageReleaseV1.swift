@@ -193,7 +193,7 @@ struct InspectionPackageReleaseV1: Codable, Equatable, Sendable {
         guard schemaVersion == Self.schemaVersion,
               KernelCanonicalHashV1.validSHA256(packageReleaseID),
               WorkflowGrammarValidationV1.validID(packageID),
-              packageContentVersion == 1,
+              packageContentVersion > 0,
               KernelCanonicalHashV1.sha256(canonicalPackageBytes) == packageSHA256,
               KernelCanonicalHashV1.sha256(canonicalWorkflowBytes) == workflowSHA256 else {
             throw InspectionKernelFailureV1.hashMismatch

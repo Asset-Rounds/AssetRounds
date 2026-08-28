@@ -11,6 +11,12 @@ enum FunctionalRelationshipEraseBoundaryV1 {
     }
 }
 
+enum PackageEvolutionEraseBoundaryV1 {
+    static let atomicFamilyCount = 4
+    static let ordinaryDeletionPreservesPromotedHistory = true
+    static let workspaceEraseClearsEntireClosure = true
+}
+
 enum EvidenceAssuranceEraseBoundaryV1 {
     static let immutableHistoryClearedOnlyByWorkspaceErase = true
     static let ordinaryDeletionIsZeroWrite = true

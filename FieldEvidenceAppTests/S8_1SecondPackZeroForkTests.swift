@@ -436,3 +436,14 @@ final class S8_1SecondPackZeroForkTests: XCTestCase {
 private enum FixtureError: Error {
     case invalidFixture
 }
+
+extension S8_1SecondPackZeroForkTests {
+    func testV23P03C18PromotionAuthorityStaysLocalAndSingleWriter() throws {
+        XCTAssertEqual(
+            PackagePromotionAuthorityV1.explicitLocalOperator.rawValue,
+            "EXPLICIT_LOCAL_OPERATOR"
+        )
+        XCTAssertEqual(PackageEvolutionLifecycleV1.writer, "SOLE_CANONICAL_WORKSPACE_WRITER")
+        XCTAssertTrue(PackageEvolutionLifecycleV1.persistent)
+    }
+}

@@ -691,6 +691,17 @@ final class S6_4AtomicRestoreTests: XCTestCase {
 }
 
 extension S6_4AtomicRestoreTests {
+    func testV23P03C18PromotionBundleKeepsOldOrNewInterruptionPolicy() throws {
+        XCTAssertEqual(
+            PackageEvolutionLifecycleV1.interruption,
+            "OLD_COMPLETE_OR_NEW_COMPLETE_NEVER_HYBRID"
+        )
+        XCTAssertTrue(PackageSandboxCheckKindV1.allCases.contains(.backupRestore))
+        XCTAssertGreaterThan(MemoryLayout<PackagePromotionAtomicBundleV1>.size, 0)
+    }
+}
+
+extension S6_4AtomicRestoreTests {
     func testV23P03C36RestorePublicationReceiptRequiresCanonicalCommit() throws {
         let receipt = try DraftAttachmentRestorePublicationReceiptV1(restoreID:UUID(),workspaceID:WorkspaceID(rawValue:UUID()),sourceManifestSHA256:String(repeating:"a",count:64),adoptedStageIDs:[UUID()],reusedStageIDs:[],publishedAt:Date(timeIntervalSince1970:1))
         try receipt.validate()

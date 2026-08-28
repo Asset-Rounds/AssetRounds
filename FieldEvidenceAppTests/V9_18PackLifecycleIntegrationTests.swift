@@ -444,3 +444,17 @@ private enum TestFailure: Error {
     case invalidFixture
     case unsupportedCommand
 }
+
+extension V9_18PackLifecycleIntegrationTests {
+    func testV23P03C18WorkflowChangeUsesCanonicalSemanticIdentity() throws {
+        let change = try PackageSemanticChangeV1(
+            kind: .workflowNodeChanged,
+            stableSubjectID: "c18.workflow.node"
+        )
+        XCTAssertEqual(change.stableKey, "WORKFLOW_NODE_CHANGED:c18.workflow.node")
+        XCTAssertEqual(
+            PackageEvolutionLifecycleV1.interruption,
+            "OLD_COMPLETE_OR_NEW_COMPLETE_NEVER_HYBRID"
+        )
+    }
+}

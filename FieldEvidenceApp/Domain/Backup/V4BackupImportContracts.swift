@@ -61,3 +61,14 @@ enum V16FieldDraftImportBoundaryV1 {
         }
     }
 }
+
+enum V17PackageEvolutionImportBoundaryV1 {
+    static let persistentSchemaVersion = 17
+    static let recordsSchemaVersion = 16
+    static func validate(persistent: Int, records: Int) throws {
+        guard persistent == persistentSchemaVersion, records == recordsSchemaVersion,
+              V17BackupPackageEvolutionRecordV1.Kind.allCases.count == 4 else {
+            throw BackupImportServiceError.unsupportedSchemaVersion
+        }
+    }
+}

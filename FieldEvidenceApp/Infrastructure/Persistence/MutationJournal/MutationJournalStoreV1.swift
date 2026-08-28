@@ -337,6 +337,7 @@ final class MutationJournalStoreV1 {
         if case let .applyInspectionReview(value)=envelope.command{try value.validate();guard affectedEntities==(try value.affectedIdentities) else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyWorkPacket(value)=envelope.command{try value.validate();guard affectedEntities==[try value.affectedIdentity]else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyFieldDraft(value)=envelope.command{try value.validate();guard affectedEntities==(try value.affectedIdentities)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyPackagePromotion(value)=envelope.command{try value.validate();guard affectedEntities==(try value.affectedIdentities)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         let state = try requireState()
         let current = try currentRevision(writerInstanceID: writerInstanceID)
         let expected = envelope.expectedRevision
@@ -359,6 +360,7 @@ final class MutationJournalStoreV1 {
             }else if case let .applyInspectionReview(mutation)=envelope.command,let image=try mutation.postImage.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
             }else if case let .applyWorkPacket(mutation)=envelope.command,identity==(try mutation.affectedIdentity){concurrencyIdentity=try mutation.concurrencyIdentity
             }else if case let .applyFieldDraft(mutation)=envelope.command,let image=try mutation.postImage.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
+            }else if case let .applyPackagePromotion(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
             } else {
                 concurrencyIdentity = identity
             }
@@ -401,6 +403,7 @@ final class MutationJournalStoreV1 {
                 }else if case let .applyInspectionReview(mutation)=envelope.command,let image=try mutation.postImage.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
                 }else if case let .applyWorkPacket(mutation)=envelope.command,entity==(try mutation.affectedIdentity){initialRevision=mutation.postImage.revision
                 }else if case let .applyFieldDraft(mutation)=envelope.command,let image=try mutation.postImage.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
+                }else if case let .applyPackagePromotion(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
                 } else {
                     initialRevision = 1
                 }
@@ -429,6 +432,7 @@ final class MutationJournalStoreV1 {
         if case let .applyInspectionReview(mutation)=envelope.command{guard postImages==(try mutation.postImage.mutationPostImages) else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyWorkPacket(mutation)=envelope.command{guard postImages==[try mutation.postImage.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyFieldDraft(mutation)=envelope.command{guard postImages==(try mutation.postImage.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyPackagePromotion(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         let after = try currentRevision(writerInstanceID: writerInstanceID)
         let receiptIdentity = MutationReceiptIdentityV1(
             workspaceID: identity.workspaceID,
@@ -502,6 +506,10 @@ final class MutationJournalStoreV1 {
         guard rows.count <= 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
         return try rows.first.map { try validate(row: $0, expectedEnvelope: nil) }
     }
+
+    /// Effect-before-receipt recovery for the C18 aggregate requires all four
+    /// canonical rows to agree before an existing mutation may be adopted.
+    func packagePromotionLifecycleClosure(mutationID:MutationIDV1)throws->PackageEvolutionLifecycleClosureV1?{guard try receipt(mutationID:mutationID) != nil else{return nil};let id=mutationID.rawValue;let releaseRows=try modelContext.fetch(FetchDescriptor<PromotedPackageReleaseRow>(predicate:#Predicate{$0.mutationID==id})),runRows=try modelContext.fetch(FetchDescriptor<PackageSandboxRunRow>(predicate:#Predicate{$0.mutationID==id})),receiptRows=try modelContext.fetch(FetchDescriptor<PackagePromotionReceiptRow>(predicate:#Predicate{$0.mutationID==id})),pointerRows=try modelContext.fetch(FetchDescriptor<ActivePackageRegistryPointerRow>(predicate:#Predicate{$0.mutationID==id}));guard releaseRows.count==1,runRows.count==1,receiptRows.count==1,pointerRows.count==1,let release=try releaseRows.first?.value(),let run=try runRows.first?.value(),let promotionReceipt=try receiptRows.first?.value(),let pointer=try pointerRows.first?.value()else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};var pointers=[pointer];if let predecessorID=pointer.supersedesPointerID{let predecessorRows=try modelContext.fetch(FetchDescriptor<ActivePackageRegistryPointerRow>(predicate:#Predicate{$0.pointerID==predecessorID}));guard predecessorRows.count==1,let predecessor=try predecessorRows.first?.value()else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};pointers.append(predecessor)};return try PackageEvolutionLifecycleClosureV1(promotedReleases:[release],sandboxRuns:[run],promotionReceipts:[promotionReceipt],activePointers:pointers)}
 
     /// Enumerates only validated, journal-owned receipts for the current
     /// workspace. The result is a bounded immutable source for C17's derived
@@ -1315,6 +1323,10 @@ final class MutationJournalStoreV1 {
         case .draftContentReservation:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<DraftContentReservationRow>(predicate:#Predicate{$0.reservationID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .draftContentReservation(id:id,concurrencyIdentity:identity,revision:revision,semanticSHA256:v.reservationSHA256)
         case .draftCommitReceipt:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<DraftCommitReceiptRow>(predicate:#Predicate{$0.receiptID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .draftCommitReceipt(id:id,concurrencyIdentity:identity,revision:revision,semanticSHA256:v.receiptSHA256)
         case .draftDiscardReceipt:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<DraftDiscardReceiptRow>(predicate:#Predicate{$0.receiptID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .draftDiscardReceipt(id:id,concurrencyIdentity:identity,revision:revision,semanticSHA256:v.receiptSHA256)
+        case .promotedPackageRelease:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<PromotedPackageReleaseRow>(predicate:#Predicate{$0.releaseRecordID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .promotedPackageRelease(id:id,concurrencyIdentity:identity,revision:revision,semanticSHA256:v.releaseRecordSHA256)
+        case .packageSandboxRun:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<PackageSandboxRunRow>(predicate:#Predicate{$0.runID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .packageSandboxRun(id:id,concurrencyIdentity:identity,revision:revision,semanticSHA256:v.runSHA256)
+        case .packagePromotionReceipt:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<PackagePromotionReceiptRow>(predicate:#Predicate{$0.receiptID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .packagePromotionReceipt(id:id,concurrencyIdentity:identity,revision:revision,semanticSHA256:v.receiptSHA256)
+        case .activePackageRegistryPointer:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<ActivePackageRegistryPointerRow>(predicate:#Predicate{$0.pointerID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .activePackageRegistryPointer(id:id,concurrencyIdentity:identity,revision:revision,semanticSHA256:v.pointerSHA256)
         case .workflowRecord:
             let id = identity.id
             let rows = try modelContext.fetch(FetchDescriptor<WorkflowRecord>(predicate: #Predicate { $0.id == id }))
@@ -1477,6 +1489,10 @@ final class MutationJournalStoreV1 {
         identities += try boundedFetch(FetchDescriptor<DraftContentReservationRow>()).map{try .init(kind:.draftContentReservation,id:$0.reservationID)}
         identities += try boundedFetch(FetchDescriptor<DraftCommitReceiptRow>()).map{try .init(kind:.draftCommitReceipt,id:$0.receiptID)}
         identities += try boundedFetch(FetchDescriptor<DraftDiscardReceiptRow>()).map{try .init(kind:.draftDiscardReceipt,id:$0.receiptID)}
+        identities += try boundedFetch(FetchDescriptor<PromotedPackageReleaseRow>()).map{try .init(kind:.promotedPackageRelease,id:$0.releaseRecordID)}
+        identities += try boundedFetch(FetchDescriptor<PackageSandboxRunRow>()).map{try .init(kind:.packageSandboxRun,id:$0.runID)}
+        identities += try boundedFetch(FetchDescriptor<PackagePromotionReceiptRow>()).map{try .init(kind:.packagePromotionReceipt,id:$0.receiptID)}
+        identities += try boundedFetch(FetchDescriptor<ActivePackageRegistryPointerRow>()).map{try .init(kind:.activePackageRegistryPointer,id:$0.pointerID)}
         guard identities.count <= Self.maximumMutableContentValidationCount,
               Set(identities).count == identities.count else {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
@@ -1587,6 +1603,10 @@ final class MutationJournalStoreV1 {
         case .draftContentReservation:return .draftContentReservation(id:identity.id,concurrencyIdentity:identity,revision:revision,semanticSHA256:digest)
         case .draftCommitReceipt:return .draftCommitReceipt(id:identity.id,concurrencyIdentity:identity,revision:revision,semanticSHA256:digest)
         case .draftDiscardReceipt:return .draftDiscardReceipt(id:identity.id,concurrencyIdentity:identity,revision:revision,semanticSHA256:digest)
+        case .promotedPackageRelease:return .promotedPackageRelease(id:identity.id,concurrencyIdentity:identity,revision:revision,semanticSHA256:digest)
+        case .packageSandboxRun:return .packageSandboxRun(id:identity.id,concurrencyIdentity:identity,revision:revision,semanticSHA256:digest)
+        case .packagePromotionReceipt:return .packagePromotionReceipt(id:identity.id,concurrencyIdentity:identity,revision:revision,semanticSHA256:digest)
+        case .activePackageRegistryPointer:return .activePackageRegistryPointer(id:identity.id,concurrencyIdentity:identity,revision:revision,semanticSHA256:digest)
         case .workflowRecord: return .workflowRecord(id: identity.id, revision: revision, semanticSHA256: digest)
         case .evidenceFile: return .evidenceFile(id: identity.id, revision: revision, semanticSHA256: digest)
         case .issue: return .issue(id: identity.id, revision: revision, semanticSHA256: digest)

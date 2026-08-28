@@ -210,3 +210,18 @@ extension DraftDiscardPlanV1{
 private protocol FieldDraftValidatableV1{func validate()throws}
 extension FieldDraftCheckpointV1:FieldDraftValidatableV1{};extension AttachmentStagingItemV1:FieldDraftValidatableV1{};extension DraftCommitSagaV1:FieldDraftValidatableV1{};extension DraftContentReservationV1:FieldDraftValidatableV1{};extension DraftCommitReceiptV1:FieldDraftValidatableV1{};extension DraftDiscardReceiptV1:FieldDraftValidatableV1{};extension DraftCommitTerminalBundleV1:FieldDraftValidatableV1{};extension DraftDiscardTerminalBundleV1:FieldDraftValidatableV1{}
 enum FieldDraftCanonicalCodecV1{static func encode<T:Encodable>(_ value:T)throws->Data{try WorkspaceMutationCanonicalV1.data(value)}static func sha256(_ data:Data)->String{SHA256.hash(data:data).map{String(format:"%02x",$0)}.joined()}static func sha256<T:Encodable>(_ value:T)throws->String{try WorkspaceMutationCanonicalV1.sha256(value)}static func decode<T:Codable>(_ type:T.Type,from data:Data)throws->T{guard !data.isEmpty,data.count<=FieldDraftLimitsV1.maximumCanonicalBytes else{throw FieldDraftFailureV1.limitExceeded};let decoder=JSONDecoder();decoder.dateDecodingStrategy = .millisecondsSince1970;let value=try decoder.decode(type,from:data);if let v=value as? any FieldDraftValidatableV1{try v.validate()};guard try encode(value)==data else{throw FieldDraftFailureV1.digestMismatch};return value}}
+
+/// C18 is a nonpersistent preview consumer of C36. It may create exactly one
+/// active-checkpoint CAS successor and owns no draft row, store or writer.
+enum PackageEvolutionDraftBoundaryV1 {
+    static let planPersistence = "NONPERSISTENT"
+    static let eligibleSourceState = FieldDraftStateV1.active
+    static let writer = "EXISTING_C36_FIELD_DRAFT_WRITER"
+
+    static func validateSource(_ checkpoint: FieldDraftCheckpointV1) throws {
+        try checkpoint.validate()
+        guard checkpoint.state == eligibleSourceState else {
+            throw PackageEvolutionFailureV1.ineligibleDraft
+        }
+    }
+}

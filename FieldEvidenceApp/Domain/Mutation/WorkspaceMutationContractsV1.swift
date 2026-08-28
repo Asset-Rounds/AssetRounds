@@ -66,6 +66,10 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case draftContentReservation
     case draftCommitReceipt
     case draftDiscardReceipt
+    case promotedPackageRelease
+    case packageSandboxRun
+    case packagePromotionReceipt
+    case activePackageRegistryPointer
     case workflowRecord
     case evidenceFile
     case issue
@@ -1267,6 +1271,8 @@ enum FieldDraftMutationPayloadV1:Codable,Equatable,Sendable{
 }
 struct FieldDraftMutationV1:Codable,Equatable,Sendable{static let schemaVersion=1;let schemaVersion:Int;let workspaceID:WorkspaceID;let expectedRevision:UInt64;let expectedBaseCanonicalRevision:UInt64;let mutationID:MutationIDV1;let postImage:FieldDraftMutationPayloadV1;init(workspaceID:WorkspaceID,expectedRevision:UInt64,expectedBaseCanonicalRevision:UInt64,mutationID:MutationIDV1,postImage:FieldDraftMutationPayloadV1)throws{schemaVersion=Self.schemaVersion;self.workspaceID=workspaceID;self.expectedRevision=expectedRevision;self.expectedBaseCanonicalRevision=expectedBaseCanonicalRevision;self.mutationID=mutationID;self.postImage=postImage;try validate()}func validate()throws{try postImage.validate();guard schemaVersion==Self.schemaVersion,workspaceID==postImage.workspaceID,mutationID==postImage.mutationID else{throw WorkspaceMutationContractFailureV1.invalidPlan};switch postImage{case let .applyCommitTerminal(bundle,expectedSaga):guard expectedRevision>0,expectedRevision<UInt64.max,bundle.committedCheckpoint.draftRevision==expectedRevision+1,bundle.committedCheckpoint.baseCanonicalRevision==expectedBaseCanonicalRevision,expectedSaga>0 else{throw WorkspaceMutationContractFailureV1.invalidPlan};case let .applyDiscardTerminal(bundle):guard expectedRevision>0,expectedRevision<UInt64.max,bundle.discardedCheckpoint.draftRevision==expectedRevision+1,bundle.discardedCheckpoint.baseCanonicalRevision==expectedBaseCanonicalRevision else{throw WorkspaceMutationContractFailureV1.invalidPlan};default:let predecessor=try postImage.predecessorIdentity;guard predecessor==nil ? expectedRevision==0&&postImage.revision==1:expectedRevision>0&&expectedRevision<UInt64.max&&postImage.revision==expectedRevision+1 else{throw WorkspaceMutationContractFailureV1.invalidPlan}};if case let .reviseCheckpoint(value)=postImage{guard value.baseCanonicalRevision==expectedBaseCanonicalRevision else{throw WorkspaceMutationContractFailureV1.invalidPlan}}}var affectedIdentities:[WorkspaceEntityIdentityV1]{get throws{try postImage.affectedIdentities}}var affectedIdentity:WorkspaceEntityIdentityV1{get throws{let values=try affectedIdentities;guard values.count==1,let value=values.first else{throw WorkspaceMutationContractFailureV1.invalidPlan};return value}}var concurrencyIdentities:[WorkspaceEntityIdentityV1]{get throws{let values:[WorkspaceEntityIdentityV1];switch postImage{case let .applyCommitTerminal(bundle,_):guard let predecessor=bundle.retiredSaga.predecessorSagaID else{throw WorkspaceMutationContractFailureV1.invalidPlan};values=[try .init(kind:.draftCommitSaga,id:predecessor),try .init(kind:.fieldDraftCheckpoint,id:bundle.committedCheckpoint.draftID),try .init(kind:.draftCommitReceipt,id:bundle.receipt.receiptID)];case let .applyDiscardTerminal(bundle):values=[try .init(kind:.fieldDraftCheckpoint,id:bundle.discardedCheckpoint.draftID),try .init(kind:.draftDiscardReceipt,id:bundle.receipt.receiptID)];default:let affected=try affectedIdentities;guard affected.count==1,let identity=affected.first else{throw WorkspaceMutationContractFailureV1.invalidPlan};values=[try postImage.predecessorIdentity ?? identity]};return values.sorted{$0.stableKey<$1.stableKey}}}var concurrencyIdentity:WorkspaceEntityIdentityV1{get throws{let values=try concurrencyIdentities;guard values.count==1,let value=values.first else{throw WorkspaceMutationContractFailureV1.invalidPlan};return value}}func expectedRevision(for identity:WorkspaceEntityIdentityV1)throws->UInt64{switch postImage{case let .applyCommitTerminal(_,expectedSaga):if identity.kind == .draftCommitSaga{return expectedSaga};if identity.kind == .fieldDraftCheckpoint{return expectedRevision};if identity.kind == .draftCommitReceipt{return 0};case .applyDiscardTerminal:if identity.kind == .fieldDraftCheckpoint{return expectedRevision};if identity.kind == .draftDiscardReceipt{return 0};default:return expectedRevision};throw WorkspaceMutationContractFailureV1.invalidPlan}func canonicalSHA256()throws->String{try validate();return try WorkspaceMutationCanonicalV1.sha256(self)}}
 
+struct PackagePromotionMutationV1:Codable,Equatable,Sendable{static let schemaVersion=1;let schemaVersion:Int;let workspaceID:WorkspaceID;let expectedPointerRevision:UInt64;let mutationID:MutationIDV1;let promotedRelease:PromotedPackageReleaseV1;let sandboxRun:PackageSandboxRunV1;let semanticDiff:PackageSemanticDiffV1;let predecessorPointer:ActivePackageRegistryPointerV1?;let resultingPointer:ActivePackageRegistryPointerV1;let actor:ActorSnapshotV1;let receipt:PackagePromotionReceiptV1;init(workspaceID:WorkspaceID,expectedPointerRevision:UInt64,mutationID:MutationIDV1,bundle:PackagePromotionAtomicBundleV1)throws{schemaVersion=Self.schemaVersion;self.workspaceID=workspaceID;self.expectedPointerRevision=expectedPointerRevision;self.mutationID=mutationID;promotedRelease=bundle.promotedRelease;sandboxRun=bundle.sandboxRun;semanticDiff=bundle.semanticDiff;predecessorPointer=bundle.predecessorPointer;resultingPointer=bundle.resultingPointer;actor=bundle.actor;receipt=bundle.receipt;try validate()}func validate()throws{let bundle=PackagePromotionAtomicBundleV1(promotedRelease:promotedRelease,sandboxRun:sandboxRun,semanticDiff:semanticDiff,predecessorPointer:predecessorPointer,resultingPointer:resultingPointer,actor:actor,receipt:receipt);try bundle.validate();guard schemaVersion==Self.schemaVersion,workspaceID==promotedRelease.workspaceID,workspaceID==sandboxRun.workspaceID,workspaceID==resultingPointer.workspaceID,workspaceID==receipt.workspaceID,mutationID==promotedRelease.mutationID,mutationID==sandboxRun.mutationID,mutationID==resultingPointer.mutationID,mutationID==receipt.mutationID,resultingPointer.promotionReceiptID==receipt.receiptID,(predecessorPointer == nil ? expectedPointerRevision==0&&resultingPointer.revision==1 : expectedPointerRevision>0&&expectedPointerRevision<UInt64.max&&predecessorPointer?.revision==expectedPointerRevision&&resultingPointer.revision==expectedPointerRevision+1)else{throw WorkspaceMutationContractFailureV1.invalidPlan}}var affectedIdentities:[WorkspaceEntityIdentityV1]{get throws{try[.init(kind:.promotedPackageRelease,id:promotedRelease.releaseRecordID),.init(kind:.packageSandboxRun,id:sandboxRun.runID),.init(kind:.packagePromotionReceipt,id:receipt.receiptID),.init(kind:.activePackageRegistryPointer,id:resultingPointer.pointerID)].sorted{$0.stableKey<$1.stableKey}}}var concurrencyIdentities:[WorkspaceEntityIdentityV1]{get throws{var values=try affectedIdentities;let pointer=try WorkspaceEntityIdentityV1(kind:.activePackageRegistryPointer,id:predecessorPointer?.pointerID ?? resultingPointer.pointerID);values.removeAll{$0.kind == .activePackageRegistryPointer};values.append(pointer);return values.sorted{$0.stableKey<$1.stableKey}}}func expectedRevision(for identity:WorkspaceEntityIdentityV1)throws->UInt64{identity.kind == .activePackageRegistryPointer ? expectedPointerRevision:0}func canonicalSHA256()throws->String{try validate();return try WorkspaceMutationCanonicalV1.sha256(self)}}
+
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
     case createCheckDraft(CheckDraftMutationV1)
@@ -1293,6 +1299,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyInspectionReview(InspectionReviewMutationV1)
     case applyWorkPacket(WorkPacketMutationV1)
     case applyFieldDraft(FieldDraftMutationV1)
+    case applyPackagePromotion(PackagePromotionMutationV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -1321,6 +1328,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyInspectionReview:.applyInspectionReview
         case .applyWorkPacket:.applyWorkPacket
         case .applyFieldDraft:.applyFieldDraft
+        case .applyPackagePromotion:.applyPackagePromotion
         }
     }
 }
@@ -1351,6 +1359,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyInspectionReview="apply_inspection_review"
     case applyWorkPacket="apply_work_packet"
     case applyFieldDraft="apply_field_draft"
+    case applyPackagePromotion="apply_package_promotion"
 }
 
 extension WorkspaceCommandV1 {
@@ -2092,6 +2101,8 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind: .applyEvidenceAssurance, disposition: .compensatable, stableReason: "append_evidence_assurance_successor_only"),
         .init(commandKind:.applyInspectionReview,disposition:.compensatable,stableReason:"append_review_corrective_successor_only"),
         .init(commandKind:.applyWorkPacket,disposition:.compensatable,stableReason:"append_work_packet_history_only"),
+        .init(commandKind:.applyFieldDraft,disposition:.compensatable,stableReason:"append_field_draft_successor_only"),
+        .init(commandKind:.applyPackagePromotion,disposition:.compensatable,stableReason:"append_package_promotion_successor_only"),
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {

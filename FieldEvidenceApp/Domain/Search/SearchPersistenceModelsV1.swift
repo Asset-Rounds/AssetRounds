@@ -444,3 +444,58 @@ enum SearchIndexLifecycleDispositionV1: String, CaseIterable, Codable, Sendable 
     case dropAndRebuildAfterRestore = "DROP_AND_REBUILD_AFTER_RESTORE"
     case dropAndRebuildOnDowngrade = "DROP_AND_REBUILD_ON_DOWNGRADE"
 }
+
+/// Package-evolution search rows are disposable projections of the canonical
+/// V17 lifecycle. They are never migrated, backed up, exported, or replayed as
+/// canonical data; restore and replay rebuild them from the active source.
+struct PackageEvolutionSearchPersistencePolicyV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let sourceSchema: String
+    let searchPersistenceRelease: SearchPersistenceReleaseV1
+    let fieldIDs: [String]
+    let lifecycleDispositions: [SearchIndexLifecycleDispositionV1]
+    let metadataOnly: Bool
+    let excludesCanonicalPackageBytes: Bool
+    let excludesDraftPayload: Bool
+    let excludesActorIdentity: Bool
+
+    init() {
+        schemaVersion = Self.schemaVersion
+        sourceSchema = PackageEvolutionLifecycleV1.schema
+        searchPersistenceRelease = .v7
+        fieldIDs = PackageEvolutionSearchProjectionPolicyV1.fieldIDs.sorted()
+        lifecycleDispositions = [
+            .excludedFromMigration,
+            .excludedFromBackup,
+            .excludedFromExport,
+            .purgeOnDelete,
+            .purgeOnErase,
+            .dropAndRebuildAfterRestore,
+            .dropAndRebuildOnDowngrade,
+        ]
+        metadataOnly = true
+        excludesCanonicalPackageBytes = true
+        excludesDraftPayload = true
+        excludesActorIdentity = true
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              sourceSchema == PackageEvolutionLifecycleV1.schema,
+              searchPersistenceRelease == .v7,
+              fieldIDs == PackageEvolutionSearchProjectionPolicyV1.fieldIDs.sorted(),
+              lifecycleDispositions == SearchIndexLifecycleDispositionV1.allCases,
+              metadataOnly,
+              excludesCanonicalPackageBytes,
+              excludesDraftPayload,
+              excludesActorIdentity else {
+            throw PackageEvolutionConsumerFailureV1.invalidMetadata
+        }
+    }
+}
+
+extension SearchPersistenceReleaseV1 {
+    static let packageEvolutionPolicy = PackageEvolutionSearchPersistencePolicyV1()
+}

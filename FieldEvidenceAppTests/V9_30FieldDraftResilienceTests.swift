@@ -111,6 +111,18 @@ private struct C36CorpusV1: Decodable {
     }
 }
 
+extension V9_30FieldDraftResilienceTests {
+    func testV23P03C18DraftUpgradeKeepsExplicitVersionedPlanBoundary() throws {
+        XCTAssertEqual(DraftUpgradePlanV1.schemaVersion, 1)
+        XCTAssertEqual(DraftPurposeV1.inspectionReview.rawValue, "INSPECTION_REVIEW")
+        XCTAssertTrue(PackageEvolutionLifecycleV1.migrationRequired)
+        XCTAssertEqual(
+            PackageEvolutionLifecycleV1.downgradePolicy,
+            "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_FIRST_V17_WRITE"
+        )
+    }
+}
+
 @MainActor
 private final class C36RecoverySourceV1: DraftRecoveryRecordSourceV1 {
     var values: [FieldDraftCheckpointV1]

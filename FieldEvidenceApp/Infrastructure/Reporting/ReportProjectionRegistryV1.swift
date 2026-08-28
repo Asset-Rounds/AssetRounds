@@ -1679,3 +1679,133 @@ struct ReportProjectionRegistryV9: Codable, Equatable, Sendable {
         return output
     }
 }
+
+// C18 report consumers carry a frozen release identity and the small
+// lifecycle metadata projection. They never carry package/workflow bytes or
+// mutable draft state, so reopening a historical report cannot silently
+// resolve it against a newer package.
+struct PackageEvolutionFrozenReportBindingV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let packageID: String
+    let packageReleaseID: String
+    let packageSHA256: String
+    let workflowSHA256: String
+    let releaseState: InspectionPackageReleaseStateV1
+
+    init(release: InspectionPackageReleaseV1) throws {
+        try release.validate()
+        guard release.state == .published else {
+            throw PackageEvolutionConsumerFailureV1.mismatchedRelease
+        }
+        schemaVersion = Self.schemaVersion
+        packageID = release.packageID
+        packageReleaseID = release.packageReleaseID
+        packageSHA256 = release.packageSHA256
+        workflowSHA256 = release.workflowSHA256
+        releaseState = release.state
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              InspectionPackageValidationV2.validIdentifier(packageID, maximumBytes: 200),
+              KernelCanonicalHashV1.validSHA256(packageReleaseID),
+              KernelCanonicalHashV1.validSHA256(packageSHA256),
+              KernelCanonicalHashV1.validSHA256(workflowSHA256),
+              releaseState == .published else {
+            throw PackageEvolutionConsumerFailureV1.invalidMetadata
+        }
+    }
+
+    func validate(against release: InspectionPackageReleaseV1) throws {
+        try validate()
+        try release.validate()
+        guard release.state == .published,
+              packageID == release.packageID,
+              packageReleaseID == release.packageReleaseID,
+              packageSHA256 == release.packageSHA256,
+              workflowSHA256 == release.workflowSHA256,
+              releaseState == release.state else {
+            throw PackageEvolutionConsumerFailureV1.mismatchedRelease
+        }
+    }
+}
+
+struct PackageEvolutionReportProjectionV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let metadata: PackageEvolutionConsumerMetadataV1
+    let frozenRelease: PackageEvolutionFrozenReportBindingV1
+
+    init(
+        metadata: PackageEvolutionConsumerMetadataV1,
+        release: InspectionPackageReleaseV1
+    ) throws {
+        try metadata.validate()
+        let frozen = try PackageEvolutionFrozenReportBindingV1(release: release)
+        guard metadata.packageID == release.packageID,
+              metadata.packageReleaseID == release.packageReleaseID else {
+            throw PackageEvolutionConsumerFailureV1.mismatchedRelease
+        }
+        schemaVersion = Self.schemaVersion
+        self.metadata = metadata
+        frozenRelease = frozen
+        try validate()
+    }
+
+    init(bundle: PackagePromotionAtomicBundleV1) throws {
+        try self.init(
+            metadata: PackageEvolutionConsumerMetadataV1(bundle: bundle),
+            release: bundle.promotedRelease.packageRelease
+        )
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion else {
+            throw PackageEvolutionConsumerFailureV1.invalidMetadata
+        }
+        try metadata.validate()
+        try frozenRelease.validate()
+        guard metadata.packageID == frozenRelease.packageID,
+              metadata.packageReleaseID == frozenRelease.packageReleaseID else {
+            throw PackageEvolutionConsumerFailureV1.mismatchedRelease
+        }
+    }
+}
+
+enum PackageEvolutionReportConsumerPolicyV1 {
+    static let requiredSandboxChecks: Set<PackageSandboxCheckKindV1> = [
+        .localizedDisplay, .reportPDF, .openJSON, .replay,
+    ]
+    static let historicalReportsUseFrozenReleaseIdentity = true
+    static let reportContainsCanonicalPackageBytes = false
+    static let reportContainsDraftPayload = false
+    static let reportReformatsOnLocaleChange = false
+
+    static func validateSandbox(_ run: PackageSandboxRunV1) throws {
+        try run.validate()
+        guard run.disposition == .completePass,
+              requiredSandboxChecks.allSatisfy({ required in
+                  run.checks.contains { $0.kind == required && $0.disposition == .passed }
+              }) else {
+            throw PackageEvolutionConsumerFailureV1.incompleteSandbox
+        }
+    }
+}
+
+extension ReportProjectionRegistryV1 {
+    static func packageEvolutionProjection(
+        bundle: PackagePromotionAtomicBundleV1
+    ) throws -> PackageEvolutionReportProjectionV1 {
+        try PackageEvolutionReportConsumerPolicyV1.validateSandbox(bundle.sandboxRun)
+        return try PackageEvolutionReportProjectionV1(bundle: bundle)
+    }
+
+    func validatePackageEvolutionSandbox(_ run: PackageSandboxRunV1) throws {
+        try validate()
+        try PackageEvolutionReportConsumerPolicyV1.validateSandbox(run)
+    }
+}

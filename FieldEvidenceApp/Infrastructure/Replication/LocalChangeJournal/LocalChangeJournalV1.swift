@@ -151,6 +151,7 @@ final class LocalChangeJournalV1 {
               Set(receipts.map { $0.resultingRevision.workspaceRevision }).count == receipts.count else {
             throw IntegrationEventFailureV1.divergentEvent
         }
+        try receipts.forEach { try IntegrationEventProjectionV1.validatePackagePromotionReceiptShape($0) }
         return receipts
     }
 

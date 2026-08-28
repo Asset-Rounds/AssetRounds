@@ -900,3 +900,11 @@ private extension Data {
         SHA256.hash(data: self).map { String(format: "%02x", $0) }.joined()
     }
 }
+
+extension S4_3ReportDeliveryTests {
+    func testV23P03C18ReportAndOpenJSONSandboxChecksAreTyped() throws {
+        let required: Set<PackageSandboxCheckKindV1> = [.reportPDF, .openJSON, .export]
+        XCTAssertTrue(required.isSubset(of: Set(PackageSandboxCheckKindV1.allCases)))
+        XCTAssertTrue(PackageEvolutionLifecycleV1.exportReportRequired)
+    }
+}

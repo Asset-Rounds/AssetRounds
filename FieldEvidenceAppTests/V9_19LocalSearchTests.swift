@@ -673,6 +673,14 @@ final class V9_19LocalSearchTests: XCTestCase {
 }
 
 extension V9_19LocalSearchTests {
+    func testV23P03C18SearchRebuildUsesDedicatedTypedSandboxCheck() throws {
+        XCTAssertTrue(PackageSandboxCheckKindV1.allCases.contains(.searchRebuild))
+        XCTAssertTrue(PackageSandboxCheckKindV1.allCases.contains(.replay))
+        XCTAssertTrue(PackageEvolutionLifecycleV1.searchRebuildReplayRequired)
+    }
+}
+
+extension V9_19LocalSearchTests {
     func testV23P03C15SearchProjectionRetainsStablePacketTokens() throws {
         let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_119)
         let searchable = [

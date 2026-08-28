@@ -2756,3 +2756,66 @@ extension FrozenDisplaySnapshotV1 {
         try validateUnchanged(canonicalBytes: encoded.data, sha256: encoded.sha256)
     }
 }
+
+extension BundledLocalizationCatalogV1 {
+    /// C18 package labels are English-only presentation values. Package
+    /// identity and lifecycle comparisons use the typed key/release binding,
+    /// never these labels.
+    static let packageEvolutionSourceLocale = "en"
+    static let packageEvolutionShippingLocales = ["en"]
+    static let packageEvolutionPseudoLocalesAreTestOnly = true
+    static let packageEvolutionLabelsParticipateInIdentity = false
+    static let packageEvolutionBrandStateValues = [
+        "PREVIEW", "PROMOTED", "ROLLED_BACK", "FORWARD_FIX_REQUIRED", "FAILED_CLOSED",
+    ]
+
+    static func packageEvolutionLocalizationBinding(
+        _ metadata: PackageEvolutionConsumerMetadataV1,
+        keyIDs: [String] = []
+    ) throws -> PackageEvolutionLocalizationBindingV1 {
+        try PackageEvolutionLocalizationPolicyV1.binding(
+            metadata: metadata,
+            keyIDs: keyIDs
+        )
+    }
+
+    static func packageEvolutionDisplayLabel(
+        for status: PackageEvolutionConsumerStatusV1
+    ) -> String {
+        switch status {
+        case .preview: return "Preview"
+        case .promoted: return "Promoted"
+        case .rolledBack: return "Rolled back"
+        case .forwardFixRequired: return "Forward fix required"
+        case .void: return "Void"
+        }
+    }
+
+    static func packageEvolutionDisplayLabel(
+        for classification: PackageSemanticDiffClassificationV1
+    ) -> String {
+        switch classification {
+        case .noChange: return "No change"
+        case .additiveDraftSafe: return "Additive draft safe"
+        case .draftMigrationRequired: return "Draft migration required"
+        case .activeSessionIncompatible: return "Active session incompatible"
+        case .invalid: return "Invalid"
+        }
+    }
+
+    static func packageEvolutionBrandStateDisplayLabel(for rawValue: String) -> String {
+        switch rawValue {
+        case "PREVIEW": return "Preview"
+        case "PROMOTED": return "Promoted"
+        case "ROLLED_BACK": return "Rolled back"
+        case "FORWARD_FIX_REQUIRED": return "Forward fix required"
+        case "FAILED_CLOSED": return "Failed closed"
+        default: return "Unavailable"
+        }
+    }
+
+    static func packageEvolutionAccessibilityContracts()
+        -> [PackageEvolutionAccessibilityContractV1] {
+        PackageEvolutionAccessibilityPolicyV1.contracts
+    }
+}

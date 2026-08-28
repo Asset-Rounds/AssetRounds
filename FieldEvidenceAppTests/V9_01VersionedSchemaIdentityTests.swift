@@ -991,3 +991,24 @@ extension V9_01VersionedSchemaIdentityTests {
         XCTAssertEqual(fixture.transitions.last?.toState, .amended)
     }
 }
+
+extension V9_01VersionedSchemaIdentityTests {
+    func testV23P03C18SchemaIdentityRegistersEveryEvolutionReceiptKind() throws {
+        XCTAssertEqual(PackageSemanticGraphV1.schemaVersion, 1)
+        XCTAssertEqual(PackageSemanticDiffV1.schemaVersion, 1)
+        XCTAssertEqual(DraftUpgradePlanV1.schemaVersion, 1)
+        XCTAssertEqual(PackageSandboxRunV1.schemaVersion, 1)
+        XCTAssertEqual(PromotedPackageReleaseV1.schemaVersion, 1)
+        XCTAssertEqual(ActivePackageRegistryPointerV1.schemaVersion, 1)
+        XCTAssertEqual(PackagePromotionReceiptV1.schemaVersion, 1)
+        XCTAssertEqual(PackageEvolutionLifecycleV1.schema, "PACKAGE_EVOLUTION_V1")
+        XCTAssertTrue(PackageEvolutionLifecycleV1.persistent)
+        XCTAssertTrue(PackageEvolutionLifecycleV1.migrationRequired)
+        XCTAssertTrue(PackageEvolutionLifecycleV1.backupRestoreRequired)
+        XCTAssertTrue(PackageEvolutionLifecycleV1.deleteEraseRequired)
+        XCTAssertTrue(PackageEvolutionLifecycleV1.exportReportRequired)
+        XCTAssertTrue(PackageEvolutionLifecycleV1.searchRebuildReplayRequired)
+        XCTAssertEqual(PackageSandboxCheckKindV1.allCases.count, 12)
+        XCTAssertEqual(PackageSemanticDiffClassificationV1.allCases.count, 5)
+    }
+}

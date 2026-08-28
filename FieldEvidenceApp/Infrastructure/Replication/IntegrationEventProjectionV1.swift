@@ -34,6 +34,7 @@ struct IntegrationEventProjectionV1: Sendable {
 
         for receipt in orderedReceipts {
             try receipt.validate()
+            try Self.validatePackagePromotionReceiptShape(receipt)
             guard receipt.identity.workspaceID == workspaceID,
                   receipt.resultingRevision.workspaceID == workspaceID else {
                 throw IntegrationEventFailureV1.wrongWorkspace
@@ -81,6 +82,32 @@ struct IntegrationEventProjectionV1: Sendable {
         }
         return try validateProjectedStream(events, workspaceID: workspaceID)
     }
+
+    static let packagePromotionKinds:Set<WorkspaceEntityKindV1>=[.promotedPackageRelease,.packageSandboxRun,.packagePromotionReceipt,.activePackageRegistryPointer]
+    static func validatePackagePromotionReceiptShape(_ receipt:MutationReceiptV1)throws {
+        let kinds=try receipt.postImages.map{$0.identity.kind}
+        let present=Set(kinds).intersection(packagePromotionKinds)
+        guard !present.isEmpty else{return}
+        guard receipt.postImages.count==4,Set(kinds)==packagePromotionKinds,
+              kinds.count==Set(kinds).count,
+              let pointer=receipt.postImages.first(where:{(try? $0.identity.kind) == .activePackageRegistryPointer}),
+              pointer.revision>0 else{throw IntegrationEventFailureV1.divergentEvent}
+        for image in receipt.postImages {
+            let identity=try image.identity
+            guard identity.kind != .activePackageRegistryPointer else{continue}
+            guard image.revision==1,try image.concurrencyIdentity==identity else{throw IntegrationEventFailureV1.divergentEvent}
+        }
+        let pointerIdentity=try pointer.identity
+        let pointerConcurrency=try pointer.concurrencyIdentity
+        if pointer.revision==1 {
+            guard pointerConcurrency==pointerIdentity,
+                  receipt.expectedRevision.entityRevisions.first(where:{$0.identity==pointerIdentity})?.revision==0 else{throw IntegrationEventFailureV1.divergentEvent}
+        } else {
+            guard pointerConcurrency != pointerIdentity,
+                  receipt.expectedRevision.entityRevisions.first(where:{$0.identity==pointerConcurrency})?.revision==pointer.revision-1 else{throw IntegrationEventFailureV1.divergentEvent}
+        }
+    }
+    func validatePackagePromotionReplay(_ receipts:[MutationReceiptV1])throws{let hasPromotion=try receipts.contains{try !$0.postImages.map{$0.identity.kind}.filter{Self.packagePromotionKinds.contains($0)}.isEmpty};if hasPromotion{try PackageEvolutionIntegrationContractV1.validate(registry:registry)};try receipts.forEach{try Self.validatePackagePromotionReceiptShape($0)}}
 
     func validateProjectedStream(_ events: [IntegrationEventV1], workspaceID: WorkspaceID) throws -> [IntegrationEventV1] {
         let ordered = events.sorted { $0.order < $1.order }

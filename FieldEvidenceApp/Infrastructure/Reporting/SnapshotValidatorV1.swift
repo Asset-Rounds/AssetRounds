@@ -1520,3 +1520,22 @@ struct SnapshotValidatorV1 {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 }
+
+extension SnapshotValidatorV1 {
+    /// Validates the package identity pinned into a historical report without
+    /// resolving or rewriting the report against the current active pointer.
+    func validatePackageEvolutionReport(
+        _ projection: PackageEvolutionReportProjectionV1,
+        against release: InspectionPackageReleaseV1
+    ) throws -> PackageEvolutionReportProjectionV1 {
+        try projection.validate()
+        try projection.frozenRelease.validate(against: release)
+        return projection
+    }
+
+    func validatePackageEvolutionSandbox(
+        _ run: PackageSandboxRunV1
+    ) throws {
+        try PackageEvolutionReportConsumerPolicyV1.validateSandbox(run)
+    }
+}

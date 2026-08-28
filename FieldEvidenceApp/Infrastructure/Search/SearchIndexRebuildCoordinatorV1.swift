@@ -1652,3 +1652,50 @@ struct ProductionSearchServicesV1 {
         )
     }
 }
+
+extension SearchIndexRebuildCoordinatorV1 {
+    /// Rebuilds only the bounded package-evolution search projection from the
+    /// canonical lifecycle closure. Search never replays package bytes,
+    /// payloads, actor identity, or exact candidate heads.
+    static func packageEvolutionSearchRecords(
+        from closure: PackageEvolutionLifecycleClosureV1
+    ) throws -> [PackageEvolutionSearchRecordV1] {
+        try closure.validate()
+        let releases = Dictionary(uniqueKeysWithValues: closure.promotedReleases.map {
+            ($0.releaseRecordID, $0)
+        })
+        let runs = Dictionary(uniqueKeysWithValues: closure.sandboxRuns.map { ($0.runID, $0) })
+        let pointers = Dictionary(uniqueKeysWithValues: closure.activePointers.map {
+            ($0.pointerSHA256, $0)
+        })
+        return try closure.promotionReceipts.map { receipt in
+            guard let release = releases[receipt.promotedReleaseRecordID],
+                  let run = runs[receipt.sandboxRunID],
+                  let pointer = pointers[receipt.resultingPointerSHA256] else {
+                throw PackageEvolutionConsumerFailureV1.mismatchedRelease
+            }
+            let predecessor = receipt.predecessorPointerSHA256
+                == String(repeating: "0", count: 64)
+                ? nil
+                : pointers[receipt.predecessorPointerSHA256]
+            let bundle = PackagePromotionAtomicBundleV1(
+                promotedRelease: release,
+                sandboxRun: run,
+                semanticDiff: receipt.semanticDiff,
+                predecessorPointer: predecessor,
+                resultingPointer: pointer,
+                actor: receipt.declaredActor,
+                receipt: receipt
+            )
+            return try PackageEvolutionSearchRecordV1(
+                metadata: PackageEvolutionConsumerMetadataV1(bundle: bundle)
+            )
+        }.sorted {
+            if $0.packageID != $1.packageID { return $0.packageID < $1.packageID }
+            return $0.packageReleaseID < $1.packageReleaseID
+        }
+    }
+
+    static let packageEvolutionReplayDisposition =
+        "REBUILD_FROM_CANONICAL_PACKAGE_PROMOTION_RECEIPT"
+}

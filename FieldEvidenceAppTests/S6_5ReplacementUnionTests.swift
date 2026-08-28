@@ -372,6 +372,28 @@ final class S6_5ReplacementUnionTests: XCTestCase {
 }
 
 extension S6_5ReplacementUnionTests {
+    func testV23P03C18RegistryPointerBindsPromotionReceiptIdentity() throws {
+        let workspaceID = WorkspaceID(rawValue: UUID(uuidString: "00000000-0000-4000-8000-00000000c185")!)
+        let receiptID = UUID(uuidString: "c1850000-0000-4000-8000-000000000001")!
+        let pointer = try ActivePackageRegistryPointerV1(
+            pointerID: UUID(uuidString: "c1850000-0000-4000-8000-000000000002")!,
+            workspaceID: workspaceID,
+            packageID: "com.field-evidence.c18.replacement",
+            activeReleaseRecordID: UUID(uuidString: "c1850000-0000-4000-8000-000000000003")!,
+            promotionReceiptID: receiptID,
+            activePackageReleaseID: String(repeating: "a", count: 64),
+            activeReleaseRecordSHA256: String(repeating: "b", count: 64),
+            revision: 1,
+            mutationID: try MutationIDV1(
+                rawValue: UUID(uuidString: "c1850000-0000-4000-8000-000000000004")!
+            )
+        )
+        XCTAssertNoThrow(try pointer.validate())
+        XCTAssertEqual(pointer.promotionReceiptID, receiptID)
+    }
+}
+
+extension S6_5ReplacementUnionTests {
     func testV23P03C36ReplacementRecordRetainsCanonicalOperationalIdentity() {
         let id=UUID(),workspaceID=UUID(),bytes=Data("canonical-draft".utf8)
         let record=V16BackupFieldDraftRecordV1(kind:.checkpoint,id:id,workspaceID:workspaceID,revision:7,canonicalData:bytes)

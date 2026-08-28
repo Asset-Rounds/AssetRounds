@@ -261,6 +261,20 @@ final class V9_07CompatibilityPolicyTests: XCTestCase {
 }
 
 extension V9_07CompatibilityPolicyTests {
+    func testV23P03C18CompatibilityClassesRemainClosedAndVersioned() throws {
+        XCTAssertEqual(PackageSemanticDiffClassificationV1.allCases.count, 5)
+        XCTAssertEqual(
+            PackageSemanticDiffClassificationV1.allCases.map(\.rawValue),
+            [
+                "NO_CHANGE", "ADDITIVE_DRAFT_SAFE", "DRAFT_MIGRATION_REQUIRED",
+                "ACTIVE_SESSION_INCOMPATIBLE", "INVALID"
+            ]
+        )
+        XCTAssertEqual(PackageSemanticGraphV1.schemaVersion, 1)
+    }
+}
+
+extension V9_07CompatibilityPolicyTests {
     func testV23P03C15PolicyAndPackageReferencesRemainComparable() throws {
         let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_108)
         try fixture.policyReference.validate()

@@ -1784,3 +1784,21 @@ final class V9_22LocalizationAccessibilityTests: XCTestCase {
         let reason: String
     }
 }
+
+extension V9_22LocalizationAccessibilityTests {
+    func testV23P03C18LocalizationBindingCanonicalizesOrdering() throws {
+        let first = try PackageSemanticReleaseBindingsV1(
+            localizationReleaseSHA256: String(repeating: "4", count: 64),
+            functionalRelationshipBindingSHA256s: [
+                String(repeating: "6", count: 64), String(repeating: "5", count: 64)
+            ]
+        )
+        let second = try PackageSemanticReleaseBindingsV1(
+            localizationReleaseSHA256: String(repeating: "4", count: 64),
+            functionalRelationshipBindingSHA256s: [
+                String(repeating: "5", count: 64), String(repeating: "6", count: 64)
+            ]
+        )
+        XCTAssertEqual(first, second)
+    }
+}

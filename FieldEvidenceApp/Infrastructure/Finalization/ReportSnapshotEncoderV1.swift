@@ -1029,3 +1029,50 @@ extension CanonicalJSONV1 {
         ])
     }
 }
+
+extension ReportSnapshotEncoderV1 {
+    /// Encodes the C18 package binding as an additive report companion. The
+    /// existing report snapshot codecs remain byte-for-byte compatible; this
+    /// helper is used only when a report explicitly carries package-evolution
+    /// metadata.
+    static func encodePackageEvolutionReport(
+        _ projection: PackageEvolutionReportProjectionV1
+    ) throws -> EncodedReportSnapshotV1 {
+        do {
+            try projection.validate()
+            let data = try PackageEvolutionCanonicalCodecV1.encode(projection)
+            guard !data.isEmpty,
+                  data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+                throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+            }
+            return EncodedReportSnapshotV1(
+                data: data,
+                sha256: KernelCanonicalHashV1.sha256(data)
+            )
+        } catch let error as ReportSnapshotEncodingErrorV1 {
+            throw error
+        } catch {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+    }
+
+    static func decodePackageEvolutionReport(
+        _ data: Data
+    ) throws -> PackageEvolutionReportProjectionV1 {
+        do {
+            let projection = try PackageEvolutionCanonicalCodecV1.decode(
+                PackageEvolutionReportProjectionV1.self,
+                from: data
+            )
+            try projection.validate()
+            guard try encodePackageEvolutionReport(projection).data == data else {
+                throw ReportSnapshotEncodingErrorV1.noncanonicalData
+            }
+            return projection
+        } catch let error as ReportSnapshotEncodingErrorV1 {
+            throw error
+        } catch {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+    }
+}

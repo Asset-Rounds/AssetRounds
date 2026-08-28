@@ -1635,3 +1635,25 @@ extension V10_02MutationEnvelopeReceiptTests {
         XCTAssertEqual(try mutation.concurrencyIdentities.count, 1)
     }
 }
+
+extension V10_02MutationEnvelopeReceiptTests {
+    func testV23P03C18ReceiptAndSandboxRowsUseCanonicalRoundTrips() throws {
+        let value = try PackageSemanticChangeV1(
+            kind: .capabilityAdded,
+            stableSubjectID: "c18.capability"
+        )
+        let encoded = try PackageEvolutionCanonicalCodecV1.encode(value)
+        XCTAssertEqual(
+            try PackageEvolutionCanonicalCodecV1.decode(
+                PackageSemanticChangeV1.self,
+                from: encoded
+            ),
+            value
+        )
+        XCTAssertEqual(value.stableKey, "CAPABILITY_ADDED:c18.capability")
+        XCTAssertTrue(PackageEvolutionLifecycleV1.persistent)
+        XCTAssertTrue(PackageEvolutionLifecycleV1.migrationRequired)
+        XCTAssertGreaterThan(MemoryLayout<PackagePromotionReceiptV1>.size, 0)
+        XCTAssertGreaterThan(MemoryLayout<PackageSandboxRunV1>.size, 0)
+    }
+}

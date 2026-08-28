@@ -473,6 +473,19 @@ enum KernelConformanceFixtureHarnessV1 {
     private static func isSHA256(_ value: String) -> Bool {
         value.count == 64 && value.allSatisfy { $0.isNumber || ("a"..."f").contains(String($0)) }
     }
+
+    static func c18PackageEvolutionSurfaceIsClosed() -> Bool {
+        PackageEvolutionLifecycleV1.schema == "PACKAGE_EVOLUTION_V1"
+            && PackageEvolutionLifecycleV1.persistent
+            && PackageEvolutionLifecycleV1.migrationRequired
+            && PackageEvolutionLifecycleV1.backupRestoreRequired
+            && PackageEvolutionLifecycleV1.deleteEraseRequired
+            && PackageEvolutionLifecycleV1.exportReportRequired
+            && PackageEvolutionLifecycleV1.searchRebuildReplayRequired
+            && PackageEvolutionLifecycleV1.writer == "SOLE_CANONICAL_WORKSPACE_WRITER"
+            && PackageSemanticDiffClassificationV1.allCases.count == 5
+            && PackageSandboxCheckKindV1.allCases.count == 12
+    }
 }
 
 /// Test-only C40 receipt.  It proves that the typed authority aggregate can be

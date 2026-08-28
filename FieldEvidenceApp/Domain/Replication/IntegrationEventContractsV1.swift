@@ -199,6 +199,18 @@ struct IntegrationContractRegistryV1: Codable, Equatable, Hashable, Sendable {
     }
 }
 
+enum PackageEvolutionIntegrationContractV1 {
+    static func definitions() throws -> [IntegrationEventContractDefinitionV1] {
+        try [
+            ("package.promoted_release.v1", WorkspaceEntityKindV1.promotedPackageRelease),
+            ("package.sandbox_run.v1", .packageSandboxRun),
+            ("package.promotion_receipt.v1", .packagePromotionReceipt),
+            ("package.active_pointer.v1", .activePackageRegistryPointer),
+        ].map { try IntegrationEventContractDefinitionV1(eventKind:$0.0,eventVersion:1,sourceEntityKind:$0.1,sensitivity:.workspaceData,emittedVisibility:.workspaceInternal,redaction:.notRequired) }.sorted{$0.stableKey<$1.stableKey}
+    }
+    static func validate(registry:IntegrationContractRegistryV1)throws{let expected=try definitions();for definition in expected{guard try registry.definition(for:definition.sourceEntityKind)==definition else{throw IntegrationEventFailureV1.unknownEventKind}}}
+}
+
 struct IntegrationEventOrderV1: Codable, Equatable, Hashable, Comparable, Sendable {
     let sourceWorkspaceRevision: UInt64
     let sourceReplicaID: ReplicaID

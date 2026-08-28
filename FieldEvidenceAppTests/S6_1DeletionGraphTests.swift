@@ -569,6 +569,17 @@ final class S6_1DeletionGraphTests: XCTestCase {
 }
 
 extension S6_1DeletionGraphTests {
+    func testV23P03C18DeleteEraseBoundaryRemainsTyped() throws {
+        XCTAssertTrue(PackageSandboxCheckKindV1.allCases.contains(.deleteErase))
+        XCTAssertTrue(PackageEvolutionLifecycleV1.deleteEraseRequired)
+        XCTAssertEqual(
+            PackageRollbackCompatibilityV1.activatedForwardFixRequired.rawValue,
+            "ACTIVATED_FORWARD_FIX_REQUIRED"
+        )
+    }
+}
+
+extension S6_1DeletionGraphTests {
     func testV23P03C36OrdinaryDeletionPreservesCompleteDraftGraph() throws {
         let ids = (0..<6).map { _ in UUID() }
         let inventory = FieldDraftDeletionInventoryV1(draftIDs:[ids[0]],stageIDs:[ids[1]],sagaIDs:[ids[2]],reservationIDs:[ids[3]],commitReceiptIDs:[ids[4]],discardReceiptIDs:[ids[5]])

@@ -56,6 +56,10 @@ final class BackupExportService {
     private static let checkpointBasisExportedAt = Date(timeIntervalSince1970: 0)
 
     private struct Rows {
+        let promotedPackageReleases: [PromotedPackageReleaseRow]
+        let packageSandboxRuns: [PackageSandboxRunRow]
+        let packagePromotionReceipts: [PackagePromotionReceiptRow]
+        let activePackageRegistryPointers: [ActivePackageRegistryPointerRow]
         let fieldDraftCheckpoints: [FieldDraftCheckpointRow]
         let attachmentStagingItems: [AttachmentStagingItemRow]
         let draftCommitSagas: [DraftCommitSagaRow]
@@ -955,7 +959,7 @@ private extension BackupExportService {
                 appVersion: appVersion(),
                 persistentSchemaVersion: 16,
                 replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: 15,
+                recordsSchemaVersion: 16,
                 sourceGenerationID: generationID,
                 workspaceID: sourceIdentity.workspaceID.rawValue
             )
@@ -1483,6 +1487,10 @@ private extension BackupExportService {
     private func fetchRows() throws -> Rows {
         do {
             return Rows(
+                promotedPackageReleases: try modelContext.fetch(FetchDescriptor<PromotedPackageReleaseRow>()),
+                packageSandboxRuns: try modelContext.fetch(FetchDescriptor<PackageSandboxRunRow>()),
+                packagePromotionReceipts: try modelContext.fetch(FetchDescriptor<PackagePromotionReceiptRow>()),
+                activePackageRegistryPointers: try modelContext.fetch(FetchDescriptor<ActivePackageRegistryPointerRow>()),
                 fieldDraftCheckpoints: try modelContext.fetch(FetchDescriptor<FieldDraftCheckpointRow>()),
                 attachmentStagingItems: try modelContext.fetch(FetchDescriptor<AttachmentStagingItemRow>()),
                 draftCommitSagas: try modelContext.fetch(FetchDescriptor<DraftCommitSagaRow>()),
@@ -1620,6 +1628,13 @@ private extension BackupExportService {
         }
         try validateAssetSemanticRows(rows, deletionLedger: deletionLedger)
         try validateFieldDraftRows(rows, workspaceID: sourceIdentity.workspaceID)
+        let packageClosure = try PackageEvolutionLifecycleClosureV1(
+            promotedReleases: try rows.promotedPackageReleases.map { try $0.value() },
+            sandboxRuns: try rows.packageSandboxRuns.map { try $0.value() },
+            promotionReceipts: try rows.packagePromotionReceipts.map { try $0.value() },
+            activePointers: try rows.activePackageRegistryPointers.map { try $0.value() }
+        )
+        try PackageEvolutionLifecycleAdapterV1.validateBackupRestore(packageClosure)
         let siteIDs = Set(rows.sites.map(\.id))
         let assetIDs = Set(rows.assets.map(\.id))
         let recordIDs = Set(rows.records.map(\.id))
@@ -2010,7 +2025,9 @@ private extension BackupExportService {
         let inspectionReview = mutationHistory == nil ? [] : try inspectionReviewRecords(rows)
         let workPackets = mutationHistory == nil ? [] : try workPacketRecords(rows)
         let fieldDrafts = mutationHistory == nil ? [] : try fieldDraftRecords(rows)
+        let packageEvolution = mutationHistory == nil ? [] : try packageEvolutionRecords(rows)
         return V4BackupRecordsV1(
+            packageEvolution: packageEvolution,
             fieldDrafts: fieldDrafts,
             workPackets:workPackets,
             inspectionReview: inspectionReview,
@@ -2066,7 +2083,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : 15,
+                : 16,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -2140,6 +2157,15 @@ private extension BackupExportService {
         result += try rows.draftContentReservations.map { let v = try $0.value(); return .init(kind: .contentReservation, id: v.reservationID, workspaceID: v.workspaceID.rawValue, revision: v.revision, canonicalData: try FieldDraftCanonicalCodecV1.encode(v)) }
         result += try rows.draftCommitReceipts.map { let v = try $0.value(); return .init(kind: .commitReceipt, id: v.receiptID, workspaceID: v.workspaceID.rawValue, revision: v.revision, canonicalData: try FieldDraftCanonicalCodecV1.encode(v)) }
         result += try rows.draftDiscardReceipts.map { let v = try $0.value(); return .init(kind: .discardReceipt, id: v.receiptID, workspaceID: v.workspaceID.rawValue, revision: v.revision, canonicalData: try FieldDraftCanonicalCodecV1.encode(v)) }
+        return result.sorted { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)" }
+    }
+
+    private func packageEvolutionRecords(_ rows: Rows) throws -> [V17BackupPackageEvolutionRecordV1] {
+        var result: [V17BackupPackageEvolutionRecordV1] = []
+        result += try rows.promotedPackageReleases.map { let v = try $0.value(); return .init(kind: .promotedRelease, id: v.releaseRecordID, workspaceID: v.workspaceID.rawValue, revision: v.revision, canonicalData: try PackageEvolutionCanonicalCodecV1.encode(v)) }
+        result += try rows.packageSandboxRuns.map { let v = try $0.value(); return .init(kind: .sandboxRun, id: v.runID, workspaceID: v.workspaceID.rawValue, revision: v.revision, canonicalData: try PackageEvolutionCanonicalCodecV1.encode(v)) }
+        result += try rows.packagePromotionReceipts.map { let v = try $0.value(); return .init(kind: .promotionReceipt, id: v.receiptID, workspaceID: v.workspaceID.rawValue, revision: v.revision, canonicalData: try PackageEvolutionCanonicalCodecV1.encode(v)) }
+        result += try rows.activePackageRegistryPointers.map { let v = try $0.value(); return .init(kind: .activePointer, id: v.pointerID, workspaceID: v.workspaceID.rawValue, revision: v.revision, canonicalData: try PackageEvolutionCanonicalCodecV1.encode(v)) }
         return result.sorted { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)" }
     }
 

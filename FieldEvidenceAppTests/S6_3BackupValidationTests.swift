@@ -324,6 +324,24 @@ final class S6_3BackupValidationTests: XCTestCase {
 }
 
 extension S6_3BackupValidationTests {
+    func testV23P03C18SemanticReleaseChangeRoundTripsCanonically() throws {
+        let change = try PackageSemanticChangeV1(
+            kind: .semanticReleaseChanged,
+            stableSubjectID: "package.semantic.releases"
+        )
+        let bytes = try PackageEvolutionCanonicalCodecV1.encode(change)
+        XCTAssertEqual(
+            try PackageEvolutionCanonicalCodecV1.decode(
+                PackageSemanticChangeV1.self,
+                from: bytes
+            ),
+            change
+        )
+        XCTAssertTrue(PackageEvolutionLifecycleV1.migrationRequired)
+    }
+}
+
+extension S6_3BackupValidationTests {
     func testV23P03C17RestoreDropsAndRebuildsDerivedProjection() throws {
         XCTAssertNoThrow(try IntegrationProjectionBackupRestoreExclusionV1.validate())
         XCTAssertEqual(IntegrationProjectionSchemaV1.downgradeDisposition, "DROP_AND_REBUILD")

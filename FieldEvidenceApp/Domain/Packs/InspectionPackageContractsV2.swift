@@ -465,7 +465,11 @@ enum InspectionPackageCanonicalCodecV2 {
 enum InspectionPackageCompatibilityValidatorV2 {
     static func validate(_ package: InspectionPackageV2) throws {
         try package.validate()
-        guard package.contentVersion == 1,
+        // Schema V2 is closed and still decoded exactly as before.  Content
+        // versions are release identities, however, so a positive successor
+        // must be admitted when it remains within this registry's declared
+        // compatibility range.
+        guard package.contentVersion > 0,
               package.minimumRegistryVersion <= InspectionPackageRegistrySchemaV2.version,
               package.maximumRegistryVersion >= InspectionPackageRegistrySchemaV2.version else {
             throw InspectionPackageFailureV2.incompatiblePackage

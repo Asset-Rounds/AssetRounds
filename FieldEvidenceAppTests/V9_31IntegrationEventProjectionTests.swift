@@ -718,3 +718,21 @@ final class V9_31IntegrationEventProjectionTests: XCTestCase {
             .deletingLastPathComponent()
     }
 }
+
+extension V9_31IntegrationEventProjectionTests {
+    func testV23P03C18ProjectionCanPersistCanonicalSemanticChange() throws {
+        let change = try PackageSemanticChangeV1(
+            kind: .fieldAdded,
+            stableSubjectID: "c18.field"
+        )
+        let bytes = try PackageEvolutionCanonicalCodecV1.encode(change)
+        XCTAssertEqual(
+            try PackageEvolutionCanonicalCodecV1.decode(
+                PackageSemanticChangeV1.self,
+                from: bytes
+            ),
+            change
+        )
+        XCTAssertTrue(PackageEvolutionLifecycleV1.searchRebuildReplayRequired)
+    }
+}
