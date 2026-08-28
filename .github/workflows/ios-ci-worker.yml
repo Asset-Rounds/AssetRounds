@@ -520,8 +520,8 @@ jobs:
                 and .preflightHelperSHA256 == "0062C05D0AE8383E270E491C43450D892914CA1B344C1B17DAB1C6D53D548395"
                 and .issueRecheckHelperSHA256 == "A9D52569212661CD4419ECBF4804DDFDA04187EA2F4BF133387807AF6150AC53"
                 and ((.exceptionAuthorities | type) == "array")
-                and ((.exceptionAuthorities | length) == 16)
-                and (([.exceptionAuthorities[].exceptionIssueID] | unique | length) == 16)
+                and ((.exceptionAuthorities | length) == 15)
+                and (([.exceptionAuthorities[].exceptionIssueID] | unique | length) == 15)
                 and all(.exceptionAuthorities[];
                   .shardID == "s10.4.current.ax-text"
                   and (.stateID as $stateID | ($plan.orderedStateIDs | index($stateID)) != null)
@@ -2229,32 +2229,6 @@ jobs:
               },
               {
                 shardID: "s10.4.current.ax-text",
-                stateID: "state.work.validation-error",
-                taskID: "work_and_recheck",
-                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-NOTE",
-                exceptionOwner: "palatis3",
-                exceptionExpiresAt: "2026-11-20",
-                exceptionRationale: "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the empty-identifier Note label whose frozen public frame is fully inside the live ScrollView and keyboard boundary but extends 6.919677734375 points below the stricter inset-safe bottom; the exact unfiltered audit callback and audit-owned crop prove the complete label at that native keyboard-boundary composition, and the exception is limited to the frozen public issue signature.",
-                ignoredAuditIssues: [
-                  {
-                    auditTypeRawValue: "1",
-                    compactDescription: "Contrast failed",
-                    detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode",
-                    elementIdentifier: "",
-                    elementLabel: "Note",
-                    elementType: "XCUIElementType(rawValue: 48)",
-                    elementFrame: {
-                      x: 32,
-                      y: 522.58634440104174,
-                      width: 93.333333333333329,
-                      height: 51.333333333333258
-                    },
-                    applicationFrame: {x: 0, y: 0, width: 402, height: 874}
-                  }
-                ]
-              },
-              {
-                shardID: "s10.4.current.ax-text",
                 stateID: "state.issue.open",
                 taskID: "work_and_recheck",
                 exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-ISSUE-OPEN-WORK-DESCRIPTION",
@@ -2711,12 +2685,6 @@ jobs:
                 exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-SHORT-DESCRIPTION"
               },
               {
-                shardID: "s10.4.current.ax-text",
-                stateID: "state.work.validation-error",
-                taskID: "work_and_recheck",
-                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-NOTE"
-              },
-              {
                 shardID: "s10.4.current.default-light",
                 stateID: "state.report-correction.validation-error",
                 taskID: "report_comprehension",
@@ -2893,7 +2861,7 @@ jobs:
                 elif $shardID == "s10.4.current.ax-text"
                      and $taskID == "report_comprehension" then 4
                 elif $shardID == "s10.4.current.ax-text"
-                     and $taskID == "work_and_recheck" then 7
+                     and $taskID == "work_and_recheck" then 6
                 elif $shardID == "s10.4.current.default-light"
                      and $taskID == "report_comprehension" then 1
                 elif $shardID == "s10.4.current.default-dark"
@@ -2964,8 +2932,7 @@ jobs:
                    length > (
                      if $shard == "s10.4.current.ax-text"
                         and (.[0].stateID == "state.check-preflight.ready"
-                          or .[0].stateID == "state.reports-index.ready"
-                          or .[0].stateID == "state.work.validation-error") then 2
+                          or .[0].stateID == "state.reports-index.ready") then 2
                      else 1
                      end
                    )) then
@@ -2995,7 +2962,7 @@ jobs:
                        or ($matchedExceptionStateIDs | length) > 1) then
                    error("reduce-transparency contrast exception bound exceeded")
                 elif $shard == "s10.4.current.ax-text"
-                     and (($matchedAuthorities | length) > 16
+                     and (($matchedAuthorities | length) > 15
                        or ($matchedExceptionStateIDs | length) > 13) then
                    error("AX-text contrast exception bound exceeded")
                  elif $shard != "s10.4.current.default-light"
@@ -3232,7 +3199,7 @@ jobs:
                 elif $shardID == "s10.4.current.ax-text"
                      and $stateID == "state.reports-index.ready" then 2
                 elif $shardID == "s10.4.current.ax-text"
-                     and $stateID == "state.work.validation-error" then 2
+                     and $stateID == "state.work.validation-error" then 1
                 elif $shardID == "s10.4.current.default-light"
                      and $stateID == "state.report-correction.validation-error" then 1
                 elif $shardID == "s10.4.current.default-dark"
@@ -3324,7 +3291,7 @@ jobs:
                         ($matchedAuthorities | length) <= 1
                         and ($matchedExceptionStateIDs | length) <= 1
                       elif $shard == "s10.4.current.ax-text" then
-                        ($matchedAuthorities | length) <= 16
+                        ($matchedAuthorities | length) <= 15
                         and ($matchedExceptionStateIDs | length) <= 13
                       else
                         ($matchedAuthorities | length) == 0

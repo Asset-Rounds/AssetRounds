@@ -328,28 +328,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)
         ),
         ContrastAuditExceptionSignature(
-            issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-NOTE",
-            shardID: "s10.4.current.ax-text",
-            stateID: "state.work.validation-error",
-            taskID: "work_and_recheck",
-            owner: "palatis3",
-            expiresAt: "2026-11-20",
-            rationale: "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the empty-identifier Note label whose frozen public frame is fully inside the live ScrollView and keyboard boundary but extends 6.919677734375 points below the stricter inset-safe bottom; the exact unfiltered audit callback and audit-owned crop prove the complete label at that native keyboard-boundary composition, and the exception is limited to the frozen public issue signature.",
-            auditTypeRawValue: "1",
-            compactDescription: "Contrast failed",
-            detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode",
-            elementIdentifier: "",
-            elementLabel: "Note",
-            elementTypeDescription: "XCUIElementType(rawValue: 48)",
-            elementFrame: CGRect(
-                x: 32,
-                y: 522.58634440104174,
-                width: 93.333333333333329,
-                height: 51.333333333333258
-            ),
-            applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)
-        ),
-        ContrastAuditExceptionSignature(
             issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-ISSUE-RESOLVED-WORK-DESCRIPTION",
             shardID: "s10.4.current.ax-text",
             stateID: "state.issue.resolved",
@@ -6979,25 +6957,19 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let keyboard = keyboards.firstMatch
         let fieldLabelExceptionIssueID =
             "S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-SHORT-DESCRIPTION"
-        let noteExceptionIssueID =
-            "S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-NOTE"
         let workValidationExceptionIssueIDs = Set([
             fieldLabelExceptionIssueID,
-            noteExceptionIssueID,
         ])
         let activeWorkValidationExceptions = Self.contrastAuditExceptionSignatures.filter {
             $0.shardID == "s10.4.current.ax-text"
                 && $0.stateID == "state.work.validation-error"
                 && isActive($0)
         }
-        guard activeWorkValidationExceptions.count == 2,
+        guard activeWorkValidationExceptions.count == 1,
               Set(activeWorkValidationExceptions.map(\.issueID))
                 == workValidationExceptionIssueIDs,
               let activeFieldLabelException = activeWorkValidationExceptions.first(
                 where: { $0.issueID == fieldLabelExceptionIssueID }
-              ),
-              let activeNoteException = activeWorkValidationExceptions.first(
-                where: { $0.issueID == noteExceptionIssueID }
               ) else {
             XCTFail("AX-text work-validation authorities are ambiguous or expired.")
             return false
@@ -7654,16 +7626,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             )
             let safeTop = liveTop + verticalInset
             let safeBottom = liveBottom - verticalInset
-            let noteMatchesExceptionAuthorizedBoundaryComposition =
-                self.automationSegment == .segment2
-                && activeWorkValidationExceptions.count == 2
-                && Set(activeWorkValidationExceptions.map(\.issueID))
-                    == workValidationExceptionIssueIDs
-                && activeNoteException.applicationFrame == applicationFrame
-                && frozenNoteFrame == activeNoteException.elementFrame
-                && noteFrame == activeNoteException.elementFrame
-                && noteFrame.minY >= safeTop
-                && noteFrame.maxY <= liveBottom
             let visibleDescriptionFrame = descriptionFrame.intersection(
                 CGRect(
                     x: liveScrollFrame.minX,
@@ -7693,10 +7655,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && validationFrame.minY >= safeTop
                 && validationFrame.maxY <= safeBottom
                 && noteFrame.minY >= safeTop
-                && (
-                    noteFrame.maxY <= safeBottom
-                        || noteMatchesExceptionAuthorizedBoundaryComposition
-                )
+                && noteFrame.maxY <= safeBottom
                 && fieldLabelFrame.maxY <= descriptionFrame.minY
                 && descriptionFrame.maxY <= validationFrame.minY
                 && validationFrame.maxY <= noteFrame.minY
