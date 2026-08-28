@@ -85,6 +85,7 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case packageLifecycleDisposition
     case fieldReferenceRelease
     case fieldReferenceBinding
+    case accessibleDocumentAssessmentReceipt
     case workflowRecord
     case evidenceFile
     case issue
@@ -1369,6 +1370,8 @@ enum FieldReferenceMutationV1:Codable,Equatable,Sendable{
     func canonicalSHA256()throws->String{try validate();return try WorkspaceMutationCanonicalV1.sha256(self)}
 }
 
+struct AccessibleDocumentMutationV1:Codable,Equatable,Sendable{let receipt:AccessibleDocumentAssessmentReceiptV1;var workspaceID:WorkspaceID{receipt.workspaceID};var mutationID:MutationIDV1{receipt.mutationID};var revision:UInt64{receipt.revision};var expectedRevision:UInt64{revision-1};var affectedIdentity:WorkspaceEntityIdentityV1{get throws{try .init(kind:.accessibleDocumentAssessmentReceipt,id:receipt.receiptID)}};var concurrencyIdentity:WorkspaceEntityIdentityV1{get throws{try .init(kind:.accessibleDocumentAssessmentReceipt,id:receipt.supersedesReceiptID ?? receipt.receiptID)}};func validate()throws{try receipt.validateIntrinsic()};func canonicalSHA256()throws->String{try validate();return try WorkspaceMutationCanonicalV1.sha256(self)}}
+
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
     case createCheckDraft(CheckDraftMutationV1)
@@ -1400,6 +1403,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyPrivacyTransform(PrivacyTransformMutationV1)
     case applyClientCapability(ClientCapabilityMutationV1)
     case applyFieldReference(FieldReferenceMutationV1)
+    case applyAccessibleDocumentAssessment(AccessibleDocumentMutationV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -1433,6 +1437,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyPrivacyTransform:.applyPrivacyTransform
         case .applyClientCapability:.applyClientCapability
         case .applyFieldReference:.applyFieldReference
+        case .applyAccessibleDocumentAssessment:.applyAccessibleDocumentAssessment
         }
     }
 }
@@ -1468,6 +1473,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyPrivacyTransform="apply_privacy_transform"
     case applyClientCapability="apply_client_capability"
     case applyFieldReference="apply_field_reference"
+    case applyAccessibleDocumentAssessment="apply_accessible_document_assessment"
 }
 
 extension WorkspaceCommandV1 {
@@ -2215,6 +2221,7 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind:.applyPrivacyTransform,disposition:.irreversible,stableReason:"append_privacy_transform_forward_fix_only"),
         .init(commandKind:.applyClientCapability,disposition:.irreversible,stableReason:"append_client_capability_forward_fix_only"),
         .init(commandKind:.applyFieldReference,disposition:.irreversible,stableReason:"append_field_reference_forward_fix_only"),
+        .init(commandKind:.applyAccessibleDocumentAssessment,disposition:.irreversible,stableReason:"append_accessible_document_assessment_successor_only"),
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {

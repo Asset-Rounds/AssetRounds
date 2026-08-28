@@ -112,6 +112,10 @@ struct DiagnosticExportV1: Codable, Equatable, Sendable {
     /// bounded counts and closed states only; reference bytes, content IDs,
     /// locators, license notices, and subject identity are excluded.
     var fieldReference: FieldReferenceDiagnosticMetadataV1? = nil
+    /// Optional C24 aggregate-only semantic-tree health. Node text, node and
+    /// evidence identifiers, locators, original bytes, and assessor identity
+    /// are intentionally absent.
+    var accessibleDocument: AccessibleDocumentDiagnosticMetadataV1? = nil
 
     /// Integration event payloads, subjects, cursors, and checkpoint bytes are
     /// never diagnostic material. Diagnostics may describe only the static
@@ -140,6 +144,7 @@ struct DiagnosticExportV1: Codable, Equatable, Sendable {
             && (clientCapability?.isValid ?? true)
             && (recoverabilityVerification?.isValid ?? true)
             && (fieldReference?.isValid ?? true)
+            && (accessibleDocument?.isValid ?? true)
             && integrationProjectionPayloadExcluded
     }
 
@@ -187,6 +192,11 @@ enum IntegrationProjectionDiagnosticExclusionV1 {
         "contentID", "locatorID", "releaseSHA256", "manifestSHA256",
         "readinessSHA256", "projectionSHA256", "canonicalData", "bytes",
         "restrictedContent",
+        // C24 semantic-tree and assessment details are not diagnostics.
+        "nodeID", "parentNodeID", "evidenceID", "evidenceSHA256",
+        "localizedText", "alternateText", "assessor", "assessorID",
+        "privateEvidence", "originalBytes", "pdfUAClaimed", "wcagClaimed",
+        "legalCertificationClaimed", "s10BrandReconciled",
     ]
 
     static func validate(_ data: Data) throws {
@@ -206,6 +216,7 @@ struct DiagnosticExportService {
     typealias ClientCapabilityProvider = () -> ClientCapabilityDiagnosticMetadataV1?
     typealias RecoverabilityVerificationProvider = () -> RecoverabilityVerificationDiagnosticMetadataV1?
     typealias FieldReferenceProvider = () -> FieldReferenceDiagnosticMetadataV1?
+    typealias AccessibleDocumentProvider = () -> AccessibleDocumentDiagnosticMetadataV1?
     typealias ContextProvider<Value> = () -> Value
     typealias Clock = () -> Date
 
@@ -216,6 +227,7 @@ struct DiagnosticExportService {
     private let clientCapabilityProvider: ClientCapabilityProvider
     private let recoverabilityVerificationProvider: RecoverabilityVerificationProvider
     private let fieldReferenceProvider: FieldReferenceProvider
+    private let accessibleDocumentProvider: AccessibleDocumentProvider
     private let appProvider: ContextProvider<DiagnosticAppContextV1>
     private let deviceProvider: ContextProvider<DiagnosticDeviceContextV1>
     private let clock: Clock
@@ -230,7 +242,8 @@ struct DiagnosticExportService {
         workPacket: @escaping WorkPacketProvider = { nil },
         clientCapability: @escaping ClientCapabilityProvider = { nil },
         recoverabilityVerification: @escaping RecoverabilityVerificationProvider = { nil },
-        fieldReference: @escaping FieldReferenceProvider = { nil }
+        fieldReference: @escaping FieldReferenceProvider = { nil },
+        accessibleDocument: @escaping AccessibleDocumentProvider = { nil }
     ) {
         countersProvider = counters
         metricKitProvider = metricKit
@@ -239,6 +252,7 @@ struct DiagnosticExportService {
         clientCapabilityProvider = clientCapability
         recoverabilityVerificationProvider = recoverabilityVerification
         fieldReferenceProvider = fieldReference
+        accessibleDocumentProvider = accessibleDocument
         appProvider = app
         deviceProvider = device
         self.clock = clock
@@ -253,6 +267,7 @@ struct DiagnosticExportService {
         clientCapability: @escaping ClientCapabilityProvider = { nil },
         recoverabilityVerification: @escaping RecoverabilityVerificationProvider = { nil },
         fieldReference: @escaping FieldReferenceProvider = { nil },
+        accessibleDocument: @escaping AccessibleDocumentProvider = { nil },
         bundle: Bundle = .main,
         device: UIDevice = .current,
         clock: @escaping Clock = Date.init
@@ -279,7 +294,8 @@ struct DiagnosticExportService {
             workPacket: workPacket,
             clientCapability: clientCapability,
             recoverabilityVerification: recoverabilityVerification,
-            fieldReference: fieldReference
+            fieldReference: fieldReference,
+            accessibleDocument: accessibleDocument
         )
     }
 
@@ -295,7 +311,8 @@ struct DiagnosticExportService {
             workPacket: workPacketProvider(),
             clientCapability: clientCapabilityProvider(),
             recoverabilityVerification: recoverabilityVerificationProvider(),
-            fieldReference: fieldReferenceProvider()
+            fieldReference: fieldReferenceProvider(),
+            accessibleDocument: accessibleDocumentProvider()
         )
         guard value.isValid else {
             throw DiagnosticExportError.invalidValue
@@ -347,6 +364,9 @@ enum DiagnosticExportCanonicalEncoderV1 {
         }
         if let fieldReference = value.fieldReference {
             object["fieldReference"] = fieldReferenceValue(fieldReference)
+        }
+        if let accessibleDocument = value.accessibleDocument {
+            object["accessibleDocument"] = accessibleDocumentValue(accessibleDocument)
         }
         let data = try CanonicalJSONV1.encode(.object(object))
         try IntegrationProjectionDiagnosticExclusionV1.validate(data)
@@ -489,6 +509,50 @@ enum DiagnosticExportCanonicalEncoderV1 {
             "excludesPrivateLocators": .bool(value.excludesPrivateLocators),
             "excludesLicenseSecrets": .bool(value.excludesLicenseSecrets),
             "excludesSubjectIdentity": .bool(value.excludesSubjectIdentity),
+        ])
+    }
+
+    private static func accessibleDocumentValue(
+        _ value: AccessibleDocumentDiagnosticMetadataV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "schemaVersion": .integer(value.schemaVersion),
+            "treeCount": .integer(value.treeCount),
+            "customerSafeTreeCount": .integer(value.customerSafeTreeCount),
+            "nodeCount": .integer(value.nodeCount),
+            "documentNodeCount": .integer(value.documentNodeCount),
+            "sectionNodeCount": .integer(value.sectionNodeCount),
+            "headingNodeCount": .integer(value.headingNodeCount),
+            "paragraphNodeCount": .integer(value.paragraphNodeCount),
+            "listNodeCount": .integer(value.listNodeCount),
+            "listItemNodeCount": .integer(value.listItemNodeCount),
+            "tableNodeCount": .integer(value.tableNodeCount),
+            "tableRowNodeCount": .integer(value.tableRowCount),
+            "tableHeaderNodeCount": .integer(value.tableHeaderCount),
+            "tableCellNodeCount": .integer(value.tableCellCount),
+            "figureNodeCount": .integer(value.figureCount),
+            "evidenceLinkNodeCount": .integer(value.evidenceLinkNodeCount),
+            "noteNodeCount": .integer(value.noteNodeCount),
+            "decorativeFigureCount": .integer(value.decorativeFigureCount),
+            "describedFigureCount": .integer(value.describedFigureCount),
+            "missingAlternateTextFigureCount": .integer(
+                value.missingAlternateTextFigureCount
+            ),
+            "assessmentCount": .integer(value.assessmentCount),
+            "internalPassCount": .integer(value.internalPassCount),
+            "internalFailCount": .integer(value.internalFailCount),
+            "incompleteCount": .integer(value.incompleteCount),
+            "externallyProvedCount": .integer(value.externallyProvedCount),
+            "assessmentStates": .array(
+                value.assessmentStates.map { .string($0.rawValue) }
+            ),
+            "policyVersion": .string(value.policyVersion),
+            "metadataOnly": .bool(value.metadataOnly),
+            "excludesOriginalEvidence": .bool(value.excludesOriginalEvidence),
+            "excludesPrivateEvidence": .bool(value.excludesPrivateEvidence),
+            "excludesAssessorIdentity": .bool(value.excludesAssessorIdentity),
+            "excludesPrivateLocators": .bool(value.excludesPrivateLocators),
+            "excludesUnsupportedClaims": .bool(value.excludesUnsupportedClaims),
         ])
     }
 
@@ -1335,5 +1399,191 @@ extension DiagnosticExportV1 {
         projections: [FieldReferenceReportProjectionV1]
     ) throws -> FieldReferenceDiagnosticMetadataV1 {
         try FieldReferenceDiagnosticMetadataV1(projections: projections)
+    }
+}
+
+// MARK: - C24 accessible-document diagnostic metadata
+
+/// Aggregate-only C24 health metadata.  This value intentionally contains
+/// no semantic node text or IDs, evidence IDs/digests, locators, original
+/// bytes, or assessor identity.
+struct AccessibleDocumentDiagnosticMetadataV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let policyVersion = "ACCESSIBLE_DOCUMENT_SEMANTIC_DIAGNOSTIC_V1"
+    static let maximumValues = 100_000
+
+    let schemaVersion: Int
+    let treeCount: Int
+    let customerSafeTreeCount: Int
+    let nodeCount: Int
+    let documentNodeCount: Int
+    let sectionNodeCount: Int
+    let headingNodeCount: Int
+    let paragraphNodeCount: Int
+    let listNodeCount: Int
+    let listItemNodeCount: Int
+    let tableNodeCount: Int
+    let tableRowCount: Int
+    let tableHeaderCount: Int
+    let tableCellCount: Int
+    let figureCount: Int
+    let evidenceLinkNodeCount: Int
+    let noteNodeCount: Int
+    let decorativeFigureCount: Int
+    let describedFigureCount: Int
+    let missingAlternateTextFigureCount: Int
+    let assessmentCount: Int
+    let internalPassCount: Int
+    let internalFailCount: Int
+    let incompleteCount: Int
+    let externallyProvedCount: Int
+    let assessmentStates: [AccessibleDocumentAssessmentStateV1]
+    let policyVersion: String
+    let metadataOnly: Bool
+    let excludesOriginalEvidence: Bool
+    let excludesPrivateEvidence: Bool
+    let excludesAssessorIdentity: Bool
+    let excludesPrivateLocators: Bool
+    let excludesUnsupportedClaims: Bool
+
+    init(
+        trees: [AccessibleDocumentSemanticTreeV1] = [],
+        assessments: [AccessibleDocumentAssessmentReceiptV1] = []
+    ) throws {
+        guard trees.count <= Self.maximumValues,
+              assessments.count <= Self.maximumValues else {
+            throw DiagnosticExportError.invalidValue
+        }
+        try trees.forEach {
+            try AccessibleDocumentIntegrityBoundaryV1.validateTree($0)
+        }
+        let treeDigests = trees.map(\.treeSHA256)
+        guard Set(treeDigests).count == trees.count else {
+            throw DiagnosticExportError.invalidValue
+        }
+        let treeByDigest = Dictionary(uniqueKeysWithValues: trees.map {
+            ($0.treeSHA256, $0)
+        })
+        for assessment in assessments {
+            guard let tree = treeByDigest[assessment.treeSHA256] else {
+                throw DiagnosticExportError.invalidValue
+            }
+            try AccessibleDocumentIntegrityBoundaryV1.validateAssessment(
+                assessment,
+                for: tree
+            )
+        }
+
+        let nodes = trees.flatMap { $0.nodes }
+        guard nodes.count <= Self.maximumValues,
+              nodes.allSatisfy({ $0.evidenceLinks.count <= Self.maximumValues }) else {
+            throw DiagnosticExportError.invalidValue
+        }
+        let roleCounts = Dictionary(grouping: nodes, by: \.role).mapValues { $0.count }
+        let figures = nodes.filter { $0.role == .figure }
+        let assessmentStates = Array(Set(assessments.map(\.state))).sorted {
+            $0.rawValue < $1.rawValue
+        }
+        schemaVersion = Self.schemaVersion
+        treeCount = trees.count
+        customerSafeTreeCount = trees.filter { $0.audience == .customerSafe }.count
+        nodeCount = nodes.count
+        documentNodeCount = roleCounts[.document, default: 0]
+        sectionNodeCount = roleCounts[.section, default: 0]
+        headingNodeCount = roleCounts[.heading, default: 0]
+        paragraphNodeCount = roleCounts[.paragraph, default: 0]
+        listNodeCount = roleCounts[.list, default: 0]
+        listItemNodeCount = roleCounts[.listItem, default: 0]
+        tableNodeCount = roleCounts[.table, default: 0]
+        tableRowCount = roleCounts[.tableRow, default: 0]
+        tableHeaderCount = roleCounts[.tableHeader, default: 0]
+        tableCellCount = roleCounts[.tableCell, default: 0]
+        figureCount = figures.count
+        evidenceLinkNodeCount = nodes.reduce(0) { $0 + $1.evidenceLinks.count }
+        noteNodeCount = roleCounts[.note, default: 0]
+        decorativeFigureCount = figures.filter { $0.decorative }.count
+        describedFigureCount = figures.filter {
+            !$0.decorative && $0.alternateText != nil
+        }.count
+        missingAlternateTextFigureCount = figures.filter {
+            !$0.decorative && $0.alternateTextProvenance == .notProvided
+        }.count
+        assessmentCount = assessments.count
+        internalPassCount = assessments.filter { $0.state == .internalPass }.count
+        internalFailCount = assessments.filter { $0.state == .internalFail }.count
+        incompleteCount = assessments.filter { $0.state == .incomplete }.count
+        externallyProvedCount = assessments.filter {
+            $0.state == .externallyProved
+        }.count
+        self.assessmentStates = assessmentStates
+        policyVersion = Self.policyVersion
+        metadataOnly = true
+        excludesOriginalEvidence = true
+        excludesPrivateEvidence = true
+        excludesAssessorIdentity = true
+        excludesPrivateLocators = true
+        excludesUnsupportedClaims = true
+        try validate()
+    }
+
+    var isValid: Bool { (try? validate()) != nil }
+
+    func validate() throws {
+        let counts = [
+            treeCount, customerSafeTreeCount, nodeCount,
+            documentNodeCount, sectionNodeCount, headingNodeCount,
+            paragraphNodeCount, listNodeCount, listItemNodeCount,
+            tableNodeCount, tableRowCount, tableHeaderCount, tableCellCount,
+            figureCount, evidenceLinkNodeCount, noteNodeCount,
+            decorativeFigureCount, describedFigureCount,
+            missingAlternateTextFigureCount, assessmentCount,
+            internalPassCount, internalFailCount, incompleteCount,
+            externallyProvedCount,
+        ]
+        let roleTotal = documentNodeCount + sectionNodeCount + headingNodeCount
+            + paragraphNodeCount + listNodeCount + listItemNodeCount
+            + tableNodeCount + tableRowCount + tableHeaderCount
+            + tableCellCount + figureCount + noteNodeCount
+        let assessmentTotal = internalPassCount + internalFailCount
+            + incompleteCount + externallyProvedCount
+        let expectedAssessmentStates: Set<AccessibleDocumentAssessmentStateV1> = Set([
+            internalPassCount > 0 ? AccessibleDocumentAssessmentStateV1.internalPass : nil,
+            internalFailCount > 0 ? AccessibleDocumentAssessmentStateV1.internalFail : nil,
+            incompleteCount > 0 ? AccessibleDocumentAssessmentStateV1.incomplete : nil,
+            externallyProvedCount > 0 ? AccessibleDocumentAssessmentStateV1.externallyProved : nil,
+        ].compactMap { $0 })
+        guard schemaVersion == Self.schemaVersion,
+              counts.allSatisfy({ $0 >= 0 && $0 <= Self.maximumValues }),
+              customerSafeTreeCount == treeCount,
+              roleTotal == nodeCount,
+              decorativeFigureCount + describedFigureCount
+                  + missingAlternateTextFigureCount == figureCount,
+              assessmentTotal == assessmentCount,
+              assessmentStates == assessmentStates.sorted(
+                  by: { $0.rawValue < $1.rawValue }
+              ),
+              Set(assessmentStates).count == assessmentStates.count,
+              Set(assessmentStates) == expectedAssessmentStates,
+              policyVersion == Self.policyVersion,
+              metadataOnly,
+              excludesOriginalEvidence,
+              excludesPrivateEvidence,
+              excludesAssessorIdentity,
+              excludesPrivateLocators,
+              excludesUnsupportedClaims else {
+            throw DiagnosticExportError.invalidValue
+        }
+    }
+}
+
+extension DiagnosticExportV1 {
+    static func accessibleDocumentDiagnosticMetadata(
+        trees: [AccessibleDocumentSemanticTreeV1] = [],
+        assessments: [AccessibleDocumentAssessmentReceiptV1] = []
+    ) throws -> AccessibleDocumentDiagnosticMetadataV1 {
+        try AccessibleDocumentDiagnosticMetadataV1(
+            trees: trees,
+            assessments: assessments
+        )
     }
 }

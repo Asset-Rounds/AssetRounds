@@ -291,6 +291,7 @@ enum KernelMutationReceiptRegistryV4 {
     static func validatePrivacyTransform(mutation:PrivacyTransformMutationV1,receipt:MutationReceiptV1)throws{_ = try PrivacyTransformMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)}
     static func validateClientCapability(mutation:ClientCapabilityMutationV1,receipt:MutationReceiptV1)throws{_ = try ClientCapabilityMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)}
     static func validateFieldReference(mutation:FieldReferenceMutationV1,receipt:MutationReceiptV1)throws{_ = try FieldReferenceMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)}
+    static func validateAccessibleDocumentAssessment(mutation:AccessibleDocumentMutationV1,receipt:MutationReceiptV1)throws{_ = try AccessibleDocumentMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)}
     static let registrations: [KernelMutationRegistrationV4] = {
         do {
             return try KernelPersistenceV4RecordKind.allCases.map { kind in

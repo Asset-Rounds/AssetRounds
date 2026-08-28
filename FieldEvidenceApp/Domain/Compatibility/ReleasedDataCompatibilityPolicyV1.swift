@@ -987,3 +987,13 @@ struct FieldReferencePackCompatibilityPolicyV1:Codable,Equatable,Sendable{
 }
 
 extension ReleasedDataCompatibilityPolicyV1{static let fieldReferencePackCompatibility=FieldReferencePackCompatibilityPolicyV1.current}
+
+struct AccessibleDocumentCompatibilityPolicyV1:Codable,Equatable,Sendable{
+    static let persistentSchemaVersion=23,recordsSchemaVersion=22
+    static let currentPersistentWriterVersion="23.0.0",currentBackupWriterVersion="archive1-backup4-persistent23-records22"
+    static let downgradeDisposition="PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_FIRST_V23_WRITE_NO_ACCEPTED_RECEIPT_REWRITE"
+    let semanticTreePersistence="DERIVED_ONLY";let acceptedReceiptPreserved=true;let unknownVersionsFailClosed=true
+    static let current=Self()
+    func validate()throws{guard semanticTreePersistence==AccessibleDocumentLifecycleV1.semanticTreePersistence,acceptedReceiptPreserved,unknownVersionsFailClosed else{throw CompatibilityContractErrorV1.invalidSupportTable}}
+}
+extension ReleasedDataCompatibilityPolicyV1{static let accessibleDocumentCompatibility=AccessibleDocumentCompatibilityPolicyV1.current}

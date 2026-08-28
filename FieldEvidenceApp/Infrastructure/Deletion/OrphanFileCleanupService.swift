@@ -20,6 +20,7 @@ enum OrphanFileCleanupServiceError: Error, Equatable, Sendable {
 }
 
 enum FieldReferenceOrphanCleanupPolicyV1{static func removableReleaseIDs(releases:[FieldReferenceReleaseV1],bindings:[FieldReferenceBindingV1])->Set<UUID>{Set(releases.map(\.releaseID)).subtracting(Set(bindings.map(\.releaseID)))}static func protectedContentIDs(releases:[FieldReferenceReleaseV1],bindings:[FieldReferenceBindingV1])->Set<String>{let retained=Set(bindings.map(\.releaseID));return Set(releases.filter{retained.contains($0.releaseID)}.flatMap{$0.manifest.entries.map(\.contentID)})}}
+enum AccessibleDocumentOrphanCleanupPolicyV1{static func protectedOutputDigests(_ receipts:[AccessibleDocumentAssessmentReceiptV1])->Set<String>{Set(receipts.map(\.outputSHA256))}static func mayRemove(outputSHA256:String,receipts:[AccessibleDocumentAssessmentReceiptV1],hasAuthorizedExpiryTombstoneAndRedactionProof:Bool)->Bool{hasAuthorizedExpiryTombstoneAndRedactionProof && !protectedOutputDigests(receipts).contains(outputSHA256)}}
 
 struct FieldDraftOrphanCleanupProofV1: Equatable, Sendable {
     let removableStageIDs: [UUID]

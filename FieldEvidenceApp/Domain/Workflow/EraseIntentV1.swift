@@ -31,6 +31,7 @@ enum PrivacyTransformEraseBoundaryV1 {
 }
 enum ClientCapabilityEraseBoundaryV1{static let atomicFamilyCount=4;static let ordinaryDeletionPreservesReadableHistory=true;static let workspaceEraseClearsEntireClosure=true;static let escapedArchivesCannotBeRecalled=true}
 enum FieldReferenceEraseBoundaryV1{static let atomicFamilyCount=2;static let ordinaryDeletionRetainsBoundAndFinalizedReleaseBytes=true;static let unboundReleaseMayBeDiscarded=true;static let workspaceEraseClearsRowsAndOwnedBytes=true;static let readinessProjectionIsNonpersistent=true}
+enum AccessibleDocumentEraseBoundaryV1{static let atomicFamilyCount=1;static let semanticTreeIsDerived=true;static let workspaceEraseClearsReceiptsAndOwnedOutputs=true;static let escapedOutputsCannotBeRecalled=true}
 
 enum EvidenceAssuranceEraseBoundaryV1 {
     static let immutableHistoryClearedOnlyByWorkspaceErase = true

@@ -372,6 +372,34 @@ extension SequenceDerivativeV1 {
     }
 }
 
+// MARK: - C24 accessible-document provenance boundary
+
+/// Alternate text provenance and decorative state are facts recorded on the
+/// canonical accessible-document node.  This adapter only revalidates those
+/// facts; it never synthesizes text from private evidence or an assessor.
+enum AccessibleDocumentProvenanceBoundaryV1 {
+    static let alternateTextMustHaveRecordedProvenance = true
+    static let decorativeFiguresHaveNoAlternateText = true
+    static let nonFiguresHaveNoAlternateText = true
+    static let excludesAssessorIdentity = true
+    static let excludesHiddenEvidence = true
+
+    static func validateNode(_ node: AccessibleDocumentNodeV1) throws {
+        try node.validate()
+        if node.role == .figure, !node.decorative {
+            guard (node.alternateText == nil)
+                == (node.alternateTextProvenance == .notProvided) else {
+                throw AccessibleDocumentFailureV1.inventedAlternateText
+            }
+        }
+    }
+
+    static func validateTree(_ tree: AccessibleDocumentSemanticTreeV1) throws {
+        try AccessibleDocumentContentReferenceBoundaryV1.validateAudienceSafeTree(tree)
+        try tree.nodes.forEach(validateNode)
+    }
+}
+
 extension PrivacyDerivativeV1 {
     private enum CodingKeys: String, CodingKey, CaseIterable { case privacyManifestID, privacyManifestSHA256, rendererID, rendererVersion }
     init(from decoder: any Decoder) throws {

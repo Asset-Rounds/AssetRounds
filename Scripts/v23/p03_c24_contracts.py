@@ -1,0 +1,1327 @@
+#!/usr/bin/env python3
+"""Deterministic static contract, corpus, and evidence builders for V23-P03-C24.
+
+C24 records the accessible-document semantic tree and its immutable,
+successor-only assessment receipt. The semantic tree is derived-only;
+the receipt is the sole new durable family. This module intentionally
+records only static provisional evidence: native, hosted, adoption,
+acceptance, release, and Phase 10 claims remain false.
+"""
+
+from __future__ import annotations
+
+import base64
+import hashlib
+import json
+import subprocess
+import zlib
+from pathlib import Path
+from typing import Any
+
+
+CARD = "V23-P03-C24"
+SCHEMA_VERSION = 1
+REGISTER_ORDINAL = 61
+TITLE = "Accessible document semantic trees and evidence/report assessment"
+BASE_HEAD = "e64703e836c65b4a12f0ceedde3083616f558a8e"
+BASE_TREE = "fb1ddafdb7b7a72f802a00220d751f2caf35fe12"
+COORDINATION_HEAD = "085c1f221d27d31edda60dd33a174c4e649c59d8"
+COORDINATION_TREE = "c84bd483a4891c2b25c14665c57fabc2e4c7ebc4"
+COORDINATION_LEDGER_DIGEST = "1103e976516e9732aaba17ad414091f09d6c45f80db7fabc9b31d46d28da254d"
+COORDINATION_PROJECTION_DIGEST = "fd0d499ec5dad8d7a9fde6d6be8d9239bc8110e62729e3c523ecee10514ae411"
+COORDINATION_CAS_SEQUENCE = 258
+HYDRATION_TRANSITION_SEQUENCE = 258
+HYDRATION_TRANSITION_DIGEST = "320258e912ca304c7bf154dac08a74a795f48f234ed5595729f780a3450ee652"
+CONTEXT_DIGEST = "496ad67ebdeac22bd55a7675048ae54a1a297a3f83f401a5971eccc8e12d33ba"
+FENCE_DIGEST = "08bd1b6091d22d234eaa18beac3d99d29540a3bdf00c4f91e01f5265f1d9346a"
+PREREQUISITE_DIGEST = "9e51f1b1fe73ba63b1dbaa363a00c58262e04603413221c4c6e3dc0efa356ddc"
+FROZEN_S10_RESERVATION_DIGEST = "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+
+REGISTER_SECTION_SHA256 = "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5"
+REGISTER_SECTION_UTF8_LENGTH = 44217
+REGISTER_ROW_SHA256 = "c443c62c46623fcef5ab43c35d550071a692f85b40c68e37780413a5f65992cf"
+REGISTER_ROW_UTF8_LENGTH = 254
+DOSSIER_SHA256 = "dc6756c6c2310b079cdf3ab89a8d8cff8bd7d823bd27527cd106f6b162538127"
+DOSSIER_UTF8_LENGTH = 7141
+INHERITED_V21_BLOCK_SHA256 = "4c906774b818667c23dca3eb25c40d7464247be407e11eb59b3429ede9804822"
+INHERITED_V21_BLOCK_UTF8_LENGTH = 8960
+
+SCHEMA_PATH = "Scripts/v23/accessible-document.schema.json"
+CONTRACT_PATH = "docs/design/v23/tooling/V23P03C24AccessibleDocumentContractV1.json"
+EVIDENCE_PATH = "docs/design/v23/tooling/V23P03C24AccessibleDocumentEvidenceReceiptV1.json"
+BRAND_PATH = "docs/design/v23/tooling/V23P03C24BrandImpactManifestV1.json"
+MANIFEST_PATH = "docs/design/v23/tooling/V23-P03-C24-tooling-manifest.json"
+SCRIPT_PATHS = (
+    "Scripts/v23/p03_c24_contracts.py",
+    "Scripts/v23/generate_p03_c24_contracts.py",
+    "Scripts/v23/verify_p03_c24_contracts.py",
+)
+GENERATED_PATHS = (SCHEMA_PATH, CONTRACT_PATH, EVIDENCE_PATH, BRAND_PATH, MANIFEST_PATH)
+TOOL_PATHS = SCRIPT_PATHS + GENERATED_PATHS
+
+# This order is the sealed C24 BootstrapPathFenceV1 order.
+EXISTING_PATHS = tuple(json.loads(r'''["FieldEvidenceApp/Domain/Content/ContentReferenceContractsV1.swift","FieldEvidenceApp/Domain/Content/ContentLocatorManifestContractsV1.swift","FieldEvidenceApp/Domain/Content/ContentProvenanceContractsV1.swift","FieldEvidenceApp/Domain/Content/PrivacyTransformContractsV1.swift","FieldEvidenceApp/Domain/Evidence/EvidenceAssociationContractsV1.swift","FieldEvidenceApp/Domain/InspectionKernel/CompletedActivitySnapshotContractsV1.swift","FieldEvidenceApp/Domain/InspectionKernel/InspectionPackageReleaseV1.swift","FieldEvidenceApp/Domain/InspectionKernel/PackageReleaseBindingV1.swift","FieldEvidenceApp/Domain/Mutation/WorkspaceMutationContractsV1.swift","FieldEvidenceApp/Domain/Mutation/MutationReceiptV1.swift","FieldEvidenceApp/Domain/Reporting/ContractManifestV1.swift","FieldEvidenceApp/Domain/Reporting/EvidenceAssuranceContractsV1.swift","FieldEvidenceApp/Domain/Reporting/EvidenceDetailCardContractsV1.swift","FieldEvidenceApp/Domain/Reporting/ReportProjectionContractsV1.swift","FieldEvidenceApp/Domain/Workflow/FinalizationContracts.swift","FieldEvidenceApp/Domain/Workflow/ReportSnapshotV1.swift","FieldEvidenceApp/Domain/Workflow/WorkflowContracts.swift","FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift","FieldEvidenceApp/Domain/Accessibility/SemanticAccessibilityContractsV1.swift","FieldEvidenceApp/Domain/Compatibility/ReleasedDataCompatibilityPolicyV1.swift","FieldEvidenceApp/Application/Mutation/WorkspaceWriterV1.swift","FieldEvidenceApp/Infrastructure/Content/LocalContentStoreContractsV1.swift","FieldEvidenceApp/Infrastructure/Content/ContentIntegrityV1.swift","FieldEvidenceApp/Infrastructure/Content/ContentContractRegistryV1.swift","FieldEvidenceApp/Infrastructure/Media/EvidenceBundleStore.swift","FieldEvidenceApp/Infrastructure/Finalization/ReportSnapshotEncoderV1.swift","FieldEvidenceApp/Infrastructure/Finalization/FinalizationIntentStore.swift","FieldEvidenceApp/Infrastructure/Reporting/ReportProjectionRegistryV1.swift","FieldEvidenceApp/Infrastructure/Reporting/DeterministicOpenJSONRendererV1.swift","FieldEvidenceApp/Infrastructure/Reporting/DeterministicPDFRendererV1.swift","FieldEvidenceApp/Infrastructure/Reporting/WorklightPDFRendererV1.swift","FieldEvidenceApp/Infrastructure/Reporting/SnapshotValidatorV1.swift","FieldEvidenceApp/Infrastructure/Reporting/ReportRenderService.swift","FieldEvidenceApp/Infrastructure/Reporting/ReportRecoveryService.swift","FieldEvidenceApp/Infrastructure/Reporting/ReportHistoryCoordinator.swift","FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift","FieldEvidenceApp/Infrastructure/Reporting/EvidenceAssuranceLifecycleAdapterV1.swift","FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticExportV1.swift","FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift","FieldEvidenceApp/Resources/Localizable.xcstrings","FieldEvidenceApp/Infrastructure/Persistence/PersistentSchemas.swift","FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift","FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationContracts.swift","FieldEvidenceApp/Infrastructure/Persistence/CurrentPersistentKindLifecycleCatalogV1.swift","FieldEvidenceApp/Infrastructure/Persistence/CurrentSyncClassificationCatalogV1.swift","FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift","FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationJournalStoreV1.swift","FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationReceiptRecoveryServiceV1.swift","FieldEvidenceApp/Infrastructure/Persistence/KernelMutationReceiptRegistryV4.swift","FieldEvidenceApp/Domain/Replication/ChangeJournalContractsV1.swift","FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalChangeJournalV1.swift","FieldEvidenceApp/Domain/Replication/IntegrationEventContractsV1.swift","FieldEvidenceApp/Infrastructure/Replication/IntegrationEventProjectionV1.swift","FieldEvidenceApp/Infrastructure/Replication/IntegrationProjectionCheckpointStoreV1.swift","FieldEvidenceApp/Infrastructure/Replication/IntegrationConformanceConsumerV1.swift","FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift","FieldEvidenceApp/Domain/Backup/V4BackupImportContracts.swift","FieldEvidenceApp/Domain/Backup/RestoreIdentityV1.swift","FieldEvidenceApp/Domain/Backup/ReplacementRestoreRule.swift","FieldEvidenceApp/Domain/Backup/DeletionLedgerV2.swift","FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift","FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift","FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift","FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift","FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift","FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift","FieldEvidenceApp/Infrastructure/Backup/KernelBackupRestoreRegistryV4.swift","FieldEvidenceApp/Domain/Workflow/DeletionIntentV1.swift","FieldEvidenceApp/Domain/Workflow/EraseIntentV1.swift","FieldEvidenceApp/Domain/Workflow/WholeSignDeletionRule.swift","FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift","FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift","FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift","FieldEvidenceApp/Infrastructure/Deletion/KernelDeletionEraseRegistryV4.swift","FieldEvidenceApp/Infrastructure/Deletion/DeletionLedgerStore.swift","FieldEvidenceApp/Infrastructure/Deletion/OrphanFileCleanupService.swift","FieldEvidenceApp/Domain/Search/SearchContractsV1.swift","FieldEvidenceApp/Domain/Search/SearchPersistenceModelsV1.swift","FieldEvidenceApp/Infrastructure/Search/LocalSearchIndexStoreV1.swift","FieldEvidenceApp/Infrastructure/Search/SearchIndexRebuildCoordinatorV1.swift","FieldEvidenceAppTests/S4_1DeterministicRendererTests.swift","FieldEvidenceAppTests/S4_2PDFRecoveryTests.swift","FieldEvidenceAppTests/S4_3ReportDeliveryTests.swift","FieldEvidenceAppTests/S4_4HistoryComparisonTests.swift","FieldEvidenceAppTests/S4_5CorrectionTests.swift","FieldEvidenceAppTests/S6_2BackupExportTests.swift","FieldEvidenceAppTests/S6_3BackupValidationTests.swift","FieldEvidenceAppTests/S6_4AtomicRestoreTests.swift","FieldEvidenceAppTests/S6_6EraseRecoveryTests.swift","FieldEvidenceAppTests/S8_2GoldenAccessibilityTests.swift","FieldEvidenceAppTests/S8_3DiagnosticPrivacyTests.swift","FieldEvidenceAppTests/V9_01VersionedSchemaIdentityTests.swift","FieldEvidenceAppTests/V9_03MigrationRecoveryTests.swift","FieldEvidenceAppTests/V9_05RestoreIdentityTests.swift","FieldEvidenceAppTests/V9_06DeletionArchiveIntegrationTests.swift","FieldEvidenceAppTests/V9_06DeletionRightsTests.swift","FieldEvidenceAppTests/V9_07CompatibilityPolicyTests.swift","FieldEvidenceAppTests/V9_07CompatibilityCorpusIntegrationTests.swift","FieldEvidenceAppTests/V9_16SnapshotProjectionTests.swift","FieldEvidenceAppTests/V9_17KernelPersistenceTests.swift","FieldEvidenceAppTests/V9_19LocalSearchTests.swift","FieldEvidenceAppTests/V9_20KernelConformanceTests.swift","FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift","FieldEvidenceAppTests/V9_27EvidenceAssuranceTests.swift","FieldEvidenceAppTests/V9_36RecoverabilityVerificationTests.swift"]'''))
+NEW_PATHS = tuple(json.loads(r'''["FieldEvidenceApp/Domain/Reporting/AccessibleDocumentContractsV1.swift","FieldEvidenceApp/Domain/Models/AccessibleDocumentPersistenceModelsV1.swift","FieldEvidenceApp/Application/Reporting/AccessibleDocumentCoordinatorV1.swift","FieldEvidenceApp/Infrastructure/Reporting/AccessibleDocumentLifecycleAdapterV1.swift","FieldEvidenceAppTests/V9_38AccessibleDocumentTests.swift","FieldEvidenceAppTests/Fixtures/V22/AccessibleDocuments/V22P03C24AccessibleDocumentCorpusV1.json","Scripts/v23/p03_c24_contracts.py","Scripts/v23/generate_p03_c24_contracts.py","Scripts/v23/verify_p03_c24_contracts.py","Scripts/v23/accessible-document.schema.json","docs/design/v23/tooling/V23P03C24AccessibleDocumentContractV1.json","docs/design/v23/tooling/V23P03C24AccessibleDocumentEvidenceReceiptV1.json","docs/design/v23/tooling/V23P03C24BrandImpactManifestV1.json","docs/design/v23/tooling/V23-P03-C24-tooling-manifest.json"]'''))
+PATH_FENCE = EXISTING_PATHS + NEW_PATHS
+FULL_FENCE_PATHS = PATH_FENCE
+MANIFEST_INPUT_PATHS = tuple(path for path in PATH_FENCE if path != MANIFEST_PATH)
+SOURCE_REFERENCE_PATHS = EXISTING_PATHS
+AUTHORITY_REFERENCE_PATHS = (
+    "docs/design/v23/EXPANSION_V23_ARCHITECTURE_BLUEPRINT.md",
+    "docs/design/v23/EXPANSION_V23_FOUNDATION_PLAN.md",
+)
+
+PRIOR_FENCE_OVERLAP_COUNT = 1216
+PRIOR_FENCE_PRIOR_OWNED_PATH_COUNT = 1014
+PRIOR_FENCE_PROOF_CANONICAL_SHA256 = "66d5bead9d83824aba214841f92f4d9efb32cf60ab2ed620f8e2b5098b0bcf5e"
+PRIOR_FENCE_PROOF_CANONICAL_RAW_BYTES = 1061140
+_PRIOR_FENCE_PROOF_ZLIB_BASE64 = (
+    "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"
+    "Kkhzb9EXep8T42zrxIpU1D6SxJ9aEEmXQp+UoWLnQlVl6aI1gXlHN1HNXQiaPnDBvNBKMKMSj/dfMb7XiW1XRtowul0kphhP"
+    "LHllQndrcHR+laJ7huKZu4ouUQy58lQncm4lp/uJT4ZKXODbJ/bUTIOPKQp8u9aIQib6xA3ppbtxlUOc3eWcSDoyk6mQGMGL"
+    "FWSGKldZcZ61c1Z4Lek+ZNKz1LJcbtdm3qWsSrJacaLtJd1WRPeRC1U5RVUYVbWhdGWlYsHRydOJeacrHW3Seg/U918wvrNZ"
+    "IkypeMlOGENXQGnW3VWEVNROLJVOJRa6MUdWrBTUXJLO6VhMDMw6J4XdhfqZgs0+Y3jOpy3tenB1w3e2Z6hjkuh+ELKie7uh"
+    "PlLlTSJW1B0he9LSPT/woHMoyXBqjivhCanTdKOVVD+7R1zotUzQx5ezRDwbmameI5n0k3OMPj0r4/Ol6npQcqPVJ485rXc5"
+    "1f7V4gfm+WAe9gpPUHBfXJ15oKm/vEvzvSxs3w2lpNudEiqIQDU29cwMNRB05agbTvdI6ggJV3GdHfW2qZtOXQ0mqIEj6LbN"
+    "ulujfqqFRxbk737jekok1qeub33sisCN26feq8hsd2+oaUktz2wT/cNVoDpcV4kZRjV7EdRAFyYE6uWo7KNJOUrqIaZMfW4q"
+    "OyxoXp5aZOZ7Yp90+3yGO/AJ/esv8nZUn0dd5e3OWpLUCKA+Yg7KUEfR5WCzqUTWJlFrMepA+ESxkSu65JZzHagKC8nxKllW"
+    "Sb/PVT4aXfq6XbyvjVV0K0En7vnFczV/cH9J/8sreujbUVtH32ynpntJ5eMf3/wGOYBb2z8euTz0wb1LvnMAw3HqJGatojA2"
+    "Kma6sUwWK+cE48wyTg3KUKQV1H3ziepPl6wL1mtGbfqKu/hwrItG09ucLoiK2NdqF/zVx3xJl6K/LKfXTd7/t//+W0T/i13Q"
+    "5tKM/ly+03mrbo8/ufzNlTbqQ35tq2H611dor1vaUX7SLQ23xr+jE7Ru6JHdmB+gJ/VhfPXZt2/qJh822bfXV48+lyf3ydAu"
+    "f+bKa+9V3Y9aB7te/clqr+pve5y8eOoWKmr0S85dLs76itqiLkSXdSWqUGUupaicUbEYqhdDSV23MgsXfaVjfkD1t7Zyi+oj"
+    "KvCTnI781O9Y0/X33ib3idXz2Ogmj1zV/EzrQB+/cm6jQMl7C5TYORSqdYiJWaOolCTq8LiQkjCVVYWaTcxaF613nlEfU0aR"
+    "M3deJc1T1Dwqoz3bp0DRf8sw+IsMdJupIvZoNmz/6uLI8gbzgGL4vHXTs97O782i8fBRrfmt8KEn9YjRMb1XOdweKXbayZQd"
+    "EyaXzEWgW5kL2kUqljz4qlJVUkoXmaKpeDCym6yPnDrqjjHvc/mG5fBZ2vcPb6Zv/OK8dbj/ry/f8OJBv4bmm8NDsx3N9p9t"
+    "AuQJOVWf46V7qhu38Uf+kZ++s/CsVee3b1reE2fpZxvXe5b+kGZ7NRu2J9UE81kUL6ULLJVsqLFaKiMU14kep0obyYJRilVc"
+    "MCOLicJWWnNrbeY5y283HPjwCv/ZOmBPbwF8vyHC1dnmRwxpztuty8QQaKWglYLBxT1eaRkEbbLyeF7sHvAxP+u6kdVq/vB6"
+    "PO5e4KaNh42fTJYbAw7p7tiMLp65/YWm3Xdq2m0OQPyr7m4VNysJG3Y3J6q9mhPbCy5K9sbpbINmrPgUQiWCKkpbxqJwnP4X"
+    "RU6BFZ4qbkLqFu6krFzRlvNS/FOWiKKTgk7KrhE1tVdZ1jvWmxmfjGG+MjFIllX2llrLzkXPtS0yBe8jL5VLqVvrnFiRNiXD"
+    "nTDeSh+fungIjaYfsNH0rDXy2outt7Qf/lntfav/sYa///FM+en2f5Xu7tF0/emTozdbeVE3ZoXsXveO7VU2wTErZJFCZcGF"
+    "ybpkpipbZc26/aPBREb95yp0uwhMpai7HY0TgsnULWfV/gedFdq4s+53dbYnYUUWTvqsu502yZRuq20lGXPeJ1WxIHMQtgqx"
+    "exjpoghhRTShcMnpOnFePWbB4Leda3jiiP9368RjgdFAxwCed4vDU+uyn7urigmChzQKqMDVXePix2iofIMmxnPOofwsy5X3"
+    "nJ/Y3j6sKmOcCYwpJnjhXjOnS1I8ZScC9yo4Tz8gYnKVV1kZSQ2tbslNzKaImPXz7zn9ZoN/z3QT3GPS7FHNuu0d1Z5lKROz"
+    "MolUvGImOK1Y9ryKWmRpRGWSoHZddlIzFoswikltozbd5kXLf4C1dTuu+e3d/Pe6TW/rkuNNbPLTap+/qVK7q+Z5zIjIjp3p"
+    "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"
+)
+
+
+def canonical(value: Any) -> bytes:
+    return json.dumps(
+        value, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+
+
+def pretty(value: Any) -> bytes:
+    return (
+        json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2, allow_nan=False)
+        + "\n"
+    ).encode("utf-8")
+
+
+def sha256_bytes(raw: bytes) -> str:
+    return hashlib.sha256(raw).hexdigest()
+
+
+def sha256_value(value: Any) -> str:
+    return sha256_bytes(canonical(value))
+
+
+def _load_prior_fence_proof() -> dict[str, Any]:
+    raw = zlib.decompress(base64.b64decode("".join(_PRIOR_FENCE_PROOF_ZLIB_BASE64)))
+    proof = json.loads(raw.decode("utf-8"))
+    proof_raw = canonical(proof)
+    if sha256_bytes(proof_raw) != PRIOR_FENCE_PROOF_CANONICAL_SHA256:
+        raise ValueError("C24 prior-fence proof digest differs")
+    if len(proof_raw) != PRIOR_FENCE_PROOF_CANONICAL_RAW_BYTES:
+        raise ValueError("C24 prior-fence proof byte count differs")
+    return proof
+
+
+PRIOR_FENCE_PROOF = _load_prior_fence_proof()
+PRIOR_FENCE_OVERLAPS: tuple[dict[str, Any], ...] = tuple(
+    PRIOR_FENCE_PROOF["authorizedOverlapEdges"]
+)
+
+# Canonical C24 production values.
+CONTRACT_NAMES = (
+    "AccessibleDocumentSemanticTreeV1",
+    "AccessibleDocumentAssessmentReceiptV1",
+    "AccessibleDocumentPublicationBindingV1",
+    "AccessibleDocumentNodeV1",
+    "AccessibleDocumentCoordinatorV1",
+)
+ROLE_VALUES = (
+    "DOCUMENT", "SECTION", "HEADING", "PARAGRAPH", "LIST", "LIST_ITEM",
+    "TABLE", "TABLE_ROW", "TABLE_HEADER", "TABLE_CELL", "FIGURE",
+    "EVIDENCE_LINK", "NOTE",
+)
+SENSITIVITY_VALUES = ("CUSTOMER_SAFE", "INTERNAL_ONLY")
+ALTERNATE_TEXT_PROVENANCE_VALUES = (
+    "AUTHORED_FOR_SOURCE", "SOURCE_CAPTION", "NOT_PROVIDED",
+)
+TABLE_HEADER_SCOPE_VALUES = ("ROW", "COLUMN", "ROW_GROUP", "COLUMN_GROUP")
+ASSESSMENT_STATE_VALUES = (
+    "INTERNAL_PASS", "INTERNAL_FAIL", "INCOMPLETE", "EXTERNALLY_PROVED",
+)
+ASSESSMENT_SCOPE_VALUES = ("CURRENT_OUTPUT", "HISTORIC_SOURCE")
+FAILURE_VALUES = (
+    "invalidValue", "incompatibleVersion", "duplicateIdentity", "missingParent",
+    "invalidOrder", "invalidHeading", "invalidTable", "inventedAlternateText",
+    "privacyViolation", "missingEvidence", "digestMismatch", "staleAssessment",
+    "invalidSuccessor", "unsupportedConformanceClaim",
+)
+INTERRUPTION_POINTS = (
+    "AFTER_TREE_BEFORE_RENDER",
+    "AFTER_RENDER_BEFORE_ASSESSMENT",
+    "AFTER_ASSESSMENT_BEFORE_RETURN",
+)
+REFERENCE_KINDS = ROLE_VALUES
+PROVENANCE_KINDS = ALTERNATE_TEXT_PROVENANCE_VALUES
+LICENSE_SCOPES = SENSITIVITY_VALUES
+RELEASE_DISPOSITIONS = ASSESSMENT_STATE_VALUES
+SUBJECT_KINDS = ("DOCUMENT", "SEMANTIC_TREE", "ASSESSMENT_RECEIPT")
+SUBJECT_STATES = ("DERIVED_ONLY", "IMMUTABLE_EVIDENCE", "HISTORIC")
+AVAILABILITY_STATES = (
+    "READY", "MISSING_EVIDENCE", "STALE_ASSESSMENT", "INCOMPLETE",
+    "UNSUPPORTED_CONFORMANCE_CLAIM", "PRIVACY_REDACTED",
+)
+EVIDENCE_IDS = tuple(f"{CARD}-{suffix}" for suffix in ("G01", "A01", "H01", "I01", "R01"))
+TEST_METHODS = (
+    "testV23P03C24G01StableAccessibleDocumentTreeAndPublicationBinding",
+    "testV23P03C24A01HeadingsTablesRTLLongDecorativeAndMissingAltAreExplicit",
+    "testV23P03C24H01CycleOrphanOrderHeaderPrivacyAndForgedClaimsFailClosed",
+    "testV23P03C24I01EveryRenderAssessmentInterruptionLeavesZeroOrOneState",
+    "testV23P03C24R01CanonicalRebuildAssessmentSuccessorAndV23Retention",
+)
+FORBIDDEN_CLAIMS = (
+    "AUTOMATIC_PDF_UA_OR_WCAG_CONFORMANCE",
+    "LEGAL_OR_SECTION_508_ADA_CERTIFICATION",
+    "INVENTED_ALTERNATE_TEXT",
+    "HIDDEN_EVIDENCE",
+    "REMOTE_DOCUMENT_SERVICE",
+    "PARALLEL_COMPONENT_SYSTEM",
+    "EVERY_READER_RENDERS_IDENTICALLY",
+    "SNAPSHOT_MUTATION",
+    "SECOND_WRITER_OR_STORE",
+    "NETWORK_OR_CLOUD_DURABILITY",
+    "ACCOUNT_OR_PROVIDER",
+)
+
+REQUIRED_BEHAVIORS = (
+    {
+        "id": "DERIVED_SEMANTIC_TREE",
+        "contract": "AccessibleDocumentSemanticTreeV1",
+        "requirement": "Build a deterministic role/parent/order/heading/table/alternate-text/evidence-link tree from an exact snapshot without persisting the derived tree or inventing observations.",
+        "evidence": "C24-S01",
+    },
+    {
+        "id": "EXACT_PUBLICATION_BINDING",
+        "contract": "AccessibleDocumentPublicationBindingV1",
+        "requirement": "Bind the tree to exact workspace, snapshot, manifest, locale, renderer profile, brand revision, output bytes, and publication identity.",
+        "evidence": "C24-S02",
+    },
+    {
+        "id": "IMMUTABLE_ASSESSMENT_SUCCESSORS",
+        "contract": "AccessibleDocumentAssessmentReceiptV1",
+        "requirement": "Persist one immutable assessment receipt; changes, corrections, and rechecks append validated successors and never rewrite an accepted assessment.",
+        "evidence": "C24-S03",
+    },
+    {
+        "id": "CLOSED_ASSESSMENT_STATES",
+        "contract": "AccessibleDocumentAssessmentStateV1",
+        "requirement": "INTERNAL_PASS, INTERNAL_FAIL, INCOMPLETE, and EXTERNALLY_PROVED are closed states; unsupported conformance claims fail closed.",
+        "evidence": "C24-S04",
+    },
+    {
+        "id": "PRIVACY_SAFE_AUDIENCE_PROJECTION",
+        "contract": "AccessibleDocumentAudienceProjectorV1",
+        "requirement": "CUSTOMER_SAFE and INTERNAL_ONLY projections preserve explicit sensitivity and never leak private originals, hidden evidence, or invented alternate text.",
+        "evidence": "C24-S05",
+    },
+    {
+        "id": "SOLE_CANONICAL_WRITER",
+        "contract": "AccessibleDocumentCoordinatorV1",
+        "requirement": "Tree derivation remains nonpersistent while the assessment receipt is appended through the existing sole canonical workspace writer and mutation receipt boundary.",
+        "evidence": "C24-S06",
+    },
+    {
+        "id": "ORDERED_V23_LIFECYCLE",
+        "contract": "PERSISTENT_SCHEMA_V23",
+        "requirement": "V23/records22 closes migration, backup/restore, import/export, report/search, journal replay, delete/Erase, retention, compatibility, interruption, and forward-fix behavior for 85 models and one new durable family.",
+        "evidence": "C24-S07",
+    },
+    {
+        "id": "STATIC_PROVISIONAL_BOUNDARY",
+        "contract": CARD,
+        "requirement": "The result is PASS_STATIC_PROVISIONAL; native, hosted, adoption, acceptance, release, provider, network, account, cloud, and Phase 10 claims remain false pending accepted S10.6 reconciliation.",
+        "evidence": "C24-B01",
+    },
+)
+
+EVIDENCE_CASES = (
+    {
+        "id": "C24-S01", "kind": "GOLDEN",
+        "assertion": "A stable source snapshot produces one deterministic semantic tree with explicit hierarchy, headings, tables, decoration, and evidence links.",
+    },
+    {
+        "id": "C24-S02", "kind": "GOLDEN",
+        "assertion": "A publication binding records exact snapshot, manifest, locale, renderer profile, brand revision, output digest, and assessor scope.",
+    },
+    {
+        "id": "C24-S03", "kind": "ALTERNATE",
+        "assertion": "Customer-safe and internal-only projections retain explicit sensitivity; missing alternate text remains NOT_PROVIDED and source-private bytes are omitted.",
+    },
+    {
+        "id": "C24-S04", "kind": "HOSTILE",
+        "assertion": "Cycles, orphans, duplicate identities, invalid order/headings/tables, privacy violations, forged claims, stale assessments, and unsupported conformance fail closed.",
+    },
+    {
+        "id": "C24-S05", "kind": "INTERRUPTION",
+        "assertion": "Tree/render/assessment interruptions leave zero or one canonical state, are retryable, and cannot duplicate or partially commit the receipt.",
+    },
+    {
+        "id": "C24-S06", "kind": "RECOVERY",
+        "assertion": "Recovery rebuilds only the derived tree, preserves immutable assessment history, and appends a successor for a valid correction or re-assessment.",
+    },
+    {
+        "id": "C24-F01", "kind": "PATH_FENCE",
+        "assertion": "The sealed hydration fence is exactly 119 paths: 105 existing and 14 new, with zero S10 overlap and 1216 authorized prior-fence edges.",
+    },
+    {
+        "id": "C24-B01", "kind": "STATIC_BOUNDARY",
+        "assertion": "Activation, native, hosted, adoption, acceptance, release, provider, network, account, cloud, and Phase 10 flags remain false pending accepted S10.6 reconciliation.",
+    },
+)
+
+REGISTER_ROW = (
+    "| 61 | <a id=" + chr(34) + "v23-p03-c24-register" + chr(34) + "></a>["
+    + chr(96) + "V23-P03-C24" + chr(96)
+    + "](EXPANSION_V23_ARCHITECTURE_BLUEPRINT.md#v23-p03-c24) | "
+    + "Accessible document semantic trees and evidence/report assessment | " + chr(96)
+    + "IMPLEMENT_NOW" + chr(96) + " | " + chr(96) + "NOT_STARTED" + chr(96)
+    + " | V23-P03-C23 | " + chr(96) + "REFINED_WITHOUT_LOSS" + chr(96) + " |"
+    + "\n"
+)
+
+SOURCE_PROJECTION = {
+    "registerRows": [REGISTER_ROW],
+    "registerSectionSHA256": REGISTER_SECTION_SHA256,
+    "registerSectionUTF8Length": REGISTER_SECTION_UTF8_LENGTH,
+    "registerRowSHA256": REGISTER_ROW_SHA256,
+    "registerRowUTF8Length": REGISTER_ROW_UTF8_LENGTH,
+    "dossierSHA256": DOSSIER_SHA256,
+    "dossierUTF8Length": DOSSIER_UTF8_LENGTH,
+    "inheritedV21BlockSHA256": INHERITED_V21_BLOCK_SHA256,
+    "inheritedV21BlockUTF8Length": INHERITED_V21_BLOCK_UTF8_LENGTH,
+    "inheritedV21PayloadPresent": True,
+    "facetRowCount": 1,
+    "canonicalRecordWriterOwnershipRowCount": 4,
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "canonicalRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "policyRefs": ["V23-POL-ARCH-001", "V23-POL-IPHONE-001", "V23-POL-TEST-001", "V23-POL-LIFECYCLE-001", "V23-POL-MUTATION-001"],
+    "contractRefs": ["V21ToV23RequirementRebindingV1(V21-P03-C24).CONTRACTS", "DirectPrerequisiteEvidenceSetV1", "CardAcceptanceInclusionProofV1", "CardAcceptanceInclusionProofRecoveryReceiptV1", "CandidateAcceptanceCompatibilityReceiptV1"],
+    "journeyRefs": ["NONE"],
+    "deterministicEvidenceIDs": list(EVIDENCE_IDS),
+    "aggregateAcceptanceMemberships": ["AutonomousRequiredAcceptedSetV1"],
+    "conformanceSubjects": ["KernelConformanceSubjectSetV1"],
+    "invalidationConsumers": ["V23-P03-C25", "V23-P03-C37", "V23-P03-C45", "V23-P03-C48", "V23-P04-C02", "V23-P04-C15", "V23-P04-C27:STATE_INVENTORY", "V23-P04-C29:EXACT_CANDIDATE", "V23-P05-C01:RELEASE_SELECTOR"],
+    "optionalCapabilityProviders": ["NONE"],
+    "reservedLegacyOwnerReconciliationDebtCount": 0,
+    "reservedLegacyOwnerReconciliationDebtPaths": [],
+    "reservedLegacyRawWriteViolationCount": 0,
+    "reservedLegacyRawWriteViolationPaths": [],
+    "provisionalZeroViolationClosureClaimed": False,
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "impactManifestDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+}
+
+DIRECT_PREREQUISITE_EVIDENCE = {
+    "schema": "ProvisionalExecutionPrerequisiteSetReceiptV1",
+    "schemaVersion": 1,
+    "successorCardID": CARD,
+    "successorAttemptID": 1,
+    "ordinaryDirectEdgeCount": 1,
+    "predecessors": [
+        {
+            "cardID": "V23-P03-C23",
+            "attemptID": 1,
+            "candidateHead": "e64703e836c65b4a12f0ceedde3083616f558a8e",
+            "candidateTree": "fb1ddafdb7b7a72f802a00220d751f2caf35fe12",
+            "contextDigest": "3d67e08191ae9959f6d0f75b41c5c392163379fc790ff33780119b0be7c452ad",
+            "pathFenceDigest": "b7b755e156b364560a6945a190d6035f3e711192cc89fd1424d7e8221d9a73bb",
+            "verificationReceiptDigest": "094897510d2ffede5878b0c8a92ba6a9f1fe6c48a6ebe01733d0eda77b46c526",
+            "checkpointDigest": "2893e1b2d185ebb4faef9b239e7c2079e8253d0a75e19a803e7765727aa624b5",
+            "disposition": "CHECKPOINTED_PROVISIONAL_CANONICAL_DIRECT_PREREQUISITE_AT_EXACT_C23_HEAD",
+        },
+    ],
+    "canonicalRelationPreserved": True,
+    "nonreleaseSpecialEdgeApplied": False,
+    "disposition": "PROVISIONALLY_SATISFIED_FOR_ORDERED_IMPLEMENTATION_AND_STATIC_TEST_ONLY",
+    "nativeCompileRan": False,
+    "physicalLockedState": "REQUIRED_PENDING_OWNER",
+    "acceptanceCredit": False,
+    "releaseCredit": False,
+    "createdAt": "2026-08-28T22:00:00Z",
+    "prerequisiteDigest": PREREQUISITE_DIGEST,
+}
+
+SEMANTIC_SCOPE = {
+    "durableOwner": ["AccessibleDocumentSemanticTreeV1", "AccessibleDocumentAssessmentReceiptV1", "PersistentSchemaV23"],
+    "durableFamilies": ["AccessibleDocumentAssessmentReceiptV1"],
+    "stagingDisposition": "ACCESSIBLE_DOCUMENT_SEMANTIC_TREE_NONPERSISTENT_DERIVED_ONLY",
+    "atomicAuthorityPolicy": "DERIVED_SEMANTIC_TREE_AND_IMMUTABLE_SUCCESSOR_ONLY_ASSESSMENT_RECEIPT_BIND_EXACT_SNAPSHOT_OUTPUT_PROFILE_TOOL_AND_ASSESSOR_WITH_THE_SOLE_CANONICAL_WRITER",
+    "assessmentPolicy": "ASSESSMENT_BINDS_EXACT_OUTPUT_BYTES_RENDERER_PROFILE_TOOL_AND_ASSESSOR_AUTHORITY_WITH_UNSUPPORTED_CONFORMANCE_CLAIMS_FAILING_CLOSED",
+    "accessibilityPolicy": "STABLE_ROLE_PARENT_ORDER_HEADING_TABLE_ALTERNATE_TEXT_DECORATION_AND_EVIDENCE_LINKS_WITHOUT_INVENTING_OBSERVATIONS_OR_LEAKING_PRIVATE_ORIGINALS",
+    "replayPolicy": "DROP_UNACCEPTED_DERIVED_TREES_AND_REBUILD_FROM_IMMUTABLE_SNAPSHOTS_ACCEPTED_ASSESSMENTS_CORRECT_ONLY_BY_SUCCESSORS_WITH_EXACT_RECEIPTS",
+    "lifecyclePolicy": "V23_EIGHTY_FIVE_MODELS_RECORDS22_ONE_NEW_DURABLE_FAMILY_ACCESSIBLE_DOCUMENT_ASSESSMENT_RECEIPT_V1_SEMANTIC_TREE_DERIVED_ONLY_ZERO_INVENTION_FROM_V22_REFERENCE_PACK_WORK_SESSION_BACKUP_RESTORE_IMPORT_EXPORT_JOURNAL_REPLAY_DELETE_ERASE_RETENTION_COMPATIBILITY_AND_FORWARD_FIX_CLOSED",
+    "forbiddenPolicy": "NO_AUTOMATIC_PDF_UA_WCAG_SECTION_508_ADA_OR_LEGAL_CERTIFICATION_INVENTED_ALTERNATE_TEXT_HIDDEN_EVIDENCE_REMOTE_DOCUMENT_SERVICE_PARALLEL_COMPONENT_SYSTEM_CLAIM_EVERY_READER_RENDERS_IDENTICALLY_OR_SECOND_WRITER",
+    "s10Policy": "EXACT_ONE_HUNDRED_NINETEEN_PATH_RESERVATION_FROZEN_WITH_ZERO_OVERLAP_AND_VISIBLE_UI_DEFERRED",
+    "activationPolicy": "PROVISIONAL_PRE_S10_ONLY",
+}
+
+CORPUS: dict[str, Any] = {
+    "schema": "V22P03C24AccessibleDocumentCorpusV1",
+    "schemaVersion": SCHEMA_VERSION,
+    "cardID": CARD,
+    "synthetic": True,
+    "containsCustomerData": False,
+    "containsSecrets": False,
+    "persistentSchemaVersion": 23,
+    "recordsSchemaVersion": 22,
+    "persistentKindLifecycleModelCount": 85,
+    "durableFamilyCount": 1,
+    "requiredContractNames": list(CONTRACT_NAMES),
+    "roles": list(ROLE_VALUES),
+    "sensitivities": list(SENSITIVITY_VALUES),
+    "alternateTextProvenance": list(ALTERNATE_TEXT_PROVENANCE_VALUES),
+    "tableHeaderScopes": list(TABLE_HEADER_SCOPE_VALUES),
+    "assessmentStates": list(ASSESSMENT_STATE_VALUES),
+    "assessmentScopes": list(ASSESSMENT_SCOPE_VALUES),
+    "failureCases": list(FAILURE_VALUES),
+    "referenceKinds": list(REFERENCE_KINDS),
+    "provenanceKinds": list(PROVENANCE_KINDS),
+    "licenseScopes": list(LICENSE_SCOPES),
+    "releaseDispositions": list(RELEASE_DISPOSITIONS),
+    "subjectKinds": list(SUBJECT_KINDS),
+    "subjectStates": list(SUBJECT_STATES),
+    "availabilityStates": list(AVAILABILITY_STATES),
+    "interruptionPoints": list(INTERRUPTION_POINTS),
+    "requiredBehaviors": list(REQUIRED_BEHAVIORS),
+    "evidenceCases": list(EVIDENCE_CASES),
+    "forbiddenClaims": list(FORBIDDEN_CLAIMS),
+    "persistence": {
+        "schemaRelease": "ACCESSIBLE_DOCUMENT_ASSESSMENT_RECEIPT_V1",
+        "schemaVersion": 23,
+        "recordsSchemaVersion": 22,
+        "mode": "NEW_SCHEMA_VERSION",
+        "migrationRequired": True,
+        "backupRestoreRequired": True,
+        "deleteEraseRequired": True,
+        "exportReportRequired": True,
+        "searchRebuildRequired": True,
+        "replayRequired": True,
+        "classificationRequired": True,
+        "interruptionRecoveryRequired": True,
+        "canonicalWriter": "V23-P02-C01",
+        "canonicalSourceOfTruth": ["AccessibleDocumentAssessmentReceiptV1"],
+        "persistedFamilies": ["AccessibleDocumentAssessmentReceiptV1"],
+        "nonPersistentFamilies": ["AccessibleDocumentSemanticTreeV1"],
+        "currentProjectionRowCount": 0,
+        "providerRows": 0,
+        "secondStore": False,
+        "secondWriter": False,
+        "downgrade": "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_FIRST_V23_WRITE",
+        "forwardFix": "DROP_UNACCEPTED_DERIVED_TREE_REBUILD_FROM_IMMUTABLE_SNAPSHOT_AND_CORRECT_ACCEPTED_ASSESSMENT_ONLY_BY_SUCCESSOR_NEVER_REWRITE_HISTORY",
+    },
+    "goldenCases": [
+        {
+            "id": "stable-semantic-tree",
+            "assessmentState": "INTERNAL_PASS",
+            "semanticTreePersisted": False,
+            "publicationBindingExact": True,
+            "liveWorkspaceMutated": False,
+        },
+        {
+            "id": "immutable-assessment-receipt",
+            "assessmentState": "INTERNAL_PASS",
+            "receiptFamily": "AccessibleDocumentAssessmentReceiptV1",
+            "successorOnly": True,
+            "historyReadableAfterSupersession": True,
+        },
+    ],
+    "alternateCases": [
+        {
+            "id": "customer-safe-derivative",
+            "sensitivity": "CUSTOMER_SAFE",
+            "privateOriginalProjected": False,
+            "inventedAlternateText": False,
+        },
+        {
+            "id": "internal-only-derivative",
+            "sensitivity": "INTERNAL_ONLY",
+            "privateOriginalProjected": False,
+            "limitation": "AUDIENCE_SCOPE_DENIED",
+        },
+        {
+            "id": "missing-alternate-text",
+            "altProvenance": "NOT_PROVIDED",
+            "fabricatedAlternateText": False,
+            "assessmentState": "INCOMPLETE",
+        },
+        {
+            "id": "unsupported-external-claim",
+            "assessmentState": "INCOMPLETE",
+            "unsupportedConformanceClaim": True,
+            "expectedDisposition": "FAIL_CLOSED",
+        },
+    ],
+    "hostileCases": [
+        {
+            "id": case_id,
+            "expectedDisposition": "FAIL_CLOSED",
+            "expectedBoundary": "NO_PARTIAL_CANONICAL_SUCCESS",
+        }
+        for case_id in (
+            "cycle", "orphan", "duplicate-identity", "invalid-order", "invalid-heading",
+            "invalid-table", "privacy-violation", "invented-alternate-text",
+            "forged-output-digest", "forged-assessor", "stale-assessment",
+            "invalid-successor", "unsupported-conformance-claim", "snapshot-mutation",
+            "second-writer-or-store", "remote-document-service",
+        )
+    ],
+    "interruptionCases": [
+        {
+            "id": point.lower(),
+            "point": point,
+            "expectedBoundary": "RETRY_IDEMPOTENT_ZERO_OR_ONE_CANONICAL_STATE",
+        }
+        for point in INTERRUPTION_POINTS
+    ],
+    "recoveryCases": [
+        {
+            "id": case_id,
+            "expectedBoundary": "REBUILD_DERIVED_TREE_PRESERVE_HISTORY_APPEND_SUCCESSOR",
+        }
+        for case_id in (
+            "retry-tree-before-render",
+            "retry-render-before-assessment",
+            "retry-assessment-before-return",
+            "backup-restore-rebuilds-derived-tree",
+            "replay-preserves-assessment-receipt",
+            "delete-and-erase-removes-only-authorized-receipt",
+            "historic-source-requires-destination-reassessment",
+        )
+    ],
+    "claims": {
+        claim: False
+        for claim in (
+            "native", "hosted", "adoption", "acceptance", "release", "acceptanceCredit",
+            "releaseCredit", "providerAvailability", "cloudDurability", "network", "account",
+            "externalDurability", "automaticCompletion", "automaticCompliance",
+            "runtimeWebFetching", "inventedAlternateText", "hiddenEvidence",
+            "remoteDocumentService", "secondStore", "secondWriter", "android", "web",
+            "backend", "phase10PollingDuringParallelExecution",
+        )
+    },
+}
+
+
+def _git_blob(root: Path, relative: str) -> bytes:
+    return subprocess.run(
+        ["git", "-C", str(root), "show", f"{BASE_HEAD}:{relative}"],
+        check=True, capture_output=True,
+    ).stdout
+
+
+def source_artifacts(root: Path) -> list[dict[str, Any]]:
+    rows = []
+    for relative in SOURCE_REFERENCE_PATHS:
+        raw = _git_blob(root, relative)
+        rows.append({
+            "path": relative,
+            "source": "BASE_HEAD_BLOB",
+            "bytes": len(raw),
+            "sha256": sha256_bytes(raw),
+        })
+    return rows
+
+
+def authority_artifacts(root: Path) -> list[dict[str, Any]]:
+    rows = []
+    for relative in AUTHORITY_REFERENCE_PATHS:
+        raw = _git_blob(root, relative)
+        rows.append({
+            "path": relative,
+            "source": "BASE_HEAD_AUTHORITY_BLOB",
+            "bytes": len(raw),
+            "sha256": sha256_bytes(raw),
+        })
+    return rows
+
+
+def _schema_for_value(value: Any) -> dict[str, Any]:
+    if value is None:
+        return {"type": "null"}
+    if isinstance(value, bool):
+        return {"type": "boolean"}
+    if isinstance(value, int):
+        return {"type": "integer"}
+    if isinstance(value, float):
+        return {"type": "number"}
+    if isinstance(value, str):
+        return {"type": "string"}
+    if isinstance(value, list):
+        result: dict[str, Any] = {
+            "type": "array", "minItems": len(value), "maxItems": len(value),
+        }
+        if value:
+            shapes = {
+                json.dumps(_schema_for_value(item), sort_keys=True): _schema_for_value(item)
+                for item in value
+            }
+            result["items"] = (
+                next(iter(shapes.values()))
+                if len(shapes) == 1
+                else {"anyOf": [shapes[key] for key in sorted(shapes)]}
+            )
+        if all(isinstance(item, str) for item in value):
+            result["uniqueItems"] = True
+        return result
+    if isinstance(value, dict):
+        return {
+            "type": "object", "additionalProperties": False,
+            "properties": {key: _schema_for_value(value[key]) for key in sorted(value)},
+            "required": sorted(value),
+        }
+    raise TypeError(type(value))
+
+
+def schema_document() -> dict[str, Any]:
+    document = _schema_for_value(CORPUS)
+    document.update({
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "https://assetrounds.invalid/v23/accessible-document.schema.json",
+        "title": "V23 P03 C24 Accessible Document Corpus",
+    })
+    return document
+
+
+def _flags() -> dict[str, bool]:
+    return {
+        "native": False, "hosted": False, "adoption": False, "acceptance": False,
+        "release": False, "nativeAcceptance": False, "hostedAcceptance": False,
+        "adoptionEvidence": False, "acceptanceCredit": False, "releaseReadiness": False,
+        "phase10PollingDuringParallelExecution": False,
+    }
+
+
+def _authority() -> dict[str, Any]:
+    return {
+        "cardID": CARD, "attemptID": 1, "registerOrdinal": REGISTER_ORDINAL,
+        "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+        "appBaseHead": BASE_HEAD, "appBaseTree": BASE_TREE,
+        "baseHead": BASE_HEAD, "baseTree": BASE_TREE,
+        "coordinationHead": COORDINATION_HEAD, "coordinationTree": COORDINATION_TREE,
+        "contextDigest": CONTEXT_DIGEST, "fenceDigest": FENCE_DIGEST,
+        "pathFenceDigest": FENCE_DIGEST, "fullFencePaths": list(PATH_FENCE),
+        "frozenS10ReservationDigest": FROZEN_S10_RESERVATION_DIGEST,
+        "provisionalPrerequisiteDigest": PREREQUISITE_DIGEST,
+        "coordinationLedgerDigest": COORDINATION_LEDGER_DIGEST,
+        "coordinationProjectionDigest": COORDINATION_PROJECTION_DIGEST,
+        "coordinationCASSequence": COORDINATION_CAS_SEQUENCE,
+        "hydrationTransitionSequence": HYDRATION_TRANSITION_SEQUENCE,
+        "hydrationTransitionDigest": HYDRATION_TRANSITION_DIGEST,
+        "allowedPathCount": len(PATH_FENCE), "existingPathCount": len(EXISTING_PATHS),
+        "newPathCount": len(NEW_PATHS), "directPrerequisiteCards": ["V23-P03-C23"],
+        "nextCard": "V23-P03-C25",
+        "sourceDossierSHA256": DOSSIER_SHA256,
+        "sourceDossierUTF8Length": DOSSIER_UTF8_LENGTH,
+        "inheritedV21BlockSHA256": INHERITED_V21_BLOCK_SHA256,
+        "inheritedV21BlockUTF8Length": INHERITED_V21_BLOCK_UTF8_LENGTH,
+    }
+
+
+def _sealed(body: dict[str, Any], field: str = "artifactDigest") -> dict[str, Any]:
+    result = dict(body)
+    result[field] = sha256_bytes(pretty(body))
+    return result
+
+
+def contract_document(schema_row: dict[str, Any]) -> dict[str, Any]:
+    required = {
+        "contractNames": list(CONTRACT_NAMES),
+        "roles": list(ROLE_VALUES),
+        "sensitivities": list(SENSITIVITY_VALUES),
+        "alternateTextProvenance": list(ALTERNATE_TEXT_PROVENANCE_VALUES),
+        "tableHeaderScopes": list(TABLE_HEADER_SCOPE_VALUES),
+        "assessmentStates": list(ASSESSMENT_STATE_VALUES),
+        "assessmentScopes": list(ASSESSMENT_SCOPE_VALUES),
+        "failureCases": list(FAILURE_VALUES),
+        "referenceKinds": list(REFERENCE_KINDS),
+        "provenanceKinds": list(PROVENANCE_KINDS),
+        "licenseScopes": list(LICENSE_SCOPES),
+        "releaseDispositions": list(RELEASE_DISPOSITIONS),
+        "subjectKinds": list(SUBJECT_KINDS),
+        "subjectStates": list(SUBJECT_STATES),
+        "availabilityStates": list(AVAILABILITY_STATES),
+        "interruptionPoints": list(INTERRUPTION_POINTS),
+        "runtimeRoleEnum": "AccessibleDocumentRoleV1",
+        "runtimeSensitivityEnum": "AccessibleDocumentSensitivityV1",
+        "runtimeAlternateTextProvenanceEnum": "AccessibleAlternateTextProvenanceV1",
+        "runtimeTableHeaderScopeEnum": "AccessibleTableHeaderScopeV1",
+        "runtimeAssessmentStateEnum": "AccessibleDocumentAssessmentStateV1",
+        "persistentSchemaVersion": 23,
+        "recordsSchemaVersion": 22,
+        "persistentKindLifecycleModelCount": 85,
+        "durableFamilyCount": 1,
+        "persistentFamilies": ["AccessibleDocumentAssessmentReceiptV1"],
+        "nonPersistentFamilies": ["AccessibleDocumentSemanticTreeV1"],
+        "genericMutationReceiptKind": "MutationReceiptV1",
+        "derivedSemanticTree": True,
+        "immutableAssessmentReceipt": True,
+        "unsupportedClaimsFailClosed": True,
+        "liveWorkspaceMutation": False,
+        "sourceBytesInProjections": False,
+        "runtimeFetching": False,
+        "remoteIdentity": False,
+        "fiveSelectors": list(TEST_METHODS),
+        "forbiddenClaims": list(FORBIDDEN_CLAIMS),
+    }
+    body = {
+        "artifact": "V23P03C24AccessibleDocumentContractV1",
+        "cardID": CARD, "schemaVersion": SCHEMA_VERSION,
+        "status": "PASS_STATIC_PROVISIONAL", "verificationMode": "STATIC_ONLY",
+        "title": TITLE, "authority": _authority(),
+        "sourceProjection": SOURCE_PROJECTION, "requiredSemantics": required,
+        "semanticScope": SEMANTIC_SCOPE, "persistenceBoundary": CORPUS["persistence"],
+        "directPrerequisiteEvidence": DIRECT_PREREQUISITE_EVIDENCE,
+        "priorFenceOverlaps": list(PRIOR_FENCE_OVERLAPS),
+        "priorFenceProof": PRIOR_FENCE_PROOF, "evidenceIDs": list(EVIDENCE_IDS),
+        "testSelectors": list(TEST_METHODS), "schemaArtifact": schema_row,
+        "statusFlags": _flags(), "requiresAcceptedS10_6Reconciliation": True,
+    }
+    return _sealed(body)
+
+
+def evidence_document(
+    source_rows: list[dict[str, Any]],
+    authority_rows: list[dict[str, Any]],
+    schema_row: dict[str, Any],
+    contract: dict[str, Any],
+) -> dict[str, Any]:
+    required = contract["requiredSemantics"]
+    body = {
+        "artifact": "V23P03C24AccessibleDocumentEvidenceReceiptV1",
+        "cardID": CARD, "schemaVersion": SCHEMA_VERSION,
+        "result": "PASS_STATIC_PROVISIONAL", "verificationMode": "STATIC_ONLY",
+        "authority": _authority(), "sourceArtifacts": source_rows,
+        "authorityArtifacts": authority_rows,
+        "requiredSemanticsDigest": sha256_value(required),
+        "requiredSemantics": required, "evidenceCases": list(EVIDENCE_CASES),
+        "deterministicEvidenceIDs": list(EVIDENCE_IDS), "testSelectors": list(TEST_METHODS),
+        "schemaArtifact": schema_row, "priorFenceOverlaps": list(PRIOR_FENCE_OVERLAPS),
+        "priorFenceProof": PRIOR_FENCE_PROOF,
+        "staticBoundary": "NO_NATIVE_HOSTED_ADOPTION_ACCEPTANCE_RELEASE_PROVIDER_NETWORK_ACCOUNT_CLOUD_OR_PHASE10_CLAIM",
+        "statusFlags": _flags(), "requiresAcceptedS10_6Reconciliation": True,
+    }
+    return _sealed(body)
+
+
+def brand_document(contract: dict[str, Any]) -> dict[str, Any]:
+    body = {
+        "artifact": "V23P03C24BrandImpactManifestV1", "cardID": CARD,
+        "schemaVersion": SCHEMA_VERSION, "status": "PASS_STATIC_PROVISIONAL",
+        "verificationMode": "STATIC_ONLY", "brandSurfaceDelta": True,
+        "uiSurfaceDelta": False,
+        "impact": "ACCESSIBLE_DOCUMENT_SEMANTIC_TREES_AND_ASSESSMENT_RECEIPTS_REMAIN_LOCAL_MANUAL_PRIVACY_SAFE_AND_ACCESSIBLE_WITH_NO_NEW_S10_UI_SURFACE",
+        "preserved": [
+            "immutable-assessment-history", "derived-only-semantic-tree",
+            "privacy-safe-audience-projections", "existing-report-renderers",
+            "existing-accessibility-contracts", "S10-reserved-brand-assets",
+        ],
+        "deferred": ["native-build", "hosted-CI", "adoption", "acceptance", "release",
+                     "provider", "network", "account", "cloud", "Phase10"],
+        "pathFenceCount": len(PATH_FENCE), "s10FenceOverlapPaths": [],
+        "authorityContextDigest": CONTEXT_DIGEST, "authorityFenceDigest": FENCE_DIGEST,
+        "priorFenceOverlaps": list(PRIOR_FENCE_OVERLAPS), "priorFenceProof": PRIOR_FENCE_PROOF,
+        "statusFlags": _flags(), "requiresAcceptedS10_6Reconciliation": True,
+        "contractDigest": contract["artifactDigest"],
+    }
+    return _sealed(body)
+
+
+def _manifest_row(root: Path, relative: str, rendered: dict[str, bytes]) -> dict[str, Any]:
+    path = root / relative
+    if relative in rendered:
+        raw, state = rendered[relative], "GENERATED"
+    elif path.is_file():
+        raw, state = path.read_bytes(), "WORKTREE"
+    elif relative in EXISTING_PATHS:
+        raw, state = _git_blob(root, relative), "BASE_HEAD"
+    else:
+        raw, state = b"", "MISSING_NEW_PATH"
+    return {"path": relative, "state": state, "bytes": len(raw), "sha256": sha256_bytes(raw)}
+
+
+def all_outputs(root: Path) -> dict[str, bytes]:
+    assert_corpus()
+    source_rows = source_artifacts(root)
+    authority_rows = authority_artifacts(root)
+    schema_raw = pretty(schema_document())
+    schema_row = {
+        "path": SCHEMA_PATH, "bytes": len(schema_raw), "sha256": sha256_bytes(schema_raw),
+    }
+    contract = contract_document(schema_row)
+    evidence = evidence_document(source_rows, authority_rows, schema_row, contract)
+    rendered: dict[str, bytes] = {
+        SCHEMA_PATH: schema_raw,
+        CONTRACT_PATH: pretty(contract),
+        EVIDENCE_PATH: pretty(evidence),
+        BRAND_PATH: pretty(brand_document(contract)),
+    }
+    rows = [_manifest_row(root, path, rendered) for path in MANIFEST_INPUT_PATHS]
+    manifest = _sealed({
+        "artifact": "V23P03C24ToolingManifestV1", "cardID": CARD,
+        "schemaVersion": SCHEMA_VERSION, "result": "PASS_STATIC_PROVISIONAL",
+        "verificationMode": "STATIC_ONLY", "authority": _authority(),
+        "baseHead": BASE_HEAD, "baseTree": BASE_TREE,
+        "pathFence": list(PATH_FENCE), "fullFencePaths": list(FULL_FENCE_PATHS),
+        "pathFenceDigest": FENCE_DIGEST, "pathFenceCount": len(PATH_FENCE),
+        "allowedCreateOrReplacePaths": list(PATH_FENCE), "allowedDeletePaths": [],
+        "allowedRenamePaths": [], "existingPathCount": len(EXISTING_PATHS),
+        "newPathCount": len(NEW_PATHS), "sourceReferenceCount": len(SOURCE_REFERENCE_PATHS),
+        "sourceArtifacts": source_rows, "authorityArtifacts": authority_rows,
+        "artifacts": rows, "artifactSetDigest": sha256_value(rows),
+        "sourceProjection": SOURCE_PROJECTION,
+        "directPrerequisiteEvidence": DIRECT_PREREQUISITE_EVIDENCE,
+        "persistenceBoundary": CORPUS["persistence"],
+        "priorFenceOverlaps": list(PRIOR_FENCE_OVERLAPS), "priorFenceProof": PRIOR_FENCE_PROOF,
+        "frozenS10ReservationDigest": FROZEN_S10_RESERVATION_DIGEST,
+        "s10FenceOverlapPaths": [], "statusFlags": _flags(),
+        "requiresAcceptedS10_6Reconciliation": True,
+        "evidenceDigest": evidence["artifactDigest"],
+        "testSelectors": list(TEST_METHODS),
+    })
+    rendered[MANIFEST_PATH] = pretty(manifest)
+    return rendered
+
+
+def assert_corpus() -> None:
+    if len(EXISTING_PATHS) != 105 or len(NEW_PATHS) != 14 or len(PATH_FENCE) != 119:
+        raise ValueError("C24 path fence must be exactly 119=105+14")
+    if len(set(PATH_FENCE)) != 119:
+        raise ValueError("C24 path fence contains duplicates")
+    if CORPUS["persistentSchemaVersion"] != 23 or CORPUS["recordsSchemaVersion"] != 22:
+        raise ValueError("C24 persistence versions differ")
+    if CORPUS["persistentKindLifecycleModelCount"] != 85 or CORPUS["durableFamilyCount"] != 1:
+        raise ValueError("C24 model/family counts differ")
+    if CORPUS["requiredContractNames"] != list(CONTRACT_NAMES):
+        raise ValueError("C24 contract family set differs")
+    if CORPUS["persistence"]["persistedFamilies"] != ["AccessibleDocumentAssessmentReceiptV1"]:
+        raise ValueError("C24 durable family set differs")
+    if CORPUS["persistence"]["nonPersistentFamilies"] != ["AccessibleDocumentSemanticTreeV1"]:
+        raise ValueError("C24 nonpersistent family set differs")
+    if CORPUS["persistence"]["secondStore"] or CORPUS["persistence"]["secondWriter"]:
+        raise ValueError("C24 second store/writer is prohibited")
+    if (
+        PRIOR_FENCE_PROOF.get("fenceCount") != 61
+        or PRIOR_FENCE_PROOF.get("priorOwnedPathCount") != PRIOR_FENCE_PRIOR_OWNED_PATH_COUNT
+        or PRIOR_FENCE_PROOF.get("overlapCount") != PRIOR_FENCE_OVERLAP_COUNT
+        or PRIOR_FENCE_PROOF.get("authorizedOverlapCount") != PRIOR_FENCE_OVERLAP_COUNT
+        or PRIOR_FENCE_PROOF.get("unauthorizedOverlapCount") != 0
+        or len(PRIOR_FENCE_OVERLAPS) != PRIOR_FENCE_OVERLAP_COUNT
+        or PRIOR_FENCE_PROOF.get("authorizedOverlapEdges") != list(PRIOR_FENCE_OVERLAPS)
+        or not all(
+            isinstance(row, dict)
+            and isinstance(row.get("path"), str)
+            and isinstance(row.get("priorCardID"), str)
+            and isinstance(row.get("priorFenceDigest"), str)
+            and isinstance(row.get("disposition"), str)
+            and isinstance(row.get("boundEvidence"), dict)
+            for row in PRIOR_FENCE_OVERLAPS
+        )
+    ):
+        raise ValueError("C24 prior-fence proof differs")
+
+
+assert_corpus()

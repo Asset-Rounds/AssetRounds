@@ -11,6 +11,10 @@ enum WorklightPDFRendererErrorV1: Error, Equatable {
     case pdfCreationFailed
 }
 
+extension RenderedPDFV1{
+    func accessibleAssessmentOutput()throws->AccessibleDocumentRenderOutputV1{guard KernelCanonicalHashV1.sha256(data)==sha256 else{throw AccessibleDocumentFailureV1.digestMismatch};return try .init(bytes:data,mediaType:"application/pdf",rendererID:"worklight-pdf-renderer",rendererVersion:"v1")}
+}
+
 struct RenderedPDFV1: Sendable {
     let data: Data
     let sha256: String

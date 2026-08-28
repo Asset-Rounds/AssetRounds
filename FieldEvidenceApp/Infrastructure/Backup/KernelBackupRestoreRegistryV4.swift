@@ -250,6 +250,8 @@ enum KernelBackupRestoreRegistryV4 {
     static let privacyTransformArchiveKinds = V19BackupPrivacyTransformRecordV1.Kind.allCases
     static let clientCapabilityArchiveKinds=V20BackupClientCapabilityRecordV1.Kind.allCases
     static let fieldReferenceArchiveKinds=V22BackupFieldReferenceRecordV1.Kind.allCases
+    static let accessibleDocumentPersistentFamilies=AccessibleDocumentLifecycleV1.persistentFamilies
+    static let accessibleDocumentSemanticTreePersistence=AccessibleDocumentLifecycleV1.semanticTreePersistence
     static let recoverabilityVerificationArchiveKindCount=1
 
     static func validateFunctionalRelationshipLifecycle() throws {

@@ -1,6 +1,7 @@
 import Foundation
 
 enum FieldReferenceOrdinaryDeletionDispositionV1:Equatable,Sendable{case preserveBoundHistory(releaseIDs:Set<UUID>,bindingIDs:Set<UUID>);case discardUnboundRelease(releaseID:UUID);case blockedMissingRequiredBytes(releaseID:UUID,contentIDs:[String])}
+enum AccessibleDocumentOrdinaryDeletionDispositionV1:Equatable,Sendable{case preserveSealedOutputAndAssessment(receiptIDs:Set<UUID>,outputSHA256:Set<String>);case removeAfterAuthorizedPrivacyExpiry(receiptID:UUID,tombstoneSHA256:String,redactionProofSHA256:String);case blockedMissingRetentionProof(receiptID:UUID)}
 
 enum DeletionPhaseV1: String, Codable, Equatable, Sendable {
     case prepared

@@ -229,3 +229,30 @@ extension ContentContractRegistryV1 {
         )
     }
 }
+
+// MARK: - C24 accessible-document consumer registration
+
+extension ContentContractRegistryV1 {
+    /// C24 registers only consumer-side boundaries.  The canonical semantic
+    /// tree and assessment receipt remain owned by the reporting lane; no
+    /// alternate content or semantic-tree writer is registered here.
+    static let c24AccessibleDocumentContracts: [String] = [
+        "AccessibleDocumentSemanticTreeV1",
+        "AccessibleDocumentAssessmentReceiptV1",
+        "AccessibleDocumentContentReferenceBoundaryV1",
+        "AccessibleDocumentLocatorBoundaryV1",
+        "AccessibleDocumentProvenanceBoundaryV1",
+        "AccessibleDocumentPrivacyTransformBoundaryV1",
+        "AccessibleDocumentIntegrityBoundaryV1",
+    ]
+
+    static func c24BoundaryContracts() throws -> [String] {
+        try c20BoundaryContracts() + c24AccessibleDocumentContracts
+    }
+
+    static func validateC24AudienceSafeTree(
+        _ tree: AccessibleDocumentSemanticTreeV1
+    ) throws {
+        try AccessibleDocumentIntegrityBoundaryV1.validateTree(tree)
+    }
+}

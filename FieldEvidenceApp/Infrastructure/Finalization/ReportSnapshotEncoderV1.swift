@@ -5,6 +5,10 @@ struct EncodedReportSnapshotV1: Equatable, Sendable {
     let sha256: String
 }
 
+enum AccessibleDocumentTreeCanonicalEncoderV1{
+    static func encode(_ tree:AccessibleDocumentSemanticTreeV1)throws->EncodedReportSnapshotV1{try tree.validate();let data=try AccessibleDocumentCanonicalCodecV1.encode(tree);return .init(data:data,sha256:KernelCanonicalHashV1.sha256(data))}
+}
+
 enum ReportSnapshotEncodingErrorV1: Error, Equatable {
     case invalidSnapshot
     case noncanonicalData

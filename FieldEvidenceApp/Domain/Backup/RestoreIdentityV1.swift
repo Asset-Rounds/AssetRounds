@@ -7,6 +7,12 @@ enum BackupRestoreMode: String, CaseIterable, Codable, Equatable, Sendable {
     case fork
 }
 
+enum AccessibleDocumentRestoreIdentityDispositionV1:String,Codable,Equatable,Sendable{
+    case preserveAcceptedSourceBinding="PRESERVE_ACCEPTED_SOURCE_BINDING"
+    case reboundAsIncompleteHistoricSourceEvidence="REBOUND_AS_INCOMPLETE_HISTORIC_SOURCE_EVIDENCE"
+    static func resolve(_ mode:BackupRestoreMode)->Self{switch mode{case .emptyInstall,.replaceExisting:return .preserveAcceptedSourceBinding;case .clone,.fork:return .reboundAsIncompleteHistoricSourceEvidence}}
+}
+
 extension RestoreIdentityV1 {
     func destinationPackageEvolutionWorkspaceID() -> WorkspaceID {
         WorkspaceID(rawValue: targetPointer.workspaceID)

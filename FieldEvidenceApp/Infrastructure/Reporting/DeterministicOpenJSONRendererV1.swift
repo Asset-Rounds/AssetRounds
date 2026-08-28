@@ -57,6 +57,24 @@ struct ReportSemanticNodeV1: Codable, Equatable, Hashable, Comparable, Sendable 
     }
 }
 
+extension DeterministicOpenJSONRendererV1{
+    static func renderAccessibleSemanticTree(_ tree:AccessibleDocumentSemanticTreeV1)throws->AccessibleDocumentRenderOutputV1{try tree.validate();let data=try AccessibleDocumentCanonicalCodecV1.encode(tree);return try .init(bytes:data,mediaType:"application/vnd.assetrounds.accessible-semantic-tree+json",rendererID:"deterministic-open-json-renderer",rendererVersion:"v1")}
+}
+
+enum AccessibleDocumentReportSemanticTreeBuilderV1{
+    static func build(snapshot:CompletedActivitySnapshotV1,projection:ReportSemanticProjectionV1,manifest:ContractManifestV1,layoutProfile:ReportLayoutProfileV1,workspaceID:WorkspaceID,brandProfileID:String,brandProfileRelease:Int,brandProfileSHA256:String,evidenceReferences:[OutputScopedContentReferenceV1]=[])throws->AccessibleDocumentSemanticTreeV1{
+        try snapshot.validate();let validated=try projection.recursivelyValidated();try manifest.validate();try layoutProfile.validate(against:manifest.reportSectionRegistry)
+        let manifestSHA=try manifest.accessibleDocumentManifestSHA256();guard validated.snapshotSHA256==snapshot.snapshotSHA256,validated.manifestSHA256==manifestSHA else{throw AccessibleDocumentFailureV1.staleAssessment}
+        try evidenceReferences.forEach{$0.validate()};guard Set(evidenceReferences.map(\.outputReferenceID)).count==evidenceReferences.count else{throw AccessibleDocumentFailureV1.duplicateIdentity};let referenceByID=Dictionary(uniqueKeysWithValues:evidenceReferences.map{($0.outputReferenceID,$0)});let referencedIDs=Set(validated.nodes.compactMap(\.outputReferenceID));guard referencedIDs==Set(referenceByID.keys)else{throw AccessibleDocumentFailureV1.missingEvidence}
+        let profileSHA=try WorkspaceMutationCanonicalV1.sha256(layoutProfile);let publication=try AccessibleDocumentPublicationBindingV1(snapshotSHA256:snapshot.snapshotSHA256,manifestID:manifest.manifestID,manifestVersion:manifest.manifestVersion,manifestSHA256:manifestSHA,localeIdentifier:layoutProfile.localeIdentifier,profileID:layoutProfile.profileID,profileRelease:layoutProfile.profileRelease,profileSHA256:profileSHA,brandProfileID:brandProfileID,brandProfileRelease:brandProfileRelease,brandProfileSHA256:brandProfileSHA256)
+        let sensitivity:AccessibleDocumentSensitivityV1=layoutProfile.audience == .customerSafe ? .customerSafe:.internalOnly
+        var nodes=[try AccessibleDocumentNodeV1(nodeID:"c24.document",role:.document,parentNodeID:nil,order:0,sensitivity:sensitivity)]
+        let sectionIDs=Array(Set(validated.nodes.map(\.sectionID))).sorted();for(sectionOrder,sectionID)in sectionIDs.enumerated(){let sectionNodeID="c24.section.\(sectionID)";nodes.append(try .init(nodeID:sectionNodeID,role:.section,parentNodeID:"c24.document",order:sectionOrder,sensitivity:sensitivity));nodes.append(try .init(nodeID:"\(sectionNodeID).heading",role:.heading,parentNodeID:sectionNodeID,order:0,headingLevel:1,localizedText:sectionID,sensitivity:sensitivity));let values=validated.nodes.filter{$0.sectionID==sectionID}.sorted();for(index,value)in values.enumerated(){let links=try value.outputReferenceID.map{referenceID->[AccessibleEvidenceLinkV1] in guard let reference=referenceByID[referenceID]else{throw AccessibleDocumentFailureV1.missingEvidence};return[try AccessibleEvidenceLinkV1(outputReference:reference)]} ?? [];nodes.append(try .init(nodeID:"c24.semantic.\(value.semanticID)",role:.paragraph,parentNodeID:sectionNodeID,order:index+1,localizedText:"\(value.label): \(value.value)",evidenceLinks:links,sensitivity:sensitivity))}}
+        let input=AccessibleDocumentTreeBuildInputV1(workspaceID:workspaceID,audience:layoutProfile.audience,publication:publication,nodes:nodes,projectionVersion:validated.projectionVersion)
+        return try AccessibleDocumentAudienceProjectorV1.project(input)
+    }
+}
+
 struct ReportSemanticProjectionV1: Codable, Equatable, Sendable {
     static let schemaVersion = 1
     let schemaVersion: Int

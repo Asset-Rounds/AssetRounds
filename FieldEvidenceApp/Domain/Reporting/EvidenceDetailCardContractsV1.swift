@@ -11,6 +11,11 @@ enum EvidenceDetailSensitivityV1: String, Codable, CaseIterable, Hashable, Senda
     case diagnostic = "DIAGNOSTIC"
 }
 
+enum EvidenceDetailAccessibleAlternateTextPolicyV1{
+    static let automaticDescriptionAllowed=false
+    static let allowedProvenance=AccessibleAlternateTextProvenanceV1.allCases
+}
+
 enum AudiencePrivacyDetectorDispositionV1: String, Codable, CaseIterable, Hashable, Sendable {
     case pass = "PASS"
     case blocked = "BLOCKED"

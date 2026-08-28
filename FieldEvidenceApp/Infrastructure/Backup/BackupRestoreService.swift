@@ -121,6 +121,8 @@ final class BackupRestoreService {
     private let makeUUID: () -> UUID
     private let failureInjection: BackupRestoreFailureInjection?
     private let searchIndexLifecycle: any SearchIndexLifecyclePortV1
+    private let accessibleDocumentTreeResolver:(any AccessibleDocumentSemanticTreeResolvingV1)?
+    private var preparedAccessibleDocumentTrees:[UUID:AccessibleDocumentSemanticTreeV1]=[:]
 
     init(
         applicationSupportURL: URL,
@@ -129,7 +131,8 @@ final class BackupRestoreService {
         storagePreflight: StoragePreflightService = StoragePreflightService(),
         now: @escaping () -> Date = Date.init,
         makeUUID: @escaping () -> UUID = UUID.init,
-        failureInjection: BackupRestoreFailureInjection? = nil
+        failureInjection: BackupRestoreFailureInjection? = nil,
+        accessibleDocumentTreeResolver:(any AccessibleDocumentSemanticTreeResolvingV1)?=nil
     ) throws {
         let root = applicationSupportURL.standardizedFileURL
         let factory = StoreGenerationFactory(
@@ -160,6 +163,7 @@ final class BackupRestoreService {
         self.now = now
         self.makeUUID = makeUUID
         self.failureInjection = failureInjection
+        self.accessibleDocumentTreeResolver=accessibleDocumentTreeResolver
         self.searchIndexLifecycle = try LocalSearchIndexStoreV1(
             applicationSupportURL: root,
             fileManager: fileManager
@@ -173,7 +177,8 @@ final class BackupRestoreService {
         storagePreflight: StoragePreflightService = StoragePreflightService(),
         now: @escaping () -> Date = Date.init,
         makeUUID: @escaping () -> UUID = UUID.init,
-        failureInjection: BackupRestoreFailureInjection? = nil
+        failureInjection: BackupRestoreFailureInjection? = nil,
+        accessibleDocumentTreeResolver:(any AccessibleDocumentSemanticTreeResolvingV1)?=nil
     ) throws {
         try self.init(
             applicationSupportURL: applicationSupportURL,
@@ -182,7 +187,8 @@ final class BackupRestoreService {
             storagePreflight: storagePreflight,
             now: now,
             makeUUID: makeUUID,
-            failureInjection: failureInjection
+            failureInjection: failureInjection,
+            accessibleDocumentTreeResolver:accessibleDocumentTreeResolver
         )
     }
 
@@ -193,7 +199,8 @@ final class BackupRestoreService {
         now: @escaping () -> Date = Date.init,
         makeUUID: @escaping () -> UUID = UUID.init,
         failureInjection: BackupRestoreFailureInjection? = nil,
-        compatibilityPosture: BackupPackageCompatibilityPostureV1 = .frozenLegacyCallersOnly
+        compatibilityPosture: BackupPackageCompatibilityPostureV1 = .frozenLegacyCallersOnly,
+        accessibleDocumentTreeResolver:(any AccessibleDocumentSemanticTreeResolvingV1)?=nil
     ) throws {
         try self.init(
             applicationSupportURL: applicationSupportURL,
@@ -202,7 +209,8 @@ final class BackupRestoreService {
             storagePreflight: storagePreflight,
             now: now,
             makeUUID: makeUUID,
-            failureInjection: failureInjection
+            failureInjection: failureInjection,
+            accessibleDocumentTreeResolver:accessibleDocumentTreeResolver
         )
     }
 
@@ -543,6 +551,8 @@ final class BackupRestoreService {
                 identityDecision: preliminaryIdentityDecision,
                 legacyWorkspaceID: frozenCurrentIdentity.workspaceID.rawValue
             )
+            let accessibleDocumentAssessments=try await preparedAccessibleDocumentAssessments(expectedRecords.accessibleDocumentAssessments,identityDecision:preliminaryIdentityDecision)
+            expectedRecords=expectedRecords.replacingAccessibleDocumentAssessments(accessibleDocumentAssessments)
             guard uniqueModelIDs(in: expectedRecords) else {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
             }
@@ -1634,6 +1644,7 @@ private extension BackupRestoreService {
         with packets: [V4BackupPacketDTO]
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             fieldReferences:records.fieldReferences,
             recoverabilityReceipts:records.recoverabilityReceipts,
             clientCapabilities: records.clientCapabilities,
@@ -1689,6 +1700,7 @@ private extension BackupRestoreService {
         with history: MutationHistorySnapshotV1
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             fieldReferences:records.fieldReferences,
             recoverabilityReceipts:records.recoverabilityReceipts,
             clientCapabilities: records.clientCapabilities,
@@ -1809,6 +1821,7 @@ private extension BackupRestoreService {
             return try V8BackupRequirementAssuranceRecordV1(row)
         }.sorted { canonical($0.workflowRecordID) < canonical($1.workflowRecordID) }
         return V4BackupRecordsV1(
+            accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             fieldReferences:records.fieldReferences,
             recoverabilityReceipts:records.recoverabilityReceipts,
             clientCapabilities: records.clientCapabilities,
@@ -2065,6 +2078,7 @@ private extension BackupRestoreService {
         let fieldReferences = try rebindingFieldReferences(records.fieldReferences,workspaceID:workspaceID)
         guard let archived = records.locationMigrationReceipts.first else {
             return V4BackupRecordsV1(
+                accessibleDocumentAssessments:records.accessibleDocumentAssessments,
                 fieldReferences:fieldReferences,
                 recoverabilityReceipts:recoverabilityReceipts,
                 clientCapabilities: clientCapabilities,
@@ -2125,6 +2139,7 @@ private extension BackupRestoreService {
             bindings: receipt.bindings
         )
         return V4BackupRecordsV1(
+            accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             fieldReferences:fieldReferences,
             recoverabilityReceipts:recoverabilityReceipts,
             clientCapabilities: clientCapabilities,
@@ -2366,6 +2381,18 @@ private extension BackupRestoreService {
         var output=try releases.values.map{V22BackupFieldReferenceRecordV1(kind:.release,id:$0.releaseID,workspaceID:workspaceID.rawValue,revision:$0.revision,canonicalData:try FieldReferencePackCanonicalCodecV1.encode($0))}
         output += try records.filter{$0.kind == .binding}.map{record in let source=try FieldReferencePackCanonicalCodecV1.decode(FieldReferenceBindingV1.self,from:record.canonicalData);guard let release=releases[source.releaseID]else{throw BackupRestoreServiceError.invalidPackage};let value=source.workspaceID == workspaceID ? source:try source.rebound(to:workspaceID,release:release);try value.validate(release:release);return .init(kind:.binding,id:value.bindingID,workspaceID:workspaceID.rawValue,revision:value.revision,canonicalData:try FieldReferencePackCanonicalCodecV1.encode(value))}
         return output.sorted{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"}
+    }
+
+    func preparedAccessibleDocumentAssessments(_ records:[V23BackupAccessibleDocumentAssessmentRecordV1],identityDecision:RestoreIdentityV1?)async throws->[V23BackupAccessibleDocumentAssessmentRecordV1]{
+        preparedAccessibleDocumentTrees=[:];guard !records.isEmpty else{return []};guard let resolver=accessibleDocumentTreeResolver else{throw BackupRestoreServiceError.invalidRestoreAuthority}
+        var output:[V23BackupAccessibleDocumentAssessmentRecordV1]=[],trees:[UUID:AccessibleDocumentSemanticTreeV1]=[:]
+        for record in records{let source=try AccessibleDocumentCanonicalCodecV1.decode(AccessibleDocumentAssessmentReceiptV1.self,from:record.canonicalData);try source.validateIntrinsic();let sourceTree=try await resolver.resolveValidatedTree(for:source);let value:AccessibleDocumentAssessmentReceiptV1;let tree:AccessibleDocumentSemanticTreeV1
+            if let identityDecision,source.workspaceID.rawValue != identityDecision.targetPointer.workspaceID{let target=WorkspaceID(rawValue:identityDecision.targetPointer.workspaceID);tree=try AccessibleDocumentSemanticTreeResolverV1.rebuild(.init(workspaceID:target,audience:sourceTree.audience,publication:sourceTree.publication,nodes:sourceTree.nodes,projectionVersion:sourceTree.projectionVersion));let actor=try LocalActorReferenceV1(actorReferenceID:source.assessor.actor.actorReferenceID,workspaceID:target,partyID:source.assessor.actor.partyID,displayName:source.assessor.actor.displayName);let assessor=try ActorSnapshotV1(snapshotID:source.assessor.snapshotID,workspaceID:target,actor:actor,responsibility:source.assessor.responsibility,displayNameAtTime:source.assessor.displayNameAtTime,capturedAt:source.assessor.capturedAt);value=try source.rebound(to:target,tree:tree,assessor:assessor)}else{tree=sourceTree;try source.validate(tree:tree);value=source}
+            guard value.externalProof==source.externalProof,value.outputSHA256==source.outputSHA256,value.outputByteCount==source.outputByteCount,value.outputMediaType==source.outputMediaType,trees.updateValue(tree,forKey:value.receiptID)==nil else{throw BackupRestoreServiceError.invalidPackage};output.append(.init(id:value.receiptID,workspaceID:value.workspaceID.rawValue,revision:value.revision,canonicalData:try AccessibleDocumentCanonicalCodecV1.encode(value)))}
+        let values=try Dictionary(uniqueKeysWithValues:output.map{let value=try AccessibleDocumentCanonicalCodecV1.decode(AccessibleDocumentAssessmentReceiptV1.self,from:$0.canonicalData);return(value.receiptID,value)})
+        var childCounts:[UUID:Int]=[:]
+        for value in values.values{guard let tree=trees[value.receiptID]else{throw BackupRestoreServiceError.invalidPackage};if let predecessorID=value.supersedesReceiptID{guard let predecessor=values[predecessorID]else{throw BackupRestoreServiceError.invalidPackage};try value.validateSuccessor(of:predecessor,tree:tree);childCounts[predecessorID,default:0]+=1;guard childCounts[predecessorID]==1 else{throw BackupRestoreServiceError.invalidPackage}}else if value.revision != 1{throw BackupRestoreServiceError.invalidPackage}}
+        preparedAccessibleDocumentTrees=trees;return output.sorted{$0.id.uuidString<$1.id.uuidString}
     }
 
     func rebindingAssetSemantics(
@@ -3184,6 +3211,7 @@ private extension BackupRestoreService {
             )
         }
         return V4BackupRecordsV1(
+            accessibleDocumentAssessments:[],
             fieldReferences: [],
             evidenceAssurance: [], functionalRelationships: [], authorityCriterion: [], assetSemantics: [],
             assetCompositionEdges: records.assetCompositionEdges,
@@ -3558,7 +3586,8 @@ private extension BackupRestoreService {
                 || records.recordsSchemaVersion == 18
                 || records.recordsSchemaVersion == 19
                 || records.recordsSchemaVersion == 20
-                || records.recordsSchemaVersion == 21)
+                || records.recordsSchemaVersion == 21
+                || records.recordsSchemaVersion == 22)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -3820,7 +3849,8 @@ private extension BackupRestoreService {
             || records.recordsSchemaVersion == 18
             || records.recordsSchemaVersion == 19
             || records.recordsSchemaVersion == 20
-            || records.recordsSchemaVersion == 21 {
+            || records.recordsSchemaVersion == 21
+            || records.recordsSchemaVersion == 22 {
             do {
                 for record in records.savedSmartViews {
                     let descriptor = try record.descriptor()
@@ -4100,6 +4130,9 @@ private extension BackupRestoreService {
                 releaseEntries.forEach{context.insert($0.0)};bindingRows.forEach{context.insert($0)}
             }catch{throw BackupRestoreServiceError.invalidPackage}
         }
+        if records.recordsSchemaVersion >= 22 {
+            do{let rows=try records.accessibleDocumentAssessments.map{record in let value=try AccessibleDocumentCanonicalCodecV1.decode(AccessibleDocumentAssessmentReceiptV1.self,from:record.canonicalData);guard let tree=preparedAccessibleDocumentTrees[value.receiptID] else{throw BackupRestoreServiceError.invalidRestoreAuthority};let row=try AccessibleDocumentAssessmentReceiptRow(value,tree:tree);_ = try row.value(tree:tree);return row};rows.forEach{context.insert($0)}}catch{throw BackupRestoreServiceError.invalidPackage}
+        }
         if let mutationHistory = records.mutationHistory {
             guard records.recordsSchemaVersion == 3
                     || records.recordsSchemaVersion == 4
@@ -4119,7 +4152,8 @@ private extension BackupRestoreService {
                     || records.recordsSchemaVersion == 18
                     || records.recordsSchemaVersion == 19
                     || records.recordsSchemaVersion == 20
-                    || records.recordsSchemaVersion == 21 else {
+                    || records.recordsSchemaVersion == 21
+                    || records.recordsSchemaVersion == 22 else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {
@@ -5208,7 +5242,8 @@ private extension BackupRestoreService {
                 || actual.recordsSchemaVersion == 18
                 || actual.recordsSchemaVersion == 19
                 || actual.recordsSchemaVersion == 20
-                || actual.recordsSchemaVersion == 21) else {
+                || actual.recordsSchemaVersion == 21
+                || actual.recordsSchemaVersion == 22) else {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
         if expected.recordsSchemaVersion == 5 || expected.recordsSchemaVersion == 6 {
@@ -5227,6 +5262,7 @@ private extension BackupRestoreService {
         schemaVersion: Int
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            accessibleDocumentAssessments:schemaVersion >= 22 ? records.accessibleDocumentAssessments:[],
             fieldReferences:schemaVersion >= 21 ? records.fieldReferences:[],
             recoverabilityReceipts:schemaVersion >= 20 ? records.recoverabilityReceipts:[],
             clientCapabilities: schemaVersion >= 19 ? records.clientCapabilities : [],
@@ -5267,6 +5303,7 @@ private extension BackupRestoreService {
         expected: V4BackupRecordsV1
     ) throws -> Bool {
         let predecessor = V4BackupRecordsV1(
+            accessibleDocumentAssessments:expected.recordsSchemaVersion >= 22 ? expected.accessibleDocumentAssessments:[],
             fieldReferences:expected.recordsSchemaVersion >= 21 ? expected.fieldReferences:[],
             recoverabilityReceipts:expected.recordsSchemaVersion >= 20 ? expected.recoverabilityReceipts:[],
             clientCapabilities: expected.recordsSchemaVersion >= 19 ? expected.clientCapabilities : [],
@@ -5463,6 +5500,7 @@ private extension BackupRestoreService {
         let packagePromotionReceipts = try context.fetch(FetchDescriptor<PackagePromotionReceiptRow>())
         let activePackageRegistryPointers = try context.fetch(FetchDescriptor<ActivePackageRegistryPointerRow>())
         let fieldReferenceReleases=try context.fetch(FetchDescriptor<FieldReferenceReleaseRow>()),fieldReferenceBindings=try context.fetch(FetchDescriptor<FieldReferenceBindingRow>())
+        let accessibleDocumentAssessmentReceipts=try context.fetch(FetchDescriptor<AccessibleDocumentAssessmentReceiptRow>())
         let recoverabilityVerificationReceipts=try context.fetch(FetchDescriptor<RecoverabilityVerificationReceiptRow>())
         let clientCapabilityProfiles=try context.fetch(FetchDescriptor<ClientCapabilityProfileRow>()),packageLifecyclePolicies=try context.fetch(FetchDescriptor<PackageLifecyclePolicyRow>()),packageLifecycleDispositions=try context.fetch(FetchDescriptor<PackageLifecycleDispositionRow>()),clientCapabilityAdmissionDecisions=try context.fetch(FetchDescriptor<ClientCapabilityAdmissionDecisionRow>())
         let privacyTransformPolicies=try context.fetch(FetchDescriptor<PrivacyTransformPolicyRow>()),privacyRegions=try context.fetch(FetchDescriptor<PrivacyRegionRow>()),privacyTransformManifests=try context.fetch(FetchDescriptor<PrivacyTransformManifestRow>()),privacyReviewReceipts=try context.fetch(FetchDescriptor<PrivacyReviewReceiptRow>())
@@ -5519,7 +5557,9 @@ private extension BackupRestoreService {
         let recoverabilityReceiptRecords:[V21BackupRecoverabilityReceiptRecordV1]=mutationHistory == nil ? [] : try recoverabilityVerificationReceipts.map{let value=try $0.value();return .init(id:value.receiptID,workspaceID:value.workspaceID.rawValue,revision:value.revision,canonicalData:try RecoverabilityVerificationCanonicalCodecV1.encode(value))}.sorted{$0.id.uuidString<$1.id.uuidString}
         let fieldReferenceReleaseValues=try Dictionary(uniqueKeysWithValues:fieldReferenceReleases.map{let value=try $0.value();return(value.releaseID,value)})
         let fieldReferenceRecords:[V22BackupFieldReferenceRecordV1]=mutationHistory == nil ? [] : try (fieldReferenceReleaseValues.values.map{.init(kind:.release,id:$0.releaseID,workspaceID:$0.workspaceID.rawValue,revision:$0.revision,canonicalData:try FieldReferencePackCanonicalCodecV1.encode($0))}+fieldReferenceBindings.map{row in guard let release=fieldReferenceReleaseValues[row.releaseID]else{throw BackupRestoreServiceError.invalidRestoreAuthority};let value=try row.value(release:release);return .init(kind:.binding,id:value.bindingID,workspaceID:value.workspaceID.rawValue,revision:value.revision,canonicalData:try FieldReferencePackCanonicalCodecV1.encode(value))}).sorted{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"}
+        let accessibleDocumentAssessmentRecords:[V23BackupAccessibleDocumentAssessmentRecordV1]=mutationHistory == nil ? [] : try accessibleDocumentAssessmentReceipts.map{let value=try $0.value();return .init(id:value.receiptID,workspaceID:value.workspaceID.rawValue,revision:value.revision,canonicalData:try AccessibleDocumentCanonicalCodecV1.encode(value))}.sorted{$0.id.uuidString<$1.id.uuidString}
         return V4BackupRecordsV1(
+            accessibleDocumentAssessments:accessibleDocumentAssessmentRecords,
             fieldReferences:fieldReferenceRecords,
             recoverabilityReceipts:recoverabilityReceiptRecords,
             clientCapabilities: clientCapabilityRecords,
@@ -5718,7 +5758,7 @@ private extension BackupRestoreService {
                 "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
                     < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
             },
-            recordsSchemaVersion: mutationHistory != nil ? 21
+            recordsSchemaVersion: mutationHistory != nil ? 22
                 : !(privacyTransformPolicies.isEmpty && privacyRegions.isEmpty
                 && privacyTransformManifests.isEmpty && privacyReviewReceipts.isEmpty) ? 18
                 : !(instrumentReferences.isEmpty && calibrationStatusSnapshots.isEmpty

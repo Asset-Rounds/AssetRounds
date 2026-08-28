@@ -10,6 +10,13 @@ extension Notification.Name {
     )
 }
 
+enum ReportDeliveryAccessibleDocumentPolicyV1{
+    static let assessmentAuthorizesDelivery=false
+    static let customerSafeTreeRequiredForCustomerSafeProjection=true
+    static let restrictedEvidenceBytesIncluded=false
+    static func validateAssessmentEvidence(receipt:AccessibleDocumentAssessmentReceiptV1,tree:AccessibleDocumentSemanticTreeV1,output:Data,requiredAudience:ReportAudienceV1)throws{try receipt.validate(tree:tree);try receipt.validateOutput(output);guard tree.audience==requiredAudience else{throw AccessibleDocumentFailureV1.privacyViolation}}
+}
+
 final class ReportPDFUnavailableEvent: NSObject, @unchecked Sendable {
     let reportID: UUID
 

@@ -5,6 +5,11 @@ enum WorkflowRevisionKind: String, CaseIterable, Codable, Sendable {
     case clericalCorrection = "clerical_correction"
 }
 
+enum WorkflowAccessibleDocumentBoundaryV1{
+    static let assessmentChangesWorkflowOutcome=false
+    static let externalProofChangesInspectionTruth=false
+}
+
 enum WorkflowStage: String, CaseIterable, Codable, Sendable {
     case check
     case work

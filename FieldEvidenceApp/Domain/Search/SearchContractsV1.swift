@@ -1915,6 +1915,165 @@ enum ClientCapabilitySearchProjectionPolicyV1 {
     }
 }
 
+// MARK: - C24 accessible-document semantic search projection
+
+/// Search receives a bounded, disposable summary of the customer-safe
+/// semantic tree.  It never receives node text, node IDs, evidence IDs,
+/// locators, original bytes, or assessor identity.
+enum AccessibleDocumentSearchFieldV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case roleSummary = "ROLE_SUMMARY"
+    case alternateTextProvenance = "ALTERNATE_TEXT_PROVENANCE"
+    case decorativeState = "DECORATIVE_STATE"
+    case assessmentState = "ASSESSMENT_STATE"
+    case audience = "AUDIENCE"
+    case projectionVersion = "PROJECTION_VERSION"
+}
+
+struct AccessibleDocumentSearchRecordV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let maximumValues = 10_000
+    static let assessmentNotRecorded = "NOT_RECORDED"
+
+    let schemaVersion: Int
+    let treeSHA256: String
+    let audience: ReportAudienceV1
+    let projectionVersion: String
+    let nodeCount: Int
+    let figureCount: Int
+    let decorativeFigureCount: Int
+    let describedFigureCount: Int
+    let missingAlternateTextFigureCount: Int
+    let evidenceLinkCount: Int
+    let roleValues: [AccessibleDocumentRoleV1]
+    let alternateTextProvenances: [AccessibleAlternateTextProvenanceV1]
+    let assessmentState: AccessibleDocumentAssessmentStateV1?
+    let boundedFieldValues: [AccessibleDocumentSearchFieldV1: String]
+
+    init(
+        tree: AccessibleDocumentSemanticTreeV1,
+        assessment: AccessibleDocumentAssessmentReceiptV1? = nil
+    ) throws {
+        try AccessibleDocumentPrivacyTransformBoundaryV1
+            .validateAudienceSafeProjection(tree, assessment: assessment)
+        guard tree.audience == .customerSafe,
+              tree.nodes.allSatisfy({ $0.evidenceLinks.count <= Self.maximumValues }) else {
+            throw SearchContractFailureV1.forbiddenField
+        }
+        let figures = tree.nodes.filter { $0.role == .figure }
+        let described = figures.filter { !$0.decorative && $0.alternateText != nil }
+        let missing = figures.filter {
+            !$0.decorative && $0.alternateTextProvenance == .notProvided
+        }
+        let roles = Array(Set(tree.nodes.map(\.role))).sorted {
+            $0.rawValue < $1.rawValue
+        }
+        let provenance = Array(Set(tree.nodes.compactMap(\.alternateTextProvenance))).sorted {
+            $0.rawValue < $1.rawValue
+        }
+        let linkCount = tree.nodes.reduce(0) { $0 + $1.evidenceLinks.count }
+        schemaVersion = Self.schemaVersion
+        treeSHA256 = tree.treeSHA256
+        audience = tree.audience
+        projectionVersion = tree.projectionVersion
+        nodeCount = tree.nodes.count
+        figureCount = figures.count
+        decorativeFigureCount = figures.filter { $0.decorative }.count
+        describedFigureCount = described.count
+        missingAlternateTextFigureCount = missing.count
+        evidenceLinkCount = linkCount
+        roleValues = roles
+        alternateTextProvenances = provenance
+        assessmentState = assessment?.state
+        boundedFieldValues = [
+            .roleSummary: roles.map(\.rawValue).joined(separator: ","),
+            .alternateTextProvenance: provenance.isEmpty
+                ? Self.assessmentNotRecorded
+                : provenance.map(\.rawValue).joined(separator: ","),
+            .decorativeState: decorativeFigureCount > 0
+                ? "DECORATIVE_FIGURES_PRESENT" : "NO_DECORATIVE_FIGURES",
+            .assessmentState: assessment?.state.rawValue ?? Self.assessmentNotRecorded,
+            .audience: audience.rawValue,
+            .projectionVersion: projectionVersion,
+        ]
+        try validate()
+    }
+
+    func normalizedTokens(
+        for field: AccessibleDocumentSearchFieldV1
+    ) -> [String] {
+        guard let value = boundedFieldValues[field] else { return [] }
+        return SearchContractValidationV1.normalizeSearchText(value)
+            .unicodeScalars
+            .split { !CharacterSet.alphanumerics.contains($0) }
+            .map(String.init)
+    }
+
+    func validate() throws {
+        let fields = [
+            nodeCount, figureCount, decorativeFigureCount,
+            describedFigureCount, missingAlternateTextFigureCount,
+            evidenceLinkCount,
+        ]
+        let required = Set(AccessibleDocumentSearchFieldV1.allCases)
+        guard schemaVersion == Self.schemaVersion,
+              KernelCanonicalHashV1.validSHA256(treeSHA256),
+              audience == .customerSafe,
+              SearchContractValidationV1.validID(projectionVersion),
+              fields.allSatisfy({ $0 >= 0 && $0 <= Self.maximumValues }),
+              figureCount <= nodeCount,
+              decorativeFigureCount + describedFigureCount
+                  + missingAlternateTextFigureCount == figureCount,
+              roleValues == roleValues.sorted(by: { $0.rawValue < $1.rawValue }),
+              Set(roleValues).count == roleValues.count,
+              alternateTextProvenances == alternateTextProvenances.sorted(
+                  by: { $0.rawValue < $1.rawValue }
+              ),
+              Set(alternateTextProvenances).count == alternateTextProvenances.count,
+              Set(boundedFieldValues.keys) == required,
+              boundedFieldValues.values.allSatisfy(SearchContractValidationV1.validID),
+              !AccessibleDocumentLocalizationPolicyV1.containsProhibitedClaim(
+                  in: Array(boundedFieldValues.values)
+              ),
+              !AccessibleDocumentLocalizationPolicyV1.containsCustomerOrWorkDataLeakage(
+                  in: Array(boundedFieldValues.values)
+              ) else {
+            throw SearchContractFailureV1.forbiddenField
+        }
+        guard boundedFieldValues.values.allSatisfy({ value in
+            let tokens = SearchContractValidationV1.normalizeSearchText(value)
+                .unicodeScalars
+                .split { !CharacterSet.alphanumerics.contains($0) }
+                .map(String.init)
+            return !tokens.isEmpty
+                && tokens.allSatisfy(SearchContractValidationV1.isCanonicalSearchToken)
+        }) else {
+            throw SearchContractFailureV1.invalidField
+        }
+    }
+}
+
+enum AccessibleDocumentSearchProjectionPolicyV1 {
+    static let sourceKind = "ACCESSIBLE_DOCUMENT_SEMANTIC_SUMMARY"
+    static let semanticLabel = "ACCESSIBLE_DOCUMENT_SEMANTIC_SUMMARY_V1"
+    static let fieldIDs = AccessibleDocumentSearchFieldV1.allCases.map(\.rawValue)
+    static let metadataOnly = true
+    static let derivedOnly = true
+    static let customerSafeOnly = true
+    static let excludesSemanticTree = true
+    static let excludesNodeText = true
+    static let excludesOriginalEvidence = true
+    static let excludesEvidenceLinks = true
+    static let excludesAssessorIdentity = true
+    static let excludesPrivateLocators = true
+    static let excludesUnsupportedClaims = true
+    static let dropAndRebuildAfterRestore = true
+    static let dropAndRebuildOnReplay = true
+
+    static func accepts(_ field: AccessibleDocumentSearchFieldV1) -> Bool {
+        fieldIDs.contains(field.rawValue)
+    }
+}
+
 // MARK: - C23 version-bound field-reference search
 
 /// Closed, metadata-only fields for the C23 disposable search projection.

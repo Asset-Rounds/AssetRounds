@@ -56,6 +56,7 @@ final class BackupExportService {
     private static let checkpointBasisExportedAt = Date(timeIntervalSince1970: 0)
 
     private struct Rows {
+        let accessibleDocumentAssessmentReceipts:[AccessibleDocumentAssessmentReceiptRow]
         let fieldReferenceReleases:[FieldReferenceReleaseRow]
         let fieldReferenceBindings:[FieldReferenceBindingRow]
         let recoverabilityVerificationReceipts:[RecoverabilityVerificationReceiptRow]
@@ -813,14 +814,14 @@ private extension BackupExportService {
                 _ = try normalizer.validateCanonicalJPEG(thumbnail, kind: .thumbnail)
             }
             sources.append(.init(
-                path: "media/\(canonicalID).jpg",
+                path: V4BackupEvidenceMemberKeyV1.original(evidence.id),
                 mimeType: "image/jpeg",
                 byteCount: evidence.byteCount,
                 sha256: evidence.sha256,
                 location: .generationRelative(evidence.relativePath)
             ))
             sources.append(.init(
-                path: "thumbnails/\(canonicalID).jpg",
+                path: V4BackupEvidenceMemberKeyV1.thumbnail(evidence.id),
                 mimeType: "image/jpeg",
                 byteCount: evidence.thumbnailByteCount,
                 sha256: evidence.thumbnailSHA256,
@@ -971,9 +972,9 @@ private extension BackupExportService {
             source: .init(
                 appBuild: appBuild(),
                 appVersion: appVersion(),
-                persistentSchemaVersion: 22,
+                persistentSchemaVersion: 23,
                 replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: 21,
+                recordsSchemaVersion: 22,
                 sourceGenerationID: generationID,
                 workspaceID: sourceIdentity.workspaceID.rawValue
             )
@@ -1107,12 +1108,12 @@ private extension BackupExportService {
                 throw BackupExportServiceError.invalidAuthority
             }
             members.append(.init(
-                path: "media/\(canonicalID).jpg",
+                path: V4BackupEvidenceMemberKeyV1.original(evidence.id),
                 mimeType: "image/jpeg",
                 data: original
             ))
             members.append(.init(
-                path: "thumbnails/\(canonicalID).jpg",
+                path: V4BackupEvidenceMemberKeyV1.thumbnail(evidence.id),
                 mimeType: "image/jpeg",
                 data: thumbnail
             ))
@@ -1501,6 +1502,7 @@ private extension BackupExportService {
     private func fetchRows() throws -> Rows {
         do {
             return Rows(
+                accessibleDocumentAssessmentReceipts:try modelContext.fetch(FetchDescriptor<AccessibleDocumentAssessmentReceiptRow>()),
                 fieldReferenceReleases:try modelContext.fetch(FetchDescriptor<FieldReferenceReleaseRow>()),
                 fieldReferenceBindings:try modelContext.fetch(FetchDescriptor<FieldReferenceBindingRow>()),
                 recoverabilityVerificationReceipts:try modelContext.fetch(FetchDescriptor<RecoverabilityVerificationReceiptRow>()),
@@ -2058,7 +2060,9 @@ private extension BackupExportService {
         let clientCapabilities = mutationHistory == nil ? [] : try clientCapabilityRecords(rows)
         let recoverabilityReceipts = mutationHistory == nil ? [] : try recoverabilityReceiptRecords(rows)
         let fieldReferences = mutationHistory == nil ? [] : try fieldReferenceRecords(rows)
+        let accessibleDocumentAssessments = mutationHistory == nil ? [] : try accessibleDocumentAssessmentRecords(rows)
         return V4BackupRecordsV1(
+            accessibleDocumentAssessments:accessibleDocumentAssessments,
             fieldReferences:fieldReferences,
             recoverabilityReceipts:recoverabilityReceipts,
             clientCapabilities: clientCapabilities,
@@ -2120,7 +2124,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : 21,
+                : 22,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -2253,6 +2257,10 @@ private extension BackupExportService {
         var result=try releases.values.map{V22BackupFieldReferenceRecordV1(kind:.release,id:$0.releaseID,workspaceID:$0.workspaceID.rawValue,revision:$0.revision,canonicalData:try FieldReferencePackCanonicalCodecV1.encode($0))}
         result += try rows.fieldReferenceBindings.map{row in guard let release=releases[row.releaseID]else{throw BackupExportServiceError.invalidAuthority};let value=try row.value(release:release);return V22BackupFieldReferenceRecordV1(kind:.binding,id:value.bindingID,workspaceID:value.workspaceID.rawValue,revision:value.revision,canonicalData:try FieldReferencePackCanonicalCodecV1.encode(value))}
         return result.sorted{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"}
+    }
+
+    private func accessibleDocumentAssessmentRecords(_ rows:Rows)throws->[V23BackupAccessibleDocumentAssessmentRecordV1]{
+        try rows.accessibleDocumentAssessmentReceipts.map{let value=try $0.value();return .init(id:value.receiptID,workspaceID:value.workspaceID.rawValue,revision:value.revision,canonicalData:try AccessibleDocumentCanonicalCodecV1.encode(value))}.sorted{$0.id.uuidString<$1.id.uuidString}
     }
 
     private func functionalRelationshipRecords(

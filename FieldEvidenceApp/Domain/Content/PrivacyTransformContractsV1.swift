@@ -332,3 +332,36 @@ enum PrivacyTransformCanonicalCodecV1 {
         try value.validate(manifest: manifest, policy: policy); return value
     }
 }
+
+// MARK: - C24 accessible-document privacy projection
+
+/// C24 consumes a validated audience-safe derivative of the report snapshot.
+/// This is a consumer boundary over the canonical accessible-document types,
+/// not another privacy-transform writer or a second semantic-tree owner.
+enum AccessibleDocumentPrivacyTransformBoundaryV1 {
+    static let requiresAudienceSafeDerivative = true
+    static let semanticTreePersistence = "DERIVED_ONLY"
+    static let excludesOriginalEvidence = true
+    static let excludesPrivateEvidence = true
+    static let excludesAssessorIdentity = true
+    static let excludesPrivateLocators = true
+    static let excludesUnsupportedConformanceClaims = true
+
+    static func validateAudienceSafeProjection(
+        _ tree: AccessibleDocumentSemanticTreeV1,
+        assessment: AccessibleDocumentAssessmentReceiptV1? = nil
+    ) throws {
+        try AccessibleDocumentProvenanceBoundaryV1.validateTree(tree)
+        try AccessibleDocumentLocatorBoundaryV1.validateAudienceSafeTree(tree)
+        guard !tree.pdfUAClaimed,
+              !tree.wcagClaimed,
+              !tree.legalCertificationClaimed,
+              !tree.s10BrandReconciled else {
+            throw AccessibleDocumentFailureV1.unsupportedConformanceClaim
+        }
+        if let assessment {
+            try AccessibleDocumentContentReferenceBoundaryV1
+                .validateAssessment(assessment, for: tree)
+        }
+    }
+}

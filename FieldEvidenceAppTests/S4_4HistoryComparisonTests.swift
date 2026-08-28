@@ -354,6 +354,15 @@ final class S4_4HistoryComparisonTests: XCTestCase {
     }
 }
 
+extension S4_4HistoryComparisonTests {
+    func testC24AccessibleDocumentTypedAnchor() throws {
+        XCTAssertEqual(AccessibleDocumentSemanticTreeV1.schemaVersion, 1)
+        XCTAssertEqual(AccessibleDocumentRoleV1.allCases.count, 13)
+        XCTAssertEqual(AccessibleDocumentAssessmentStateV1.allCases.count, 4)
+        XCTAssertFalse(AccessibleDocumentLifecycleV1.pdfUAClaimed)
+    }
+}
+
 @MainActor
 private struct HistoryHarness {
     let applicationSupportURL: URL

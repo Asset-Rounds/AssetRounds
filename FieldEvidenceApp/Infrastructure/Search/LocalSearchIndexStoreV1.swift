@@ -1187,3 +1187,31 @@ extension LocalSearchIndexStoreV1 {
         return record
     }
 }
+
+// MARK: - C24 accessible-document search adapter
+
+extension LocalSearchIndexStoreV1 {
+    /// Admits only the bounded customer-safe semantic summary to the
+    /// disposable local index.  The canonical tree and its evidence links
+    /// remain outside this store.
+    static func accessibleDocumentSearchRecord(
+        from tree: AccessibleDocumentSemanticTreeV1,
+        assessment: AccessibleDocumentAssessmentReceiptV1? = nil
+    ) throws -> AccessibleDocumentSearchRecordV1 {
+        let record = try AccessibleDocumentSearchRecordV1(
+            tree: tree,
+            assessment: assessment
+        )
+        try record.validate()
+        try AccessibleDocumentSearchPersistencePolicyV1().validate()
+        return record
+    }
+
+    static func validateAccessibleDocumentSearchRecord(
+        _ record: AccessibleDocumentSearchRecordV1
+    ) throws -> AccessibleDocumentSearchRecordV1 {
+        try record.validate()
+        try AccessibleDocumentSearchPersistencePolicyV1().validate()
+        return record
+    }
+}

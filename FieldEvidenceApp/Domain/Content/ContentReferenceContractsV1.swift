@@ -243,3 +243,36 @@ extension ContentReferenceV1 {
         }
     }
 }
+
+// MARK: - C24 accessible-document audience boundary
+
+/// Accessible-document semantic trees are derived report companions.  This
+/// boundary validates the canonical tree while making the customer-safe
+/// audience requirement explicit; it never turns a content reference into a
+/// searchable node, locator, or alternate source of truth.
+enum AccessibleDocumentContentReferenceBoundaryV1 {
+    static let semanticTreeIsDerivedOnly = true
+    static let requiresCustomerSafeAudience = true
+    static let excludesOriginalBytes = true
+    static let excludesPrivateEvidence = true
+    static let excludesLocators = true
+    static let excludesAssessorIdentity = true
+
+    static func validateAudienceSafeTree(
+        _ tree: AccessibleDocumentSemanticTreeV1
+    ) throws {
+        try tree.validate()
+        guard tree.audience == .customerSafe,
+              tree.nodes.allSatisfy({ $0.sensitivity == .customerSafe }) else {
+            throw AccessibleDocumentFailureV1.privacyViolation
+        }
+    }
+
+    static func validateAssessment(
+        _ assessment: AccessibleDocumentAssessmentReceiptV1,
+        for tree: AccessibleDocumentSemanticTreeV1
+    ) throws {
+        try validateAudienceSafeTree(tree)
+        try assessment.validate(tree: tree)
+    }
+}

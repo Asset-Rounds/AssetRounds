@@ -11,6 +11,13 @@ enum IntegrationProjectionReportExclusionV1 {
     }
 }
 
+enum AccessibleDocumentProjectionRegistryV1{
+    static let semanticTreeFamily="AccessibleDocumentSemanticTreeV1"
+    static let persistence="DERIVED_ONLY"
+    static let source="REPORT_SEMANTIC_PROJECTION_V1"
+    static func build(snapshot:CompletedActivitySnapshotV1,projection:ReportSemanticProjectionV1,manifest:ContractManifestV1,layoutProfile:ReportLayoutProfileV1,workspaceID:WorkspaceID,brandProfileID:String,brandProfileRelease:Int,brandProfileSHA256:String,evidenceReferences:[OutputScopedContentReferenceV1]=[])throws->AccessibleDocumentSemanticTreeV1{try AccessibleDocumentReportSemanticTreeBuilderV1.build(snapshot:snapshot,projection:projection,manifest:manifest,layoutProfile:layoutProfile,workspaceID:workspaceID,brandProfileID:brandProfileID,brandProfileRelease:brandProfileRelease,brandProfileSHA256:brandProfileSHA256,evidenceReferences:evidenceReferences)}
+}
+
 enum ReportProjectionPublicationBoundaryV1: String, CaseIterable, Sendable {
     case beforeValidation = "BEFORE_VALIDATION"
     case afterValidation = "AFTER_VALIDATION"

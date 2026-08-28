@@ -267,3 +267,27 @@ extension ContentManifestV1 {
         }
     }
 }
+
+// MARK: - C24 accessible-document locator boundary
+
+/// A semantic-tree projection can describe recorded structure without making
+/// a private content locator reachable from an audience output.  The locator
+/// store remains the only byte resolver; this policy has no locator fields and
+/// therefore cannot leak one by construction.
+enum AccessibleDocumentLocatorBoundaryV1 {
+    static let audienceOutputMayResolveLocators = false
+    static let originalBytesMayResolveFromTree = false
+    static let hiddenEvidenceIsOmitted = true
+    static let privateLocatorsAreOmitted = true
+
+    static func validateAudienceSafeTree(
+        _ tree: AccessibleDocumentSemanticTreeV1
+    ) throws {
+        try AccessibleDocumentContentReferenceBoundaryV1.validateAudienceSafeTree(tree)
+        guard tree.nodes.allSatisfy({
+            $0.evidenceLinks.allSatisfy { !$0.evidenceID.isEmpty }
+        }) else {
+            throw AccessibleDocumentFailureV1.privacyViolation
+        }
+    }
+}

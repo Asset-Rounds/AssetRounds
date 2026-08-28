@@ -106,10 +106,11 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
     static let v20PersistentModelNames=["ClientCapabilityAdmissionDecisionRow","ClientCapabilityProfileRow","PackageLifecycleDispositionRow","PackageLifecyclePolicyRow"]
     static let v21PersistentModelNames=["RecoverabilityVerificationReceiptRow"]
     static let v22PersistentModelNames=["FieldReferenceBindingRow","FieldReferenceReleaseRow"]
+    static let v23PersistentModelNames=["AccessibleDocumentAssessmentReceiptRow"]
     static let activePersistentModelNames =
         (persistentModelNames + v6PersistentModelNames + v7PersistentModelNames
             + v8PersistentModelNames + v9PersistentModelNames + v10PersistentModelNames
-            + v11PersistentModelNames + v12PersistentModelNames + v13PersistentModelNames + v14PersistentModelNames + v15PersistentModelNames + v16PersistentModelNames + v17PersistentModelNames + v18PersistentModelNames + v19PersistentModelNames + v20PersistentModelNames + v21PersistentModelNames + v22PersistentModelNames).sorted()
+            + v11PersistentModelNames + v12PersistentModelNames + v13PersistentModelNames + v14PersistentModelNames + v15PersistentModelNames + v16PersistentModelNames + v17PersistentModelNames + v18PersistentModelNames + v19PersistentModelNames + v20PersistentModelNames + v21PersistentModelNames + v22PersistentModelNames + v23PersistentModelNames).sorted()
 
     static let ownedFileClassNames = [
         "cache", "commerceEntitlementCache", "database", "databaseSHM", "databaseWAL",
@@ -176,6 +177,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "ClientCapabilityProfileV1","ClientCapabilityAdmissionDecisionV1","PackageLifecyclePolicyV1","PackageLifecycleDispositionV1","ClientCapabilityAdmissionEvaluatorV1","ClientCapabilityLifecycleClosureV1",
         "RecoverabilityVerificationReceiptV1",
         "FieldReferenceReleaseV1","FieldReferenceBindingV1",
+        "AccessibleDocumentAssessmentReceiptV1",
     ]
 
     static let derivedIndexNames = [
@@ -226,6 +228,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "RecoverabilityFreshnessProjectionV1",
         "RecoverabilityVerificationLifecycleV1",
         "StoreSemanticEnvelopeV22","FieldReferenceOfflineReadinessV1","FieldReferencePackLifecycleV1",
+        "StoreSemanticEnvelopeV23","AccessibleDocumentSemanticTreeV1","AccessibleDocumentLifecycleV1",
         "WorkspaceMutationStateSemanticV1",
         "entityMutationRevision",
         "workspaceMutationState",
@@ -728,6 +731,7 @@ private extension CurrentSyncClassificationCatalogV1 {
         for name in v20PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[]))}
         for name in v21PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[]))}
         for name in v22PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[]))}
+        for name in v23PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[]))}
 
         for name in portableContentProjectionNames {
             let profile: AdditionalProfile = name == "ReportSnapshotV1"
@@ -1125,6 +1129,7 @@ private extension CurrentSyncClassificationCatalogV1 {
         case "RecoverabilityVerificationReceiptV1":return[try subject(category:.persistentModel,name:"RecoverabilityVerificationReceiptRow")]
         case "FieldReferenceReleaseV1":return[try subject(category:.persistentModel,name:"FieldReferenceReleaseRow")]
         case "FieldReferenceBindingV1":return[try subject(category:.persistentModel,name:"FieldReferenceBindingRow")]
+        case "AccessibleDocumentAssessmentReceiptV1":return[try subject(category:.persistentModel,name:"AccessibleDocumentAssessmentReceiptRow")]
         case "PackageSemanticDiffV1","DraftUpgradePlanV1":return []
         default:
             throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
@@ -1188,7 +1193,9 @@ private extension CurrentSyncClassificationCatalogV1 {
         case "StoreSemanticEnvelopeV20":return try subjects(category:.persistentModel,names:(activePersistentModelNames.filter{$0 != "RecoverabilityVerificationReceiptRow"}))
         case "StoreSemanticEnvelopeV21":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!v22PersistentModelNames.contains($0)})
         case "RecoverabilityVerificationStagingV1","RecoverabilityFreshnessProjectionV1","RecoverabilityVerificationLifecycleV1":return[try subject(category:.persistentModel,name:"RecoverabilityVerificationReceiptRow")]
-        case "StoreSemanticEnvelopeV22":return try subjects(category:.persistentModel,names:activePersistentModelNames)
+        case "StoreSemanticEnvelopeV22":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!v23PersistentModelNames.contains($0)})
+        case "StoreSemanticEnvelopeV23":return try subjects(category:.persistentModel,names:activePersistentModelNames)
+        case "AccessibleDocumentSemanticTreeV1","AccessibleDocumentLifecycleV1":return try subjects(category:.persistentModel,names:v23PersistentModelNames)
         case "FieldReferenceOfflineReadinessV1","FieldReferencePackLifecycleV1":return try subjects(category:.persistentModel,names:v22PersistentModelNames)
         case "IntegrationConformanceConsumerV1", "IntegrationContractRegistryV1",
              "IntegrationEventProjectionV1", "IntegrationEventV1",
@@ -1347,8 +1354,9 @@ private extension CurrentSyncClassificationCatalogV1 {
             ClientCapabilityProfileRow.self,ClientCapabilityAdmissionDecisionRow.self,PackageLifecyclePolicyRow.self,PackageLifecycleDispositionRow.self,
             RecoverabilityVerificationReceiptRow.self,
             FieldReferenceReleaseRow.self,FieldReferenceBindingRow.self,
+            AccessibleDocumentAssessmentReceiptRow.self,
         ]
-        let runtimeNames = PersistentSchemaV22.models.map { modelType in
+        let runtimeNames = PersistentSchemaV23.models.map { modelType in
             String(describing: modelType)
                 .split(separator: ".")
                 .last
@@ -1361,8 +1369,8 @@ private extension CurrentSyncClassificationCatalogV1 {
               Set(PersistentSchemaV5.models.map { ObjectIdentifier($0) })
                 == Set(frozenV5.map { ObjectIdentifier($0) }),
               frozenNames == persistentModelNames,
-              PersistentSchemaV22.models.count == expected.count,
-              Set(PersistentSchemaV22.models.map { ObjectIdentifier($0) })
+              PersistentSchemaV23.models.count == expected.count,
+              Set(PersistentSchemaV23.models.map { ObjectIdentifier($0) })
                 == Set(expected.map { ObjectIdentifier($0) }),
               runtimeNames.count == Set(runtimeNames).count,
               runtimeNames.allSatisfy(ReplicationContractValidationV1.validToken),

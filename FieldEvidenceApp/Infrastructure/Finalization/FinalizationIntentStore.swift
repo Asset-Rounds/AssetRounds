@@ -11,6 +11,11 @@ struct PreparedFinalization: Equatable, Sendable {
     let snapshotSHA256: String
 }
 
+enum FinalizationIntentAccessibleDocumentDispositionV1{
+    static let pendingTreeOnLaunch="DROP_AND_REBUILD"
+    static let acceptedAssessment="RETAIN_IMMUTABLE_HISTORY"
+}
+
 struct PromotedFinalization: Equatable, Sendable {
     let intent: FinalizationIntentV1
     let intentRelativePath: String

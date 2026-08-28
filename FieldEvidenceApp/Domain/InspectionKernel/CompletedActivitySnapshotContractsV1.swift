@@ -18,6 +18,12 @@ enum SnapshotProjectionFailureV1: Error, Equatable, Sendable {
     case incompatibleVersion
 }
 
+extension CompletedActivitySnapshotV1 {
+    func validateAccessibleDocumentTree(_ tree:AccessibleDocumentSemanticTreeV1)throws{
+        try validate();try tree.validate();guard tree.publication.snapshotSHA256==snapshotSHA256 else{throw AccessibleDocumentFailureV1.staleAssessment}
+    }
+}
+
 enum SnapshotProjectionLimitsV1 {
     static let maximumIDBytes = 128
     static let maximumTextBytes = 4_096

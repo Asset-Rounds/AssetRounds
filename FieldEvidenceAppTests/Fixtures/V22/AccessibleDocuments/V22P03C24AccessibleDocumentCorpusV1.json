@@ -1,0 +1,140 @@
+{
+  "schema": "V22P03C24AccessibleDocumentCorpusV1",
+  "schemaVersion": 1,
+  "corpusID": "c24-accessible-document-v1",
+  "cardID": "V23-P03-C24",
+  "records": 22,
+  "recordsSchemaVersion": 22,
+  "persistentSchemaVersion": 23,
+  "persistentModelCount": 85,
+  "evidenceIDs": [
+    "G01",
+    "A01",
+    "H01",
+    "I01",
+    "R01"
+  ],
+  "evidenceSelectors": [
+    {
+      "id": "G01",
+      "selector": "G01",
+      "focus": "stable semantic tree, publication binding, canonical codec and deterministic output"
+    },
+    {
+      "id": "A01",
+      "selector": "A01",
+      "focus": "headings, tables, RTL, long text, decorative figures and missing alternate text"
+    },
+    {
+      "id": "H01",
+      "selector": "H01",
+      "focus": "cycle, orphan, order, table-header, privacy, bytes and unsupported conformance claims"
+    },
+    {
+      "id": "I01",
+      "selector": "I01",
+      "focus": "tree/render/assessment interruption boundaries with zero-or-one durable state"
+    },
+    {
+      "id": "R01",
+      "selector": "R01",
+      "focus": "derived-tree rebuild, assessment successor, persistence, backup, search, localization and Erase"
+    }
+  ],
+  "roles": [
+    "DOCUMENT",
+    "SECTION",
+    "HEADING",
+    "PARAGRAPH",
+    "LIST",
+    "LIST_ITEM",
+    "TABLE",
+    "TABLE_ROW",
+    "TABLE_HEADER",
+    "TABLE_CELL",
+    "FIGURE",
+    "EVIDENCE_LINK",
+    "NOTE"
+  ],
+  "sensitivities": [
+    "CUSTOMER_SAFE",
+    "INTERNAL_ONLY"
+  ],
+  "alternateTextProvenances": [
+    "AUTHORED_FOR_SOURCE",
+    "SOURCE_CAPTION",
+    "NOT_PROVIDED"
+  ],
+  "tableHeaderScopes": [
+    "ROW",
+    "COLUMN",
+    "ROW_GROUP",
+    "COLUMN_GROUP"
+  ],
+  "assessmentStates": [
+    "INTERNAL_PASS",
+    "INTERNAL_FAIL",
+    "INCOMPLETE",
+    "EXTERNALLY_PROVED"
+  ],
+  "assessmentScopes": [
+    "CURRENT_OUTPUT",
+    "HISTORIC_SOURCE"
+  ],
+  "interruptionBoundaries": [
+    "AFTER_TREE_BEFORE_RENDER",
+    "AFTER_RENDER_BEFORE_ASSESSMENT",
+    "AFTER_ASSESSMENT_BEFORE_RETURN"
+  ],
+  "hostileCases": [
+    "orphan-parent",
+    "self-cycle",
+    "duplicate-node-id",
+    "non-contiguous-order",
+    "wrong-table-header-role",
+    "invented-alternate-text",
+    "customer-safe-internal-node",
+    "forged-tree-digest",
+    "wrong-output-bytes",
+    "stale-tree-binding",
+    "unsupported-pdf-ua-claim",
+    "unsupported-wcag-claim",
+    "unsupported-legal-claim",
+    "unsupported-brand-reconciliation"
+  ],
+  "lifecycleConsumers": [
+    "V23 schema migration",
+    "canonical semantic tree codec",
+    "existing PDF/OpenJSON renderer boundary",
+    "assessment receipt persistence",
+    "backup and restore identity",
+    "local report/search projection",
+    "localization and RTL presentation",
+    "derived-tree rebuild after recovery",
+    "successor-only assessment correction",
+    "governed delete and workspace Erase"
+  ],
+  "privacyExclusions": [
+    "remote provider identity",
+    "account or credential identity",
+    "external copy availability",
+    "network fetching",
+    "customer content outside the local workspace",
+    "legal or accessibility certification"
+  ],
+  "forbiddenClaims": [
+    "PDF/UA certification",
+    "WCAG certification",
+    "legal accessibility compliance",
+    "brand reconciliation",
+    "remote renderer availability",
+    "external copy availability",
+    "cloud or network durability"
+  ],
+  "derivedTreeOnly": true,
+  "externalCopyAvailabilityClaimed": false,
+  "runtimeFetchingAllowed": false,
+  "noVisualCertificationClaim": true,
+  "noSecondWriter": true,
+  "noSecondStore": true
+}

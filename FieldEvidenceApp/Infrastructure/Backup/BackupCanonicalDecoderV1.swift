@@ -67,6 +67,7 @@ struct BackupCanonicalDecoderV1: Sendable {
             try Self.validateClientCapabilities(value)
             try Self.validateRecoverabilityReceipts(value)
             try Self.validateFieldReferences(value)
+            try Self.validateAccessibleDocumentAssessments(value)
             let canonical = try BackupCanonicalEncoderV1().encodeRecords(value).data
             guard canonical == data else {
                 throw BackupCanonicalDecodingErrorV1.invalidRecords
@@ -79,6 +80,14 @@ struct BackupCanonicalDecoderV1: Sendable {
 }
 
 private extension BackupCanonicalDecoderV1 {
+    static func validateAccessibleDocumentAssessments(_ records:V4BackupRecordsV1)throws{
+        guard records.recordsSchemaVersion>=22 else{guard records.accessibleDocumentAssessments.isEmpty else{throw BackupCanonicalDecodingErrorV1.invalidRecords};return}
+        guard records.recordsSchemaVersion==22 else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
+        var values:[UUID:AccessibleDocumentAssessmentReceiptV1]=[:],children:[UUID:Int]=[:]
+        for record in records.accessibleDocumentAssessments{let value=try AccessibleDocumentCanonicalCodecV1.decode(AccessibleDocumentAssessmentReceiptV1.self,from:record.canonicalData);try value.validateIntrinsic();guard record.id==value.receiptID,record.workspaceID==value.workspaceID.rawValue,record.revision==value.revision,values.updateValue(value,forKey:value.receiptID)==nil else{throw BackupCanonicalDecodingErrorV1.invalidRecords}}
+        for value in values.values{if let predecessorID=value.supersedesReceiptID{guard let predecessor=values[predecessorID],predecessor.workspaceID==value.workspaceID,predecessor.treeSHA256==value.treeSHA256,predecessor.outputSHA256==value.outputSHA256,predecessor.revision<UInt64.max,value.revision==predecessor.revision+1 else{throw BackupCanonicalDecodingErrorV1.invalidRecords};children[predecessorID,default:0]+=1;guard children[predecessorID]==1 else{throw BackupCanonicalDecodingErrorV1.invalidRecords}}else if value.revision != 1{throw BackupCanonicalDecodingErrorV1.invalidRecords}}
+        for start in values.keys{var seen=Set<UUID>(),cursor:UUID?=start;while let id=cursor{guard seen.insert(id).inserted else{throw BackupCanonicalDecodingErrorV1.invalidRecords};cursor=values[id]?.supersedesReceiptID}}
+    }
     static func validateFieldReferences(_ records: V4BackupRecordsV1) throws {
         guard records.recordsSchemaVersion >= 21 else {
             guard records.fieldReferences.isEmpty else { throw BackupCanonicalDecodingErrorV1.invalidRecords }

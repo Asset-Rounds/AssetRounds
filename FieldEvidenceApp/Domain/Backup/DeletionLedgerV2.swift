@@ -22,6 +22,7 @@ struct DeletionLedgerProofV2: Codable, Equatable, Sendable {
         try ClientCapabilityDeletionLedgerPolicyV1.validate()
         try RecoverabilityVerificationDeletionLedgerPolicyV1.validate()
         try FieldReferenceDeletionLedgerPolicyV1.validate()
+        try AccessibleDocumentDeletionLedgerPolicyV1.validate()
         let allowed = CharacterSet(charactersIn: "0123456789abcdef")
         guard entryCount >= 0,
               canonicalSHA256.utf8.count == 64,
@@ -33,6 +34,7 @@ struct DeletionLedgerProofV2: Codable, Equatable, Sendable {
 enum ClientCapabilityDeletionLedgerPolicyV1{static func validate()throws{guard V20BackupClientCapabilityRecordV1.Kind.allCases.count==4 else{throw DeletionLedgerFailureV2.invalidSchemaVersion}}}
 enum RecoverabilityVerificationDeletionLedgerPolicyV1{static func validate()throws{guard RecoverabilityVerificationReceiptV1.schemaVersion==1 else{throw DeletionLedgerFailureV2.invalidSchemaVersion}}}
 enum FieldReferenceDeletionLedgerPolicyV1{static let immutableKinds=["FieldReferenceReleaseV1","FieldReferenceBindingV1"];static let ordinaryDeletionRetainsBoundAndFinalizedBytes=true;static let workspaceEraseRemovesRowsAndOwnedBytes=true;static func validate()throws{guard V22BackupFieldReferenceRecordV1.Kind.allCases.count==2,FieldReferencePackLifecycleV1.stagingPersistence=="DERIVED_ONLY",immutableKinds==FieldReferencePackLifecycleV1.persistentFamilies,ordinaryDeletionRetainsBoundAndFinalizedBytes,workspaceEraseRemovesRowsAndOwnedBytes else{throw DeletionLedgerFailureV2.invalidSchemaVersion}}}
+enum AccessibleDocumentDeletionLedgerPolicyV1{static let ordinaryDeletionPreservesAcceptedReceiptAndOutput=true;static let removalRequiresPrivacyExpiryTombstoneAndRedactionProof=true;static let workspaceEraseRemovesReceiptAndOwnedOutput=true;static func validate()throws{guard AccessibleDocumentLifecycleV1.persistentFamilies==["AccessibleDocumentAssessmentReceiptV1"],AccessibleDocumentLifecycleV1.semanticTreePersistence=="DERIVED_ONLY",ordinaryDeletionPreservesAcceptedReceiptAndOutput,removalRequiresPrivacyExpiryTombstoneAndRedactionProof,workspaceEraseRemovesReceiptAndOwnedOutput else{throw DeletionLedgerFailureV2.invalidSchemaVersion}}}
 
 /// The closed set of persisted content kinds. System rows such as the schema
 /// marker and deletion-ledger rows are deliberately outside this registry.

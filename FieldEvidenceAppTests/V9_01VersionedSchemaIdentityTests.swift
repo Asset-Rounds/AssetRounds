@@ -894,6 +894,15 @@ final class V9_01VersionedSchemaIdentityTests: XCTestCase {
 }
 
 extension V9_01VersionedSchemaIdentityTests {
+    func testC24AccessibleDocumentTypedAnchor() throws {
+        XCTAssertEqual(AccessibleDocumentSemanticTreeV1.schemaVersion, 1)
+        XCTAssertEqual(AccessibleDocumentRoleV1.allCases.count, 13)
+        XCTAssertEqual(AccessibleDocumentAssessmentStateV1.allCases.count, 4)
+        XCTAssertFalse(AccessibleDocumentLifecycleV1.pdfUAClaimed)
+    }
+}
+
+extension V9_01VersionedSchemaIdentityTests {
     func testC22RecoverabilityVerificationAnchor() throws {
         XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)
         try V21RecoverabilityImportBoundaryV1.validate(persistentSchemaVersion: 21, recordsSchemaVersion: 20)

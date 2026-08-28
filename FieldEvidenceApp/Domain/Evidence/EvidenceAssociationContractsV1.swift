@@ -9,6 +9,13 @@ enum EvidenceTargetKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case workRecord = "WORK_RECORD"
 }
 
+extension EvidenceAssociationV1 {
+    func accessibleEvidenceLink(evidenceSHA256:String,mediaType:String = "application/octet-stream")throws->AccessibleEvidenceLinkV1{
+        guard action != .removed else{throw AccessibleDocumentFailureV1.missingEvidence}
+        return try AccessibleEvidenceLinkV1(evidenceID:evidenceID,evidenceSHA256:evidenceSHA256,mediaType:mediaType)
+    }
+}
+
 struct EvidenceAssociationTargetV1: Codable, Equatable, Hashable, Sendable {
     let workspaceID: String
     let kind: EvidenceTargetKindV1

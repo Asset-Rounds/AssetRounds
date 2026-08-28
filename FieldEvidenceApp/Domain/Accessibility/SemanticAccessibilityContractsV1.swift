@@ -1400,3 +1400,136 @@ enum FieldReferenceAccessibilityPolicyV1 {
         }
     }
 }
+
+// MARK: - C24 accessible-document semantics
+
+/// Stable semantic IDs for the canonical accessible-document tree.  The IDs
+/// describe recorded structure and assessment facts only; they are not
+/// conformance claims, evidence locators, or assessor identity.
+enum AccessibleDocumentAccessibilityIDV1: String, Codable, CaseIterable, Sendable {
+    case screen = "accessible.document.screen"
+    case heading = "accessible.document.heading"
+    case node = "accessible.document.node"
+    case role = "accessible.document.role"
+    case roleDocument = "accessible.document.role.document"
+    case roleSection = "accessible.document.role.section"
+    case roleHeading = "accessible.document.role.heading"
+    case roleParagraph = "accessible.document.role.paragraph"
+    case roleList = "accessible.document.role.list"
+    case roleListItem = "accessible.document.role.list-item"
+    case roleTable = "accessible.document.role.table"
+    case roleTableRow = "accessible.document.role.table-row"
+    case roleTableHeader = "accessible.document.role.table-header"
+    case roleTableCell = "accessible.document.role.table-cell"
+    case roleFigure = "accessible.document.role.figure"
+    case roleEvidenceLink = "accessible.document.role.evidence-link"
+    case roleNote = "accessible.document.role.note"
+    case alternateText = "accessible.document.alternate-text"
+    case alternateTextProvenance = "accessible.document.alternate-text.provenance"
+    case alternateTextAuthoredForSource = "accessible.document.alternate-text.provenance.authored-for-source"
+    case alternateTextSourceCaption = "accessible.document.alternate-text.provenance.source-caption"
+    case alternateTextNotProvided = "accessible.document.alternate-text.provenance.not-provided"
+    case decorativeFigure = "accessible.document.figure.decorative"
+    case describedFigure = "accessible.document.figure.described"
+    case assessment = "accessible.document.assessment"
+    case assessmentInternalPass = "accessible.document.assessment.internal-pass"
+    case assessmentInternalFail = "accessible.document.assessment.internal-fail"
+    case assessmentIncomplete = "accessible.document.assessment.incomplete"
+    case assessmentExternallyProved = "accessible.document.assessment.external-proof-recorded"
+    case evidence = "accessible.document.evidence"
+    case evidenceLimited = "accessible.document.evidence.limited"
+    case claimBoundary = "accessible.document.claim-boundary"
+    case nextStep = "accessible.document.next-step"
+
+    var localizationKey: LocalizationKeyV1 {
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+}
+
+enum AccessibleDocumentAccessibilityPolicyV1 {
+    static let semanticIDs = AccessibleDocumentAccessibilityIDV1.allCases.map(\.rawValue)
+    static let stateSemanticIDs: Set<String> = Set([
+        AccessibleDocumentAccessibilityIDV1.alternateTextAuthoredForSource,
+        AccessibleDocumentAccessibilityIDV1.alternateTextSourceCaption,
+        AccessibleDocumentAccessibilityIDV1.alternateTextNotProvided,
+        AccessibleDocumentAccessibilityIDV1.decorativeFigure,
+        AccessibleDocumentAccessibilityIDV1.describedFigure,
+        AccessibleDocumentAccessibilityIDV1.assessmentInternalPass,
+        AccessibleDocumentAccessibilityIDV1.assessmentInternalFail,
+        AccessibleDocumentAccessibilityIDV1.assessmentIncomplete,
+        AccessibleDocumentAccessibilityIDV1.assessmentExternallyProved,
+        AccessibleDocumentAccessibilityIDV1.evidenceLimited,
+        AccessibleDocumentAccessibilityIDV1.claimBoundary,
+    ].map(\.rawValue))
+    static let indeterminateSemanticIDs: Set<String> = Set([
+        AccessibleDocumentAccessibilityIDV1.alternateTextNotProvided,
+        AccessibleDocumentAccessibilityIDV1.assessmentInternalFail,
+        AccessibleDocumentAccessibilityIDV1.assessmentIncomplete,
+        AccessibleDocumentAccessibilityIDV1.evidenceLimited,
+        AccessibleDocumentAccessibilityIDV1.claimBoundary,
+    ].map(\.rawValue))
+    static let statusSemanticIDs = stateSemanticIDs
+    static let denyByDefault = true
+    static let nonColorStateTextRequired = true
+    static let textAlternativeRequired = true
+    static let textAndIconRequiredForIndeterminateStates = true
+    static let actionableNextStepRequiredForIndeterminateStates = true
+    static let colorOnlyStateAllowed = false
+    static let iconOnlyStateAllowed = false
+    static let motionOnlyStateAllowed = false
+    static let excludesOriginalEvidence = true
+    static let excludesPrivateEvidence = true
+    static let excludesAssessorIdentity = true
+    static let excludesPrivateLocators = true
+    static let excludesUnsupportedConformanceClaims = true
+
+    static func requiresTextAndIcon(for semanticID: String) -> Bool {
+        indeterminateSemanticIDs.contains(semanticID)
+    }
+
+    static func requiresActionableNextStep(for semanticID: String) -> Bool {
+        indeterminateSemanticIDs.contains(semanticID)
+    }
+
+    static func roleID(
+        _ value: AccessibleDocumentRoleV1
+    ) -> AccessibleDocumentAccessibilityIDV1 {
+        switch value {
+        case .document: return .roleDocument
+        case .section: return .roleSection
+        case .heading: return .roleHeading
+        case .paragraph: return .roleParagraph
+        case .list: return .roleList
+        case .listItem: return .roleListItem
+        case .table: return .roleTable
+        case .tableRow: return .roleTableRow
+        case .tableHeader: return .roleTableHeader
+        case .tableCell: return .roleTableCell
+        case .figure: return .roleFigure
+        case .evidenceLink: return .roleEvidenceLink
+        case .note: return .roleNote
+        }
+    }
+
+    static func alternateTextProvenanceID(
+        _ value: AccessibleAlternateTextProvenanceV1
+    ) -> AccessibleDocumentAccessibilityIDV1 {
+        switch value {
+        case .authoredForSource: return .alternateTextAuthoredForSource
+        case .sourceCaption: return .alternateTextSourceCaption
+        case .notProvided: return .alternateTextNotProvided
+        }
+    }
+
+    static func assessmentStateID(
+        _ value: AccessibleDocumentAssessmentStateV1
+    ) -> AccessibleDocumentAccessibilityIDV1 {
+        switch value {
+        case .internalPass: return .assessmentInternalPass
+        case .internalFail: return .assessmentInternalFail
+        case .incomplete: return .assessmentIncomplete
+        case .externallyProved: return .assessmentExternallyProved
+        }
+    }
+}

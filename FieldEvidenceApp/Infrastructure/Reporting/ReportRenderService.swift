@@ -17,6 +17,11 @@ enum ReportRenderServiceError: Error, Equatable {
     case failedStateSaveFailed
 }
 
+enum ReportRenderAccessibleDocumentBoundaryV1{
+    static func bind(bytes:Data,mediaType:String,rendererID:String,rendererVersion:String)throws->AccessibleDocumentRenderOutputV1{try .init(bytes:bytes,mediaType:mediaType,rendererID:rendererID,rendererVersion:rendererVersion)}
+    static let secondRendererIntroduced=false
+}
+
 /// Uses no-follow directory descriptors and non-recursive `unlinkat` for
 /// report-owned PDF descendants. Ancestor replacement cannot redirect a read
 /// or deletion outside the opened generation tree.

@@ -1864,3 +1864,18 @@ enum EvidenceBundleStoreC36GuardV1 {
         }
     }
 }
+
+// MARK: - C24 accessible-document content boundary
+
+extension EvidenceBundleStore {
+    /// Accessible-document summaries never read or write the evidence bundle.
+    /// This seam exists so callers can prove the audience/privacy boundary at
+    /// the existing media owner without creating a second store.
+    static func validateAccessibleDocumentProjection(
+        _ tree: AccessibleDocumentSemanticTreeV1,
+        assessment: AccessibleDocumentAssessmentReceiptV1? = nil
+    ) throws {
+        try AccessibleDocumentPrivacyTransformBoundaryV1
+            .validateAudienceSafeProjection(tree, assessment: assessment)
+    }
+}

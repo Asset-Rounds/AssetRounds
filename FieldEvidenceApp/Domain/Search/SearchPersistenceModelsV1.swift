@@ -734,3 +734,73 @@ struct FieldReferenceSearchPersistencePolicyV1: Codable, Equatable, Sendable {
 extension SearchPersistenceReleaseV1 {
     static let fieldReferencePolicy = FieldReferenceSearchPersistencePolicyV1()
 }
+
+// MARK: - C24 accessible-document search persistence
+
+/// C24 search rows are disposable summaries rebuilt from the canonical
+/// audience-safe semantic tree.  No semantic tree, node text, evidence link,
+/// original byte, locator, or assessor identity is a persistence input.
+struct AccessibleDocumentSearchPersistencePolicyV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let sourceSchema: String
+    let searchPersistenceRelease: SearchPersistenceReleaseV1
+    let fieldIDs: [String]
+    let metadataOnly: Bool
+    let derivedOnly: Bool
+    let customerSafeOnly: Bool
+    let excludesSemanticTree: Bool
+    let excludesNodeText: Bool
+    let excludesOriginalEvidence: Bool
+    let excludesEvidenceLinks: Bool
+    let excludesAssessorIdentity: Bool
+    let excludesPrivateLocators: Bool
+    let excludesUnsupportedClaims: Bool
+    let dropAndRebuildAfterRestore: Bool
+    let dropAndRebuildOnReplay: Bool
+
+    init() {
+        schemaVersion = Self.schemaVersion
+        sourceSchema = AccessibleDocumentSearchProjectionPolicyV1.semanticLabel
+        searchPersistenceRelease = .v7
+        fieldIDs = AccessibleDocumentSearchProjectionPolicyV1.fieldIDs.sorted()
+        metadataOnly = true
+        derivedOnly = true
+        customerSafeOnly = true
+        excludesSemanticTree = true
+        excludesNodeText = true
+        excludesOriginalEvidence = true
+        excludesEvidenceLinks = true
+        excludesAssessorIdentity = true
+        excludesPrivateLocators = true
+        excludesUnsupportedClaims = true
+        dropAndRebuildAfterRestore = true
+        dropAndRebuildOnReplay = true
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              sourceSchema == AccessibleDocumentSearchProjectionPolicyV1.semanticLabel,
+              searchPersistenceRelease == .v7,
+              fieldIDs == AccessibleDocumentSearchProjectionPolicyV1.fieldIDs.sorted(),
+              metadataOnly,
+              derivedOnly,
+              customerSafeOnly,
+              excludesSemanticTree,
+              excludesNodeText,
+              excludesOriginalEvidence,
+              excludesEvidenceLinks,
+              excludesAssessorIdentity,
+              excludesPrivateLocators,
+              excludesUnsupportedClaims,
+              dropAndRebuildAfterRestore,
+              dropAndRebuildOnReplay else {
+            throw SearchContractFailureV1.invalidField
+        }
+    }
+}
+
+extension SearchPersistenceReleaseV1 {
+    static let accessibleDocumentPolicy = AccessibleDocumentSearchPersistencePolicyV1()
+}

@@ -211,3 +211,20 @@ enum LocalContentStoreDraftBoundaryV1 {
             .validate(workspaceID: workspaceID, draftID: draftID)
     }
 }
+
+// MARK: - C24 accessible-document content consumer
+
+extension LocalContentStoreV1 {
+    /// Validates the report companion at the content boundary without
+    /// resolving bytes or exposing a locator.  Semantic-tree data remains a
+    /// disposable derivative of the canonical report snapshot.
+    func validateAccessibleDocumentProjection(
+        _ tree: AccessibleDocumentSemanticTreeV1
+    ) throws {
+        guard tree.workspaceID.rawValue.uuidString.lowercased() == workspaceID else {
+            throw ContentContractFailureV1.wrongWorkspace
+        }
+        try AccessibleDocumentPrivacyTransformBoundaryV1
+            .validateAudienceSafeProjection(tree)
+    }
+}

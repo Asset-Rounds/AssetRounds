@@ -110,6 +110,11 @@ struct ReportSnapshotV1: Codable, Equatable, Sendable {
     }
 }
 
+enum ReportSnapshotAccessibleDocumentBoundaryV1{
+    static let semanticTreeFieldStoredInSnapshot=false
+    static let rebuildUsesFrozenSnapshotOnly=true
+}
+
 // MARK: - C23 metadata-only reference projection
 
 extension ReportSnapshotV1 {

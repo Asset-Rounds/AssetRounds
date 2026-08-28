@@ -21,6 +21,12 @@ final class ReportLaunchAttemptRegistry {
     }
 }
 
+enum ReportRecoveryAccessibleDocumentPolicyV1{
+    static let unacceptedTree="DROP_AND_REBUILD_FROM_FROZEN_SNAPSHOT"
+    static let acceptedReceipt="REVALIDATE_INTRINSIC_THEN_REBUILD_TREE_CLOSURE"
+    static func rebuild(receipt:AccessibleDocumentAssessmentReceiptV1,resolver:any AccessibleDocumentSemanticTreeResolvingV1)async throws->AccessibleDocumentSemanticTreeV1{try receipt.validateIntrinsic();return try await resolver.resolveValidatedTree(for:receipt)}
+}
+
 enum ReportRecoveryServiceError: Error, Equatable {
     case contextHasChanges
     case invalidAuthority

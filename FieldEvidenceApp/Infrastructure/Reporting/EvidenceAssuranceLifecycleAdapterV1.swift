@@ -6,3 +6,8 @@ import SwiftData
     func preview(previewID:UUID,workspaceID:WorkspaceID,audience:EvidenceAudienceV1,snapshotSHA256:String,projectionVersion:String,createdAt:Date)throws->AssuranceProjectionPreviewV1{try .init(previewID:previewID,workspaceID:workspaceID,audience:audience,snapshotSHA256:snapshotSHA256,projectionVersion:projectionVersion,links:currentLinks(workspaceID:workspaceID,audience:audience),createdAt:createdAt)}
     func manifest(id:UUID,workspaceID:WorkspaceID,revision:UInt64,sha256:String)throws->AssuranceManifestV1{let rows=try modelContext.fetch(FetchDescriptor<AssuranceManifestRow>(predicate:#Predicate{$0.manifestID==id}));guard rows.count==1,let row=rows.first else{throw EvidenceAssuranceFailureV1.invalidValue};return try row.exactReference(id:id,workspaceID:workspaceID,revision:revision,sha256:sha256)}
 }
+
+enum EvidenceAssuranceAccessibleDocumentLifecycleV1{
+    static let externalProofRequiresCanonicalEvidenceLinks=true
+    static let assessmentDoesNotReplaceAssuranceManifest=true
+}

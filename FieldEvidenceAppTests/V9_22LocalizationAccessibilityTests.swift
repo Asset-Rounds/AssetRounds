@@ -1786,6 +1786,15 @@ final class V9_22LocalizationAccessibilityTests: XCTestCase {
 }
 
 extension V9_22LocalizationAccessibilityTests {
+    func testC24AccessibleDocumentTypedAnchor() throws {
+        XCTAssertEqual(AccessibleDocumentSemanticTreeV1.schemaVersion, 1)
+        XCTAssertEqual(AccessibleDocumentRoleV1.allCases.count, 13)
+        XCTAssertEqual(AccessibleDocumentAssessmentStateV1.allCases.count, 4)
+        XCTAssertFalse(AccessibleDocumentLifecycleV1.pdfUAClaimed)
+    }
+}
+
+extension V9_22LocalizationAccessibilityTests {
     func testV23P03C18LocalizationBindingCanonicalizesOrdering() throws {
         let first = try PackageSemanticReleaseBindingsV1(
             localizationReleaseSHA256: String(repeating: "4", count: 64),

@@ -555,3 +555,28 @@ extension ContentIntegrityV1 {
         }
     }
 }
+
+// MARK: - C24 accessible-document integrity boundary
+
+/// Integrity checks for C24 are digest and structure checks over the
+/// canonical tree/assessment.  No semantic node text, evidence bytes, or
+/// private locator is copied into an integrity record.
+enum AccessibleDocumentIntegrityBoundaryV1 {
+    static let validatesStructureAndDigestOnly = true
+    static let readsOriginalBytes = false
+    static let persistsSemanticTree = false
+    static let includesAssessorIdentity = false
+
+    static func validateTree(_ tree: AccessibleDocumentSemanticTreeV1) throws {
+        try AccessibleDocumentPrivacyTransformBoundaryV1
+            .validateAudienceSafeProjection(tree)
+    }
+
+    static func validateAssessment(
+        _ assessment: AccessibleDocumentAssessmentReceiptV1,
+        for tree: AccessibleDocumentSemanticTreeV1
+    ) throws {
+        try AccessibleDocumentPrivacyTransformBoundaryV1
+            .validateAudienceSafeProjection(tree, assessment: assessment)
+    }
+}

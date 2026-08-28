@@ -673,6 +673,15 @@ final class V9_19LocalSearchTests: XCTestCase {
 }
 
 extension V9_19LocalSearchTests {
+    func testC24AccessibleDocumentTypedAnchor() throws {
+        XCTAssertEqual(AccessibleDocumentSemanticTreeV1.schemaVersion, 1)
+        XCTAssertEqual(AccessibleDocumentRoleV1.allCases.count, 13)
+        XCTAssertEqual(AccessibleDocumentAssessmentStateV1.allCases.count, 4)
+        XCTAssertFalse(AccessibleDocumentLifecycleV1.pdfUAClaimed)
+    }
+}
+
+extension V9_19LocalSearchTests {
     func testV23P03C18SearchRebuildUsesDedicatedTypedSandboxCheck() throws {
         XCTAssertTrue(PackageSandboxCheckKindV1.allCases.contains(.searchRebuild))
         XCTAssertTrue(PackageSandboxCheckKindV1.allCases.contains(.replay))

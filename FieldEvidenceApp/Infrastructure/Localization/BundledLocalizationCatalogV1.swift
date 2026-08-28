@@ -396,6 +396,40 @@ enum BundledLocalizationKeyV1: String, CaseIterable, Sendable {
     case fieldReferenceMissingContent = "field.reference.missing-content"
     case fieldReferenceNextStep = "field.reference.next-step"
 
+    case accessibleDocumentScreen = "accessible.document.screen"
+    case accessibleDocumentHeading = "accessible.document.heading"
+    case accessibleDocumentNode = "accessible.document.node"
+    case accessibleDocumentRole = "accessible.document.role"
+    case accessibleDocumentRoleDocument = "accessible.document.role.document"
+    case accessibleDocumentRoleSection = "accessible.document.role.section"
+    case accessibleDocumentRoleHeading = "accessible.document.role.heading"
+    case accessibleDocumentRoleParagraph = "accessible.document.role.paragraph"
+    case accessibleDocumentRoleList = "accessible.document.role.list"
+    case accessibleDocumentRoleListItem = "accessible.document.role.list-item"
+    case accessibleDocumentRoleTable = "accessible.document.role.table"
+    case accessibleDocumentRoleTableRow = "accessible.document.role.table-row"
+    case accessibleDocumentRoleTableHeader = "accessible.document.role.table-header"
+    case accessibleDocumentRoleTableCell = "accessible.document.role.table-cell"
+    case accessibleDocumentRoleFigure = "accessible.document.role.figure"
+    case accessibleDocumentRoleEvidenceLink = "accessible.document.role.evidence-link"
+    case accessibleDocumentRoleNote = "accessible.document.role.note"
+    case accessibleDocumentAlternateText = "accessible.document.alternate-text"
+    case accessibleDocumentAlternateTextProvenance = "accessible.document.alternate-text.provenance"
+    case accessibleDocumentAlternateTextAuthoredForSource = "accessible.document.alternate-text.provenance.authored-for-source"
+    case accessibleDocumentAlternateTextSourceCaption = "accessible.document.alternate-text.provenance.source-caption"
+    case accessibleDocumentAlternateTextNotProvided = "accessible.document.alternate-text.provenance.not-provided"
+    case accessibleDocumentDecorativeFigure = "accessible.document.figure.decorative"
+    case accessibleDocumentDescribedFigure = "accessible.document.figure.described"
+    case accessibleDocumentAssessment = "accessible.document.assessment"
+    case accessibleDocumentAssessmentInternalPass = "accessible.document.assessment.internal-pass"
+    case accessibleDocumentAssessmentInternalFail = "accessible.document.assessment.internal-fail"
+    case accessibleDocumentAssessmentIncomplete = "accessible.document.assessment.incomplete"
+    case accessibleDocumentAssessmentExternallyProved = "accessible.document.assessment.external-proof-recorded"
+    case accessibleDocumentEvidence = "accessible.document.evidence"
+    case accessibleDocumentEvidenceLimited = "accessible.document.evidence.limited"
+    case accessibleDocumentClaimBoundary = "accessible.document.claim-boundary"
+    case accessibleDocumentNextStep = "accessible.document.next-step"
+
     static var functionalRelationshipDirected: Self { .functionalRelationshipDirectedSourceToTarget }
     static var functionalRelationshipActive: Self { .functionalRelationshipActiveState }
     static var functionalRelationshipEnded: Self { .functionalRelationshipEndedState }
@@ -2388,6 +2422,7 @@ enum BundledLocalizationCatalogV1 {
         includePrivacyTransform: Bool = false,
         includeClientCapability: Bool = false,
         includeFieldReference: Bool = false,
+        includeAccessibleDocument: Bool = false,
         interruption: Interruption = { _ in }
     ) throws -> LocalizationCatalogPublicationV1 {
         try interruption(.beforeValidation)
@@ -2395,7 +2430,9 @@ enum BundledLocalizationCatalogV1 {
         let locales = LocalizationLocaleManifestV1.shippingV1()
         try locales.validate()
         let keys: LocalizationKeyRegistryV1
-        if includeFieldReference {
+        if includeAccessibleDocument {
+            keys = try accessibleDocumentRegistry()
+        } else if includeFieldReference {
             keys = try fieldReferenceRegistry()
         } else if includeClientCapability {
             keys = try clientCapabilityRegistry()
@@ -2430,7 +2467,9 @@ enum BundledLocalizationCatalogV1 {
         }
         if let previousLegacy { try previousLegacy.validateObserved(legacy.entries) }
         let accessibility: SemanticAccessibilityIDRegistryV1
-        if includeFieldReference {
+        if includeAccessibleDocument {
+            accessibility = try accessibleDocumentAccessibilityRegistry(localization: keys)
+        } else if includeFieldReference {
             accessibility = try fieldReferenceAccessibilityRegistry(localization: keys)
         } else if includeClientCapability {
             accessibility = try clientCapabilityAccessibilityRegistry(localization: keys)
@@ -2511,7 +2550,8 @@ enum BundledLocalizationCatalogV1 {
         includeMeasurementIntegrity: Bool = false,
         includePrivacyTransform: Bool = false,
         includeClientCapability: Bool = false,
-        includeFieldReference: Bool = false
+        includeFieldReference: Bool = false,
+        includeAccessibleDocument: Bool = false
     ) throws -> LocalizationCatalogPublicationV1 {
         switch (sourceCatalogBytes, receipt) {
         case (nil, nil): return .zero
@@ -2536,7 +2576,8 @@ enum BundledLocalizationCatalogV1 {
                 includeMeasurementIntegrity: includeMeasurementIntegrity,
                 includePrivacyTransform: includePrivacyTransform,
                 includeClientCapability: includeClientCapability,
-                includeFieldReference: includeFieldReference
+                includeFieldReference: includeFieldReference,
+                includeAccessibleDocument: includeAccessibleDocument
             )
             guard case let .complete(_, _, _, _, actual) = publication,
                   actual == expected else { throw LocalizationContractFailureV1.digestMismatch }
@@ -3103,6 +3144,40 @@ enum BundledLocalizationCatalogV1 {
              .fieldReferenceMissingContent,
              .fieldReferenceNextStep:
             return FieldReferenceLocalizationKeyV1(rawValue: key.rawValue)?.englishDefaultValue ?? key.rawValue
+        case .accessibleDocumentScreen,
+             .accessibleDocumentHeading,
+             .accessibleDocumentNode,
+             .accessibleDocumentRole,
+             .accessibleDocumentRoleDocument,
+             .accessibleDocumentRoleSection,
+             .accessibleDocumentRoleHeading,
+             .accessibleDocumentRoleParagraph,
+             .accessibleDocumentRoleList,
+             .accessibleDocumentRoleListItem,
+             .accessibleDocumentRoleTable,
+             .accessibleDocumentRoleTableRow,
+             .accessibleDocumentRoleTableHeader,
+             .accessibleDocumentRoleTableCell,
+             .accessibleDocumentRoleFigure,
+             .accessibleDocumentRoleEvidenceLink,
+             .accessibleDocumentRoleNote,
+             .accessibleDocumentAlternateText,
+             .accessibleDocumentAlternateTextProvenance,
+             .accessibleDocumentAlternateTextAuthoredForSource,
+             .accessibleDocumentAlternateTextSourceCaption,
+             .accessibleDocumentAlternateTextNotProvided,
+             .accessibleDocumentDecorativeFigure,
+             .accessibleDocumentDescribedFigure,
+             .accessibleDocumentAssessment,
+             .accessibleDocumentAssessmentInternalPass,
+             .accessibleDocumentAssessmentInternalFail,
+             .accessibleDocumentAssessmentIncomplete,
+             .accessibleDocumentAssessmentExternallyProved,
+             .accessibleDocumentEvidence,
+             .accessibleDocumentEvidenceLimited,
+             .accessibleDocumentClaimBoundary,
+             .accessibleDocumentNextStep:
+            return AccessibleDocumentLocalizationKeyV1(rawValue: key.rawValue)?.englishDefaultValue ?? key.rawValue
         }
     }
 
@@ -3160,6 +3235,9 @@ enum BundledLocalizationCatalogV1 {
         // aware of its closed keys even when an older caller requests the
         // predecessor registry.
         supportedKeys.formUnion(FieldReferenceLocalizationKeyV1.allCases.map(\.rawValue))
+        // C24 is an additive accessible-document consumer registry.  Source
+        // catalog validation remains English-only and closed to these keys.
+        supportedKeys.formUnion(AccessibleDocumentLocalizationKeyV1.allCases.map(\.rawValue))
         guard registeredKeys.isSubset(of: Set(strings.keys)),
               Set(strings.keys).isSubset(of: supportedKeys) else {
             throw LocalizationContractFailureV1.invalidValue
@@ -3344,6 +3422,73 @@ extension BundledLocalizationCatalogV1 {
 
     static func fieldReferenceDisplayLabel(
         for key: FieldReferenceLocalizationKeyV1
+    ) -> String {
+        guard let bundled = BundledLocalizationKeyV1(rawValue: key.rawValue) else {
+            return key.englishDefaultValue
+        }
+        return localized(bundled)
+    }
+}
+
+// MARK: - C24 accessible-document labels
+
+extension BundledLocalizationCatalogV1 {
+    /// C24 adds only the closed English accessible-document vocabulary to the
+    /// existing catalog.  Tree values, evidence locators, and assessor
+    /// identity remain outside the localization registry.
+    static func accessibleDocumentRegistry() throws -> LocalizationKeyRegistryV1 {
+        let base = try fieldReferenceRegistry()
+        let additions = try AccessibleDocumentLocalizationKeyV1.allCases.map { key in
+            guard let bundledKey = BundledLocalizationKeyV1(rawValue: key.rawValue) else {
+                throw LocalizationContractFailureV1.missingKey
+            }
+            return try definition(
+                bundledKey,
+                key.rawValue,
+                key.englishDefaultValue,
+                key.translatorComment
+            )
+        }
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+
+    static func accessibleDocumentAccessibilityRegistry(
+        localization: LocalizationKeyRegistryV1
+    ) throws -> SemanticAccessibilityIDRegistryV1 {
+        let base = try fieldReferenceAccessibilityRegistry(localization: localization)
+        let entries = try AccessibleDocumentAccessibilityIDV1.allCases.map {
+            id -> AccessibilityContractV1 in
+            let role: SemanticAccessibilityRoleV1
+            switch id {
+            case .screen: role = .screen
+            case .heading: role = .heading
+            case .nextStep: role = .button
+            default:
+                role = AccessibleDocumentAccessibilityPolicyV1.stateSemanticIDs
+                    .contains(id.rawValue) ? .status : .group
+            }
+            let hintKey: LocalizationKeyV1? =
+                AccessibleDocumentAccessibilityPolicyV1.requiresActionableNextStep(
+                    for: id.rawValue
+                )
+                ? AccessibleDocumentLocalizationKeyV1.nextStep.localizationKey
+                : nil
+            return AccessibilityContractV1(
+                semanticID: id.rawValue,
+                role: role,
+                reachability: .whenAvailable,
+                labelKey: id.localizationKey,
+                hintKey: hintKey,
+                valueKey: nil,
+                dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            )
+        }
+        return try base.appending(entries, localization: localization)
+    }
+
+    static func accessibleDocumentDisplayLabel(
+        for key: AccessibleDocumentLocalizationKeyV1
     ) -> String {
         guard let bundled = BundledLocalizationKeyV1(rawValue: key.rawValue) else {
             return key.englishDefaultValue

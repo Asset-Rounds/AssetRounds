@@ -190,6 +190,10 @@ enum DeterministicPDFRendererV1 {
     }
 }
 
+extension DeterministicPDFRendererV1{
+    static func bindAccessibleAssessmentOutput(_ output:ReportProjectionOutputV1,tree:AccessibleDocumentSemanticTreeV1)throws->AccessibleDocumentRenderOutputV1{try tree.validate();guard output.format == .pdf else{throw AccessibleDocumentFailureV1.invalidValue};return try .init(bytes:output.data,mediaType:"application/pdf",rendererID:"deterministic-pdf-renderer",rendererVersion:rendererVersion)}
+}
+
 extension DeterministicPDFRendererV1 {
     /// C18's PDF consumer records the same frozen package identity as Open
     /// JSON. This sidecar is canonical metadata only; package bytes and draft

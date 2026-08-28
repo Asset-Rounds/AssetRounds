@@ -7,6 +7,11 @@ enum InspectionPackageReleaseStateV1: String, CaseIterable, Codable, Sendable {
     case published = "PUBLISHED"
 }
 
+enum InspectionPackageAccessibleDocumentBoundaryV1{
+    static let semanticTreeMayChangePackageTruth=false
+    static let assessmentMayActivatePackageRelease=false
+}
+
 extension InspectionPackageReleaseV1 {
     func validateFieldReferenceRelease(_ reference: FieldReferenceReleaseV1) throws {
         try validate()

@@ -36,4 +36,5 @@ final class MutationReceiptRecoveryServiceV1 {
     func recoverFieldReferenceEffectsBeforeWriterActivation() throws {
         try recoverBeforeWriterActivation()
     }
+    func recoverAccessibleDocumentAssessmentEffectsBeforeWriterActivation()throws{try recoverBeforeWriterActivation()}
 }

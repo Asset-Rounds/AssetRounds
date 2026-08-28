@@ -8,6 +8,11 @@ enum PackageReleaseBindingKindV1: String, CaseIterable, Codable, Sendable {
     case export = "EXPORT"
 }
 
+enum PackageReleaseAccessibleDocumentBindingV1{
+    static let exactReleaseBindingRequired=true
+    static let semanticTreePersistent=false
+}
+
 extension PackageReleaseBindingV1 {
     func validateFieldReferenceBinding(
         _ closure: FieldReferenceLifecycleClosureV1,

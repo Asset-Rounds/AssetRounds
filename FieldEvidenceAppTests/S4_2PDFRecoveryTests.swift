@@ -387,6 +387,15 @@ final class S4_2PDFRecoveryTests: XCTestCase {
     }
 }
 
+extension S4_2PDFRecoveryTests {
+    func testC24AccessibleDocumentTypedAnchor() throws {
+        XCTAssertEqual(AccessibleDocumentSemanticTreeV1.schemaVersion, 1)
+        XCTAssertEqual(AccessibleDocumentRoleV1.allCases.count, 13)
+        XCTAssertEqual(AccessibleDocumentAssessmentStateV1.allCases.count, 4)
+        XCTAssertFalse(AccessibleDocumentLifecycleV1.pdfUAClaimed)
+    }
+}
+
 private enum NonReadyPresence: CaseIterable { case absent, stageOnly, finalOnly }
 private enum UnsafeCase: Equatable {
     case simultaneous

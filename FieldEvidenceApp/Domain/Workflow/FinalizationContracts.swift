@@ -7,6 +7,11 @@ enum FinalizationPhaseV1: String, Codable, Equatable, Sendable {
     case databaseCommitted = "database_committed"
 }
 
+enum FinalizationAccessibleDocumentBoundaryV1{
+    static let assessmentRequiredToFinalize=false
+    static let finalSnapshotRewrittenByAssessment=false
+}
+
 struct FinalizationIntentV1: Codable, Equatable, Sendable {
     let completedAt: Date
     let finalizationMutationID: UUID

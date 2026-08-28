@@ -5,6 +5,12 @@ enum ReportAudienceV1: String, Codable, CaseIterable, Hashable, Sendable {
     case customerSafe = "CUSTOMER_SAFE"
 }
 
+enum ReportProjectionAccessibleDocumentBoundaryV1{
+    static let semanticTreeDerivedFromAudienceProjection=true
+    static let semanticTreeMutatesSnapshot=false
+    static let customerSafeMayContainInternalNodes=false
+}
+
 /// C19 report projection for one immutable, locally recorded measurement.
 /// Values remain fixed-point and units remain typed identifiers; private
 /// operator, serial, manufacturer, model, response, and evidence content are

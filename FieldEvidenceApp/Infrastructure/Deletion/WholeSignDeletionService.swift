@@ -1313,6 +1313,7 @@ private extension WholeSignDeletionService {
         let privacyTransformManifests:[PrivacyTransformManifestRow];let privacyReviewReceipts:[PrivacyReviewReceiptRow]
         let clientCapabilityProfiles:[ClientCapabilityProfileRow];let packageLifecyclePolicies:[PackageLifecyclePolicyRow];let packageLifecycleDispositions:[PackageLifecycleDispositionRow];let clientCapabilityAdmissionDecisions:[ClientCapabilityAdmissionDecisionRow]
         let fieldReferenceReleases:[FieldReferenceReleaseRow];let fieldReferenceBindings:[FieldReferenceBindingRow]
+        let accessibleDocumentAssessmentReceipts:[AccessibleDocumentAssessmentReceiptRow]
         let observationAndTime: [UUID: ObservationAndTimeRow]
         let recordPayloads: [WorkflowRecordPayloadV1]
         let evidence: [EvidenceFile]
@@ -1370,6 +1371,7 @@ private extension WholeSignDeletionService {
                 privacyTransformPolicies:try boundedFetch(PrivacyTransformPolicyRow.self),privacyRegions:try boundedFetch(PrivacyRegionRow.self),privacyTransformManifests:try boundedFetch(PrivacyTransformManifestRow.self),privacyReviewReceipts:try boundedFetch(PrivacyReviewReceiptRow.self),
                 clientCapabilityProfiles:try boundedFetch(ClientCapabilityProfileRow.self),packageLifecyclePolicies:try boundedFetch(PackageLifecyclePolicyRow.self),packageLifecycleDispositions:try boundedFetch(PackageLifecycleDispositionRow.self),clientCapabilityAdmissionDecisions:try boundedFetch(ClientCapabilityAdmissionDecisionRow.self),
                 fieldReferenceReleases:try boundedFetch(FieldReferenceReleaseRow.self),fieldReferenceBindings:try boundedFetch(FieldReferenceBindingRow.self),
+                accessibleDocumentAssessmentReceipts:try boundedFetch(AccessibleDocumentAssessmentReceiptRow.self),
                 observationAndTime: observationAndTime,
                 recordPayloads: recordPayloads,
                 evidence: try boundedFetch(EvidenceFile.self),
@@ -1421,6 +1423,9 @@ private extension WholeSignDeletionService {
         let retainedReleaseIDs=Set(rows.fieldReferenceBindings.map(\.releaseID))
         let fieldReferenceInventory=FieldReferenceDeletionInventoryV1(releaseIDs:Set(fieldReferenceValues.keys),bindingIDs:Set(rows.fieldReferenceBindings.map(\.bindingID)),retainedReleaseIDs:retainedReleaseIDs)
         try WholeSignDeletionRule.validateFieldReferenceLifecycle(before:fieldReferenceInventory,after:fieldReferenceInventory,workspaceErase:false)
+        let accessibleReceipts=try rows.accessibleDocumentAssessmentReceipts.map{try $0.value()}
+        let accessibleInventory=AccessibleDocumentDeletionInventoryV1(receiptIDs:Set(accessibleReceipts.map(\.receiptID)),outputSHA256:Set(accessibleReceipts.map(\.outputSHA256)))
+        try WholeSignDeletionRule.validateAccessibleDocumentLifecycle(before:accessibleInventory,after:accessibleInventory,workspaceErase:false)
         do {
             var assetIDs = Set<UUID>()
             if let deletingAssetID { assetIDs.insert(deletingAssetID) }
@@ -2147,7 +2152,8 @@ private extension WholeSignDeletionService {
         )
         rows.evidence.filter { evidenceIDs.contains($0.id) }.forEach { modelContext.delete($0) }
         rows.issues.filter { issueIDs.contains($0.id) }.forEach { modelContext.delete($0) }
-        rows.reports.filter { reportIDs.contains($0.id) }.forEach { modelContext.delete($0) }
+        let retainedAccessibleOutputDigests=Set(try rows.accessibleDocumentAssessmentReceipts.map{try $0.value().outputSHA256})
+        rows.reports.filter { reportIDs.contains($0.id) && !retainedAccessibleOutputDigests.contains($0.snapshotSHA256) && !($0.pdfSHA256.map(retainedAccessibleOutputDigests.contains) ?? false) }.forEach { modelContext.delete($0) }
         recordIDs.compactMap { rows.observationAndTime[$0] }
             .forEach { modelContext.delete($0) }
         rows.requirementAssurance.filter { recordIDs.contains($0.workflowRecordID) }

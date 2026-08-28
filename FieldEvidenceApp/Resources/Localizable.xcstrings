@@ -2401,6 +2401,138 @@
     "field.reference.next-step" : {
       "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review the recorded reference state" } } }
+    },
+    "accessible.document.screen" : {
+      "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Accessible document" } } }
+    },
+    "accessible.document.heading" : {
+      "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Document structure" } } }
+    },
+    "accessible.document.node" : {
+      "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Document item" } } }
+    },
+    "accessible.document.role" : {
+      "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Document role" } } }
+    },
+    "accessible.document.role.document" : {
+      "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Document" } } }
+    },
+    "accessible.document.role.section" : {
+      "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Section" } } }
+    },
+    "accessible.document.role.heading" : {
+      "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Heading" } } }
+    },
+    "accessible.document.role.paragraph" : {
+      "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Paragraph" } } }
+    },
+    "accessible.document.role.list" : {
+      "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "List" } } }
+    },
+    "accessible.document.role.list-item" : {
+      "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "List item" } } }
+    },
+    "accessible.document.role.table" : {
+      "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Table" } } }
+    },
+    "accessible.document.role.table-row" : {
+      "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Table row" } } }
+    },
+    "accessible.document.role.table-header" : {
+      "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Table header" } } }
+    },
+    "accessible.document.role.table-cell" : {
+      "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Table cell" } } }
+    },
+    "accessible.document.role.figure" : {
+      "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Figure" } } }
+    },
+    "accessible.document.role.evidence-link" : {
+      "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Evidence link" } } }
+    },
+    "accessible.document.role.note" : {
+      "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Note" } } }
+    },
+    "accessible.document.alternate-text" : {
+      "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Alternate text" } } }
+    },
+    "accessible.document.alternate-text.provenance" : {
+      "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Alternate text provenance" } } }
+    },
+    "accessible.document.alternate-text.provenance.authored-for-source" : {
+      "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Description authored for source" } } }
+    },
+    "accessible.document.alternate-text.provenance.source-caption" : {
+      "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Source caption" } } }
+    },
+    "accessible.document.alternate-text.provenance.not-provided" : {
+      "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "No alternate text recorded" } } }
+    },
+    "accessible.document.figure.decorative" : {
+      "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Decorative figure" } } }
+    },
+    "accessible.document.figure.described" : {
+      "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Described figure" } } }
+    },
+    "accessible.document.assessment" : {
+      "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Document assessment" } } }
+    },
+    "accessible.document.assessment.internal-pass" : {
+      "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Internal pass recorded" } } }
+    },
+    "accessible.document.assessment.internal-fail" : {
+      "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Internal fail recorded" } } }
+    },
+    "accessible.document.assessment.incomplete" : {
+      "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Assessment incomplete" } } }
+    },
+    "accessible.document.assessment.external-proof-recorded" : {
+      "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "External proof recorded" } } }
+    },
+    "accessible.document.evidence" : {
+      "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Evidence" } } }
+    },
+    "accessible.document.evidence.limited" : {
+      "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Evidence details limited" } } }
+    },
+    "accessible.document.claim-boundary" : {
+      "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recorded document semantics only" } } }
+    },
+    "accessible.document.next-step" : {
+      "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review the recorded document state" } } }
     }
   },
   "version" : "1.0"

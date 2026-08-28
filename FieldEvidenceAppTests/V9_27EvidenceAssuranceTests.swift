@@ -416,6 +416,15 @@ final class V9_27EvidenceAssuranceTests: XCTestCase {
 }
 
 extension V9_27EvidenceAssuranceTests {
+    func testC24AccessibleDocumentTypedAnchor() throws {
+        XCTAssertEqual(AccessibleDocumentSemanticTreeV1.schemaVersion, 1)
+        XCTAssertEqual(AccessibleDocumentRoleV1.allCases.count, 13)
+        XCTAssertEqual(AccessibleDocumentAssessmentStateV1.allCases.count, 4)
+        XCTAssertFalse(AccessibleDocumentLifecycleV1.pdfUAClaimed)
+    }
+}
+
+extension V9_27EvidenceAssuranceTests {
     func testV23P03C14ClosureEvidenceUsesTypedC13BoundaryReferences() throws {
         let fixture = try C14InspectionReviewTestSupportV1.makeFixture(seed: 145_227)
         XCTAssertEqual(fixture.closureEvidence.count, 2)

@@ -6,6 +6,11 @@ enum SnapshotValidationErrorV1: Error, Equatable {
     case invalidAuthority
 }
 
+enum AccessibleDocumentSnapshotValidatorV1{
+    static func validate(snapshot:CompletedActivitySnapshotV1,tree:AccessibleDocumentSemanticTreeV1)throws{try snapshot.validateAccessibleDocumentTree(tree)}
+    static func validate(receipt:AccessibleDocumentAssessmentReceiptV1,tree:AccessibleDocumentSemanticTreeV1,output:Data)throws{try receipt.validate(tree:tree);try receipt.validateOutput(output)}
+}
+
 /// Computes the one stable integrity finding used when the immutable snapshot
 /// bytes and their report authority disagree.  The validator still fails
 /// closed; this helper makes the diagnostic classification deterministic for

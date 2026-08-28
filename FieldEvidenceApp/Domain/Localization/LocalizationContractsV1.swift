@@ -3117,3 +3117,195 @@ enum FieldReferenceLocalizationPolicyV1 {
 }
 
 typealias FieldReferenceClaimVocabularyV1 = FieldReferenceLocalizationPolicyV1
+
+// MARK: - C24 accessible-document labels
+
+/// English-only keys for the canonical accessible-document semantic tree and
+/// its recorded assessment.  These labels describe recorded structure and
+/// provenance; they never manufacture alternate text or imply certification.
+enum AccessibleDocumentLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
+    case screen = "accessible.document.screen"
+    case heading = "accessible.document.heading"
+    case node = "accessible.document.node"
+    case role = "accessible.document.role"
+    case roleDocument = "accessible.document.role.document"
+    case roleSection = "accessible.document.role.section"
+    case roleHeading = "accessible.document.role.heading"
+    case roleParagraph = "accessible.document.role.paragraph"
+    case roleList = "accessible.document.role.list"
+    case roleListItem = "accessible.document.role.list-item"
+    case roleTable = "accessible.document.role.table"
+    case roleTableRow = "accessible.document.role.table-row"
+    case roleTableHeader = "accessible.document.role.table-header"
+    case roleTableCell = "accessible.document.role.table-cell"
+    case roleFigure = "accessible.document.role.figure"
+    case roleEvidenceLink = "accessible.document.role.evidence-link"
+    case roleNote = "accessible.document.role.note"
+    case alternateText = "accessible.document.alternate-text"
+    case alternateTextProvenance = "accessible.document.alternate-text.provenance"
+    case alternateTextAuthoredForSource = "accessible.document.alternate-text.provenance.authored-for-source"
+    case alternateTextSourceCaption = "accessible.document.alternate-text.provenance.source-caption"
+    case alternateTextNotProvided = "accessible.document.alternate-text.provenance.not-provided"
+    case decorativeFigure = "accessible.document.figure.decorative"
+    case describedFigure = "accessible.document.figure.described"
+    case assessment = "accessible.document.assessment"
+    case assessmentInternalPass = "accessible.document.assessment.internal-pass"
+    case assessmentInternalFail = "accessible.document.assessment.internal-fail"
+    case assessmentIncomplete = "accessible.document.assessment.incomplete"
+    case assessmentExternallyProved = "accessible.document.assessment.external-proof-recorded"
+    case evidence = "accessible.document.evidence"
+    case evidenceLimited = "accessible.document.evidence.limited"
+    case claimBoundary = "accessible.document.claim-boundary"
+    case nextStep = "accessible.document.next-step"
+
+    var localizationKey: LocalizationKeyV1 {
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+
+    var englishDefaultValue: String {
+        switch self {
+        case .screen: return "Accessible document"
+        case .heading: return "Document structure"
+        case .node: return "Document item"
+        case .role: return "Document role"
+        case .roleDocument: return "Document"
+        case .roleSection: return "Section"
+        case .roleHeading: return "Heading"
+        case .roleParagraph: return "Paragraph"
+        case .roleList: return "List"
+        case .roleListItem: return "List item"
+        case .roleTable: return "Table"
+        case .roleTableRow: return "Table row"
+        case .roleTableHeader: return "Table header"
+        case .roleTableCell: return "Table cell"
+        case .roleFigure: return "Figure"
+        case .roleEvidenceLink: return "Evidence link"
+        case .roleNote: return "Note"
+        case .alternateText: return "Alternate text"
+        case .alternateTextProvenance: return "Alternate text provenance"
+        case .alternateTextAuthoredForSource: return "Description authored for source"
+        case .alternateTextSourceCaption: return "Source caption"
+        case .alternateTextNotProvided: return "No alternate text recorded"
+        case .decorativeFigure: return "Decorative figure"
+        case .describedFigure: return "Described figure"
+        case .assessment: return "Document assessment"
+        case .assessmentInternalPass: return "Internal pass recorded"
+        case .assessmentInternalFail: return "Internal fail recorded"
+        case .assessmentIncomplete: return "Assessment incomplete"
+        case .assessmentExternallyProved: return "External proof recorded"
+        case .evidence: return "Evidence"
+        case .evidenceLimited: return "Evidence details limited"
+        case .claimBoundary: return "Recorded document semantics only"
+        case .nextStep: return "Review the recorded document state"
+        }
+    }
+
+    var translatorComment: String {
+        "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence."
+    }
+}
+
+extension AccessibleDocumentLocalizationKeyV1 {
+    static func roleKey(_ value: AccessibleDocumentRoleV1) -> Self {
+        switch value {
+        case .document: return .roleDocument
+        case .section: return .roleSection
+        case .heading: return .roleHeading
+        case .paragraph: return .roleParagraph
+        case .list: return .roleList
+        case .listItem: return .roleListItem
+        case .table: return .roleTable
+        case .tableRow: return .roleTableRow
+        case .tableHeader: return .roleTableHeader
+        case .tableCell: return .roleTableCell
+        case .figure: return .roleFigure
+        case .evidenceLink: return .roleEvidenceLink
+        case .note: return .roleNote
+        }
+    }
+
+    static func alternateTextProvenanceKey(
+        _ value: AccessibleAlternateTextProvenanceV1
+    ) -> Self {
+        switch value {
+        case .authoredForSource: return .alternateTextAuthoredForSource
+        case .sourceCaption: return .alternateTextSourceCaption
+        case .notProvided: return .alternateTextNotProvided
+        }
+    }
+
+    static func assessmentStateKey(
+        _ value: AccessibleDocumentAssessmentStateV1
+    ) -> Self {
+        switch value {
+        case .internalPass: return .assessmentInternalPass
+        case .internalFail: return .assessmentInternalFail
+        case .incomplete: return .assessmentIncomplete
+        case .externallyProved: return .assessmentExternallyProved
+        }
+    }
+}
+
+enum AccessibleDocumentLocalizationPolicyV1 {
+    static let semanticNamespace = "accessible.document"
+    static let sourceLocale = "en"
+    static let shippingLocale = "en"
+    static let metadataLocale = "en-US"
+    static let testOnlyLocales = TestOnlyPseudoLocaleV1.allCases.map(\.rawValue).sorted()
+    static let keys = AccessibleDocumentLocalizationKeyV1.allCases.map(\.rawValue)
+    static let stateKeys = AccessibleDocumentLocalizationKeyV1.allCases.filter {
+        $0.rawValue.contains(".role.")
+            || $0.rawValue.contains(".provenance.")
+            || $0.rawValue.contains(".figure.")
+            || $0.rawValue.contains(".assessment.")
+            || $0 == .evidenceLimited
+    }.map(\.rawValue)
+    static let denyByDefault = true
+    static let requiresTruthfulClosedValues = true
+    static let requiresNonColorStateText = true
+    static let requiresTextAndIconForIndeterminateStates = true
+    static let requiresActionableNextStep = true
+    static let allowsColorOnlyState = false
+    static let allowsIconOnlyState = false
+    static let allowsMotionOnlyState = false
+    static let excludesOriginalEvidence = true
+    static let excludesPrivateEvidence = true
+    static let excludesAssessorIdentity = true
+    static let excludesPrivateLocators = true
+    static let excludesUnsupportedClaims = true
+
+    static let prohibitedClaimPhrases: Set<String> = [
+        "pdf ua", "wcag", "section 508", "ada", "legal",
+        "certified", "certification", "compliant", "compliance",
+        "verified identity", "authenticated", "tamperproof", "tamper proof",
+        "nonrepudiation", "non repudiation", "every reader", "identical rendering",
+        "accessible to everyone", "guaranteed", "approved", "authorized",
+    ]
+
+    private static func normalized(_ value: String) -> String {
+        value.folding(
+            options: [.caseInsensitive, .diacriticInsensitive],
+            locale: Locale(identifier: "en_US_POSIX")
+        ).split { !$0.isLetter && !$0.isNumber }.joined(separator: " ")
+    }
+
+    static func containsProhibitedClaim(in values: [String]) -> Bool {
+        values.contains { value in
+            let bounded = " \(normalized(value)) "
+            prohibitedClaimPhrases.contains { bounded.contains(" \($0) ") }
+        }
+    }
+
+    static func containsCustomerOrWorkDataLeakage(in values: [String]) -> Bool {
+        values.contains { value in
+            let bounded = " \(normalized(value)) "
+            [
+                " customer data ", " work data ", " private data ", " password ",
+                " credential ", " token ", " locator ", " assessor ", " evidence id ",
+            ].contains { bounded.contains($0) }
+        }
+    }
+}
+
+typealias AccessibleDocumentClaimVocabularyV1 = AccessibleDocumentLocalizationPolicyV1

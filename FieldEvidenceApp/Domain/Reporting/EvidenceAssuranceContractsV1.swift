@@ -11,6 +11,13 @@ enum EvidenceAssuranceFailureV1: Error, Equatable, Sendable {
     case nonCanonicalData
 }
 
+enum EvidenceAssuranceAccessibleDocumentBoundaryV1{
+    static func sensitivity(_ value:EvidenceSensitivityV1)->AccessibleDocumentSensitivityV1{
+        switch value{case .routine:.customerSafe;case .restricted,.highlyRestricted:.internalOnly}
+    }
+    static let assuranceDoesNotConferAccessibility=true
+}
+
 enum EvidenceAssuranceLimitsV1 {
     static let maximumLinks = 8_192
     static let maximumTextBytes = 512

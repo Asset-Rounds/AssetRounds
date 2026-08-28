@@ -286,6 +286,11 @@ struct V4BackupEvidenceFileDTO: Codable, Equatable, Identifiable, Sendable {
     let thumbnailSHA256: String
 }
 
+enum V4BackupEvidenceMemberKeyV1{
+    static func original(_ evidenceID:UUID)->String{"media/\(evidenceID.uuidString.lowercased()).jpg"}
+    static func thumbnail(_ evidenceID:UUID)->String{"thumbnails/\(evidenceID.uuidString.lowercased()).jpg"}
+}
+
 struct V4BackupIssueDTO: Codable, Equatable, Identifiable, Sendable {
     let id: UUID
     let schemaVersion: Int
@@ -410,8 +415,10 @@ struct V21BackupRecoverabilityReceiptRecordV1: Codable, Equatable, Sendable {
     let id: UUID; let workspaceID: UUID; let revision: UInt64; let canonicalData: Data
 }
 struct V22BackupFieldReferenceRecordV1:Codable,Equatable,Sendable{enum Kind:String,Codable,CaseIterable,Sendable{case release,binding};let kind:Kind;let id:UUID;let workspaceID:UUID;let revision:UInt64;let canonicalData:Data}
+struct V23BackupAccessibleDocumentAssessmentRecordV1:Codable,Equatable,Sendable{let id:UUID;let workspaceID:UUID;let revision:UInt64;let canonicalData:Data}
 
 struct V4BackupRecordsV1: Codable, Equatable, Sendable {
+    let accessibleDocumentAssessments:[V23BackupAccessibleDocumentAssessmentRecordV1]
     let fieldReferences:[V22BackupFieldReferenceRecordV1]
     let recoverabilityReceipts: [V21BackupRecoverabilityReceiptRecordV1]
     let clientCapabilities: [V20BackupClientCapabilityRecordV1]
@@ -446,6 +453,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     let workflowRecords: [V4BackupWorkflowRecordDTO]
 
     init(
+        accessibleDocumentAssessments:[V23BackupAccessibleDocumentAssessmentRecordV1]=[],
         fieldReferences:[V22BackupFieldReferenceRecordV1]=[],
         recoverabilityReceipts: [V21BackupRecoverabilityReceiptRecordV1] = [],
         clientCapabilities: [V20BackupClientCapabilityRecordV1] = [],
@@ -479,6 +487,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         sites: [V4BackupSiteDTO],
         workflowRecords: [V4BackupWorkflowRecordDTO]
     ) {
+        self.accessibleDocumentAssessments=accessibleDocumentAssessments
         self.fieldReferences=fieldReferences
         self.recoverabilityReceipts = recoverabilityReceipts
         self.clientCapabilities = clientCapabilities
@@ -514,7 +523,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case fieldReferences,recoverabilityReceipts, clientCapabilities, privacyTransforms, measurementIntegrity, packageEvolution, fieldDrafts, workPackets, inspectionReview, evidenceAssurance, functionalRelationships, authorityCriterion, assetSemantics, assetCompositionEdges, assetCompositionEvents, assetPlacementEvents, assets
+        case accessibleDocumentAssessments,fieldReferences,recoverabilityReceipts, clientCapabilities, privacyTransforms, measurementIntegrity, packageEvolution, fieldDrafts, workPackets, inspectionReview, evidenceAssurance, functionalRelationships, authorityCriterion, assetSemantics, assetCompositionEdges, assetCompositionEvents, assetPlacementEvents, assets
         case deletionLedger, evidenceFiles, issues, locationHierarchyEvents
         case locationMigrationReceipts, locationNodes, mutationHistory, packets, partyAccountability
         case recordsSchemaVersion, reports, requirementAssurance, savedSmartViews, sites
@@ -525,6 +534,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         let version = try values.decode(Int.self, forKey: .recordsSchemaVersion)
         self.init(
+            accessibleDocumentAssessments:try values.decodeIfPresent([V23BackupAccessibleDocumentAssessmentRecordV1].self,forKey:.accessibleDocumentAssessments) ?? [],
             fieldReferences:try values.decodeIfPresent([V22BackupFieldReferenceRecordV1].self,forKey:.fieldReferences) ?? [],
             recoverabilityReceipts: try values.decodeIfPresent([V21BackupRecoverabilityReceiptRecordV1].self, forKey: .recoverabilityReceipts) ?? [],
             clientCapabilities: try values.decodeIfPresent([V20BackupClientCapabilityRecordV1].self, forKey: .clientCapabilities) ?? [],
@@ -588,6 +598,10 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
             workflowRecords: try values.decode([V4BackupWorkflowRecordDTO].self, forKey: .workflowRecords)
         )
     }
+}
+
+extension V4BackupRecordsV1{
+    func replacingAccessibleDocumentAssessments(_ values:[V23BackupAccessibleDocumentAssessmentRecordV1])->Self{Self(accessibleDocumentAssessments:values,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords)}
 }
 
 struct V4BackupEntryV1: Codable, Equatable, Sendable {

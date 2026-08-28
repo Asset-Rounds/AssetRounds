@@ -8,6 +8,10 @@ private struct ContractManifestCodingKeyV1: CodingKey {
     init?(intValue: Int) { return nil }
 }
 
+extension ContractManifestV1{
+    func accessibleDocumentManifestSHA256()throws->String{try validate();return try WorkspaceMutationCanonicalV1.sha256(self)}
+}
+
 private enum ContractManifestDecodingV1 {
     static func rejectUnknownKeys(_ decoder: Decoder, allowed: Set<String>) throws {
         let keys = try decoder.container(keyedBy: ContractManifestCodingKeyV1.self).allKeys.map(\.stringValue)

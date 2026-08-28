@@ -1789,3 +1789,39 @@ extension SearchIndexRebuildCoordinatorV1 {
     static let fieldReferenceReplayDisposition =
         "DROP_AND_REBUILD_FROM_FROZEN_FIELD_REFERENCE_BINDING"
 }
+
+// MARK: - C24 accessible-document search rebuild
+
+extension SearchIndexRebuildCoordinatorV1 {
+    /// Rebuilds disposable C24 rows from canonical semantic trees.  The
+    /// ordering is digest-based and assessment matching is transient; no
+    /// semantic tree or evidence payload is persisted in the index.
+    static func accessibleDocumentSearchRecords(
+        from trees: [AccessibleDocumentSemanticTreeV1],
+        assessments: [AccessibleDocumentAssessmentReceiptV1] = []
+    ) throws -> [AccessibleDocumentSearchRecordV1] {
+        try AccessibleDocumentSearchPersistencePolicyV1().validate()
+        guard trees.count <= AccessibleDocumentSearchRecordV1.maximumValues,
+              assessments.count <= AccessibleDocumentSearchRecordV1.maximumValues else {
+            throw SearchContractFailureV1.limitExceeded
+        }
+        let grouped = Dictionary(grouping: assessments, by: \.treeSHA256)
+        guard grouped.values.allSatisfy({ $0.count <= 1 }) else {
+            throw SearchContractFailureV1.duplicateProjection
+        }
+        let records = try trees.map { tree in
+            try AccessibleDocumentSearchRecordV1(
+                tree: tree,
+                assessment: grouped[tree.treeSHA256]?.first
+            )
+        }.sorted { $0.treeSHA256 < $1.treeSHA256 }
+        guard Set(records.map(\.treeSHA256)).count == records.count else {
+            throw SearchContractFailureV1.duplicateProjection
+        }
+        try records.forEach { try $0.validate() }
+        return records
+    }
+
+    static let accessibleDocumentReplayDisposition =
+        "DROP_AND_REBUILD_FROM_CANONICAL_ACCESSIBLE_DOCUMENT_TREE"
+}
