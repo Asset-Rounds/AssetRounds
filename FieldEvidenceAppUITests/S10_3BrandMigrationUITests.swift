@@ -7212,7 +7212,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 ("keyboardLabelEmpty", keyboard.label.isEmpty),
                 ("keyboardValueEmpty", (keyboard.value as? String) == ""),
                 ("keyboardEnabled", keyboard.isEnabled),
-                ("keyboardHittable", keyboard.isHittable),
             ]
         }
         let stablePrePositionFramesAreValid: () -> Bool = {

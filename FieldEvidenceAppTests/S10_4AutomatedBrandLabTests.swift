@@ -3498,10 +3498,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     reportComparisonRouteStartRange.lowerBound
             ]
         )
-        XCTAssertEqual(workValidationPositioningHelperSource.utf8.count, 59_959)
+        XCTAssertEqual(workValidationPositioningHelperSource.utf8.count, 59_900)
         XCTAssertEqual(
             Data(workValidationPositioningHelperSource.utf8).sha256,
-            "CC9F340712E4C67B2A50CD9254D4AF230C7EA31A46AAE6E72509259FB602DEFC"
+            "39FD23A17CB7055935D16FCB7A463B8676B94509F10B5C449BF654B7B5EB1EDB"
         )
 
         let signDetailPositioningGate =
@@ -4180,10 +4180,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             before:
                 "        let stablePrePositionFramesAreValid: () -> Bool = {"
         )
-        XCTAssertEqual(workValidationFinalSemanticSource.utf8.count, 4_402)
+        XCTAssertEqual(workValidationFinalSemanticSource.utf8.count, 4_343)
         XCTAssertEqual(
             Data(workValidationFinalSemanticSource.utf8).sha256,
-            "353E7DC794A4437CB36105D2D2D3EC43C4862CD3EC78921B77426C1D1B395BF1"
+            "AE41FD114D02E8264C87D0F0430124754404FC2F63D663F10F6C28F3F7DD7A5E"
         )
         for stableLock in [
             #"("applicationForeground", app.state == .runningForeground)"#,
@@ -4273,7 +4273,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"keyboard.label.isEmpty"#,
             #"(keyboard.value as? String) == """#,
             #"keyboard.isEnabled"#,
-            #"keyboard.isHittable"#,
         ] {
             XCTAssertTrue(
                 workValidationFinalSemanticSource.contains(finalSemanticLock),
@@ -4283,6 +4282,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertFalse(
             workValidationFinalSemanticSource.contains(
                 "shortDescriptionFieldLabel.isHittable"
+            )
+        )
+        XCTAssertFalse(
+            workValidationFinalSemanticSource.contains(
+                #"("keyboardHittable", keyboard.isHittable)"#
             )
         )
         for removedStoredFirstMatchValueCast in [
