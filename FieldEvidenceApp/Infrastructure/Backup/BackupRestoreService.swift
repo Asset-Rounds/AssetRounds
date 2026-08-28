@@ -1634,6 +1634,7 @@ private extension BackupRestoreService {
         with packets: [V4BackupPacketDTO]
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            recoverabilityReceipts:records.recoverabilityReceipts,
             clientCapabilities: records.clientCapabilities,
             privacyTransforms: records.privacyTransforms,
             measurementIntegrity: records.measurementIntegrity,
@@ -1687,6 +1688,7 @@ private extension BackupRestoreService {
         with history: MutationHistorySnapshotV1
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            recoverabilityReceipts:records.recoverabilityReceipts,
             clientCapabilities: records.clientCapabilities,
             privacyTransforms: records.privacyTransforms,
             measurementIntegrity: records.measurementIntegrity,
@@ -1805,6 +1807,7 @@ private extension BackupRestoreService {
             return try V8BackupRequirementAssuranceRecordV1(row)
         }.sorted { canonical($0.workflowRecordID) < canonical($1.workflowRecordID) }
         return V4BackupRecordsV1(
+            recoverabilityReceipts:records.recoverabilityReceipts,
             clientCapabilities: records.clientCapabilities,
             privacyTransforms: records.privacyTransforms,
             measurementIntegrity: records.measurementIntegrity,
@@ -2055,8 +2058,10 @@ private extension BackupRestoreService {
             records.privacyTransforms, workspaceID: workspaceID
         )
         let clientCapabilities = try rebindingClientCapabilities(records.clientCapabilities,workspaceID:workspaceID,packageEvolution:packageEvolution)
+        let recoverabilityReceipts = try records.recoverabilityReceipts.map{record in let value=try RecoverabilityVerificationCanonicalCodecV1.decode(RecoverabilityVerificationReceiptV1.self,from:record.canonicalData);guard value.workspaceID != workspaceID else{return record};let rebound=try value.rebound(to:workspaceID);return V21BackupRecoverabilityReceiptRecordV1(id:rebound.receiptID,workspaceID:workspaceID.rawValue,revision:rebound.revision,canonicalData:try RecoverabilityVerificationCanonicalCodecV1.encode(rebound))}.sorted{$0.id.uuidString<$1.id.uuidString}
         guard let archived = records.locationMigrationReceipts.first else {
             return V4BackupRecordsV1(
+                recoverabilityReceipts:recoverabilityReceipts,
                 clientCapabilities: clientCapabilities,
                 privacyTransforms: privacyTransforms,
                 measurementIntegrity: measurementIntegrity,
@@ -2099,6 +2104,7 @@ private extension BackupRestoreService {
            evidenceAssurance == records.evidenceAssurance,
            inspectionReview == records.inspectionReview,
            privacyTransforms == records.privacyTransforms,
+           recoverabilityReceipts == records.recoverabilityReceipts,
            clientCapabilities == records.clientCapabilities,
            workPackets == records.workPackets,
            reports == records.reports {
@@ -2113,6 +2119,7 @@ private extension BackupRestoreService {
             bindings: receipt.bindings
         )
         return V4BackupRecordsV1(
+            recoverabilityReceipts:recoverabilityReceipts,
             clientCapabilities: clientCapabilities,
             privacyTransforms: privacyTransforms,
             measurementIntegrity: measurementIntegrity,
@@ -3532,7 +3539,8 @@ private extension BackupRestoreService {
                 || records.recordsSchemaVersion == 16
                 || records.recordsSchemaVersion == 17
                 || records.recordsSchemaVersion == 18
-                || records.recordsSchemaVersion == 19)
+                || records.recordsSchemaVersion == 19
+                || records.recordsSchemaVersion == 20)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -3792,7 +3800,8 @@ private extension BackupRestoreService {
             || records.recordsSchemaVersion == 16
             || records.recordsSchemaVersion == 17
             || records.recordsSchemaVersion == 18
-            || records.recordsSchemaVersion == 19 {
+            || records.recordsSchemaVersion == 19
+            || records.recordsSchemaVersion == 20 {
             do {
                 for record in records.savedSmartViews {
                     let descriptor = try record.descriptor()
@@ -4061,6 +4070,9 @@ private extension BackupRestoreService {
                 profileEntries.forEach{context.insert($0.0)};policyEntries.forEach{context.insert($0.0)};dispositionEntries.forEach{context.insert($0.0)};decisionEntries.forEach{context.insert($0)}
             }catch{throw BackupRestoreServiceError.invalidPackage}
         }
+        if records.recordsSchemaVersion >= 20 {
+            do{let rows=try records.recoverabilityReceipts.map{record in let value=try RecoverabilityVerificationCanonicalCodecV1.decode(RecoverabilityVerificationReceiptV1.self,from:record.canonicalData);let row=try RecoverabilityVerificationReceiptRow(value);_ = try row.value();return row};rows.forEach{context.insert($0)}}catch{throw BackupRestoreServiceError.invalidPackage}
+        }
         if let mutationHistory = records.mutationHistory {
             guard records.recordsSchemaVersion == 3
                     || records.recordsSchemaVersion == 4
@@ -4078,7 +4090,8 @@ private extension BackupRestoreService {
                     || records.recordsSchemaVersion == 16
                     || records.recordsSchemaVersion == 17
                     || records.recordsSchemaVersion == 18
-                    || records.recordsSchemaVersion == 19 else {
+                    || records.recordsSchemaVersion == 19
+                    || records.recordsSchemaVersion == 20 else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {
@@ -5165,7 +5178,8 @@ private extension BackupRestoreService {
                 || actual.recordsSchemaVersion == 16
                 || actual.recordsSchemaVersion == 17
                 || actual.recordsSchemaVersion == 18
-                || actual.recordsSchemaVersion == 19) else {
+                || actual.recordsSchemaVersion == 19
+                || actual.recordsSchemaVersion == 20) else {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
         if expected.recordsSchemaVersion == 5 || expected.recordsSchemaVersion == 6 {
@@ -5184,6 +5198,7 @@ private extension BackupRestoreService {
         schemaVersion: Int
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            recoverabilityReceipts:schemaVersion >= 20 ? records.recoverabilityReceipts:[],
             clientCapabilities: schemaVersion >= 19 ? records.clientCapabilities : [],
             privacyTransforms: schemaVersion >= 18 ? records.privacyTransforms : [],
             measurementIntegrity: schemaVersion >= 17 ? records.measurementIntegrity : [],
@@ -5222,6 +5237,7 @@ private extension BackupRestoreService {
         expected: V4BackupRecordsV1
     ) throws -> Bool {
         let predecessor = V4BackupRecordsV1(
+            recoverabilityReceipts:expected.recordsSchemaVersion >= 20 ? expected.recoverabilityReceipts:[],
             clientCapabilities: expected.recordsSchemaVersion >= 19 ? expected.clientCapabilities : [],
             privacyTransforms: expected.recordsSchemaVersion >= 18 ? expected.privacyTransforms : [],
             measurementIntegrity: expected.recordsSchemaVersion >= 17 ? expected.measurementIntegrity : [],
@@ -5415,6 +5431,7 @@ private extension BackupRestoreService {
         let packageSandboxRuns = try context.fetch(FetchDescriptor<PackageSandboxRunRow>())
         let packagePromotionReceipts = try context.fetch(FetchDescriptor<PackagePromotionReceiptRow>())
         let activePackageRegistryPointers = try context.fetch(FetchDescriptor<ActivePackageRegistryPointerRow>())
+        let recoverabilityVerificationReceipts=try context.fetch(FetchDescriptor<RecoverabilityVerificationReceiptRow>())
         let clientCapabilityProfiles=try context.fetch(FetchDescriptor<ClientCapabilityProfileRow>()),packageLifecyclePolicies=try context.fetch(FetchDescriptor<PackageLifecyclePolicyRow>()),packageLifecycleDispositions=try context.fetch(FetchDescriptor<PackageLifecycleDispositionRow>()),clientCapabilityAdmissionDecisions=try context.fetch(FetchDescriptor<ClientCapabilityAdmissionDecisionRow>())
         let privacyTransformPolicies=try context.fetch(FetchDescriptor<PrivacyTransformPolicyRow>()),privacyRegions=try context.fetch(FetchDescriptor<PrivacyRegionRow>()),privacyTransformManifests=try context.fetch(FetchDescriptor<PrivacyTransformManifestRow>()),privacyReviewReceipts=try context.fetch(FetchDescriptor<PrivacyReviewReceiptRow>())
         let instrumentReferences=try context.fetch(FetchDescriptor<InstrumentReferenceRow>()),calibrationStatusSnapshots=try context.fetch(FetchDescriptor<CalibrationStatusSnapshotRow>()),measurementCaptures=try context.fetch(FetchDescriptor<MeasurementCaptureRow>()),measurementSeries=try context.fetch(FetchDescriptor<MeasurementSeriesRow>()),measurementQualityAssessments=try context.fetch(FetchDescriptor<MeasurementQualityAssessmentRow>())
@@ -5467,7 +5484,9 @@ private extension BackupRestoreService {
         let capabilityDispositions=try Dictionary(uniqueKeysWithValues:packageLifecycleDispositions.map{row in guard let release=capabilityReleases[row.packageReleaseID]else{throw BackupRestoreServiceError.invalidRestoreAuthority};let v=try row.value(release:release);return(v.dispositionID,v)})
         var clientCapabilityRecords:[V20BackupClientCapabilityRecordV1]=[]
         if mutationHistory != nil{clientCapabilityRecords=try capabilityProfiles.values.map{.init(kind:.profile,id:$0.profileID,workspaceID:$0.workspaceID.rawValue,revision:$0.revision,canonicalData:try ClientCapabilityCanonicalCodecV1.encode($0))}+capabilityPolicies.values.map{.init(kind:.policy,id:$0.policyID,workspaceID:$0.workspaceID.rawValue,revision:$0.revision,canonicalData:try ClientCapabilityCanonicalCodecV1.encode($0))}+capabilityDispositions.values.map{.init(kind:.disposition,id:$0.dispositionID,workspaceID:$0.workspaceID.rawValue,revision:$0.revision,canonicalData:try ClientCapabilityCanonicalCodecV1.encode($0))};clientCapabilityRecords += try clientCapabilityAdmissionDecisions.map{row in guard let profile=capabilityProfiles[row.profileID],let policy=capabilityPolicies[row.policyID],let disposition=capabilityDispositions[row.dispositionID],let release=capabilityReleases[row.packageReleaseID]else{throw BackupRestoreServiceError.invalidRestoreAuthority};let v=try row.value(profile:profile,policy:policy,disposition:disposition,release:release);return .init(kind:.admissionDecision,id:v.decisionID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try ClientCapabilityCanonicalCodecV1.encode(v))};clientCapabilityRecords.sort{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"}}
+        let recoverabilityReceiptRecords:[V21BackupRecoverabilityReceiptRecordV1]=mutationHistory == nil ? [] : try recoverabilityVerificationReceipts.map{let value=try $0.value();return .init(id:value.receiptID,workspaceID:value.workspaceID.rawValue,revision:value.revision,canonicalData:try RecoverabilityVerificationCanonicalCodecV1.encode(value))}.sorted{$0.id.uuidString<$1.id.uuidString}
         return V4BackupRecordsV1(
+            recoverabilityReceipts:recoverabilityReceiptRecords,
             clientCapabilities: clientCapabilityRecords,
             privacyTransforms: privacyTransformRecords,
             measurementIntegrity: try (
@@ -5664,7 +5683,7 @@ private extension BackupRestoreService {
                 "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
                     < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
             },
-            recordsSchemaVersion: mutationHistory != nil ? 19
+            recordsSchemaVersion: mutationHistory != nil ? 20
                 : !(privacyTransformPolicies.isEmpty && privacyRegions.isEmpty
                 && privacyTransformManifests.isEmpty && privacyReviewReceipts.isEmpty) ? 18
                 : !(instrumentReferences.isEmpty && calibrationStatusSnapshots.isEmpty

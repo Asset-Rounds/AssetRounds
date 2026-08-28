@@ -519,6 +519,87 @@ final class MutationJournalStoreV1 {
         return try rows.first.map { try validate(row: $0, expectedEnvelope: nil) }
     }
 
+    func acceptedRecoverabilityVerificationReceipt(
+        for plan: RecoverabilityVerificationPlanV1
+    ) throws -> RecoverabilityVerificationReceiptV1? {
+        try validateCurrentWriterLease()
+        try plan.validate()
+        guard plan.workspaceID == identity.workspaceID else {
+            throw RecoverabilityVerificationFailureV1.wrongWorkspace
+        }
+        let matches = try recoverabilityVerificationReceiptRows(matching: plan)
+        guard matches.count <= 1 else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        guard let row = matches.first else { return nil }
+        let receipt = try row.value()
+        try validate(receipt: receipt, matches: plan)
+        return receipt
+    }
+
+    func appendRecoverabilityVerificationReceipt(
+        _ receipt: RecoverabilityVerificationReceiptV1
+    ) throws -> RecoverabilityVerificationReceiptV1 {
+        try validateCurrentWriterLease()
+        try receipt.validate()
+        guard receipt.workspaceID == identity.workspaceID else {
+            throw RecoverabilityVerificationFailureV1.wrongWorkspace
+        }
+        try validateRecoverabilityVerificationReceipts()
+
+        let rows = try boundedFetch(FetchDescriptor<RecoverabilityVerificationReceiptRow>())
+        let collisions = rows.filter {
+            $0.receiptID == receipt.receiptID
+                || $0.verificationID == receipt.verificationID
+                || $0.mutationID == receipt.mutationID.rawValue
+        }
+        guard collisions.count <= 1 else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        if let existingRow = collisions.first {
+            let existing = try existingRow.value()
+            guard existing == receipt else {
+                throw RecoverabilityVerificationFailureV1.divergentRetry
+            }
+            return existing
+        }
+
+        if let predecessorID = receipt.supersedesReceiptID {
+            let predecessors = rows.filter { $0.receiptID == predecessorID }
+            guard predecessors.count == 1, let predecessorRow = predecessors.first else {
+                throw RecoverabilityVerificationFailureV1.invalidSuccessor
+            }
+            let predecessor = try predecessorRow.value()
+            try receipt.validateSuccessor(of: predecessor)
+            guard !rows.contains(where: { row in
+                guard let value = try? row.value() else { return true }
+                return value.supersedesReceiptID == predecessorID
+            }) else {
+                throw RecoverabilityVerificationFailureV1.invalidSuccessor
+            }
+        }
+
+        modelContext.insert(try RecoverabilityVerificationReceiptRow(receipt))
+        do {
+            try reach(.afterReceiptBeforeSave)
+            try saveWithStaleWriterFence()
+            try reach(.afterSaveBeforeReturn)
+            return receipt
+        } catch let failure as WorkspaceMutationFailureV1 {
+            modelContext.rollback()
+            throw failure
+        } catch let failure as MutationJournalFailureV1 {
+            modelContext.rollback()
+            throw failure
+        } catch let failure as RecoverabilityVerificationFailureV1 {
+            modelContext.rollback()
+            throw failure
+        } catch {
+            modelContext.rollback()
+            throw WorkspaceMutationFailureV1.persistenceFailed
+        }
+    }
+
     /// Effect-before-receipt recovery for the C18 aggregate requires all four
     /// canonical rows to agree before an existing mutation may be adopted.
     func packagePromotionLifecycleClosure(mutationID:MutationIDV1)throws->PackageEvolutionLifecycleClosureV1?{guard try receipt(mutationID:mutationID) != nil else{return nil};let id=mutationID.rawValue;let releaseRows=try modelContext.fetch(FetchDescriptor<PromotedPackageReleaseRow>(predicate:#Predicate{$0.mutationID==id})),runRows=try modelContext.fetch(FetchDescriptor<PackageSandboxRunRow>(predicate:#Predicate{$0.mutationID==id})),receiptRows=try modelContext.fetch(FetchDescriptor<PackagePromotionReceiptRow>(predicate:#Predicate{$0.mutationID==id})),pointerRows=try modelContext.fetch(FetchDescriptor<ActivePackageRegistryPointerRow>(predicate:#Predicate{$0.mutationID==id}));guard releaseRows.count==1,runRows.count==1,receiptRows.count==1,pointerRows.count==1,let release=try releaseRows.first?.value(),let run=try runRows.first?.value(),let promotionReceipt=try receiptRows.first?.value(),let pointer=try pointerRows.first?.value()else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};var pointers=[pointer];if let predecessorID=pointer.supersedesPointerID{let predecessorRows=try modelContext.fetch(FetchDescriptor<ActivePackageRegistryPointerRow>(predicate:#Predicate{$0.pointerID==predecessorID}));guard predecessorRows.count==1,let predecessor=try predecessorRows.first?.value()else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};pointers.append(predecessor)};return try PackageEvolutionLifecycleClosureV1(promotedReleases:[release],sandboxRuns:[run],promotionReceipts:[promotionReceipt],activePointers:pointers)}
@@ -547,6 +628,7 @@ final class MutationJournalStoreV1 {
     }
 
     func validateAll() throws {
+        try validateRecoverabilityVerificationReceipts()
         var descriptor = FetchDescriptor<MutationReceiptRow>(sortBy: [SortDescriptor(\.receiptIdentity)])
         descriptor.fetchLimit = Self.maximumReceiptValidationCount + 1
         let rows = try modelContext.fetch(descriptor)
@@ -1565,6 +1647,63 @@ final class MutationJournalStoreV1 {
         return values.first
     }
 
+    private func recoverabilityVerificationReceiptRows(
+        matching plan: RecoverabilityVerificationPlanV1
+    ) throws -> [RecoverabilityVerificationReceiptRow] {
+        let rows = try boundedFetch(FetchDescriptor<RecoverabilityVerificationReceiptRow>())
+        return rows.filter {
+            $0.receiptID == plan.receiptID
+                || $0.verificationID == plan.verificationID
+                || $0.mutationID == plan.mutationID.rawValue
+        }
+    }
+
+    private func validate(
+        receipt: RecoverabilityVerificationReceiptV1,
+        matches plan: RecoverabilityVerificationPlanV1
+    ) throws {
+        try receipt.validate()
+        guard receipt.receiptID == plan.receiptID,
+              receipt.verificationID == plan.verificationID,
+              receipt.workspaceID == plan.workspaceID,
+              receipt.archive == plan.archive,
+              receipt.mode == plan.mode,
+              receipt.observedSourceFrontier == plan.observedSourceFrontier,
+              receipt.verifierBuild == plan.verifierBuild,
+              receipt.supersedesReceiptID == plan.supersedesReceiptID,
+              receipt.revision == plan.revision,
+              receipt.mutationID == plan.mutationID else {
+            throw RecoverabilityVerificationFailureV1.divergentRetry
+        }
+    }
+
+    private func validateRecoverabilityVerificationReceipts() throws {
+        let rows = try boundedFetch(FetchDescriptor<RecoverabilityVerificationReceiptRow>())
+        let values = try rows.map { try $0.value() }
+        guard Set(values.map(\.receiptID)).count == values.count,
+              Set(values.map(\.verificationID)).count == values.count,
+              Set(values.map { $0.mutationID.rawValue }).count == values.count,
+              values.allSatisfy({ $0.workspaceID == identity.workspaceID }) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        for value in values {
+            if let predecessorID = value.supersedesReceiptID {
+                let predecessors = values.filter { $0.receiptID == predecessorID }
+                guard predecessors.count == 1, let predecessor = predecessors.first else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+                do {
+                    try value.validateSuccessor(of: predecessor)
+                } catch {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+            }
+            guard values.filter({ $0.supersedesReceiptID == value.receiptID }).count <= 1 else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+        }
+    }
+
     private func privacyManifestValue(_ row:PrivacyTransformManifestRow)throws->PrivacyTransformManifestV1{
         let id=row.policyID
         let rows=try modelContext.fetch(FetchDescriptor<PrivacyTransformPolicyRow>(predicate:#Predicate{$0.policyID==id}))
@@ -1726,6 +1865,20 @@ final class MutationJournalStoreV1 {
     private struct MutableSemanticDigestBasis: Codable {
         let content: [MutableSemanticItem]
         let deletionLedger: DeletionLedgerV2
+    }
+}
+
+extension MutationJournalStoreV1: RecoverabilityVerificationReceiptWritingV1 {
+    func acceptedReceipt(
+        for plan: RecoverabilityVerificationPlanV1
+    ) async throws -> RecoverabilityVerificationReceiptV1? {
+        try acceptedRecoverabilityVerificationReceipt(for: plan)
+    }
+
+    func append(
+        _ receipt: RecoverabilityVerificationReceiptV1
+    ) async throws -> RecoverabilityVerificationReceiptV1 {
+        try appendRecoverabilityVerificationReceipt(receipt)
     }
 }
 

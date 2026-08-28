@@ -788,6 +788,15 @@ final class V9_12SystemHealthOperationalDiagnosticsTests: XCTestCase {
 }
 
 extension V9_12SystemHealthOperationalDiagnosticsTests {
+    func testC22RecoverabilityVerificationAnchor() throws {
+        XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)
+        try V21RecoverabilityImportBoundaryV1.validate(persistentSchemaVersion: 21, recordsSchemaVersion: 20)
+        XCTAssertEqual(RecoverabilityVerificationLifecycleV1.writer, "SOLE_CANONICAL_WORKSPACE_WRITER")
+        XCTAssertFalse(RecoverabilityVerificationLifecycleV1.liveRestorePermitted)
+    }
+}
+
+extension V9_12SystemHealthOperationalDiagnosticsTests {
     func testV23P03C18ReplayClassificationIsPartOfOperationalLifecycle() throws {
         let required: Set<PackageSandboxCheckKindV1> = [.classification, .replay, .searchRebuild]
         XCTAssertTrue(required.isSubset(of: Set(PackageSandboxCheckKindV1.allCases)))

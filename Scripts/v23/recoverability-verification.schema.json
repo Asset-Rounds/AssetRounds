@@ -1,0 +1,563 @@
+{
+  "$id": "https://assetrounds.invalid/v23/recoverability-verification.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "alternateCases": {
+      "items": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "finding": {
+                "type": "string"
+              },
+              "findingCode": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "liveWorkspaceMutated": {
+                "type": "boolean"
+              },
+              "mode": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "finding",
+              "findingCode",
+              "id",
+              "liveWorkspaceMutated",
+              "mode"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "finding": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "liveWorkspaceMutated": {
+                "type": "boolean"
+              },
+              "mode": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "finding",
+              "id",
+              "liveWorkspaceMutated",
+              "mode"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "maxItems": 4,
+      "minItems": 4,
+      "type": "array"
+    },
+    "cardID": {
+      "type": "string"
+    },
+    "claims": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance": {
+          "type": "boolean"
+        },
+        "acceptanceCredit": {
+          "type": "boolean"
+        },
+        "account": {
+          "type": "boolean"
+        },
+        "adoption": {
+          "type": "boolean"
+        },
+        "android": {
+          "type": "boolean"
+        },
+        "backend": {
+          "type": "boolean"
+        },
+        "cloudDurability": {
+          "type": "boolean"
+        },
+        "destructiveLiveRestore": {
+          "type": "boolean"
+        },
+        "externalCopyAvailable": {
+          "type": "boolean"
+        },
+        "futureRecoverability": {
+          "type": "boolean"
+        },
+        "hosted": {
+          "type": "boolean"
+        },
+        "native": {
+          "type": "boolean"
+        },
+        "network": {
+          "type": "boolean"
+        },
+        "phase10PollingDuringParallelExecution": {
+          "type": "boolean"
+        },
+        "providerAvailability": {
+          "type": "boolean"
+        },
+        "receiptInsideArchive": {
+          "type": "boolean"
+        },
+        "release": {
+          "type": "boolean"
+        },
+        "releaseCredit": {
+          "type": "boolean"
+        },
+        "secondStore": {
+          "type": "boolean"
+        },
+        "secondWriter": {
+          "type": "boolean"
+        },
+        "sourceArchiveRepair": {
+          "type": "boolean"
+        },
+        "web": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "acceptance",
+        "acceptanceCredit",
+        "account",
+        "adoption",
+        "android",
+        "backend",
+        "cloudDurability",
+        "destructiveLiveRestore",
+        "externalCopyAvailable",
+        "futureRecoverability",
+        "hosted",
+        "native",
+        "network",
+        "phase10PollingDuringParallelExecution",
+        "providerAvailability",
+        "receiptInsideArchive",
+        "release",
+        "releaseCredit",
+        "secondStore",
+        "secondWriter",
+        "sourceArchiveRepair",
+        "web"
+      ],
+      "type": "object"
+    },
+    "containsCustomerData": {
+      "type": "boolean"
+    },
+    "containsSecrets": {
+      "type": "boolean"
+    },
+    "durableFamilyCount": {
+      "type": "integer"
+    },
+    "evidenceCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "assertion": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "assertion",
+          "id",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "maxItems": 11,
+      "minItems": 11,
+      "type": "array"
+    },
+    "findingCodes": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 17,
+      "minItems": 17,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "findingDispositions": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "forbiddenClaims": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 11,
+      "minItems": 11,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "freshnessDispositions": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "goldenCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "finding": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "liveWorkspaceMutated": {
+            "type": "boolean"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "receiptImmutable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "finding",
+          "id",
+          "liveWorkspaceMutated",
+          "mode",
+          "receiptImmutable"
+        ],
+        "type": "object"
+      },
+      "maxItems": 1,
+      "minItems": 1,
+      "type": "array"
+    },
+    "hostileCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedBoundary": {
+            "type": "string"
+          },
+          "expectedDisposition": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedBoundary",
+          "expectedDisposition",
+          "id"
+        ],
+        "type": "object"
+      },
+      "maxItems": 11,
+      "minItems": 11,
+      "type": "array"
+    },
+    "interruptionCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedBoundary": {
+            "type": "string"
+          },
+          "expectedDisposition": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedBoundary",
+          "expectedDisposition",
+          "id"
+        ],
+        "type": "object"
+      },
+      "maxItems": 9,
+      "minItems": 9,
+      "type": "array"
+    },
+    "persistence": {
+      "additionalProperties": false,
+      "properties": {
+        "backupRestoreRequired": {
+          "type": "boolean"
+        },
+        "canonicalSourceOfTruth": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 1,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "canonicalWriter": {
+          "type": "string"
+        },
+        "classificationRequired": {
+          "type": "boolean"
+        },
+        "currentProjectionRowCount": {
+          "type": "integer"
+        },
+        "deleteEraseRequired": {
+          "type": "boolean"
+        },
+        "downgrade": {
+          "type": "string"
+        },
+        "exportReportRequired": {
+          "type": "boolean"
+        },
+        "forwardFix": {
+          "type": "string"
+        },
+        "interruptionRecoveryRequired": {
+          "type": "boolean"
+        },
+        "migrationRequired": {
+          "type": "boolean"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "nonPersistentFamilies": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 1,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "persistedFamilies": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 1,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "providerRows": {
+          "type": "integer"
+        },
+        "recordsSchemaVersion": {
+          "type": "integer"
+        },
+        "replayRequired": {
+          "type": "boolean"
+        },
+        "schemaRelease": {
+          "type": "string"
+        },
+        "schemaVersion": {
+          "type": "integer"
+        },
+        "searchRebuildRequired": {
+          "type": "boolean"
+        },
+        "secondStore": {
+          "type": "boolean"
+        },
+        "secondWriter": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "backupRestoreRequired",
+        "canonicalSourceOfTruth",
+        "canonicalWriter",
+        "classificationRequired",
+        "currentProjectionRowCount",
+        "deleteEraseRequired",
+        "downgrade",
+        "exportReportRequired",
+        "forwardFix",
+        "interruptionRecoveryRequired",
+        "migrationRequired",
+        "mode",
+        "nonPersistentFamilies",
+        "persistedFamilies",
+        "providerRows",
+        "recordsSchemaVersion",
+        "replayRequired",
+        "schemaRelease",
+        "schemaVersion",
+        "searchRebuildRequired",
+        "secondStore",
+        "secondWriter"
+      ],
+      "type": "object"
+    },
+    "persistentKindLifecycleModelCount": {
+      "type": "integer"
+    },
+    "persistentRecoverabilityKindCount": {
+      "type": "integer"
+    },
+    "persistentSchemaVersion": {
+      "type": "integer"
+    },
+    "recordsSchemaVersion": {
+      "type": "integer"
+    },
+    "recoveryCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedDisposition": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedDisposition",
+          "id"
+        ],
+        "type": "object"
+      },
+      "maxItems": 7,
+      "minItems": 7,
+      "type": "array"
+    },
+    "requiredBehaviors": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "contract": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "requirement": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "contract",
+          "evidence",
+          "id",
+          "requirement"
+        ],
+        "type": "object"
+      },
+      "maxItems": 7,
+      "minItems": 7,
+      "type": "array"
+    },
+    "requiredContractNames": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "integer"
+    },
+    "stagingStates": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 6,
+      "minItems": 6,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "synthetic": {
+      "type": "boolean"
+    },
+    "verificationModes": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array",
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "alternateCases",
+    "cardID",
+    "claims",
+    "containsCustomerData",
+    "containsSecrets",
+    "durableFamilyCount",
+    "evidenceCases",
+    "findingCodes",
+    "findingDispositions",
+    "forbiddenClaims",
+    "freshnessDispositions",
+    "goldenCases",
+    "hostileCases",
+    "interruptionCases",
+    "persistence",
+    "persistentKindLifecycleModelCount",
+    "persistentRecoverabilityKindCount",
+    "persistentSchemaVersion",
+    "recordsSchemaVersion",
+    "recoveryCases",
+    "requiredBehaviors",
+    "requiredContractNames",
+    "schema",
+    "schemaVersion",
+    "stagingStates",
+    "synthetic",
+    "verificationModes"
+  ],
+  "title": "V23 P03 C22 Recoverability Verification Corpus",
+  "type": "object"
+}

@@ -320,6 +320,15 @@ final class S6_2BackupExportTests: XCTestCase {
 }
 
 extension S6_2BackupExportTests {
+    func testC22RecoverabilityVerificationAnchor() throws {
+        XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)
+        try V21RecoverabilityImportBoundaryV1.validate(persistentSchemaVersion: 21, recordsSchemaVersion: 20)
+        XCTAssertEqual(RecoverabilityVerificationLifecycleV1.backupEligibility, "SUBSEQUENT_BACKUPS_ONLY")
+        XCTAssertFalse(RecoverabilityVerificationLifecycleV1.receiptInsideVerifiedArchive)
+    }
+}
+
+extension S6_2BackupExportTests {
     func testV23P03C18BackupAndExportAreRequiredSandboxChecks() throws {
         let required: Set<PackageSandboxCheckKindV1> = [.backupRestore, .export]
         XCTAssertEqual(required.intersection(Set(PackageSandboxCheckKindV1.allCases)), required)

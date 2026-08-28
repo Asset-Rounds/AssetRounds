@@ -65,6 +65,7 @@ struct BackupCanonicalDecoderV1: Sendable {
             try Self.validateMeasurementIntegrity(value)
             try Self.validatePrivacyTransforms(value)
             try Self.validateClientCapabilities(value)
+            try Self.validateRecoverabilityReceipts(value)
             let canonical = try BackupCanonicalEncoderV1().encodeRecords(value).data
             guard canonical == data else {
                 throw BackupCanonicalDecodingErrorV1.invalidRecords
@@ -77,6 +78,12 @@ struct BackupCanonicalDecoderV1: Sendable {
 }
 
 private extension BackupCanonicalDecoderV1 {
+    static func validateRecoverabilityReceipts(_ records:V4BackupRecordsV1)throws{
+        guard records.recordsSchemaVersion>=20 else{guard records.recoverabilityReceipts.isEmpty else{throw BackupCanonicalDecodingErrorV1.invalidRecords};return}
+        var keys=Set<UUID>()
+        for record in records.recoverabilityReceipts{let value=try RecoverabilityVerificationReceiptRow(RecoverabilityVerificationCanonicalCodecV1.decode(RecoverabilityVerificationReceiptV1.self,from:record.canonicalData)).value();guard record.id==value.receiptID,record.workspaceID==value.workspaceID.rawValue,record.revision==value.revision,keys.insert(record.id).inserted else{throw BackupCanonicalDecodingErrorV1.invalidRecords}}
+    }
+
     static func validateClientCapabilities(_ records:V4BackupRecordsV1)throws{
         guard records.recordsSchemaVersion>=19 else{guard records.clientCapabilities.isEmpty else{throw BackupCanonicalDecodingErrorV1.invalidRecords};return}
         let releases=try records.packageEvolution.filter{$0.kind == .promotedRelease}.map{try PackageEvolutionCanonicalCodecV1.decode(PromotedPackageReleaseV1.self,from:$0.canonicalData).packageRelease}

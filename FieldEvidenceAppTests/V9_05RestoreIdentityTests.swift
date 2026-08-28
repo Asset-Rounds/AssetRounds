@@ -555,6 +555,15 @@ final class V9_05RestoreIdentityTests: XCTestCase {
 }
 
 extension V9_05RestoreIdentityTests {
+    func testC22RecoverabilityVerificationAnchor() throws {
+        XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)
+        try V21RecoverabilityImportBoundaryV1.validate(persistentSchemaVersion: 21, recordsSchemaVersion: 20)
+        XCTAssertFalse(RecoverabilityVerificationLifecycleV1.liveRestorePermitted)
+        XCTAssertEqual(RecoverabilityVerificationLifecycleV1.backupEligibility, "SUBSEQUENT_BACKUPS_ONLY")
+    }
+}
+
+extension V9_05RestoreIdentityTests {
     func testV23P03C36CloneDraftIdentityMappingIsDeterministicAndNamespaced() throws {
         let source=UUID(),workspace=UUID()
         let pointer=RestorePointerIdentityV1(generationID:UUID(),generationManifestSHA256:String(repeating:"a",count:64),workspaceID:workspace,replicaID:UUID())

@@ -553,6 +553,15 @@ final class V10_01WorkspaceWriterTests: XCTestCase {
 }
 
 extension V10_01WorkspaceWriterTests {
+    func testC22RecoverabilityVerificationAnchor() throws {
+        XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)
+        try V21RecoverabilityImportBoundaryV1.validate(persistentSchemaVersion: 21, recordsSchemaVersion: 20)
+        XCTAssertEqual(RecoverabilityVerificationLifecycleV1.writer, "SOLE_CANONICAL_WORKSPACE_WRITER")
+        XCTAssertFalse(RecoverabilityVerificationLifecycleV1.liveRestorePermitted)
+    }
+}
+
+extension V10_01WorkspaceWriterTests {
     func testV23P03C15WriterMutationUsesPacketIdentityAndCanonicalReceiptBytes() throws {
         let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_201)
         let mutation = try WorkPacketMutationV1(

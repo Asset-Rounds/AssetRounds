@@ -104,10 +104,11 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
     static let v18PersistentModelNames=["CalibrationStatusSnapshotRow","InstrumentReferenceRow","MeasurementCaptureRow","MeasurementQualityAssessmentRow","MeasurementSeriesRow"]
     static let v19PersistentModelNames=["PrivacyRegionRow","PrivacyReviewReceiptRow","PrivacyTransformManifestRow","PrivacyTransformPolicyRow"]
     static let v20PersistentModelNames=["ClientCapabilityAdmissionDecisionRow","ClientCapabilityProfileRow","PackageLifecycleDispositionRow","PackageLifecyclePolicyRow"]
+    static let v21PersistentModelNames=["RecoverabilityVerificationReceiptRow"]
     static let activePersistentModelNames =
         (persistentModelNames + v6PersistentModelNames + v7PersistentModelNames
             + v8PersistentModelNames + v9PersistentModelNames + v10PersistentModelNames
-            + v11PersistentModelNames + v12PersistentModelNames + v13PersistentModelNames + v14PersistentModelNames + v15PersistentModelNames + v16PersistentModelNames + v17PersistentModelNames + v18PersistentModelNames + v19PersistentModelNames + v20PersistentModelNames).sorted()
+            + v11PersistentModelNames + v12PersistentModelNames + v13PersistentModelNames + v14PersistentModelNames + v15PersistentModelNames + v16PersistentModelNames + v17PersistentModelNames + v18PersistentModelNames + v19PersistentModelNames + v20PersistentModelNames + v21PersistentModelNames).sorted()
 
     static let ownedFileClassNames = [
         "cache", "commerceEntitlementCache", "database", "databaseSHM", "databaseWAL",
@@ -172,6 +173,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "InstrumentReferenceV1","CalibrationStatusSnapshotV1","MeasurementCaptureV1","MeasurementSeriesV1","MeasurementQualityAssessmentV1",
         "PrivacyTransformPolicyV1","PrivacyRegionV1","PrivacyTransformManifestV1","PrivacyReviewReceiptV1","PrivacyProjectionV1","PrivacyTransformLifecycleClosureV1",
         "ClientCapabilityProfileV1","ClientCapabilityAdmissionDecisionV1","PackageLifecyclePolicyV1","PackageLifecycleDispositionV1","ClientCapabilityAdmissionEvaluatorV1","ClientCapabilityLifecycleClosureV1",
+        "RecoverabilityVerificationReceiptV1",
     ]
 
     static let derivedIndexNames = [
@@ -217,6 +219,10 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "StoreSemanticEnvelopeV18",
         "StoreSemanticEnvelopeV19",
         "StoreSemanticEnvelopeV20",
+        "StoreSemanticEnvelopeV21",
+        "RecoverabilityVerificationStagingV1",
+        "RecoverabilityFreshnessProjectionV1",
+        "RecoverabilityVerificationLifecycleV1",
         "WorkspaceMutationStateSemanticV1",
         "entityMutationRevision",
         "workspaceMutationState",
@@ -717,6 +723,7 @@ private extension CurrentSyncClassificationCatalogV1 {
         for name in v18PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[]))}
         for name in v19PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[]))}
         for name in v20PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[]))}
+        for name in v21PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[]))}
 
         for name in portableContentProjectionNames {
             let profile: AdditionalProfile = name == "ReportSnapshotV1"
@@ -1111,6 +1118,7 @@ private extension CurrentSyncClassificationCatalogV1 {
         case "PackageLifecyclePolicyV1":return[try subject(category:.persistentModel,name:"PackageLifecyclePolicyRow")]
         case "PackageLifecycleDispositionV1":return[try subject(category:.persistentModel,name:"PackageLifecycleDispositionRow")]
         case "ClientCapabilityAdmissionEvaluatorV1","ClientCapabilityLifecycleClosureV1":return try subjects(category:.persistentModel,names:v20PersistentModelNames)
+        case "RecoverabilityVerificationReceiptV1":return[try subject(category:.persistentModel,name:"RecoverabilityVerificationReceiptRow")]
         case "PackageSemanticDiffV1","DraftUpgradePlanV1":return []
         default:
             throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
@@ -1171,7 +1179,9 @@ private extension CurrentSyncClassificationCatalogV1 {
         case "StoreSemanticEnvelopeV17":return try subjects(category:.persistentModel,names:persistentModelNames+v6PersistentModelNames+v7PersistentModelNames+v8PersistentModelNames+v9PersistentModelNames+v10PersistentModelNames+v11PersistentModelNames+v12PersistentModelNames+v13PersistentModelNames+v14PersistentModelNames+v15PersistentModelNames+v16PersistentModelNames+v17PersistentModelNames)
         case "StoreSemanticEnvelopeV18":return try subjects(category:.persistentModel,names:persistentModelNames+v6PersistentModelNames+v7PersistentModelNames+v8PersistentModelNames+v9PersistentModelNames+v10PersistentModelNames+v11PersistentModelNames+v12PersistentModelNames+v13PersistentModelNames+v14PersistentModelNames+v15PersistentModelNames+v16PersistentModelNames+v17PersistentModelNames+v18PersistentModelNames)
         case "StoreSemanticEnvelopeV19":return try subjects(category:.persistentModel,names:(v1PersistentModelNames+v2PersistentModelNames+v3PersistentModelNames+v4PersistentModelNames+v5PersistentModelNames+v6PersistentModelNames+v7PersistentModelNames+v8PersistentModelNames+v9PersistentModelNames+v10PersistentModelNames+v11PersistentModelNames+v12PersistentModelNames+v13PersistentModelNames+v14PersistentModelNames+v15PersistentModelNames+v16PersistentModelNames+v17PersistentModelNames+v18PersistentModelNames+v19PersistentModelNames))
-        case "StoreSemanticEnvelopeV20":return try subjects(category:.persistentModel,names:activePersistentModelNames)
+        case "StoreSemanticEnvelopeV20":return try subjects(category:.persistentModel,names:(activePersistentModelNames.filter{$0 != "RecoverabilityVerificationReceiptRow"}))
+        case "StoreSemanticEnvelopeV21":return try subjects(category:.persistentModel,names:activePersistentModelNames)
+        case "RecoverabilityVerificationStagingV1","RecoverabilityFreshnessProjectionV1","RecoverabilityVerificationLifecycleV1":return[try subject(category:.persistentModel,name:"RecoverabilityVerificationReceiptRow")]
         case "IntegrationConformanceConsumerV1", "IntegrationContractRegistryV1",
              "IntegrationEventProjectionV1", "IntegrationEventV1",
              "IntegrationProjectionCheckpointStoreV1", "ProjectionCheckpointV1":
@@ -1327,8 +1337,9 @@ private extension CurrentSyncClassificationCatalogV1 {
             InstrumentReferenceRow.self,CalibrationStatusSnapshotRow.self,MeasurementCaptureRow.self,MeasurementSeriesRow.self,MeasurementQualityAssessmentRow.self,
             PrivacyTransformPolicyRow.self,PrivacyRegionRow.self,PrivacyTransformManifestRow.self,PrivacyReviewReceiptRow.self,
             ClientCapabilityProfileRow.self,ClientCapabilityAdmissionDecisionRow.self,PackageLifecyclePolicyRow.self,PackageLifecycleDispositionRow.self,
+            RecoverabilityVerificationReceiptRow.self,
         ]
-        let runtimeNames = PersistentSchemaV18.models.map { modelType in
+        let runtimeNames = PersistentSchemaV21.models.map { modelType in
             String(describing: modelType)
                 .split(separator: ".")
                 .last
@@ -1341,8 +1352,8 @@ private extension CurrentSyncClassificationCatalogV1 {
               Set(PersistentSchemaV5.models.map { ObjectIdentifier($0) })
                 == Set(frozenV5.map { ObjectIdentifier($0) }),
               frozenNames == persistentModelNames,
-              PersistentSchemaV18.models.count == expected.count,
-              Set(PersistentSchemaV18.models.map { ObjectIdentifier($0) })
+              PersistentSchemaV21.models.count == expected.count,
+              Set(PersistentSchemaV21.models.map { ObjectIdentifier($0) })
                 == Set(expected.map { ObjectIdentifier($0) }),
               runtimeNames.count == Set(runtimeNames).count,
               runtimeNames.allSatisfy(ReplicationContractValidationV1.validToken),

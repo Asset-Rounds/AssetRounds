@@ -35,6 +35,17 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             .applyClientCapability,
         ])
 
+    /// C22 receipts are appended by the existing fenced journal authority;
+    /// neither receipt rows nor disposable verification staging enter apply(_:).
+    nonisolated static let appliesRecoverabilityVerificationReceipts = false
+    nonisolated static let persistsRecoverabilityVerificationStaging = false
+
+    static func recoverabilityVerificationReceiptAuthority(
+        journal: MutationJournalStoreV1
+    ) -> any RecoverabilityVerificationReceiptWritingV1 {
+        journal
+    }
+
     private let modelContext: ModelContext
     private let assetSemanticLifecycleAdapter: AssetSemanticLifecycleAdapterV1
 

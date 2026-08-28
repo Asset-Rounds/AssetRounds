@@ -60,6 +60,16 @@ enum ProtectedFilePolicyError: Error, Equatable, Sendable {
 enum ProtectedFilePolicyV1 {
     static let requiredFileProtection: FileProtectionType = .complete
 
+    /// Recoverability verification stages only under the existing disposable
+    /// staging policy. The opaque locator never creates a new durable file
+    /// class or a second archive/store authority.
+    static func protectRecoverabilityVerificationStagingDirectory(
+        at url: URL,
+        authorityCheck: () throws -> Void = {}
+    ) throws {
+        try applyAndVerify(.stagingDirectory, at: url, authorityCheck: authorityCheck)
+    }
+
     static func isProtectedDataUnavailable(_ error: Error) -> Bool {
         if let policyError = error as? ProtectedFilePolicyError {
             return policyError == .protectedDataUnavailable

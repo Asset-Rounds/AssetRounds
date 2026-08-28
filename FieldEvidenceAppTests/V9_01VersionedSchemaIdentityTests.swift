@@ -894,6 +894,15 @@ final class V9_01VersionedSchemaIdentityTests: XCTestCase {
 }
 
 extension V9_01VersionedSchemaIdentityTests {
+    func testC22RecoverabilityVerificationAnchor() throws {
+        XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)
+        try V21RecoverabilityImportBoundaryV1.validate(persistentSchemaVersion: 21, recordsSchemaVersion: 20)
+        XCTAssertFalse(RecoverabilityVerificationLifecycleV1.receiptInsideVerifiedArchive)
+        XCTAssertFalse(RecoverabilityVerificationLifecycleV1.liveRestorePermitted)
+    }
+}
+
+extension V9_01VersionedSchemaIdentityTests {
     func testV23P03C15ManifestAndHistorySchemasStayVersioned() throws {
         let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_101)
         XCTAssertEqual(fixture.manifest.schemaVersion, WorkPacketManifestV1.schemaVersion)

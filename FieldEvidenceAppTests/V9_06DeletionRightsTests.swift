@@ -198,6 +198,16 @@ final class V9_06DeletionRightsTests: XCTestCase {
 }
 
 extension V9_06DeletionRightsTests {
+    func testC22RecoverabilityVerificationAnchor() throws {
+        XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)
+        try V21RecoverabilityImportBoundaryV1.validate(persistentSchemaVersion: 21, recordsSchemaVersion: 20)
+        XCTAssertEqual(RecoverabilityVerificationLifecycleV1.receiptPersistence,
+                       "RECOVERABILITY_VERIFICATION_RECEIPT_V1_IMMUTABLE_EVIDENCE")
+        XCTAssertFalse(RecoverabilityVerificationLifecycleV1.externalCopyAvailabilityClaimed)
+    }
+}
+
+extension V9_06DeletionRightsTests {
     func testV23P03C36DeletionRightsPreserveOperationalHistoryUntilErase() throws {
         try FieldDraftDeletionLedgerPolicyV1.validate()
         XCTAssertTrue(FieldDraftEraseBoundaryV1.operationalStateClearedOnlyByWorkspaceErase)

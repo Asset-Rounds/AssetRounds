@@ -691,6 +691,15 @@ final class S6_4AtomicRestoreTests: XCTestCase {
 }
 
 extension S6_4AtomicRestoreTests {
+    func testC22RecoverabilityVerificationAnchor() throws {
+        XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)
+        try V21RecoverabilityImportBoundaryV1.validate(persistentSchemaVersion: 21, recordsSchemaVersion: 20)
+        XCTAssertFalse(RecoverabilityVerificationLifecycleV1.liveRestorePermitted)
+        XCTAssertEqual(RecoverabilityVerificationLifecycleV1.writer, "SOLE_CANONICAL_WORKSPACE_WRITER")
+    }
+}
+
+extension S6_4AtomicRestoreTests {
     func testV23P03C18PromotionBundleKeepsOldOrNewInterruptionPolicy() throws {
         XCTAssertEqual(
             PackageEvolutionLifecycleV1.interruption,

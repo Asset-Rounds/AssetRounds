@@ -22,4 +22,11 @@ final class MutationReceiptRecoveryServiceV1 {
     func recoverFieldDraftEffectsBeforeWriterActivation() throws {
         try recoverBeforeWriterActivation()
     }
+
+    /// Immutable recoverability receipts use the same effect-before-receipt
+    /// repair boundary as every other canonical workspace mutation. Derived
+    /// verification staging is deliberately outside this durable recovery.
+    func recoverRecoverabilityVerificationReceiptsBeforeWriterActivation() throws {
+        try recoverBeforeWriterActivation()
+    }
 }

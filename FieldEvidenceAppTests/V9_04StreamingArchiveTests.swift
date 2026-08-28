@@ -234,6 +234,15 @@ final class V9_04StreamingArchiveTests: XCTestCase {
     }
 }
 
+extension V9_04StreamingArchiveTests {
+    func testC22RecoverabilityVerificationAnchor() throws {
+        XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)
+        try V21RecoverabilityImportBoundaryV1.validate(persistentSchemaVersion: 21, recordsSchemaVersion: 20)
+        XCTAssertFalse(RecoverabilityVerificationLifecycleV1.receiptInsideVerifiedArchive)
+        XCTAssertEqual(RecoverabilityVerificationLifecycleV1.backupEligibility, "SUBSEQUENT_BACKUPS_ONLY")
+    }
+}
+
 private extension V9_04StreamingArchiveTests {
     final class UUIDSequence {
         private var value = 0

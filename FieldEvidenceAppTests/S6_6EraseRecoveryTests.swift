@@ -650,6 +650,16 @@ final class S6_6EraseRecoveryTests: XCTestCase {
 }
 
 extension S6_6EraseRecoveryTests {
+    func testC22RecoverabilityVerificationAnchor() throws {
+        XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)
+        try V21RecoverabilityImportBoundaryV1.validate(persistentSchemaVersion: 21, recordsSchemaVersion: 20)
+        XCTAssertEqual(RecoverabilityVerificationLifecycleV1.receiptPersistence,
+                       "RECOVERABILITY_VERIFICATION_RECEIPT_V1_IMMUTABLE_EVIDENCE")
+        XCTAssertFalse(RecoverabilityVerificationLifecycleV1.externalCopyAvailabilityClaimed)
+    }
+}
+
+extension S6_6EraseRecoveryTests {
     func testV23P03C18EraseRecoveryRetainsTypedLifecycleRequirement() throws {
         XCTAssertTrue(PackageEvolutionLifecycleV1.deleteEraseRequired)
         XCTAssertTrue(PackageEvolutionLifecycleV1.backupRestoreRequired)

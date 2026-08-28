@@ -261,6 +261,15 @@ final class V9_07CompatibilityPolicyTests: XCTestCase {
 }
 
 extension V9_07CompatibilityPolicyTests {
+    func testC22RecoverabilityVerificationAnchor() throws {
+        XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)
+        try V21RecoverabilityImportBoundaryV1.validate(persistentSchemaVersion: 21, recordsSchemaVersion: 20)
+        XCTAssertFalse(RecoverabilityVerificationLifecycleV1.externalCopyAvailabilityClaimed)
+        XCTAssertFalse(RecoverabilityVerificationLifecycleV1.liveRestorePermitted)
+    }
+}
+
+extension V9_07CompatibilityPolicyTests {
     func testV23P03C18CompatibilityClassesRemainClosedAndVersioned() throws {
         XCTAssertEqual(PackageSemanticDiffClassificationV1.allCases.count, 5)
         XCTAssertEqual(

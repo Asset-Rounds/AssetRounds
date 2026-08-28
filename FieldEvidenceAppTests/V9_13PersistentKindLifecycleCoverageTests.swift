@@ -1149,6 +1149,16 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
 }
 
 extension V9_13PersistentKindLifecycleCoverageTests {
+    func testC22RecoverabilityVerificationAnchor() throws {
+        XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)
+        try V21RecoverabilityImportBoundaryV1.validate(persistentSchemaVersion: 21, recordsSchemaVersion: 20)
+        XCTAssertEqual(RecoverabilityVerificationLifecycleV1.receiptPersistence,
+                       "RECOVERABILITY_VERIFICATION_RECEIPT_V1_IMMUTABLE_EVIDENCE")
+        XCTAssertFalse(RecoverabilityVerificationLifecycleV1.externalCopyAvailabilityClaimed)
+    }
+}
+
+extension V9_13PersistentKindLifecycleCoverageTests {
     func testV23P03C18PersistentSandboxKindsStayVersioned() throws {
         XCTAssertEqual(PackageSandboxRunV1.schemaVersion, 1)
         let required: Set<PackageSandboxCheckKindV1> = [.schema, .graph, .backupRestore, .searchRebuild]

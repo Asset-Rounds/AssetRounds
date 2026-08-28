@@ -11,6 +11,11 @@ final class LocalChangeJournalV1 {
     static func assetSemanticCoverage() throws -> AssetSemanticJournalCoverageV1 {
         try AssetSemanticJournalCoverageV1()
     }
+    static func recoverabilityVerificationCoverage() throws -> RecoverabilityVerificationJournalCoverageV1 {
+        let coverage = RecoverabilityVerificationJournalCoverageV1()
+        try coverage.validate()
+        return coverage
+    }
     typealias ConflictPolicyResolver = (WorkspaceEntityIdentityV1, MutationPostImageV1) throws -> ConflictPolicyV1
     typealias ContentReferenceResolver = (String) throws -> ContentReferenceV1
     typealias ContentEntryResolver = (ContentReferenceV1) throws -> LocalContentStoreEntryV1
@@ -173,6 +178,85 @@ final class LocalChangeJournalV1 {
         try await consumer.rebuild(
             workspaceID: identity.workspaceID,
             acceptedReceipts: acceptedReceiptsForIntegrationProjection()
+        )
+    }
+
+    /// Derives the recovery-point frontier from the same immutable checkpoint
+    /// manifest used by journal replay.  No staging, archive, or canonical
+    /// workspace bytes are written by this projection.
+    func recoveryPointFrontier(checkpointID: String? = nil) throws -> RecoveryPointFrontierV1 {
+        let checkpoint = try resolvedCheckpoint(checkpointID)
+        let frontier = checkpoint.manifest.frontier
+        return try RecoveryPointFrontierV1(
+            workspaceRevision: frontier.workspaceRevision,
+            lastLocalSequence: checkpointLocalSequence(frontier),
+            checkpointID: checkpoint.manifest.checkpointID,
+            checkpointFrontierSHA256: try frontier.canonicalSHA256()
+        )
+    }
+
+    /// Explicit spelling for callers that need to distinguish the current
+    /// journal recovery point from a caller-selected historical checkpoint.
+    func currentRecoveryPointFrontier() throws -> RecoveryPointFrontierV1 {
+        try recoveryPointFrontier()
+    }
+
+    /// Validates a C22 receipt at the journal boundary without storing a
+    /// second receipt family.  Staging is optional because it is disposable
+    /// and may already have been purged after cleanup.
+    func validateRecoverabilityVerificationReceipt(
+        _ receipt: RecoverabilityVerificationReceiptV1,
+        staging: RecoverabilityVerificationStagingV1? = nil
+    ) throws {
+        guard receipt.workspaceID == identity.workspaceID else {
+            throw ChangeJournalFailureV1.wrongWorkspace
+        }
+        let coverage = try Self.recoverabilityVerificationCoverage()
+        try coverage.validate(staging: staging, receipt: receipt)
+    }
+
+    /// Compares an immutable receipt with the current journal/archive binding
+    /// while preserving historic-noncurrent semantics for a changed archive.
+    func recoverabilityFreshnessProjection(
+        for receipt: RecoverabilityVerificationReceiptV1,
+        currentArchiveSHA256: String,
+        checkpointID: String? = nil
+    ) throws -> RecoverabilityFreshnessProjectionV1 {
+        try validateRecoverabilityVerificationReceipt(receipt)
+        return try RecoverabilityFreshnessProjectionV1.derive(
+            receipt: receipt,
+            currentArchiveSHA256: currentArchiveSHA256,
+            currentSourceFrontier: recoveryPointFrontier(checkpointID: checkpointID)
+        )
+    }
+
+    /// Converts a completed journal replay into the canonical C22 replay
+    /// receipt.  The caller supplies the two canonical-state digests produced
+    /// by isolated restore/replay; a deferred or rejected journal result can
+    /// never be represented as a completed recovery proof.
+    func deterministicRecoveryReplayReceipt(
+        from result: ReplayResultV1,
+        checkpointID: String,
+        restoredCanonicalStateSHA256: String,
+        replayedCanonicalStateSHA256: String
+    ) throws -> DeterministicRecoveryReplayReceiptV1 {
+        guard !result.isDeferred,
+              result.receipt.dispositions.allSatisfy({
+                  switch $0.disposition {
+                  case .applied, .alreadyApplied, .deleteWon, .derivedRebuild, .localOnlyExcluded:
+                      return true
+                  case .deferredGap, .deferredContent, .unresolvedConflict, .rejected:
+                      return false
+                  }
+              }) else {
+            throw ChangeJournalFailureV1.incompleteCheckpoint
+        }
+        return try DeterministicRecoveryReplayReceiptV1(
+            checkpointID: checkpointID,
+            orderedMutationCount: result.receipt.dispositions.count,
+            orderedMutationDigestSHA256: result.receipt.batchSHA256,
+            restoredCanonicalStateSHA256: restoredCanonicalStateSHA256,
+            replayedCanonicalStateSHA256: replayedCanonicalStateSHA256
         )
     }
 

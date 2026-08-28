@@ -103,6 +103,11 @@ struct DiagnosticExportV1: Codable, Equatable, Sendable {
     /// carries closed state values and permissions only; no device/user,
     /// endpoint/provider/account, payload, or delivery acknowledgement data.
     var clientCapability: ClientCapabilityDiagnosticMetadataV1? = nil
+    /// Optional C22 recovery verification health. It carries only bounded
+    /// counts and closed dispositions; archive bytes, content/state digests,
+    /// staging locators, verifier identity, and client-capability bindings are
+    /// never diagnostic payload.
+    var recoverabilityVerification: RecoverabilityVerificationDiagnosticMetadataV1? = nil
 
     /// Integration event payloads, subjects, cursors, and checkpoint bytes are
     /// never diagnostic material. Diagnostics may describe only the static
@@ -129,6 +134,7 @@ struct DiagnosticExportV1: Codable, Equatable, Sendable {
             && (measurementIntegrity?.isValid ?? true)
             && (privacyTransform?.isValid ?? true)
             && (clientCapability?.isValid ?? true)
+            && (recoverabilityVerification?.isValid ?? true)
             && integrationProjectionPayloadExcluded
     }
 
@@ -153,6 +159,22 @@ enum IntegrationProjectionDiagnosticExclusionV1 {
         "checkpointSHA256", "consumerStateSHA256", "eventID",
         "eventSHA256", "lastEventID", "lastEventSHA256", "payloadSHA256",
         "sourceReceiptSHA256", "subjectSemanticSHA256",
+        // C22 archive, replay, staging, receipt, and verifier bindings are
+        // evidence fields, never diagnostic material.
+        "archiveSHA256", "archiveManifestSHA256", "recordsSHA256",
+        "contentManifestSHA256", "checkpointFrontierSHA256",
+        "orderedMutationDigestSHA256", "restoredCanonicalStateSHA256",
+        "replayedCanonicalStateSHA256", "stagingLocatorToken",
+        "sourceArchiveReadbackSHA256", "liveWorkspaceStateBeforeSHA256",
+        "liveWorkspaceStateAfterSHA256", "sourceArchiveSHA256Before",
+        "sourceArchiveSHA256After", "semanticBuildID", "executableSHA256",
+        "restoredRecordsSHA256", "expectedContentManifestSHA256",
+        "restoredContentManifestSHA256", "missingContentSHA256s",
+        "reconciliationSHA256", "replaySHA256", "cleanupSHA256",
+        "sourceWorkspaceID", "sourceGenerationID", "archiveByteCount",
+        "persistentSchemaVersion", "recordsSchemaVersion", "workspaceID",
+        "decisionID", "decisionSHA256", "receiptSHA256", "receiptID",
+        "verificationID", "stagingID", "checkpointID", "mutationID",
     ]
 
     static func validate(_ data: Data) throws {
@@ -170,6 +192,7 @@ struct DiagnosticExportService {
     typealias RequirementAssuranceProvider = () -> RequirementAssuranceSnapshotV1?
     typealias WorkPacketProvider = () -> WorkPacketDiagnosticSummaryV1?
     typealias ClientCapabilityProvider = () -> ClientCapabilityDiagnosticMetadataV1?
+    typealias RecoverabilityVerificationProvider = () -> RecoverabilityVerificationDiagnosticMetadataV1?
     typealias ContextProvider<Value> = () -> Value
     typealias Clock = () -> Date
 
@@ -178,6 +201,7 @@ struct DiagnosticExportService {
     private let requirementAssuranceProvider: RequirementAssuranceProvider
     private let workPacketProvider: WorkPacketProvider
     private let clientCapabilityProvider: ClientCapabilityProvider
+    private let recoverabilityVerificationProvider: RecoverabilityVerificationProvider
     private let appProvider: ContextProvider<DiagnosticAppContextV1>
     private let deviceProvider: ContextProvider<DiagnosticDeviceContextV1>
     private let clock: Clock
@@ -190,13 +214,15 @@ struct DiagnosticExportService {
         clock: @escaping Clock,
         requirementAssurance: @escaping RequirementAssuranceProvider = { nil },
         workPacket: @escaping WorkPacketProvider = { nil },
-        clientCapability: @escaping ClientCapabilityProvider = { nil }
+        clientCapability: @escaping ClientCapabilityProvider = { nil },
+        recoverabilityVerification: @escaping RecoverabilityVerificationProvider = { nil }
     ) {
         countersProvider = counters
         metricKitProvider = metricKit
         requirementAssuranceProvider = requirementAssurance
         workPacketProvider = workPacket
         clientCapabilityProvider = clientCapability
+        recoverabilityVerificationProvider = recoverabilityVerification
         appProvider = app
         deviceProvider = device
         self.clock = clock
@@ -209,6 +235,7 @@ struct DiagnosticExportService {
         requirementAssurance: @escaping RequirementAssuranceProvider = { nil },
         workPacket: @escaping WorkPacketProvider = { nil },
         clientCapability: @escaping ClientCapabilityProvider = { nil },
+        recoverabilityVerification: @escaping RecoverabilityVerificationProvider = { nil },
         bundle: Bundle = .main,
         device: UIDevice = .current,
         clock: @escaping Clock = Date.init
@@ -233,7 +260,8 @@ struct DiagnosticExportService {
             clock: clock,
             requirementAssurance: requirementAssurance,
             workPacket: workPacket,
-            clientCapability: clientCapability
+            clientCapability: clientCapability,
+            recoverabilityVerification: recoverabilityVerification
         )
     }
 
@@ -247,7 +275,8 @@ struct DiagnosticExportService {
             metricKit: metricKitProvider(),
             requirementAssurance: requirementAssuranceProvider(),
             workPacket: workPacketProvider(),
-            clientCapability: clientCapabilityProvider()
+            clientCapability: clientCapabilityProvider(),
+            recoverabilityVerification: recoverabilityVerificationProvider()
         )
         guard value.isValid else {
             throw DiagnosticExportError.invalidValue
@@ -291,6 +320,11 @@ enum DiagnosticExportCanonicalEncoderV1 {
         }
         if let clientCapability = value.clientCapability {
             object["clientCapability"] = clientCapabilityValue(clientCapability)
+        }
+        if let recoverabilityVerification = value.recoverabilityVerification {
+            object["recoverabilityVerification"] = recoverabilityVerificationValue(
+                recoverabilityVerification
+            )
         }
         let data = try CanonicalJSONV1.encode(.object(object))
         try IntegrationProjectionDiagnosticExclusionV1.validate(data)
@@ -371,6 +405,42 @@ enum DiagnosticExportCanonicalEncoderV1 {
             "excludesRemoteDeliveryAcknowledgement": .bool(
                 value.excludesRemoteDeliveryAcknowledgement
             ),
+        ])
+    }
+
+    private static func recoverabilityVerificationValue(
+        _ value: RecoverabilityVerificationDiagnosticMetadataV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "schemaVersion": .integer(value.schemaVersion),
+            "stagingCount": .integer(value.stagingCount),
+            "receiptCount": .integer(value.receiptCount),
+            "passedCount": .integer(value.passedCount),
+            "failedCount": .integer(value.failedCount),
+            "unsupportedCount": .integer(value.unsupportedCount),
+            "quarantinedCount": .integer(value.quarantinedCount),
+            "cancelledCount": .integer(value.cancelledCount),
+            "modes": .array(value.modes.map { .string($0.rawValue) }),
+            "freshnessDispositions": .array(
+                value.freshnessDispositions.map { .string($0.rawValue) }
+            ),
+            "stagingStates": .array(value.stagingStates.map { .string($0.rawValue) }),
+            "findingCodes": .array(value.findingCodes.map { .string($0.rawValue) }),
+            "replayReceiptCount": .integer(value.replayReceiptCount),
+            "reconciledReplayCount": .integer(value.reconciledReplayCount),
+            "contentReconciliationCount": .integer(value.contentReconciliationCount),
+            "completeContentReconciliationCount": .integer(
+                value.completeContentReconciliationCount
+            ),
+            "cleanupProofCount": .integer(value.cleanupProofCount),
+            "isolatedCleanupCount": .integer(value.isolatedCleanupCount),
+            "policyVersion": .string(value.policyVersion),
+            "metadataOnly": .bool(value.metadataOnly),
+            "excludesArchiveBytes": .bool(value.excludesArchiveBytes),
+            "excludesContentDigests": .bool(value.excludesContentDigests),
+            "excludesStagingLocator": .bool(value.excludesStagingLocator),
+            "excludesVerifierBuild": .bool(value.excludesVerifierBuild),
+            "excludesClientCapability": .bool(value.excludesClientCapability),
         ])
     }
 
@@ -962,5 +1032,158 @@ struct ClientCapabilityDiagnosticMetadataV1: Codable, Equatable, Sendable {
         guard readAllowed == (admission == .readWrite || admission == .readOnly) else {
             throw DiagnosticExportError.invalidValue
         }
+    }
+}
+
+/// C22 diagnostics are deliberately metadata-only.  They expose enough
+/// bounded state to explain recovery freshness and replay/cleanup health, but
+/// never carry archive bytes, content or canonical-state digests, staging
+/// locators, verifier-build identity, client-capability bindings, or IDs.
+struct RecoverabilityVerificationDiagnosticMetadataV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let policyVersion = "RECOVERABILITY_VERIFICATION_DIAGNOSTIC_V1"
+    static let maximumValues = 100_000
+
+    let schemaVersion: Int
+    let stagingCount: Int
+    let receiptCount: Int
+    let passedCount: Int
+    let failedCount: Int
+    let unsupportedCount: Int
+    let quarantinedCount: Int
+    let cancelledCount: Int
+    let modes: [RecoverabilityVerificationModeV1]
+    let freshnessDispositions: [RecoveryPointFreshnessDispositionV1]
+    let stagingStates: [RecoverabilityStagingStateV1]
+    let findingCodes: [RecoverabilityFindingCodeV1]
+    let replayReceiptCount: Int
+    let reconciledReplayCount: Int
+    let contentReconciliationCount: Int
+    let completeContentReconciliationCount: Int
+    let cleanupProofCount: Int
+    let isolatedCleanupCount: Int
+    let policyVersion: String
+    let metadataOnly: Bool
+    let excludesArchiveBytes: Bool
+    let excludesContentDigests: Bool
+    let excludesStagingLocator: Bool
+    let excludesVerifierBuild: Bool
+    let excludesClientCapability: Bool
+
+    init(
+        receipts: [RecoverabilityVerificationReceiptV1] = [],
+        staging: [RecoverabilityVerificationStagingV1] = []
+    ) throws {
+        guard receipts.count <= Self.maximumValues,
+              staging.count <= Self.maximumValues else {
+            throw DiagnosticExportError.invalidValue
+        }
+        try receipts.forEach { try $0.validate() }
+        try staging.forEach { try $0.validate() }
+        let receiptIDs = receipts.map { $0.receiptID }
+        let stagingIDs = staging.map { $0.stagingID }
+        guard Set(receiptIDs).count == receiptIDs.count,
+              Set(stagingIDs).count == stagingIDs.count else {
+            throw DiagnosticExportError.invalidValue
+        }
+
+        schemaVersion = Self.schemaVersion
+        stagingCount = staging.count
+        receiptCount = receipts.count
+        passedCount = receipts.filter { $0.disposition == .passed }.count
+        failedCount = receipts.filter { $0.disposition == .failed }.count
+        unsupportedCount = receipts.filter { $0.disposition == .unsupported }.count
+        quarantinedCount = receipts.filter { $0.disposition == .quarantined }.count
+        cancelledCount = receipts.filter { $0.disposition == .cancelled }.count
+        modes = Array(Set(receipts.map(
+            \.mode.rawValue
+        ))).compactMap(RecoverabilityVerificationModeV1.init(rawValue:))
+            .sorted { $0.rawValue < $1.rawValue }
+        freshnessDispositions = Array(Set(receipts.map(
+            \.freshness.rawValue
+        ))).compactMap(RecoveryPointFreshnessDispositionV1.init(rawValue:))
+            .sorted { $0.rawValue < $1.rawValue }
+        stagingStates = Array(Set(staging.map(
+            \.state.rawValue
+        ))).compactMap(RecoverabilityStagingStateV1.init(rawValue:))
+            .sorted { $0.rawValue < $1.rawValue }
+        findingCodes = Array(Set(receipts.flatMap { $0.findings.map(\.rawValue) }))
+            .compactMap(RecoverabilityFindingCodeV1.init(rawValue:))
+            .sorted { $0.rawValue < $1.rawValue }
+        replayReceiptCount = receipts.reduce(into: 0) { count, receipt in
+            if receipt.replayReceipt != nil { count += 1 }
+        }
+        reconciledReplayCount = receipts.reduce(into: 0) { count, receipt in
+            if receipt.replayReceipt?.reconciles == true { count += 1 }
+        }
+        contentReconciliationCount = receipts.reduce(into: 0) { count, receipt in
+            if receipt.contentReconciliation != nil { count += 1 }
+        }
+        completeContentReconciliationCount = receipts.reduce(into: 0) { count, receipt in
+            if receipt.contentReconciliation?.isComplete == true { count += 1 }
+        }
+        cleanupProofCount = receipts.count
+        isolatedCleanupCount = receipts.reduce(into: 0) { count, receipt in
+            if receipt.cleanupProof.provesIsolation { count += 1 }
+        }
+        policyVersion = Self.policyVersion
+        metadataOnly = true
+        excludesArchiveBytes = true
+        excludesContentDigests = true
+        excludesStagingLocator = true
+        excludesVerifierBuild = true
+        excludesClientCapability = true
+        try validate()
+    }
+
+    var isValid: Bool { (try? validate()) != nil }
+
+    func validate() throws {
+        let dispositionCount = passedCount + failedCount + unsupportedCount
+            + quarantinedCount + cancelledCount
+        guard schemaVersion == Self.schemaVersion,
+              stagingCount >= 0, stagingCount <= Self.maximumValues,
+              receiptCount >= 0, receiptCount <= Self.maximumValues,
+              [passedCount, failedCount, unsupportedCount, quarantinedCount, cancelledCount]
+                .allSatisfy { $0 >= 0 },
+              dispositionCount == receiptCount,
+              modes == modes.sorted(by: { $0.rawValue < $1.rawValue }),
+              freshnessDispositions == freshnessDispositions.sorted(by: {
+                  $0.rawValue < $1.rawValue
+              }),
+              stagingStates == stagingStates.sorted(by: { $0.rawValue < $1.rawValue }),
+              findingCodes == findingCodes.sorted(by: { $0.rawValue < $1.rawValue }),
+              Set(modes).count == modes.count,
+              Set(freshnessDispositions).count == freshnessDispositions.count,
+              Set(stagingStates).count == stagingStates.count,
+              Set(findingCodes).count == findingCodes.count,
+              replayReceiptCount >= 0, replayReceiptCount <= receiptCount,
+              reconciledReplayCount >= 0, reconciledReplayCount <= replayReceiptCount,
+              contentReconciliationCount >= 0, contentReconciliationCount <= receiptCount,
+              completeContentReconciliationCount >= 0,
+              completeContentReconciliationCount <= contentReconciliationCount,
+              cleanupProofCount == receiptCount,
+              isolatedCleanupCount >= 0, isolatedCleanupCount <= cleanupProofCount,
+              policyVersion == Self.policyVersion,
+              metadataOnly,
+              excludesArchiveBytes,
+              excludesContentDigests,
+              excludesStagingLocator,
+              excludesVerifierBuild,
+              excludesClientCapability else {
+            throw DiagnosticExportError.invalidValue
+        }
+    }
+}
+
+extension DiagnosticExportV1 {
+    static func recoverabilityVerificationDiagnosticMetadata(
+        receipts: [RecoverabilityVerificationReceiptV1] = [],
+        staging: [RecoverabilityVerificationStagingV1] = []
+    ) throws -> RecoverabilityVerificationDiagnosticMetadataV1 {
+        try RecoverabilityVerificationDiagnosticMetadataV1(
+            receipts: receipts,
+            staging: staging
+        )
     }
 }

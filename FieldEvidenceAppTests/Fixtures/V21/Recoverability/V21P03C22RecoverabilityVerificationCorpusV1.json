@@ -1,0 +1,151 @@
+{
+  "schema": "V21P03C22RecoverabilityVerificationCorpusV1",
+  "schemaVersion": 1,
+  "corpusID": "c22-recoverability-verification-v1",
+  "cardID": "V23-P03-C22",
+  "records": 20,
+  "recordsSchemaVersion": 20,
+  "persistentSchemaVersion": 21,
+  "persistentModelCount": 82,
+  "evidenceIDs": [
+    "V23-P03-C22-G01",
+    "V23-P03-C22-A01",
+    "V23-P03-C22-H01",
+    "V23-P03-C22-I01",
+    "V23-P03-C22-R01"
+  ],
+  "evidenceSelectors": [
+    {
+      "id": "V23-P03-C22-G01",
+      "selector": "G01",
+      "focus": "schema identity, isolated staging, immutable source/archive binding"
+    },
+    {
+      "id": "V23-P03-C22-A01",
+      "selector": "A01",
+      "focus": "exact identity, checksums, frontier freshness, replay and reconciliation"
+    },
+    {
+      "id": "V23-P03-C22-H01",
+      "selector": "H01",
+      "focus": "hostile checksum, frontier, claim, version, archive and cleanup cases"
+    },
+    {
+      "id": "V23-P03-C22-I01",
+      "selector": "I01",
+      "focus": "every interruption boundary, cleanup, retry and idempotent recovery"
+    },
+    {
+      "id": "V23-P03-C22-R01",
+      "selector": "R01",
+      "focus": "V21 backup, restore, clone, delete, erase, export and historic retention"
+    }
+  ],
+  "modes": [
+    "STRUCTURE_ONLY",
+    "ISOLATED_DRY_RESTORE",
+    "FULL_CONTENT_RECONCILIATION"
+  ],
+  "dispositions": [
+    "PASSED",
+    "FAILED",
+    "UNSUPPORTED",
+    "QUARANTINED",
+    "CANCELLED"
+  ],
+  "freshness": [
+    "CURRENT_AT_VERIFICATION",
+    "HISTORIC_AT_VERIFICATION",
+    "HISTORIC_NONCURRENT"
+  ],
+  "stagingStates": [
+    "PREPARED",
+    "STRUCTURE_VALIDATED",
+    "DRY_RESTORED",
+    "CONTENT_RECONCILED",
+    "REPLAYED",
+    "CLEANUP_REQUIRED"
+  ],
+  "findingCodes": [
+    "CORRUPT_ARCHIVE",
+    "TRUNCATED_ARCHIVE",
+    "CORRUPT_RECORD",
+    "CORRUPT_CONTENT",
+    "MISSING_CONTENT",
+    "CORRUPT_CHECKPOINT",
+    "UNSUPPORTED_SCHEMA",
+    "UNSUPPORTED_CLIENT_CAPABILITY",
+    "WRONG_ARCHIVE",
+    "STALE_FRONTIER",
+    "REPLAY_DIVERGENCE",
+    "CLEANUP_INCOMPLETE",
+    "LIVE_WORKSPACE_CHANGED",
+    "SOURCE_ARCHIVE_CHANGED",
+    "PROTECTED_DATA_UNAVAILABLE",
+    "STORAGE_UNAVAILABLE",
+    "CANCELLED"
+  ],
+  "coverage": [
+    "exact archive identity and source generation",
+    "records/content/checkpoint checksum equality",
+    "frontier current and historic freshness",
+    "isolated dry restore with no live mutation",
+    "cleanup-required reservation before materialization",
+    "reservation cleanup on materialization and post-materialization interruption",
+    "full content reconciliation and deterministic replay",
+    "immutable receipt outside the archive being verified",
+    "derived staging drop and rebuild",
+    "backup eligibility begins with subsequent backups",
+    "clone/fork preserves historic noncurrent evidence",
+    "governed delete and erase remove only eligible derived evidence"
+  ],
+  "interruptionBoundaries": [
+    "RESERVE_STAGING",
+    "MATERIALIZE_STAGING",
+    "AFTER_STAGING_PREPARED",
+    "AFTER_STRUCTURE_VALIDATION",
+    "AFTER_DRY_RESTORE",
+    "AFTER_CONTENT_RECONCILIATION",
+    "AFTER_REPLAY",
+    "AFTER_CLEANUP_BEFORE_RECEIPT",
+    "AFTER_RECEIPT_COMMIT_BEFORE_RETURN"
+  ],
+  "recoveryDispositions": [
+    "PURGE_DERIVED_STAGING",
+    "RETAIN_IMMUTABLE_RECEIPT",
+    "INCLUDE_RECEIPT_IN_SUBSEQUENT_BACKUP",
+    "PRESERVE_HISTORIC_NONCURRENT_ON_CLONE_OR_FORK",
+    "REMOVE_BY_GOVERNED_RETENTION_OR_ERASE"
+  ],
+  "lifecycleConsumers": [
+    "schema and migration",
+    "backup encode and decode",
+    "isolated restore",
+    "content reconciliation",
+    "checkpoint replay",
+    "freshness projection",
+    "clone and fork",
+    "delete and erase",
+    "export and search history",
+    "recovery and idempotent retry"
+  ],
+  "privacyExclusions": [
+    "provider identity",
+    "account identity",
+    "external copy availability",
+    "live restore route",
+    "network or cloud state"
+  ],
+  "forbiddenClaims": [
+    "external copy availability",
+    "live workspace restore",
+    "remote backup provider",
+    "cloud recovery guarantee"
+  ],
+  "immutableOriginals": true,
+  "externalCopyAvailabilityClaimed": false,
+  "liveRestorePermitted": false,
+  "receiptIncludedInVerifiedArchive": false,
+  "noSecondWriter": true,
+  "noSecondStore": true
+}

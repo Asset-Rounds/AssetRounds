@@ -391,6 +391,15 @@ final class V9_06DeletionArchiveIntegrationTests: XCTestCase {
 }
 
 extension V9_06DeletionArchiveIntegrationTests {
+    func testC22RecoverabilityVerificationAnchor() throws {
+        XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)
+        try V21RecoverabilityImportBoundaryV1.validate(persistentSchemaVersion: 21, recordsSchemaVersion: 20)
+        XCTAssertFalse(RecoverabilityVerificationLifecycleV1.receiptInsideVerifiedArchive)
+        XCTAssertEqual(RecoverabilityVerificationLifecycleV1.writer, "SOLE_CANONICAL_WORKSPACE_WRITER")
+    }
+}
+
+extension V9_06DeletionArchiveIntegrationTests {
     func testV23P03C36ArchiveReceiptRoundTripsPublicationPosture() throws {
         let receipt=try DraftAttachmentRestorePublicationReceiptV1(restoreID:UUID(),workspaceID:WorkspaceID(rawValue:UUID()),sourceManifestSHA256:String(repeating:"b",count:64),adoptedStageIDs:[],reusedStageIDs:[UUID()],publishedAt:Date(timeIntervalSince1970:2))
         let encoder=JSONEncoder();encoder.dateEncodingStrategy = .millisecondsSince1970

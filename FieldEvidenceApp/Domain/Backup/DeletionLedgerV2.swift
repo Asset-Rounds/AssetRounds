@@ -20,6 +20,7 @@ struct DeletionLedgerProofV2: Codable, Equatable, Sendable {
 
     func validate() throws {
         try ClientCapabilityDeletionLedgerPolicyV1.validate()
+        try RecoverabilityVerificationDeletionLedgerPolicyV1.validate()
         let allowed = CharacterSet(charactersIn: "0123456789abcdef")
         guard entryCount >= 0,
               canonicalSHA256.utf8.count == 64,
@@ -29,6 +30,7 @@ struct DeletionLedgerProofV2: Codable, Equatable, Sendable {
     }
 }
 enum ClientCapabilityDeletionLedgerPolicyV1{static func validate()throws{guard V20BackupClientCapabilityRecordV1.Kind.allCases.count==4 else{throw DeletionLedgerFailureV2.invalidSchemaVersion}}}
+enum RecoverabilityVerificationDeletionLedgerPolicyV1{static func validate()throws{guard RecoverabilityVerificationReceiptV1.schemaVersion==1 else{throw DeletionLedgerFailureV2.invalidSchemaVersion}}}
 
 /// The closed set of persisted content kinds. System rows such as the schema
 /// marker and deletion-ledger rows are deliberately outside this registry.

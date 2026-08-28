@@ -146,6 +146,104 @@ struct AssetSemanticJournalCoverageV1: Codable, Equatable, Sendable {
     }
 }
 
+/// C22 recovery verification is a consumer of the journal, not a second
+/// canonical writer.  Staging is disposable derived state; the accepted
+/// verification receipt is immutable evidence bound to one archive and may
+/// only be carried by a subsequent backup.  The coverage declaration keeps
+/// the replay/frontier/reconciliation/cleanup boundary explicit without
+/// duplicating the recoverability contracts.
+struct RecoverabilityVerificationJournalCoverageV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let sourceTruth = "RECOVERABILITY_VERIFICATION_RECEIPT_V1"
+    static let projectionSchema = "RECOVERABILITY_VERIFICATION_JOURNAL_PROJECTION_V1"
+
+    let schemaVersion: Int
+    let sourceTruth: String
+    let projectionSchema: String
+    let stagingPersistence: String
+    let receiptPersistence: String
+    let backupEligibility: String
+    let receiptOutsideVerifiedArchive: Bool
+    let acceptedReceiptImmutable: Bool
+    let orderedIdempotentReplay: Bool
+    let contentAndCanonicalStateReconciliationRequired: Bool
+    let cleanupIsolationRequired: Bool
+    let stagingDropAndRebuild: Bool
+    let liveWorkspaceMutationAllowed: Bool
+    let sourceArchiveMutationAllowed: Bool
+    let sourceArchiveRepairAllowed: Bool
+    let externalCopyAvailabilityClaimed: Bool
+    let secondWriterAllowed: Bool
+
+    init() {
+        schemaVersion = Self.schemaVersion
+        sourceTruth = Self.sourceTruth
+        projectionSchema = Self.projectionSchema
+        stagingPersistence = RecoverabilityVerificationLifecycleV1.stagingPersistence
+        receiptPersistence = RecoverabilityVerificationLifecycleV1.receiptPersistence
+        backupEligibility = RecoverabilityVerificationLifecycleV1.backupEligibility
+        receiptOutsideVerifiedArchive = !RecoverabilityVerificationLifecycleV1.receiptInsideVerifiedArchive
+        acceptedReceiptImmutable = true
+        orderedIdempotentReplay = true
+        contentAndCanonicalStateReconciliationRequired = true
+        cleanupIsolationRequired = true
+        stagingDropAndRebuild = true
+        liveWorkspaceMutationAllowed = RecoverabilityVerificationLifecycleV1.liveRestorePermitted
+        sourceArchiveMutationAllowed = false
+        sourceArchiveRepairAllowed = false
+        externalCopyAvailabilityClaimed = RecoverabilityVerificationLifecycleV1.externalCopyAvailabilityClaimed
+        secondWriterAllowed = false
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              sourceTruth == Self.sourceTruth,
+              projectionSchema == Self.projectionSchema,
+              stagingPersistence == "DERIVED_ONLY_DROP_AND_REBUILD",
+              receiptPersistence == "RECOVERABILITY_VERIFICATION_RECEIPT_V1_IMMUTABLE_EVIDENCE",
+              backupEligibility == "SUBSEQUENT_BACKUPS_ONLY",
+              receiptOutsideVerifiedArchive,
+              acceptedReceiptImmutable,
+              orderedIdempotentReplay,
+              contentAndCanonicalStateReconciliationRequired,
+              cleanupIsolationRequired,
+              stagingDropAndRebuild,
+              !liveWorkspaceMutationAllowed,
+              !sourceArchiveMutationAllowed,
+              !sourceArchiveRepairAllowed,
+              !externalCopyAvailabilityClaimed,
+              !secondWriterAllowed else {
+            throw ChangeJournalFailureV1.invalidValue
+        }
+    }
+
+    /// Validates the canonical C22 values at the journal boundary.  This is a
+    /// projection check only; it does not persist staging or receipt bytes.
+    func validate(
+        staging: RecoverabilityVerificationStagingV1? = nil,
+        receipt: RecoverabilityVerificationReceiptV1? = nil
+    ) throws {
+        try validate()
+        if let staging {
+            try staging.validate()
+        }
+        if let receipt {
+            try receipt.validate()
+            guard !receipt.receiptIncludedInVerifiedArchive else {
+                throw ChangeJournalFailureV1.invalidValue
+            }
+            if let staging {
+                guard staging.verificationID == receipt.verificationID,
+                      staging.workspaceID == receipt.workspaceID,
+                      staging.archive == receipt.archive,
+                      staging.mode == receipt.mode else {
+                    throw ChangeJournalFailureV1.invalidValue
+                }
+            }
+        }
+    }
+}
+
 struct ChangeJournalLimitsV1: Codable, Equatable, Sendable {
     static let schemaVersion = 1
     static let productionMaximumChangesPerBatch = 128

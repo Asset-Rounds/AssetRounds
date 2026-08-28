@@ -232,6 +232,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
         let c56=TemporalOriginV1(card:"V23_P03_C19",ordinal:56)
         let c57=TemporalOriginV1(card:"V23_P03_C20",ordinal:57)
         let c58=TemporalOriginV1(card:"V23_P03_C21",ordinal:58)
+        let c59=TemporalOriginV1(card:"V23_P03_C22",ordinal:59)
         let groups: [(TemporalOriginV1, [String])] = [
             (c16, [
                 "JOURNAL:CurrentGenerationPointerV2",
@@ -387,6 +388,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
             (c56,["PERSISTENT_MODEL:InstrumentReferenceRow","PERSISTENT_MODEL:CalibrationStatusSnapshotRow","PERSISTENT_MODEL:MeasurementCaptureRow","PERSISTENT_MODEL:MeasurementSeriesRow","PERSISTENT_MODEL:MeasurementQualityAssessmentRow","PROJECTION:InstrumentReferenceV1","PROJECTION:CalibrationStatusSnapshotV1","PROJECTION:MeasurementCaptureV1","PROJECTION:MeasurementSeriesV1","PROJECTION:MeasurementQualityAssessmentV1","PROJECTION:StoreSemanticEnvelopeV18"]),
             (c57,["PERSISTENT_MODEL:PrivacyTransformPolicyRow","PERSISTENT_MODEL:PrivacyRegionRow","PERSISTENT_MODEL:PrivacyTransformManifestRow","PERSISTENT_MODEL:PrivacyReviewReceiptRow","PROJECTION:PrivacyTransformPolicyV1","PROJECTION:PrivacyRegionV1","PROJECTION:PrivacyTransformManifestV1","PROJECTION:PrivacyReviewReceiptV1","PROJECTION:PrivacyProjectionV1","PROJECTION:PrivacyTransformLifecycleClosureV1","PROJECTION:StoreSemanticEnvelopeV19"]),
             (c58,["PERSISTENT_MODEL:ClientCapabilityProfileRow","PERSISTENT_MODEL:ClientCapabilityAdmissionDecisionRow","PERSISTENT_MODEL:PackageLifecyclePolicyRow","PERSISTENT_MODEL:PackageLifecycleDispositionRow","PROJECTION:ClientCapabilityProfileV1","PROJECTION:ClientCapabilityAdmissionDecisionV1","PROJECTION:PackageLifecyclePolicyV1","PROJECTION:PackageLifecycleDispositionV1","PROJECTION:ClientCapabilityAdmissionEvaluatorV1","PROJECTION:ClientCapabilityLifecycleClosureV1","PROJECTION:StoreSemanticEnvelopeV20"]),
+            (c59,["PERSISTENT_MODEL:RecoverabilityVerificationReceiptRow","PROJECTION:RecoverabilityVerificationReceiptV1","PROJECTION:RecoverabilityVerificationStagingV1","PROJECTION:RecoverabilityFreshnessProjectionV1","PROJECTION:RecoverabilityVerificationLifecycleV1","PROJECTION:StoreSemanticEnvelopeV21"]),
         ]
         return groups.reduce(into: [:]) { result, group in
             for kindID in group.1 {
@@ -469,6 +471,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
         let c19KindIDs=Set(["PERSISTENT_MODEL:InstrumentReferenceRow","PERSISTENT_MODEL:CalibrationStatusSnapshotRow","PERSISTENT_MODEL:MeasurementCaptureRow","PERSISTENT_MODEL:MeasurementSeriesRow","PERSISTENT_MODEL:MeasurementQualityAssessmentRow","PROJECTION:InstrumentReferenceV1","PROJECTION:CalibrationStatusSnapshotV1","PROJECTION:MeasurementCaptureV1","PROJECTION:MeasurementSeriesV1","PROJECTION:MeasurementQualityAssessmentV1","PROJECTION:StoreSemanticEnvelopeV18"])
         let c20KindIDs=Set(["PERSISTENT_MODEL:PrivacyTransformPolicyRow","PERSISTENT_MODEL:PrivacyRegionRow","PERSISTENT_MODEL:PrivacyTransformManifestRow","PERSISTENT_MODEL:PrivacyReviewReceiptRow","PROJECTION:PrivacyTransformPolicyV1","PROJECTION:PrivacyRegionV1","PROJECTION:PrivacyTransformManifestV1","PROJECTION:PrivacyReviewReceiptV1","PROJECTION:PrivacyProjectionV1","PROJECTION:PrivacyTransformLifecycleClosureV1","PROJECTION:StoreSemanticEnvelopeV19"])
         let c21KindIDs=Set(["PERSISTENT_MODEL:ClientCapabilityProfileRow","PERSISTENT_MODEL:ClientCapabilityAdmissionDecisionRow","PERSISTENT_MODEL:PackageLifecyclePolicyRow","PERSISTENT_MODEL:PackageLifecycleDispositionRow","PROJECTION:ClientCapabilityProfileV1","PROJECTION:ClientCapabilityAdmissionDecisionV1","PROJECTION:PackageLifecyclePolicyV1","PROJECTION:PackageLifecycleDispositionV1","PROJECTION:ClientCapabilityAdmissionEvaluatorV1","PROJECTION:ClientCapabilityLifecycleClosureV1","PROJECTION:StoreSemanticEnvelopeV20"])
+        let c22KindIDs=Set(["PERSISTENT_MODEL:RecoverabilityVerificationReceiptRow","PROJECTION:RecoverabilityVerificationReceiptV1","PROJECTION:RecoverabilityVerificationStagingV1","PROJECTION:RecoverabilityFreshnessProjectionV1","PROJECTION:RecoverabilityVerificationLifecycleV1","PROJECTION:StoreSemanticEnvelopeV21"])
         let c17KindIDs = Set([
             "PROJECTION:IntegrationConformanceConsumerV1",
             "PROJECTION:IntegrationContractRegistryV1",
@@ -477,9 +480,9 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
             "PROJECTION:IntegrationProjectionCheckpointStoreV1",
             "PROJECTION:ProjectionCheckpointV1",
         ])
-        guard kindIDs.count == 272,
+        guard kindIDs.count == 278,
               Set(kindIDs).count == kindIDs.count,
-              laterTemporalOrigins.count == 210,
+              laterTemporalOrigins.count == 216,
               c09KindIDs.isSubset(of: Set(kindIDs)),
               c12KindIDs.isSubset(of: Set(kindIDs)),
               c38KindIDs.isSubset(of: Set(kindIDs)),
@@ -495,6 +498,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
               c19KindIDs.isSubset(of: Set(kindIDs)),
               c20KindIDs.isSubset(of:Set(kindIDs)),
               c21KindIDs.isSubset(of:Set(kindIDs)),
+              c22KindIDs.isSubset(of:Set(kindIDs)),
               Set(laterTemporalOrigins.keys).isSubset(of: Set(kindIDs)) else {
             throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage
         }
@@ -503,7 +507,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
                 registration.subject
             ) ? registration.subject.canonicalKey : nil
         })
-        guard durableKindIDs.count == 138 else {
+        guard durableKindIDs.count == 139 else {
             throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage
         }
         let universeBytes = try CompatibilityCanonicalV1.encode(
@@ -521,6 +525,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
                     && !c19KindIDs.contains($0)
                     && !c20KindIDs.contains($0)
                     && !c21KindIDs.contains($0)
+                    && !c22KindIDs.contains($0)
             }
         )
         guard CompatibilityCanonicalV1.sha256(universeBytes)

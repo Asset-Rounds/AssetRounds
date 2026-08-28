@@ -759,6 +759,15 @@ final class V9_ChangeJournalCheckpointReplayTests: XCTestCase {
 }
 
 extension V9_ChangeJournalCheckpointReplayTests {
+    func testC22RecoverabilityVerificationAnchor() throws {
+        XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)
+        try V21RecoverabilityImportBoundaryV1.validate(persistentSchemaVersion: 21, recordsSchemaVersion: 20)
+        XCTAssertEqual(RecoverabilityVerificationLifecycleV1.writer, "SOLE_CANONICAL_WORKSPACE_WRITER")
+        XCTAssertFalse(RecoverabilityVerificationLifecycleV1.liveRestorePermitted)
+    }
+}
+
+extension V9_ChangeJournalCheckpointReplayTests {
     func testV23P03C18ReplayBoundaryUsesCanonicalSemanticDigest() throws {
         let change = try PackageSemanticChangeV1(
             kind: .guidanceChanged,

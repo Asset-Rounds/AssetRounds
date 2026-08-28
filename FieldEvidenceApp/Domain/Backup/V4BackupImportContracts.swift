@@ -102,3 +102,10 @@ enum V20ClientCapabilityImportBoundaryV1 {
               V20BackupClientCapabilityRecordV1.Kind.allCases.count == 4 else { throw BackupImportServiceError.unsupportedSchemaVersion }
     }
 }
+
+enum V21RecoverabilityImportBoundaryV1 {
+    static let persistentSchemaVersion=21;static let recordsSchemaVersion=20;static let durableFamilyCount=1
+    static func validate(persistent:Int,records:Int)throws {
+        guard persistent==persistentSchemaVersion,records==recordsSchemaVersion,durableFamilyCount==1 else{throw BackupImportServiceError.unsupportedSchemaVersion}
+    }
+}
