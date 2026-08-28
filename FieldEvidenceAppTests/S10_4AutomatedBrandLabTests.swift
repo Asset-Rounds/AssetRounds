@@ -15925,7 +15925,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"elementIdentifier: "s4.5.correction.header""#,
             #"elementLabel: "Correct report""#,
             #"elementLabel: "Short description""#,
-            #"elementLabel: "Note""#,
             #"elementIdentifier: "s3.capture.cannot-complete""#,
             #"elementLabel: "Cannot complete""#,
             #"elementLabel: "Monument Sign""#,
@@ -15998,7 +15997,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"elementIdentifier: "s4.5.correction.header""#,
             #"elementLabel: "Correct report""#,
             #"elementLabel: "Short description""#,
-            #"elementLabel: "Note""#,
             #"elementIdentifier: "s3.capture.cannot-complete""#,
             #"elementLabel: "Cannot complete""#,
             #"elementLabel: "Monument Sign""#,
@@ -19616,8 +19614,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "AX work-validation state issue limit expansion",
                 axWorkflowWorkValidationStateIssueBound,
                 axWorkflowWorkValidationStateIssueBound.replacingOccurrences(
-                    of: "then 2",
-                    with: "then 3"
+                    of: "then 1",
+                    with: "then 2"
                 )
             ),
             (
@@ -19642,14 +19640,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "AX aggregate limit expansion",
                 axWorkflowAggregateBound,
                 axWorkflowAggregateBound
-                    .replacingOccurrences(of: "> 16", with: "> 17")
+                    .replacingOccurrences(of: "> 15", with: "> 16")
                     .replacingOccurrences(of: "> 13", with: "> 14")
             ),
             (
                 "AX downstream limit expansion",
                 axWorkflowDownstreamBound,
                 axWorkflowDownstreamBound
-                    .replacingOccurrences(of: "<= 16", with: "<= 17")
+                    .replacingOccurrences(of: "<= 15", with: "<= 16")
                     .replacingOccurrences(of: "<= 13", with: "<= 14")
             ),
         ]
@@ -19731,7 +19729,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             workflowSource.components(
                 separatedBy: #"taskID: "work_and_recheck""#
             ).count - 1,
-            14
+            12
         )
         XCTAssertFalse(workflowSource.contains("S10_4_AUDIT_DIAGNOSTIC"))
         XCTAssertFalse(
