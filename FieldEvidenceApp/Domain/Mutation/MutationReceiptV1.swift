@@ -389,6 +389,64 @@ struct MutationReceiptV1: Codable, Equatable, Sendable {
     }
 }
 
+extension MutationReceiptV1 {
+    /// C17 projection input is an immutable view of accepted journal receipts.
+    /// Keep its bound equal to the integration/checkpoint limit so a caller
+    /// cannot turn the derived projection into an unbounded history reader.
+    static let maximumAcceptedProjectionCount =
+        ChangeJournalLimitsV1.productionMaximumEntitiesPerCheckpoint
+
+    /// Validates and orders accepted receipts using the same ordering basis as
+    /// `IntegrationEventProjectionV1`. This helper only reads and validates
+    /// receipt values; it never creates or changes canonical mutation truth.
+    static func orderedAcceptedProjectionReceipts(
+        _ receipts: [MutationReceiptV1],
+        workspaceID: WorkspaceID? = nil
+    ) throws -> [MutationReceiptV1] {
+        try IntegrationEventJournalCoverageV1().validate()
+        guard receipts.count <= Self.maximumAcceptedProjectionCount else {
+            throw ChangeJournalFailureV1.limitExceeded
+        }
+
+        for receipt in receipts {
+            try receipt.validate()
+            if let workspaceID, receipt.identity.workspaceID != workspaceID {
+                throw ChangeJournalFailureV1.wrongWorkspace
+            }
+        }
+
+        let ordered = receipts.sorted { lhs, rhs in
+            if lhs.resultingRevision.workspaceRevision != rhs.resultingRevision.workspaceRevision {
+                return lhs.resultingRevision.workspaceRevision < rhs.resultingRevision.workspaceRevision
+            }
+            if lhs.identity.stableKey != rhs.identity.stableKey {
+                return lhs.identity.stableKey < rhs.identity.stableKey
+            }
+            return lhs.mutationID.rawValue.uuidString.lowercased()
+                < rhs.mutationID.rawValue.uuidString.lowercased()
+        }
+
+        var receiptIdentities = Set<MutationReceiptIdentityV1>()
+        var mutationKeys = Set<String>()
+        var workspaceRevisions = Set<UInt64>()
+        for receipt in ordered {
+            guard receiptIdentities.insert(receipt.identity).inserted,
+                  mutationKeys.insert(
+                    MutationWorkspaceKeyV1.value(
+                        workspaceID: receipt.identity.workspaceID,
+                        mutationID: receipt.mutationID
+                    )
+                  ).inserted else {
+                throw ChangeJournalFailureV1.duplicateValue
+            }
+            guard workspaceRevisions.insert(receipt.resultingRevision.workspaceRevision).inserted else {
+                throw ChangeJournalFailureV1.duplicateValue
+            }
+        }
+        return ordered
+    }
+}
+
 /// A typed C39 receipt envelope around the journal-owned receipt.  The
 /// journal remains the only durable receipt writer; this value merely binds
 /// the receipt back to the exact preview plan and the single Asset identity.

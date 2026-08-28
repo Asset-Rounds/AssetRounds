@@ -21,6 +21,50 @@ enum ChangeJournalFailureV1: Error, Equatable, Sendable {
     case incompleteCheckpoint
 }
 
+/// C17 lifecycle declaration. Integration events and consumer checkpoints are
+/// derived only: accepted mutation receipts/journal history are the exclusive
+/// rebuild input, and every operational byte may be dropped on delete, Erase,
+/// downgrade, restore, or recovery without affecting canonical truth.
+struct IntegrationEventJournalCoverageV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let sourceTruth: String
+    let projectionSchema: String
+    let acceptedReceiptAndJournalOnly: Bool
+    let providerNeutral: Bool
+    let canonicalPersistence: Bool
+    let backupIncluded: Bool
+    let restoreIncluded: Bool
+    let exportIncluded: Bool
+    let reportSourceOfTruth: Bool
+    let dropAndRebuild: Bool
+
+    init() {
+        schemaVersion = Self.schemaVersion
+        sourceTruth = "ACCEPTED_MUTATION_RECEIPTS_AND_CHANGE_JOURNAL_V1"
+        projectionSchema = "INTEGRATION_PROJECTION_SCHEMA_V1"
+        acceptedReceiptAndJournalOnly = true
+        providerNeutral = true
+        canonicalPersistence = false
+        backupIncluded = false
+        restoreIncluded = false
+        exportIncluded = false
+        reportSourceOfTruth = false
+        dropAndRebuild = true
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              sourceTruth == "ACCEPTED_MUTATION_RECEIPTS_AND_CHANGE_JOURNAL_V1",
+              projectionSchema == "INTEGRATION_PROJECTION_SCHEMA_V1",
+              acceptedReceiptAndJournalOnly, providerNeutral,
+              !canonicalPersistence, !backupIncluded, !restoreIncluded,
+              !exportIncluded, !reportSourceOfTruth, dropAndRebuild else {
+            throw ChangeJournalFailureV1.invalidValue
+        }
+    }
+}
+
 /// Declares C38 transport coverage without creating a network or identity
 /// source. These kinds travel only as ordinary accepted writer envelopes.
 struct PartyAccountabilityJournalCoverageV1: Codable, Equatable, Sendable {

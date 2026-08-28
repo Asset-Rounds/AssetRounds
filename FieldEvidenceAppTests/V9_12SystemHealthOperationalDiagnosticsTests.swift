@@ -787,6 +787,24 @@ final class V9_12SystemHealthOperationalDiagnosticsTests: XCTestCase {
     }
 }
 
+extension V9_12SystemHealthOperationalDiagnosticsTests {
+    func testV23P03C17DiagnosticsExcludeEventCheckpointAndSubjectPayloads() throws {
+        let coverage = IntegrationEventJournalCoverageV1()
+        XCTAssertNoThrow(try coverage.validate())
+        XCTAssertFalse(coverage.exportIncluded)
+        XCTAssertTrue(coverage.dropAndRebuild)
+        XCTAssertEqual(coverage.sourceTruth, "ACCEPTED_MUTATION_RECEIPTS_AND_CHANGE_JOURNAL_V1")
+        XCTAssertNoThrow(
+            try IntegrationProjectionDiagnosticExclusionV1.validate(Data("{}".utf8))
+        )
+        XCTAssertThrowsError(
+            try IntegrationProjectionDiagnosticExclusionV1.validate(
+                Data("{\"eventID\":\"sensitive-canary\"}".utf8)
+            )
+        )
+    }
+}
+
 private extension V9_12SystemHealthOperationalDiagnosticsTests {
     nonisolated static func loadCorpus() throws -> V912Corpus {
         let bundle = Bundle(for: V9_12SystemHealthOperationalDiagnosticsTests.self)

@@ -654,6 +654,15 @@ final class V9_16SnapshotProjectionTests: XCTestCase {
 }
 
 extension V9_16SnapshotProjectionTests {
+    func testV23P03C17SnapshotEncoderExcludesDerivedIntegrationPayloads() throws {
+        XCTAssertNoThrow(try IntegrationProjectionReportSnapshotExclusionV1.validate())
+        let coverage = IntegrationEventJournalCoverageV1()
+        XCTAssertNoThrow(try coverage.validate())
+        XCTAssertFalse(coverage.reportSourceOfTruth)
+    }
+}
+
+extension V9_16SnapshotProjectionTests {
     func testV23P03C15SnapshotProjectionIncludesActiveClaimAndLease() throws {
         let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_116)
         let projection = try WorkPacketProjectionBuilderV1.rebuild(

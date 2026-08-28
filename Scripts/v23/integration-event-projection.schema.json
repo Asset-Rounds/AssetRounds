@@ -1,0 +1,636 @@
+{
+  "$id": "https://assetrounds.invalid/v23/integration-event-projection.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptedEvents": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "eventDigest": {
+            "type": "string"
+          },
+          "eventID": {
+            "type": "string"
+          },
+          "eventKind": {
+            "type": "string"
+          },
+          "eventVersion": {
+            "type": "integer"
+          },
+          "order": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "maxItems": 4,
+            "minItems": 4,
+            "type": "array"
+          },
+          "payloadBytes": {
+            "type": "integer"
+          },
+          "payloadDigest": {
+            "type": "string"
+          },
+          "redaction": {
+            "type": "string"
+          },
+          "sourceReceiptID": {
+            "type": "string"
+          },
+          "sourceWorkspaceRevision": {
+            "type": "integer"
+          },
+          "subjectID": {
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "eventDigest",
+          "eventID",
+          "eventKind",
+          "eventVersion",
+          "order",
+          "payloadBytes",
+          "payloadDigest",
+          "redaction",
+          "sourceReceiptID",
+          "sourceWorkspaceRevision",
+          "subjectID",
+          "visibility"
+        ],
+        "type": "object"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+    },
+    "cardID": {
+      "type": "string"
+    },
+    "checkpointStates": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "checkpoints": {
+      "items": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "consumedEventCount": {
+                "type": "integer"
+              },
+              "consumerStateDigest": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "lastEventDigest": {
+                "type": "null"
+              },
+              "lastEventID": {
+                "type": "null"
+              },
+              "registryDigest": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "consumedEventCount",
+              "consumerStateDigest",
+              "id",
+              "lastEventDigest",
+              "lastEventID",
+              "registryDigest",
+              "state"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "consumedEventCount": {
+                "type": "integer"
+              },
+              "consumerStateDigest": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "lastEventDigest": {
+                "type": "string"
+              },
+              "lastEventID": {
+                "type": "string"
+              },
+              "registryDigest": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "consumedEventCount",
+              "consumerStateDigest",
+              "id",
+              "lastEventDigest",
+              "lastEventID",
+              "registryDigest",
+              "state"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+    },
+    "claims": {
+      "additionalProperties": false,
+      "properties": {
+        "ACCOUNTS_AUTHENTICATION_OR_COMPANY_MEMBERSHIP": {
+          "type": "boolean"
+        },
+        "AI_DIAGNOSIS_COMPLIANCE_DECISION_OR_OPAQUE_SCORE": {
+          "type": "boolean"
+        },
+        "CAD_LIDAR_PUBLIC_PORTAL_ANDROID_OR_WEB_CLIENT": {
+          "type": "boolean"
+        },
+        "FULL_CMMS_WORK_ORDER_INVENTORY_PURCHASING_OR_INVOICING": {
+          "type": "boolean"
+        },
+        "LEGAL_REGULATORY_TAMPERPROOF_OR_NONREPUDIATION_CLAIM": {
+          "type": "boolean"
+        },
+        "NATIVE_IPAD_SURFACE_OR_PUBLIC_METADATA": {
+          "type": "boolean"
+        },
+        "PAYROLL_ROUTE_OPTIMIZATION_OR_GENERIC_WORKFLOW_BUILDER": {
+          "type": "boolean"
+        },
+        "PROVIDER_OUTBOX_INBOX_DELIVERY_OR_CREDENTIAL_MODEL": {
+          "type": "boolean"
+        },
+        "REMOTE_EMAIL_BILLING_ANALYTICS_OR_TELEMETRY": {
+          "type": "boolean"
+        },
+        "REMOTE_SYNC_TRANSPORT_PROVIDER_SDK_OR_HOSTED_SERVICE": {
+          "type": "boolean"
+        },
+        "S10_RELEASE_OR_BRAND_APPROVAL": {
+          "type": "boolean"
+        },
+        "SECOND_SOURCE_OF_TRUTH_STORE_WRITER_OR_CANONICAL_PROJECTION": {
+          "type": "boolean"
+        },
+        "SIGNING_TESTFLIGHT_APP_STORE_OR_DEPLOYMENT": {
+          "type": "boolean"
+        },
+        "TENANT_AUTHORIZATION_OR_REMOTE_CONFLICT_UI": {
+          "type": "boolean"
+        },
+        "UNBOUNDED_MEDIA_EXECUTABLE_WORKFLOW_OR_GENERIC_EAV": {
+          "type": "boolean"
+        },
+        "acceptance": {
+          "type": "boolean"
+        },
+        "acceptanceCredit": {
+          "type": "boolean"
+        },
+        "adoption": {
+          "type": "boolean"
+        },
+        "hosted": {
+          "type": "boolean"
+        },
+        "native": {
+          "type": "boolean"
+        },
+        "release": {
+          "type": "boolean"
+        },
+        "releaseCredit": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "ACCOUNTS_AUTHENTICATION_OR_COMPANY_MEMBERSHIP",
+        "AI_DIAGNOSIS_COMPLIANCE_DECISION_OR_OPAQUE_SCORE",
+        "CAD_LIDAR_PUBLIC_PORTAL_ANDROID_OR_WEB_CLIENT",
+        "FULL_CMMS_WORK_ORDER_INVENTORY_PURCHASING_OR_INVOICING",
+        "LEGAL_REGULATORY_TAMPERPROOF_OR_NONREPUDIATION_CLAIM",
+        "NATIVE_IPAD_SURFACE_OR_PUBLIC_METADATA",
+        "PAYROLL_ROUTE_OPTIMIZATION_OR_GENERIC_WORKFLOW_BUILDER",
+        "PROVIDER_OUTBOX_INBOX_DELIVERY_OR_CREDENTIAL_MODEL",
+        "REMOTE_EMAIL_BILLING_ANALYTICS_OR_TELEMETRY",
+        "REMOTE_SYNC_TRANSPORT_PROVIDER_SDK_OR_HOSTED_SERVICE",
+        "S10_RELEASE_OR_BRAND_APPROVAL",
+        "SECOND_SOURCE_OF_TRUTH_STORE_WRITER_OR_CANONICAL_PROJECTION",
+        "SIGNING_TESTFLIGHT_APP_STORE_OR_DEPLOYMENT",
+        "TENANT_AUTHORIZATION_OR_REMOTE_CONFLICT_UI",
+        "UNBOUNDED_MEDIA_EXECUTABLE_WORKFLOW_OR_GENERIC_EAV",
+        "acceptance",
+        "acceptanceCredit",
+        "adoption",
+        "hosted",
+        "native",
+        "release",
+        "releaseCredit"
+      ],
+      "type": "object"
+    },
+    "containsCustomerData": {
+      "type": "boolean"
+    },
+    "containsSecrets": {
+      "type": "boolean"
+    },
+    "eventKinds": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 4,
+      "minItems": 4,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "evidenceCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "assertion": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "assertion",
+          "id",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "maxItems": 9,
+      "minItems": 9,
+      "type": "array"
+    },
+    "forbiddenClaims": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 15,
+      "minItems": 15,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "hostileCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedDisposition": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedDisposition",
+          "id"
+        ],
+        "type": "object"
+      },
+      "maxItems": 14,
+      "minItems": 14,
+      "type": "array"
+    },
+    "interruptionCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedDisposition": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedDisposition",
+          "id"
+        ],
+        "type": "object"
+      },
+      "maxItems": 6,
+      "minItems": 6,
+      "type": "array"
+    },
+    "lifecycleModes": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 1,
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "orderingBasis": {
+      "type": "string"
+    },
+    "persistence": {
+      "additionalProperties": false,
+      "properties": {
+        "backupRestoreRequired": {
+          "type": "boolean"
+        },
+        "canonicalSourceOfTruth": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "canonicalWriter": {
+          "type": "string"
+        },
+        "currentProjectionRowCount": {
+          "type": "integer"
+        },
+        "deleteEraseRequired": {
+          "type": "boolean"
+        },
+        "downgrade": {
+          "type": "string"
+        },
+        "exportReportRequired": {
+          "type": "boolean"
+        },
+        "forwardFix": {
+          "type": "string"
+        },
+        "migrationRequired": {
+          "type": "boolean"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "nonPersistentFamilies": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "persistedFamilies": {
+          "maxItems": 0,
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "providerRows": {
+          "type": "integer"
+        },
+        "schemaRelease": {
+          "type": "string"
+        },
+        "schemaVersion": {
+          "type": "integer"
+        },
+        "secondStore": {
+          "type": "boolean"
+        },
+        "secondWriter": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "backupRestoreRequired",
+        "canonicalSourceOfTruth",
+        "canonicalWriter",
+        "currentProjectionRowCount",
+        "deleteEraseRequired",
+        "downgrade",
+        "exportReportRequired",
+        "forwardFix",
+        "migrationRequired",
+        "mode",
+        "nonPersistentFamilies",
+        "persistedFamilies",
+        "providerRows",
+        "schemaRelease",
+        "schemaVersion",
+        "secondStore",
+        "secondWriter"
+      ],
+      "type": "object"
+    },
+    "recoveryCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedDisposition": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedDisposition",
+          "id"
+        ],
+        "type": "object"
+      },
+      "maxItems": 6,
+      "minItems": 6,
+      "type": "array"
+    },
+    "redactionModes": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "registryDefinitions": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "eventKind": {
+            "type": "string"
+          },
+          "eventVersion": {
+            "type": "integer"
+          },
+          "lifecycle": {
+            "type": "string"
+          },
+          "minimumCompatibleConsumerVersion": {
+            "type": "integer"
+          },
+          "redaction": {
+            "type": "string"
+          },
+          "replayable": {
+            "type": "boolean"
+          },
+          "sensitivity": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "eventKind",
+          "eventVersion",
+          "lifecycle",
+          "minimumCompatibleConsumerVersion",
+          "redaction",
+          "replayable",
+          "sensitivity",
+          "source",
+          "visibility"
+        ],
+        "type": "object"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    },
+    "requiredBehaviors": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "contract": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "requirement": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "contract",
+          "evidence",
+          "id",
+          "requirement"
+        ],
+        "type": "object"
+      },
+      "maxItems": 10,
+      "minItems": 10,
+      "type": "array"
+    },
+    "requiredContractNames": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 9,
+      "minItems": 9,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "integer"
+    },
+    "sensitivityClasses": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "synthetic": {
+      "type": "boolean"
+    },
+    "visibilityClasses": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array",
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "acceptedEvents",
+    "cardID",
+    "checkpointStates",
+    "checkpoints",
+    "claims",
+    "containsCustomerData",
+    "containsSecrets",
+    "eventKinds",
+    "evidenceCases",
+    "forbiddenClaims",
+    "hostileCases",
+    "interruptionCases",
+    "lifecycleModes",
+    "orderingBasis",
+    "persistence",
+    "recoveryCases",
+    "redactionModes",
+    "registryDefinitions",
+    "requiredBehaviors",
+    "requiredContractNames",
+    "schema",
+    "schemaVersion",
+    "sensitivityClasses",
+    "synthetic",
+    "visibilityClasses"
+  ],
+  "title": "V23 P03 C17 Integration Event Projection Corpus",
+  "type": "object"
+}

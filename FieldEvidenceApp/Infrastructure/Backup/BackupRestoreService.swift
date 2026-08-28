@@ -2,6 +2,16 @@ import Darwin
 import Foundation
 import SwiftData
 
+enum IntegrationProjectionBackupRestoreExclusionV1 {
+    static func validate() throws {
+        let coverage = IntegrationEventJournalCoverageV1()
+        try coverage.validate()
+        guard !coverage.backupIncluded, !coverage.restoreIncluded,
+              IntegrationProjectionSchemaV1.downgradeDisposition == "DROP_AND_REBUILD"
+        else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+    }
+}
+
 enum BackupRestoreServiceError: Error, Equatable {
     case contextHasChanges
     case currentGenerationInvalid
@@ -1174,6 +1184,7 @@ private extension BackupRestoreService {
         generationRootURL: URL
     ) throws {
         do {
+            try IntegrationProjectionBackupRestoreExclusionV1.validate()
             try KernelBackupRestoreRegistryV4.validate()
             let schema = try KernelPersistenceV4Schema.descriptor()
             guard schema.runtimePosture == .dormantStatic,

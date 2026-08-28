@@ -324,6 +324,13 @@ final class S6_3BackupValidationTests: XCTestCase {
 }
 
 extension S6_3BackupValidationTests {
+    func testV23P03C17RestoreDropsAndRebuildsDerivedProjection() throws {
+        XCTAssertNoThrow(try IntegrationProjectionBackupRestoreExclusionV1.validate())
+        XCTAssertEqual(IntegrationProjectionSchemaV1.downgradeDisposition, "DROP_AND_REBUILD")
+    }
+}
+
+extension S6_3BackupValidationTests {
     func testV23P03C36CanonicalDecoderRejectsNonCanonicalCheckpointBytes() throws {
         XCTAssertThrowsError(try FieldDraftCanonicalCodecV1.decode(FieldDraftCheckpointV1.self,from:Data("{}".utf8)))
         XCTAssertEqual(Set(V16BackupFieldDraftRecordV1.Kind.allCases.map(\.rawValue)).count,6)

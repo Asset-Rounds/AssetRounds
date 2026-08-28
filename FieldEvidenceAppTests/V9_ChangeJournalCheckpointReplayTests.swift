@@ -792,6 +792,59 @@ extension V9_ChangeJournalCheckpointReplayTests {
     }
 }
 
+extension V9_ChangeJournalCheckpointReplayTests {
+    func testV9_ChangeJournalCheckpointReplayC17IntegrationEventsRemainDerivedAndRebuildable() throws {
+        let coverage = IntegrationEventJournalCoverageV1()
+        try coverage.validate()
+        XCTAssertEqual(
+            coverage.sourceTruth,
+            "ACCEPTED_MUTATION_RECEIPTS_AND_CHANGE_JOURNAL_V1"
+        )
+        XCTAssertEqual(coverage.projectionSchema, "INTEGRATION_PROJECTION_SCHEMA_V1")
+        XCTAssertTrue(coverage.acceptedReceiptAndJournalOnly)
+        XCTAssertTrue(coverage.providerNeutral)
+        XCTAssertFalse(coverage.canonicalPersistence)
+        XCTAssertFalse(coverage.backupIncluded)
+        XCTAssertFalse(coverage.restoreIncluded)
+        XCTAssertFalse(coverage.exportIncluded)
+        XCTAssertFalse(coverage.reportSourceOfTruth)
+        XCTAssertTrue(coverage.dropAndRebuild)
+
+        let fixtureURL = sourceRoot().appendingPathComponent(
+            "FieldEvidenceAppTests/Fixtures/V21/Integration/V21P03C17IntegrationEventProjectionCorpusV1.json"
+        )
+        let fixture = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: fixtureURL)) as? [String: Any]
+        )
+        XCTAssertEqual(
+            fixture["schema"] as? String,
+            "V21P03C17IntegrationEventProjectionCorpusV1"
+        )
+        XCTAssertEqual(fixture["expectedEventCount"] as? Int, 6)
+        XCTAssertEqual(fixture["expectedReceiptCount"] as? Int, 3)
+
+        let productionFiles = [
+            "FieldEvidenceApp/Domain/Replication/IntegrationEventContractsV1.swift",
+            "FieldEvidenceApp/Infrastructure/Replication/IntegrationEventProjectionV1.swift",
+            "FieldEvidenceApp/Infrastructure/Replication/IntegrationConformanceConsumerV1.swift",
+            "FieldEvidenceApp/Infrastructure/Replication/IntegrationProjectionCheckpointStoreV1.swift",
+        ]
+        let productionSource = try productionFiles.map {
+            try String(
+                contentsOf: sourceRoot().appendingPathComponent($0),
+                encoding: .utf8
+            )
+        }.joined(separator: "\n")
+        XCTAssertTrue(productionSource.contains("IntegrationEventV1"))
+        XCTAssertTrue(productionSource.contains("ProjectionCheckpointV1"))
+        XCTAssertTrue(productionSource.contains("DROP_AND_REBUILD"))
+        XCTAssertFalse(productionSource.contains("IntegrationEventProviderAdapterV1"))
+        XCTAssertFalse(productionSource.contains("IntegrationEventOutboxV1"))
+        XCTAssertFalse(productionSource.contains("IntegrationEventInboxV1"))
+        XCTAssertFalse(productionSource.contains("IntegrationEventCredentialV1"))
+    }
+}
+
 private struct ReplicaConvergenceScenarioV1: Equatable, Sendable {
     let workspaceID: UUID
     let fixedSeed: String

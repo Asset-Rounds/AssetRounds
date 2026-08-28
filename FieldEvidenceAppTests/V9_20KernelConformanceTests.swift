@@ -511,4 +511,61 @@ extension V9_20KernelConformanceTests {
             XCTAssertTrue(source.contains("V23-P03-C36-\(selector)"))
         }
     }
+
+    func testV23P03C17TypedRegistryCheckpointConformanceIsProviderFree() throws {
+        let fixture = try C17IntegrationEventTestSupportV1.makeFixture()
+        XCTAssertEqual(
+            fixture.registry.definitions.map(\.stableKey),
+            ["asset.changed:1", "site.changed:1"]
+        )
+        XCTAssertEqual(
+            fixture.registry.definitions.map(\.lifecycle),
+            [
+                IntegrationEventLifecycleV1.derivedDropAndRebuild,
+                IntegrationEventLifecycleV1.derivedDropAndRebuild,
+            ]
+        )
+
+        let consumer = try IntegrationEventConformanceConsumerV1(
+            consumerID: fixture.consumerID,
+            consumerVersion: fixture.consumerVersion
+        )
+        let first = try consumer.consume(
+            workspaceID: fixture.workspaceID,
+            registry: fixture.registry,
+            events: [],
+            priorCheckpoint: fixture.emptyCheckpoint
+        )
+        XCTAssertTrue(first.acceptedEventIDs.isEmpty)
+        XCTAssertEqual(
+            first.terminalStateSHA256,
+            fixture.emptyCheckpoint.consumerStateSHA256
+        )
+        XCTAssertEqual(first.checkpoint, fixture.emptyCheckpoint)
+
+        let retry = try consumer.consume(
+            workspaceID: fixture.workspaceID,
+            registry: fixture.registry,
+            events: [],
+            priorCheckpoint: first.checkpoint
+        )
+        XCTAssertEqual(retry, first)
+
+        let registryBytes = try IntegrationEventCanonicalCodecV1.encode(
+            fixture.registry, limits: fixture.limits
+        )
+        XCTAssertEqual(
+            try IntegrationEventCanonicalCodecV1.decodeRegistry(
+                registryBytes, limits: fixture.limits
+            ),
+            fixture.registry
+        )
+        let checkpointBytes = try IntegrationEventCanonicalCodecV1.encode(
+            fixture.emptyCheckpoint
+        )
+        XCTAssertEqual(
+            try IntegrationEventCanonicalCodecV1.decodeCheckpoint(checkpointBytes),
+            fixture.emptyCheckpoint
+        )
+    }
 }

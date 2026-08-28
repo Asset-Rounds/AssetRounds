@@ -1,5 +1,16 @@
 import Foundation
 
+enum IntegrationProjectionReportExclusionV1 {
+    static func validate() throws {
+        let coverage = IntegrationEventJournalCoverageV1()
+        try coverage.validate()
+        guard !coverage.reportSourceOfTruth,
+              !IntegrationProjectionSchemaV1.canonicalReportSource else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+    }
+}
+
 enum ReportProjectionPublicationBoundaryV1: String, CaseIterable, Sendable {
     case beforeValidation = "BEFORE_VALIDATION"
     case afterValidation = "AFTER_VALIDATION"
@@ -244,6 +255,7 @@ struct ReportProjectionRegistryV1: Codable, Equatable, Sendable {
     }
 
     func validate() throws {
+        try IntegrationProjectionReportExclusionV1.validate()
         guard self == Self() else { throw SnapshotProjectionFailureV1.incompatibleVersion }
     }
 

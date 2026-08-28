@@ -5917,3 +5917,68 @@ enum C36FieldDraftTestSupportV1 {
         )
     }
 }
+
+/// Typed, provider-free C17 lifecycle fixture.  It deliberately contains only
+/// the registry and an empty disposable checkpoint; production event bytes are
+/// projected from accepted receipt history by the C17 implementation.
+enum C17IntegrationEventTestSupportV1 {
+    struct Fixture {
+        let workspaceID: WorkspaceID
+        let limits: IntegrationEventLimitsV1
+        let registry: IntegrationContractRegistryV1
+        let consumerID: String
+        let consumerVersion: Int
+        let emptyCheckpoint: ProjectionCheckpointV1
+    }
+
+    static func makeFixture() throws -> Fixture {
+        let workspaceID = WorkspaceID(rawValue: UUID(
+            uuidString: "00000000-0000-4000-8000-000000017017"
+        )!)
+        let limits = try IntegrationEventLimitsV1()
+        let registry = try IntegrationContractRegistryV1(
+            releaseID: "V23-P03-C17-CONFORMANCE",
+            definitions: [
+                try IntegrationEventContractDefinitionV1(
+                    eventKind: "asset.changed",
+                    eventVersion: 1,
+                    sourceEntityKind: .asset,
+                    sensitivity: .sensitiveWorkspaceData,
+                    emittedVisibility: .sensitiveRedacted,
+                    redaction: .identifiersOnly
+                ),
+                try IntegrationEventContractDefinitionV1(
+                    eventKind: "site.changed",
+                    eventVersion: 1,
+                    sourceEntityKind: .site,
+                    sensitivity: .workspaceData,
+                    emittedVisibility: .workspaceInternal,
+                    redaction: .notRequired
+                ),
+            ],
+            limits: limits
+        )
+        let consumerID = "assetrounds.local.c17.lifecycle"
+        let consumerVersion = 1
+        let emptyCheckpoint = try ProjectionCheckpointV1(
+            consumerID: consumerID,
+            consumerVersion: consumerVersion,
+            workspaceID: workspaceID,
+            registrySHA256: registry.registrySHA256,
+            lastEvent: nil,
+            consumedEventCount: 0,
+            consumerStateSHA256: String(repeating: "0", count: 64)
+        )
+        try emptyCheckpoint.validateResume(
+            workspaceID: workspaceID, registry: registry
+        )
+        return Fixture(
+            workspaceID: workspaceID,
+            limits: limits,
+            registry: registry,
+            consumerID: consumerID,
+            consumerVersion: consumerVersion,
+            emptyCheckpoint: emptyCheckpoint
+        )
+    }
+}

@@ -2,6 +2,18 @@ import Darwin
 import Foundation
 import SwiftData
 
+enum IntegrationProjectionBackupExportExclusionV1 {
+    static func validate() throws {
+        let coverage = IntegrationEventJournalCoverageV1()
+        try coverage.validate()
+        guard !coverage.backupIncluded, !coverage.exportIncluded,
+              !IntegrationProjectionSchemaV1.canonicalBackupIncluded,
+              !IntegrationProjectionSchemaV1.canonicalExportIncluded else {
+            throw BackupExportServiceError.invalidAuthority
+        }
+    }
+}
+
 enum BackupExportServiceError: Error, Equatable {
     case invalidGeneration
     case contextHasChanges
@@ -1815,6 +1827,7 @@ private extension BackupExportService {
         _ rows: Rows,
         operation: WorkspacePackageLifecycleOperationV1
     ) throws {
+        try IntegrationProjectionBackupExportExclusionV1.validate()
         guard case let .live(lifecycleDependencies) = lifecycleRoute else {
             guard case let .expiringCompatibility(posture) = lifecycleRoute,
                   posture == .frozenLegacyCallersOnly else {

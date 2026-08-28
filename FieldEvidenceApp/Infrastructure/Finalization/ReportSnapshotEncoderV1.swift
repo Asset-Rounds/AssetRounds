@@ -10,6 +10,17 @@ enum ReportSnapshotEncodingErrorV1: Error, Equatable {
     case noncanonicalData
 }
 
+enum IntegrationProjectionReportSnapshotExclusionV1 {
+    static func validate() throws {
+        let coverage = IntegrationEventJournalCoverageV1()
+        try coverage.validate()
+        guard !coverage.reportSourceOfTruth,
+              !IntegrationProjectionSchemaV1.canonicalReportSource else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+    }
+}
+
 /// Provisional-only companion codec. Production finalization deliberately does
 /// not populate this projection until its owning release surface is activated.
 enum RequirementAssuranceSnapshotCanonicalCodecV1 {
@@ -293,6 +304,7 @@ struct ReportSnapshotEncoderV1: Sendable {
     }
 
     func encode(_ snapshot: ReportSnapshotV1) throws -> EncodedReportSnapshotV1 {
+        try IntegrationProjectionReportSnapshotExclusionV1.validate()
         guard (1...4).contains(snapshot.snapshotSchemaVersion) else {
             throw ReportSnapshotEncodingErrorV1.invalidSnapshot
         }

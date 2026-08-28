@@ -3,6 +3,22 @@ import CryptoKit
 import Foundation
 import SwiftData
 
+enum IntegrationProjectionEraseAllPolicyV1 {
+    static func validate() throws {
+        try KernelDeletionEraseRegistryV4.validateIntegrationProjectionLifecycle()
+    }
+
+    static func purge(
+        store: any IntegrationProjectionOperationalStoreV1,
+        workspaceID: WorkspaceID
+    ) async throws {
+        try await store.dropDerivedProjection(
+            consumerID: nil,
+            workspaceID: workspaceID
+        )
+    }
+}
+
 enum FunctionalRelationshipEraseAllPolicyV1 {
     static func validatePublishedEmptyGeneration(_ context: ModelContext) throws {
         guard try context.fetchCount(
@@ -229,6 +245,7 @@ final class EraseAllService {
         activate: @escaping @MainActor (StoreGenerationSession) async -> Void,
         lifecycleRoute: EraseAllLifecycleRouteV1
     ) async throws -> EraseAllOutcome {
+        try IntegrationProjectionEraseAllPolicyV1.validate()
         guard confirmation == Self.requiredConfirmation else {
             throw EraseAllServiceError.invalidConfirmation
         }

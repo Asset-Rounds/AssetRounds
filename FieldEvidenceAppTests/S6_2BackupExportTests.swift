@@ -320,6 +320,14 @@ final class S6_2BackupExportTests: XCTestCase {
 }
 
 extension S6_2BackupExportTests {
+    func testV23P03C17DerivedIntegrationProjectionIsNotCanonicalBackupOrExport() throws {
+        XCTAssertNoThrow(try IntegrationProjectionBackupExportExclusionV1.validate())
+        XCTAssertFalse(IntegrationProjectionSchemaV1.canonicalBackupIncluded)
+        XCTAssertFalse(IntegrationProjectionSchemaV1.canonicalExportIncluded)
+    }
+}
+
+extension S6_2BackupExportTests {
     func testV23P03C36Records15ExportsClosedSixKindFamily() throws {
         XCTAssertEqual(V16BackupFieldDraftRecordV1.Kind.allCases.map(\.rawValue), ["checkpoint","stagingItem","commitSaga","contentReservation","commitReceipt","discardReceipt"])
         XCTAssertNoThrow(try V16FieldDraftImportBoundaryV1.validate(persistent:16,records:15))

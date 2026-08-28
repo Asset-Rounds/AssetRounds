@@ -60,6 +60,22 @@ struct ExplicitSiteDeletionOutcomeV1: Equatable, Sendable {
     let deletionID: UUID
 }
 
+enum IntegrationProjectionOrdinaryDeletionPolicyV1 {
+    static func validate() throws {
+        try KernelDeletionEraseRegistryV4.validateIntegrationProjectionLifecycle()
+    }
+
+    static func purge(
+        store: any IntegrationProjectionOperationalStoreV1,
+        workspaceID: WorkspaceID
+    ) async throws {
+        try await store.dropDerivedProjection(
+            consumerID: nil,
+            workspaceID: workspaceID
+        )
+    }
+}
+
 enum WholeSignDeletionServiceError: Error, Equatable {
     case invalidGeneration
     case contextHasChanges
@@ -174,6 +190,7 @@ final class WholeSignDeletionService {
     private let failureInjection: WholeSignDeletionFailureInjection?
     private let lifecycleRoute: WholeSignDeletionLifecycleRouteV1
     private let searchIndexStore: LocalSearchIndexStoreV1
+    private let fileManager: FileManager
 
     convenience init(
         modelContext: ModelContext,
@@ -231,6 +248,7 @@ final class WholeSignDeletionService {
         self.makeUUID = makeUUID
         self.failureInjection = failureInjection
         self.lifecycleRoute = lifecycleRoute
+        self.fileManager = fileManager
 
         let root = generationRootURL.standardizedFileURL
         let generations = root.deletingLastPathComponent()
@@ -316,6 +334,7 @@ final class WholeSignDeletionService {
     }
 
     func delete(assetID: UUID) async throws -> WholeSignDeletionOutcome {
+        try IntegrationProjectionOrdinaryDeletionPolicyV1.validate()
         try requireAuthority()
         guard !modelContext.hasChanges else {
             throw WholeSignDeletionServiceError.contextHasChanges
@@ -417,6 +436,7 @@ final class WholeSignDeletionService {
             throw WholeSignDeletionServiceError.journalInvalid
         }
         try await purgeSearchProjectionAfterDeletion()
+        try await purgeIntegrationProjectionAfterDeletion()
         do {
             try inject(.journalRemoval)
             try journal.remove(plan.intent.withPhase(.databaseCommitted))
@@ -473,6 +493,7 @@ final class WholeSignDeletionService {
     func deleteSite(
         preview: ExplicitSiteDeletionPreviewV1
     ) async throws -> ExplicitSiteDeletionOutcomeV1 {
+        try IntegrationProjectionOrdinaryDeletionPolicyV1.validate()
         try requireAuthority()
         guard !modelContext.hasChanges else {
             throw WholeSignDeletionServiceError.contextHasChanges
@@ -579,6 +600,7 @@ final class WholeSignDeletionService {
             throw WholeSignDeletionServiceError.journalInvalid
         }
         try await purgeSearchProjectionAfterDeletion()
+        try await purgeIntegrationProjectionAfterDeletion()
         do {
             try inject(.journalRemoval)
             try journal.removeSiteSearchPurgeMarker(
@@ -610,6 +632,35 @@ final class WholeSignDeletionService {
         guard let workspaceID else { return }
         do {
             try await searchIndexStore.purgeWorkspace(workspaceID)
+        } catch {
+            throw WholeSignDeletionServiceError.cleanupFailed
+        }
+    }
+
+    private func purgeIntegrationProjectionAfterDeletion() async throws {
+        let workspaceID: WorkspaceID?
+        switch lifecycleRoute {
+        case .live(let dependencies):
+            workspaceID = dependencies.workspaceID
+        case .expiringCompatibility:
+            let states = try modelContext.fetch(FetchDescriptor<WorkspaceMutationStateRow>())
+            guard states.count <= 1 else {
+                throw WholeSignDeletionServiceError.journalInvalid
+            }
+            workspaceID = states.first.map { WorkspaceID(rawValue: $0.workspaceID) }
+        }
+        guard let workspaceID else { return }
+        do {
+            let store = try IntegrationProjectionCheckpointStoreV1(
+                generationRootURL: generationRootURL,
+                generationID: generationID,
+                workspaceID: workspaceID,
+                fileManager: fileManager
+            )
+            try await IntegrationProjectionOrdinaryDeletionPolicyV1.purge(
+                store: store,
+                workspaceID: workspaceID
+            )
         } catch {
             throw WholeSignDeletionServiceError.cleanupFailed
         }
@@ -701,6 +752,7 @@ final class WholeSignDeletionService {
                 try journal.replace(intent.withPhase(.databaseCommitted))
                 try cleanup(intent)
                 try await purgeSearchProjectionAfterDeletion()
+                try await purgeIntegrationProjectionAfterDeletion()
                 try inject(.journalRemoval)
                 try journal.remove(intent.withPhase(.databaseCommitted))
                 completed += 1
@@ -714,6 +766,7 @@ final class WholeSignDeletionService {
             }
             try cleanup(intent)
             try await purgeSearchProjectionAfterDeletion()
+            try await purgeIntegrationProjectionAfterDeletion()
             try journal.remove(intent.withPhase(.databaseCommitted))
             completed += 1
         }
@@ -736,6 +789,7 @@ final class WholeSignDeletionService {
                 )
             }
             try await purgeSearchProjectionAfterDeletion()
+            try await purgeIntegrationProjectionAfterDeletion()
             try journal.removeSiteSearchPurgeMarker(
                 marker.withPhase(.databaseCommitted)
             )

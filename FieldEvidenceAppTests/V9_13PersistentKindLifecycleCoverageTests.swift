@@ -60,6 +60,95 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
         XCTAssertEqual(event.kind, .retiredRecorded)
     }
 
+    func testV23P03C17IntegrationProjectionKindsAreClosedDerivedAndDropRebuildable() throws {
+        let expectedNames = [
+            "IntegrationConformanceConsumerV1",
+            "IntegrationContractRegistryV1",
+            "IntegrationEventProjectionV1",
+            "IntegrationEventV1",
+            "IntegrationProjectionCheckpointStoreV1",
+            "ProjectionCheckpointV1",
+        ]
+        XCTAssertEqual(
+            CurrentSyncClassificationCatalogV1.c17IntegrationProjectionNames,
+            expectedNames
+        )
+
+        let source = try CurrentSyncClassificationCatalogV1.current
+        let catalog = try CurrentPersistentKindLifecycleCatalogV1.compile(
+            candidateHead: candidateHead
+        )
+        let expectedKindIDs = Set(expectedNames.map {
+            "PROJECTION:\($0)"
+        })
+        XCTAssertEqual(
+            Set(source.derivedIndexProjectionSubjects.map(\.canonicalKey)
+                .filter { expectedKindIDs.contains($0) }),
+            expectedKindIDs
+        )
+
+        for name in expectedNames {
+            let subject = try SyncSubjectIdentityV1(
+                category: .projection, stableName: name
+            )
+            let registration = try source.registration(for: subject)
+            XCTAssertEqual(registration.classification, .derivedRebuildable)
+            XCTAssertEqual(registration.replicationPolicy.authority, .derivedFromCanonicalInputs)
+            XCTAssertEqual(registration.replicationPolicy.persistence, .nonpersistent)
+            XCTAssertEqual(registration.replicationPolicy.transport, .excluded)
+            XCTAssertEqual(registration.replicationPolicy.bootstrap, .rebuildFromDependencies)
+            XCTAssertEqual(registration.replicationPolicy.backup, .rebuildAfterRestore)
+            XCTAssertEqual(registration.replicationPolicy.export, .exclude)
+            XCTAssertEqual(registration.replicationPolicy.deletion, .rebuild)
+            XCTAssertEqual(registration.replicationPolicy.erase, .rebuildAfterErase)
+            XCTAssertEqual(registration.conflictPolicy.rule, .derivedRebuild)
+
+            let route = try source.lifecycleRoute(for: subject)
+            XCTAssertEqual(route.semanticBackup, .rebuildAfterRestore)
+            XCTAssertEqual(route.portableExport, .exclude)
+            XCTAssertEqual(route.deletion, .rebuild)
+            XCTAssertEqual(route.erase, .rebuildAfterErase)
+            XCTAssertEqual(route.rebuild, .rebuildFromCanonicalDependencies)
+
+            let descriptor = try catalog.descriptor(for: subject)
+            XCTAssertEqual(descriptor.storage, .derivedProjection)
+            XCTAssertEqual(descriptor.revision, .derivedFromCanonicalInputs)
+            XCTAssertEqual(descriptor.mutation, .derivedOnly)
+            XCTAssertEqual(descriptor.digest, .rebuildFromDependencies)
+            XCTAssertEqual(descriptor.kindClassification, .derived)
+            XCTAssertEqual(descriptor.temporalEvidence.disposition, .nonpersistentNoCanonicalWrite)
+            XCTAssertEqual(descriptor.temporalEvidence.representationSourceCard, "PRE_V23_BASELINE")
+            XCTAssertEqual(descriptor.temporalEvidence.representationSourceOrdinal, 0)
+
+            let lifecycle = try catalog.lifecyclePolicy(for: subject)
+            XCTAssertEqual(try lifecycle.migration, .rebuildable)
+            XCTAssertEqual(try lifecycle.backup, .rebuildable)
+            XCTAssertEqual(try lifecycle.replaceRestore, .rebuildable)
+            XCTAssertEqual(try lifecycle.export, .denied)
+            XCTAssertEqual(try lifecycle.report, .denied)
+            XCTAssertEqual(try lifecycle.search, .denied)
+            XCTAssertEqual(try lifecycle.rebuild, .rebuildable)
+            XCTAssertEqual(try lifecycle.delete, .rebuildable)
+            XCTAssertEqual(try lifecycle.erase, .rebuildable)
+
+            let handling = try catalog.dataHandlingPolicy(for: subject)
+            XCTAssertEqual(handling.privacy, .workspaceCanonical)
+            XCTAssertEqual(handling.retention, .rebuildable)
+            XCTAssertEqual(handling.destructiveAuthority, .derivedRebuildOwner)
+            XCTAssertEqual(handling.secretHandling, .forbidden)
+            XCTAssertEqual(handling.telemetry, .forbidden)
+            XCTAssertEqual(handling.localization, .frozenDataNoPresentation)
+            XCTAssertEqual(handling.accessibility, .frozenDataNoPresentation)
+            XCTAssertEqual(handling.customerWorkDataScope, .workspaceData)
+        }
+
+        XCTAssertEqual(IntegrationProjectionSchemaV1.persistenceMode, "DERIVED_ONLY")
+        XCTAssertEqual(IntegrationProjectionSchemaV1.downgradeDisposition, "DROP_AND_REBUILD")
+        XCTAssertFalse(IntegrationProjectionSchemaV1.canonicalBackupIncluded)
+        XCTAssertFalse(IntegrationProjectionSchemaV1.canonicalExportIncluded)
+        XCTAssertFalse(IntegrationProjectionSchemaV1.canonicalReportSource)
+    }
+
     func testV9_13G01ClosedUniverseAndCoverageManifestAreComplete() throws {
         let corpus = try Self.loadCorpus()
         let source = try CurrentSyncClassificationCatalogV1.current

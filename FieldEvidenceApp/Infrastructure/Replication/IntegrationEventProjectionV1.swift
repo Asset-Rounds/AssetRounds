@@ -1,0 +1,256 @@
+import Foundation
+
+struct IntegrationEventProjectionV1: Sendable {
+    let registry: IntegrationContractRegistryV1
+    let limits: IntegrationEventLimitsV1
+
+    init(registry: IntegrationContractRegistryV1, limits: IntegrationEventLimitsV1) throws {
+        try registry.validate(limits: limits)
+        self.registry = registry
+        self.limits = limits
+    }
+
+    func project(workspaceID: WorkspaceID, acceptedReceipts: [MutationReceiptV1]) throws -> [IntegrationEventV1] {
+        guard acceptedReceipts.count <= ChangeJournalLimitsV1.productionMaximumEntitiesPerCheckpoint else {
+            throw IntegrationEventFailureV1.limitExceeded
+        }
+        let orderedReceipts = acceptedReceipts.sorted {
+            if $0.resultingRevision.workspaceRevision != $1.resultingRevision.workspaceRevision {
+                return $0.resultingRevision.workspaceRevision < $1.resultingRevision.workspaceRevision
+            }
+            return $0.identity.stableKey < $1.identity.stableKey
+        }
+        var seenReceiptIDs = Set<MutationReceiptIdentityV1>()
+        var seenWorkspaceRevisions = Set<UInt64>()
+        var events: [IntegrationEventV1] = []
+        var eventCount = 0
+        for receipt in orderedReceipts {
+            guard receipt.postImages.count <= limits.maximumEventsPerReplay - eventCount else {
+                throw IntegrationEventFailureV1.limitExceeded
+            }
+            eventCount += receipt.postImages.count
+        }
+        events.reserveCapacity(eventCount)
+
+        for receipt in orderedReceipts {
+            try receipt.validate()
+            guard receipt.identity.workspaceID == workspaceID,
+                  receipt.resultingRevision.workspaceID == workspaceID else {
+                throw IntegrationEventFailureV1.wrongWorkspace
+            }
+            guard seenReceiptIDs.insert(receipt.identity).inserted,
+                  seenWorkspaceRevisions.insert(receipt.resultingRevision.workspaceRevision).inserted else {
+                throw IntegrationEventFailureV1.divergentEvent
+            }
+            guard receipt.postImages.count <= limits.maximumEventsPerReceipt else {
+                throw IntegrationEventFailureV1.limitExceeded
+            }
+            let receiptSHA256 = try receipt.canonicalSHA256()
+            for (ordinal, postImage) in receipt.postImages.enumerated() {
+                let subject = try postImage.identity
+                let definition = try registry.definition(for: subject.kind)
+                let payloadValue = try IntegrationEventPayloadV1(
+                    subject: subject,
+                    subjectRevision: postImage.revision,
+                    subjectSemanticSHA256: postImage.semanticSHA256,
+                    commandBodySHA256: receipt.commandBodySHA256,
+                    resultSHA256: receipt.resultSHA256
+                )
+                let payload = try WorkspaceMutationCanonicalV1.data(payloadValue)
+                guard payload.count <= definition.maximumPayloadBytes,
+                      payload.count <= limits.maximumPayloadBytes else {
+                    throw IntegrationEventFailureV1.limitExceeded
+                }
+                let order = try IntegrationEventOrderV1(
+                    sourceWorkspaceRevision: receipt.resultingRevision.workspaceRevision,
+                    sourceReplicaID: receipt.identity.replicaID,
+                    sourceLocalSequence: receipt.identity.localSequence,
+                    payloadOrdinal: ordinal
+                )
+                events.append(try IntegrationEventV1(
+                    definition: definition,
+                    receipt: receipt,
+                    sourceReceiptSHA256: receiptSHA256,
+                    subject: subject,
+                    subjectRevision: postImage.revision,
+                    order: order,
+                    payload: payload,
+                    limits: limits
+                ))
+            }
+        }
+        return try validateProjectedStream(events, workspaceID: workspaceID)
+    }
+
+    func validateProjectedStream(_ events: [IntegrationEventV1], workspaceID: WorkspaceID) throws -> [IntegrationEventV1] {
+        let ordered = events.sorted { $0.order < $1.order }
+        guard events == ordered, Set(events.map(\.eventID)).count == events.count else {
+            throw IntegrationEventFailureV1.noncanonicalOrder
+        }
+        var nextOrdinalByReceipt: [MutationReceiptIdentityV1: Int] = [:]
+        for event in events {
+            guard event.workspaceID == workspaceID else { throw IntegrationEventFailureV1.wrongWorkspace }
+            let definition = try registry.definition(eventKind: event.eventKind, version: event.eventVersion)
+            try event.validate(definition: definition, limits: limits)
+            let expectedOrdinal = nextOrdinalByReceipt[event.sourceReceiptID] ?? 0
+            guard event.order.payloadOrdinal == expectedOrdinal else {
+                throw IntegrationEventFailureV1.noncanonicalOrder
+            }
+            nextOrdinalByReceipt[event.sourceReceiptID] = expectedOrdinal + 1
+        }
+        return events
+    }
+
+    func events(after checkpoint: ProjectionCheckpointV1?, workspaceID: WorkspaceID,
+                acceptedReceipts: [MutationReceiptV1]) throws -> [IntegrationEventV1] {
+        if let checkpoint { try checkpoint.validateResume(workspaceID: workspaceID, registry: registry) }
+        let events = try project(workspaceID: workspaceID, acceptedReceipts: acceptedReceipts)
+        guard let checkpoint, let lastOrder = checkpoint.lastOrder else { return events }
+        guard let matched = events.first(where: {
+            $0.order == lastOrder && $0.eventID == checkpoint.lastEventID && $0.eventSHA256 == checkpoint.lastEventSHA256
+        }) else { throw IntegrationEventFailureV1.staleCheckpoint }
+        return events.filter { $0.order > matched.order }
+    }
+}
+
+struct IntegrationEventConsumerResultV1: Codable, Equatable, Hashable, Sendable {
+    let acceptedEventIDs: [String]
+    let terminalStateSHA256: String
+    let checkpoint: ProjectionCheckpointV1
+}
+
+/// A provider-free reference consumer. Its only logical effect is a digest of
+/// accepted event identities, which makes duplicate/crash/checkpoint behavior
+/// testable without introducing an outbox, provider, endpoint, or delivery row.
+struct IntegrationEventConformanceConsumerV1: Sendable {
+    let consumerID: String
+    let consumerVersion: Int
+
+    init(consumerID: String = "assetrounds.local.conformance", consumerVersion: Int = 1) throws {
+        guard !consumerID.isEmpty, consumerID.utf8.count <= 128, consumerVersion > 0 else {
+            throw IntegrationEventFailureV1.invalidValue
+        }
+        self.consumerID = consumerID
+        self.consumerVersion = consumerVersion
+    }
+
+    func consume(workspaceID: WorkspaceID, registry: IntegrationContractRegistryV1,
+                 events: [IntegrationEventV1], priorCheckpoint: ProjectionCheckpointV1? = nil) throws -> IntegrationEventConsumerResultV1 {
+        if let priorCheckpoint {
+            try priorCheckpoint.validateResume(workspaceID: workspaceID, registry: registry)
+            guard priorCheckpoint.consumerID == consumerID,
+                  priorCheckpoint.consumerVersion == consumerVersion else {
+                throw IntegrationEventFailureV1.staleCheckpoint
+            }
+        }
+        var byID: [String: IntegrationEventV1] = [:]
+        for event in events {
+            let definition = try registry.definition(eventKind: event.eventKind, version: event.eventVersion)
+            guard consumerVersion >= definition.minimumCompatibleConsumerVersion else {
+                throw IntegrationEventFailureV1.unknownPayloadVersion
+            }
+            try event.validate(definition: definition, limits: try IntegrationEventLimitsV1())
+            guard event.workspaceID == workspaceID else { throw IntegrationEventFailureV1.wrongWorkspace }
+            if let priorCheckpoint, let priorOrder = priorCheckpoint.lastOrder, event.order <= priorOrder {
+                if event.order == priorOrder,
+                   event.eventID == priorCheckpoint.lastEventID,
+                   event.eventSHA256 == priorCheckpoint.lastEventSHA256 {
+                    continue
+                }
+                throw IntegrationEventFailureV1.staleCheckpoint
+            }
+            if let existing = byID[event.eventID], existing.eventSHA256 != event.eventSHA256 {
+                throw IntegrationEventFailureV1.divergentEvent
+            }
+            byID[event.eventID] = event
+        }
+        let unique = byID.values.sorted { $0.order < $1.order }
+        let acceptedIDs = unique.map(\.eventID)
+        if unique.isEmpty, let priorCheckpoint {
+            return IntegrationEventConsumerResultV1(
+                acceptedEventIDs: [],
+                terminalStateSHA256: priorCheckpoint.consumerStateSHA256,
+                checkpoint: priorCheckpoint
+            )
+        }
+        let priorCount = priorCheckpoint?.consumedEventCount ?? 0
+        guard UInt64(unique.count) <= UInt64.max - priorCount else { throw IntegrationEventFailureV1.limitExceeded }
+        let totalCount = priorCount + UInt64(unique.count)
+        var stateSHA: String
+        if let priorCheckpoint, priorCheckpoint.consumedEventCount > 0 {
+            stateSHA = priorCheckpoint.consumerStateSHA256
+        } else {
+            stateSHA = try WorkspaceMutationCanonicalV1.sha256(StateGenesisBasis(
+                schemaVersion: 1,
+                consumerID: consumerID,
+                consumerVersion: consumerVersion,
+                workspaceID: workspaceID,
+                registrySHA256: registry.registrySHA256
+            ))
+        }
+        for event in unique {
+            stateSHA = try WorkspaceMutationCanonicalV1.sha256(StateFoldBasis(
+                schemaVersion: 1,
+                priorStateSHA256: stateSHA,
+                eventID: event.eventID,
+                eventSHA256: event.eventSHA256,
+                order: event.order
+            ))
+        }
+        let checkpoint = try ProjectionCheckpointV1(
+            consumerID: consumerID, consumerVersion: consumerVersion, workspaceID: workspaceID,
+            registrySHA256: registry.registrySHA256, lastEvent: unique.last,
+            consumedEventCount: totalCount, consumerStateSHA256: stateSHA
+        )
+        return IntegrationEventConsumerResultV1(
+            acceptedEventIDs: acceptedIDs, terminalStateSHA256: stateSHA, checkpoint: checkpoint
+        )
+    }
+
+    private struct StateGenesisBasis: Codable {
+        let schemaVersion: Int
+        let consumerID: String
+        let consumerVersion: Int
+        let workspaceID: WorkspaceID
+        let registrySHA256: String
+    }
+
+    private struct StateFoldBasis: Codable {
+        let schemaVersion: Int
+        let priorStateSHA256: String
+        let eventID: String
+        let eventSHA256: String
+        let order: IntegrationEventOrderV1
+    }
+}
+
+/// Operational storage is explicitly disposable. Implementations must publish
+/// an event page and its checkpoint atomically, and deletion/Erase may always
+/// remove both without touching canonical workspace state.
+protocol IntegrationProjectionOperationalStoreV1: Sendable {
+    func checkpoint(consumerID: String, workspaceID: WorkspaceID) async throws -> ProjectionCheckpointV1?
+    func replaceDerivedProjection(
+        events: [IntegrationEventV1],
+        checkpoint: ProjectionCheckpointV1,
+        consumerID: String,
+        workspaceID: WorkspaceID
+    ) async throws
+    /// Records the local conformance consumer's disposable logical effects.
+    /// Repeating identical event IDs is idempotent; divergent bytes fail.
+    func recordDerivedConsumerEffects(
+        events: [IntegrationEventV1],
+        consumerID: String,
+        workspaceID: WorkspaceID
+    ) async throws
+    func dropDerivedProjection(consumerID: String?, workspaceID: WorkspaceID) async throws
+}
+
+extension IntegrationProjectionOperationalStoreV1 {
+    func recordDerivedConsumerEffects(
+        events: [IntegrationEventV1],
+        consumerID: String,
+        workspaceID: WorkspaceID
+    ) async throws {
+        throw IntegrationEventFailureV1.invalidValue
+    }
+}

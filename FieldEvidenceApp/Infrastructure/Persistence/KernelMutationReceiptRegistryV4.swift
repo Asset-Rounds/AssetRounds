@@ -293,6 +293,32 @@ enum KernelMutationReceiptRegistryV4 {
         } catch { preconditionFailure("Invalid KERNEL_PERSISTENCE_V4 mutation registry: \(error)") }
     }()
 
+    /// Receipt-producing kernel registrations are metadata only. C17 derives
+    /// its provider-neutral events from accepted `MutationReceiptV1` journal
+    /// rows, never from these effect declarations or from provider state.
+    static var acceptedProjectionSourceRegistrations: [KernelMutationRegistrationV4] {
+        registrations.filter {
+            $0.durableReceiptRequired
+                && $0.effectBeforeReceiptRecovery
+                && $0.effectDisposition != .dormantNoRuntimeEffect
+        }
+    }
+
+    static func validateAcceptedProjectionSource() throws {
+        let coverage = IntegrationEventJournalCoverageV1()
+        try coverage.validate()
+        try validate()
+        guard !acceptedProjectionSourceRegistrations.isEmpty,
+              acceptedProjectionSourceRegistrations == acceptedProjectionSourceRegistrations.sorted(),
+              acceptedProjectionSourceRegistrations.allSatisfy({
+                  $0.durableReceiptRequired
+                      && $0.effectBeforeReceiptRecovery
+                      && $0.effectDisposition != .dormantNoRuntimeEffect
+              }) else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+
     static func registration(for kind: KernelPersistenceV4RecordKind) throws -> KernelMutationRegistrationV4 {
         let matches = registrations.filter { $0.kind == kind }
         guard matches.count == 1, let value = matches.first else {

@@ -92,6 +92,15 @@ struct DiagnosticExportV1: Codable, Equatable, Sendable {
     /// summary-only surface and is absent unless the caller supplies it.
     var workPacket: WorkPacketDiagnosticSummaryV1? = nil
 
+    /// Integration event payloads, subjects, cursors, and checkpoint bytes are
+    /// never diagnostic material. Diagnostics may describe only the static
+    /// drop-and-rebuild posture through code-owned policy.
+    var integrationProjectionPayloadExcluded: Bool {
+        IntegrationProjectionSchemaV1.persistenceMode == "DERIVED_ONLY"
+            && !IntegrationProjectionSchemaV1.canonicalExportIncluded
+            && !IntegrationProjectionSchemaV1.canonicalReportSource
+    }
+
     var isValid: Bool {
         diagnosticSchemaVersion == 1
             && app.build.isDiagnosticSystemValue
@@ -105,6 +114,7 @@ struct DiagnosticExportV1: Codable, Equatable, Sendable {
                 RequirementAssuranceSnapshotCanonicalCodecV1.isValid($0)
             } ?? true)
             && (workPacket?.isValid ?? true)
+            && integrationProjectionPayloadExcluded
     }
 
     var requirementExplanations: [RequirementExplanationItemV1] {
@@ -121,6 +131,22 @@ struct PreparedDiagnosticExportV1: Equatable, Sendable {
 
 enum DiagnosticExportError: Error, Equatable {
     case invalidValue
+}
+
+enum IntegrationProjectionDiagnosticExclusionV1 {
+    static let forbiddenJSONKeys = [
+        "checkpointSHA256", "consumerStateSHA256", "eventID",
+        "eventSHA256", "lastEventID", "lastEventSHA256", "payloadSHA256",
+        "sourceReceiptSHA256", "subjectSemanticSHA256",
+    ]
+
+    static func validate(_ data: Data) throws {
+        guard IntegrationProjectionSchemaV1.persistenceMode == "DERIVED_ONLY",
+              !IntegrationProjectionSchemaV1.canonicalExportIncluded,
+              forbiddenJSONKeys.allSatisfy({ key in
+                  data.range(of: Data("\"\(key)\"".utf8)) == nil
+              }) else { throw DiagnosticExportError.invalidValue }
+    }
 }
 
 struct DiagnosticExportService {
@@ -204,10 +230,9 @@ struct DiagnosticExportService {
         guard value.isValid else {
             throw DiagnosticExportError.invalidValue
         }
-        return PreparedDiagnosticExportV1(
-            value: value,
-            canonicalData: try DiagnosticExportCanonicalEncoderV1.encode(value)
-        )
+        let canonicalData = try DiagnosticExportCanonicalEncoderV1.encode(value)
+        try IntegrationProjectionDiagnosticExclusionV1.validate(canonicalData)
+        return PreparedDiagnosticExportV1(value: value, canonicalData: canonicalData)
     }
 }
 
@@ -236,7 +261,9 @@ enum DiagnosticExportCanonicalEncoderV1 {
         if let workPacket = value.workPacket {
             object["workPacket"] = workPacketValue(workPacket)
         }
-        return try CanonicalJSONV1.encode(.object(object))
+        let data = try CanonicalJSONV1.encode(.object(object))
+        try IntegrationProjectionDiagnosticExclusionV1.validate(data)
+        return data
     }
 
     private static func workPacketValue(

@@ -650,6 +650,64 @@ final class S6_6EraseRecoveryTests: XCTestCase {
 }
 
 extension S6_6EraseRecoveryTests {
+    func testV23P03C17DeleteAndEraseOwnOnlyDerivedProjectionCleanup() throws {
+        XCTAssertNoThrow(try KernelDeletionEraseRegistryV4.validateIntegrationProjectionLifecycle())
+        XCTAssertEqual(
+            KernelDeletionEraseRegistryV4.integrationProjectionLifecycle.map(\.rawValue),
+            ["DROP_DERIVED_AND_REBUILD", "DROP_DERIVED_AND_REBUILD_EMPTY"]
+        )
+    }
+
+    func testV23P03C17OperationalStoreCleanupNeverMutatesCanonicalRows() async throws {
+        let store = C17IntegrationProjectionStoreSpy()
+        let workspaceID = WorkspaceID(rawValue: UUID())
+        try await IntegrationProjectionOrdinaryDeletionPolicyV1.purge(
+            store: store,
+            workspaceID: workspaceID
+        )
+        try await IntegrationProjectionEraseAllPolicyV1.purge(
+            store: store,
+            workspaceID: workspaceID
+        )
+        let dropCount = await store.dropCount()
+        let workspaceIDs = await store.workspaceIDs()
+        let usedScopedConsumer = await store.usedScopedConsumer()
+        XCTAssertEqual(dropCount, 2)
+        XCTAssertEqual(workspaceIDs, [workspaceID, workspaceID])
+        XCTAssertFalse(usedScopedConsumer)
+    }
+}
+
+private actor C17IntegrationProjectionStoreSpy: IntegrationProjectionOperationalStoreV1 {
+    private var droppedWorkspaceIDs: [WorkspaceID] = []
+    private var receivedScopedConsumer = false
+
+    func checkpoint(
+        consumerID: String,
+        workspaceID: WorkspaceID
+    ) async throws -> ProjectionCheckpointV1? { nil }
+
+    func replaceDerivedProjection(
+        events: [IntegrationEventV1],
+        checkpoint: ProjectionCheckpointV1,
+        consumerID: String,
+        workspaceID: WorkspaceID
+    ) async throws {}
+
+    func dropDerivedProjection(
+        consumerID: String?,
+        workspaceID: WorkspaceID
+    ) async throws {
+        receivedScopedConsumer = receivedScopedConsumer || consumerID != nil
+        droppedWorkspaceIDs.append(workspaceID)
+    }
+
+    func dropCount() -> Int { droppedWorkspaceIDs.count }
+    func workspaceIDs() -> [WorkspaceID] { droppedWorkspaceIDs }
+    func usedScopedConsumer() -> Bool { receivedScopedConsumer }
+}
+
+extension S6_6EraseRecoveryTests {
     func testV23P03C36EraseIsSoleAuthorityForDraftRows() throws {
         let id=UUID()
         let before=FieldDraftDeletionInventoryV1(draftIDs:[id],stageIDs:[],sagaIDs:[],reservationIDs:[],commitReceiptIDs:[],discardReceiptIDs:[])

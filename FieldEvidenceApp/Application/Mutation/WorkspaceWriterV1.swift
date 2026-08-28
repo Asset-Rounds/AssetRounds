@@ -132,6 +132,15 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
         return try journalStore.exportSnapshot()
     }
 
+    /// Read-only C17 source for the provider-neutral integration projection.
+    /// The journal remains the sole accepted-receipt authority; this method
+    /// does not allocate IDs, write a checkpoint, or mutate workspace truth.
+    func acceptedReceiptsForProjection() throws -> [MutationReceiptV1] {
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        return try journalStore.acceptedReceiptsForProjection()
+    }
+
     func executeImported(_ change: JournalChangeV1) throws -> WorkspaceMutationOutcomeV1 {
         guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
         guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }

@@ -503,6 +503,21 @@ final class MutationJournalStoreV1 {
         return try rows.first.map { try validate(row: $0, expectedEnvelope: nil) }
     }
 
+    /// Enumerates only validated, journal-owned receipts for the current
+    /// workspace. The result is a bounded immutable source for C17's derived
+    /// integration projection; no operational projection state is read or
+    /// written here.
+    func acceptedReceiptsForProjection() throws -> [MutationReceiptV1] {
+        let snapshot = try exportSnapshot()
+        let receipts = try snapshot.receipts.map {
+            try MutationReceiptV1.decodeCanonical(from: $0.receiptData)
+        }
+        return try MutationReceiptV1.orderedAcceptedProjectionReceipts(
+            receipts,
+            workspaceID: identity.workspaceID
+        )
+    }
+
     func reversalBasis(mutationID: MutationIDV1) throws -> ReversalBasisV1? {
         let key = MutationWorkspaceKeyV1.value(workspaceID: identity.workspaceID, mutationID: mutationID)
         let rows = try modelContext.fetch(FetchDescriptor<MutationReceiptRow>(predicate: #Predicate { $0.workspaceMutationKey == key }))

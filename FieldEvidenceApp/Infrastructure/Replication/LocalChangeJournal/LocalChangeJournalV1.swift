@@ -130,6 +130,48 @@ final class LocalChangeJournalV1 {
         state.checkpointFloor
     }
 
+    /// Immutable accepted receipts are the sole C17 projection input. This
+    /// method exposes no writer, provider, or canonical mutation seam.
+    func acceptedReceiptsForIntegrationProjection() throws -> [MutationReceiptV1] {
+        let snapshot = try writer.sourceMutationHistorySnapshot()
+        guard snapshot.receipts.count <= ChangeJournalLimitsV1.productionMaximumEntitiesPerCheckpoint else {
+            throw IntegrationEventFailureV1.limitExceeded
+        }
+        let receipts = try snapshot.receipts.map {
+            try MutationReceiptV1.decodeCanonical(from: $0.receiptData)
+        }.sorted {
+            if $0.resultingRevision.workspaceRevision != $1.resultingRevision.workspaceRevision {
+                return $0.resultingRevision.workspaceRevision < $1.resultingRevision.workspaceRevision
+            }
+            return $0.identity.stableKey < $1.identity.stableKey
+        }
+        guard receipts.allSatisfy({
+            $0.identity.workspaceID == identity.workspaceID
+        }), Set(receipts.map(\.identity)).count == receipts.count,
+              Set(receipts.map { $0.resultingRevision.workspaceRevision }).count == receipts.count else {
+            throw IntegrationEventFailureV1.divergentEvent
+        }
+        return receipts
+    }
+
+    func advanceIntegrationProjection(
+        using consumer: IntegrationConformanceConsumerV1
+    ) async throws -> IntegrationEventConsumerResultV1 {
+        try await consumer.advance(
+            workspaceID: identity.workspaceID,
+            acceptedReceipts: acceptedReceiptsForIntegrationProjection()
+        )
+    }
+
+    func rebuildIntegrationProjection(
+        using consumer: IntegrationConformanceConsumerV1
+    ) async throws -> IntegrationEventConsumerResultV1 {
+        try await consumer.rebuild(
+            workspaceID: identity.workspaceID,
+            acceptedReceipts: acceptedReceiptsForIntegrationProjection()
+        )
+    }
+
     func prepareCheckpoint(
         supplement: CheckpointSupplementV1
     ) throws -> WorkspaceCheckpointPreparationV1 {

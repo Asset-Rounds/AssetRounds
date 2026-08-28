@@ -458,6 +458,14 @@ final class S4_3ReportDeliveryTests: XCTestCase {
     }
 }
 
+extension S4_3ReportDeliveryTests {
+    func testV23P03C17IntegrationEventsAreNotReportOrDeliveryTruth() throws {
+        XCTAssertNoThrow(try IntegrationProjectionReportExclusionV1.validate())
+        XCTAssertFalse(IntegrationProjectionSchemaV1.canonicalReportSource)
+        XCTAssertFalse(IntegrationProjectionSchemaV1.canonicalExportIncluded)
+    }
+}
+
 private enum NonReadyPresence: CaseIterable { case absent, stageOnly, finalOnly }
 private enum AuthorityNegativeCase: CaseIterable {
     case unknownReportSchema

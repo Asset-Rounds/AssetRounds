@@ -172,6 +172,19 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "reportHistoryChronology",
     ]
 
+    /// C17's provider-neutral event projection, registry, cache, checkpoint,
+    /// and conformance consumer are disposable derived state.  They are
+    /// intentionally classified as projections here so the source of truth
+    /// remains accepted mutation receipts and journal history.
+    static let c17IntegrationProjectionNames = [
+        "IntegrationConformanceConsumerV1",
+        "IntegrationContractRegistryV1",
+        "IntegrationEventProjectionV1",
+        "IntegrationEventV1",
+        "IntegrationProjectionCheckpointStoreV1",
+        "ProjectionCheckpointV1",
+    ]
+
     static let derivedProjectionNames = [
         "EntityMutationRevisionSemanticV1",
         "MutationQuarantineSemanticV1",
@@ -195,7 +208,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "WorkspaceMutationStateSemanticV1",
         "entityMutationRevision",
         "workspaceMutationState",
-    ]
+    ] + c17IntegrationProjectionNames
 
     static let journalRecoveryNames = [
         "CurrentGenerationPointerV2",
@@ -1117,6 +1130,10 @@ private extension CurrentSyncClassificationCatalogV1 {
         case "StoreSemanticEnvelopeV14":return try subjects(category:.persistentModel,names:persistentModelNames+v6PersistentModelNames+v7PersistentModelNames+v8PersistentModelNames+v9PersistentModelNames+v10PersistentModelNames+v11PersistentModelNames+v12PersistentModelNames+v13PersistentModelNames+v14PersistentModelNames)
         case "StoreSemanticEnvelopeV15":return try subjects(category:.persistentModel,names:persistentModelNames+v6PersistentModelNames+v7PersistentModelNames+v8PersistentModelNames+v9PersistentModelNames+v10PersistentModelNames+v11PersistentModelNames+v12PersistentModelNames+v13PersistentModelNames+v14PersistentModelNames+v15PersistentModelNames)
         case "StoreSemanticEnvelopeV16":return try subjects(category:.persistentModel,names:activePersistentModelNames)
+        case "IntegrationConformanceConsumerV1", "IntegrationContractRegistryV1",
+             "IntegrationEventProjectionV1", "IntegrationEventV1",
+             "IntegrationProjectionCheckpointStoreV1", "ProjectionCheckpointV1":
+            return [try subject(category: .journal, name: "MutationReceiptV1")]
         default:
             throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
         }

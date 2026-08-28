@@ -215,6 +215,25 @@ struct KernelRemovalReceiptV4: Codable, Equatable, Sendable {
 }
 
 enum KernelDeletionEraseRegistryV4 {
+    enum IntegrationProjectionDispositionV1: String, CaseIterable, Sendable {
+        case ordinaryDelete = "DROP_DERIVED_AND_REBUILD"
+        case workspaceErase = "DROP_DERIVED_AND_REBUILD_EMPTY"
+    }
+
+    static let integrationProjectionLifecycle =
+        IntegrationProjectionDispositionV1.allCases
+
+    static func validateIntegrationProjectionLifecycle() throws {
+        let coverage = IntegrationEventJournalCoverageV1()
+        try coverage.validate()
+        guard IntegrationProjectionSchemaV1.persistenceMode == "DERIVED_ONLY",
+              IntegrationProjectionSchemaV1.downgradeDisposition == "DROP_AND_REBUILD",
+              !IntegrationProjectionSchemaV1.canonicalBackupIncluded,
+              !IntegrationProjectionSchemaV1.canonicalExportIncluded,
+              !IntegrationProjectionSchemaV1.canonicalReportSource,
+              integrationProjectionLifecycle == [.ordinaryDelete, .workspaceErase]
+        else { throw KernelPersistenceV4Failure.incompleteCoverage }
+    }
     static let functionalRelationshipDeleteKinds =
         V12BackupFunctionalRelationshipRecordV1.Kind.allCases
     static let evidenceAssuranceDeleteKinds = V13BackupEvidenceAssuranceRecordV1.Kind.allCases
@@ -299,6 +318,7 @@ enum KernelDeletionEraseRegistryV4 {
         try validateWorkPacketLifecycle()
         try validateFieldDraftLifecycle()
         try validateSearchLifecycle()
+        try validateIntegrationProjectionLifecycle()
         try validate(registrations)
     }
 
