@@ -1052,4 +1052,16 @@ private final class V911WriterHarness {
     private static func id(_ byte: UInt8) -> UUID {
         UUID(uuid: (byte, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, byte))
     }
+
+}
+
+extension V9_11ObservationTemporalSemanticsTests {
+    func testV23P03C19ObservationBasisIsIndependentFromQualityOutcome() throws {
+        let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        XCTAssertEqual(fixture.capture.observationBasis.kind, .directlyObserved)
+        XCTAssertEqual(fixture.capture.observationBasis.source.kind, .observer)
+        XCTAssertEqual(fixture.qualityClear.subjectID, fixture.capture.captureID)
+        XCTAssertEqual(fixture.qualityReview.result, .reviewRequired)
+        XCTAssertEqual(fixture.qualityReview.subjectID, fixture.reviewCapture.captureID)
+    }
 }

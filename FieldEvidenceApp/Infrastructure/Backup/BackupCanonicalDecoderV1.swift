@@ -54,6 +54,7 @@ struct BackupCanonicalDecoderV1: Sendable {
             try Self.validateWorkPackets(value)
             try Self.validateFieldDrafts(value)
             try Self.validatePackageEvolution(value)
+            try Self.validateMeasurementIntegrity(value)
             let canonical = try BackupCanonicalEncoderV1().encodeRecords(value).data
             guard canonical == data else {
                 throw BackupCanonicalDecodingErrorV1.invalidRecords
@@ -66,6 +67,34 @@ struct BackupCanonicalDecoderV1: Sendable {
 }
 
 private extension BackupCanonicalDecoderV1 {
+    static func validateMeasurementIntegrity(_ records: V4BackupRecordsV1) throws {
+        guard records.recordsSchemaVersion >= 17 else {
+            guard records.measurementIntegrity.isEmpty else { throw BackupCanonicalDecodingErrorV1.invalidRecords }
+            return
+        }
+        var keys = Set<String>()
+        for record in records.measurementIntegrity {
+            let identity: (UUID, WorkspaceID, UInt64)
+            switch record.kind {
+            case .instrumentReference:
+                let v = try MeasurementIntegrityCanonicalCodecV1.decode(InstrumentReferenceV1.self, from: record.canonicalData); identity = (v.referenceID, v.workspaceID, v.revision)
+            case .calibrationSnapshot:
+                let v = try MeasurementIntegrityCanonicalCodecV1.decode(CalibrationStatusSnapshotV1.self, from: record.canonicalData); identity = (v.snapshotID, v.workspaceID, v.revision)
+            case .measurementCapture:
+                let v = try MeasurementIntegrityCanonicalCodecV1.decode(MeasurementCaptureV1.self, from: record.canonicalData); identity = (v.captureID, v.workspaceID, v.revision)
+            case .measurementSeries:
+                let v = try MeasurementIntegrityCanonicalCodecV1.decode(MeasurementSeriesV1.self, from: record.canonicalData); identity = (v.snapshotID, v.workspaceID, v.revision)
+            case .qualityAssessment:
+                let v = try MeasurementIntegrityCanonicalCodecV1.decode(MeasurementQualityAssessmentV1.self, from: record.canonicalData); identity = (v.assessmentID, v.workspaceID, v.revision)
+            }
+            guard identity.0 == record.id, identity.1.rawValue == record.workspaceID,
+                  identity.2 == record.revision,
+                  keys.insert("\(record.kind.rawValue)|\(record.id.uuidString)").inserted else {
+                throw BackupCanonicalDecodingErrorV1.invalidRecords
+            }
+        }
+    }
+
     static func validatePackageEvolution(_ records: V4BackupRecordsV1) throws {
         guard records.recordsSchemaVersion >= 16 else {
             guard records.packageEvolution.isEmpty else { throw BackupCanonicalDecodingErrorV1.invalidRecords }

@@ -1104,3 +1104,27 @@ private extension LocalSearchIndexStoreV1 {
         return map(error)
     }
 }
+
+extension LocalSearchIndexStoreV1 {
+    /// Validates the disposable C19 row before it can be handed to the
+    /// existing derived-index publisher. No measurement bytes are read or
+    /// persisted by this adapter.
+    static func measurementIntegritySearchRecord(
+        from projection: MeasurementIntegrityReportProjectionV1,
+        sourceRevision: UInt64 = 0
+    ) throws -> MeasurementIntegritySearchRecordV1 {
+        let record = try MeasurementIntegritySearchRecordV1(
+            projection: projection,
+            sourceRevision: sourceRevision
+        )
+        try record.validate()
+        return record
+    }
+
+    static func validateMeasurementIntegritySearchRecord(
+        _ record: MeasurementIntegritySearchRecordV1
+    ) throws -> MeasurementIntegritySearchRecordV1 {
+        try record.validate()
+        return record
+    }
+}

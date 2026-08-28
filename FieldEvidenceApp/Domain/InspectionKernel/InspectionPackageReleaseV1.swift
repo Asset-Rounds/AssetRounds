@@ -380,3 +380,36 @@ extension InspectionPackageReleaseV1 {
         try validate()
     }
 }
+
+// MARK: - C19 measurement release binding
+
+extension InspectionPackageReleaseV1 {
+    /// A capture carries the exact package-release and workflow digests. The
+    /// release remains immutable and declaration-only; this method only
+    /// verifies that binding before a capture is consumed.
+    func c19ValidateMeasurementCapture(
+        _ capture: MeasurementCaptureV1
+    ) throws {
+        try validate()
+        try capture.validate()
+        guard capture.packageReleaseID == packageReleaseID,
+              capture.workflowSHA256 == workflowSHA256 else {
+            throw MeasurementIntegrityFailureV1.staleReference
+        }
+    }
+
+    func c19ValidateMeasurementSeries(
+        _ series: MeasurementSeriesV1,
+        captures: [MeasurementCaptureV1],
+        protocolRelease: MeasurementProtocolReleaseV1
+    ) throws {
+        try validate()
+        try protocolRelease.c19ValidateSeries(series, captures: captures)
+        guard captures.allSatisfy({
+            $0.packageReleaseID == packageReleaseID
+                && $0.workflowSHA256 == workflowSHA256
+        }) else {
+            throw MeasurementIntegrityFailureV1.staleReference
+        }
+    }
+}

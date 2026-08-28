@@ -269,6 +269,15 @@ extension RequirementEvaluationEngineV1 {
         let expected = try evaluation.inspectionReviewEvidenceReference()
         guard reference == expected else { throw RequirementAssuranceFailureV1.invalidEvidence }
     }
+
+    /// Keeps C19 quality review out of automatic compliance conclusions. A
+    /// requirement engine can still evaluate explicit requirement evidence
+    /// through `evaluate`; this helper is only the typed quality boundary.
+    static func c19MeasurementQualityResult(
+        for assessment: MeasurementQualityAssessmentV1
+    ) throws -> RequirementEvaluationResultV1 {
+        try MeasurementIntegrityRequirementProjectionV1.result(for: assessment)
+    }
 }
 
 /// The closed, app-bundled evaluator registry for C40. Package declarations may

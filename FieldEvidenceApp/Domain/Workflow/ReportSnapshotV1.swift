@@ -56,6 +56,11 @@ struct ReportSnapshotV1: Codable, Equatable, Sendable {
     /// snapshot remains the source of truth; this value contains only bounded
     /// item state/counts and exact provenance digests.
     var workPacket: ReportWorkPacketProjectionV1? = nil
+    /// Optional C19 frozen measurement-integrity projection. It preserves
+    /// fixed-point values, typed unit meaning, capture-time calibration facts,
+    /// and bounded quality status without carrying operator or opaque serial
+    /// detail into a report.
+    var measurementIntegrity: MeasurementIntegrityReportProjectionV1? = nil
 
     var reviewHistory: [InspectionReviewTransitionV1] {
         inspectionReviewHistory?.reviewHistory ?? []

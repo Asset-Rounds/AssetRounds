@@ -416,6 +416,41 @@ enum ObservationAndTimeCodecV1 {
     }
 }
 
+// MARK: - C19 measurement capture bridge
+
+extension ObservationBasisV1 {
+    /// Measurement capture may retain a reported/not-observed basis, but an
+    /// instrument-backed capture must be directly observed. Inferred basis is
+    /// never promoted into a C19 measurement capture.
+    func c19ValidateMeasurementCapture(
+        sourceMode: MeasurementCaptureSourceModeV1
+    ) throws {
+        try validate()
+        switch sourceMode {
+        case .manualEntry:
+            guard kind != .inferred else {
+                throw MeasurementIntegrityFailureV1.unsupportedSource
+            }
+        case .localObservation:
+            guard kind == .directlyObserved else {
+                throw MeasurementIntegrityFailureV1.unsupportedSource
+            }
+        }
+    }
+}
+
+extension TemporalContextV1 {
+    /// A temporal context is a recorded fact, not a causal-order token. The
+    /// only C19 ordering check is that recording cannot precede capture.
+    func c19ValidateMeasurementCaptureTime(_ capturedAt: Date) throws {
+        try validate()
+        guard capturedAt.timeIntervalSinceReferenceDate.isFinite,
+              recordedAtUTC >= capturedAt else {
+            throw MeasurementIntegrityFailureV1.invalidValue
+        }
+    }
+}
+
 enum ObservationAndTimeLegacyMigrationV1 {
     /// Existing CNV bytes stay in their legacy columns. This adds only the
     /// defensible basis kind and never manufactures direct observation.

@@ -56,6 +56,11 @@ final class BackupExportService {
     private static let checkpointBasisExportedAt = Date(timeIntervalSince1970: 0)
 
     private struct Rows {
+        let instrumentReferences: [InstrumentReferenceRow]
+        let calibrationStatusSnapshots: [CalibrationStatusSnapshotRow]
+        let measurementCaptures: [MeasurementCaptureRow]
+        let measurementSeries: [MeasurementSeriesRow]
+        let measurementQualityAssessments: [MeasurementQualityAssessmentRow]
         let promotedPackageReleases: [PromotedPackageReleaseRow]
         let packageSandboxRuns: [PackageSandboxRunRow]
         let packagePromotionReceipts: [PackagePromotionReceiptRow]
@@ -957,9 +962,9 @@ private extension BackupExportService {
             source: .init(
                 appBuild: appBuild(),
                 appVersion: appVersion(),
-                persistentSchemaVersion: 16,
+                persistentSchemaVersion: 18,
                 replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: 16,
+                recordsSchemaVersion: 17,
                 sourceGenerationID: generationID,
                 workspaceID: sourceIdentity.workspaceID.rawValue
             )
@@ -1487,6 +1492,11 @@ private extension BackupExportService {
     private func fetchRows() throws -> Rows {
         do {
             return Rows(
+                instrumentReferences: try modelContext.fetch(FetchDescriptor<InstrumentReferenceRow>()),
+                calibrationStatusSnapshots: try modelContext.fetch(FetchDescriptor<CalibrationStatusSnapshotRow>()),
+                measurementCaptures: try modelContext.fetch(FetchDescriptor<MeasurementCaptureRow>()),
+                measurementSeries: try modelContext.fetch(FetchDescriptor<MeasurementSeriesRow>()),
+                measurementQualityAssessments: try modelContext.fetch(FetchDescriptor<MeasurementQualityAssessmentRow>()),
                 promotedPackageReleases: try modelContext.fetch(FetchDescriptor<PromotedPackageReleaseRow>()),
                 packageSandboxRuns: try modelContext.fetch(FetchDescriptor<PackageSandboxRunRow>()),
                 packagePromotionReceipts: try modelContext.fetch(FetchDescriptor<PackagePromotionReceiptRow>()),
@@ -2026,7 +2036,9 @@ private extension BackupExportService {
         let workPackets = mutationHistory == nil ? [] : try workPacketRecords(rows)
         let fieldDrafts = mutationHistory == nil ? [] : try fieldDraftRecords(rows)
         let packageEvolution = mutationHistory == nil ? [] : try packageEvolutionRecords(rows)
+        let measurementIntegrity = mutationHistory == nil ? [] : try measurementIntegrityRecords(rows)
         return V4BackupRecordsV1(
+            measurementIntegrity: measurementIntegrity,
             packageEvolution: packageEvolution,
             fieldDrafts: fieldDrafts,
             workPackets:workPackets,
@@ -2083,7 +2095,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : 16,
+                : 17,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -2167,6 +2179,16 @@ private extension BackupExportService {
         result += try rows.packagePromotionReceipts.map { let v = try $0.value(); return .init(kind: .promotionReceipt, id: v.receiptID, workspaceID: v.workspaceID.rawValue, revision: v.revision, canonicalData: try PackageEvolutionCanonicalCodecV1.encode(v)) }
         result += try rows.activePackageRegistryPointers.map { let v = try $0.value(); return .init(kind: .activePointer, id: v.pointerID, workspaceID: v.workspaceID.rawValue, revision: v.revision, canonicalData: try PackageEvolutionCanonicalCodecV1.encode(v)) }
         return result.sorted { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)" }
+    }
+
+    private func measurementIntegrityRecords(_ rows: Rows) throws -> [V18BackupMeasurementIntegrityRecordV1] {
+        var result:[V18BackupMeasurementIntegrityRecordV1]=[]
+        result += try rows.instrumentReferences.map{let v=try $0.value();return .init(kind:.instrumentReference,id:v.referenceID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try MeasurementIntegrityCanonicalCodecV1.encode(v))}
+        result += try rows.calibrationStatusSnapshots.map{let v=try $0.value();return .init(kind:.calibrationSnapshot,id:v.snapshotID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try MeasurementIntegrityCanonicalCodecV1.encode(v))}
+        result += try rows.measurementCaptures.map{let v=try $0.value();return .init(kind:.measurementCapture,id:v.captureID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try MeasurementIntegrityCanonicalCodecV1.encode(v))}
+        result += try rows.measurementSeries.map{let v=try $0.value();return .init(kind:.measurementSeries,id:v.snapshotID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try MeasurementIntegrityCanonicalCodecV1.encode(v))}
+        result += try rows.measurementQualityAssessments.map{let v=try $0.value();return .init(kind:.qualityAssessment,id:v.assessmentID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try MeasurementIntegrityCanonicalCodecV1.encode(v))}
+        return result.sorted{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"}
     }
 
     private func functionalRelationshipRecords(

@@ -225,4 +225,54 @@ extension DeterministicPDFRendererV1 {
     ) throws {
         try PackageEvolutionReportConsumerPolicyV1.validateSandbox(run)
     }
+
+    /// C19 PDF metadata is a deterministic textual companion to the normal
+    /// semantic report renderer. It carries exact decimal components and
+    /// typed recorded states, while omitting operator, serial, and evidence
+    /// locator detail.
+    static func measurementIntegrityMetadataData(
+        _ projection: MeasurementIntegrityReportProjectionV1
+    ) throws -> Data {
+        try projection.validate()
+        try EvidenceDetailMeasurementIntegrityProjectionGuardV1.validate(projection)
+        let envelope = try MeasurementIntegrityOpenJSONEnvelopeV1(projection: projection)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        encoder.dateEncodingStrategy = .millisecondsSince1970
+        let data = try encoder.encode(envelope)
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        return data
+    }
+
+    static func reopenMeasurementIntegrityMetadata(
+        _ data: Data
+    ) throws -> MeasurementIntegrityReportProjectionV1 {
+        try DeterministicOpenJSONRendererV1.reopenMeasurementIntegrity(data)
+    }
+
+    static func measurementIntegrityTextLines(
+        _ projection: MeasurementIntegrityReportProjectionV1
+    ) throws -> [String] {
+        try projection.validate()
+        let labels = MeasurementIntegrityOpenJSONLabelsV1(projection: projection)
+        try labels.validate()
+        let exactValue = "\(projection.canonicalValue.mantissa)e-\(projection.canonicalValue.scale)"
+        var lines = [
+            labels.heading,
+            "\(labels.captureValue): \(exactValue)",
+            "\(labels.captureUnit): \(projection.canonicalUnitID)",
+            "\(labels.captureSource): \(labels.captureSourceValue)",
+        ]
+        if let calibration = labels.calibrationStatus {
+            lines.append("\(MeasurementIntegrityLocalizationKeyV1.calibrationStatus.englishDefaultValue): \(calibration)")
+        }
+        if let quality = labels.qualityResult {
+            lines.append("\(MeasurementIntegrityLocalizationKeyV1.qualityResult.englishDefaultValue): \(quality)")
+        }
+        lines.append(labels.nextStep)
+        return lines
+    }
 }

@@ -861,4 +861,15 @@ extension V10_03ReplicationConflictRegistryTests {
             "OLD_COMPLETE_OR_NEW_COMPLETE_NEVER_HYBRID"
         )
     }
+
+    func testV23P03C19ReplayIdentityIsMutationAndDigestBound() throws {
+        let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        let bytes = try MeasurementIntegrityCanonicalCodecV1.encode(fixture.bundle)
+        let replayed = try MeasurementIntegrityCanonicalCodecV1.decode(
+            MeasurementIntegrityAtomicBundleV1.self, from: bytes
+        )
+        XCTAssertEqual(replayed.mutationID, fixture.bundle.mutationID)
+        XCTAssertEqual(replayed.bundleSHA256, fixture.bundle.bundleSHA256)
+        XCTAssertEqual(replayed.captures.map(\.captureID), fixture.bundle.captures.map(\.captureID))
+    }
 }

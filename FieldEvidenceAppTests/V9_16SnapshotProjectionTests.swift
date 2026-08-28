@@ -669,6 +669,18 @@ extension V9_16SnapshotProjectionTests {
         )
         XCTAssertEqual(first, second)
     }
+
+    func testV23P03C19SnapshotProjectionRetainsSeriesAndQualityDigests() throws {
+        let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        let seriesData = try MeasurementIntegrityCanonicalCodecV1.encode(fixture.series)
+        let series = try MeasurementIntegrityCanonicalCodecV1.decode(
+            MeasurementSeriesV1.self, from: seriesData
+        )
+        XCTAssertEqual(series.seriesSHA256, fixture.series.seriesSHA256)
+        XCTAssertEqual(series.samples.map(\.sampleOrdinal), [1, 2])
+        XCTAssertEqual(fixture.qualityReview.result, .reviewRequired)
+        try fixture.qualityReview.validate()
+    }
 }
 
 extension V9_16SnapshotProjectionTests {

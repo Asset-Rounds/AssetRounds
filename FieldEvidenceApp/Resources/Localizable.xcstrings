@@ -1793,6 +1793,214 @@
     "field.draft.recovery.state.recovery_required" : {
       "comment" : "Accessible text for a recorded local draft or attachment state.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recovery required" } } }
+    },
+    "measurement.integrity.heading" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Measurement record" } } }
+    },
+    "measurement.integrity.instrument" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Instrument" } } }
+    },
+    "measurement.integrity.instrument.kind" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Instrument type" } } }
+    },
+    "measurement.integrity.instrument.kind.measuring" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Measuring instrument" } } }
+    },
+    "measurement.integrity.instrument.kind.reference" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reference standard" } } }
+    },
+    "measurement.integrity.instrument.kind.other" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Other declared type" } } }
+    },
+    "measurement.integrity.instrument.lifecycle" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Instrument lifecycle" } } }
+    },
+    "measurement.integrity.instrument.lifecycle.active" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Active (recorded)" } } }
+    },
+    "measurement.integrity.instrument.lifecycle.out_of_service" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Out of service (recorded)" } } }
+    },
+    "measurement.integrity.instrument.lifecycle.retired" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Retired (recorded)" } } }
+    },
+    "measurement.integrity.calibration" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Calibration record" } } }
+    },
+    "measurement.integrity.calibration.status" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Calibration status" } } }
+    },
+    "measurement.integrity.calibration.status.not_required" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Not required (recorded)" } } }
+    },
+    "measurement.integrity.calibration.status.current" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Current at capture (recorded)" } } }
+    },
+    "measurement.integrity.calibration.status.expired" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Expired at capture (recorded)" } } }
+    },
+    "measurement.integrity.calibration.status.unknown" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Unknown at capture" } } }
+    },
+    "measurement.integrity.calibration.status.out_of_service" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Out of service at capture" } } }
+    },
+    "measurement.integrity.calibration.basis" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Calibration basis" } } }
+    },
+    "measurement.integrity.calibration.basis.declared_not_required" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Declared not required" } } }
+    },
+    "measurement.integrity.calibration.basis.referenced_evidence" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Referenced local evidence" } } }
+    },
+    "measurement.integrity.calibration.basis.locally_recorded" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Locally recorded status" } } }
+    },
+    "measurement.integrity.calibration.basis.unknown" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Unknown basis" } } }
+    },
+    "measurement.integrity.capture" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Measurement capture" } } }
+    },
+    "measurement.integrity.capture.value" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recorded value" } } }
+    },
+    "measurement.integrity.capture.unit" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recorded unit" } } }
+    },
+    "measurement.integrity.capture.source" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Capture source" } } }
+    },
+    "measurement.integrity.capture.source.manual_entry" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Manual entry" } } }
+    },
+    "measurement.integrity.capture.source.local_observation" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Local instrument observation" } } }
+    },
+    "measurement.integrity.series" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Measurement series" } } }
+    },
+    "measurement.integrity.series.state" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Series state" } } }
+    },
+    "measurement.integrity.series.state.open" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Open (recorded)" } } }
+    },
+    "measurement.integrity.series.state.finalized" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Finalized (recorded)" } } }
+    },
+    "measurement.integrity.protocol" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Measurement protocol" } } }
+    },
+    "measurement.integrity.quality" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Quality review" } } }
+    },
+    "measurement.integrity.quality.result" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Quality result" } } }
+    },
+    "measurement.integrity.quality.result.clear" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Clear (recorded)" } } }
+    },
+    "measurement.integrity.quality.result.review_required" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review required" } } }
+    },
+    "measurement.integrity.quality.result.overridden" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Overridden by recorded review" } } }
+    },
+    "measurement.integrity.quality.reason" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Quality reason" } } }
+    },
+    "measurement.integrity.quality.reason.declared_checks_clear" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Declared checks clear" } } }
+    },
+    "measurement.integrity.quality.reason.calibration_not_required" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Calibration not required" } } }
+    },
+    "measurement.integrity.quality.reason.calibration_expired" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Calibration expired" } } }
+    },
+    "measurement.integrity.quality.reason.calibration_unknown" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Calibration unknown" } } }
+    },
+    "measurement.integrity.quality.reason.instrument_out_of_service" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Instrument out of service" } } }
+    },
+    "measurement.integrity.quality.reason.missing_uncertainty" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Uncertainty not recorded" } } }
+    },
+    "measurement.integrity.quality.reason.uncertainty_crosses_boundary" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Uncertainty crosses a boundary" } } }
+    },
+    "measurement.integrity.quality.reason.incomplete_sample_set" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Sample set incomplete" } } }
+    },
+    "measurement.integrity.quality.reason.duplicate_sample" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Duplicate sample" } } }
+    },
+    "measurement.integrity.quality.reason.retained_outlier" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Outlier retained in the record" } } }
+    },
+    "measurement.integrity.quality.reason.observation_limitation" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Observation limitation recorded" } } }
+    },
+    "measurement.integrity.quality.reason.human_override" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recorded human override" } } }
+    },
+    "measurement.integrity.next_step" : {
+      "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Next recorded step" } } }
     }
   },
   "version" : "1.0"

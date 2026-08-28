@@ -499,3 +499,53 @@ struct PackageEvolutionSearchPersistencePolicyV1: Codable, Equatable, Sendable {
 extension SearchPersistenceReleaseV1 {
     static let packageEvolutionPolicy = PackageEvolutionSearchPersistencePolicyV1()
 }
+
+/// C19 measurement rows are disposable derived metadata. The V7 search
+/// schema remains unchanged; restore, replay, delete, and Erase drop these
+/// rows and rebuild them from canonical measurement snapshots.
+struct MeasurementIntegritySearchPersistencePolicyV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let sourceSchema: String
+    let searchPersistenceRelease: SearchPersistenceReleaseV1
+    let fieldIDs: [String]
+    let lifecycleDispositions: [SearchIndexLifecycleDispositionV1]
+    let metadataOnly: Bool
+    let excludesExactCanonicalValues: Bool
+    let excludesOpaqueSerials: Bool
+    let excludesOperatorIdentity: Bool
+    let excludesResponsePayload: Bool
+    let excludesEvidenceLocators: Bool
+
+    init() {
+        schemaVersion = Self.schemaVersion
+        sourceSchema = MeasurementIntegritySearchProjectionPolicyV1.semanticLabel
+        searchPersistenceRelease = .v7
+        fieldIDs = MeasurementIntegritySearchProjectionPolicyV1.fieldIDs.sorted()
+        lifecycleDispositions = SearchIndexLifecycleDispositionV1.allCases
+        metadataOnly = true
+        excludesExactCanonicalValues = true
+        excludesOpaqueSerials = true
+        excludesOperatorIdentity = true
+        excludesResponsePayload = true
+        excludesEvidenceLocators = true
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              sourceSchema == MeasurementIntegritySearchProjectionPolicyV1.semanticLabel,
+              searchPersistenceRelease == .v7,
+              fieldIDs == MeasurementIntegritySearchProjectionPolicyV1.fieldIDs.sorted(),
+              lifecycleDispositions == SearchIndexLifecycleDispositionV1.allCases,
+              metadataOnly, excludesExactCanonicalValues, excludesOpaqueSerials,
+              excludesOperatorIdentity, excludesResponsePayload,
+              excludesEvidenceLocators else {
+            throw SearchContractFailureV1.invalidField
+        }
+    }
+}
+
+extension SearchPersistenceReleaseV1 {
+    static let measurementIntegrityPolicy = MeasurementIntegritySearchPersistencePolicyV1()
+}

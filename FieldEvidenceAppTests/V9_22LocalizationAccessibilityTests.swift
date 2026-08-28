@@ -1801,4 +1801,14 @@ extension V9_22LocalizationAccessibilityTests {
         )
         XCTAssertEqual(first, second)
     }
+
+    func testV23P03C19LocalizedDisplayCannotChangeCanonicalUnitIdentity() throws {
+        let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        let first = try MeasurementIntegrityCanonicalCodecV1.encode(fixture.measurement)
+        let second = try MeasurementIntegrityCanonicalCodecV1.encode(fixture.measurement)
+        XCTAssertEqual(first, second)
+        XCTAssertEqual(fixture.measurement.canonicalUnitID, "lx")
+        XCTAssertEqual(fixture.measurement.dimension, .illuminance)
+        XCTAssertFalse(fixture.measurement.canonicalUnitID.contains("localized"))
+    }
 }

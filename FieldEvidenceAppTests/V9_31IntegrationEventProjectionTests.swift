@@ -735,4 +735,16 @@ extension V9_31IntegrationEventProjectionTests {
         )
         XCTAssertTrue(PackageEvolutionLifecycleV1.searchRebuildReplayRequired)
     }
+
+    func testV23P03C19ProjectionRebuildRetainsOrderedMeasurementIDs() throws {
+        let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        let first = fixture.bundle.captures.map(\.captureID)
+        let rebuilt = try MeasurementIntegrityCanonicalCodecV1.decode(
+            MeasurementIntegrityAtomicBundleV1.self,
+            from: MeasurementIntegrityCanonicalCodecV1.encode(fixture.bundle)
+        )
+        XCTAssertEqual(rebuilt.captures.map(\.captureID), first)
+        XCTAssertEqual(rebuilt.bundleSHA256, fixture.bundle.bundleSHA256)
+        XCTAssertEqual(rebuilt.assessments.map(\.assessmentID), fixture.bundle.assessments.map(\.assessmentID))
+    }
 }

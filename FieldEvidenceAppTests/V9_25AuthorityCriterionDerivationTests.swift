@@ -1090,4 +1090,17 @@ extension V9_25AuthorityCriterionDerivationTests {
         XCTAssertEqual(fixture.subject.subjectSHA256.count, 64)
         XCTAssertEqual(fixture.policy.verifierRule, .differentActorAndPartyRequired)
     }
+
+    func testV23P03DerivedSeriesUsesBoundedProtocolAndProvenance() throws {
+        let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        try fixture.protocolRelease.validate()
+        try fixture.evaluator.validate()
+        try fixture.series.validateClosure(
+            captures: [fixture.capture, fixture.secondCapture],
+            protocolRelease: fixture.protocolRelease
+        )
+        XCTAssertEqual(fixture.protocolRelease.samplingPolicy, .orderedSeries)
+        XCTAssertEqual(fixture.series.aggregationPolicy, .mean)
+        XCTAssertNotNil(fixture.series.derivedFact)
+    }
 }

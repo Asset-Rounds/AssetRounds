@@ -2118,4 +2118,12 @@ extension S6_3BackupValidationTests {
             try V14InspectionReviewImportBoundaryV1.validate(persistent: 14, records: 12)
         )
     }
+
+    func testV23P03C19BackupRowsRejectCanonicalCorruption() throws {
+        let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        let row = try MeasurementSeriesRow(fixture.series)
+        XCTAssertEqual(try row.value(), fixture.series)
+        row.seriesSHA256 = C19MeasurementIntegrityTestSupport.digest("z")
+        XCTAssertThrowsError(try row.value())
+    }
 }

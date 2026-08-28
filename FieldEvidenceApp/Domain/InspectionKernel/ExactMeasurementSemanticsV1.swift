@@ -77,6 +77,9 @@ enum MeasurementDimensionV1: String, CaseIterable, Codable, Hashable, Sendable {
     case duration = "DURATION"
     case temperature = "TEMPERATURE"
     case pressure = "PRESSURE"
+    case electricPotential = "ELECTRIC_POTENTIAL"
+    case electricCurrent = "ELECTRIC_CURRENT"
+    case electricResistance = "ELECTRIC_RESISTANCE"
 }
 
 struct UnitDefinitionV1: Codable, Equatable, Hashable, Sendable {
@@ -139,12 +142,15 @@ enum KernelUnitRegistryV1 {
         }
         return [
             unit("1", .dimensionless, "1", rational(1), 9),
+            unit("A", .electricCurrent, "A", rational(1), 9),
             unit("[degF]", .temperature, "K", rational(5, 9), rational(45_967, 180), 6),
             unit("[fc_i]", .illuminance, "lx", rational(1_076_391, 100_000), 5),
             unit("[ft_i]", .length, "m", rational(381, 1_250), 9),
             unit("[in_i]", .length, "m", rational(127, 5_000), 9),
             unit("Cel", .temperature, "K", rational(1), rational(27_315, 100), 6),
             unit("K", .temperature, "K", rational(1), 6),
+            unit("Ohm", .electricResistance, "Ohm", rational(1), 9),
+            unit("V", .electricPotential, "V", rational(1), 9),
             unit("cm", .length, "m", rational(1, 100), 9),
             unit("h", .duration, "s", rational(3_600), 3),
             unit("lx", .illuminance, "lx", rational(1), 5),
@@ -318,6 +324,14 @@ enum MeasurementSourceV1: String, CaseIterable, Codable, Hashable, Sendable {
     case instrumentObserved = "INSTRUMENT_OBSERVED"
     case imported = "IMPORTED"
     case derived = "DERIVED"
+}
+
+extension MeasurementSourceV1 {
+    /// C19 capture is deliberately local/manual. Imported and derived values
+    /// remain valid C03/C40 values but cannot masquerade as a field capture.
+    var isLocalMeasurementCaptureSource: Bool {
+        self == .manualEntry || self == .instrumentObserved
+    }
 }
 
 struct ExactMeasurementV1: Codable, Equatable, Hashable, Sendable {

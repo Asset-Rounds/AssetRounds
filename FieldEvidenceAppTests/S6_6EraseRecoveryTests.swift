@@ -1032,4 +1032,12 @@ extension S6_6EraseRecoveryTests {
         XCTAssertEqual(rebound.eventSHA256.count, 64)
         XCTAssertNotEqual(rebound.eventSHA256, fixture.actions[3].eventSHA256)
     }
+
+    func testV23P03C19ErasePolicyClearsClosureOnlyAtWorkspaceErase() throws {
+        let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        try MeasurementIntegrityEraseIntentStorePolicyV1.validate()
+        XCTAssertTrue(MeasurementIntegrityEraseBoundaryV1.ordinaryDeletionPreservesFrozenHistory)
+        XCTAssertTrue(MeasurementIntegrityEraseBoundaryV1.workspaceEraseClearsEntireClosure)
+        XCTAssertEqual(fixture.unknownCalibration.status, .unknown)
+    }
 }

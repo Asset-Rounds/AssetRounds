@@ -1583,3 +1583,54 @@ enum EvidenceDetailWorkPacketProjectionGuardV1 {
         }
     }
 }
+
+/// C19 measurement detail is a value/provenance summary, never a raw
+/// evidence-card escape hatch. The projection omits the operator snapshot,
+/// opaque serial, response payload, and content references before rendering.
+enum EvidenceDetailMeasurementIntegrityProjectionGuardV1 {
+    static let excludesOpaqueSerial = true
+    static let excludesOperatorIdentity = true
+    static let excludesRawResponse = true
+    static let excludesEvidenceLocators = true
+    static let excludesUnsupportedClaims = true
+    static let requiresExactFixedPointValues = true
+
+    static func validate(
+        _ projection: MeasurementIntegrityReportProjectionV1,
+        audience: ReportAudienceV1 = .customerSafe
+    ) throws {
+        try projection.validate()
+        guard excludesOpaqueSerial, excludesOperatorIdentity, excludesRawResponse,
+              excludesEvidenceLocators, excludesUnsupportedClaims,
+              requiresExactFixedPointValues,
+              !MeasurementIntegrityLocalizationPolicyV1.containsProhibitedClaim(
+                  in: displayFacts(projection, audience: audience)
+              ),
+              !MeasurementIntegrityLocalizationPolicyV1.containsCustomerOrWorkDataLeakage(
+                  in: displayFacts(projection, audience: audience)
+              ) else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+    }
+
+    private static func displayFacts(
+        _ projection: MeasurementIntegrityReportProjectionV1,
+        audience: ReportAudienceV1
+    ) -> [String] {
+        var values = [
+            MeasurementIntegrityLocalizationKeyV1.heading.englishDefaultValue,
+            MeasurementIntegrityLocalizationKeyV1.captureValue.englishDefaultValue,
+            MeasurementIntegrityLocalizationKeyV1.captureUnit.englishDefaultValue,
+            projection.enteredUnitID,
+            projection.canonicalUnitID,
+            audience.rawValue,
+        ]
+        if let result = projection.qualityResult {
+            values.append(MeasurementIntegrityLocalizationKeyV1.qualityResultKey(result).englishDefaultValue)
+        }
+        values.append(contentsOf: projection.qualityReasonCodes.map {
+            MeasurementIntegrityLocalizationKeyV1.qualityReasonKey($0).englishDefaultValue
+        })
+        return values
+    }
+}

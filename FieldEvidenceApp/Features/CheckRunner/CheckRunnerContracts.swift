@@ -475,3 +475,48 @@ struct CheckRunnerWorkPacketCollisionReviewV1: Equatable, Sendable {
         }
     }
 }
+
+// MARK: - C19 measurement capture boundary
+
+/// Read-only check input for a C19 capture. It validates the existing field,
+/// package, observation, actor, and calibration references without creating
+/// a second evaluator or writing durable state.
+struct CheckRunnerMeasurementCaptureContextV1: Equatable, Sendable {
+    let capture: MeasurementCaptureV1
+    let fieldDefinition: ResponseFieldDefinitionV1
+    let protocolRelease: MeasurementProtocolReleaseV1
+    let instrument: InstrumentReferenceV1?
+    let calibration: CalibrationStatusSnapshotV1?
+
+    init(
+        capture: MeasurementCaptureV1,
+        fieldDefinition: ResponseFieldDefinitionV1,
+        protocolRelease: MeasurementProtocolReleaseV1,
+        instrument: InstrumentReferenceV1? = nil,
+        calibration: CalibrationStatusSnapshotV1? = nil
+    ) throws {
+        self.capture = capture
+        self.fieldDefinition = fieldDefinition
+        self.protocolRelease = protocolRelease
+        self.instrument = instrument
+        self.calibration = calibration
+        try validate()
+    }
+
+    func validate() throws {
+        try capture.response.value.c19ValidateMeasurementEquality(capture.measurement)
+        try fieldDefinition.validateMeasurementCapture(capture)
+        try protocolRelease.c19ValidateCapture(capture)
+        try capture.validateClosure(instrument: instrument, calibration: calibration)
+        try capture.observationBasis.c19ValidateMeasurementCapture(sourceMode: capture.sourceMode)
+        try capture.operatorSnapshot.c19ValidateMeasurementOperator(in: capture.workspaceID)
+        if capture.sourceMode == .localObservation, let instrument {
+            guard instrument.supportedUnitIDs.contains(capture.measurement.enteredUnitID) else {
+                throw MeasurementIntegrityFailureV1.unsupportedSource
+            }
+        }
+        guard protocolRelease.workspaceID == capture.workspaceID else {
+            throw MeasurementIntegrityFailureV1.wrongWorkspace
+        }
+    }
+}

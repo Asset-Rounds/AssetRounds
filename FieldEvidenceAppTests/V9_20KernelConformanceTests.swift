@@ -576,4 +576,14 @@ extension V9_20KernelConformanceTests {
             fixture.emptyCheckpoint
         )
     }
+
+    func testV23P03KernelConformanceCoversAllPersistentMeasurementKinds() throws {
+        let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        let kinds = MeasurementIntegrityLifecycleCatalogV1.persistentKinds
+        XCTAssertEqual(kinds.count, 5)
+        XCTAssertTrue(kinds.allSatisfy {
+            MeasurementIntegrityLifecycleCatalogV1.disposition(for: $0) == .canonicalPersistent
+        })
+        try C19MeasurementIntegrityTestSupport.assertAllCanonicalRoundTrips(fixture)
+    }
 }

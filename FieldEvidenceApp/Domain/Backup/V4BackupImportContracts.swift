@@ -72,3 +72,14 @@ enum V17PackageEvolutionImportBoundaryV1 {
         }
     }
 }
+
+enum V18MeasurementIntegrityImportBoundaryV1 {
+    static let persistentSchemaVersion = 18
+    static let recordsSchemaVersion = 17
+    static func validate(persistent: Int, records: Int) throws {
+        guard persistent == persistentSchemaVersion, records == recordsSchemaVersion,
+              V18BackupMeasurementIntegrityRecordV1.Kind.allCases.count == 5 else {
+            throw BackupImportServiceError.unsupportedSchemaVersion
+        }
+    }
+}

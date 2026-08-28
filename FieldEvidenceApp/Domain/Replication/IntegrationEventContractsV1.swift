@@ -210,6 +210,7 @@ enum PackageEvolutionIntegrationContractV1 {
     }
     static func validate(registry:IntegrationContractRegistryV1)throws{let expected=try definitions();for definition in expected{guard try registry.definition(for:definition.sourceEntityKind)==definition else{throw IntegrationEventFailureV1.unknownEventKind}}}
 }
+enum MeasurementIntegrityIntegrationContractV1{static func definitions()throws->[IntegrationEventContractDefinitionV1]{try[("measurement.instrument_reference.v1",WorkspaceEntityKindV1.instrumentReference),("measurement.calibration_snapshot.v1",.calibrationStatusSnapshot),("measurement.capture.v1",.measurementCapture),("measurement.series.v1",.measurementSeries),("measurement.quality_assessment.v1",.measurementQualityAssessment)].map{try IntegrationEventContractDefinitionV1(eventKind:$0.0,eventVersion:1,sourceEntityKind:$0.1,sensitivity:.workspaceData,emittedVisibility:.workspaceInternal,redaction:.notRequired)}.sorted{$0.stableKey<$1.stableKey}}static func validate(registry:IntegrationContractRegistryV1)throws{for definition in try definitions(){guard try registry.definition(for:definition.sourceEntityKind)==definition else{throw IntegrationEventFailureV1.unknownEventKind}}}}
 
 struct IntegrationEventOrderV1: Codable, Equatable, Hashable, Comparable, Sendable {
     let sourceWorkspaceRevision: UInt64

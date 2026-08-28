@@ -1536,4 +1536,12 @@ extension V9_03MigrationRecoveryTests {
             )
         )
     }
+
+    func testV23P03C19MigrationPlanRetainsV18MeasurementRows() throws {
+        let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        XCTAssertEqual(PersistentSchemaMigrationPlanV17.schemas.count, 2)
+        XCTAssertEqual(PersistentSchemaMigrationPlanV17.stages.count, 1)
+        XCTAssertEqual(fixture.bundle.workspaceID, fixture.workspace)
+        try fixture.bundle.validate()
+    }
 }

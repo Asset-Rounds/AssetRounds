@@ -1011,4 +1011,12 @@ extension V9_01VersionedSchemaIdentityTests {
         XCTAssertEqual(PackageSandboxCheckKindV1.allCases.count, 12)
         XCTAssertEqual(PackageSemanticDiffClassificationV1.allCases.count, 5)
     }
+
+    func testV23P03C19SchemaAddsFiveTypedMeasurementFamilies() throws {
+        let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        XCTAssertEqual(PersistentSchemaV18.versionIdentifier, Schema.Version(18, 0, 0))
+        XCTAssertEqual(PersistentSchemaV18.models.count, 73)
+        XCTAssertEqual(MeasurementIntegrityLifecycleCatalogV1.persistentKinds.count, 5)
+        try fixture.instrument.validate()
+    }
 }

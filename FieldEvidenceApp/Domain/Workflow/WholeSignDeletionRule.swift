@@ -13,6 +13,33 @@ struct PackageEvolutionDeletionInventoryV1: Equatable, Sendable {
     static let empty = Self(releaseRecordIDs: [], sandboxRunIDs: [], promotionReceiptIDs: [], pointerIDs: [])
 }
 
+struct MeasurementIntegrityDeletionInventoryV1: Equatable, Sendable {
+    let instrumentReferences: Int
+    let calibrationSnapshots: Int
+    let measurementCaptures: Int
+    let measurementSeries: Int
+    let qualityAssessments: Int
+}
+
+enum MeasurementIntegrityDeletionAuthorityV1: Sendable { case ordinaryAssetOrSiteDelete, workspaceErase }
+
+extension WholeSignDeletionRule {
+    static func validateMeasurementIntegrityLifecycle(
+        authority: MeasurementIntegrityDeletionAuthorityV1,
+        before: MeasurementIntegrityDeletionInventoryV1,
+        after: MeasurementIntegrityDeletionInventoryV1
+    ) throws {
+        switch authority {
+        case .ordinaryAssetOrSiteDelete:
+            guard before == after else { throw WholeSignDeletionRuleError.invalidGraph }
+        case .workspaceErase:
+            guard after == .init(instrumentReferences: 0, calibrationSnapshots: 0, measurementCaptures: 0, measurementSeries: 0, qualityAssessments: 0) else {
+                throw WholeSignDeletionRuleError.invalidGraph
+            }
+        }
+    }
+}
+
 extension WholeSignDeletionRule {
     enum PackageEvolutionDeletionAuthorityV1: Sendable { case ordinaryAssetOrSiteDelete, workspaceErase }
     static func validatePackageEvolutionLifecycle(

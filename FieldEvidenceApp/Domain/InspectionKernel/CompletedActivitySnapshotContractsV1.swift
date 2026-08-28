@@ -3396,3 +3396,131 @@ enum CompletedActivitySnapshotCanonicalCodecV9 {
         return value
     }
 }
+
+// MARK: - C19 measurement projection binding
+
+extension CompletedActivitySnapshotV9 {
+    /// Validates the read-only C19 projection against the completed activity's
+    /// existing workspace/package identity. The snapshot schema and canonical
+    /// bytes remain untouched; no measurement value is imported or rewritten.
+    func c19ValidateMeasurementProjection(
+        instruments: [InstrumentReferenceV1] = [],
+        calibrations: [CalibrationStatusSnapshotV1] = [],
+        captures: [MeasurementCaptureV1] = [],
+        series: [MeasurementSeriesV1] = [],
+        assessments: [MeasurementQualityAssessmentV1] = [],
+        protocols: [MeasurementProtocolReleaseV1] = []
+    ) throws {
+        try validate()
+
+        let v7 = payload.activity.payload.activity
+        let v6 = v7.payload.activity
+        let v5 = v6.payload.activity
+        let v4 = v5.activity
+        let v3 = v4.activity
+        let base = v3.activity.activity
+        guard let workspaceUUID = UUID(uuidString: base.workspaceID) else {
+            throw SnapshotProjectionFailureV1.wrongWorkspace
+        }
+        let workspaceID = WorkspaceID(rawValue: workspaceUUID)
+
+        guard instruments.count <= MeasurementIntegrityLimitsV1.maximumUnitCount,
+              calibrations.count <= MeasurementIntegrityLimitsV1.maximumSampleCount,
+              captures.count <= MeasurementIntegrityLimitsV1.maximumSampleCount,
+              series.count <= MeasurementIntegrityLimitsV1.maximumSampleCount,
+              assessments.count <= MeasurementIntegrityLimitsV1.maximumSampleCount,
+              protocols.count <= MeasurementIntegrityLimitsV1.maximumSampleCount,
+              Set(instruments.map(\.referenceID)).count == instruments.count,
+              Set(calibrations.map(\.snapshotID)).count == calibrations.count,
+              Set(captures.map(\.captureID)).count == captures.count,
+              Set(series.map(\.snapshotID)).count == series.count,
+              Set(assessments.map(\.assessmentID)).count == assessments.count,
+              Set(protocols.map(\.releaseID)).count == protocols.count else {
+            throw SnapshotProjectionFailureV1.duplicateIdentity
+        }
+
+        try instruments.forEach {
+            try $0.validate()
+            guard $0.workspaceID == workspaceID else {
+                throw SnapshotProjectionFailureV1.wrongWorkspace
+            }
+        }
+        for calibration in calibrations {
+            try calibration.validate()
+            guard calibration.workspaceID == workspaceID,
+                  instruments.contains(where: { instrument in
+                      instrument.referenceID == calibration.instrument.referenceID
+                          && instrument.revision == calibration.instrument.revision
+                          && instrument.referenceSHA256 == calibration.instrument.referenceSHA256
+                  }) else {
+                throw SnapshotProjectionFailureV1.missingBinding
+            }
+        }
+        try protocols.forEach {
+            try $0.validate()
+            guard $0.workspaceID == workspaceID else {
+                throw SnapshotProjectionFailureV1.wrongWorkspace
+            }
+        }
+
+        for capture in captures {
+            try capture.validate()
+            guard capture.workspaceID == workspaceID,
+                  capture.packageReleaseID == base.packageReleaseID else {
+                throw SnapshotProjectionFailureV1.wrongWorkspace
+            }
+            let instrument = capture.instrument.flatMap { reference in
+                instruments.first {
+                    $0.referenceID == reference.referenceID
+                        && $0.revision == reference.revision
+                        && $0.referenceSHA256 == reference.referenceSHA256
+                }
+            }
+            let calibration = capture.calibration.flatMap { reference in
+                calibrations.first {
+                    $0.snapshotID == reference.snapshotID
+                        && $0.revision == reference.revision
+                        && $0.snapshotSHA256 == reference.snapshotSHA256
+                }
+            }
+            try capture.validateClosure(instrument: instrument, calibration: calibration)
+        }
+
+        for value in series {
+            guard let protocolRelease = protocols.first(where: {
+                $0.releaseID == value.protocolReference.releaseID
+            }) else {
+                throw SnapshotProjectionFailureV1.missingBinding
+            }
+            try protocolRelease.c19ValidateSeries(value, captures: captures)
+            guard value.workspaceID == workspaceID else {
+                throw SnapshotProjectionFailureV1.wrongWorkspace
+            }
+        }
+
+        for assessment in assessments {
+            try assessment.validate()
+            guard assessment.workspaceID == workspaceID else {
+                throw SnapshotProjectionFailureV1.wrongWorkspace
+            }
+            switch assessment.subjectKind {
+            case .capture:
+                guard let capture = captures.first(where: { $0.captureID == assessment.subjectID }),
+                      capture.revision == assessment.subjectRevision,
+                      capture.captureSHA256 == assessment.subjectSHA256 else {
+                    throw SnapshotProjectionFailureV1.missingBinding
+                }
+            case .series:
+                let matches = series.filter {
+                    ($0.snapshotID == assessment.subjectID || $0.seriesID == assessment.subjectID)
+                        && $0.state == .finalized
+                        && $0.revision == assessment.subjectRevision
+                        && $0.seriesSHA256 == assessment.subjectSHA256
+                }
+                guard matches.count == 1 else {
+                    throw SnapshotProjectionFailureV1.missingBinding
+                }
+            }
+        }
+    }
+}

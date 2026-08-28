@@ -688,3 +688,44 @@ private enum InspectionPackageClosedCodingV2 {
         }
     }
 }
+
+// MARK: - C19 measurement package bindings
+
+extension InspectionPackageAuthorityCriterionBindingV1 {
+    /// Verifies that a protocol release is explicitly declared by the
+    /// package's immutable C40 authority sidecar.
+    func c19ValidateMeasurementProtocol(
+        _ protocolRelease: MeasurementProtocolReleaseV1
+    ) throws {
+        try validate()
+        try protocolRelease.validate()
+        guard protocolRelease.workspaceID == workspaceID,
+              measurementProtocolReleases.contains(protocolRelease) else {
+            throw MeasurementIntegrityFailureV1.staleReference
+        }
+    }
+
+    /// Binds a C19 capture to the exact package release and workflow bytes;
+    /// package declarations remain nonpersistent and contain no executable
+    /// evaluator or import source.
+    func c19ValidateMeasurementCapture(
+        _ capture: MeasurementCaptureV1,
+        release: InspectionPackageReleaseV1,
+        package: InspectionPackageV2
+    ) throws {
+        try validate()
+        try release.validate()
+        try package.validate()
+        try capture.validate()
+        guard packageRelease.packageID == package.packageID,
+              packageRelease.schemaVersion == package.schemaVersion,
+              packageRelease.contentVersion == package.contentVersion,
+              release.packageID == package.packageID,
+              release.packageContentVersion == package.contentVersion,
+              capture.packageReleaseID == release.packageReleaseID,
+              capture.workflowSHA256 == release.workflowSHA256,
+              capture.workspaceID == workspaceID else {
+            throw MeasurementIntegrityFailureV1.staleReference
+        }
+    }
+}

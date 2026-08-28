@@ -939,4 +939,15 @@ extension V9_05RestoreIdentityTests {
         XCTAssertEqual(rebound.subjectSHA256, fixture.subject.subjectSHA256)
         XCTAssertEqual(rebound.kind, fixture.subject.kind)
     }
+
+    func testV23P03C19CaptureRestorePreservesFrozenIdentity() throws {
+        let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        let rebound = try fixture.capture.rebound(
+            to: WorkspaceID(rawValue: C19MeasurementIntegrityTestSupport.id(201))
+        )
+        XCTAssertEqual(rebound.captureID, fixture.capture.captureID)
+        XCTAssertEqual(rebound.captureSHA256, fixture.capture.captureSHA256)
+        XCTAssertEqual(rebound.mutationID, fixture.capture.mutationID)
+        try rebound.validate()
+    }
 }

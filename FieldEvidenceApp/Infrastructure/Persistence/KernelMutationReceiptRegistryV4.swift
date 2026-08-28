@@ -287,6 +287,7 @@ enum KernelMutationReceiptRegistryV4 {
             mutationReceipt: receipt
         )
     }
+    static func validateMeasurementIntegrity(mutation:MeasurementIntegrityMutationV1,receipt:MutationReceiptV1)throws{_ = try MeasurementIntegrityMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)}
     static let registrations: [KernelMutationRegistrationV4] = {
         do {
             return try KernelPersistenceV4RecordKind.allCases.map { kind in

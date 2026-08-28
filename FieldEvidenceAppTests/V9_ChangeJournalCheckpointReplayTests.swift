@@ -1067,4 +1067,15 @@ extension V9_ChangeJournalCheckpointReplayTests {
         XCTAssertEqual(replayed.state, .resolved)
         XCTAssertEqual(replayed.supersedesRequestRevisionID, fixture.changeRequest.requestRevisionID)
     }
+
+    func testV23P03C19ChangeJournalReceiptReplaysExactMeasurementBundle() throws {
+        let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        let bytes = try MeasurementIntegrityCanonicalCodecV1.encode(fixture.bundle)
+        let replayed = try MeasurementIntegrityCanonicalCodecV1.decode(
+            MeasurementIntegrityAtomicBundleV1.self, from: bytes
+        )
+        XCTAssertEqual(replayed, fixture.bundle)
+        XCTAssertEqual(replayed.bundleSHA256, fixture.bundle.bundleSHA256)
+        try replayed.validate()
+    }
 }

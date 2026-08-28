@@ -240,6 +240,59 @@ enum BundledLocalizationKeyV1: String, CaseIterable, Sendable {
     case fieldDraftRecoveryStaleTarget = "field.draft.recovery.state.stale_target"
     case fieldDraftRecoveryRecoveryRequired = "field.draft.recovery.state.recovery_required"
 
+    case measurementIntegrityHeading = "measurement.integrity.heading"
+    case measurementIntegrityInstrument = "measurement.integrity.instrument"
+    case measurementIntegrityInstrumentKind = "measurement.integrity.instrument.kind"
+    case measurementIntegrityInstrumentKindMeasuring = "measurement.integrity.instrument.kind.measuring"
+    case measurementIntegrityInstrumentKindReference = "measurement.integrity.instrument.kind.reference"
+    case measurementIntegrityInstrumentKindOther = "measurement.integrity.instrument.kind.other"
+    case measurementIntegrityInstrumentLifecycle = "measurement.integrity.instrument.lifecycle"
+    case measurementIntegrityInstrumentLifecycleActive = "measurement.integrity.instrument.lifecycle.active"
+    case measurementIntegrityInstrumentLifecycleOutOfService = "measurement.integrity.instrument.lifecycle.out_of_service"
+    case measurementIntegrityInstrumentLifecycleRetired = "measurement.integrity.instrument.lifecycle.retired"
+    case measurementIntegrityCalibration = "measurement.integrity.calibration"
+    case measurementIntegrityCalibrationStatus = "measurement.integrity.calibration.status"
+    case measurementIntegrityCalibrationNotRequired = "measurement.integrity.calibration.status.not_required"
+    case measurementIntegrityCalibrationCurrent = "measurement.integrity.calibration.status.current"
+    case measurementIntegrityCalibrationExpired = "measurement.integrity.calibration.status.expired"
+    case measurementIntegrityCalibrationUnknown = "measurement.integrity.calibration.status.unknown"
+    case measurementIntegrityCalibrationOutOfService = "measurement.integrity.calibration.status.out_of_service"
+    case measurementIntegrityCalibrationBasis = "measurement.integrity.calibration.basis"
+    case measurementIntegrityCalibrationBasisDeclared = "measurement.integrity.calibration.basis.declared_not_required"
+    case measurementIntegrityCalibrationBasisEvidence = "measurement.integrity.calibration.basis.referenced_evidence"
+    case measurementIntegrityCalibrationBasisLocal = "measurement.integrity.calibration.basis.locally_recorded"
+    case measurementIntegrityCalibrationBasisUnknown = "measurement.integrity.calibration.basis.unknown"
+    case measurementIntegrityCapture = "measurement.integrity.capture"
+    case measurementIntegrityCaptureValue = "measurement.integrity.capture.value"
+    case measurementIntegrityCaptureUnit = "measurement.integrity.capture.unit"
+    case measurementIntegrityCaptureSource = "measurement.integrity.capture.source"
+    case measurementIntegrityCaptureSourceManual = "measurement.integrity.capture.source.manual_entry"
+    case measurementIntegrityCaptureSourceLocalObservation = "measurement.integrity.capture.source.local_observation"
+    case measurementIntegritySeries = "measurement.integrity.series"
+    case measurementIntegritySeriesState = "measurement.integrity.series.state"
+    case measurementIntegritySeriesOpen = "measurement.integrity.series.state.open"
+    case measurementIntegritySeriesFinalized = "measurement.integrity.series.state.finalized"
+    case measurementIntegrityProtocol = "measurement.integrity.protocol"
+    case measurementIntegrityQuality = "measurement.integrity.quality"
+    case measurementIntegrityQualityResult = "measurement.integrity.quality.result"
+    case measurementIntegrityQualityClear = "measurement.integrity.quality.result.clear"
+    case measurementIntegrityQualityReviewRequired = "measurement.integrity.quality.result.review_required"
+    case measurementIntegrityQualityOverridden = "measurement.integrity.quality.result.overridden"
+    case measurementIntegrityQualityReason = "measurement.integrity.quality.reason"
+    case measurementIntegrityQualityReasonDeclaredChecksClear = "measurement.integrity.quality.reason.declared_checks_clear"
+    case measurementIntegrityQualityReasonCalibrationNotRequired = "measurement.integrity.quality.reason.calibration_not_required"
+    case measurementIntegrityQualityReasonCalibrationExpired = "measurement.integrity.quality.reason.calibration_expired"
+    case measurementIntegrityQualityReasonCalibrationUnknown = "measurement.integrity.quality.reason.calibration_unknown"
+    case measurementIntegrityQualityReasonInstrumentOutOfService = "measurement.integrity.quality.reason.instrument_out_of_service"
+    case measurementIntegrityQualityReasonMissingUncertainty = "measurement.integrity.quality.reason.missing_uncertainty"
+    case measurementIntegrityQualityReasonUncertaintyCrossesBoundary = "measurement.integrity.quality.reason.uncertainty_crosses_boundary"
+    case measurementIntegrityQualityReasonIncompleteSampleSet = "measurement.integrity.quality.reason.incomplete_sample_set"
+    case measurementIntegrityQualityReasonDuplicateSample = "measurement.integrity.quality.reason.duplicate_sample"
+    case measurementIntegrityQualityReasonRetainedOutlier = "measurement.integrity.quality.reason.retained_outlier"
+    case measurementIntegrityQualityReasonObservationLimitation = "measurement.integrity.quality.reason.observation_limitation"
+    case measurementIntegrityQualityReasonHumanOverride = "measurement.integrity.quality.reason.human_override"
+    case measurementIntegrityNextStep = "measurement.integrity.next_step"
+
     static var functionalRelationshipDirected: Self { .functionalRelationshipDirectedSourceToTarget }
     static var functionalRelationshipActive: Self { .functionalRelationshipActiveState }
     static var functionalRelationshipEnded: Self { .functionalRelationshipEndedState }
@@ -1218,6 +1271,29 @@ enum BundledLocalizationCatalogV1 {
         try fieldDraftRegistry()
     }
 
+    /// C19's additive key surface.  Measurement values and unit identifiers
+    /// remain exact recorded facts; this registry contributes labels only and
+    /// does not create a second unit system or a second catalog.
+    static func measurementIntegrityRegistry() throws -> LocalizationKeyRegistryV1 {
+        let base = try fieldDraftRegistry()
+        let additions = try MeasurementIntegrityLocalizationKeyV1.allCases.map { key in
+            guard let bundledKey = BundledLocalizationKeyV1(rawValue: key.rawValue) else {
+                throw LocalizationContractFailureV1.missingKey
+            }
+            return try definition(
+                bundledKey,
+                key.rawValue,
+                key.englishDefaultValue,
+                key.translatorComment
+            )
+        }
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+
+    static func measurementRegistry() throws -> LocalizationKeyRegistryV1 {
+        try measurementIntegrityRegistry()
+    }
+
     static func accessibilityRegistry(
         localization: LocalizationKeyRegistryV1
     ) throws -> SemanticAccessibilityIDRegistryV1 {
@@ -2135,6 +2211,57 @@ enum BundledLocalizationCatalogV1 {
         try fieldDraftAccessibilityRegistry(localization: localization)
     }
 
+    /// C19 adds semantic labels for the exact measurement, instrument,
+    /// calibration, series, and quality projections.  Every indeterminate
+    /// state receives the same actionable next-step hint; no icon or color is
+    /// treated as the source of meaning.
+    static func measurementIntegrityAccessibilityRegistry(
+        localization: LocalizationKeyRegistryV1
+    ) throws -> SemanticAccessibilityIDRegistryV1 {
+        let base = try fieldDraftAccessibilityRegistry(localization: localization)
+        let nextStep = try LocalizationKeyV1(
+            MeasurementIntegrityLocalizationKeyV1.nextStep.rawValue
+        )
+        let entries = try MeasurementIntegrityAccessibilityIDV1.allCases.map {
+            id -> AccessibilityContractV1 in
+            let role: SemanticAccessibilityRoleV1
+            switch id {
+            case .screen: role = .screen
+            case .heading: role = .heading
+            case .nextStep: role = .button
+            default:
+                role = MeasurementIntegrityAccessibilityPolicyV1.statusSemanticIDs
+                    .contains(id.rawValue) ? .status : .group
+            }
+            let labelKey: LocalizationKeyV1
+            if id == .screen {
+                labelKey = try LocalizationKeyV1(
+                    MeasurementIntegrityLocalizationKeyV1.heading.rawValue
+                )
+            } else {
+                labelKey = try LocalizationKeyV1(id.rawValue)
+            }
+            return AccessibilityContractV1(
+                semanticID: id.rawValue,
+                role: role,
+                reachability: .whenAvailable,
+                labelKey: labelKey,
+                hintKey: MeasurementIntegrityAccessibilityPolicyV1
+                    .requiresActionableNextStep(for: id.rawValue) ? nextStep : nil,
+                valueKey: nil,
+                dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            )
+        }
+        return try base.appending(entries, localization: localization)
+    }
+
+    static func measurementAccessibilityRegistry(
+        localization: LocalizationKeyRegistryV1
+    ) throws -> SemanticAccessibilityIDRegistryV1 {
+        try measurementIntegrityAccessibilityRegistry(localization: localization)
+    }
+
     static func publish(
         sourceCatalogBytes: Data,
         packagePublications: [InspectionPackagePublishedReleaseV1] = [],
@@ -2154,6 +2281,7 @@ enum BundledLocalizationCatalogV1 {
         includeWorkPacketManifest: Bool = false,
         includePacketCoordination: Bool = false,
         includeFieldDraft: Bool = false,
+        includeMeasurementIntegrity: Bool = false,
         interruption: Interruption = { _ in }
     ) throws -> LocalizationCatalogPublicationV1 {
         try interruption(.beforeValidation)
@@ -2161,7 +2289,9 @@ enum BundledLocalizationCatalogV1 {
         let locales = LocalizationLocaleManifestV1.shippingV1()
         try locales.validate()
         let keys: LocalizationKeyRegistryV1
-        if includeFieldDraft {
+        if includeMeasurementIntegrity {
+            keys = try measurementIntegrityRegistry()
+        } else if includeFieldDraft {
             keys = try fieldDraftRegistry()
         } else if includeWorkPacket || includeWorkPacketManifest || includePacketCoordination {
             keys = try workPacketRegistry()
@@ -2188,7 +2318,9 @@ enum BundledLocalizationCatalogV1 {
         }
         if let previousLegacy { try previousLegacy.validateObserved(legacy.entries) }
         let accessibility: SemanticAccessibilityIDRegistryV1
-        if includeFieldDraft {
+        if includeMeasurementIntegrity {
+            accessibility = try measurementIntegrityAccessibilityRegistry(localization: keys)
+        } else if includeFieldDraft {
             accessibility = try fieldDraftAccessibilityRegistry(localization: keys)
         } else if includeWorkPacket || includeWorkPacketManifest || includePacketCoordination {
             accessibility = try workPacketAccessibilityRegistry(localization: keys)
@@ -2257,7 +2389,8 @@ enum BundledLocalizationCatalogV1 {
         includeWorkPacket: Bool = false,
         includeWorkPacketManifest: Bool = false,
         includePacketCoordination: Bool = false,
-        includeFieldDraft: Bool = false
+        includeFieldDraft: Bool = false,
+        includeMeasurementIntegrity: Bool = false
     ) throws -> LocalizationCatalogPublicationV1 {
         switch (sourceCatalogBytes, receipt) {
         case (nil, nil): return .zero
@@ -2278,7 +2411,8 @@ enum BundledLocalizationCatalogV1 {
                 includeWorkPacket: includeWorkPacket,
                 includeWorkPacketManifest: includeWorkPacketManifest,
                 includePacketCoordination: includePacketCoordination,
-                includeFieldDraft: includeFieldDraft
+                includeFieldDraft: includeFieldDraft,
+                includeMeasurementIntegrity: includeMeasurementIntegrity
             )
             guard case let .complete(_, _, _, _, actual) = publication,
                   actual == expected else { throw LocalizationContractFailureV1.digestMismatch }
@@ -2638,6 +2772,110 @@ enum BundledLocalizationCatalogV1 {
             return String(localized: "work.packet.next_step", defaultValue: "Next step", bundle: bundle, locale: locale, comment: "Actionable label for the next recorded packet-coordination step.")
         case .workPacketMinimumNextRequirement:
             return String(localized: "work.packet.next_step.minimum_requirement", defaultValue: "Minimum requirement", bundle: bundle, locale: locale, comment: "Actionable label for the minimum recorded requirement before the next step.")
+        case .measurementIntegrityHeading:
+            return MeasurementIntegrityLocalizationKeyV1.heading.englishDefaultValue
+        case .measurementIntegrityInstrument:
+            return MeasurementIntegrityLocalizationKeyV1.instrument.englishDefaultValue
+        case .measurementIntegrityInstrumentKind:
+            return MeasurementIntegrityLocalizationKeyV1.instrumentKind.englishDefaultValue
+        case .measurementIntegrityInstrumentKindMeasuring:
+            return MeasurementIntegrityLocalizationKeyV1.instrumentKindMeasuring.englishDefaultValue
+        case .measurementIntegrityInstrumentKindReference:
+            return MeasurementIntegrityLocalizationKeyV1.instrumentKindReference.englishDefaultValue
+        case .measurementIntegrityInstrumentKindOther:
+            return MeasurementIntegrityLocalizationKeyV1.instrumentKindOther.englishDefaultValue
+        case .measurementIntegrityInstrumentLifecycle:
+            return MeasurementIntegrityLocalizationKeyV1.instrumentLifecycle.englishDefaultValue
+        case .measurementIntegrityInstrumentLifecycleActive:
+            return MeasurementIntegrityLocalizationKeyV1.instrumentLifecycleActive.englishDefaultValue
+        case .measurementIntegrityInstrumentLifecycleOutOfService:
+            return MeasurementIntegrityLocalizationKeyV1.instrumentLifecycleOutOfService.englishDefaultValue
+        case .measurementIntegrityInstrumentLifecycleRetired:
+            return MeasurementIntegrityLocalizationKeyV1.instrumentLifecycleRetired.englishDefaultValue
+        case .measurementIntegrityCalibration:
+            return MeasurementIntegrityLocalizationKeyV1.calibration.englishDefaultValue
+        case .measurementIntegrityCalibrationStatus:
+            return MeasurementIntegrityLocalizationKeyV1.calibrationStatus.englishDefaultValue
+        case .measurementIntegrityCalibrationNotRequired:
+            return MeasurementIntegrityLocalizationKeyV1.calibrationNotRequired.englishDefaultValue
+        case .measurementIntegrityCalibrationCurrent:
+            return MeasurementIntegrityLocalizationKeyV1.calibrationCurrent.englishDefaultValue
+        case .measurementIntegrityCalibrationExpired:
+            return MeasurementIntegrityLocalizationKeyV1.calibrationExpired.englishDefaultValue
+        case .measurementIntegrityCalibrationUnknown:
+            return MeasurementIntegrityLocalizationKeyV1.calibrationUnknown.englishDefaultValue
+        case .measurementIntegrityCalibrationOutOfService:
+            return MeasurementIntegrityLocalizationKeyV1.calibrationOutOfService.englishDefaultValue
+        case .measurementIntegrityCalibrationBasis:
+            return MeasurementIntegrityLocalizationKeyV1.calibrationBasis.englishDefaultValue
+        case .measurementIntegrityCalibrationBasisDeclared:
+            return MeasurementIntegrityLocalizationKeyV1.calibrationBasisDeclared.englishDefaultValue
+        case .measurementIntegrityCalibrationBasisEvidence:
+            return MeasurementIntegrityLocalizationKeyV1.calibrationBasisEvidence.englishDefaultValue
+        case .measurementIntegrityCalibrationBasisLocal:
+            return MeasurementIntegrityLocalizationKeyV1.calibrationBasisLocal.englishDefaultValue
+        case .measurementIntegrityCalibrationBasisUnknown:
+            return MeasurementIntegrityLocalizationKeyV1.calibrationBasisUnknown.englishDefaultValue
+        case .measurementIntegrityCapture:
+            return MeasurementIntegrityLocalizationKeyV1.capture.englishDefaultValue
+        case .measurementIntegrityCaptureValue:
+            return MeasurementIntegrityLocalizationKeyV1.captureValue.englishDefaultValue
+        case .measurementIntegrityCaptureUnit:
+            return MeasurementIntegrityLocalizationKeyV1.captureUnit.englishDefaultValue
+        case .measurementIntegrityCaptureSource:
+            return MeasurementIntegrityLocalizationKeyV1.captureSource.englishDefaultValue
+        case .measurementIntegrityCaptureSourceManual:
+            return MeasurementIntegrityLocalizationKeyV1.captureSourceManual.englishDefaultValue
+        case .measurementIntegrityCaptureSourceLocalObservation:
+            return MeasurementIntegrityLocalizationKeyV1.captureSourceLocalObservation.englishDefaultValue
+        case .measurementIntegritySeries:
+            return MeasurementIntegrityLocalizationKeyV1.series.englishDefaultValue
+        case .measurementIntegritySeriesState:
+            return MeasurementIntegrityLocalizationKeyV1.seriesState.englishDefaultValue
+        case .measurementIntegritySeriesOpen:
+            return MeasurementIntegrityLocalizationKeyV1.seriesOpen.englishDefaultValue
+        case .measurementIntegritySeriesFinalized:
+            return MeasurementIntegrityLocalizationKeyV1.seriesFinalized.englishDefaultValue
+        case .measurementIntegrityProtocol:
+            return MeasurementIntegrityLocalizationKeyV1.`protocol`.englishDefaultValue
+        case .measurementIntegrityQuality:
+            return MeasurementIntegrityLocalizationKeyV1.quality.englishDefaultValue
+        case .measurementIntegrityQualityResult:
+            return MeasurementIntegrityLocalizationKeyV1.qualityResult.englishDefaultValue
+        case .measurementIntegrityQualityClear:
+            return MeasurementIntegrityLocalizationKeyV1.qualityClear.englishDefaultValue
+        case .measurementIntegrityQualityReviewRequired:
+            return MeasurementIntegrityLocalizationKeyV1.qualityReviewRequired.englishDefaultValue
+        case .measurementIntegrityQualityOverridden:
+            return MeasurementIntegrityLocalizationKeyV1.qualityOverridden.englishDefaultValue
+        case .measurementIntegrityQualityReason:
+            return MeasurementIntegrityLocalizationKeyV1.qualityReason.englishDefaultValue
+        case .measurementIntegrityQualityReasonDeclaredChecksClear:
+            return MeasurementIntegrityLocalizationKeyV1.qualityReasonDeclaredChecksClear.englishDefaultValue
+        case .measurementIntegrityQualityReasonCalibrationNotRequired:
+            return MeasurementIntegrityLocalizationKeyV1.qualityReasonCalibrationNotRequired.englishDefaultValue
+        case .measurementIntegrityQualityReasonCalibrationExpired:
+            return MeasurementIntegrityLocalizationKeyV1.qualityReasonCalibrationExpired.englishDefaultValue
+        case .measurementIntegrityQualityReasonCalibrationUnknown:
+            return MeasurementIntegrityLocalizationKeyV1.qualityReasonCalibrationUnknown.englishDefaultValue
+        case .measurementIntegrityQualityReasonInstrumentOutOfService:
+            return MeasurementIntegrityLocalizationKeyV1.qualityReasonInstrumentOutOfService.englishDefaultValue
+        case .measurementIntegrityQualityReasonMissingUncertainty:
+            return MeasurementIntegrityLocalizationKeyV1.qualityReasonMissingUncertainty.englishDefaultValue
+        case .measurementIntegrityQualityReasonUncertaintyCrossesBoundary:
+            return MeasurementIntegrityLocalizationKeyV1.qualityReasonUncertaintyCrossesBoundary.englishDefaultValue
+        case .measurementIntegrityQualityReasonIncompleteSampleSet:
+            return MeasurementIntegrityLocalizationKeyV1.qualityReasonIncompleteSampleSet.englishDefaultValue
+        case .measurementIntegrityQualityReasonDuplicateSample:
+            return MeasurementIntegrityLocalizationKeyV1.qualityReasonDuplicateSample.englishDefaultValue
+        case .measurementIntegrityQualityReasonRetainedOutlier:
+            return MeasurementIntegrityLocalizationKeyV1.qualityReasonRetainedOutlier.englishDefaultValue
+        case .measurementIntegrityQualityReasonObservationLimitation:
+            return MeasurementIntegrityLocalizationKeyV1.qualityReasonObservationLimitation.englishDefaultValue
+        case .measurementIntegrityQualityReasonHumanOverride:
+            return MeasurementIntegrityLocalizationKeyV1.qualityReasonHumanOverride.englishDefaultValue
+        case .measurementIntegrityNextStep:
+            return MeasurementIntegrityLocalizationKeyV1.nextStep.englishDefaultValue
         }
     }
 
@@ -2690,7 +2928,7 @@ enum BundledLocalizationCatalogV1 {
         // additive projection, while the selected registry still controls the
         // required subset.  This keeps C16/C38 compatibility callers frozen
         // and lets each additive typed surface publish atomically.
-        let supportedKeys = Set((try? fieldDraftRegistry())?.definitions.map(\.key.rawValue) ?? [])
+        let supportedKeys = Set((try? measurementIntegrityRegistry())?.definitions.map(\.key.rawValue) ?? [])
         guard registeredKeys.isSubset(of: Set(strings.keys)),
               Set(strings.keys).isSubset(of: supportedKeys) else {
             throw LocalizationContractFailureV1.invalidValue

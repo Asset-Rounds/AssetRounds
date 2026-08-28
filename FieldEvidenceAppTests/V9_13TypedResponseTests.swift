@@ -295,3 +295,14 @@ private extension JSONEncoder {
         return value
     }
 }
+
+extension V9_13TypedResponseTests {
+    func testV23P03C19TypedResponseBindsExactMeasurementAndUnit() throws {
+        let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        try fixture.capture.validate(fieldDefinition: fixture.fieldDefinition)
+        XCTAssertEqual(fixture.capture.response.fieldID, fixture.fieldDefinition.fieldID)
+        XCTAssertEqual(fixture.capture.measurement.enteredUnitID, "[fc_i]")
+        XCTAssertEqual(fixture.capture.measurement.canonicalUnitID, "lx")
+        XCTAssertEqual(fixture.capture.measurement.precisionScale, 0)
+    }
+}

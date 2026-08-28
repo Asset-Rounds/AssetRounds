@@ -1656,4 +1656,20 @@ extension V10_02MutationEnvelopeReceiptTests {
         XCTAssertGreaterThan(MemoryLayout<PackagePromotionReceiptV1>.size, 0)
         XCTAssertGreaterThan(MemoryLayout<PackageSandboxRunV1>.size, 0)
     }
+
+    func testV23P03C19ReceiptBindsBundleAndJournalDigest() throws {
+        let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        let receipt = try MeasurementIntegrityWriteReceiptV1(
+            workspaceID: fixture.workspace, mutationID: fixture.mutationID,
+            bundleSHA256: fixture.bundle.bundleSHA256,
+            journalReceiptSHA256: C19MeasurementIntegrityTestSupport.digest("j")
+        )
+        try MeasurementIntegrityCoordinatorV1.validate(receipt, for: fixture.bundle)
+        XCTAssertEqual(receipt.bundleSHA256, fixture.bundle.bundleSHA256)
+        XCTAssertThrowsError(try MeasurementIntegrityWriteReceiptV1(
+            workspaceID: fixture.workspace, mutationID: fixture.mutationID,
+            bundleSHA256: "not-a-digest",
+            journalReceiptSHA256: C19MeasurementIntegrityTestSupport.digest("j")
+        ))
+    }
 }

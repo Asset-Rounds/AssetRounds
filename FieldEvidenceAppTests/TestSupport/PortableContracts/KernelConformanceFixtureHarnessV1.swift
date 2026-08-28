@@ -5995,3 +5995,21 @@ enum C17IntegrationEventTestSupportV1 {
         )
     }
 }
+
+extension KernelConformanceFixtureHarnessV1 {
+    /// C19 conformance anchor kept beside the existing portable fixture
+    /// harness. It proves the measurement family is canonical and local
+    /// without adding another store, writer, or provider seam.
+    static func c19MeasurementIntegrityAnchor() throws -> String {
+        let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        try fixture.bundle.validate()
+        try C19MeasurementIntegrityTestSupport.assertAllCanonicalRoundTrips(fixture)
+        guard fixture.bundle.workspaceID == fixture.workspace,
+              fixture.bundle.mutationID == fixture.mutationID,
+              fixture.capture.measurement.source.isLocalMeasurementCaptureSource,
+              fixture.series.samples.map(\.sampleOrdinal) == [1, 2] else {
+            throw MeasurementIntegrityFailureV1.invalidValue
+        }
+        return fixture.bundle.bundleSHA256
+    }
+}

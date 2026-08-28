@@ -377,6 +377,31 @@ enum ResponseFieldValidatorV1 {
     }
 }
 
+// MARK: - C19 measurement capture bridge
+
+extension ResponseFieldValidatorV1 {
+    /// Validates the C19 fixed-point capture against the exact field contract
+    /// while retaining the existing response validator as the sole field
+    /// admission path.
+    static func validateMeasurementCapture(
+        _ capture: MeasurementCaptureV1,
+        against definition: ResponseFieldDefinitionV1
+    ) throws {
+        try definition.validate()
+        guard definition.valueKind == .measurement else {
+            throw MeasurementIntegrityFailureV1.invalidValue
+        }
+        try capture.validate(fieldDefinition: definition)
+        try capture.response.value.c19ValidateMeasurementEquality(capture.measurement)
+    }
+}
+
+extension ResponseFieldDefinitionV1 {
+    func validateMeasurementCapture(_ capture: MeasurementCaptureV1) throws {
+        try ResponseFieldValidatorV1.validateMeasurementCapture(capture, against: self)
+    }
+}
+
 struct KernelResponseRegistryV1: Codable, Equatable, Sendable {
     static let schemaVersion = 1
     let schemaVersion: Int

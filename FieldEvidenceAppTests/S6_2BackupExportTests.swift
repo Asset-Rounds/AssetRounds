@@ -625,4 +625,13 @@ extension S6_2BackupExportTests {
         XCTAssertEqual(record.workspaceID, fixture.workspaceID.rawValue)
         XCTAssertEqual(record.canonicalData, canonicalData)
     }
+
+    func testV23P03C19BackupRegistryIncludesEveryMeasurementFamily() throws {
+        let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        try KernelBackupRestoreRegistryV4.validateMeasurementIntegrityLifecycle()
+        XCTAssertEqual(V18BackupMeasurementIntegrityRecordV1.Kind.allCases.count, 5)
+        XCTAssertEqual(KernelBackupRestoreRegistryV4.measurementIntegrityArchiveKinds.count, 5)
+        let row = try MeasurementCaptureRow(fixture.capture)
+        XCTAssertEqual(try row.value(), fixture.capture)
+    }
 }

@@ -439,6 +439,16 @@ struct ReportSnapshotEncoderV1: Sendable {
                 return false
             }
         }
+        if let measurementIntegrity = snapshot.measurementIntegrity {
+            guard (try? measurementIntegrity.validate()) != nil,
+                  measurementIntegrity.revision <= UInt64(Int.max),
+                  measurementIntegrity.protocolRevision.map({ $0 <= UInt64(Int.max) }) ?? true,
+                  ReportMeasurementIntegrityProjectionPolicyV1.supportedFormats.allSatisfy({
+                      ReportMeasurementIntegrityProjectionPolicyV1.supports($0)
+                  }) else {
+                return false
+            }
+        }
 
         guard validObservationAndTime(
             basis: snapshot.observationBasis,
@@ -574,7 +584,66 @@ extension CanonicalJSONV1 {
         if let workPacket = value.workPacket {
             object["workPacket"] = Self.workPacket(workPacket)
         }
+        if let measurementIntegrity = value.measurementIntegrity {
+            object["measurementIntegrity"] = Self.measurementIntegrity(measurementIntegrity)
+        }
         return .object(object)
+    }
+
+    /// C19 is deliberately an additive, privacy-safe report object. Exact
+    /// decimal components and enum tokens are retained for deterministic
+    /// reopening; operator snapshots, opaque serials, raw responses, and
+    /// evidence locators never enter this output.
+    private static func measurementIntegrity(
+        _ value: MeasurementIntegrityReportProjectionV1
+    ) -> CanonicalJSONValueV1 {
+        func decimal(_ value: ExactDecimalV1) -> CanonicalJSONValueV1 {
+            .object([
+                "mantissa": .integer(Int(value.mantissa)),
+                "scale": .integer(value.scale),
+            ])
+        }
+        func optionalDecimal(_ value: ExactDecimalV1?) -> CanonicalJSONValueV1 {
+            value.map(decimal) ?? .null
+        }
+        return .object([
+            "schemaVersion": .integer(value.schemaVersion),
+            "captureID": uuid(value.captureID),
+            "workspaceID": .object(["rawValue": uuid(value.workspaceID.rawValue)]),
+            "packageReleaseID": .string(value.packageReleaseID),
+            "workflowSHA256": .string(value.workflowSHA256),
+            "enteredValue": decimal(value.enteredValue),
+            "enteredUnitID": .string(value.enteredUnitID),
+            "canonicalValue": decimal(value.canonicalValue),
+            "canonicalUnitID": .string(value.canonicalUnitID),
+            "dimension": .string(value.dimension.rawValue),
+            "precisionScale": .integer(value.precisionScale),
+            "uncertaintyCanonical": optionalDecimal(value.uncertaintyCanonical),
+            "source": .string(value.source.rawValue),
+            "sourceMode": .string(value.sourceMode.rawValue),
+            "captureMethodID": .string(value.captureMethodID),
+            "instrumentReferenceID": optionalUUID(value.instrumentReferenceID),
+            "instrumentID": optionalUUID(value.instrumentID),
+            "instrumentKind": value.instrumentKind.map { .string($0.rawValue) } ?? .null,
+            "instrumentLifecycleState": value.instrumentLifecycleState.map { .string($0.rawValue) } ?? .null,
+            "calibrationSnapshotID": optionalUUID(value.calibrationSnapshotID),
+            "calibrationStatus": value.calibrationStatus.map { .string($0.rawValue) } ?? .null,
+            "calibrationBasis": value.calibrationBasis.map { .string($0.rawValue) } ?? .null,
+            "seriesID": optionalUUID(value.seriesID),
+            "seriesState": value.seriesState.map { .string($0.rawValue) } ?? .null,
+            "seriesExpectedSampleCount": value.seriesExpectedSampleCount.map { .integer($0) } ?? .null,
+            "seriesObservedSampleCount": value.seriesObservedSampleCount.map { .integer($0) } ?? .null,
+            "protocolReleaseID": optionalUUID(value.protocolReleaseID),
+            "protocolRevision": value.protocolRevision.map { .integer(Int($0)) } ?? .null,
+            "aggregationPolicy": value.aggregationPolicy.map { .string($0.rawValue) } ?? .null,
+            "qualityResult": value.qualityResult.map { .string($0.rawValue) } ?? .null,
+            "qualityReasonCodes": .array(value.qualityReasonCodes.map { .string($0.rawValue) }),
+            "qualityPolicyVersion": value.qualityPolicyVersion.map { .string($0) } ?? .null,
+            "qualityPolicySHA256": value.qualityPolicySHA256.map { .string($0) } ?? .null,
+            "capturedAt": date(value.capturedAt),
+            "revision": .integer(Int(value.revision)),
+            "captureSHA256": .string(value.captureSHA256),
+        ])
     }
 
     /// C14 history is owned by its canonical inspection-review codec. Keeping

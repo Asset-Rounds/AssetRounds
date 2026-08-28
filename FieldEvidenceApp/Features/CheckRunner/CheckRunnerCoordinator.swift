@@ -2079,6 +2079,45 @@ extension CheckRunnerCoordinator {
     }
 }
 
+// MARK: - C19 measurement capture boundary
+
+@MainActor
+extension CheckRunnerCoordinator {
+    /// Performs the C19 fixed-point/reference checks at the existing runner
+    /// boundary. No draft, workflow, or persistence mutation occurs here.
+    func validateMeasurementCapture(
+        _ context: CheckRunnerMeasurementCaptureContextV1
+    ) throws {
+        try context.validate()
+    }
+
+    /// Runs the one canonical C19 quality evaluator after the read-only check
+    /// boundary has passed. Quality remains review evidence and never an
+    /// automatic workflow/compliance outcome.
+    func evaluateMeasurementQuality(
+        _ context: CheckRunnerMeasurementCaptureContextV1,
+        assessmentID: UUID,
+        policyVersion: String,
+        policySHA256: String,
+        evidence: [ContentReferenceV1] = [],
+        assessedAt: Date,
+        mutationID: MutationIDV1
+    ) throws -> MeasurementQualityAssessmentV1 {
+        try context.validate()
+        return try MeasurementQualityEvaluatorV1.assessCapture(
+            assessmentID: assessmentID,
+            capture: context.capture,
+            calibration: context.calibration,
+            requiresUncertainty: context.protocolRelease.requiresUncertainty,
+            policyVersion: policyVersion,
+            policySHA256: policySHA256,
+            evidence: evidence,
+            assessedAt: assessedAt,
+            mutationID: mutationID
+        )
+    }
+}
+
 // MARK: - C36 durable draft attachment bridge
 
 @MainActor

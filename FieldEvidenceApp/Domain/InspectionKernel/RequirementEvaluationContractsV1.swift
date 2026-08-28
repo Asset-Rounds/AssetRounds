@@ -202,6 +202,21 @@ struct RequirementEvidenceReferenceV1: Codable, Equatable, Hashable, Comparable,
     }
 }
 
+// MARK: - C19 quality projection
+
+/// Measurement quality is evidence about capture integrity, not a
+/// requirement conclusion. Callers may carry this state into an evaluation
+/// context, but it is deliberately projected to UNKNOWN until an explicit
+/// requirement rule evaluates its own evidence.
+enum MeasurementIntegrityRequirementProjectionV1 {
+    static func result(
+        for assessment: MeasurementQualityAssessmentV1
+    ) throws -> RequirementEvaluationResultV1 {
+        try assessment.validate()
+        return .unknown
+    }
+}
+
 struct RequirementWaiverV1: Codable, Equatable, Hashable, Sendable {
     static let schemaVersion = 1
     let schemaVersion: Int

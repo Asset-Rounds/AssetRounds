@@ -1282,4 +1282,15 @@ private struct V912Corpus: Decodable, Sendable {
         logging = try values.decode(Logging.self, forKey: .logging)
         resetErase = try values.decode(ResetErase.self, forKey: .resetErase)
     }
+
+}
+
+extension V9_12SystemHealthOperationalDiagnosticsTests {
+    func testV23P03C19DiagnosticsExposeNoExternalMeasurementProviderState() throws {
+        let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        XCTAssertTrue(fixture.capture.measurement.source.isLocalMeasurementCaptureSource)
+        XCTAssertFalse(MeasurementIntegrityLifecycleCatalogV1.persistentKinds.contains("PROVIDER_STATE"))
+        XCTAssertTrue(MeasurementIntegrityEraseBoundaryV1.ordinaryDeletionPreservesFrozenHistory)
+        XCTAssertTrue(MeasurementIntegrityEraseBoundaryV1.workspaceEraseClearsEntireClosure)
+    }
 }

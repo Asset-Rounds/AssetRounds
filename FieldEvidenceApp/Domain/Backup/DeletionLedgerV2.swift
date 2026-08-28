@@ -201,6 +201,7 @@ struct DeletionLedgerEntryV2: Codable, Equatable, Hashable, Sendable {
     }
 
     func validate() throws {
+        try MeasurementIntegrityDeletionLedgerPolicyV1.validate()
         try PackageEvolutionDeletionLedgerPolicyV1.validate()
         try PartyAccountabilityDeletionLedgerPolicyV1.validate()
         try AssetSemanticDeletionLedgerPolicyV1.validate()
@@ -228,6 +229,22 @@ enum PackageEvolutionDeletionLedgerPolicyV1 {
               V17BackupPackageEvolutionRecordV1.Kind.allCases.allSatisfy({
                   disposition(for: $0) == .preservePromotedHistoryUntilWorkspaceErase
               }) else { throw DeletionLedgerFailureV2.invalidSchemaVersion }
+    }
+}
+
+enum MeasurementIntegrityDeletionLedgerPolicyV1 {
+    enum Disposition: String, Codable, Sendable { case preserveImmutableHistory, eraseWithWorkspace }
+    static func disposition(for kind: V18BackupMeasurementIntegrityRecordV1.Kind) -> Disposition {
+        switch kind {
+        case .instrumentReference, .calibrationSnapshot, .measurementCapture, .measurementSeries, .qualityAssessment:
+            return .preserveImmutableHistory
+        }
+    }
+    static func validate() throws {
+        guard V18BackupMeasurementIntegrityRecordV1.Kind.allCases.count == 5,
+              V18BackupMeasurementIntegrityRecordV1.Kind.allCases.allSatisfy({ disposition(for: $0) == .preserveImmutableHistory }) else {
+            throw DeletionLedgerFailureV2.invalidSchemaVersion
+        }
     }
 }
 

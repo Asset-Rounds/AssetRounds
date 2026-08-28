@@ -185,6 +185,39 @@ extension PackageReleaseBindingV1 {
     }
 }
 
+// MARK: - C19 measurement release binding
+
+extension PackageReleaseBindingV1 {
+    /// Preserves the existing active/completed binding while checking that a
+    /// local measurement refers to the same immutable package release and
+    /// workflow bytes.
+    func c19ValidateMeasurementCapture(
+        _ capture: MeasurementCaptureV1
+    ) throws {
+        try validate()
+        try capture.validate()
+        guard capture.packageReleaseID == packageReleaseID,
+              capture.workflowSHA256 == workflowSHA256 else {
+            throw MeasurementIntegrityFailureV1.staleReference
+        }
+    }
+
+    func c19ValidateMeasurementSeries(
+        _ series: MeasurementSeriesV1,
+        captures: [MeasurementCaptureV1],
+        protocolRelease: MeasurementProtocolReleaseV1
+    ) throws {
+        try validate()
+        try protocolRelease.c19ValidateSeries(series, captures: captures)
+        guard captures.allSatisfy({
+            $0.packageReleaseID == packageReleaseID
+                && $0.workflowSHA256 == workflowSHA256
+        }) else {
+            throw MeasurementIntegrityFailureV1.staleReference
+        }
+    }
+}
+
 enum InspectionKernelLifecycleV1 {
     static let mode = "DECLARATION_ONLY"
     static let schema = "KERNEL_CONTRACT_V1"

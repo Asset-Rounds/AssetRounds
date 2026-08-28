@@ -1396,3 +1396,155 @@ extension DeterministicOpenJSONRendererV1 {
         return envelope.report
     }
 }
+
+/// C19's Open JSON companion keeps the exact recorded projection alongside
+/// typed English labels. Labels are presentation only: they never replace a
+/// unit identifier or turn a quality disposition into a compliance claim.
+struct MeasurementIntegrityOpenJSONLabelsV1: Codable, Equatable, Sendable {
+    let heading: String
+    let captureValue: String
+    let captureUnit: String
+    let captureSource: String
+    let captureSourceValue: String
+    let instrumentKind: String?
+    let instrumentLifecycle: String?
+    let calibrationStatus: String?
+    let calibrationBasis: String?
+    let seriesState: String?
+    let qualityResult: String?
+    let qualityReasons: [String]
+    let nextStep: String
+
+    init(projection: MeasurementIntegrityReportProjectionV1) {
+        heading = MeasurementIntegrityLocalizationKeyV1.heading.englishDefaultValue
+        captureValue = MeasurementIntegrityLocalizationKeyV1.captureValue.englishDefaultValue
+        captureUnit = MeasurementIntegrityLocalizationKeyV1.captureUnit.englishDefaultValue
+        captureSource = MeasurementIntegrityLocalizationKeyV1.captureSource.englishDefaultValue
+        captureSourceValue = MeasurementIntegrityLocalizationKeyV1.captureSourceKey(projection.sourceMode)
+            .englishDefaultValue
+        instrumentKind = projection.instrumentKind.map {
+            MeasurementIntegrityLocalizationKeyV1.instrumentKindKey($0).englishDefaultValue
+        }
+        instrumentLifecycle = projection.instrumentLifecycleState.map {
+            MeasurementIntegrityLocalizationKeyV1.instrumentLifecycleKey($0).englishDefaultValue
+        }
+        calibrationStatus = projection.calibrationStatus.map {
+            MeasurementIntegrityLocalizationKeyV1.calibrationStatusKey($0).englishDefaultValue
+        }
+        calibrationBasis = projection.calibrationBasis.map {
+            MeasurementIntegrityLocalizationKeyV1.calibrationBasisKey($0).englishDefaultValue
+        }
+        seriesState = projection.seriesState.map {
+            MeasurementIntegrityLocalizationKeyV1.seriesStateKey($0).englishDefaultValue
+        }
+        qualityResult = projection.qualityResult.map {
+            MeasurementIntegrityLocalizationKeyV1.qualityResultKey($0).englishDefaultValue
+        }
+        qualityReasons = projection.qualityReasonCodes.map {
+            MeasurementIntegrityLocalizationKeyV1.qualityReasonKey($0).englishDefaultValue
+        }
+        nextStep = MeasurementIntegrityLocalizationKeyV1.nextStep.englishDefaultValue
+    }
+
+    func validate() throws {
+        let values = [heading, captureValue, captureUnit, captureSource, captureSourceValue, nextStep]
+            + [instrumentKind, instrumentLifecycle, calibrationStatus, calibrationBasis,
+               seriesState, qualityResult]
+                .compactMap { $0 }
+            + qualityReasons
+        guard values.allSatisfy({ !$0.isEmpty }),
+              !MeasurementIntegrityLocalizationPolicyV1.containsProhibitedClaim(in: values),
+              !MeasurementIntegrityLocalizationPolicyV1.containsCustomerOrWorkDataLeakage(in: values) else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+    }
+}
+
+struct MeasurementIntegrityOpenJSONEnvelopeV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let schema = "MEASUREMENT_INTEGRITY_REPORT_OPEN_JSON_V1"
+
+    let schemaVersion: Int
+    let schema: String
+    let locale: String
+    let projection: MeasurementIntegrityReportProjectionV1
+    let labels: MeasurementIntegrityOpenJSONLabelsV1
+
+    init(
+        projection: MeasurementIntegrityReportProjectionV1,
+        locale: String = "en"
+    ) throws {
+        try projection.validate()
+        guard locale == "en" else { throw SnapshotProjectionFailureV1.incompatibleVersion }
+        schemaVersion = Self.schemaVersion
+        schema = Self.schema
+        self.locale = locale
+        self.projection = projection
+        labels = MeasurementIntegrityOpenJSONLabelsV1(projection: projection)
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion, schema == Self.schema,
+              locale == "en" else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try projection.validate()
+        try labels.validate()
+        guard labels == MeasurementIntegrityOpenJSONLabelsV1(projection: projection) else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+    }
+}
+
+extension DeterministicOpenJSONRendererV1 {
+    static func renderMeasurementIntegrity(
+        _ projection: MeasurementIntegrityReportProjectionV1
+    ) throws -> ReportProjectionOutputV1 {
+        let envelope = try MeasurementIntegrityOpenJSONEnvelopeV1(projection: projection)
+        let data = try measurementIntegrityEncoder().encode(envelope)
+        guard !data.isEmpty, data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes,
+              try reopenMeasurementIntegrity(data) == projection else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        let semanticData = try measurementIntegrityEncoder().encode(projection)
+        return ReportProjectionOutputV1(
+            format: .openJSON,
+            data: data,
+            sha256: KernelCanonicalHashV1.sha256(data),
+            semanticSHA256: KernelCanonicalHashV1.sha256(semanticData),
+            orderedSemanticIDs: [
+                MeasurementIntegrityAccessibilityIDV1.heading.rawValue,
+                "\(MeasurementIntegrityAccessibilityIDV1.capture.rawValue).\(projection.captureID.uuidString.lowercased())",
+            ],
+            taggedPDFAccessibilityEvidence: false
+        )
+    }
+
+    static func reopenMeasurementIntegrity(
+        _ data: Data
+    ) throws -> MeasurementIntegrityReportProjectionV1 {
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .millisecondsSince1970
+        let envelope = try decoder.decode(
+            MeasurementIntegrityOpenJSONEnvelopeV1.self,
+            from: data
+        )
+        try envelope.validate()
+        guard try measurementIntegrityEncoder().encode(envelope) == data else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return envelope.projection
+    }
+
+    private static func measurementIntegrityEncoder() -> JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        encoder.dateEncodingStrategy = .millisecondsSince1970
+        return encoder
+    }
+}

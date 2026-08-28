@@ -35,6 +35,7 @@ actor IntegrationProjectionCheckpointStoreV1: IntegrationProjectionOperationalSt
                       expectedConsumerID: String, maximumStoredEvents: Int) throws {
             try checkpoint.validate()
             try IntegrationProjectionCheckpointStoreV1.validatePackagePromotionEventPage(events)
+            try IntegrationProjectionCheckpointStoreV1.validateMeasurementIntegrityEventPage(events)
             guard schemaVersion == Self.schemaVersion,
                   generationID == expectedGenerationID,
                   workspaceID == expectedWorkspaceID,
@@ -135,6 +136,7 @@ actor IntegrationProjectionCheckpointStoreV1: IntegrationProjectionOperationalSt
     private let maximumStoredEvents: Int
 
     private static func validatePackagePromotionEventPage(_ events:[IntegrationEventV1])throws{let grouped=Dictionary(grouping:events,by:\.sourceReceiptID);for page in grouped.values{let kinds=Set(page.map{$0.subject.kind});let present=kinds.intersection(IntegrationEventProjectionV1.packagePromotionKinds);guard present.isEmpty || (page.count==4&&kinds==IntegrationEventProjectionV1.packagePromotionKinds)else{throw IntegrationEventFailureV1.divergentEvent}}}
+    private static func validateMeasurementIntegrityEventPage(_ events:[IntegrationEventV1])throws{let grouped=Dictionary(grouping:events,by:\.sourceReceiptID);for page in grouped.values{let subjects=page.map(\.subject),present=Set(subjects.map(\.kind)).intersection(IntegrationEventProjectionV1.measurementIntegrityKinds);guard present.isEmpty || (page.count<=128&&Set(subjects).count==subjects.count&&subjects.allSatisfy{IntegrationEventProjectionV1.measurementIntegrityKinds.contains($0.kind)})else{throw IntegrationEventFailureV1.divergentEvent}}}
 
     init(generationRootURL: URL, generationID: UUID, workspaceID: WorkspaceID,
          limits: IntegrationEventLimitsV1 = try! IntegrationEventLimitsV1(),

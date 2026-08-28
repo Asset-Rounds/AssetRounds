@@ -1305,6 +1305,9 @@ private extension WholeSignDeletionService {
         let draftCommitReceipts:[DraftCommitReceiptRow];let draftDiscardReceipts:[DraftDiscardReceiptRow]
         let promotedPackageReleases:[PromotedPackageReleaseRow];let packageSandboxRuns:[PackageSandboxRunRow]
         let packagePromotionReceipts:[PackagePromotionReceiptRow];let activePackageRegistryPointers:[ActivePackageRegistryPointerRow]
+        let instrumentReferences:[InstrumentReferenceRow];let calibrationStatusSnapshots:[CalibrationStatusSnapshotRow]
+        let measurementCaptures:[MeasurementCaptureRow];let measurementSeries:[MeasurementSeriesRow]
+        let measurementQualityAssessments:[MeasurementQualityAssessmentRow]
         let observationAndTime: [UUID: ObservationAndTimeRow]
         let recordPayloads: [WorkflowRecordPayloadV1]
         let evidence: [EvidenceFile]
@@ -1358,6 +1361,7 @@ private extension WholeSignDeletionService {
                 workPacketManifests:try boundedFetch(WorkPacketManifestRow.self),workItemClaims:try boundedFetch(WorkItemClaimRow.self),workLeases:try boundedFetch(WorkLeaseRow.self),workReleases:try boundedFetch(WorkReleaseRow.self),workHandoffs:try boundedFetch(WorkHandoffRow.self),
                 fieldDraftCheckpoints:try boundedFetch(FieldDraftCheckpointRow.self),attachmentStagingItems:try boundedFetch(AttachmentStagingItemRow.self),draftCommitSagas:try boundedFetch(DraftCommitSagaRow.self),draftContentReservations:try boundedFetch(DraftContentReservationRow.self),draftCommitReceipts:try boundedFetch(DraftCommitReceiptRow.self),draftDiscardReceipts:try boundedFetch(DraftDiscardReceiptRow.self),
                 promotedPackageReleases:try boundedFetch(PromotedPackageReleaseRow.self),packageSandboxRuns:try boundedFetch(PackageSandboxRunRow.self),packagePromotionReceipts:try boundedFetch(PackagePromotionReceiptRow.self),activePackageRegistryPointers:try boundedFetch(ActivePackageRegistryPointerRow.self),
+                instrumentReferences:try boundedFetch(InstrumentReferenceRow.self),calibrationStatusSnapshots:try boundedFetch(CalibrationStatusSnapshotRow.self),measurementCaptures:try boundedFetch(MeasurementCaptureRow.self),measurementSeries:try boundedFetch(MeasurementSeriesRow.self),measurementQualityAssessments:try boundedFetch(MeasurementQualityAssessmentRow.self),
                 observationAndTime: observationAndTime,
                 recordPayloads: recordPayloads,
                 evidence: try boundedFetch(EvidenceFile.self),
@@ -1398,6 +1402,8 @@ private extension WholeSignDeletionService {
         try WholeSignDeletionRule.validatePackageEvolutionLifecycle(
             authority: .ordinaryAssetOrSiteDelete, before: packageInventory, after: packageInventory
         )
+        let measurementInventory=MeasurementIntegrityDeletionInventoryV1(instrumentReferences:rows.instrumentReferences.count,calibrationSnapshots:rows.calibrationStatusSnapshots.count,measurementCaptures:rows.measurementCaptures.count,measurementSeries:rows.measurementSeries.count,qualityAssessments:rows.measurementQualityAssessments.count)
+        try WholeSignDeletionRule.validateMeasurementIntegrityLifecycle(authority:.ordinaryAssetOrSiteDelete,before:measurementInventory,after:measurementInventory)
         do {
             let descriptors = try rows.functionalRelationshipDescriptors.map { try $0.value() }
             let events = try rows.functionalRelationshipEvents.map { try $0.value() }

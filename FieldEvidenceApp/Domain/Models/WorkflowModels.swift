@@ -187,6 +187,24 @@ final class EvidenceFile {
     }
 }
 
+// MARK: - C19 workflow binding
+
+extension WorkflowRecord {
+    /// The frozen V4 SwiftData row remains unchanged. C19 measurements bind
+    /// through the existing package identity and do not add a parallel
+    /// workflow store or outcome-derived compliance state.
+    func c19ValidateMeasurementCapture(
+        _ capture: MeasurementCaptureV1,
+        against release: InspectionPackageReleaseV1
+    ) throws {
+        try release.c19ValidateMeasurementCapture(capture)
+        guard packID == release.packageID,
+              packContentVersion == release.packageContentVersion else {
+            throw MeasurementIntegrityFailureV1.staleReference
+        }
+    }
+}
+
 @Model
 final class Issue {
     @Attribute(.unique) var id: UUID

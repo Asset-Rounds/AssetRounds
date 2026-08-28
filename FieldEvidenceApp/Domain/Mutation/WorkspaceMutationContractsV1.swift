@@ -70,6 +70,11 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case packageSandboxRun
     case packagePromotionReceipt
     case activePackageRegistryPointer
+    case instrumentReference
+    case calibrationStatusSnapshot
+    case measurementCapture
+    case measurementSeries
+    case measurementQualityAssessment
     case workflowRecord
     case evidenceFile
     case issue
@@ -1273,6 +1278,47 @@ struct FieldDraftMutationV1:Codable,Equatable,Sendable{static let schemaVersion=
 
 struct PackagePromotionMutationV1:Codable,Equatable,Sendable{static let schemaVersion=1;let schemaVersion:Int;let workspaceID:WorkspaceID;let expectedPointerRevision:UInt64;let mutationID:MutationIDV1;let promotedRelease:PromotedPackageReleaseV1;let sandboxRun:PackageSandboxRunV1;let semanticDiff:PackageSemanticDiffV1;let predecessorPointer:ActivePackageRegistryPointerV1?;let resultingPointer:ActivePackageRegistryPointerV1;let actor:ActorSnapshotV1;let receipt:PackagePromotionReceiptV1;init(workspaceID:WorkspaceID,expectedPointerRevision:UInt64,mutationID:MutationIDV1,bundle:PackagePromotionAtomicBundleV1)throws{schemaVersion=Self.schemaVersion;self.workspaceID=workspaceID;self.expectedPointerRevision=expectedPointerRevision;self.mutationID=mutationID;promotedRelease=bundle.promotedRelease;sandboxRun=bundle.sandboxRun;semanticDiff=bundle.semanticDiff;predecessorPointer=bundle.predecessorPointer;resultingPointer=bundle.resultingPointer;actor=bundle.actor;receipt=bundle.receipt;try validate()}func validate()throws{let bundle=PackagePromotionAtomicBundleV1(promotedRelease:promotedRelease,sandboxRun:sandboxRun,semanticDiff:semanticDiff,predecessorPointer:predecessorPointer,resultingPointer:resultingPointer,actor:actor,receipt:receipt);try bundle.validate();guard schemaVersion==Self.schemaVersion,workspaceID==promotedRelease.workspaceID,workspaceID==sandboxRun.workspaceID,workspaceID==resultingPointer.workspaceID,workspaceID==receipt.workspaceID,mutationID==promotedRelease.mutationID,mutationID==sandboxRun.mutationID,mutationID==resultingPointer.mutationID,mutationID==receipt.mutationID,resultingPointer.promotionReceiptID==receipt.receiptID,(predecessorPointer == nil ? expectedPointerRevision==0&&resultingPointer.revision==1 : expectedPointerRevision>0&&expectedPointerRevision<UInt64.max&&predecessorPointer?.revision==expectedPointerRevision&&resultingPointer.revision==expectedPointerRevision+1)else{throw WorkspaceMutationContractFailureV1.invalidPlan}}var affectedIdentities:[WorkspaceEntityIdentityV1]{get throws{try[.init(kind:.promotedPackageRelease,id:promotedRelease.releaseRecordID),.init(kind:.packageSandboxRun,id:sandboxRun.runID),.init(kind:.packagePromotionReceipt,id:receipt.receiptID),.init(kind:.activePackageRegistryPointer,id:resultingPointer.pointerID)].sorted{$0.stableKey<$1.stableKey}}}var concurrencyIdentities:[WorkspaceEntityIdentityV1]{get throws{var values=try affectedIdentities;let pointer=try WorkspaceEntityIdentityV1(kind:.activePackageRegistryPointer,id:predecessorPointer?.pointerID ?? resultingPointer.pointerID);values.removeAll{$0.kind == .activePackageRegistryPointer};values.append(pointer);return values.sorted{$0.stableKey<$1.stableKey}}}func expectedRevision(for identity:WorkspaceEntityIdentityV1)throws->UInt64{identity.kind == .activePackageRegistryPointer ? expectedPointerRevision:0}func canonicalSHA256()throws->String{try validate();return try WorkspaceMutationCanonicalV1.sha256(self)}}
 
+enum MeasurementIntegrityMutationPayloadV1:Codable,Equatable,Sendable{
+    case instrument(InstrumentReferenceV1),calibration(CalibrationStatusSnapshotV1),capture(MeasurementCaptureV1),series(MeasurementSeriesV1),quality(MeasurementQualityAssessmentV1)
+    var workspaceID:WorkspaceID{switch self{case let .instrument(v):v.workspaceID;case let .calibration(v):v.workspaceID;case let .capture(v):v.workspaceID;case let .series(v):v.workspaceID;case let .quality(v):v.workspaceID}}
+    var mutationID:MutationIDV1{switch self{case let .instrument(v):v.mutationID;case let .calibration(v):v.mutationID;case let .capture(v):v.mutationID;case let .series(v):v.mutationID;case let .quality(v):v.mutationID}}
+    var revision:UInt64{switch self{case let .instrument(v):v.revision;case let .calibration(v):v.revision;case let .capture(v):v.revision;case let .series(v):v.revision;case let .quality(v):v.revision}}
+    var identity:WorkspaceEntityIdentityV1{get throws{switch self{case let .instrument(v):try .init(kind:.instrumentReference,id:v.referenceID);case let .calibration(v):try .init(kind:.calibrationStatusSnapshot,id:v.snapshotID);case let .capture(v):try .init(kind:.measurementCapture,id:v.captureID);case let .series(v):try .init(kind:.measurementSeries,id:v.snapshotID);case let .quality(v):try .init(kind:.measurementQualityAssessment,id:v.assessmentID)}}}
+    var predecessorIdentity:WorkspaceEntityIdentityV1?{get throws{switch self{case let .instrument(v):try v.supersedesReferenceID.map{try .init(kind:.instrumentReference,id:$0)};case let .calibration(v):try v.supersedesSnapshotID.map{try .init(kind:.calibrationStatusSnapshot,id:$0)};case let .capture(v):try v.supersedesCaptureID.map{try .init(kind:.measurementCapture,id:$0)};case let .series(v):try v.supersedesSnapshotID.map{try .init(kind:.measurementSeries,id:$0)};case let .quality(v):try v.supersedesAssessmentID.map{try .init(kind:.measurementQualityAssessment,id:$0)}}}
+    var digest:String{switch self{case let .instrument(v):v.referenceSHA256;case let .calibration(v):v.snapshotSHA256;case let .capture(v):v.captureSHA256;case let .series(v):v.seriesSHA256;case let .quality(v):v.assessmentSHA256}}
+    func validate()throws{switch self{case let .instrument(v):try v.validate();case let .calibration(v):try v.validate();case let .capture(v):try v.validate();case let .series(v):try v.validate();case let .quality(v):try v.validate()}}
+}
+extension MeasurementIntegrityAtomicBundleV1{var mutationPayloads:[MeasurementIntegrityMutationPayloadV1]{instruments.map(MeasurementIntegrityMutationPayloadV1.instrument)+calibrations.map(MeasurementIntegrityMutationPayloadV1.calibration)+captures.map(MeasurementIntegrityMutationPayloadV1.capture)+series.map(MeasurementIntegrityMutationPayloadV1.series)+assessments.map(MeasurementIntegrityMutationPayloadV1.quality)}}
+struct MeasurementIntegrityMutationV1:Codable,Equatable,Sendable{
+    static let schemaVersion=1
+    let schemaVersion:Int;let workspaceID:WorkspaceID;let mutationID:MutationIDV1;let bundle:MeasurementIntegrityAtomicBundleV1
+    init(bundle:MeasurementIntegrityAtomicBundleV1)throws{schemaVersion=Self.schemaVersion;workspaceID=bundle.workspaceID;mutationID=bundle.mutationID;self.bundle=bundle;try validate()}
+    func validate()throws{
+        try bundle.validate()
+        let payloads=bundle.mutationPayloads
+        var affected=Set<String>();var concurrency=Set<String>()
+        for payload in payloads{
+            try payload.validate()
+            let identity=try payload.identity
+            let predecessor=try payload.predecessorIdentity
+            guard affected.insert(identity.stableKey).inserted,
+                  concurrency.insert((predecessor ?? identity).stableKey).inserted,
+                  predecessor == nil ? payload.revision==1:payload.revision>1 else{throw WorkspaceMutationContractFailureV1.invalidPlan}
+        }
+        guard schemaVersion==Self.schemaVersion,workspaceID==bundle.workspaceID,mutationID==bundle.mutationID else{throw WorkspaceMutationContractFailureV1.invalidPlan}
+    }
+    var affectedIdentities:[WorkspaceEntityIdentityV1]{get throws{try bundle.mutationPayloads.map{try $0.identity}.sorted{$0.stableKey<$1.stableKey}}}
+    var concurrencyIdentities:[WorkspaceEntityIdentityV1]{get throws{try bundle.mutationPayloads.map{try $0.predecessorIdentity ?? $0.identity}.sorted{$0.stableKey<$1.stableKey}}}
+    func expectedRevision(for identity:WorkspaceEntityIdentityV1)throws->UInt64{
+        for payload in bundle.mutationPayloads{
+            let predecessor=try payload.predecessorIdentity
+            if (predecessor ?? (try payload.identity))==identity{return predecessor == nil ? 0:payload.revision-1}
+        }
+        throw WorkspaceMutationContractFailureV1.invalidPlan
+    }
+    func canonicalSHA256()throws->String{try validate();return try WorkspaceMutationCanonicalV1.sha256(self)}
+}
+
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
     case createCheckDraft(CheckDraftMutationV1)
@@ -1300,6 +1346,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyWorkPacket(WorkPacketMutationV1)
     case applyFieldDraft(FieldDraftMutationV1)
     case applyPackagePromotion(PackagePromotionMutationV1)
+    case applyMeasurementIntegrity(MeasurementIntegrityMutationV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -1329,6 +1376,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyWorkPacket:.applyWorkPacket
         case .applyFieldDraft:.applyFieldDraft
         case .applyPackagePromotion:.applyPackagePromotion
+        case .applyMeasurementIntegrity:.applyMeasurementIntegrity
         }
     }
 }
@@ -1360,6 +1408,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyWorkPacket="apply_work_packet"
     case applyFieldDraft="apply_field_draft"
     case applyPackagePromotion="apply_package_promotion"
+    case applyMeasurementIntegrity="apply_measurement_integrity"
 }
 
 extension WorkspaceCommandV1 {
@@ -2103,6 +2152,7 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind:.applyWorkPacket,disposition:.compensatable,stableReason:"append_work_packet_history_only"),
         .init(commandKind:.applyFieldDraft,disposition:.compensatable,stableReason:"append_field_draft_successor_only"),
         .init(commandKind:.applyPackagePromotion,disposition:.compensatable,stableReason:"append_package_promotion_successor_only"),
+        .init(commandKind:.applyMeasurementIntegrity,disposition:.compensatable,stableReason:"append_measurement_integrity_successor_only"),
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {

@@ -1538,4 +1538,23 @@ extension SnapshotValidatorV1 {
     ) throws {
         try PackageEvolutionReportConsumerPolicyV1.validateSandbox(run)
     }
+
+    /// C19 validation is projection-only. It checks the frozen typed
+    /// measurement object and never resolves current instrument, calibration,
+    /// package, or operator state while reopening a historical report.
+    func validateMeasurementIntegrityProjection(
+        _ projection: MeasurementIntegrityReportProjectionV1
+    ) throws -> MeasurementIntegrityReportProjectionV1 {
+        try projection.validate()
+        try EvidenceDetailMeasurementIntegrityProjectionGuardV1.validate(projection)
+        return projection
+    }
+
+    static func validateMeasurementIntegrityProjection(
+        _ projection: MeasurementIntegrityReportProjectionV1
+    ) throws -> MeasurementIntegrityReportProjectionV1 {
+        try projection.validate()
+        try EvidenceDetailMeasurementIntegrityProjectionGuardV1.validate(projection)
+        return projection
+    }
 }

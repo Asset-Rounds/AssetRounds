@@ -1390,4 +1390,15 @@ extension V9_13PersistentKindLifecycleCoverageTests {
             )
         )
     }
+
+    func testV23P03C19PersistentKindCatalogHasNoPlanRows() throws {
+        let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        XCTAssertEqual(MeasurementIntegrityLifecycleCatalogV1.persistentKinds.count, 5)
+        XCTAssertEqual(MeasurementIntegrityLifecycleCatalogV1.nonpersistentKinds.count, 2)
+        XCTAssertEqual(
+            MeasurementIntegrityLifecycleCatalogV1.disposition(for: "INSTALLATION_PLAN_REFERENCE_V1"),
+            .nonpersistentProjection
+        )
+        try fixture.series.validate()
+    }
 }

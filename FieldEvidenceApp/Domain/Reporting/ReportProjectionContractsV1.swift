@@ -5,6 +5,270 @@ enum ReportAudienceV1: String, Codable, CaseIterable, Hashable, Sendable {
     case customerSafe = "CUSTOMER_SAFE"
 }
 
+/// C19 report projection for one immutable, locally recorded measurement.
+/// Values remain fixed-point and units remain typed identifiers; private
+/// operator, serial, manufacturer, model, response, and evidence content are
+/// deliberately absent from this audience-safe projection.
+struct MeasurementIntegrityReportProjectionV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let captureID: UUID
+    let workspaceID: WorkspaceID
+    let packageReleaseID: String
+    let workflowSHA256: String
+    let enteredValue: ExactDecimalV1
+    let enteredUnitID: String
+    let canonicalValue: ExactDecimalV1
+    let canonicalUnitID: String
+    let dimension: MeasurementDimensionV1
+    let precisionScale: Int
+    let uncertaintyCanonical: ExactDecimalV1?
+    let source: MeasurementSourceV1
+    let sourceMode: MeasurementCaptureSourceModeV1
+    let captureMethodID: String
+    let instrumentReferenceID: UUID?
+    let instrumentID: UUID?
+    let instrumentKind: InstrumentKindV1?
+    let instrumentLifecycleState: InstrumentLifecycleStateV1?
+    let calibrationSnapshotID: UUID?
+    let calibrationStatus: CalibrationStatusV1?
+    let calibrationBasis: CalibrationBasisV1?
+    let seriesID: UUID?
+    let seriesState: MeasurementSeriesStateV1?
+    let seriesExpectedSampleCount: Int?
+    let seriesObservedSampleCount: Int?
+    let protocolReleaseID: UUID?
+    let protocolRevision: UInt64?
+    let aggregationPolicy: MeasurementAggregationPolicyV1?
+    let qualityResult: MeasurementQualityResultV1?
+    let qualityReasonCodes: [MeasurementQualityReasonV1]
+    let qualityPolicyVersion: String?
+    let qualityPolicySHA256: String?
+    let capturedAt: Date
+    let revision: UInt64
+    let captureSHA256: String
+
+    init(
+        capture: MeasurementCaptureV1,
+        instrument: InstrumentReferenceV1? = nil,
+        calibration: CalibrationStatusSnapshotV1? = nil,
+        series: MeasurementSeriesV1? = nil,
+        quality: MeasurementQualityAssessmentV1? = nil
+    ) throws {
+        try capture.validateClosure(instrument: instrument, calibration: calibration)
+        try instrument?.validate()
+        try calibration?.validate()
+        try series?.validate()
+        try quality?.validate()
+        if let instrument {
+            guard capture.workspaceID == instrument.workspaceID,
+                  capture.sourceMode == .localObservation else {
+                throw SnapshotProjectionFailureV1.missingBinding
+            }
+        } else {
+            guard capture.sourceMode == .manualEntry, calibration == nil else {
+                throw SnapshotProjectionFailureV1.missingBinding
+            }
+        }
+        if let instrument {
+            let reference = try InstrumentRevisionReferenceV1(instrument)
+            guard capture.instrument == reference else {
+                throw SnapshotProjectionFailureV1.missingBinding
+            }
+        }
+        if let calibration {
+            let reference = try CalibrationSnapshotReferenceV1(calibration)
+            guard capture.calibration == reference else {
+                throw SnapshotProjectionFailureV1.missingBinding
+            }
+        }
+        if let series {
+            guard series.workspaceID == capture.workspaceID,
+                  series.samples.contains(where: { $0.captureID == capture.captureID
+                      && $0.revision == capture.revision
+                      && $0.captureSHA256 == capture.captureSHA256 }) else {
+                throw SnapshotProjectionFailureV1.missingBinding
+            }
+        }
+        if let quality {
+            guard quality.workspaceID == capture.workspaceID,
+                  (quality.subjectKind == .capture && quality.subjectID == capture.captureID
+                      && quality.subjectRevision == capture.revision
+                      && quality.subjectSHA256 == capture.captureSHA256)
+                      || (quality.subjectKind == .series && series != nil
+                          && quality.subjectID == series?.seriesID
+                          && quality.subjectRevision == series?.revision
+                          && quality.subjectSHA256 == series?.seriesSHA256) else {
+                throw SnapshotProjectionFailureV1.missingBinding
+            }
+        }
+
+        schemaVersion = Self.schemaVersion
+        captureID = capture.captureID
+        workspaceID = capture.workspaceID
+        packageReleaseID = capture.packageReleaseID
+        workflowSHA256 = capture.workflowSHA256
+        enteredValue = capture.measurement.enteredValue
+        enteredUnitID = capture.measurement.enteredUnitID
+        canonicalValue = capture.measurement.canonicalValue
+        canonicalUnitID = capture.measurement.canonicalUnitID
+        dimension = capture.measurement.dimension
+        precisionScale = capture.measurement.precisionScale
+        uncertaintyCanonical = capture.measurement.uncertaintyCanonical
+        source = capture.measurement.source
+        sourceMode = capture.sourceMode
+        captureMethodID = capture.measurement.captureMethodID
+        instrumentReferenceID = capture.instrument?.referenceID
+        instrumentID = instrument?.instrumentID ?? capture.instrument?.instrumentID
+        instrumentKind = instrument?.kind
+        instrumentLifecycleState = instrument?.lifecycleState
+        calibrationSnapshotID = calibration?.snapshotID ?? capture.calibration?.snapshotID
+        calibrationStatus = calibration?.status
+        calibrationBasis = calibration?.basis
+        seriesID = series?.seriesID
+        seriesState = series?.state
+        seriesExpectedSampleCount = series?.expectedSampleCount
+        seriesObservedSampleCount = series?.observedSampleCount
+        protocolReleaseID = series?.protocolReference.releaseID
+        protocolRevision = series?.protocolReference.revision
+        aggregationPolicy = series?.aggregationPolicy
+        qualityResult = quality?.result
+        qualityReasonCodes = quality?.reasonCodes ?? []
+        qualityPolicyVersion = quality?.policyVersion
+        qualityPolicySHA256 = quality?.policySHA256
+        capturedAt = capture.capturedAt
+        revision = capture.revision
+        captureSHA256 = capture.captureSHA256
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              captureID != SearchContractValidationV1.zeroUUID,
+              KernelCanonicalHashV1.validSHA256(packageReleaseID),
+              KernelCanonicalHashV1.validSHA256(workflowSHA256),
+              KernelCanonicalHashV1.validSHA256(captureSHA256),
+              SnapshotProjectionValidationV1.validID(enteredUnitID),
+              SnapshotProjectionValidationV1.validID(canonicalUnitID),
+              precisionScale == canonicalValue.scale,
+              MeasurementIntegrityValidationV1.token(captureMethodID),
+              revision > 0,
+              qualityReasonCodes == qualityReasonCodes.sorted(),
+              Set(qualityReasonCodes).count == qualityReasonCodes.count else {
+            throw SnapshotProjectionFailureV1.invalidValue
+        }
+        guard (try? ExactDecimalV1(mantissa: enteredValue.mantissa, scale: enteredValue.scale)) != nil,
+              (try? ExactDecimalV1(mantissa: canonicalValue.mantissa, scale: canonicalValue.scale)) != nil,
+              (uncertaintyCanonical == nil
+                  || (try? ExactDecimalV1(
+                      mantissa: uncertaintyCanonical!.mantissa,
+                      scale: uncertaintyCanonical!.scale
+                  )) != nil) else {
+            throw SnapshotProjectionFailureV1.invalidValue
+        }
+        guard source == (sourceMode == .manualEntry ? .manualEntry : .instrumentObserved) else {
+            throw SnapshotProjectionFailureV1.invalidValue
+        }
+        switch sourceMode {
+        case .manualEntry:
+            guard instrumentReferenceID == nil, instrumentID == nil,
+                  instrumentKind == nil, instrumentLifecycleState == nil,
+                  calibrationSnapshotID == nil, calibrationStatus == nil,
+                  calibrationBasis == nil else {
+                throw SnapshotProjectionFailureV1.invalidValue
+            }
+        case .localObservation:
+            guard instrumentReferenceID != nil, instrumentID != nil,
+                  instrumentKind != nil, instrumentLifecycleState != nil,
+                  calibrationSnapshotID != nil, calibrationStatus != nil,
+                  calibrationBasis != nil else {
+                throw SnapshotProjectionFailureV1.missingBinding
+            }
+        }
+        if let seriesID {
+            guard seriesID != SearchContractValidationV1.zeroUUID,
+                  let seriesState,
+                  let expected = seriesExpectedSampleCount,
+                  let observed = seriesObservedSampleCount,
+                  expected > 0, observed >= 0, observed <= expected,
+                  protocolReleaseID != nil, (protocolRevision ?? 0) > 0,
+                  aggregationPolicy != nil else {
+                throw SnapshotProjectionFailureV1.invalidValue
+            }
+            _ = seriesState
+        } else {
+            guard seriesState == nil, seriesExpectedSampleCount == nil,
+                  seriesObservedSampleCount == nil, protocolReleaseID == nil,
+                  protocolRevision == nil, aggregationPolicy == nil else {
+                throw SnapshotProjectionFailureV1.invalidValue
+            }
+        }
+        if qualityResult == nil {
+            guard qualityReasonCodes.isEmpty, qualityPolicyVersion == nil,
+                  qualityPolicySHA256 == nil else {
+                throw SnapshotProjectionFailureV1.invalidValue
+            }
+        } else {
+            guard !qualityReasonCodes.isEmpty,
+                  let policyVersion = qualityPolicyVersion,
+                  MeasurementIntegrityValidationV1.token(policyVersion),
+                  let policySHA256 = qualityPolicySHA256,
+                  KernelCanonicalHashV1.validSHA256(policySHA256) else {
+                throw SnapshotProjectionFailureV1.invalidValue
+            }
+            let positiveReasons: Set<MeasurementQualityReasonV1> = [
+                .declaredChecksClear, .calibrationNotRequired,
+            ]
+            let reasons = Set(qualityReasonCodes)
+            guard let qualityResult else {
+                throw SnapshotProjectionFailureV1.invalidValue
+            }
+            switch qualityResult {
+            case .clear:
+                guard reasons.isSubset(of: positiveReasons) else {
+                    throw SnapshotProjectionFailureV1.invalidValue
+                }
+            case .reviewRequired:
+                guard !reasons.isSubset(of: positiveReasons),
+                      !reasons.contains(.humanOverride) else {
+                    throw SnapshotProjectionFailureV1.invalidValue
+                }
+            case .overridden:
+                guard reasons.contains(.humanOverride) else {
+                    throw SnapshotProjectionFailureV1.invalidValue
+                }
+            }
+        }
+        guard revision <= UInt64(Int.max),
+              protocolRevision.map({ $0 <= UInt64(Int.max) }) ?? true,
+              capturedAt.timeIntervalSinceReferenceDate.isFinite else {
+            throw SnapshotProjectionFailureV1.invalidValue
+        }
+    }
+}
+
+enum ReportMeasurementIntegrityProjectionPolicyV1 {
+    static let sectionID = "measurement-integrity"
+    static let sectionVersion = 1
+    static let projectionVersion = "report-measurement-integrity-v1"
+    static let privacyClass = ReportPrivacyClassV1.audienceSafe
+    static let supportedFormats: [ReportProjectionFormatV1] = [.openJSON, .pdf, .structuredText]
+    static let requiresExactFixedPointValues = true
+    static let freezesUnitMeaning = true
+    static let excludesOpaqueSerial = true
+    static let excludesOperatorIdentity = true
+    static let excludesEvidenceLocators = true
+    static let excludesRawResponse = true
+    static let excludesUnsupportedClaims = true
+
+    static func supports(_ format: ReportProjectionFormatV1) -> Bool {
+        supportedFormats.contains(format)
+    }
+}
+
+typealias C19MeasurementIntegrityReportProjectionV1 = MeasurementIntegrityReportProjectionV1
+
 enum ReportDetailLevelV1: String, Codable, CaseIterable, Hashable, Sendable {
     case summary = "SUMMARY"
     case complete = "COMPLETE"

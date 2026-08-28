@@ -955,3 +955,120 @@ enum PackageEvolutionAccessibilityPolicyV1 {
             && !packageBytesAndActorIdentityExposed
     }
 }
+
+/// Closed C19 semantic IDs for local measurement-integrity presentation.
+/// These IDs identify the meaning of a record, never an instrument serial,
+/// actor identity, evidence locator, or localized display string.
+enum MeasurementIntegrityAccessibilityIDV1: String, Codable, CaseIterable, Sendable {
+    case screen = "measurement.integrity.screen"
+    case heading = "measurement.integrity.heading"
+    case instrument = "measurement.integrity.instrument"
+    case instrumentKind = "measurement.integrity.instrument.kind"
+    case instrumentKindMeasuring = "measurement.integrity.instrument.kind.measuring"
+    case instrumentKindReference = "measurement.integrity.instrument.kind.reference"
+    case instrumentKindOther = "measurement.integrity.instrument.kind.other"
+    case instrumentLifecycle = "measurement.integrity.instrument.lifecycle"
+    case instrumentLifecycleActive = "measurement.integrity.instrument.lifecycle.active"
+    case instrumentLifecycleOutOfService = "measurement.integrity.instrument.lifecycle.out_of_service"
+    case instrumentLifecycleRetired = "measurement.integrity.instrument.lifecycle.retired"
+    case calibration = "measurement.integrity.calibration"
+    case calibrationStatus = "measurement.integrity.calibration.status"
+    case calibrationNotRequired = "measurement.integrity.calibration.status.not_required"
+    case calibrationCurrent = "measurement.integrity.calibration.status.current"
+    case calibrationExpired = "measurement.integrity.calibration.status.expired"
+    case calibrationUnknown = "measurement.integrity.calibration.status.unknown"
+    case calibrationOutOfService = "measurement.integrity.calibration.status.out_of_service"
+    case calibrationBasis = "measurement.integrity.calibration.basis"
+    case capture = "measurement.integrity.capture"
+    case captureValue = "measurement.integrity.capture.value"
+    case captureUnit = "measurement.integrity.capture.unit"
+    case captureSource = "measurement.integrity.capture.source"
+    case captureSourceManual = "measurement.integrity.capture.source.manual_entry"
+    case captureSourceLocalObservation = "measurement.integrity.capture.source.local_observation"
+    case series = "measurement.integrity.series"
+    case seriesState = "measurement.integrity.series.state"
+    case seriesOpen = "measurement.integrity.series.state.open"
+    case seriesFinalized = "measurement.integrity.series.state.finalized"
+    case `protocol` = "measurement.integrity.protocol"
+    case quality = "measurement.integrity.quality"
+    case qualityResult = "measurement.integrity.quality.result"
+    case qualityClear = "measurement.integrity.quality.result.clear"
+    case qualityReviewRequired = "measurement.integrity.quality.result.review_required"
+    case qualityOverridden = "measurement.integrity.quality.result.overridden"
+    case qualityReason = "measurement.integrity.quality.reason"
+    case qualityReasonDeclaredChecksClear = "measurement.integrity.quality.reason.declared_checks_clear"
+    case qualityReasonCalibrationNotRequired = "measurement.integrity.quality.reason.calibration_not_required"
+    case qualityReasonCalibrationExpired = "measurement.integrity.quality.reason.calibration_expired"
+    case qualityReasonCalibrationUnknown = "measurement.integrity.quality.reason.calibration_unknown"
+    case qualityReasonInstrumentOutOfService = "measurement.integrity.quality.reason.instrument_out_of_service"
+    case qualityReasonMissingUncertainty = "measurement.integrity.quality.reason.missing_uncertainty"
+    case qualityReasonUncertaintyCrossesBoundary = "measurement.integrity.quality.reason.uncertainty_crosses_boundary"
+    case qualityReasonIncompleteSampleSet = "measurement.integrity.quality.reason.incomplete_sample_set"
+    case qualityReasonDuplicateSample = "measurement.integrity.quality.reason.duplicate_sample"
+    case qualityReasonRetainedOutlier = "measurement.integrity.quality.reason.retained_outlier"
+    case qualityReasonObservationLimitation = "measurement.integrity.quality.reason.observation_limitation"
+    case qualityReasonHumanOverride = "measurement.integrity.quality.reason.human_override"
+    case nextStep = "measurement.integrity.next_step"
+
+    static var measurementHeading: Self { .heading }
+    static var qualityDisposition: Self { .qualityResult }
+    static var actionableNextStep: Self { .nextStep }
+}
+
+/// C19 states always have a text alternative.  Indeterminate records also
+/// expose an actionable next-step hint, while icons, color, and motion remain
+/// supplemental and cannot carry the recorded meaning alone.
+enum MeasurementIntegrityAccessibilityPolicyV1 {
+    static let semanticIDs = MeasurementIntegrityAccessibilityIDV1.allCases.map(\.rawValue)
+    static let stateSemanticIDs: Set<String> = [
+        MeasurementIntegrityAccessibilityIDV1.instrumentLifecycleActive.rawValue,
+        MeasurementIntegrityAccessibilityIDV1.instrumentLifecycleOutOfService.rawValue,
+        MeasurementIntegrityAccessibilityIDV1.instrumentLifecycleRetired.rawValue,
+        MeasurementIntegrityAccessibilityIDV1.calibrationNotRequired.rawValue,
+        MeasurementIntegrityAccessibilityIDV1.calibrationCurrent.rawValue,
+        MeasurementIntegrityAccessibilityIDV1.calibrationExpired.rawValue,
+        MeasurementIntegrityAccessibilityIDV1.calibrationUnknown.rawValue,
+        MeasurementIntegrityAccessibilityIDV1.calibrationOutOfService.rawValue,
+        MeasurementIntegrityAccessibilityIDV1.seriesOpen.rawValue,
+        MeasurementIntegrityAccessibilityIDV1.seriesFinalized.rawValue,
+        MeasurementIntegrityAccessibilityIDV1.qualityClear.rawValue,
+        MeasurementIntegrityAccessibilityIDV1.qualityReviewRequired.rawValue,
+        MeasurementIntegrityAccessibilityIDV1.qualityOverridden.rawValue,
+    ]
+    static let indeterminateSemanticIDs: Set<String> = [
+        MeasurementIntegrityAccessibilityIDV1.instrumentLifecycleOutOfService.rawValue,
+        MeasurementIntegrityAccessibilityIDV1.calibrationExpired.rawValue,
+        MeasurementIntegrityAccessibilityIDV1.calibrationUnknown.rawValue,
+        MeasurementIntegrityAccessibilityIDV1.calibrationOutOfService.rawValue,
+        MeasurementIntegrityAccessibilityIDV1.seriesOpen.rawValue,
+        MeasurementIntegrityAccessibilityIDV1.qualityReviewRequired.rawValue,
+        MeasurementIntegrityAccessibilityIDV1.qualityOverridden.rawValue,
+        MeasurementIntegrityAccessibilityIDV1.qualityReasonMissingUncertainty.rawValue,
+        MeasurementIntegrityAccessibilityIDV1.qualityReasonIncompleteSampleSet.rawValue,
+        MeasurementIntegrityAccessibilityIDV1.qualityReasonObservationLimitation.rawValue,
+    ]
+    static let statusSemanticIDs = stateSemanticIDs
+    static let denyByDefault = true
+    static let nonColorStateTextRequired = true
+    static let textAlternativeRequired = true
+    static let textAndIconRequiredForIndeterminateStates = true
+    static let actionableNextStepRequiredForIndeterminateStates = true
+    static let colorOnlyStateAllowed = false
+    static let iconOnlyStateAllowed = false
+    static let motionOnlyStateAllowed = false
+    static let excludesOpaqueSerialAndOperatorIdentity = true
+    static let excludesEvidenceLocators = true
+    static let rtlRequired = true
+    static let dynamicTypeRequired = true
+    static let voiceOverRequired = true
+    static let voiceControlRequired = true
+    static let switchControlRequired = true
+
+    static func requiresTextAndIcon(for semanticID: String) -> Bool {
+        indeterminateSemanticIDs.contains(semanticID)
+    }
+
+    static func requiresActionableNextStep(for semanticID: String) -> Bool {
+        indeterminateSemanticIDs.contains(semanticID)
+    }
+}

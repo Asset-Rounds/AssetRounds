@@ -302,3 +302,54 @@ extension FindingV1 {
         )
     }
 }
+
+// MARK: - C19 quality findings
+
+extension FindingSourceV1 {
+    /// Creates a finding source for a non-clear measurement quality review.
+    /// This is a reference-only projection; it does not turn quality state
+    /// into a compliance or diagnostic claim.
+    static func c19MeasurementQuality(
+        _ assessment: MeasurementQualityAssessmentV1
+    ) throws -> Self {
+        try assessment.validate()
+        guard assessment.result != .clear,
+              let sourceRevision = Int(exactly: assessment.subjectRevision) else {
+            throw FindingContractFailureV1.invalidValue
+        }
+        let kind: FindingSourceKindV1 = assessment.subjectKind == .capture
+            ? .inspectionResponse
+            : .inspectionObservation
+        return try Self(
+            kind: kind,
+            sourceID: assessment.subjectID.uuidString.lowercased(),
+            sourceRevision: sourceRevision,
+            evidenceRevisionIDs: assessment.evidence.map(\.id).sorted()
+        )
+    }
+}
+
+extension FindingV1 {
+    /// Verifies that a finding references the exact immutable C19 quality
+    /// assessment revision and evidence set.
+    func c19ValidateMeasurementQuality(
+        _ assessment: MeasurementQualityAssessmentV1
+    ) throws {
+        try assessment.validate()
+        guard assessment.result != .clear,
+              let subjectRevision = Int(exactly: assessment.subjectRevision) else {
+            throw FindingContractFailureV1.invalidValue
+        }
+        let expectedKindID = assessment.subjectKind == .capture
+            ? "measurement.capture"
+            : "measurement.series"
+        let expectedSource = try FindingSourceV1.c19MeasurementQuality(assessment)
+        guard subject.subjectKindID == expectedKindID,
+              subject.subjectID == assessment.subjectID.uuidString.lowercased(),
+              subject.subjectRevision == subjectRevision,
+              source == expectedSource,
+              source.evidenceRevisionIDs == assessment.evidence.map(\.id).sorted() else {
+            throw FindingContractFailureV1.invalidValue
+        }
+    }
+}

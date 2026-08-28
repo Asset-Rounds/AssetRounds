@@ -678,6 +678,18 @@ extension V9_19LocalSearchTests {
         XCTAssertTrue(PackageSandboxCheckKindV1.allCases.contains(.replay))
         XCTAssertTrue(PackageEvolutionLifecycleV1.searchRebuildReplayRequired)
     }
+
+    func testV23P03C19SearchRebuildUsesCanonicalMeasurementIdentity() throws {
+        let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        let captureData = try MeasurementIntegrityCanonicalCodecV1.encode(fixture.capture)
+        let capture = try MeasurementIntegrityCanonicalCodecV1.decode(
+            MeasurementCaptureV1.self, from: captureData
+        )
+        XCTAssertEqual(capture.captureID, fixture.capture.captureID)
+        XCTAssertEqual(capture.captureSHA256, fixture.capture.captureSHA256)
+        XCTAssertEqual(capture.measurement.canonicalUnitID, "lx")
+        XCTAssertTrue(capture.measurement.source.isLocalMeasurementCaptureSource)
+    }
 }
 
 extension V9_19LocalSearchTests {

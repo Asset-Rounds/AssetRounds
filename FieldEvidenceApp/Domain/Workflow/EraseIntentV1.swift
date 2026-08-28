@@ -17,6 +17,12 @@ enum PackageEvolutionEraseBoundaryV1 {
     static let workspaceEraseClearsEntireClosure = true
 }
 
+enum MeasurementIntegrityEraseBoundaryV1 {
+    static let atomicFamilyCount = 5
+    static let ordinaryDeletionPreservesFrozenHistory = true
+    static let workspaceEraseClearsEntireClosure = true
+}
+
 enum EvidenceAssuranceEraseBoundaryV1 {
     static let immutableHistoryClearedOnlyByWorkspaceErase = true
     static let ordinaryDeletionIsZeroWrite = true

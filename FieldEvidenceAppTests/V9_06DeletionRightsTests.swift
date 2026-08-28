@@ -502,4 +502,15 @@ extension V9_06DeletionRightsTests {
             )
         )
     }
+
+    func testV23P03C19DeletionPreservesMeasurementHistoryUntilErase() throws {
+        let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        try MeasurementIntegrityDeletionLedgerPolicyV1.validate()
+        XCTAssertEqual(
+            V18BackupMeasurementIntegrityRecordV1.Kind.allCases.count,
+            5
+        )
+        XCTAssertTrue(MeasurementIntegrityEraseBoundaryV1.ordinaryDeletionPreservesFrozenHistory)
+        XCTAssertEqual(fixture.qualityOverride.supersedesAssessmentID, fixture.qualityReview.assessmentID)
+    }
 }

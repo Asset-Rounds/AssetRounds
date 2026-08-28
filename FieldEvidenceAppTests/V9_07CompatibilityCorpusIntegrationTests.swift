@@ -701,4 +701,12 @@ extension V9_07CompatibilityCorpusIntegrationTests {
         XCTAssertTrue(source.contains("\"persistentModelCount\": 53"))
         XCTAssertTrue(source.contains("\"recordsSchemaVersion\": 13"))
     }
+
+    func testV23P03C19CorpusBindsRecords17AndPersistentSchema18() throws {
+        let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        XCTAssertEqual(fixture.bundle.series.count, 1)
+        XCTAssertEqual(fixture.bundle.assessments.count, 3)
+        XCTAssertEqual(PersistentSchemaV18.models.count, 73)
+        XCTAssertTrue(MeasurementIntegrityLifecycleCatalogV1.persistentKinds.contains("MEASUREMENT_CAPTURE_V1"))
+    }
 }

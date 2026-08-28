@@ -152,6 +152,7 @@ final class LocalChangeJournalV1 {
             throw IntegrationEventFailureV1.divergentEvent
         }
         try receipts.forEach { try IntegrationEventProjectionV1.validatePackagePromotionReceiptShape($0) }
+        try receipts.forEach { try IntegrationEventProjectionV1.validateMeasurementIntegrityReceiptShape($0) }
         return receipts
     }
 

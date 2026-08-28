@@ -91,6 +91,10 @@ struct DiagnosticExportV1: Codable, Equatable, Sendable {
     /// Optional WorkPacket coordination counts. This is deliberately a
     /// summary-only surface and is absent unless the caller supplies it.
     var workPacket: WorkPacketDiagnosticSummaryV1? = nil
+    /// Optional C19 metadata-only summary. Exact values, units, actor
+    /// snapshots, opaque serials, and evidence references are never diagnostic
+    /// payload and therefore do not appear here.
+    var measurementIntegrity: MeasurementIntegrityDiagnosticMetadataV1? = nil
 
     /// Integration event payloads, subjects, cursors, and checkpoint bytes are
     /// never diagnostic material. Diagnostics may describe only the static
@@ -114,6 +118,7 @@ struct DiagnosticExportV1: Codable, Equatable, Sendable {
                 RequirementAssuranceSnapshotCanonicalCodecV1.isValid($0)
             } ?? true)
             && (workPacket?.isValid ?? true)
+            && (measurementIntegrity?.isValid ?? true)
             && integrationProjectionPayloadExcluded
     }
 
@@ -261,6 +266,9 @@ enum DiagnosticExportCanonicalEncoderV1 {
         if let workPacket = value.workPacket {
             object["workPacket"] = workPacketValue(workPacket)
         }
+        if let measurementIntegrity = value.measurementIntegrity {
+            object["measurementIntegrity"] = measurementIntegrityValue(measurementIntegrity)
+        }
         let data = try CanonicalJSONV1.encode(.object(object))
         try IntegrationProjectionDiagnosticExclusionV1.validate(data)
         return data
@@ -277,6 +285,26 @@ enum DiagnosticExportCanonicalEncoderV1 {
             "leasedItemCount": .integer(value.leasedItemCount),
             "packetCount": .integer(value.packetCount),
             "releasedItemCount": .integer(value.releasedItemCount),
+        ])
+    }
+
+    private static func measurementIntegrityValue(
+        _ value: MeasurementIntegrityDiagnosticMetadataV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "schemaVersion": .integer(value.schemaVersion),
+            "captureCount": .integer(value.captureCount),
+            "seriesCount": .integer(value.seriesCount),
+            "qualityAssessmentCount": .integer(value.qualityAssessmentCount),
+            "calibrationStatuses": .array(value.calibrationStatuses.map { .string($0.rawValue) }),
+            "qualityResults": .array(value.qualityResults.map { .string($0.rawValue) }),
+            "sourceModes": .array(value.sourceModes.map { .string($0.rawValue) }),
+            "policyVersion": .string(value.policyVersion),
+            "metadataOnly": .bool(value.metadataOnly),
+            "excludesCanonicalValues": .bool(value.excludesCanonicalValues),
+            "excludesOpaqueSerials": .bool(value.excludesOpaqueSerials),
+            "excludesOperatorIdentity": .bool(value.excludesOperatorIdentity),
+            "excludesEvidenceLocators": .bool(value.excludesEvidenceLocators),
         ])
     }
 
@@ -640,5 +668,83 @@ extension DiagnosticExportV1 {
         _ bundle: PackagePromotionAtomicBundleV1
     ) throws -> PackageEvolutionDiagnosticMetadataV1 {
         try PackageEvolutionDiagnosticMetadataV1(bundle: bundle)
+    }
+}
+
+/// The diagnostic surface for C19 is intentionally a bounded health summary.
+/// It can report counts and recorded dispositions, but never values, units,
+/// operator identity, serials, response payloads, or evidence locators.
+struct MeasurementIntegrityDiagnosticMetadataV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let policyVersion = "MEASUREMENT_INTEGRITY_DIAGNOSTIC_V1"
+
+    let schemaVersion: Int
+    let captureCount: Int
+    let seriesCount: Int
+    let qualityAssessmentCount: Int
+    let calibrationStatuses: [CalibrationStatusV1]
+    let qualityResults: [MeasurementQualityResultV1]
+    let sourceModes: [MeasurementCaptureSourceModeV1]
+    let policyVersion: String
+    let metadataOnly: Bool
+    let excludesCanonicalValues: Bool
+    let excludesOpaqueSerials: Bool
+    let excludesOperatorIdentity: Bool
+    let excludesEvidenceLocators: Bool
+
+    init(
+        captures: [MeasurementCaptureV1],
+        series: [MeasurementSeriesV1] = [],
+        qualityAssessments: [MeasurementQualityAssessmentV1] = [],
+        calibrationStatuses: [CalibrationStatusV1] = []
+    ) throws {
+        try captures.forEach { try $0.validate() }
+        try series.forEach { try $0.validate() }
+        try qualityAssessments.forEach { try $0.validate() }
+        guard captures.count <= MeasurementIntegrityLimitsV1.maximumSampleCount,
+              series.count <= MeasurementIntegrityLimitsV1.maximumSampleCount,
+              qualityAssessments.count <= MeasurementIntegrityLimitsV1.maximumSampleCount else {
+            throw DiagnosticExportError.invalidValue
+        }
+        schemaVersion = Self.schemaVersion
+        captureCount = captures.count
+        seriesCount = series.count
+        qualityAssessmentCount = qualityAssessments.count
+        self.calibrationStatuses = Array(Set(calibrationStatuses.map(\.rawValue)))
+            .compactMap(CalibrationStatusV1.init(rawValue:))
+            .sorted { $0.rawValue < $1.rawValue }
+        qualityResults = Array(Set(qualityAssessments.map { $0.result.rawValue }))
+            .compactMap(MeasurementQualityResultV1.init(rawValue:))
+            .sorted { $0.rawValue < $1.rawValue }
+        sourceModes = Array(Set(captures.map { $0.sourceMode.rawValue }))
+            .compactMap(MeasurementCaptureSourceModeV1.init(rawValue:))
+            .sorted { $0.rawValue < $1.rawValue }
+        policyVersion = Self.policyVersion
+        metadataOnly = true
+        excludesCanonicalValues = true
+        excludesOpaqueSerials = true
+        excludesOperatorIdentity = true
+        excludesEvidenceLocators = true
+        try validate()
+    }
+
+    var isValid: Bool {
+        (try? validate()) != nil
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              captureCount >= 0, seriesCount >= 0, qualityAssessmentCount >= 0,
+              calibrationStatuses == calibrationStatuses.sorted(by: { $0.rawValue < $1.rawValue }),
+              qualityResults == qualityResults.sorted(by: { $0.rawValue < $1.rawValue }),
+              sourceModes == sourceModes.sorted(by: { $0.rawValue < $1.rawValue }),
+              Set(calibrationStatuses.map(\.rawValue)).count == calibrationStatuses.count,
+              Set(qualityResults.map(\.rawValue)).count == qualityResults.count,
+              Set(sourceModes.map(\.rawValue)).count == sourceModes.count,
+              policyVersion == Self.policyVersion,
+              metadataOnly, excludesCanonicalValues, excludesOpaqueSerials,
+              excludesOperatorIdentity, excludesEvidenceLocators else {
+            throw DiagnosticExportError.invalidValue
+        }
     }
 }

@@ -1319,3 +1319,46 @@ extension FindingClassificationBindingV1 {
         "finding:\(findingID.uuidString.lowercased()):classification:\(revision)"
     }
 }
+
+// MARK: - C19 measurement protocol bindings
+
+extension MeasurementProtocolReleaseV1 {
+    /// Binds a local capture to the immutable protocol release. Unit
+    /// conversion remains owned by the exact-measurement kernel; this seam
+    /// checks only the protocol's dimension, canonical unit, and uncertainty
+    /// requirement.
+    func c19ValidateCapture(_ capture: MeasurementCaptureV1) throws {
+        try validate()
+        try capture.validate()
+        let normativeUnit = try KernelUnitRegistryV1.definition(unitID: normativeUnitID)
+        guard capture.workspaceID == workspaceID,
+              capture.measurement.dimension == dimension,
+              capture.measurement.canonicalUnitID == normativeUnit.canonicalUnitID,
+              !requiresUncertainty || capture.measurement.uncertaintyCanonical != nil else {
+            throw MeasurementIntegrityFailureV1.staleReference
+        }
+    }
+
+    /// Verifies the ordered capture references and immutable protocol
+    /// identity before a series is projected or finalized.
+    func c19ValidateSeries(
+        _ series: MeasurementSeriesV1,
+        captures: [MeasurementCaptureV1]
+    ) throws {
+        try validate()
+        try series.validateClosure(captures: captures, protocolRelease: self)
+        guard series.workspaceID == workspaceID,
+              series.protocolReference.releaseID == releaseID,
+              series.protocolReference.revision == revision,
+              series.protocolReference.releaseSHA256 == releaseSHA256,
+              series.expectedSampleCount >= minimumSampleCount,
+              series.expectedSampleCount <= maximumSampleCount else {
+            throw MeasurementIntegrityFailureV1.staleReference
+        }
+        if samplingPolicy == .single {
+            guard series.expectedSampleCount == 1 else {
+                throw MeasurementIntegrityFailureV1.incompleteSeries
+            }
+        }
+    }
+}

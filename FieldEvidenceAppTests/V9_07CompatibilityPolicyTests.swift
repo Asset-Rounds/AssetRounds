@@ -339,4 +339,15 @@ extension V9_07CompatibilityPolicyTests {
         XCTAssertEqual(fixture.supersedingPolicy.supersedesReleaseID, fixture.policy.releaseID)
         XCTAssertNotEqual(fixture.supersedingPolicy.mutationID, fixture.policy.mutationID)
     }
+
+    func testV23P03C19CompatibilityUsesForwardFixAfterV18() throws {
+        let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        try MeasurementIntegrityForwardFixPolicyV1.requireForwardFix(
+            afterFirstWrite: true, requestedGeneration: 18
+        )
+        XCTAssertThrowsError(try MeasurementIntegrityForwardFixPolicyV1.requireForwardFix(
+            afterFirstWrite: true, requestedGeneration: 17
+        ))
+        try fixture.currentCalibration.validate()
+    }
 }

@@ -1698,4 +1698,29 @@ extension SearchIndexRebuildCoordinatorV1 {
 
     static let packageEvolutionReplayDisposition =
         "REBUILD_FROM_CANONICAL_PACKAGE_PROMOTION_RECEIPT"
+
+    /// Rebuilds the C19 disposable metadata rows from frozen report
+    /// projections. Sorting and duplicate rejection make replay deterministic;
+    /// exact values and private provenance never enter the searchable rows.
+    static func measurementIntegritySearchRecords(
+        from projections: [MeasurementIntegrityReportProjectionV1],
+        sourceRevision: UInt64 = 0
+    ) throws -> [MeasurementIntegritySearchRecordV1] {
+        let records = try projections.map {
+            try MeasurementIntegritySearchRecordV1(
+                projection: $0,
+                sourceRevision: sourceRevision
+            )
+        }.sorted { lhs, rhs in
+            lhs.captureID.uuidString.lowercased() < rhs.captureID.uuidString.lowercased()
+        }
+        guard Set(records.map(\.captureID)).count == records.count else {
+            throw SearchContractFailureV1.duplicateProjection
+        }
+        try records.forEach { try $0.validate() }
+        return records
+    }
+
+    static let measurementIntegrityReplayDisposition =
+        "DROP_AND_REBUILD_FROM_FROZEN_MEASUREMENT_PROJECTION"
 }

@@ -673,3 +673,90 @@ struct PackageEvolutionCompatibilityV1: Codable, Equatable, Sendable {
 extension ReleasedDataCompatibilityPolicyV1 {
     static let packageEvolutionCompatibility = PackageEvolutionCompatibilityV1.current
 }
+
+/// C19's V18/records-17 compatibility contract is additive to the released
+/// artifact-family table. Historical reports remain readable as frozen data;
+/// derived search metadata is always dropped and rebuilt from canonical
+/// measurement snapshots.
+struct MeasurementIntegrityCompatibilityPolicyV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let persistentSchemaVersion = 18
+    static let recordsSchemaVersion = 17
+    static let persistentContractSchema = PersistentSchemaReleaseV1.v18.compatibilityID
+    static let currentPersistentWriterVersion = "18.0.0"
+    static let currentBackupWriterVersion = "archive1-backup4-persistent18-records17"
+    static let readablePersistentWriterVersions = [
+        "1.0.0", "2.0.0", "3.0.0", "4.0.0", "5.0.0", "6.0.0", "7.0.0",
+        "8.0.0", "9.0.0", "10.0.0", "11.0.0", "12.0.0", "13.0.0",
+        "14.0.0", "15.0.0", "16.0.0", "17.0.0", "18.0.0",
+    ]
+    static let readableBackupWriterVersions = [
+        "archive1-backup4-persistent17-records16",
+        "archive1-backup4-persistent18-records17",
+    ]
+    static let downgradeDisposition =
+        "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_ACTIVATION"
+
+    let schemaVersion: Int
+    let persistentSchemaVersion: Int
+    let recordsSchemaVersion: Int
+    let persistentContractSchema: String
+    let currentPersistentWriterVersion: String
+    let currentBackupWriterVersion: String
+    let readablePersistentWriterVersions: [String]
+    let readableBackupWriterVersions: [String]
+    let downgradeDisposition: String
+    let historicalReportsPinFrozenCaptureAndCalibration: Bool
+    let derivedSearchDropsAndRebuilds: Bool
+    let unknownVersionsFailClosed: Bool
+
+    init() {
+        schemaVersion = Self.schemaVersion
+        persistentSchemaVersion = Self.persistentSchemaVersion
+        recordsSchemaVersion = Self.recordsSchemaVersion
+        persistentContractSchema = Self.persistentContractSchema
+        currentPersistentWriterVersion = Self.currentPersistentWriterVersion
+        currentBackupWriterVersion = Self.currentBackupWriterVersion
+        readablePersistentWriterVersions = Self.readablePersistentWriterVersions
+        readableBackupWriterVersions = Self.readableBackupWriterVersions
+        downgradeDisposition = Self.downgradeDisposition
+        historicalReportsPinFrozenCaptureAndCalibration = true
+        derivedSearchDropsAndRebuilds = true
+        unknownVersionsFailClosed = true
+    }
+
+    static let current = Self()
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              persistentSchemaVersion == Self.persistentSchemaVersion,
+              recordsSchemaVersion == Self.recordsSchemaVersion,
+              persistentContractSchema == Self.persistentContractSchema,
+              currentPersistentWriterVersion == Self.currentPersistentWriterVersion,
+              currentBackupWriterVersion == Self.currentBackupWriterVersion,
+              readablePersistentWriterVersions == Self.readablePersistentWriterVersions,
+              readableBackupWriterVersions == Self.readableBackupWriterVersions,
+              readablePersistentWriterVersions.contains(currentPersistentWriterVersion),
+              readableBackupWriterVersions.contains(currentBackupWriterVersion),
+              downgradeDisposition == Self.downgradeDisposition,
+              historicalReportsPinFrozenCaptureAndCalibration,
+              derivedSearchDropsAndRebuilds,
+              unknownVersionsFailClosed else {
+            throw CompatibilityContractErrorV1.invalidSupportTable
+        }
+    }
+
+    static func acceptsPersistentWriterVersion(_ version: String) -> Bool {
+        (try? current.validate()) != nil
+            && current.readablePersistentWriterVersions.contains(version)
+    }
+
+    static func acceptsBackupWriterVersion(_ version: String) -> Bool {
+        (try? current.validate()) != nil
+            && current.readableBackupWriterVersions.contains(version)
+    }
+}
+
+extension ReleasedDataCompatibilityPolicyV1 {
+    static let measurementIntegrityCompatibility = MeasurementIntegrityCompatibilityPolicyV1.current
+}

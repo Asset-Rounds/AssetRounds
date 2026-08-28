@@ -653,4 +653,15 @@ extension S8_3DiagnosticPrivacyTests {
         XCTAssertTrue(claims.values.allSatisfy { ($0 as? Bool) == false })
         XCTAssertTrue(root.keys.contains("localizationAccessibility"))
     }
+
+    func testV23P03C19MeasurementEvidenceRemainsLocalAndProviderFree() throws {
+        let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        XCTAssertTrue(fixture.capture.measurement.source.isLocalMeasurementCaptureSource)
+        XCTAssertFalse(fixture.capture.evidence.contains {
+            $0.contentID.localizedCaseInsensitiveContains("provider")
+                || $0.contentID.localizedCaseInsensitiveContains("cloud")
+        })
+        XCTAssertFalse(MeasurementIntegrityLifecycleCatalogV1.persistentKinds.contains("REMOTE_PROVIDER_V1"))
+        XCTAssertTrue(MeasurementIntegrityEraseBoundaryV1.workspaceEraseClearsEntireClosure)
+    }
 }

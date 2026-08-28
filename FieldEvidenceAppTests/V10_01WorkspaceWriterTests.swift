@@ -796,4 +796,18 @@ extension V10_01WorkspaceWriterTests {
         XCTAssertGreaterThan(MemoryLayout<PackageEvolutionCoordinatorV1>.size, 0)
         XCTAssertGreaterThan(MemoryLayout<PackagePromotionAtomicBundleV1>.size, 0)
     }
+
+    func testV23P03C19CoordinatorPreparesOneTypedAtomicBundle() throws {
+        let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        let bundle = try MeasurementIntegrityCoordinatorV1.prepare(
+            workspaceID: fixture.workspace, mutationID: fixture.mutationID,
+            instruments: [fixture.instrument], calibrations: [fixture.currentCalibration],
+            captures: [fixture.capture], series: [fixture.series],
+            assessments: [fixture.qualityClear]
+        )
+        XCTAssertEqual(bundle.workspaceID, fixture.workspace)
+        XCTAssertEqual(bundle.mutationID, fixture.mutationID)
+        XCTAssertEqual(bundle.instruments.count + bundle.calibrations.count + bundle.captures.count + bundle.series.count + bundle.assessments.count, 5)
+        try bundle.validate()
+    }
 }

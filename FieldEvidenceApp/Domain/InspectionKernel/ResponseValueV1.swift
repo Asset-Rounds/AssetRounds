@@ -311,6 +311,34 @@ struct ResponseDynamicCodingKeyV1: CodingKey {
     init?(intValue: Int) { stringValue = String(intValue); self.intValue = intValue }
 }
 
+// MARK: - C19 measurement capture bridge
+
+extension ResponseValueV1 {
+    /// Returns the exact fixed-point measurement only when the response is a
+    /// measurement value. Imported and derived measurements remain valid
+    /// response values, but are not accepted as a local C19 capture source.
+    var c19Measurement: ExactMeasurementV1? {
+        guard case let .measurement(value) = self else { return nil }
+        return value
+    }
+
+    func c19LocalMeasurement() throws -> ExactMeasurementV1 {
+        guard case let .measurement(value) = self,
+              value.isLocalMeasurementCaptureSource else {
+            throw MeasurementIntegrityFailureV1.unsupportedSource
+        }
+        try value.validate()
+        return value
+    }
+
+    func c19ValidateMeasurementEquality(_ expected: ExactMeasurementV1) throws {
+        let actual = try c19LocalMeasurement()
+        guard actual == expected else {
+            throw MeasurementIntegrityFailureV1.invalidValue
+        }
+    }
+}
+
 enum ResponseClosedCodingV1 {
     static func requireExact(_ decoder: any Decoder, keys: [String]) throws {
         let c = try decoder.container(keyedBy: ResponseDynamicCodingKeyV1.self)

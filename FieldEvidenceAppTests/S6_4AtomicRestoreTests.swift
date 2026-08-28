@@ -914,4 +914,14 @@ extension S6_4AtomicRestoreTests {
         XCTAssertEqual(try policyRow.value(), fixture.policy)
         XCTAssertEqual(try eventRow.value(), fixture.actions[3])
     }
+
+    func testV23P03C19RestoreRehydratesImmutableCaptureAndCalibrationRows() throws {
+        let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        let captureRow = try MeasurementCaptureRow(fixture.capture)
+        let calibrationRow = try CalibrationStatusSnapshotRow(fixture.currentCalibration)
+        XCTAssertEqual(try captureRow.value(), fixture.capture)
+        XCTAssertEqual(try calibrationRow.value(), fixture.currentCalibration)
+        XCTAssertEqual(captureRow.mutationID, calibrationRow.mutationID)
+        XCTAssertEqual(captureRow.workspaceID, calibrationRow.workspaceID)
+    }
 }

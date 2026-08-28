@@ -1625,6 +1625,7 @@ private extension BackupRestoreService {
         with packets: [V4BackupPacketDTO]
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            measurementIntegrity: records.measurementIntegrity,
             packageEvolution: records.packageEvolution,
             fieldDrafts: records.fieldDrafts, workPackets:records.workPackets, inspectionReview: records.inspectionReview,
             evidenceAssurance: records.evidenceAssurance,
@@ -1675,6 +1676,7 @@ private extension BackupRestoreService {
         with history: MutationHistorySnapshotV1
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            measurementIntegrity: records.measurementIntegrity,
             packageEvolution: records.packageEvolution,
             fieldDrafts: records.fieldDrafts, workPackets:records.workPackets, inspectionReview: records.inspectionReview,
             evidenceAssurance: records.evidenceAssurance,
@@ -1790,6 +1792,7 @@ private extension BackupRestoreService {
             return try V8BackupRequirementAssuranceRecordV1(row)
         }.sorted { canonical($0.workflowRecordID) < canonical($1.workflowRecordID) }
         return V4BackupRecordsV1(
+            measurementIntegrity: records.measurementIntegrity,
             packageEvolution: records.packageEvolution,
             fieldDrafts: records.fieldDrafts, workPackets:records.workPackets, inspectionReview: records.inspectionReview,
             evidenceAssurance: records.evidenceAssurance,
@@ -2029,8 +2032,13 @@ private extension BackupRestoreService {
             sourcePartyAccountability: records.partyAccountability,
             partyAccountability: partyAccountability
         )
+        let measurementIntegrity = try rebindingMeasurementIntegrity(
+            records.measurementIntegrity, workspaceID: workspaceID,
+            authorityCriterion: authorityCriterion
+        )
         guard let archived = records.locationMigrationReceipts.first else {
             return V4BackupRecordsV1(
+                measurementIntegrity: measurementIntegrity,
                 packageEvolution: packageEvolution,
                 fieldDrafts: fieldDrafts, workPackets:workPackets,
                 inspectionReview: inspectionReview,
@@ -2082,6 +2090,7 @@ private extension BackupRestoreService {
             bindings: receipt.bindings
         )
         return V4BackupRecordsV1(
+            measurementIntegrity: measurementIntegrity,
             packageEvolution: packageEvolution,
             fieldDrafts: fieldDrafts, workPackets:workPackets,
             inspectionReview: inspectionReview,
@@ -2721,6 +2730,73 @@ private extension BackupRestoreService {
         output += try receipts.values.map { .init(kind:.promotionReceipt,id:$0.receiptID,workspaceID:workspaceID.rawValue,revision:$0.revision,canonicalData:try PackageEvolutionCanonicalCodecV1.encode($0)) }
         output += try pointers.values.map { .init(kind:.activePointer,id:$0.pointerID,workspaceID:workspaceID.rawValue,revision:$0.revision,canonicalData:try PackageEvolutionCanonicalCodecV1.encode($0)) }
         return output.sorted { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)" }
+    }
+
+    func rebindingMeasurementIntegrity(
+        _ records:[V18BackupMeasurementIntegrityRecordV1], workspaceID:WorkspaceID,
+        authorityCriterion:[V11BackupAuthorityCriterionRecordV1]
+    ) throws -> [V18BackupMeasurementIntegrityRecordV1] {
+        let sourceInstruments=try records.filter{$0.kind == .instrumentReference}.map{try MeasurementIntegrityCanonicalCodecV1.decode(InstrumentReferenceV1.self,from:$0.canonicalData)}
+        let instruments=try Dictionary(uniqueKeysWithValues:sourceInstruments.map{let v=try $0.rebound(to:workspaceID);return(v.referenceID,v)})
+        let sourceCalibrations=try records.filter{$0.kind == .calibrationSnapshot}.map{try MeasurementIntegrityCanonicalCodecV1.decode(CalibrationStatusSnapshotV1.self,from:$0.canonicalData)}
+        var calibrations:[UUID:CalibrationStatusSnapshotV1]=[:]
+        for source in sourceCalibrations { guard let instrument=instruments[source.instrument.referenceID] else{throw BackupRestoreServiceError.invalidPackage};let base=try source.rebound(to:workspaceID);let value=try CalibrationStatusSnapshotV1(snapshotID:base.snapshotID,workspaceID:workspaceID,instrument:InstrumentRevisionReferenceV1(instrument),status:base.status,basis:base.basis,effectiveAt:base.effectiveAt,expiresAt:base.expiresAt,sourceReference:base.sourceReference,capturedAt:base.capturedAt,supersedesSnapshotID:base.supersedesSnapshotID,revision:base.revision,mutationID:base.mutationID);calibrations[value.snapshotID]=value }
+        let sourceCaptures=try records.filter{$0.kind == .measurementCapture}.map{try MeasurementIntegrityCanonicalCodecV1.decode(MeasurementCaptureV1.self,from:$0.canonicalData)}
+        var captures:[UUID:MeasurementCaptureV1]=[:]
+        for source in sourceCaptures { let base=try source.rebound(to:workspaceID);let instrument=try source.instrument.map{ref in guard let value=instruments[ref.referenceID]else{throw BackupRestoreServiceError.invalidPackage};return try InstrumentRevisionReferenceV1(value)};let calibration=try source.calibration.map{ref in guard let value=calibrations[ref.snapshotID]else{throw BackupRestoreServiceError.invalidPackage};return try CalibrationSnapshotReferenceV1(value)};let value=try MeasurementCaptureV1(captureID:base.captureID,workspaceID:workspaceID,packageReleaseID:base.packageReleaseID,workflowSHA256:base.workflowSHA256,response:base.response,measurement:base.measurement,sourceMode:base.sourceMode,instrument:instrument,calibration:calibration,observationBasis:base.observationBasis,operatorSnapshot:base.operatorSnapshot,evidence:base.evidence,capturedAt:base.capturedAt,supersedesCaptureID:base.supersedesCaptureID,revision:base.revision,mutationID:base.mutationID);captures[value.captureID]=value }
+        let reboundProtocols=try authorityCriterion.filter{$0.kind == .measurementProtocolRelease}.map{try AuthorityCriterionCanonicalCodecV1.decode(MeasurementProtocolReleaseV1.self,from:$0.canonicalData)}
+        let protocols=Dictionary(uniqueKeysWithValues:reboundProtocols.map{($0.releaseID,$0)})
+        let sourceSeries=try records.filter{$0.kind == .measurementSeries}.map{try MeasurementIntegrityCanonicalCodecV1.decode(MeasurementSeriesV1.self,from:$0.canonicalData)}
+        var series:[UUID:MeasurementSeriesV1]=[:]
+        for source in sourceSeries { guard let protocolRelease=protocols[source.protocolReference.releaseID]else{throw BackupRestoreServiceError.invalidPackage};let base=try source.rebound(to:workspaceID);let samples=try source.samples.map{ref in guard let capture=captures[ref.captureID]else{throw BackupRestoreServiceError.invalidPackage};return try MeasurementCaptureReferenceV1(captureID:capture.captureID,revision:capture.revision,captureSHA256:capture.captureSHA256,sampleOrdinal:ref.sampleOrdinal)};let value=try MeasurementSeriesV1(snapshotID:base.snapshotID,seriesID:base.seriesID,workspaceID:workspaceID,protocolReference:MeasurementProtocolReferenceV1(protocolRelease),samples:samples,expectedSampleCount:base.expectedSampleCount,aggregationPolicy:base.aggregationPolicy,state:base.state,derivedFact:base.derivedFact,recordedAt:base.recordedAt,supersedesSnapshotID:base.supersedesSnapshotID,revision:base.revision,mutationID:base.mutationID);series[value.snapshotID]=value }
+        let sourceAssessments=try records.filter{$0.kind == .qualityAssessment}.map{try MeasurementIntegrityCanonicalCodecV1.decode(MeasurementQualityAssessmentV1.self,from:$0.canonicalData)}
+        var assessments:[UUID:MeasurementQualityAssessmentV1]=[:]
+        for source in sourceAssessments {
+            let base = try source.rebound(to: workspaceID)
+            let subject: (UInt64, String)
+            switch source.subjectKind {
+            case .capture:
+                guard let value = captures[source.subjectID] else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                subject = (value.revision, value.captureSHA256)
+            case .series:
+                let matchingSourceSubjects = sourceSeries.filter {
+                    ($0.snapshotID == source.subjectID || $0.seriesID == source.subjectID)
+                        && $0.revision == source.subjectRevision
+                        && $0.seriesSHA256 == source.subjectSHA256
+                }
+                guard matchingSourceSubjects.count == 1,
+                      let value = series[matchingSourceSubjects[0].snapshotID],
+                      value.state == .finalized else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                subject = (value.revision, value.seriesSHA256)
+            }
+            let value = try MeasurementQualityAssessmentV1(
+                assessmentID: base.assessmentID,
+                workspaceID: workspaceID,
+                subjectKind: base.subjectKind,
+                subjectID: base.subjectID,
+                subjectRevision: subject.0,
+                subjectSHA256: subject.1,
+                result: base.result,
+                reasonCodes: base.reasonCodes,
+                policyVersion: base.policyVersion,
+                policySHA256: base.policySHA256,
+                evidence: base.evidence,
+                reviewer: base.reviewer,
+                overrideRationale: base.overrideRationale,
+                assessedAt: base.assessedAt,
+                supersedesAssessmentID: base.supersedesAssessmentID,
+                revision: base.revision,
+                mutationID: base.mutationID
+            )
+            assessments[value.assessmentID] = value
+        }
+        var output:[V18BackupMeasurementIntegrityRecordV1]=[]
+        output += try instruments.values.map{.init(kind:.instrumentReference,id:$0.referenceID,workspaceID:workspaceID.rawValue,revision:$0.revision,canonicalData:try MeasurementIntegrityCanonicalCodecV1.encode($0))};output += try calibrations.values.map{.init(kind:.calibrationSnapshot,id:$0.snapshotID,workspaceID:workspaceID.rawValue,revision:$0.revision,canonicalData:try MeasurementIntegrityCanonicalCodecV1.encode($0))};output += try captures.values.map{.init(kind:.measurementCapture,id:$0.captureID,workspaceID:workspaceID.rawValue,revision:$0.revision,canonicalData:try MeasurementIntegrityCanonicalCodecV1.encode($0))};output += try series.values.map{.init(kind:.measurementSeries,id:$0.snapshotID,workspaceID:workspaceID.rawValue,revision:$0.revision,canonicalData:try MeasurementIntegrityCanonicalCodecV1.encode($0))};output += try assessments.values.map{.init(kind:.qualityAssessment,id:$0.assessmentID,workspaceID:workspaceID.rawValue,revision:$0.revision,canonicalData:try MeasurementIntegrityCanonicalCodecV1.encode($0))}
+        return output.sorted{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"}
     }
 
     func rebindingInspectionReview(
@@ -3369,7 +3445,8 @@ private extension BackupRestoreService {
                 || records.recordsSchemaVersion == 13
                 || records.recordsSchemaVersion == 14
                 || records.recordsSchemaVersion == 15
-                || records.recordsSchemaVersion == 16)
+                || records.recordsSchemaVersion == 16
+                || records.recordsSchemaVersion == 17)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -3626,7 +3703,8 @@ private extension BackupRestoreService {
             || records.recordsSchemaVersion == 12
             || records.recordsSchemaVersion == 13 || records.recordsSchemaVersion == 14
             || records.recordsSchemaVersion == 15
-            || records.recordsSchemaVersion == 16 {
+            || records.recordsSchemaVersion == 16
+            || records.recordsSchemaVersion == 17 {
             do {
                 for record in records.savedSmartViews {
                     let descriptor = try record.descriptor()
@@ -3841,6 +3919,19 @@ private extension BackupRestoreService {
                 }
             } catch { throw BackupRestoreServiceError.invalidPackage }
         }
+        if records.recordsSchemaVersion >= 17 {
+            do {
+                for record in records.measurementIntegrity {
+                    switch record.kind {
+                    case .instrumentReference: context.insert(try InstrumentReferenceRow(MeasurementIntegrityCanonicalCodecV1.decode(InstrumentReferenceV1.self,from:record.canonicalData)))
+                    case .calibrationSnapshot: context.insert(try CalibrationStatusSnapshotRow(MeasurementIntegrityCanonicalCodecV1.decode(CalibrationStatusSnapshotV1.self,from:record.canonicalData)))
+                    case .measurementCapture: context.insert(try MeasurementCaptureRow(MeasurementIntegrityCanonicalCodecV1.decode(MeasurementCaptureV1.self,from:record.canonicalData)))
+                    case .measurementSeries: context.insert(try MeasurementSeriesRow(MeasurementIntegrityCanonicalCodecV1.decode(MeasurementSeriesV1.self,from:record.canonicalData)))
+                    case .qualityAssessment: context.insert(try MeasurementQualityAssessmentRow(MeasurementIntegrityCanonicalCodecV1.decode(MeasurementQualityAssessmentV1.self,from:record.canonicalData)))
+                    }
+                }
+            } catch { throw BackupRestoreServiceError.invalidPackage }
+        }
         if let mutationHistory = records.mutationHistory {
             guard records.recordsSchemaVersion == 3
                     || records.recordsSchemaVersion == 4
@@ -3855,7 +3946,8 @@ private extension BackupRestoreService {
                     || records.recordsSchemaVersion == 13
                     || records.recordsSchemaVersion == 14
                     || records.recordsSchemaVersion == 15
-                    || records.recordsSchemaVersion == 16 else {
+                    || records.recordsSchemaVersion == 16
+                    || records.recordsSchemaVersion == 17 else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {
@@ -4939,7 +5031,8 @@ private extension BackupRestoreService {
                 || actual.recordsSchemaVersion == 13
                 || actual.recordsSchemaVersion == 14
                 || actual.recordsSchemaVersion == 15
-                || actual.recordsSchemaVersion == 16) else {
+                || actual.recordsSchemaVersion == 16
+                || actual.recordsSchemaVersion == 17) else {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
         if expected.recordsSchemaVersion == 5 || expected.recordsSchemaVersion == 6 {
@@ -4958,6 +5051,7 @@ private extension BackupRestoreService {
         schemaVersion: Int
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            measurementIntegrity: schemaVersion >= 17 ? records.measurementIntegrity : [],
             packageEvolution: schemaVersion >= 16 ? records.packageEvolution : [],
             fieldDrafts: schemaVersion >= 15 ? records.fieldDrafts : [],
             workPackets:schemaVersion>=14 ? records.workPackets:[],
@@ -4993,6 +5087,7 @@ private extension BackupRestoreService {
         expected: V4BackupRecordsV1
     ) throws -> Bool {
         let predecessor = V4BackupRecordsV1(
+            measurementIntegrity: expected.recordsSchemaVersion >= 17 ? expected.measurementIntegrity : [],
             packageEvolution: expected.recordsSchemaVersion >= 16 ? expected.packageEvolution : [],
             fieldDrafts: expected.recordsSchemaVersion >= 15 ? expected.fieldDrafts : [],
             workPackets:expected.recordsSchemaVersion>=14 ? expected.workPackets:[],
@@ -5183,6 +5278,7 @@ private extension BackupRestoreService {
         let packageSandboxRuns = try context.fetch(FetchDescriptor<PackageSandboxRunRow>())
         let packagePromotionReceipts = try context.fetch(FetchDescriptor<PackagePromotionReceiptRow>())
         let activePackageRegistryPointers = try context.fetch(FetchDescriptor<ActivePackageRegistryPointerRow>())
+        let instrumentReferences=try context.fetch(FetchDescriptor<InstrumentReferenceRow>()),calibrationStatusSnapshots=try context.fetch(FetchDescriptor<CalibrationStatusSnapshotRow>()),measurementCaptures=try context.fetch(FetchDescriptor<MeasurementCaptureRow>()),measurementSeries=try context.fetch(FetchDescriptor<MeasurementSeriesRow>()),measurementQualityAssessments=try context.fetch(FetchDescriptor<MeasurementQualityAssessmentRow>())
         let workPacketManifests=try context.fetch(FetchDescriptor<WorkPacketManifestRow>()),workItemClaims=try context.fetch(FetchDescriptor<WorkItemClaimRow>()),workLeases=try context.fetch(FetchDescriptor<WorkLeaseRow>()),workReleases=try context.fetch(FetchDescriptor<WorkReleaseRow>()),workHandoffs=try context.fetch(FetchDescriptor<WorkHandoffRow>())
         let evidenceVisibilities = try context.fetch(FetchDescriptor<EvidenceVisibilityRow>())
         let claimEvidenceLinks = try context.fetch(FetchDescriptor<ClaimEvidenceLinkRow>())
@@ -5212,6 +5308,13 @@ private extension BackupRestoreService {
             mutationHistory = nil
         }
         return V4BackupRecordsV1(
+            measurementIntegrity: try (
+                instrumentReferences.map{let v=try $0.value();return V18BackupMeasurementIntegrityRecordV1(kind:.instrumentReference,id:v.referenceID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData)}
+                + calibrationStatusSnapshots.map{let v=try $0.value();return V18BackupMeasurementIntegrityRecordV1(kind:.calibrationSnapshot,id:v.snapshotID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData)}
+                + measurementCaptures.map{let v=try $0.value();return V18BackupMeasurementIntegrityRecordV1(kind:.measurementCapture,id:v.captureID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData)}
+                + measurementSeries.map{let v=try $0.value();return V18BackupMeasurementIntegrityRecordV1(kind:.measurementSeries,id:v.snapshotID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData)}
+                + measurementQualityAssessments.map{let v=try $0.value();return V18BackupMeasurementIntegrityRecordV1(kind:.qualityAssessment,id:v.assessmentID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData)}
+            ).sorted{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"},
             packageEvolution: try (
                 promotedPackageReleases.map { let v=try $0.value(); return .init(kind:.promotedRelease,id:v.releaseRecordID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData) }
                 + packageSandboxRuns.map { let v=try $0.value(); return .init(kind:.sandboxRun,id:v.runID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData) }

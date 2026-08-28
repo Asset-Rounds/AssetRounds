@@ -462,4 +462,12 @@ extension V9_06DeletionArchiveIntegrationTests {
         XCTAssertEqual(row.reviewID, fixture.reviewID)
         XCTAssertEqual(row.revision, 1)
     }
+
+    func testV23P03C19DeleteArchiveKeepsCanonicalMeasurementRows() throws {
+        let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        try KernelDeletionEraseRegistryV4.validateMeasurementIntegrityLifecycle()
+        let row = try MeasurementSeriesRow(fixture.series)
+        XCTAssertEqual(try row.value(), fixture.series)
+        XCTAssertEqual(MeasurementIntegrityLifecycleCatalogV1.disposition(for: "MEASUREMENT_SERIES_V1"), .canonicalPersistent)
+    }
 }

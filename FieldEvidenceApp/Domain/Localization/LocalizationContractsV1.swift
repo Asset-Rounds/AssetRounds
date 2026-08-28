@@ -2241,3 +2241,278 @@ extension FieldDraftLocalizationKeyV1 {
         }
     }
 }
+
+/// C19's presentation surface is deliberately separate from the durable
+/// measurement contracts.  The recorded fixed-point value, unit identity,
+/// calibration status, and quality result remain machine facts; these keys
+/// provide stable English labels for a local report reader only.
+enum MeasurementIntegrityLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
+    case heading = "measurement.integrity.heading"
+    case instrument = "measurement.integrity.instrument"
+    case instrumentKind = "measurement.integrity.instrument.kind"
+    case instrumentKindMeasuring = "measurement.integrity.instrument.kind.measuring"
+    case instrumentKindReference = "measurement.integrity.instrument.kind.reference"
+    case instrumentKindOther = "measurement.integrity.instrument.kind.other"
+    case instrumentLifecycle = "measurement.integrity.instrument.lifecycle"
+    case instrumentLifecycleActive = "measurement.integrity.instrument.lifecycle.active"
+    case instrumentLifecycleOutOfService = "measurement.integrity.instrument.lifecycle.out_of_service"
+    case instrumentLifecycleRetired = "measurement.integrity.instrument.lifecycle.retired"
+    case calibration = "measurement.integrity.calibration"
+    case calibrationStatus = "measurement.integrity.calibration.status"
+    case calibrationNotRequired = "measurement.integrity.calibration.status.not_required"
+    case calibrationCurrent = "measurement.integrity.calibration.status.current"
+    case calibrationExpired = "measurement.integrity.calibration.status.expired"
+    case calibrationUnknown = "measurement.integrity.calibration.status.unknown"
+    case calibrationOutOfService = "measurement.integrity.calibration.status.out_of_service"
+    case calibrationBasis = "measurement.integrity.calibration.basis"
+    case calibrationBasisDeclared = "measurement.integrity.calibration.basis.declared_not_required"
+    case calibrationBasisEvidence = "measurement.integrity.calibration.basis.referenced_evidence"
+    case calibrationBasisLocal = "measurement.integrity.calibration.basis.locally_recorded"
+    case calibrationBasisUnknown = "measurement.integrity.calibration.basis.unknown"
+    case capture = "measurement.integrity.capture"
+    case captureValue = "measurement.integrity.capture.value"
+    case captureUnit = "measurement.integrity.capture.unit"
+    case captureSource = "measurement.integrity.capture.source"
+    case captureSourceManual = "measurement.integrity.capture.source.manual_entry"
+    case captureSourceLocalObservation = "measurement.integrity.capture.source.local_observation"
+    case series = "measurement.integrity.series"
+    case seriesState = "measurement.integrity.series.state"
+    case seriesOpen = "measurement.integrity.series.state.open"
+    case seriesFinalized = "measurement.integrity.series.state.finalized"
+    case `protocol` = "measurement.integrity.protocol"
+    case quality = "measurement.integrity.quality"
+    case qualityResult = "measurement.integrity.quality.result"
+    case qualityClear = "measurement.integrity.quality.result.clear"
+    case qualityReviewRequired = "measurement.integrity.quality.result.review_required"
+    case qualityOverridden = "measurement.integrity.quality.result.overridden"
+    case qualityReason = "measurement.integrity.quality.reason"
+    case qualityReasonDeclaredChecksClear = "measurement.integrity.quality.reason.declared_checks_clear"
+    case qualityReasonCalibrationNotRequired = "measurement.integrity.quality.reason.calibration_not_required"
+    case qualityReasonCalibrationExpired = "measurement.integrity.quality.reason.calibration_expired"
+    case qualityReasonCalibrationUnknown = "measurement.integrity.quality.reason.calibration_unknown"
+    case qualityReasonInstrumentOutOfService = "measurement.integrity.quality.reason.instrument_out_of_service"
+    case qualityReasonMissingUncertainty = "measurement.integrity.quality.reason.missing_uncertainty"
+    case qualityReasonUncertaintyCrossesBoundary = "measurement.integrity.quality.reason.uncertainty_crosses_boundary"
+    case qualityReasonIncompleteSampleSet = "measurement.integrity.quality.reason.incomplete_sample_set"
+    case qualityReasonDuplicateSample = "measurement.integrity.quality.reason.duplicate_sample"
+    case qualityReasonRetainedOutlier = "measurement.integrity.quality.reason.retained_outlier"
+    case qualityReasonObservationLimitation = "measurement.integrity.quality.reason.observation_limitation"
+    case qualityReasonHumanOverride = "measurement.integrity.quality.reason.human_override"
+    case nextStep = "measurement.integrity.next_step"
+
+    static var measurementHeading: Self { .heading }
+    static var instrumentReference: Self { .instrument }
+    static var calibrationStatusLabel: Self { .calibrationStatus }
+    static var exactValue: Self { .captureValue }
+    static var exactUnit: Self { .captureUnit }
+    static var qualityDisposition: Self { .qualityResult }
+    static var actionableNextStep: Self { .nextStep }
+
+    var localizationKey: LocalizationKeyV1 {
+        // The enum is closed and checked again when the bundled registry is
+        // built; force-try here cannot receive an unvalidated key.
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+
+    var englishDefaultValue: String {
+        switch self {
+        case .heading: return "Measurement record"
+        case .instrument: return "Instrument"
+        case .instrumentKind: return "Instrument type"
+        case .instrumentKindMeasuring: return "Measuring instrument"
+        case .instrumentKindReference: return "Reference standard"
+        case .instrumentKindOther: return "Other declared type"
+        case .instrumentLifecycle: return "Instrument lifecycle"
+        case .instrumentLifecycleActive: return "Active (recorded)"
+        case .instrumentLifecycleOutOfService: return "Out of service (recorded)"
+        case .instrumentLifecycleRetired: return "Retired (recorded)"
+        case .calibration: return "Calibration record"
+        case .calibrationStatus: return "Calibration status"
+        case .calibrationNotRequired: return "Not required (recorded)"
+        case .calibrationCurrent: return "Current at capture (recorded)"
+        case .calibrationExpired: return "Expired at capture (recorded)"
+        case .calibrationUnknown: return "Unknown at capture"
+        case .calibrationOutOfService: return "Out of service at capture"
+        case .calibrationBasis: return "Calibration basis"
+        case .calibrationBasisDeclared: return "Declared not required"
+        case .calibrationBasisEvidence: return "Referenced local evidence"
+        case .calibrationBasisLocal: return "Locally recorded status"
+        case .calibrationBasisUnknown: return "Unknown basis"
+        case .capture: return "Measurement capture"
+        case .captureValue: return "Recorded value"
+        case .captureUnit: return "Recorded unit"
+        case .captureSource: return "Capture source"
+        case .captureSourceManual: return "Manual entry"
+        case .captureSourceLocalObservation: return "Local instrument observation"
+        case .series: return "Measurement series"
+        case .seriesState: return "Series state"
+        case .seriesOpen: return "Open (recorded)"
+        case .seriesFinalized: return "Finalized (recorded)"
+        case .`protocol`: return "Measurement protocol"
+        case .quality: return "Quality review"
+        case .qualityResult: return "Quality result"
+        case .qualityClear: return "Clear (recorded)"
+        case .qualityReviewRequired: return "Review required"
+        case .qualityOverridden: return "Overridden by recorded review"
+        case .qualityReason: return "Quality reason"
+        case .qualityReasonDeclaredChecksClear: return "Declared checks clear"
+        case .qualityReasonCalibrationNotRequired: return "Calibration not required"
+        case .qualityReasonCalibrationExpired: return "Calibration expired"
+        case .qualityReasonCalibrationUnknown: return "Calibration unknown"
+        case .qualityReasonInstrumentOutOfService: return "Instrument out of service"
+        case .qualityReasonMissingUncertainty: return "Uncertainty not recorded"
+        case .qualityReasonUncertaintyCrossesBoundary: return "Uncertainty crosses a boundary"
+        case .qualityReasonIncompleteSampleSet: return "Sample set incomplete"
+        case .qualityReasonDuplicateSample: return "Duplicate sample"
+        case .qualityReasonRetainedOutlier: return "Outlier retained in the record"
+        case .qualityReasonObservationLimitation: return "Observation limitation recorded"
+        case .qualityReasonHumanOverride: return "Recorded human override"
+        case .nextStep: return "Next recorded step"
+        }
+    }
+
+    var translatorComment: String {
+        "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail."
+    }
+}
+
+extension MeasurementIntegrityLocalizationKeyV1 {
+    static func instrumentKindKey(_ value: InstrumentKindV1) -> Self {
+        switch value {
+        case .illuminanceMeter, .multimeter, .thermometer:
+            return .instrumentKindMeasuring
+        case .otherTypedLocalInstrument:
+            return .instrumentKindOther
+        }
+    }
+
+    static func instrumentLifecycleKey(_ value: InstrumentLifecycleStateV1) -> Self {
+        switch value {
+        case .active: return .instrumentLifecycleActive
+        case .outOfService: return .instrumentLifecycleOutOfService
+        case .retired: return .instrumentLifecycleRetired
+        }
+    }
+
+    static func calibrationStatusKey(_ value: CalibrationStatusV1) -> Self {
+        switch value {
+        case .notRequired: return .calibrationNotRequired
+        case .current: return .calibrationCurrent
+        case .expired: return .calibrationExpired
+        case .unknown: return .calibrationUnknown
+        case .outOfService: return .calibrationOutOfService
+        }
+    }
+
+    static func calibrationBasisKey(_ value: CalibrationBasisV1) -> Self {
+        switch value {
+        case .declaredNotRequired: return .calibrationBasisDeclared
+        case .referencedEvidence: return .calibrationBasisEvidence
+        case .locallyRecordedStatus: return .calibrationBasisLocal
+        case .unknown: return .calibrationBasisUnknown
+        }
+    }
+
+    static func captureSourceKey(_ value: MeasurementCaptureSourceModeV1) -> Self {
+        switch value {
+        case .manualEntry: return .captureSourceManual
+        case .localObservation: return .captureSourceLocalObservation
+        }
+    }
+
+    static func seriesStateKey(_ value: MeasurementSeriesStateV1) -> Self {
+        switch value {
+        case .open: return .seriesOpen
+        case .finalized: return .seriesFinalized
+        }
+    }
+
+    static func qualityResultKey(_ value: MeasurementQualityResultV1) -> Self {
+        switch value {
+        case .clear: return .qualityClear
+        case .reviewRequired: return .qualityReviewRequired
+        case .overridden: return .qualityOverridden
+        }
+    }
+
+    static func qualityReasonKey(_ value: MeasurementQualityReasonV1) -> Self {
+        switch value {
+        case .declaredChecksClear: return .qualityReasonDeclaredChecksClear
+        case .calibrationNotRequired: return .qualityReasonCalibrationNotRequired
+        case .calibrationExpired: return .qualityReasonCalibrationExpired
+        case .calibrationUnknown: return .qualityReasonCalibrationUnknown
+        case .instrumentOutOfService: return .qualityReasonInstrumentOutOfService
+        case .missingUncertainty: return .qualityReasonMissingUncertainty
+        case .uncertaintyCrossesBoundary: return .qualityReasonUncertaintyCrossesBoundary
+        case .incompleteSampleSet: return .qualityReasonIncompleteSampleSet
+        case .duplicateSample: return .qualityReasonDuplicateSample
+        case .retainedOutlier: return .qualityReasonRetainedOutlier
+        case .observationLimitation: return .qualityReasonObservationLimitation
+        case .humanOverride: return .qualityReasonHumanOverride
+        }
+    }
+}
+
+enum MeasurementIntegrityLocalizationPolicyV1 {
+    static let semanticNamespace = "measurement.integrity"
+    static let sourceLocale = "en"
+    static let shippingLocale = "en"
+    static let metadataLocale = "en-US"
+    static let testOnlyLocales = TestOnlyPseudoLocaleV1.allCases.map(\.rawValue).sorted()
+    static let keys = MeasurementIntegrityLocalizationKeyV1.allCases.map(\.rawValue)
+    static let stateKeys = MeasurementIntegrityLocalizationKeyV1.allCases.filter {
+        $0.rawValue.contains(".status.") || $0.rawValue.contains(".state.")
+            || $0.rawValue.contains(".result.") || $0.rawValue.contains(".reason.")
+            || $0.rawValue.contains(".lifecycle.") || $0.rawValue.contains(".source.")
+    }.map(\.rawValue)
+    static let denyByDefault = true
+    static let requiresExactFixedPointValue = true
+    static let allowsLocalizedUnitIdentity = false
+    static let requiresNonColorStateText = true
+    static let requiresTextAndIconForIndeterminateStates = true
+    static let requiresActionableNextStep = true
+    static let allowsColorOnlyState = false
+    static let allowsIconOnlyState = false
+    static let allowsMotionOnlyState = false
+    static let excludesOpaqueSerial = true
+    static let excludesOperatorSnapshot = true
+    static let excludesEvidenceLocators = true
+    static let excludesUnsupportedClaims = true
+
+    static let prohibitedClaimPhrases: Set<String> = [
+        "pass", "passed", "automatic pass", "fail", "failed", "compliant", "compliance",
+        "certified", "certification", "safe", "safety", "approved", "approval",
+        "authorized", "authorization", "verified", "verification", "secure", "secured",
+        "sent", "delivered", "operator", "serial", "customer data", "work data",
+        "telemetry", "remote calibration", "hardware integration", "predictive maintenance",
+        "diagnosis", "ai diagnosis", "cloud state",
+    ]
+
+    static func containsProhibitedClaim(in values: [String]) -> Bool {
+        values.contains { value in
+            let normalized = value
+                .folding(options: [.caseInsensitive, .diacriticInsensitive],
+                         locale: Locale(identifier: "en_US_POSIX"))
+                .split { !$0.isLetter && !$0.isNumber }
+                .joined(separator: " ")
+            let bounded = " \(normalized) "
+            return prohibitedClaimPhrases.contains { bounded.contains(" \($0) ") }
+        }
+    }
+
+    static func containsCustomerOrWorkDataLeakage(in values: [String]) -> Bool {
+        values.contains { value in
+            let normalized = value
+                .folding(options: [.caseInsensitive, .diacriticInsensitive],
+                         locale: Locale(identifier: "en_US_POSIX"))
+                .split { !$0.isLetter && !$0.isNumber }
+                .joined(separator: " ")
+            let bounded = " \(normalized) "
+            return [" customer data ", " work data ", " customer information ", " private data "]
+                .contains { bounded.contains($0) }
+        }
+    }
+}
+
+typealias MeasurementIntegrityClaimVocabularyV1 = MeasurementIntegrityLocalizationPolicyV1

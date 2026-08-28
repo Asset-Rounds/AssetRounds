@@ -348,6 +348,36 @@ extension SitePartyRoleEventV1 {
     }
 }
 
+// MARK: - C19 measurement accountability bridge
+
+extension ActorSnapshotV1 {
+    /// A measurement operator is a captured local responsibility, never an
+    /// identity or qualification claim. C19 accepts only the two roles that
+    /// can author a local capture.
+    func c19ValidateMeasurementOperator(in workspaceID: WorkspaceID) throws {
+        try validate()
+        guard self.workspaceID == workspaceID else {
+            throw PartyAccountabilityFailureV1.crossWorkspaceReference
+        }
+        guard responsibility == .performedBy || responsibility == .recordedBy else {
+            throw PartyAccountabilityFailureV1.unsupportedClaim
+        }
+    }
+
+    /// Quality review requires an explicitly reviewed-by actor snapshot. It
+    /// is kept separate from operator validation so a capture cannot be
+    /// silently treated as its own review.
+    func c19ValidateMeasurementReviewer(in workspaceID: WorkspaceID) throws {
+        try validate()
+        guard self.workspaceID == workspaceID else {
+            throw PartyAccountabilityFailureV1.crossWorkspaceReference
+        }
+        guard responsibility == .reviewedBy else {
+            throw PartyAccountabilityFailureV1.unsupportedClaim
+        }
+    }
+}
+
 extension ServicePartyReferenceV1 {
     func validateSuccessor(of predecessor: ServicePartyReferenceV1) throws {
         try predecessor.validate(); try validate()

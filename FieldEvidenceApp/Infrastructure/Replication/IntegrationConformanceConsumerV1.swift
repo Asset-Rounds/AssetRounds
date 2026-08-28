@@ -46,6 +46,7 @@ struct IntegrationConformanceConsumerV1: Sendable {
             throw IntegrationEventFailureV1.limitExceeded
         }
         try projection.validatePackagePromotionReplay(acceptedReceipts)
+        try projection.validateMeasurementIntegrityReplay(acceptedReceipts)
         let prior = try await store.checkpoint(
             consumerID: consumer.consumerID, workspaceID: workspaceID
         )
@@ -91,6 +92,7 @@ struct IntegrationConformanceConsumerV1: Sendable {
             throw IntegrationEventFailureV1.limitExceeded
         }
         try projection.validatePackagePromotionReplay(acceptedReceipts)
+        try projection.validateMeasurementIntegrityReplay(acceptedReceipts)
         try await store.dropDerivedProjection(
             consumerID: consumer.consumerID, workspaceID: workspaceID
         )

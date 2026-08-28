@@ -1502,3 +1502,136 @@ enum PackageEvolutionSearchProjectionPolicyV1 {
         fieldIDs.contains(field.rawValue)
     }
 }
+
+/// C19 search is deliberately metadata-only. It exposes stable identifiers,
+/// release identity, typed classification/state, and no exact measurement
+/// values, opaque serials, operator data, response payloads, or evidence.
+enum MeasurementIntegritySearchFieldV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case captureIdentifier = "measurement_capture_identifier"
+    case packageReleaseIdentifier = "measurement_package_release_identifier"
+    case enteredUnitIdentifier = "measurement_entered_unit_identifier"
+    case canonicalUnitIdentifier = "measurement_canonical_unit_identifier"
+    case dimension = "measurement_dimension"
+    case sourceMode = "measurement_source_mode"
+    case instrumentIdentifier = "measurement_instrument_identifier"
+    case calibrationStatus = "measurement_calibration_status"
+    case calibrationBasis = "measurement_calibration_basis"
+    case seriesIdentifier = "measurement_series_identifier"
+    case seriesState = "measurement_series_state"
+    case qualityResult = "measurement_quality_result"
+    case qualityReason = "measurement_quality_reason"
+}
+
+struct MeasurementIntegritySearchRecordV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let workspaceID: UUID
+    let captureID: UUID
+    let sourceRevision: UInt64
+    let boundedFieldValues: [MeasurementIntegritySearchFieldV1: String]
+
+    init(
+        projection: MeasurementIntegrityReportProjectionV1,
+        sourceRevision: UInt64 = 0
+    ) throws {
+        try projection.validate()
+        schemaVersion = Self.schemaVersion
+        workspaceID = projection.workspaceID.rawValue
+        captureID = projection.captureID
+        self.sourceRevision = sourceRevision
+        var values: [MeasurementIntegritySearchFieldV1: String] = [
+            .captureIdentifier: projection.captureID.uuidString.lowercased(),
+            .packageReleaseIdentifier: projection.packageReleaseID,
+            .enteredUnitIdentifier: projection.enteredUnitID,
+            .canonicalUnitIdentifier: projection.canonicalUnitID,
+            .dimension: projection.dimension.rawValue,
+            .sourceMode: projection.sourceMode.rawValue,
+        ]
+        if let instrumentID = projection.instrumentID {
+            values[.instrumentIdentifier] = instrumentID.uuidString.lowercased()
+        }
+        if let status = projection.calibrationStatus {
+            values[.calibrationStatus] = status.rawValue
+        }
+        if let basis = projection.calibrationBasis {
+            values[.calibrationBasis] = basis.rawValue
+        }
+        if let seriesID = projection.seriesID {
+            values[.seriesIdentifier] = seriesID.uuidString.lowercased()
+        }
+        if let state = projection.seriesState {
+            values[.seriesState] = state.rawValue
+        }
+        if let result = projection.qualityResult {
+            values[.qualityResult] = result.rawValue
+        }
+        if !projection.qualityReasonCodes.isEmpty {
+            values[.qualityReason] = projection.qualityReasonCodes.map(\.rawValue).joined(separator: ",")
+        }
+        boundedFieldValues = values
+        try validate()
+    }
+
+    var displayIdentity: String {
+        "measurement:\(captureID.uuidString.lowercased())"
+    }
+
+    func normalizedTokens(for field: MeasurementIntegritySearchFieldV1) -> [String] {
+        guard let value = boundedFieldValues[field] else { return [] }
+        return SearchContractValidationV1.normalizeSearchText(value)
+            .unicodeScalars
+            .split { !CharacterSet.alphanumerics.contains($0) }
+            .map(String.init)
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              workspaceID != SearchContractValidationV1.zeroUUID,
+              captureID != SearchContractValidationV1.zeroUUID,
+              boundedFieldValues.keys.allSatisfy(MeasurementIntegritySearchProjectionPolicyV1.accepts),
+              boundedFieldValues.keys.contains(.captureIdentifier),
+              boundedFieldValues.keys.contains(.packageReleaseIdentifier),
+              boundedFieldValues.keys.contains(.canonicalUnitIdentifier),
+              boundedFieldValues.values.allSatisfy {
+                  SearchContractValidationV1.validID($0)
+              },
+              !MeasurementIntegrityLocalizationPolicyV1.containsProhibitedClaim(
+                  in: Array(boundedFieldValues.values)
+              ),
+              !MeasurementIntegrityLocalizationPolicyV1.containsCustomerOrWorkDataLeakage(
+                  in: Array(boundedFieldValues.values)
+              ) else {
+            throw SearchContractFailureV1.forbiddenField
+        }
+        guard boundedFieldValues.allSatisfy({ _, value in
+            let tokens = SearchContractValidationV1.normalizeSearchText(value)
+                .unicodeScalars
+                .split { !CharacterSet.alphanumerics.contains($0) }
+                .map(String.init)
+            return !tokens.isEmpty && tokens.allSatisfy(SearchContractValidationV1.isCanonicalSearchToken)
+        }) else {
+            throw SearchContractFailureV1.invalidField
+        }
+    }
+}
+
+enum MeasurementIntegritySearchProjectionPolicyV1 {
+    static let sourceKind = "MEASUREMENT_INTEGRITY"
+    static let semanticLabel = "MEASUREMENT_INTEGRITY_SEARCH_METADATA_V1"
+    static let fieldIDs = MeasurementIntegritySearchFieldV1.allCases.map(\.rawValue)
+    static let derivedOnly = true
+    static let metadataOnly = true
+    static let dropAndRebuildAfterRestore = true
+    static let dropAndRebuildOnReplay = true
+    static let excludesExactCanonicalValues = true
+    static let excludesOpaqueSerials = true
+    static let excludesOperatorIdentity = true
+    static let excludesResponsePayload = true
+    static let excludesEvidenceLocators = true
+    static let excludesLocalizedUnitIdentity = true
+
+    static func accepts(_ field: MeasurementIntegritySearchFieldV1) -> Bool {
+        fieldIDs.contains(field.rawValue)
+    }
+}

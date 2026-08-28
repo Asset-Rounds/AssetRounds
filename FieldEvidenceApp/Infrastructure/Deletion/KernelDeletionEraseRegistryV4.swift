@@ -241,6 +241,7 @@ enum KernelDeletionEraseRegistryV4 {
     static let workPacketDeleteKinds=V15BackupWorkPacketRecordV1.Kind.allCases
     static let fieldDraftDeleteKinds = V16BackupFieldDraftRecordV1.Kind.allCases
     static let packageEvolutionDeleteKinds = V17BackupPackageEvolutionRecordV1.Kind.allCases
+    static let measurementIntegrityDeleteKinds = V18BackupMeasurementIntegrityRecordV1.Kind.allCases
 
     static func validateFunctionalRelationshipLifecycle() throws {
         guard functionalRelationshipDeleteKinds.count == 2,
@@ -269,6 +270,10 @@ enum KernelDeletionEraseRegistryV4 {
     static func validatePackageEvolutionLifecycle() throws {
         guard packageEvolutionDeleteKinds.count == 4 else { throw KernelPersistenceV4Failure.incompleteCoverage }
         try PackageEvolutionDeletionLedgerPolicyV1.validate()
+    }
+    static func validateMeasurementIntegrityLifecycle() throws {
+        guard measurementIntegrityDeleteKinds.count == 5 else { throw KernelPersistenceV4Failure.incompleteCoverage }
+        try MeasurementIntegrityDeletionLedgerPolicyV1.validate()
     }
     /// Search V1 has one canonical workspace-owned record and one disposable
     /// local projection. Keeping these routes beside the kernel registry makes
@@ -317,6 +322,7 @@ enum KernelDeletionEraseRegistryV4 {
     }
 
     static func validate() throws {
+        try validateMeasurementIntegrityLifecycle()
         try validatePackageEvolutionLifecycle()
         try validateFunctionalRelationshipLifecycle()
         try validateEvidenceAssuranceLifecycle()

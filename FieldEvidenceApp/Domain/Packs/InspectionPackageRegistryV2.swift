@@ -247,3 +247,28 @@ enum FunctionalRelationshipPackageCompatibilityRegistryV1 {
         }
     }
 }
+
+// MARK: - C19 measurement package admission
+
+extension AuthorityCriterionPackageCompatibilityRegistryV1 {
+    /// Admission is declaration-only: the registry validates the existing
+    /// package/sidecar pair and never persists or evaluates a measurement.
+    static func c19ValidateMeasurementCapture(
+        _ capture: MeasurementCaptureV1,
+        release: InspectionPackageReleaseV1,
+        package: InspectionPackageV2,
+        binding: InspectionPackageAuthorityCriterionBindingV1
+    ) throws {
+        try validate(binding, package: package)
+        try binding.c19ValidateMeasurementCapture(capture, release: release, package: package)
+    }
+
+    static func c19ValidateMeasurementProtocol(
+        _ protocolRelease: MeasurementProtocolReleaseV1,
+        binding: InspectionPackageAuthorityCriterionBindingV1,
+        package: InspectionPackageV2
+    ) throws {
+        try validate(binding, package: package)
+        try binding.c19ValidateMeasurementProtocol(protocolRelease)
+    }
+}

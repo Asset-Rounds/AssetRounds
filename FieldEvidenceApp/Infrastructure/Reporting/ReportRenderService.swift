@@ -1335,4 +1335,18 @@ extension ReportRenderService {
         try report.validate()
         return report
     }
+
+    /// Renderers consume the already-frozen C19 projection. This gate keeps
+    /// exact values and typed units intact and prevents a renderer from
+    /// looking up mutable calibration, serial, operator, or evidence state.
+    static func validateMeasurementIntegrityRenderInputs(
+        projection: MeasurementIntegrityReportProjectionV1,
+        format: ReportProjectionFormatV1
+    ) throws -> MeasurementIntegrityReportProjectionV1 {
+        try ReportProjectionRegistryV1.validateMeasurementIntegrityConsumer(
+            projection,
+            format: format
+        )
+        return projection
+    }
 }

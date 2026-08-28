@@ -1809,3 +1809,52 @@ extension ReportProjectionRegistryV1 {
         try PackageEvolutionReportConsumerPolicyV1.validateSandbox(run)
     }
 }
+
+/// C19 report consumers use one frozen measurement projection for every
+/// supported output. This policy is intentionally a projection gate rather
+/// than a second measurement writer.
+enum MeasurementIntegrityReportConsumerPolicyV1 {
+    static let sectionID = ReportMeasurementIntegrityProjectionPolicyV1.sectionID
+    static let sectionVersion = ReportMeasurementIntegrityProjectionPolicyV1.sectionVersion
+    static let projectionVersion = ReportMeasurementIntegrityProjectionPolicyV1.projectionVersion
+    static let historicalValuesRemainFrozen = true
+    static let unitMeaningRemainsFrozen = true
+    static let excludesOpaqueSerial = true
+    static let excludesOperatorIdentity = true
+    static let excludesRawResponse = true
+    static let excludesEvidenceLocators = true
+
+    static func validate(
+        _ projection: MeasurementIntegrityReportProjectionV1,
+        format: ReportProjectionFormatV1
+    ) throws {
+        try projection.validate()
+        guard ReportMeasurementIntegrityProjectionPolicyV1.supports(format),
+              historicalValuesRemainFrozen, unitMeaningRemainsFrozen,
+              excludesOpaqueSerial, excludesOperatorIdentity,
+              excludesRawResponse, excludesEvidenceLocators else {
+            throw SnapshotProjectionFailureV1.missingBinding
+        }
+        try EvidenceDetailMeasurementIntegrityProjectionGuardV1.validate(projection)
+    }
+}
+
+extension ReportProjectionRegistryV1 {
+    func validateMeasurementIntegrityConsumer(
+        _ projection: MeasurementIntegrityReportProjectionV1,
+        format: ReportProjectionFormatV1
+    ) throws {
+        try validate()
+        guard requiredFormats.contains(format) else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try MeasurementIntegrityReportConsumerPolicyV1.validate(projection, format: format)
+    }
+
+    static func validateMeasurementIntegrityConsumer(
+        _ projection: MeasurementIntegrityReportProjectionV1,
+        format: ReportProjectionFormatV1
+    ) throws {
+        try Self().validateMeasurementIntegrityConsumer(projection, format: format)
+    }
+}
