@@ -98,10 +98,11 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
     ]
     static let v13PersistentModelNames=["AssuranceManifestRow","AttestationRow","ClaimEvidenceLinkRow","EvidenceVisibilityRow"]
     static let v14PersistentModelNames=["ChangeRequestRow","CorrectiveActionEventRow","CorrectiveActionPolicyRow","InspectionReviewTransitionRow","ReviewDispositionRow"]
+    static let v15PersistentModelNames=["WorkHandoffRow","WorkItemClaimRow","WorkLeaseRow","WorkPacketManifestRow","WorkReleaseRow"]
     static let activePersistentModelNames =
         (persistentModelNames + v6PersistentModelNames + v7PersistentModelNames
             + v8PersistentModelNames + v9PersistentModelNames + v10PersistentModelNames
-            + v11PersistentModelNames + v12PersistentModelNames + v13PersistentModelNames + v14PersistentModelNames).sorted()
+            + v11PersistentModelNames + v12PersistentModelNames + v13PersistentModelNames + v14PersistentModelNames + v15PersistentModelNames).sorted()
 
     static let ownedFileClassNames = [
         "cache", "commerceEntitlementCache", "database", "databaseSHM", "databaseWAL",
@@ -160,6 +161,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "CompletedFunctionalRelationshipSnapshotV1",
         "EvidenceVisibilityV1","ClaimEvidenceLinkV1","AssuranceProjectionPreviewV1","AssuranceManifestV1","AttestationV1",
         "InspectionReviewTransitionV1","ReviewDispositionV1","ChangeRequestV1","CorrectiveActionPolicyV1","CorrectiveActionEventV1","InspectionReviewProjectionV1","CorrectiveActionProjectionV1",
+        "WorkPacketManifestV1","WorkItemClaimV1","WorkLeaseV1","WorkReleaseV1","WorkHandoffV1","WorkPacketProjectionV1",
     ]
 
     static let derivedIndexNames = [
@@ -186,6 +188,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "StoreSemanticEnvelopeV12",
         "StoreSemanticEnvelopeV13",
         "StoreSemanticEnvelopeV14",
+        "StoreSemanticEnvelopeV15",
         "WorkspaceMutationStateSemanticV1",
         "entityMutationRevision",
         "workspaceMutationState",
@@ -680,6 +683,7 @@ private extension CurrentSyncClassificationCatalogV1 {
         }
         for name in v13PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:try evidenceAssurancePersistentDependencies(for:name)))}
         for name in v14PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[]))}
+        for name in v15PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[]))}
 
         for name in portableContentProjectionNames {
             let profile: AdditionalProfile = name == "ReportSnapshotV1"
@@ -1040,6 +1044,12 @@ private extension CurrentSyncClassificationCatalogV1 {
         case "CorrectiveActionEventV1":return[try subject(category:.persistentModel,name:"CorrectiveActionEventRow")]
         case "InspectionReviewProjectionV1":return try subjects(category:.persistentModel,names:["InspectionReviewTransitionRow","ReviewDispositionRow","ChangeRequestRow"])
         case "CorrectiveActionProjectionV1":return try subjects(category:.persistentModel,names:["CorrectiveActionPolicyRow","CorrectiveActionEventRow"])
+        case "WorkPacketManifestV1":return[try subject(category:.persistentModel,name:"WorkPacketManifestRow")]
+        case "WorkItemClaimV1":return[try subject(category:.persistentModel,name:"WorkItemClaimRow")]
+        case "WorkLeaseV1":return[try subject(category:.persistentModel,name:"WorkLeaseRow")]
+        case "WorkReleaseV1":return[try subject(category:.persistentModel,name:"WorkReleaseRow")]
+        case "WorkHandoffV1":return[try subject(category:.persistentModel,name:"WorkHandoffRow")]
+        case "WorkPacketProjectionV1":return try subjects(category:.persistentModel,names:v15PersistentModelNames)
         default:
             throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
         }
@@ -1093,7 +1103,8 @@ private extension CurrentSyncClassificationCatalogV1 {
         case "StoreSemanticEnvelopeV12":
             return try subjects(category:.persistentModel,names:persistentModelNames+v6PersistentModelNames+v7PersistentModelNames+v8PersistentModelNames+v9PersistentModelNames+v10PersistentModelNames+v11PersistentModelNames+v12PersistentModelNames)
         case "StoreSemanticEnvelopeV13":return try subjects(category:.persistentModel,names:persistentModelNames+v6PersistentModelNames+v7PersistentModelNames+v8PersistentModelNames+v9PersistentModelNames+v10PersistentModelNames+v11PersistentModelNames+v12PersistentModelNames+v13PersistentModelNames)
-        case "StoreSemanticEnvelopeV14":return try subjects(category:.persistentModel,names:activePersistentModelNames)
+        case "StoreSemanticEnvelopeV14":return try subjects(category:.persistentModel,names:persistentModelNames+v6PersistentModelNames+v7PersistentModelNames+v8PersistentModelNames+v9PersistentModelNames+v10PersistentModelNames+v11PersistentModelNames+v12PersistentModelNames+v13PersistentModelNames+v14PersistentModelNames)
+        case "StoreSemanticEnvelopeV15":return try subjects(category:.persistentModel,names:activePersistentModelNames)
         default:
             throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
         }
@@ -1239,8 +1250,9 @@ private extension CurrentSyncClassificationCatalogV1 {
             AssetFunctionalRelationshipEventRow.self,
             EvidenceVisibilityRow.self,ClaimEvidenceLinkRow.self,AssuranceManifestRow.self,AttestationRow.self,
             InspectionReviewTransitionRow.self,ReviewDispositionRow.self,ChangeRequestRow.self,CorrectiveActionPolicyRow.self,CorrectiveActionEventRow.self,
+            WorkPacketManifestRow.self,WorkItemClaimRow.self,WorkLeaseRow.self,WorkReleaseRow.self,WorkHandoffRow.self,
         ]
-        let runtimeNames = PersistentSchemaV14.models.map { modelType in
+        let runtimeNames = PersistentSchemaV15.models.map { modelType in
             String(describing: modelType)
                 .split(separator: ".")
                 .last
@@ -1253,8 +1265,8 @@ private extension CurrentSyncClassificationCatalogV1 {
               Set(PersistentSchemaV5.models.map { ObjectIdentifier($0) })
                 == Set(frozenV5.map { ObjectIdentifier($0) }),
               frozenNames == persistentModelNames,
-              PersistentSchemaV14.models.count == expected.count,
-              Set(PersistentSchemaV14.models.map { ObjectIdentifier($0) })
+              PersistentSchemaV15.models.count == expected.count,
+              Set(PersistentSchemaV15.models.map { ObjectIdentifier($0) })
                 == Set(expected.map { ObjectIdentifier($0) }),
               runtimeNames.count == Set(runtimeNames).count,
               runtimeNames.allSatisfy(ReplicationContractValidationV1.validToken),

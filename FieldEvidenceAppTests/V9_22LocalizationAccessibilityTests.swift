@@ -1195,6 +1195,226 @@ final class V9_22LocalizationAccessibilityTests: XCTestCase {
         XCTAssertTrue(KernelCanonicalHashV1.validSHA256(receipt.release.releaseSHA256))
     }
 
+    func testV23P03C15WorkPacketLocalizationAndAccessibilityIsEnglishOnly() throws {
+        let registry = try BundledLocalizationCatalogV1.workPacketRegistry()
+        try registry.validate()
+
+        let expectedKeys = Set(WorkPacketLocalizationKeyV1.allCases.map(\.rawValue))
+        XCTAssertEqual(Set(WorkPacketLocalizationPolicyV1.keys), expectedKeys)
+        XCTAssertEqual(Set(WorkPacketLocalizationPolicyV1.reportKeys), expectedKeys)
+        XCTAssertEqual(WorkPacketLocalizationPolicyV1.semanticNamespace, "work.packet")
+        XCTAssertEqual(WorkPacketLocalizationPolicyV1.sourceLocale, "en")
+        XCTAssertEqual(WorkPacketLocalizationPolicyV1.shippingLocale, "en")
+        XCTAssertEqual(WorkPacketLocalizationPolicyV1.metadataLocale, "en-US")
+        XCTAssertEqual(
+            Set(WorkPacketLocalizationPolicyV1.testOnlyLocales),
+            Set(TestOnlyPseudoLocaleV1.allCases.map(\.rawValue))
+        )
+        XCTAssertTrue(WorkPacketLocalizationPolicyV1.denyByDefault)
+        XCTAssertTrue(WorkPacketLocalizationPolicyV1.requiresNonColorStateText)
+        XCTAssertTrue(WorkPacketLocalizationPolicyV1.requiresTextAndIconForIndeterminateStates)
+        XCTAssertTrue(WorkPacketLocalizationPolicyV1.requiresActionableNextStep)
+        XCTAssertFalse(WorkPacketLocalizationPolicyV1.allowsColorOnlyState)
+        XCTAssertFalse(WorkPacketLocalizationPolicyV1.allowsIconOnlyState)
+        XCTAssertTrue(WorkPacketLocalizationPolicyV1.excludesSecrets)
+        XCTAssertTrue(WorkPacketLocalizationPolicyV1.excludesCustomerData)
+        XCTAssertTrue(WorkPacketLocalizationPolicyV1.excludesWorkData)
+        XCTAssertTrue(WorkPacketLocalizationPolicyV1.excludesCustomerDataLeakage)
+        XCTAssertTrue(WorkPacketLocalizationPolicyV1.excludesPrivateLocators)
+        XCTAssertTrue(WorkPacketLocalizationPolicyV1.excludesUnsupportedClaims)
+        XCTAssertTrue(
+            expectedKeys.isSubset(of: Set(registry.definitions.map { $0.key.rawValue }))
+        )
+
+        let localeManifest = LocalizationLocaleManifestV1.shippingV1()
+        try localeManifest.validate()
+        XCTAssertEqual(localeManifest.sourceLanguage, "en")
+        XCTAssertEqual(localeManifest.shippingRuntimeLanguages, ["en"])
+        XCTAssertEqual(localeManifest.completeCatalogLanguages, ["en"])
+        XCTAssertEqual(localeManifest.appStorePrimaryMetadataLocale, "en-US")
+
+        XCTAssertEqual(
+            WorkPacketLocalizationKeyV1.manifestStateKey("DRAFT"),
+            .manifestDraft
+        )
+        XCTAssertEqual(
+            WorkPacketLocalizationKeyV1.claimStateKey("AVAILABLE"),
+            .claimUnclaimed
+        )
+        XCTAssertEqual(
+            WorkPacketLocalizationKeyV1.leaseStateKey("EXPIRED"),
+            .leaseExpired
+        )
+        XCTAssertEqual(
+            WorkPacketLocalizationKeyV1.releaseStateKey("RECORDED"),
+            .releaseRecorded
+        )
+        XCTAssertEqual(
+            WorkPacketLocalizationKeyV1.handoffStateKey("COMPLETED"),
+            .handoffCompleted
+        )
+        XCTAssertEqual(
+            WorkPacketLocalizationKeyV1.conflictStateKey("REVIEW_REQUIRED"),
+            .conflictReviewRequired
+        )
+        XCTAssertEqual(
+            WorkPacketLocalizationKeyV1.expiryStateKey("NOT_EXPIRED"),
+            .expiryNotExpired
+        )
+        XCTAssertEqual(
+            WorkPacketLocalizationKeyV1.replayStateKey("IDEMPOTENT"),
+            .replayIdempotent
+        )
+        XCTAssertNil(WorkPacketLocalizationKeyV1.replayStateKey("UNKNOWN"))
+        XCTAssertEqual(
+            WorkPacketLocalizationKeyV1.replayDispositionKey(.apply),
+            .replayApplied
+        )
+        XCTAssertEqual(
+            WorkPacketLocalizationKeyV1.replayDispositionKey(.idempotentReplay),
+            .replayIdempotent
+        )
+        XCTAssertEqual(
+            WorkPacketLocalizationKeyV1.replayDispositionKey(.quarantineDivergentBytes),
+            .replayQuarantined
+        )
+        XCTAssertEqual(
+            WorkPacketLocalizationKeyV1.conflictKindKey(.simultaneousClaim),
+            .conflictDetected
+        )
+        XCTAssertEqual(
+            WorkPacketLocalizationKeyV1.conflictKindKey(.divergentSameIdentity),
+            .conflictQuarantined
+        )
+        XCTAssertEqual(
+            WorkPacketLocalizationKeyV1.releaseReasonKey(.leaseExpired),
+            .releaseAvailable
+        )
+        XCTAssertTrue(
+            WorkReleaseReasonV1.allCases.allSatisfy {
+                WorkPacketLocalizationPolicyV1.stateKeys.contains(
+                    WorkPacketLocalizationKeyV1.releaseReasonKey($0).rawValue
+                )
+            }
+        )
+        XCTAssertEqual(WorkPacketLocalizationKeyV1.nextStepKey(), .nextStep)
+        XCTAssertEqual(
+            WorkPacketLocalizationKeyV1.minimumRequirementKey(),
+            .minimumNextRequirement
+        )
+
+        let accessibility = try BundledLocalizationCatalogV1
+            .workPacketAccessibilityRegistry(localization: registry)
+        let expectedIDs = Set(WorkPacketAccessibilityIDV1.allCases.map(\.rawValue))
+        XCTAssertEqual(Set(WorkPacketAccessibilityPolicyV1.semanticIDs), expectedIDs)
+        XCTAssertTrue(
+            expectedIDs.isSubset(of: Set(accessibility.entries.map(\.semanticID)))
+        )
+        XCTAssertTrue(WorkPacketAccessibilityPolicyV1.denyByDefault)
+        XCTAssertTrue(WorkPacketAccessibilityPolicyV1.nonColorStateTextRequired)
+        XCTAssertTrue(WorkPacketAccessibilityPolicyV1.textAndIconRequiredForIndeterminateStates)
+        XCTAssertTrue(WorkPacketAccessibilityPolicyV1.actionableNextStepRequired)
+        XCTAssertTrue(WorkPacketAccessibilityPolicyV1.rtlRequired)
+        XCTAssertTrue(WorkPacketAccessibilityPolicyV1.dynamicTypeRequired)
+        XCTAssertTrue(WorkPacketAccessibilityPolicyV1.voiceOverRequired)
+        XCTAssertTrue(WorkPacketAccessibilityPolicyV1.voiceControlRequired)
+        XCTAssertTrue(WorkPacketAccessibilityPolicyV1.switchControlRequired)
+        XCTAssertFalse(WorkPacketAccessibilityPolicyV1.colorOnlyStateAllowed)
+        XCTAssertFalse(WorkPacketAccessibilityPolicyV1.iconOnlyStateAllowed)
+        XCTAssertTrue(accessibility.entries.allSatisfy {
+            $0.dynamicSuffixPolicy == .none && $0.deprecatedAliases.isEmpty
+        })
+
+        let entriesByID = Dictionary(uniqueKeysWithValues: accessibility.entries.map {
+            ($0.semanticID, $0)
+        })
+        for semanticID in WorkPacketAccessibilityIDV1.allCases {
+            let entry = try XCTUnwrap(entriesByID[semanticID.rawValue])
+            XCTAssertEqual(
+                try accessibility.identifier(semanticID: semanticID.rawValue),
+                semanticID.rawValue
+            )
+            XCTAssertTrue(
+                registry.definitions.contains { $0.key == entry.labelKey },
+                "missing localized label for \(semanticID.rawValue)"
+            )
+        }
+        for semanticID in WorkPacketAccessibilityPolicyV1.stateSemanticIDs {
+            XCTAssertEqual(try XCTUnwrap(entriesByID[semanticID]).role, .status)
+        }
+        for semanticID in WorkPacketAccessibilityPolicyV1.indeterminateSemanticIDs {
+            let entry = try XCTUnwrap(entriesByID[semanticID])
+            XCTAssertNotNil(entry.hintKey, "\(semanticID) needs an actionable next step")
+            XCTAssertTrue(WorkPacketAccessibilityPolicyV1.requiresTextAndIcon(for: semanticID))
+            XCTAssertTrue(WorkPacketAccessibilityPolicyV1.requiresActionableNextStep(for: semanticID))
+        }
+
+        let source = try JSONSerialization.jsonObject(with: sourceCatalogData()) as? [String: Any]
+        let strings = try XCTUnwrap(source?["strings"] as? [String: Any])
+        var c15Text = [String]()
+        for key in WorkPacketLocalizationKeyV1.allCases {
+            let entry = try XCTUnwrap(strings[key.rawValue] as? [String: Any])
+            let comment = try XCTUnwrap(entry["comment"] as? String)
+            XCTAssertFalse(comment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            let localizations = try XCTUnwrap(entry["localizations"] as? [String: Any])
+            XCTAssertEqual(Set(localizations.keys), Set(["en"]))
+            let english = try XCTUnwrap(localizations["en"] as? [String: Any])
+            let unit = try XCTUnwrap(english["stringUnit"] as? [String: Any])
+            let value = try XCTUnwrap(unit["value"] as? String)
+            XCTAssertFalse(value.isEmpty)
+            c15Text.append(contentsOf: [comment, value])
+            let bundledKey = try XCTUnwrap(BundledLocalizationKeyV1(rawValue: key.rawValue))
+            XCTAssertEqual(BundledLocalizationCatalogV1.localized(bundledKey), value)
+        }
+        XCTAssertFalse(WorkPacketLocalizationPolicyV1.containsProhibitedClaim(in: c15Text))
+        XCTAssertFalse(WorkPacketLocalizationPolicyV1.containsSensitiveDataLeakage(in: c15Text))
+
+        let hostileClaims = [
+            "approval granted", "authorization granted", "verified identity",
+            "legal signature", "compliance result", "tamper-proof history",
+            "nonrepudiation asserted", "secure delivery", "sent successfully",
+            "delivered successfully", "professional certification",
+        ]
+        XCTAssertTrue(hostileClaims.allSatisfy {
+            WorkPacketClaimVocabularyV1.containsProhibitedClaim(in: [$0])
+        })
+        XCTAssertTrue(
+            WorkPacketClaimVocabularyV1.containsSensitiveDataLeakage(
+                in: [
+                    "customer data", "private data", "personal data", "work-item data",
+                    "secret credential", "password", "data leakage",
+                ]
+            )
+        )
+        XCTAssertTrue(
+            WorkPacketClaimVocabularyV1.containsCustomerDataLeakage(
+                in: ["customer information", "work data"]
+            )
+        )
+        XCTAssertFalse(
+            WorkPacketClaimVocabularyV1.containsProhibitedClaim(
+                in: ["Recorded packet state", "Lease approaching expiry", "Next step"]
+            )
+        )
+
+        let publication = try BundledLocalizationCatalogV1.publish(
+            sourceCatalogBytes: sourceCatalogData(),
+            legacy: legacyAllowlist(),
+            includeWorkPacket: true
+        )
+        guard case let .complete(
+            publishedRegistry, publishedAccessibility, _, _, receipt
+        ) = publication else {
+            return XCTFail("C15 requires one complete packet-coordination catalog publication")
+        }
+        XCTAssertEqual(publishedRegistry, registry)
+        XCTAssertEqual(
+            Set(publishedAccessibility.entries.map(\.semanticID)),
+            Set(accessibility.entries.map(\.semanticID))
+        )
+        XCTAssertTrue(KernelCanonicalHashV1.validSHA256(receipt.release.releaseSHA256))
+    }
+
     private func corpus() throws -> Corpus {
         try JSONDecoder().decode(Corpus.self, from: Data(contentsOf: try fixtureURL()))
     }

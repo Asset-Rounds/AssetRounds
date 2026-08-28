@@ -52,6 +52,10 @@ struct ReportSnapshotV1: Codable, Equatable, Sendable {
     /// snapshot boundary; amendments create a replacement snapshot and never
     /// rewrite this history in place.
     var inspectionReviewHistory: CompletedInspectionReviewHistorySnapshotV1? = nil
+    /// Optional C15 packet-coordination projection. The completed packet
+    /// snapshot remains the source of truth; this value contains only bounded
+    /// item state/counts and exact provenance digests.
+    var workPacket: ReportWorkPacketProjectionV1? = nil
 
     var reviewHistory: [InspectionReviewTransitionV1] {
         inspectionReviewHistory?.reviewHistory ?? []

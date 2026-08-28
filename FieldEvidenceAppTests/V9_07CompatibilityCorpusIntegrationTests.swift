@@ -580,6 +580,17 @@ final class V9_07CompatibilityCorpusIntegrationTests: XCTestCase {
     }
 }
 
+extension V9_07CompatibilityCorpusIntegrationTests {
+    func testV23P03C15CorpusAdvertisesSchemaAndBoundaryCompatibility() throws {
+        let data = try Data(contentsOf: C15WorkPacketManifestTestSupportV1.corpusURL())
+        let source = try XCTUnwrap(String(data: data, encoding: .utf8))
+        XCTAssertTrue(source.contains("V23-P03-C15"))
+        XCTAssertTrue(source.contains("\"persistentModelCount\": 58"))
+        XCTAssertTrue(source.contains("\"recordsSchemaVersion\": 14"))
+        XCTAssertTrue(source.contains("V23-P03-C14"))
+    }
+}
+
 @MainActor
 private func restorePointer(
     factory: StoreGenerationFactory,

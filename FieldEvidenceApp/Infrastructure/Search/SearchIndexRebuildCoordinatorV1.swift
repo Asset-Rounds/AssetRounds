@@ -186,6 +186,13 @@ final class SwiftDataSearchCanonicalProjectionSourceV1: SearchCanonicalProjectio
         let changeRequestStateSummary: String = ""
         let correctiveActionStateSummary: String = ""
         let inspectionReviewProjectionVersionSummary: String = ""
+        /// C15 search values are packet/item current-head metadata only.
+        /// Claims, leases, actors, result links, and review-exception digests
+        /// remain in the canonical packet snapshot.
+        let workPacketManifestStateSummary: String = ""
+        let workPacketItemStateSummary: String = ""
+        let workPacketConflictStateSummary: String = ""
+        let workPacketProjectionVersionSummary: String = ""
     }
 
     let registry: SearchableFieldRegistryV1
@@ -200,6 +207,7 @@ final class SwiftDataSearchCanonicalProjectionSourceV1: SearchCanonicalProjectio
     private let includeFunctionalRelationships: Bool
     private let includeAssurance: Bool
     private let includeInspectionReview: Bool
+    private let includeWorkPacket: Bool
     private var snapshotRevision: SearchSourceRevisionV1?
     private var snapshotValues: [CanonicalValue]?
     private var snapshotBackupStaleIdentities: Set<SearchCanonicalRecordIdentityV1> = []
@@ -215,7 +223,8 @@ final class SwiftDataSearchCanonicalProjectionSourceV1: SearchCanonicalProjectio
         includeAuthorityCriterion: Bool = false,
         includeFunctionalRelationships: Bool = false,
         includeAssurance: Bool = false,
-        includeInspectionReview: Bool = false
+        includeInspectionReview: Bool = false,
+        includeWorkPacket: Bool = false
     ) throws {
         guard workspaceID != SearchContractValidationV1.zeroUUID,
               generationID != SearchContractValidationV1.zeroUUID else {
@@ -229,7 +238,8 @@ final class SwiftDataSearchCanonicalProjectionSourceV1: SearchCanonicalProjectio
         // C14 is a complete additive registry. Enabling its review history
         // also enables every preceding public projection so the registry's
         // exact identity set remains unambiguous.
-        let c14 = includeInspectionReview
+        let c15 = includeWorkPacket
+        let c14 = includeInspectionReview || c15
         let resolvedAccountability = includeAccountability || c14
         let resolvedAssetSemantics = includeAssetSemantics || c14
         let resolvedAuthorityCriterion = includeAuthorityCriterion || c14
@@ -241,13 +251,15 @@ final class SwiftDataSearchCanonicalProjectionSourceV1: SearchCanonicalProjectio
         self.includeFunctionalRelationships = resolvedFunctionalRelationships
         self.includeAssurance = resolvedAssurance
         self.includeInspectionReview = c14
+        self.includeWorkPacket = c15
         registry = try Self.makeExtendedRegistry(
             includeAccountability: resolvedAccountability,
             includeAssetSemantics: resolvedAssetSemantics,
             includeAuthorityCriterion: resolvedAuthorityCriterion,
             includeFunctionalRelationships: resolvedFunctionalRelationships,
             includeAssurance: resolvedAssurance,
-            includeInspectionReview: c14
+            includeInspectionReview: c14,
+            includeWorkPacket: c15
         )
     }
 
@@ -337,6 +349,9 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         let inspectionReviewValues = includeInspectionReview
             ? try inspectionReviewSearchValues()
             : []
+        let workPacketValues = includeWorkPacket
+            ? try workPacketSearchValues()
+            : []
         values += try modelContext.fetch(FetchDescriptor<Asset>()).map {
             let semantic = semanticByAsset[$0.id]
             return CanonicalValue(kind: .asset, stableID: try stableKey(kind: .asset, id: $0.id),
@@ -387,6 +402,7 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         values += functionalRelationshipValues
         values += assuranceValues
         values += inspectionReviewValues
+        values += workPacketValues
         if includeAccountability {
             var rolesByParty: [UUID: Set<String>] = [:]
             let roleRows = try modelContext.fetch(FetchDescriptor<SitePartyRoleEventRow>())
@@ -867,6 +883,116 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         }
     }
 
+    /// Builds one disposable current-head value per packet manifest. Full
+    /// claim/lease/release/handoff history is validated by the canonical
+    /// projection builder, but only typed state/count metadata is sent to the
+    /// search index. Any orphan, fork, stale result, or cross-workspace row
+    /// fails the rebuild closed.
+    func workPacketSearchValues() throws -> [CanonicalValue] {
+        let expectedWorkspace = WorkspaceID(rawValue: workspaceID)
+        let manifests = try modelContext.fetch(FetchDescriptor<WorkPacketManifestRow>())
+            .filter { $0.workspaceID == workspaceID }
+            .map { try $0.value() }
+        let claims = try modelContext.fetch(FetchDescriptor<WorkItemClaimRow>())
+            .filter { $0.workspaceID == workspaceID }
+            .map { try $0.value() }
+        let leases = try modelContext.fetch(FetchDescriptor<WorkLeaseRow>())
+            .filter { $0.workspaceID == workspaceID }
+            .map { try $0.value() }
+        let releases = try modelContext.fetch(FetchDescriptor<WorkReleaseRow>())
+            .filter { $0.workspaceID == workspaceID }
+            .map { try $0.value() }
+        let handoffs = try modelContext.fetch(FetchDescriptor<WorkHandoffRow>())
+            .filter { $0.workspaceID == workspaceID }
+            .map { try $0.value() }
+        var identities: Set<UUID> = []
+        var packetIdentities: Set<UUID> = []
+        let manifestIDs = Set(manifests.map(\.manifestID))
+        let packetIDs = Set(manifests.map(\.packetID))
+        guard manifestIDs.count == manifests.count,
+              packetIDs.count == manifests.count,
+              claims.allSatisfy({ manifestIDs.contains($0.manifest.manifestID) }),
+              leases.allSatisfy({ packetIDs.contains($0.item.packetID) }),
+              releases.allSatisfy({ packetIDs.contains($0.item.packetID) }),
+              handoffs.allSatisfy({ packetIDs.contains($0.item.packetID) }) else {
+            throw SearchContractFailureV1.invalidContext
+        }
+        var values: [CanonicalValue] = []
+        for manifest in manifests.sorted(by: {
+            $0.manifestID.uuidString.lowercased() < $1.manifestID.uuidString.lowercased()
+        }) {
+            guard identities.insert(manifest.manifestID).inserted,
+                  packetIdentities.insert(manifest.packetID).inserted,
+                  manifest.workspaceID == expectedWorkspace else {
+                throw SearchContractFailureV1.invalidContext
+            }
+            let manifestReference = try WorkPacketManifestReferenceV1(manifest)
+            let itemReferences = try manifest.items.map {
+                try WorkPacketItemReferenceV1(manifest: manifest, item: $0)
+            }
+            let packetClaims = claims.filter {
+                $0.manifest.manifestID == manifest.manifestID
+            }
+            let packetLeases = leases.filter { $0.item.packetID == manifest.packetID }
+            let packetReleases = releases.filter { $0.item.packetID == manifest.packetID }
+            let packetHandoffs = handoffs.filter { $0.item.packetID == manifest.packetID }
+            guard packetClaims.allSatisfy({
+                      $0.workspaceID == expectedWorkspace
+                          && $0.manifest == manifestReference
+                          && itemReferences.contains($0.item)
+                  }),
+                  packetLeases.allSatisfy({
+                      $0.workspaceID == expectedWorkspace
+                          && itemReferences.contains($0.item)
+                  }),
+                  packetReleases.allSatisfy({
+                      $0.workspaceID == expectedWorkspace
+                          && itemReferences.contains($0.item)
+                  }),
+                  packetHandoffs.allSatisfy({
+                      $0.workspaceID == expectedWorkspace
+                          && itemReferences.contains($0.item)
+                  }) else {
+                throw SearchContractFailureV1.invalidContext
+            }
+            let timestamp = ([manifest.createdAt]
+                + packetClaims.map(\.claimedAt)
+                + packetLeases.map(\.startsAt)
+                + packetReleases.map(\.releasedAt)
+                + packetHandoffs.map(\.handedOffAt)).max() ?? manifest.createdAt
+            let projection = try WorkPacketProjectionBuilderV1.rebuild(
+                workspaceID: expectedWorkspace,
+                manifest: manifest,
+                claims: packetClaims,
+                leases: packetLeases,
+                releases: packetReleases,
+                handoffs: packetHandoffs,
+                at: timestamp
+            )
+            let itemSnapshots = try projection.items.map {
+                try CompletedWorkPacketItemSnapshotV1(item: $0.item, projection: $0)
+            }
+            let states = Set(itemSnapshots.map { $0.state.rawValue })
+            let hasConflict = itemSnapshots.contains { !$0.conflictKinds.isEmpty }
+            values.append(CanonicalValue(
+                kind: .work,
+                stableID: "work-packet-\(manifest.packetID.uuidString.lowercased())",
+                display: "Work packet",
+                summary: "Work packet",
+                breadcrumb: [],
+                status: hasConflict ? "conflicted" : "ready",
+                dueAt: nil,
+                timestamp: timestamp,
+                workPacketManifestStateSummary: hasConflict ? "CONFLICTED" : "READY",
+                workPacketItemStateSummary: states.sorted().joined(separator: " "),
+                workPacketConflictStateSummary: hasConflict ? "REVIEW_REQUIRED" : "NONE",
+                workPacketProjectionVersionSummary:
+                    SearchWorkPacketPersistencePolicyV1.acceptedProjectionVersionMarkers[1]
+            ))
+        }
+        return values
+    }
+
     /// Builds only exact activity-bound summaries. Licensed content, clause/raw
     /// locators, external locator values, and derived facts without an explicit
     /// activity reference are intentionally excluded.
@@ -1010,9 +1136,19 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
                       ("location_breadcrumb", value.breadcrumb.joined(separator: " ")),
                       ("status", value.status)]
         case .work:
-            fields = [("work_identifier", value.stableID), ("work_summary", value.summary),
-                      ("status", value.status)]
-            if includeAuthorityCriterion {
+            if includeWorkPacket, value.stableID.hasPrefix("work-packet-") {
+                fields = [
+                    ("work_packet_identifier", value.stableID),
+                    ("work_packet_manifest_state", value.workPacketManifestStateSummary),
+                    ("work_packet_item_state", value.workPacketItemStateSummary),
+                    ("work_packet_conflict_state", value.workPacketConflictStateSummary),
+                    ("work_packet_projection_version", value.workPacketProjectionVersionSummary),
+                ].filter { !$0.1.isEmpty }
+            } else {
+                fields = [("work_identifier", value.stableID), ("work_summary", value.summary),
+                          ("status", value.status)]
+            }
+            if includeAuthorityCriterion, !value.stableID.hasPrefix("work-packet-") {
                 fields += [
                     ("authority_source", value.authoritySourceSummary),
                     ("applicability_disposition", value.applicabilityDispositionSummary),
@@ -1194,26 +1330,46 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         )
     }
 
+    static func makeWorkPacketRegistry() throws -> SearchableFieldRegistryV1 {
+        try makeExtendedRegistry(
+            includeAccountability: true,
+            includeAssetSemantics: true,
+            includeAuthorityCriterion: true,
+            includeFunctionalRelationships: true,
+            includeAssurance: true,
+            includeInspectionReview: true,
+            includeWorkPacket: true
+        )
+    }
+
     static func makeExtendedRegistry(
         includeAccountability: Bool,
         includeAssetSemantics: Bool,
         includeAuthorityCriterion: Bool,
         includeFunctionalRelationships: Bool = false,
         includeAssurance: Bool = false,
-        includeInspectionReview: Bool = false
+        includeInspectionReview: Bool = false,
+        includeWorkPacket: Bool = false
     ) throws -> SearchableFieldRegistryV1 {
-        let resolvedAccountability = includeAccountability || includeInspectionReview
-        let resolvedAssetSemantics = includeAssetSemantics || includeInspectionReview
-        let resolvedAuthorityCriterion = includeAuthorityCriterion || includeInspectionReview
-        let resolvedFunctionalRelationships = includeFunctionalRelationships || includeInspectionReview
-        let resolvedAssurance = includeAssurance || includeInspectionReview
+        let resolvedInspectionReview = includeInspectionReview || includeWorkPacket
+        let resolvedAccountability = includeAccountability || resolvedInspectionReview
+        let resolvedAssetSemantics = includeAssetSemantics || resolvedInspectionReview
+        let resolvedAuthorityCriterion = includeAuthorityCriterion || resolvedInspectionReview
+        let resolvedFunctionalRelationships = includeFunctionalRelationships || resolvedInspectionReview
+        let resolvedAssurance = includeAssurance || resolvedInspectionReview
         var fields = try (resolvedAccountability ? makeAccountabilityRegistry() : makeRegistry()).fields
         func append(_ id: String, _ kind: SearchSourceKindV1) throws {
+            let identity = id == FrozenSearchableFieldV1.workPacketIdentifier.rawValue
             fields.append(try SearchableFieldDescriptorV1(
-                fieldID: id, sourceKind: kind, privacyClass: .approvedCustomerText,
-                tokenization: .unicodeWords,
-                normalization: .unicodeCaseAndDiacriticFoldedNFC,
-                snippetPermission: .boundedUserVisibleExcerpt,
+                fieldID: id,
+                sourceKind: kind,
+                privacyClass: identity
+                    ? .userVisibleIdentifier : .approvedCustomerText,
+                tokenization: identity ? .exactIdentity : .unicodeWords,
+                normalization: identity
+                    ? .stableIdentity : .unicodeCaseAndDiacriticFoldedNFC,
+                snippetPermission: identity
+                    ? .exactDisplayValue : .boundedUserVisibleExcerpt,
                 retention: .untilSourceFieldIsAmended,
                 purgeOwner: .indexRebuildCoordinator
             ))
@@ -1234,9 +1390,14 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
                 try append(id, .report)
             }
         }
-        if includeInspectionReview {
+        if resolvedInspectionReview {
             for id in SearchInspectionReviewPersistencePolicyV1.fieldIDs {
                 try append(id, .report)
+            }
+        }
+        if includeWorkPacket {
+            for id in SearchWorkPacketPersistencePolicyV1.fieldIDs {
+                try append(id, .work)
             }
         }
         return try SearchableFieldRegistryV1(fields: fields)

@@ -200,6 +200,11 @@ final class BackupRestoreService {
                 && modelContext.fetchCount(FetchDescriptor<ChangeRequestRow>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<CorrectiveActionPolicyRow>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<CorrectiveActionEventRow>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<WorkPacketManifestRow>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<WorkItemClaimRow>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<WorkLeaseRow>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<WorkReleaseRow>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<WorkHandoffRow>()) == 0
                 && modelContext.fetchCount(
                     FetchDescriptor<AssetKindBindingEventRow>()
                 ) == 0
@@ -1519,7 +1524,7 @@ private extension BackupRestoreService {
         with packets: [V4BackupPacketDTO]
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
-            inspectionReview: records.inspectionReview,
+            workPackets:records.workPackets, inspectionReview: records.inspectionReview,
             evidenceAssurance: records.evidenceAssurance,
             functionalRelationships: records.functionalRelationships,
             authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
@@ -1568,7 +1573,7 @@ private extension BackupRestoreService {
         with history: MutationHistorySnapshotV1
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
-            inspectionReview: records.inspectionReview,
+            workPackets:records.workPackets, inspectionReview: records.inspectionReview,
             evidenceAssurance: records.evidenceAssurance,
             functionalRelationships: records.functionalRelationships,
             authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
@@ -1681,7 +1686,7 @@ private extension BackupRestoreService {
             return try V8BackupRequirementAssuranceRecordV1(row)
         }.sorted { canonical($0.workflowRecordID) < canonical($1.workflowRecordID) }
         return V4BackupRecordsV1(
-            inspectionReview: records.inspectionReview,
+            workPackets:records.workPackets, inspectionReview: records.inspectionReview,
             evidenceAssurance: records.evidenceAssurance,
             functionalRelationships: records.functionalRelationships,
             authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
@@ -1911,8 +1916,10 @@ private extension BackupRestoreService {
             sourceReports: records.reports, reboundReports: reports,
             members: members
         )
+        let workPackets = try rebindingWorkPackets(records.workPackets, workspaceID:workspaceID)
         guard let archived = records.locationMigrationReceipts.first else {
             return V4BackupRecordsV1(
+                workPackets:workPackets,
                 inspectionReview: inspectionReview,
                 evidenceAssurance: evidenceAssurance,
                 functionalRelationships: functionalRelationships,
@@ -1949,6 +1956,7 @@ private extension BackupRestoreService {
            functionalRelationships == records.functionalRelationships,
            evidenceAssurance == records.evidenceAssurance,
            inspectionReview == records.inspectionReview,
+           workPackets == records.workPackets,
            reports == records.reports {
             return records
         }
@@ -1961,6 +1969,7 @@ private extension BackupRestoreService {
             bindings: receipt.bindings
         )
         return V4BackupRecordsV1(
+            workPackets:workPackets,
             inspectionReview: inspectionReview,
             evidenceAssurance: evidenceAssurance,
             functionalRelationships: functionalRelationships,
@@ -2416,6 +2425,23 @@ private extension BackupRestoreService {
         }
     }
 
+    func rebindingWorkPackets(_ records:[V15BackupWorkPacketRecordV1],workspaceID:WorkspaceID)throws->[V15BackupWorkPacketRecordV1]{
+        let sourceManifests=try Dictionary(uniqueKeysWithValues:records.compactMap{r->(UUID,WorkPacketManifestV1)? in guard r.kind == .manifest else{return nil};let v=try WorkPacketCanonicalCodecV1.decode(WorkPacketManifestV1.self,from:r.canonicalData);return(v.manifestID,v)})
+        let manifests=try sourceManifests.mapValues{$0.workspaceID==workspaceID ? $0:try $0.rebound(to:workspaceID)}
+        func item(_ source:WorkPacketItemReferenceV1)throws->WorkPacketItemReferenceV1{guard let manifest=manifests.values.first(where:{$0.packetID==source.packetID&&$0.packetVersion==source.packetVersion}),let value=manifest.items.first(where:{$0.itemID==source.itemID&&$0.kind==source.itemKind&&$0.expectedRevision==source.expectedRevision&&$0.itemSHA256==source.itemSHA256})else{throw BackupRestoreServiceError.invalidPackage};return try .init(manifest:manifest,item:value)}
+        return try records.map{record in
+            let data:Data
+            switch record.kind{
+            case .manifest:guard let v=manifests[record.id]else{throw BackupRestoreServiceError.invalidPackage};data=try WorkPacketCanonicalCodecV1.encode(v)
+            case .claim:let s=try WorkPacketCanonicalCodecV1.decode(WorkItemClaimV1.self,from:record.canonicalData);let b=try s.rebound(to:workspaceID);guard let m=manifests[s.manifest.manifestID]else{throw BackupRestoreServiceError.invalidPackage};let v=try WorkItemClaimV1(claimID:b.claimID,workspaceID:workspaceID,manifest:WorkPacketManifestReferenceV1(m),item:item(s.item),holder:b.holder,claimSequence:b.claimSequence,claimedAt:b.claimedAt,supersedesClaimID:b.supersedesClaimID,revision:b.revision,mutationID:b.mutationID);data=try WorkPacketCanonicalCodecV1.encode(v)
+            case .lease:let s=try WorkPacketCanonicalCodecV1.decode(WorkLeaseV1.self,from:record.canonicalData);let b=try s.rebound(to:workspaceID);let v=try WorkLeaseV1(leaseID:b.leaseID,workspaceID:workspaceID,claimID:b.claimID,item:item(s.item),holder:b.holder,leaseSequence:b.leaseSequence,startsAt:b.startsAt,expiresAt:b.expiresAt,supersedesLeaseID:b.supersedesLeaseID,revision:b.revision,mutationID:b.mutationID);data=try WorkPacketCanonicalCodecV1.encode(v)
+            case .release:let s=try WorkPacketCanonicalCodecV1.decode(WorkReleaseV1.self,from:record.canonicalData);let b=try s.rebound(to:workspaceID);let v=try WorkReleaseV1(releaseID:b.releaseID,workspaceID:workspaceID,claimID:b.claimID,leaseID:b.leaseID,item:item(s.item),holder:b.holder,reason:b.reason,resultLinks:b.resultLinks,releasedAt:b.releasedAt,revision:b.revision,mutationID:b.mutationID);data=try WorkPacketCanonicalCodecV1.encode(v)
+            case .handoff:let s=try WorkPacketCanonicalCodecV1.decode(WorkHandoffV1.self,from:record.canonicalData);let b=try s.rebound(to:workspaceID);let v=try WorkHandoffV1(handoffID:b.handoffID,workspaceID:workspaceID,releaseID:b.releaseID,item:item(s.item),fromHolder:b.fromHolder,toHolder:b.toHolder,resultLinks:b.resultLinks,reason:b.reason,handedOffAt:b.handedOffAt,revision:b.revision,mutationID:b.mutationID);data=try WorkPacketCanonicalCodecV1.encode(v)
+            }
+            return .init(kind:record.kind,id:record.id,workspaceID:workspaceID.rawValue,revision:record.revision,canonicalData:data)
+        }
+    }
+
     func rebindingInspectionReview(
         _ records: [V14BackupInspectionReviewRecordV1], workspaceID: WorkspaceID,
         sourceEvidenceAssurance: [V13BackupEvidenceAssuranceRecordV1],
@@ -2867,7 +2893,8 @@ private extension BackupRestoreService {
                 || records.recordsSchemaVersion == 10
                 || records.recordsSchemaVersion == 11
                 || records.recordsSchemaVersion == 12
-                || records.recordsSchemaVersion == 13)
+                || records.recordsSchemaVersion == 13
+                || records.recordsSchemaVersion == 14)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -3122,7 +3149,7 @@ private extension BackupRestoreService {
             || records.recordsSchemaVersion == 10
             || records.recordsSchemaVersion == 11
             || records.recordsSchemaVersion == 12
-            || records.recordsSchemaVersion == 13 {
+            || records.recordsSchemaVersion == 13 || records.recordsSchemaVersion == 14 {
             do {
                 for record in records.savedSmartViews {
                     let descriptor = try record.descriptor()
@@ -3302,6 +3329,15 @@ private extension BackupRestoreService {
                 }
             } catch { throw BackupRestoreServiceError.invalidPackage }
         }
+        if records.recordsSchemaVersion >= 14 {
+            do {for record in records.workPackets {switch record.kind {
+                case .manifest:context.insert(try WorkPacketManifestRow(WorkPacketCanonicalCodecV1.decode(WorkPacketManifestV1.self,from:record.canonicalData)))
+                case .claim:context.insert(try WorkItemClaimRow(WorkPacketCanonicalCodecV1.decode(WorkItemClaimV1.self,from:record.canonicalData)))
+                case .lease:context.insert(try WorkLeaseRow(WorkPacketCanonicalCodecV1.decode(WorkLeaseV1.self,from:record.canonicalData)))
+                case .release:context.insert(try WorkReleaseRow(WorkPacketCanonicalCodecV1.decode(WorkReleaseV1.self,from:record.canonicalData)))
+                case .handoff:context.insert(try WorkHandoffRow(WorkPacketCanonicalCodecV1.decode(WorkHandoffV1.self,from:record.canonicalData)))
+            }}}catch{throw BackupRestoreServiceError.invalidPackage}
+        }
         if let mutationHistory = records.mutationHistory {
             guard records.recordsSchemaVersion == 3
                     || records.recordsSchemaVersion == 4
@@ -3313,7 +3349,8 @@ private extension BackupRestoreService {
                     || records.recordsSchemaVersion == 10
                     || records.recordsSchemaVersion == 11
                     || records.recordsSchemaVersion == 12
-                    || records.recordsSchemaVersion == 13 else {
+                    || records.recordsSchemaVersion == 13
+                    || records.recordsSchemaVersion == 14 else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {
@@ -4394,7 +4431,8 @@ private extension BackupRestoreService {
               (actual.recordsSchemaVersion == 9 || actual.recordsSchemaVersion == 10
                 || actual.recordsSchemaVersion == 11
                 || actual.recordsSchemaVersion == 12
-                || actual.recordsSchemaVersion == 13) else {
+                || actual.recordsSchemaVersion == 13
+                || actual.recordsSchemaVersion == 14) else {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
         if expected.recordsSchemaVersion == 5 || expected.recordsSchemaVersion == 6 {
@@ -4413,6 +4451,7 @@ private extension BackupRestoreService {
         schemaVersion: Int
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            workPackets:schemaVersion>=14 ? records.workPackets:[],
             inspectionReview: schemaVersion >= 13 ? records.inspectionReview : [],
             evidenceAssurance: schemaVersion >= 12 ? records.evidenceAssurance : [],
             functionalRelationships: schemaVersion >= 11 ? records.functionalRelationships : [],
@@ -4445,6 +4484,7 @@ private extension BackupRestoreService {
         expected: V4BackupRecordsV1
     ) throws -> Bool {
         let predecessor = V4BackupRecordsV1(
+            workPackets:expected.recordsSchemaVersion>=14 ? expected.workPackets:[],
             inspectionReview: expected.recordsSchemaVersion >= 13 ? expected.inspectionReview : [],
             evidenceAssurance: expected.recordsSchemaVersion >= 12 ? expected.evidenceAssurance : [],
             functionalRelationships: expected.recordsSchemaVersion >= 11 ? expected.functionalRelationships : [],
@@ -4622,6 +4662,7 @@ private extension BackupRestoreService {
         let changeRequests = try context.fetch(FetchDescriptor<ChangeRequestRow>())
         let correctiveActionPolicies = try context.fetch(FetchDescriptor<CorrectiveActionPolicyRow>())
         let correctiveActionEvents = try context.fetch(FetchDescriptor<CorrectiveActionEventRow>())
+        let workPacketManifests=try context.fetch(FetchDescriptor<WorkPacketManifestRow>()),workItemClaims=try context.fetch(FetchDescriptor<WorkItemClaimRow>()),workLeases=try context.fetch(FetchDescriptor<WorkLeaseRow>()),workReleases=try context.fetch(FetchDescriptor<WorkReleaseRow>()),workHandoffs=try context.fetch(FetchDescriptor<WorkHandoffRow>())
         let evidenceVisibilities = try context.fetch(FetchDescriptor<EvidenceVisibilityRow>())
         let claimEvidenceLinks = try context.fetch(FetchDescriptor<ClaimEvidenceLinkRow>())
         let assuranceManifests = try context.fetch(FetchDescriptor<AssuranceManifestRow>())
@@ -4650,6 +4691,7 @@ private extension BackupRestoreService {
             mutationHistory = nil
         }
         return V4BackupRecordsV1(
+            workPackets:try(workPacketManifests.map{let v=try $0.value();return .init(kind:.manifest,id:v.manifestID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData)}+workItemClaims.map{let v=try $0.value();return .init(kind:.claim,id:v.claimID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData)}+workLeases.map{let v=try $0.value();return .init(kind:.lease,id:v.leaseID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData)}+workReleases.map{let v=try $0.value();return .init(kind:.release,id:v.releaseID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData)}+workHandoffs.map{let v=try $0.value();return .init(kind:.handoff,id:v.handoffID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData)}).sorted{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"},
             inspectionReview: try (
                 inspectionReviewTransitions.map { let v=try $0.value(); return .init(kind:.reviewTransition,id:v.transitionID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData) }
                 + reviewDispositions.map { let v=try $0.value(); return .init(kind:.reviewDisposition,id:v.dispositionID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData) }
@@ -4822,7 +4864,8 @@ private extension BackupRestoreService {
                 "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
                     < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
             },
-            recordsSchemaVersion: inspectionReviewTransitions.isEmpty && reviewDispositions.isEmpty
+            recordsSchemaVersion: workPacketManifests.isEmpty && workItemClaims.isEmpty && workLeases.isEmpty && workReleases.isEmpty && workHandoffs.isEmpty
+                ? (inspectionReviewTransitions.isEmpty && reviewDispositions.isEmpty
                     && changeRequests.isEmpty && correctiveActionPolicies.isEmpty
                     && correctiveActionEvents.isEmpty
                 ? (evidenceVisibilities.isEmpty && claimEvidenceLinks.isEmpty
@@ -4842,7 +4885,8 @@ private extension BackupRestoreService {
                     : 10)
                     : 11)
                 : 12)
-                : 13,
+                : 13)
+                : 14,
             reports: reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,

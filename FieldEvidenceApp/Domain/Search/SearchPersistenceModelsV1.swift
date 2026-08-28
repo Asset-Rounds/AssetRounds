@@ -233,6 +233,86 @@ enum SearchInspectionReviewPersistencePolicyV1 {
     }
 }
 
+/// C15 search is a disposable current-head projection of packet coordination.
+/// Only stable packet identity, typed manifest/item/conflict state, and the
+/// projection marker are admitted; actor, lease, result, evidence, and review
+/// exception details remain canonical-only.
+enum SearchWorkPacketPersistencePolicyV1 {
+    static let semanticLabel = "WORK_PACKET_COORDINATION_SEARCH_PROJECTION_V1"
+    static let sourceKind = "WORK"
+    static let fieldIDs = [
+        "work_packet_identifier",
+        "work_packet_manifest_state",
+        "work_packet_item_state",
+        "work_packet_conflict_state",
+        "work_packet_projection_version",
+    ]
+    static let indexesCurrentHeadsOnly = true
+    static let excludesActorPrivateDetail = true
+    static let excludesClaimLeaseData = true
+    static let excludesResultAndEvidenceLinks = true
+    static let excludesAuthorizationAndTelemetry = true
+    static let acceptedProjectionVersionMarkers = [
+        "C15_WORK_PACKET_V1",
+        "report-work-packet-v1",
+    ]
+
+    static func accepts(fieldID: String) -> Bool { fieldIDs.contains(fieldID) }
+
+    static func acceptsMetadata(
+        fieldID: String,
+        tokens: [String],
+        snippet: String?
+    ) -> Bool {
+        guard accepts(fieldID: fieldID), !tokens.isEmpty,
+              tokens.allSatisfy(SearchContractValidationV1.isCanonicalSearchToken),
+              tokens.count <= 16,
+              let snippet,
+              SearchContractValidationV1.validDisplayText(
+                  snippet,
+                  maximumBytes: SearchContractLimitsV1.maximumSnippetBytes
+              ),
+              normalizedMetadataTokens(snippet) == tokens else {
+            return false
+        }
+        if fieldID == "work_packet_projection_version" {
+            return acceptedProjectionVersionMarkers.contains {
+                normalizedMetadataTokens($0) == tokens
+            }
+        }
+        if fieldID == "work_packet_identifier" {
+            return true
+        }
+        let allowed: Set<String>
+        switch fieldID {
+        case "work_packet_manifest_state":
+            allowed = ["ready", "conflicted", "replayed", "superseded"]
+        case "work_packet_item_state":
+            allowed = Set(CompletedWorkPacketItemStateV1.allCases.map {
+                $0.rawValue.lowercased()
+            })
+        case "work_packet_conflict_state":
+            allowed = ["none", "review_required"]
+        default:
+            return false
+        }
+        let allowedTokens = Set(allowed.flatMap {
+            SearchContractValidationV1.normalizeSearchText($0)
+                .split { !CharacterSet.alphanumerics.contains($0) }
+                .map(String.init)
+        })
+        return Set(tokens).isSubset(of: allowedTokens)
+            && Set(tokens).count == tokens.count
+    }
+
+    private static func normalizedMetadataTokens(_ value: String) -> [String] {
+        SearchContractValidationV1.normalizeSearchText(value)
+            .unicodeScalars
+            .split { !CharacterSet.alphanumerics.contains($0) }
+            .map(String.init)
+    }
+}
+
 typealias SearchReviewHistoryPersistencePolicyV1 = SearchInspectionReviewPersistencePolicyV1
 
 typealias SearchFunctionalRelationshipPersistencePolicyV1 =

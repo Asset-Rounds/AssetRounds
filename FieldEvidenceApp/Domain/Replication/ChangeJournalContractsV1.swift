@@ -555,6 +555,7 @@ struct JournalChangeV1: Codable, Equatable, Sendable {
         )
         try EvidenceAssuranceJournalContractV1.validate(envelope:envelope,receipt:receipt,entityChanges:entityChanges)
         try InspectionReviewJournalContractV1.validate(envelope:envelope,receipt:receipt,entityChanges:entityChanges)
+        try WorkPacketJournalContractV1.validate(envelope:envelope,receipt:receipt,entityChanges:entityChanges)
         let receiptIdentities = try receipt.postImages.map { try $0.identity }
         let locationIdentities = try envelope.command.canonicalLocationAffectedIdentities()
         guard schemaVersion == Self.schemaVersion, envelope.workspaceID == receipt.identity.workspaceID, envelope.replicaID == receipt.identity.replicaID, envelope.mutationID == receipt.mutationID, receipt.envelopeSHA256 == (try envelope.canonicalSHA256()),
@@ -622,6 +623,8 @@ enum FunctionalRelationshipJournalContractV1 {
 }
 enum EvidenceAssuranceJournalContractV1{static func validate(envelope:MutationEnvelopeV1,receipt:MutationReceiptV1,entityChanges:[EntityChangeV1])throws{guard case let .applyEvidenceAssurance(m)=envelope.command else{return};try m.validate();let a=try m.affectedIdentity;let image=try m.postImage.mutationPostImage;guard envelope.commandKind == .applyEvidenceAssurance,receipt.mutationID==m.mutationID,receipt.postImages==[image],entityChanges.map(\.identity)==[a],entityChanges.map(\.postImage)==[image]else{throw ChangeJournalFailureV1.tamperedBatch}}}
 enum InspectionReviewJournalContractV1{static func validate(envelope:MutationEnvelopeV1,receipt:MutationReceiptV1,entityChanges:[EntityChangeV1])throws{guard case let .applyInspectionReview(m)=envelope.command else{return};try m.validate();let affected=try m.affectedIdentities;let images=try m.postImage.mutationPostImages;guard envelope.commandKind == .applyInspectionReview,envelope.mutationID==m.mutationID,receipt.mutationID==m.mutationID,receipt.postImages==images,entityChanges.map(\.identity)==affected,entityChanges.map(\.postImage)==images else{throw ChangeJournalFailureV1.tamperedBatch}}}
+
+enum WorkPacketJournalContractV1{static func validate(envelope:MutationEnvelopeV1,receipt:MutationReceiptV1,entityChanges:[EntityChangeV1])throws{guard case let .applyWorkPacket(m)=envelope.command else{return};try m.validate();let a=try m.affectedIdentity;let image=try m.postImage.mutationPostImage;guard envelope.commandKind == .applyWorkPacket,envelope.mutationID==m.mutationID,receipt.mutationID==m.mutationID,receipt.postImages==[image],entityChanges.map(\.identity)==[a],entityChanges.map(\.postImage)==[image]else{throw ChangeJournalFailureV1.tamperedBatch}}}
 
 struct ChangeBatchV1: Codable, Equatable, Sendable {
     static let schemaVersion = 1

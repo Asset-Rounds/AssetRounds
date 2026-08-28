@@ -324,6 +324,23 @@ final class S6_3BackupValidationTests: XCTestCase {
 }
 
 extension S6_3BackupValidationTests {
+    func testV23P03C15BackupValidationUsesV15SchemaAndTypedRows() throws {
+        let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_163)
+        let rows: [Data] = [
+            try WorkPacketCanonicalCodecV1.encode(fixture.manifest),
+            try WorkPacketCanonicalCodecV1.encode(fixture.claim),
+            try WorkPacketCanonicalCodecV1.encode(fixture.lease),
+            try WorkPacketCanonicalCodecV1.encode(fixture.completedRelease),
+            try WorkPacketCanonicalCodecV1.encode(fixture.handoff)
+        ]
+        XCTAssertEqual(rows.count, 5)
+        XCTAssertTrue(rows.allSatisfy { !$0.isEmpty && $0.count <= WorkPacketLimitsV1.maximumCanonicalBytes })
+        XCTAssertEqual(PersistentSchemaV15.versionIdentifier, Schema.Version(15, 0, 0))
+        XCTAssertEqual(PersistentSchemaV15.models.count, 58)
+    }
+}
+
+extension S6_3BackupValidationTests {
     func testV23P03C13BackupValidationRejectsNonCanonicalAssuranceBytes() throws {
         let fixture = try C13EvidenceAssuranceTestSupportV1.makeFixture(seed: 51_630)
         var bytes = try EvidenceAssuranceCanonicalCodecV1.encode(fixture.customerManifest)

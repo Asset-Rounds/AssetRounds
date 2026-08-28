@@ -226,6 +226,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
         let c49 = TemporalOriginV1(card: "V23_P03_C41", ordinal: 49)
         let c50=TemporalOriginV1(card:"V23_P03_C13",ordinal:50)
         let c51=TemporalOriginV1(card:"V23_P03_C14",ordinal:51)
+        let c52=TemporalOriginV1(card:"V23_P03_C15",ordinal:52)
         let groups: [(TemporalOriginV1, [String])] = [
             (c16, [
                 "JOURNAL:CurrentGenerationPointerV2",
@@ -375,6 +376,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
             ]),
             (c50,["PERSISTENT_MODEL:EvidenceVisibilityRow","PERSISTENT_MODEL:ClaimEvidenceLinkRow","PERSISTENT_MODEL:AssuranceManifestRow","PERSISTENT_MODEL:AttestationRow","PROJECTION:EvidenceVisibilityV1","PROJECTION:ClaimEvidenceLinkV1","PROJECTION:AssuranceProjectionPreviewV1","PROJECTION:AssuranceManifestV1","PROJECTION:AttestationV1","PROJECTION:StoreSemanticEnvelopeV13"]),
             (c51,["PERSISTENT_MODEL:InspectionReviewTransitionRow","PERSISTENT_MODEL:ReviewDispositionRow","PERSISTENT_MODEL:ChangeRequestRow","PERSISTENT_MODEL:CorrectiveActionPolicyRow","PERSISTENT_MODEL:CorrectiveActionEventRow","PROJECTION:InspectionReviewTransitionV1","PROJECTION:ReviewDispositionV1","PROJECTION:ChangeRequestV1","PROJECTION:CorrectiveActionPolicyV1","PROJECTION:CorrectiveActionEventV1","PROJECTION:InspectionReviewProjectionV1","PROJECTION:CorrectiveActionProjectionV1","PROJECTION:StoreSemanticEnvelopeV14"]),
+            (c52,["PERSISTENT_MODEL:WorkPacketManifestRow","PERSISTENT_MODEL:WorkItemClaimRow","PERSISTENT_MODEL:WorkLeaseRow","PERSISTENT_MODEL:WorkReleaseRow","PERSISTENT_MODEL:WorkHandoffRow","PROJECTION:WorkPacketManifestV1","PROJECTION:WorkItemClaimV1","PROJECTION:WorkLeaseV1","PROJECTION:WorkReleaseV1","PROJECTION:WorkHandoffV1","PROJECTION:WorkPacketProjectionV1","PROJECTION:StoreSemanticEnvelopeV15"]),
         ]
         return groups.reduce(into: [:]) { result, group in
             for kindID in group.1 {
@@ -451,9 +453,10 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
         ])
         let c13KindIDs=Set(["PERSISTENT_MODEL:EvidenceVisibilityRow","PERSISTENT_MODEL:ClaimEvidenceLinkRow","PERSISTENT_MODEL:AssuranceManifestRow","PERSISTENT_MODEL:AttestationRow","PROJECTION:EvidenceVisibilityV1","PROJECTION:ClaimEvidenceLinkV1","PROJECTION:AssuranceProjectionPreviewV1","PROJECTION:AssuranceManifestV1","PROJECTION:AttestationV1","PROJECTION:StoreSemanticEnvelopeV13"])
         let c14KindIDs=Set(["PERSISTENT_MODEL:InspectionReviewTransitionRow","PERSISTENT_MODEL:ReviewDispositionRow","PERSISTENT_MODEL:ChangeRequestRow","PERSISTENT_MODEL:CorrectiveActionPolicyRow","PERSISTENT_MODEL:CorrectiveActionEventRow","PROJECTION:InspectionReviewTransitionV1","PROJECTION:ReviewDispositionV1","PROJECTION:ChangeRequestV1","PROJECTION:CorrectiveActionPolicyV1","PROJECTION:CorrectiveActionEventV1","PROJECTION:InspectionReviewProjectionV1","PROJECTION:CorrectiveActionProjectionV1","PROJECTION:StoreSemanticEnvelopeV14"])
-        guard kindIDs.count == 195,
+        let c15KindIDs=Set(["PERSISTENT_MODEL:WorkPacketManifestRow","PERSISTENT_MODEL:WorkItemClaimRow","PERSISTENT_MODEL:WorkLeaseRow","PERSISTENT_MODEL:WorkReleaseRow","PERSISTENT_MODEL:WorkHandoffRow","PROJECTION:WorkPacketManifestV1","PROJECTION:WorkItemClaimV1","PROJECTION:WorkLeaseV1","PROJECTION:WorkReleaseV1","PROJECTION:WorkHandoffV1","PROJECTION:WorkPacketProjectionV1","PROJECTION:StoreSemanticEnvelopeV15"])
+        guard kindIDs.count == 207,
               Set(kindIDs).count == kindIDs.count,
-              laterTemporalOrigins.count == 139,
+              laterTemporalOrigins.count == 151,
               c09KindIDs.isSubset(of: Set(kindIDs)),
               c12KindIDs.isSubset(of: Set(kindIDs)),
               c38KindIDs.isSubset(of: Set(kindIDs)),
@@ -462,6 +465,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
               c41KindIDs.isSubset(of: Set(kindIDs)),
               c13KindIDs.isSubset(of:Set(kindIDs)),
               c14KindIDs.isSubset(of:Set(kindIDs)),
+              c15KindIDs.isSubset(of:Set(kindIDs)),
               Set(laterTemporalOrigins.keys).isSubset(of: Set(kindIDs)) else {
             throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage
         }
@@ -470,7 +474,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
                 registration.subject
             ) ? registration.subject.canonicalKey : nil
         })
-        guard durableKindIDs.count == 110 else {
+        guard durableKindIDs.count == 115 else {
             throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage
         }
         let universeBytes = try CompatibilityCanonicalV1.encode(
@@ -481,6 +485,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
                     && !c41KindIDs.contains($0)
                     && !c13KindIDs.contains($0)
                     && !c14KindIDs.contains($0)
+                    && !c15KindIDs.contains($0)
             }
         )
         guard CompatibilityCanonicalV1.sha256(universeBytes)

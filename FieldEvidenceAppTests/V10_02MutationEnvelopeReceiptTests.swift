@@ -1242,6 +1242,21 @@ final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
     }
 }
 
+extension V10_02MutationEnvelopeReceiptTests {
+    func testV23P03C15ReceiptEnvelopeBindsReleaseMutationAndRevision() throws {
+        let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_202)
+        let mutation = try WorkPacketMutationV1(
+            workspaceID: fixture.workspaceID, expectedRevision: 0,
+            mutationID: fixture.completedRelease.mutationID,
+            postImage: .recordRelease(fixture.completedRelease)
+        )
+        XCTAssertEqual(mutation.workspaceID, fixture.workspaceID)
+        XCTAssertEqual(mutation.revision, fixture.completedRelease.revision)
+        XCTAssertEqual(try mutation.affectedIdentity.id, fixture.completedRelease.releaseID)
+        XCTAssertEqual(try mutation.canonicalSHA256().count, 64)
+    }
+}
+
 private struct MutationEnvelopeReceiptCorpusFixtureV1: Decodable {
     struct CanonicalVector: Decodable {
         let workspaceID: String

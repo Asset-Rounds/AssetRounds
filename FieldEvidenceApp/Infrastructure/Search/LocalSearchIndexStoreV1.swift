@@ -171,6 +171,16 @@ actor LocalSearchIndexStoreV1: SearchIndexSnapshotProvidingV1, SearchIndexLifecy
                           snippet: $0.permittedSnippet
                       )
                   },
+                  records.filter {
+                      $0.sourceKind == .work
+                          && SearchWorkPacketPersistencePolicyV1.accepts(fieldID: $0.fieldID)
+                  }.allSatisfy {
+                      SearchWorkPacketPersistencePolicyV1.acceptsMetadata(
+                          fieldID: $0.fieldID,
+                          tokens: $0.normalizedTokens,
+                          snippet: $0.permittedSnippet
+                      )
+                  },
                   records.allSatisfy({
                       $0.workspaceID == source.workspaceID
                           && $0.sourceRevision <= source.commitRevision
@@ -490,6 +500,35 @@ actor LocalSearchIndexStoreV1: SearchIndexSnapshotProvidingV1, SearchIndexLifecy
         registry: SearchableFieldRegistryV1
     ) throws -> SearchIndexProjectionV1 {
         try inspectionReviewProjection(for: source, registry: registry)
+    }
+
+    /// Reads the disposable C15 packet projection through its current-head
+    /// metadata allowlist. Canonical claim/lease/result rows stay in the
+    /// workspace store and are never returned by this search surface.
+    func workPacketProjection(
+        for source: SearchSourceRevisionV1,
+        registry: SearchableFieldRegistryV1
+    ) throws -> SearchIndexProjectionV1 {
+        guard registry.fields.contains(where: {
+            $0.sourceKind == .work
+                && SearchWorkPacketPersistencePolicyV1.accepts(fieldID: $0.fieldID)
+        }) else {
+            throw SearchContractFailureV1.forbiddenField
+        }
+        let value = try projection(for: source, registry: registry)
+        guard value.records.filter({
+            $0.sourceKind == .work
+                && SearchWorkPacketPersistencePolicyV1.accepts(fieldID: $0.fieldID)
+        }).allSatisfy({
+            SearchWorkPacketPersistencePolicyV1.acceptsMetadata(
+                fieldID: $0.fieldID,
+                tokens: $0.normalizedTokens,
+                snippet: $0.permittedSnippet
+            )
+        }) else {
+            throw LocalSearchIndexStoreFailureV1.corruptStore
+        }
+        return value
     }
 
     /// Singular compatibility spelling for callers that model one bounded

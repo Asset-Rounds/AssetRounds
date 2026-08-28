@@ -36,6 +36,8 @@ enum InspectionReviewEraseAllPolicyV1 {
     }
 }
 
+enum WorkPacketEraseAllPolicyV1{static func validatePublishedEmptyGeneration(_ context:ModelContext)throws{guard try context.fetchCount(FetchDescriptor<WorkPacketManifestRow>())==0,try context.fetchCount(FetchDescriptor<WorkItemClaimRow>())==0,try context.fetchCount(FetchDescriptor<WorkLeaseRow>())==0,try context.fetchCount(FetchDescriptor<WorkReleaseRow>())==0,try context.fetchCount(FetchDescriptor<WorkHandoffRow>())==0 else{throw EraseAllServiceError.invalidAuthority}}}
+
 enum EraseAllServiceError: Error, Equatable {
     case contextHasChanges
     case invalidAuthority
@@ -1201,6 +1203,7 @@ private extension EraseAllService {
         try InspectionReviewEraseAllPolicyV1.validatePublishedEmptyGeneration(
             session.modelContext
         )
+        try WorkPacketEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         if let identity {
             let history = try MutationJournalStoreV1(
                 modelContext: session.modelContext,

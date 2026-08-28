@@ -460,6 +460,84 @@ final class S8_3DiagnosticPrivacyTests: XCTestCase {
             )
         )
     }
+
+    func testC15WorkPacketLocalizationIsSecretAndWorkDataFree() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let catalogURL = root
+            .appendingPathComponent("FieldEvidenceApp/Resources/Localizable.xcstrings")
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: catalogURL)) as? [String: Any]
+        )
+        XCTAssertEqual(object["sourceLanguage"] as? String, "en")
+        XCTAssertEqual(object["version"] as? String, "1.0")
+        let strings = try XCTUnwrap(object["strings"] as? [String: Any])
+        let c15Text = try WorkPacketLocalizationKeyV1.allCases.flatMap { key in
+            let entry = try XCTUnwrap(strings[key.rawValue] as? [String: Any])
+            let comment = try XCTUnwrap(entry["comment"] as? String)
+            XCTAssertFalse(comment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            let localizations = try XCTUnwrap(entry["localizations"] as? [String: Any])
+            XCTAssertEqual(Set(localizations.keys), Set(["en"]))
+            let english = try XCTUnwrap(localizations["en"] as? [String: Any])
+            let unit = try XCTUnwrap(english["stringUnit"] as? [String: Any])
+            let value = try XCTUnwrap(unit["value"] as? String)
+            XCTAssertFalse(value.isEmpty)
+            return [comment, value]
+        }
+
+        XCTAssertFalse(
+            WorkPacketLocalizationPolicyV1.containsProhibitedClaim(in: c15Text)
+        )
+        XCTAssertFalse(
+            WorkPacketLocalizationPolicyV1.containsSensitiveDataLeakage(in: c15Text)
+        )
+        XCTAssertTrue(WorkPacketLocalizationPolicyV1.denyByDefault)
+        XCTAssertTrue(WorkPacketLocalizationPolicyV1.requiresNonColorStateText)
+        XCTAssertTrue(WorkPacketLocalizationPolicyV1.requiresTextAndIconForIndeterminateStates)
+        XCTAssertTrue(WorkPacketLocalizationPolicyV1.requiresActionableNextStep)
+        XCTAssertFalse(WorkPacketLocalizationPolicyV1.allowsColorOnlyState)
+        XCTAssertFalse(WorkPacketLocalizationPolicyV1.allowsIconOnlyState)
+        XCTAssertTrue(WorkPacketLocalizationPolicyV1.excludesSecrets)
+        XCTAssertTrue(WorkPacketLocalizationPolicyV1.excludesCustomerData)
+        XCTAssertTrue(WorkPacketLocalizationPolicyV1.excludesWorkData)
+        XCTAssertTrue(WorkPacketLocalizationPolicyV1.excludesCustomerDataLeakage)
+        XCTAssertTrue(WorkPacketLocalizationPolicyV1.excludesPrivateLocators)
+        XCTAssertTrue(WorkPacketLocalizationPolicyV1.excludesUnsupportedClaims)
+
+        let hostileClaims = [
+            "approval granted", "authorization granted", "verified identity",
+            "legal signature", "compliance result", "tamperproof history",
+            "non-repudiation asserted", "secure delivery", "sent successfully",
+            "delivered successfully", "professional certification",
+        ]
+        XCTAssertTrue(hostileClaims.allSatisfy {
+            WorkPacketClaimVocabularyV1.containsProhibitedClaim(in: [$0])
+        })
+        XCTAssertTrue(
+            WorkPacketClaimVocabularyV1.containsSensitiveDataLeakage(
+                in: [
+                    "customer data", "customer-information leak", "private data",
+                    "work data", "work product", "secret", "credential", "password",
+                ]
+            )
+        )
+        XCTAssertTrue(
+            WorkPacketClaimVocabularyV1.containsCustomerDataLeakage(
+                in: ["customer information", "work data"]
+            )
+        )
+        XCTAssertFalse(
+            WorkPacketClaimVocabularyV1.containsProhibitedClaim(
+                in: ["Recorded packet state", "Claim released", "Minimum requirement"]
+            )
+        )
+        XCTAssertTrue(
+            AudiencePrivacyLexicalDetectorV1.containsProhibitedPattern(
+                in: ["https://packet.example/item", "file:///Users/private/work-packet"]
+            )
+        )
+    }
 }
 
 private final class DiagnosticsLogProbe: @unchecked Sendable {

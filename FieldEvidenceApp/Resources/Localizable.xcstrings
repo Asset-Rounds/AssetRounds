@@ -1321,6 +1321,214 @@
           }
         }
       }
+    },
+    "work.packet.heading" : {
+      "comment" : "Heading for recorded local packet coordination facts.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Work packet" } } }
+    },
+    "work.packet.manifest" : {
+      "comment" : "Localized label for an immutable bounded packet manifest.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Packet manifest" } } }
+    },
+    "work.packet.item" : {
+      "comment" : "Localized label for one bounded packet item.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Work item" } } }
+    },
+    "work.packet.manifest.state" : {
+      "comment" : "Localized label for the recorded packet manifest state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Manifest state" } } }
+    },
+    "work.packet.manifest.state.draft" : {
+      "comment" : "Accessible text for a packet manifest in draft state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Draft" } } }
+    },
+    "work.packet.manifest.state.ready" : {
+      "comment" : "Accessible text for a packet manifest ready for local work.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Ready" } } }
+    },
+    "work.packet.manifest.state.invalid" : {
+      "comment" : "Accessible text for a packet manifest that failed recorded validation.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Invalid" } } }
+    },
+    "work.packet.manifest.state.replayed" : {
+      "comment" : "Accessible text for a packet manifest with a recorded replay.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Replayed" } } }
+    },
+    "work.packet.manifest.state.conflicted" : {
+      "comment" : "Accessible text for a packet manifest with a recorded conflict.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Conflict recorded" } } }
+    },
+    "work.packet.manifest.state.superseded" : {
+      "comment" : "Accessible text for a packet manifest superseded by a later record.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Superseded" } } }
+    },
+    "work.packet.claim" : {
+      "comment" : "Localized label for a recorded local item claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Item claim" } } }
+    },
+    "work.packet.claim.state" : {
+      "comment" : "Localized label for the recorded item claim state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Claim state" } } }
+    },
+    "work.packet.claim.state.unclaimed" : {
+      "comment" : "Accessible text for an item with no recorded claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Unclaimed" } } }
+    },
+    "work.packet.claim.state.claimed" : {
+      "comment" : "Accessible text for an item with a recorded claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Claimed" } } }
+    },
+    "work.packet.claim.state.released" : {
+      "comment" : "Accessible text for an item with a recorded claim release.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Released" } } }
+    },
+    "work.packet.claim.state.conflicted" : {
+      "comment" : "Accessible text for an item claim with a recorded conflict.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Conflict recorded" } } }
+    },
+    "work.packet.lease" : {
+      "comment" : "Localized label for a recorded local work lease.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Work lease" } } }
+    },
+    "work.packet.lease.state" : {
+      "comment" : "Localized label for the recorded work lease state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Lease state" } } }
+    },
+    "work.packet.lease.state.active" : {
+      "comment" : "Accessible text for an active recorded work lease.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Active" } } }
+    },
+    "work.packet.lease.state.expiring" : {
+      "comment" : "Accessible text for a work lease approaching its recorded expiry.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Expiring" } } }
+    },
+    "work.packet.lease.state.expired" : {
+      "comment" : "Accessible text for a work lease past its recorded expiry.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Expired" } } }
+    },
+    "work.packet.lease.state.reclaimed" : {
+      "comment" : "Accessible text for a work lease reclaimed by a recorded local action.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reclaimed" } } }
+    },
+    "work.packet.release" : {
+      "comment" : "Localized label for a recorded local item release.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Item release" } } }
+    },
+    "work.packet.release.state" : {
+      "comment" : "Localized label for the recorded item release state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Release state" } } }
+    },
+    "work.packet.release.state.recorded" : {
+      "comment" : "Accessible text for an item release recorded in the local history.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recorded" } } }
+    },
+    "work.packet.release.state.available" : {
+      "comment" : "Accessible text for an item available after a recorded release.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Available" } } }
+    },
+    "work.packet.release.state.superseded" : {
+      "comment" : "Accessible text for an item release superseded by a later record.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Superseded" } } }
+    },
+    "work.packet.handoff" : {
+      "comment" : "Localized label for a recorded local packet handoff.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Packet handoff" } } }
+    },
+    "work.packet.handoff.state" : {
+      "comment" : "Localized label for the recorded packet handoff state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Handoff state" } } }
+    },
+    "work.packet.handoff.state.pending" : {
+      "comment" : "Accessible text for a packet handoff awaiting a recorded result.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Pending" } } }
+    },
+    "work.packet.handoff.state.accepted" : {
+      "comment" : "Accessible text for a packet handoff with an accepted recorded result.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Accepted" } } }
+    },
+    "work.packet.handoff.state.rejected" : {
+      "comment" : "Accessible text for a packet handoff with a rejected recorded result.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Rejected" } } }
+    },
+    "work.packet.handoff.state.completed" : {
+      "comment" : "Accessible text for a packet handoff with a completed recorded result.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Completed" } } }
+    },
+    "work.packet.conflict" : {
+      "comment" : "Localized label for a recorded packet coordination conflict.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Packet conflict" } } }
+    },
+    "work.packet.conflict.state" : {
+      "comment" : "Localized label for the recorded packet conflict state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Conflict state" } } }
+    },
+    "work.packet.conflict.state.detected" : {
+      "comment" : "Accessible text for a packet conflict detected in the local record.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Detected" } } }
+    },
+    "work.packet.conflict.state.quarantined" : {
+      "comment" : "Accessible text for a conflicting packet result held for review.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Quarantined" } } }
+    },
+    "work.packet.conflict.state.review_required" : {
+      "comment" : "Accessible text for a packet conflict requiring a recorded review.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review required" } } }
+    },
+    "work.packet.conflict.state.resolved" : {
+      "comment" : "Accessible text for a packet conflict with a recorded resolution.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Resolved" } } }
+    },
+    "work.packet.expiry" : {
+      "comment" : "Localized label for the recorded lease expiry condition.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Lease expiry" } } }
+    },
+    "work.packet.expiry.state" : {
+      "comment" : "Localized label for the recorded packet expiry state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Expiry state" } } }
+    },
+    "work.packet.expiry.state.not_expired" : {
+      "comment" : "Accessible text for a lease whose recorded expiry has not passed.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Not expired" } } }
+    },
+    "work.packet.expiry.state.expiring" : {
+      "comment" : "Accessible text for a lease approaching its recorded expiry.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Expiring" } } }
+    },
+    "work.packet.expiry.state.expired" : {
+      "comment" : "Accessible text for a lease past its recorded expiry.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Expired" } } }
+    },
+    "work.packet.replay" : {
+      "comment" : "Localized label for a recorded local packet replay.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Packet replay" } } }
+    },
+    "work.packet.replay.state" : {
+      "comment" : "Localized label for the recorded packet replay state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Replay state" } } }
+    },
+    "work.packet.replay.state.pending" : {
+      "comment" : "Accessible text for a packet replay awaiting a recorded result.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Pending" } } }
+    },
+    "work.packet.replay.state.applied" : {
+      "comment" : "Accessible text for a packet replay with a recorded application.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Applied" } } }
+    },
+    "work.packet.replay.state.idempotent" : {
+      "comment" : "Accessible text for a packet replay recognized as already applied.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Already applied" } } }
+    },
+    "work.packet.replay.state.quarantined" : {
+      "comment" : "Accessible text for a packet replay held for recorded review.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Quarantined" } } }
+    },
+    "work.packet.next_step" : {
+      "comment" : "Actionable label for the next recorded packet-coordination step.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Next step" } } }
+    },
+    "work.packet.next_step.minimum_requirement" : {
+      "comment" : "Actionable label for the minimum recorded requirement before the next step.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Minimum requirement" } } }
     }
   },
   "version" : "1.0"

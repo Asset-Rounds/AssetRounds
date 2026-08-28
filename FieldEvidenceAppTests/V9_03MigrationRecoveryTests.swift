@@ -1434,6 +1434,17 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
 }
 
 extension V9_03MigrationRecoveryTests {
+    func testV23P03C15MigrationCarriesFiveWorkPacketRows() throws {
+        let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_103)
+        XCTAssertEqual(PersistentSchemaV15.versionIdentifier, Schema.Version(15, 0, 0))
+        XCTAssertEqual(PersistentSchemaV15.models.count, 58)
+        XCTAssertEqual(PersistentSchemaMigrationPlanV14.schemas.count, 2)
+        XCTAssertEqual(PersistentSchemaMigrationPlanV14.stages.count, 1)
+        XCTAssertEqual(try WorkPacketManifestRow(fixture.manifest).value(), fixture.manifest)
+    }
+}
+
+extension V9_03MigrationRecoveryTests {
     func testV23P03C41MigrationReplayRetainsCanonicalRelationshipHistory() throws {
         let fixture = try C41FunctionalRelationshipTestSupportV1.makeFixture(seed: 41_030)
         try fixture.ended.validateSuccessor(of: fixture.added)

@@ -513,6 +513,21 @@ final class V10_01WorkspaceWriterTests: XCTestCase {
     }
 }
 
+extension V10_01WorkspaceWriterTests {
+    func testV23P03C15WriterMutationUsesPacketIdentityAndCanonicalReceiptBytes() throws {
+        let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_201)
+        let mutation = try WorkPacketMutationV1(
+            workspaceID: fixture.workspaceID, expectedRevision: 0,
+            mutationID: fixture.manifest.mutationID,
+            postImage: .appendManifest(fixture.manifest)
+        )
+        XCTAssertEqual(try mutation.affectedIdentity.kind, .workPacketManifest)
+        XCTAssertEqual(try mutation.affectedIdentity.id, fixture.manifest.manifestID)
+        XCTAssertEqual(try mutation.concurrencyIdentity.id, fixture.manifest.manifestID)
+        XCTAssertEqual(try mutation.canonicalSHA256().count, 64)
+    }
+}
+
 @MainActor
 private final class TestWorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
     private(set) var applyCount = 0

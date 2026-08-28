@@ -90,6 +90,11 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
     case changeRequest(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case correctiveActionPolicy(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case correctiveActionEvent(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case workPacketManifest(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case workItemClaim(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case workLease(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case workRelease(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case workHandoff(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case workflowRecord(id: UUID, revision: UInt64, semanticSHA256: String)
     case evidenceFile(id: UUID, revision: UInt64, semanticSHA256: String)
     case issue(id: UUID, revision: UInt64, semanticSHA256: String)
@@ -133,6 +138,11 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
             case let .changeRequest(id,_,_,_):return try .init(kind:.changeRequest,id:id)
             case let .correctiveActionPolicy(id,_,_,_):return try .init(kind:.correctiveActionPolicy,id:id)
             case let .correctiveActionEvent(id,_,_,_):return try .init(kind:.correctiveActionEvent,id:id)
+            case let .workPacketManifest(id,_,_,_):return try .init(kind:.workPacketManifest,id:id)
+            case let .workItemClaim(id,_,_,_):return try .init(kind:.workItemClaim,id:id)
+            case let .workLease(id,_,_,_):return try .init(kind:.workLease,id:id)
+            case let .workRelease(id,_,_,_):return try .init(kind:.workRelease,id:id)
+            case let .workHandoff(id,_,_,_):return try .init(kind:.workHandoff,id:id)
             case let .workflowRecord(id, _, _): return try .init(kind: .workflowRecord, id: id)
             case let .evidenceFile(id, _, _): return try .init(kind: .evidenceFile, id: id)
             case let .issue(id, _, _): return try .init(kind: .issue, id: id)
@@ -162,6 +172,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
              let .evidenceVisibility(_,_,_,value),let .claimEvidenceLink(_,_,_,value),
              let .assuranceManifest(_,_,_,value),let .attestation(_,_,_,value),
              let .inspectionReviewTransition(_,_,_,value),let .reviewDisposition(_,_,_,value),let .changeRequest(_,_,_,value),let .correctiveActionPolicy(_,_,_,value),let .correctiveActionEvent(_,_,_,value),
+             let .workPacketManifest(_,_,_,value),let .workItemClaim(_,_,_,value),let .workLease(_,_,_,value),let .workRelease(_,_,_,value),let .workHandoff(_,_,_,value),
              let .workflowRecord(_, _, value),
              let .evidenceFile(_, _, value), let .issue(_, _, value), let .packet(_, _, value),
              let .report(_, _, value), let .deletionLedgerEntry(_, _, value),
@@ -203,6 +214,11 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
             case let .changeRequest(_,v,_,_):guard v.kind == .changeRequest else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             case let .correctiveActionPolicy(_,v,_,_):guard v.kind == .correctiveActionPolicy else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             case let .correctiveActionEvent(_,v,_,_):guard v.kind == .correctiveActionEvent else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+            case let .workPacketManifest(_,v,_,_):guard v.kind == .workPacketManifest else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+            case let .workItemClaim(_,v,_,_):guard v.kind == .workItemClaim else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+            case let .workLease(_,v,_,_):guard v.kind == .workLease else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+            case let .workRelease(_,v,_,_):guard v.kind == .workRelease else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+            case let .workHandoff(_,v,_,_):guard v.kind == .workHandoff else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             default:
                 return try identity
             }
@@ -228,6 +244,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
              let .evidenceVisibility(_,_,value,_),let .claimEvidenceLink(_,_,value,_),
              let .assuranceManifest(_,_,value,_),let .attestation(_,_,value,_),
              let .inspectionReviewTransition(_,_,value,_),let .reviewDisposition(_,_,value,_),let .changeRequest(_,_,value,_),let .correctiveActionPolicy(_,_,value,_),let .correctiveActionEvent(_,_,value,_),
+             let .workPacketManifest(_,_,value,_),let .workItemClaim(_,_,value,_),let .workLease(_,_,value,_),let .workRelease(_,_,value,_),let .workHandoff(_,_,value,_),
              let .workflowRecord(_, value, _), let .evidenceFile(_, value, _),
              let .issue(_, value, _), let .packet(_, value, _),
              let .report(_, value, _), let .deletionLedgerEntry(_, value, _),
@@ -525,6 +542,8 @@ extension EvidenceAssuranceMutationPayloadV1 {
 }
 extension InspectionReviewMutationPayloadV1{var mutationPostImages:[MutationPostImageV1]{get throws{var images:[MutationPostImageV1]=[];switch self{case let .applyReviewBundle(b):let t=b.transition;let ti=try WorkspaceEntityIdentityV1(kind:.inspectionReviewTransition,id:t.predecessorTransitionID ?? t.transitionID);images.append(.inspectionReviewTransition(id:t.transitionID,concurrencyIdentity:ti,revision:t.revision,semanticSHA256:t.transitionSHA256));if let d=b.disposition{let di=try WorkspaceEntityIdentityV1(kind:.reviewDisposition,id:d.supersedesDispositionID ?? d.dispositionID);images.append(.reviewDisposition(id:d.dispositionID,concurrencyIdentity:di,revision:d.revision,semanticSHA256:d.dispositionSHA256))};for r in b.changeRequests{let ri=try WorkspaceEntityIdentityV1(kind:.changeRequest,id:r.supersedesRequestRevisionID ?? r.requestRevisionID);images.append(.changeRequest(id:r.requestRevisionID,concurrencyIdentity:ri,revision:r.revision,semanticSHA256:r.requestSHA256))};case let .appendCorrectivePolicy(v),let .supersedeCorrectivePolicy(v):let c=try predecessorIdentity ?? affectedIdentities[0];images=[.correctiveActionPolicy(id:v.releaseID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.policySHA256)];case let .appendCorrectiveEvent(v),let .appendCorrectiveEventSuccessor(v):let c=try predecessorIdentity ?? affectedIdentities[0];images=[.correctiveActionEvent(id:v.eventID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.eventSHA256)]};return try images.sorted{try $0.identity.stableKey<$1.identity.stableKey}}}var mutationPostImage:MutationPostImageV1{get throws{let values=try mutationPostImages;guard values.count==1,let value=values.first else{throw WorkspaceMutationFailureV1.invalidCommand};return value}}}
 
+extension WorkPacketMutationPayloadV1{var mutationPostImage:MutationPostImageV1{get throws{let c=try predecessorIdentity ?? affectedIdentity;switch self{case let .appendManifest(v):.workPacketManifest(id:v.manifestID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.manifestSHA256);case let .appendClaim(v),let .supersedeClaim(v):.workItemClaim(id:v.claimID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.claimSHA256);case let .appendLease(v),let .supersedeLease(v):.workLease(id:v.leaseID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.leaseSHA256);case let .recordRelease(v):.workRelease(id:v.releaseID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.releaseSHA256);case let .recordHandoff(v):.workHandoff(id:v.handoffID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.handoffSHA256)}}}}
+
 /// Typed C40 receipt binding the journal-owned receipt to the exact canonical
 /// authority/criterion post-image. It does not introduce a second receipt
 /// writer or infer authority meaning from the persisted scalar fields.
@@ -754,6 +773,8 @@ struct InspectionReviewMutationReceiptV1:Codable,Equatable,Sendable{
               Set(concurrencyIdentities).count==concurrencyIdentities.count else{throw WorkspaceMutationFailureV1.invalidReceipt}
     }
 }
+
+struct WorkPacketMutationReceiptV1:Codable,Equatable,Sendable{let mutationSHA256:String;let mutationReceipt:MutationReceiptV1;let affectedIdentity:WorkspaceEntityIdentityV1;let concurrencyIdentity:WorkspaceEntityIdentityV1;init(mutation:WorkPacketMutationV1,mutationReceipt:MutationReceiptV1)throws{try mutation.validate();try mutationReceipt.validate();let a=try mutation.affectedIdentity;let c=try mutation.concurrencyIdentity;let image=try mutation.postImage.mutationPostImage;guard mutationReceipt.mutationID==mutation.mutationID,mutationReceipt.identity.workspaceID==mutation.workspaceID,mutationReceipt.commandBodySHA256==(try WorkspaceMutationCanonicalV1.sha256(WorkspaceCommandV1.applyWorkPacket(mutation))),mutationReceipt.expectedRevision.entityRevisions.first(where:{$0.identity==c})?.revision==mutation.expectedRevision,mutationReceipt.resultingRevision.entityRevisions.first(where:{$0.identity==a})?.revision==mutation.postImage.revision,mutationReceipt.postImages==[image]else{throw WorkspaceMutationFailureV1.invalidReceipt};mutationSHA256=try mutation.canonicalSHA256();self.mutationReceipt=mutationReceipt;affectedIdentity=a;concurrencyIdentity=c}}
 
 struct MutationHistoryReceiptRecordV1: Codable, Equatable, Sendable {
     let envelopeData: Data

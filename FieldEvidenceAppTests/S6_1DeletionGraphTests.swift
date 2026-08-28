@@ -568,6 +568,17 @@ final class S6_1DeletionGraphTests: XCTestCase {
     }
 }
 
+extension S6_1DeletionGraphTests {
+    func testV23P03C15ReleaseGraphRequiresValidatedClaimLeaseAndHandoff() throws {
+        let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_161)
+        try fixture.completedRelease.validate(claim: fixture.claim, lease: fixture.lease)
+        try fixture.handoffRelease.validate(claim: fixture.claim, lease: fixture.lease)
+        try fixture.handoff.validate(release: fixture.handoffRelease)
+        XCTAssertEqual(fixture.handoff.releaseID, fixture.handoffRelease.releaseID)
+        XCTAssertEqual(fixture.handoff.item, fixture.itemReference)
+    }
+}
+
 private extension S6_1DeletionGraphTests {
     enum ReportFixture {
         case pending(snapshot: Data)

@@ -649,6 +649,21 @@ final class S6_6EraseRecoveryTests: XCTestCase {
     }
 }
 
+extension S6_6EraseRecoveryTests {
+    func testV23P03C15EraseRecoveryRebindsPacketHistoryWithoutChangingIDs() throws {
+        let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_166)
+        let reboundManifest = try fixture.manifest.rebound(to: fixture.otherWorkspaceID)
+        let reboundClaim = try fixture.claim.rebound(to: fixture.otherWorkspaceID)
+        let reboundLease = try fixture.lease.rebound(to: fixture.otherWorkspaceID)
+        XCTAssertEqual(reboundManifest.manifestID, fixture.manifest.manifestID)
+        XCTAssertEqual(reboundClaim.claimID, fixture.claim.claimID)
+        XCTAssertEqual(reboundLease.leaseID, fixture.lease.leaseID)
+        XCTAssertEqual(reboundManifest.workspaceID, fixture.otherWorkspaceID)
+        XCTAssertEqual(reboundClaim.workspaceID, fixture.otherWorkspaceID)
+        XCTAssertEqual(reboundLease.workspaceID, fixture.otherWorkspaceID)
+    }
+}
+
 private extension S6_6EraseRecoveryTests {
     final class Harness {
         let root: URL

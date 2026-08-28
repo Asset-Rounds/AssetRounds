@@ -45,6 +45,9 @@ enum CheckRunnerCoordinatorError: Error, Equatable {
     case packageLifecycleMismatch
     case legacyFinalizationReceiptDebt
     case saveFailed
+    case workPacketUnavailable
+    case workPacketStaleRevision
+    case workPacketCollisionReviewRequired
     case accessDenied(DraftAccessDecisionV1)
 }
 
@@ -261,5 +264,97 @@ struct CheckRunnerInspectionReviewCandidateV1: Equatable, Sendable {
         try subject.validate()
         self.subject = subject
         initialState = .draft
+    }
+}
+
+/// Read-only packet context supplied to a check runner. It carries the exact
+/// manifest/item identity and expected revision required for a later writer
+/// command, but it does not claim the item, acquire a lease, or expose actor
+/// or result/evidence detail.
+struct CheckRunnerWorkPacketContextV1: Equatable, Sendable {
+    let workspaceID: WorkspaceID
+    let packetID: UUID
+    let packetVersion: UInt64
+    let manifestID: UUID
+    let manifestSHA256: String
+    let itemID: String
+    let itemKind: WorkPacketItemKindV1
+    let expectedRevision: UInt64
+    let itemSHA256: String
+    let currentState: CompletedWorkPacketItemStateV1
+    let sourceRevision: UInt64
+
+    init(
+        snapshot: CompletedWorkPacketSnapshotV1,
+        itemID: String
+    ) throws {
+        try snapshot.validate()
+        guard let item = snapshot.manifest.items.first(where: { $0.itemID == itemID }),
+              let itemSnapshot = snapshot.items.first(where: { $0.itemID == itemID }) else {
+            throw CheckRunnerCoordinatorError.workPacketUnavailable
+        }
+        workspaceID = snapshot.workspaceID
+        packetID = snapshot.manifest.packetID
+        packetVersion = snapshot.manifest.packetVersion
+        manifestID = snapshot.manifest.manifestID
+        manifestSHA256 = snapshot.manifest.manifestSHA256
+        self.itemID = item.itemID
+        itemKind = item.kind
+        expectedRevision = item.expectedRevision
+        itemSHA256 = item.itemSHA256
+        currentState = itemSnapshot.state
+        sourceRevision = snapshot.sourceRevision
+        try validate()
+    }
+
+    func validate() throws {
+        guard workspaceID.rawValue != UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
+              packetID != UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
+              packetVersion > 0,
+              manifestID != UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
+              KernelCanonicalHashV1.validSHA256(manifestSHA256),
+              SnapshotProjectionValidationV1.validText(itemID),
+              expectedRevision > 0,
+              KernelCanonicalHashV1.validSHA256(itemSHA256),
+              sourceRevision > 0 else {
+            throw CheckRunnerCoordinatorError.workPacketUnavailable
+        }
+    }
+}
+
+/// Explicit review handoff for a packet collision. All canonical products
+/// remain preserved; the runner only receives a safe count/kind summary and
+/// must not treat this value as an approval or automatic merge.
+struct CheckRunnerWorkPacketCollisionReviewV1: Equatable, Sendable {
+    let packetID: UUID
+    let itemID: String
+    let conflictKinds: [WorkPacketConflictKindV1]
+    let preservedResultCount: Int
+    let reviewRequired: Bool
+
+    init(
+        packetID: UUID,
+        item: CompletedWorkPacketItemSnapshotV1
+    ) throws {
+        guard packetID != UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)) else {
+            throw CheckRunnerCoordinatorError.workPacketUnavailable
+        }
+        try item.validate()
+        self.packetID = packetID
+        itemID = item.itemID
+        conflictKinds = item.conflictKinds
+        preservedResultCount = item.preservedResultCount
+        reviewRequired = !item.conflictKinds.isEmpty
+    }
+
+    func validate() throws {
+        guard packetID != UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
+              SnapshotProjectionValidationV1.validText(itemID),
+              conflictKinds == conflictKinds.sorted(by: { $0.rawValue < $1.rawValue }),
+              Set(conflictKinds).count == conflictKinds.count,
+              preservedResultCount >= 0,
+              reviewRequired == !conflictKinds.isEmpty else {
+            throw CheckRunnerCoordinatorError.workPacketUnavailable
+        }
     }
 }

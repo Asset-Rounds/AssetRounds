@@ -1,0 +1,69 @@
+{
+  "cardID": "V23-P03-C15",
+  "ordinal": 52,
+  "phase": "P03",
+  "itemKinds": [
+    "INSPECTION",
+    "CORRECTIVE_ACTION",
+    "REVIEW_CHANGE_REQUEST",
+    "OPERATIONAL_RECHECK"
+  ],
+  "creationBases": [
+    "EXPLICIT_LOCAL_SELECTION",
+    "DETERMINISTIC_DUE_PROJECTION",
+    "RECORDED_REVIEW_DISPOSITION"
+  ],
+  "releaseReasons": [
+    "COMPLETED",
+    "DELIBERATELY_RELEASED",
+    "LEASE_EXPIRED",
+    "HANDOFF",
+    "RECLAIMED"
+  ],
+  "conflictKinds": [
+    "SIMULTANEOUS_CLAIM",
+    "STALE_RESULT_REVISION",
+    "EXPIRED_LEASE_RESULT",
+    "DIVERGENT_SAME_IDENTITY"
+  ],
+  "coverage": [
+    "GOLDEN",
+    "ALTERNATE",
+    "HOSTILE",
+    "INTERRUPTION",
+    "RECOVERY"
+  ],
+  "evidenceIDs": [
+    "G01",
+    "A01",
+    "H01",
+    "I01",
+    "R01"
+  ],
+  "boundaryRefs": [
+    "V23-P03-C14",
+    "V23-P03-C38"
+  ],
+  "integrationSurfaces": [
+    "backup",
+    "restore",
+    "import",
+    "delete",
+    "erase",
+    "migration",
+    "search",
+    "report",
+    "replay",
+    "clone",
+    "fork"
+  ],
+  "persistentModelCount": 58,
+  "recordsSchemaVersion": 14,
+  "provisionalFlags": {
+    "native": false,
+    "hosted": false,
+    "adoption": false,
+    "acceptance": false,
+    "release": false
+  }
+}

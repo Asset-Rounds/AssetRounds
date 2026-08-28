@@ -108,6 +108,8 @@ struct RestoreIdentityV1: Equatable, Sendable {
         WorkspaceID(rawValue: targetPointer.workspaceID)
     }
 
+    func destinationWorkPacketWorkspaceID()->WorkspaceID{WorkspaceID(rawValue:targetPointer.workspaceID)}
+
     func destinationInspectionReviewRecordID(for sourceID: UUID) -> UUID? {
         destinationRecordID(for: sourceID)
     }

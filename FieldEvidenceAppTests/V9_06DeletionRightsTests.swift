@@ -197,6 +197,20 @@ final class V9_06DeletionRightsTests: XCTestCase {
     }
 }
 
+extension V9_06DeletionRightsTests {
+    func testV23P03C15ReleaseRightsRetainTypedPredecessorIdentity() throws {
+        let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_106)
+        let mutation = try WorkPacketMutationV1(
+            workspaceID: fixture.workspaceID, expectedRevision: 0,
+            mutationID: fixture.completedRelease.mutationID,
+            postImage: .recordRelease(fixture.completedRelease)
+        )
+        XCTAssertEqual(try mutation.affectedIdentity.kind, .workRelease)
+        XCTAssertEqual(try mutation.concurrencyIdentity.id, fixture.completedRelease.releaseID)
+        XCTAssertEqual(WorkReleaseReasonV1.allCases.count, 5)
+    }
+}
+
 @MainActor
 enum V906Integration {
     static let deletedAt = Date(timeIntervalSince1970: 1_767_322_645)

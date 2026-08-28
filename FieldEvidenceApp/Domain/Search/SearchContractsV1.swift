@@ -73,6 +73,10 @@ enum SearchContractLimitsV1 {
     /// projection-version fields. Review reasons, actor snapshots, and
     /// evidence content are never searchable values.
     static let maximumInspectionReviewFieldRegistrations = 40
+    /// C15 packet coordination is opt-in and contributes only packet/item
+    /// identifiers plus current-head typed state. Claims, leases, actors,
+    /// result links, and collision digests are never searchable values.
+    static let maximumWorkPacketFieldRegistrations = 45
     static let maximumFilters = 16
     static let maximumSuggestions = 5
     static let maximumSnippetBytes = 320
@@ -83,9 +87,10 @@ enum SearchContractLimitsV1 {
     /// The C14 registry is the largest admitted projection. Older registries
     /// remain valid by their exact identity-set checks below, but rebuild and
     /// staging capacity must also cover an opted-in C14 index.
-    static let maximumSearchableFieldCount = maximumC14SearchableFieldCount
+    static let maximumSearchableFieldCount = maximumWorkPacketFieldRegistrations
     static let maximumC41SearchableFieldCount = maximumAllProjectionFunctionalRelationshipFieldRegistrations
     static let maximumC14SearchableFieldCount = maximumInspectionReviewFieldRegistrations
+    static let maximumC15SearchableFieldCount = maximumWorkPacketFieldRegistrations
     static let maximumProjectionRecords = maximumCanonicalRecords * maximumSearchableFieldCount
     static let maximumAccountabilityProjectionFieldsPerRecord = 4
     static let maximumAccountabilityProjectionRecords = maximumCanonicalRecords
@@ -244,6 +249,11 @@ enum FrozenSearchableFieldV1: String, CaseIterable, Codable, Hashable, Sendable 
     case changeRequestState = "change_request_state"
     case correctiveActionState = "corrective_action_state"
     case inspectionReviewProjectionVersion = "inspection_review_projection_version"
+    case workPacketIdentifier = "work_packet_identifier"
+    case workPacketManifestState = "work_packet_manifest_state"
+    case workPacketItemState = "work_packet_item_state"
+    case workPacketConflictState = "work_packet_conflict_state"
+    case workPacketProjectionVersion = "work_packet_projection_version"
 
     var allowedSourceKinds: Set<SearchSourceKindV1> {
         switch self {
@@ -264,13 +274,16 @@ enum FrozenSearchableFieldV1: String, CaseIterable, Codable, Hashable, Sendable 
         case .inspectionReviewState, .inspectionReviewDisposition,
              .changeRequestState, .correctiveActionState,
              .inspectionReviewProjectionVersion: return [.report]
+        case .workPacketIdentifier, .workPacketManifestState,
+             .workPacketItemState, .workPacketConflictState,
+             .workPacketProjectionVersion: return [.work]
         }
     }
 
     var isIdentifier: Bool {
         switch self {
         case .assetIdentifier, .locationIdentifier, .workIdentifier, .reportIdentifier,
-             .partyIdentifier: return true
+             .partyIdentifier, .workPacketIdentifier: return true
         default: return false
         }
     }
@@ -386,7 +399,7 @@ struct SearchableFieldRegistryV1: Codable, Equatable, Sendable {
 
     func validate() throws {
         guard schemaVersion == Self.schemaVersion,
-              fields.count <= SearchContractLimitsV1.maximumInspectionReviewFieldRegistrations else {
+              fields.count <= SearchContractLimitsV1.maximumWorkPacketFieldRegistrations else {
             throw SearchContractFailureV1.limitExceeded
         }
         guard fields.count == SearchContractLimitsV1.maximumFieldRegistrations
@@ -421,7 +434,8 @@ struct SearchableFieldRegistryV1: Codable, Equatable, Sendable {
                 || fields.count == SearchContractLimitsV1.maximumAccountabilityAuthorityCriterionAssuranceFunctionalRelationshipFieldRegistrations
                 || fields.count == SearchContractLimitsV1.maximumAssetSemanticsAuthorityCriterionAssuranceFunctionalRelationshipFieldRegistrations
                 || fields.count == SearchContractLimitsV1.maximumAllProjectionAssuranceFunctionalRelationshipFieldRegistrations
-                || fields.count == SearchContractLimitsV1.maximumInspectionReviewFieldRegistrations else {
+                || fields.count == SearchContractLimitsV1.maximumInspectionReviewFieldRegistrations
+                || fields.count == SearchContractLimitsV1.maximumWorkPacketFieldRegistrations else {
             throw SearchContractFailureV1.invalidField
         }
         let identities = fields.map { $0.fieldID + ":" + $0.sourceKind.rawValue }
@@ -460,7 +474,8 @@ struct SearchableFieldRegistryV1: Codable, Equatable, Sendable {
                 || Set(identities) == Self.accountabilityAuthorityCriterionAssuranceFunctionalRelationshipRegistrationIdentities
                 || Set(identities) == Self.assetSemanticsAuthorityCriterionAssuranceFunctionalRelationshipRegistrationIdentities
                 || Set(identities) == Self.allProjectionAssuranceFunctionalRelationshipRegistrationIdentities
-                || Set(identities) == Self.inspectionReviewRegistrationIdentities else {
+                || Set(identities) == Self.inspectionReviewRegistrationIdentities
+                || Set(identities) == Self.workPacketRegistrationIdentities else {
             throw SearchContractFailureV1.invalidField
         }
         try fields.forEach { try $0.validate() }
@@ -569,6 +584,9 @@ struct SearchableFieldRegistryV1: Codable, Equatable, Sendable {
     static let inspectionReviewRegistrationIdentities: Set<String> =
         allProjectionAssuranceFunctionalRelationshipRegistrationIdentities.union(inspectionReviewFields)
 
+    static let workPacketRegistrationIdentities: Set<String> =
+        inspectionReviewRegistrationIdentities.union(workPacketFields)
+
     private static let authorityCriterionFields: Set<String> = [
         "authority_source:WORK", "applicability_disposition:WORK",
         "criterion_result:WORK", "severity_level:WORK", "measurement_protocol:WORK",
@@ -594,6 +612,14 @@ struct SearchableFieldRegistryV1: Codable, Equatable, Sendable {
         "change_request_state:REPORT",
         "corrective_action_state:REPORT",
         "inspection_review_projection_version:REPORT",
+    ]
+
+    private static let workPacketFields: Set<String> = [
+        "work_packet_identifier:WORK",
+        "work_packet_manifest_state:WORK",
+        "work_packet_item_state:WORK",
+        "work_packet_conflict_state:WORK",
+        "work_packet_projection_version:WORK",
     ]
 
     func descriptor(fieldID: String, sourceKind: SearchSourceKindV1) throws -> SearchableFieldDescriptorV1 {

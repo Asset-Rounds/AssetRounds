@@ -261,6 +261,16 @@ final class V9_07CompatibilityPolicyTests: XCTestCase {
 }
 
 extension V9_07CompatibilityPolicyTests {
+    func testV23P03C15PolicyAndPackageReferencesRemainComparable() throws {
+        let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_108)
+        try fixture.policyReference.validate()
+        XCTAssertEqual(fixture.manifest.packageReleases, [fixture.packageRelease])
+        XCTAssertEqual(fixture.item.policyReferences, [fixture.policyReference])
+        XCTAssertNotEqual(fixture.manifest.manifestSHA256, fixture.alternateManifest.manifestSHA256)
+    }
+}
+
+extension V9_07CompatibilityPolicyTests {
     func testV23P03C41CompatibilityRoundTripRetainsPackageAndDescriptorIdentity() throws {
         let fixture = try C41FunctionalRelationshipTestSupportV1.makeFixture(seed: 41_070)
         let encoded = try FunctionalRelationshipCanonicalCodecV1.encode(fixture.descriptor)

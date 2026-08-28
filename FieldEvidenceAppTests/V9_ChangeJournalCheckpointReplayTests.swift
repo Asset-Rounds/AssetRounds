@@ -758,6 +758,24 @@ final class V9_ChangeJournalCheckpointReplayTests: XCTestCase {
     }
 }
 
+extension V9_ChangeJournalCheckpointReplayTests {
+    func testV23P03C15JournalReplayRestoresExactManifestAndClaimBytes() throws {
+        let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_204)
+        let manifestBytes = try WorkPacketCanonicalCodecV1.encode(fixture.manifest)
+        let claimBytes = try WorkPacketCanonicalCodecV1.encode(fixture.claim)
+        let replayedManifest = try WorkPacketCanonicalCodecV1.decode(
+            WorkPacketManifestV1.self, from: manifestBytes
+        )
+        let replayedClaim = try WorkPacketCanonicalCodecV1.decode(
+            WorkItemClaimV1.self, from: claimBytes
+        )
+        XCTAssertEqual(replayedManifest, fixture.manifest)
+        XCTAssertEqual(replayedClaim, fixture.claim)
+        XCTAssertEqual(try WorkPacketCanonicalCodecV1.encode(replayedManifest), manifestBytes)
+        XCTAssertEqual(try WorkPacketCanonicalCodecV1.encode(replayedClaim), claimBytes)
+    }
+}
+
 private struct ReplicaConvergenceScenarioV1: Equatable, Sendable {
     let workspaceID: UUID
     let fixedSeed: String

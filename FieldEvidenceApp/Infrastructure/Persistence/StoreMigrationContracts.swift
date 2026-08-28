@@ -577,7 +577,7 @@ struct CurrentGenerationPointerV3: Codable, Equatable, Sendable {
     func validate() throws {
         let zero = "00000000-0000-0000-0000-000000000000"
         guard schemaVersion == 3,
-              (2...14).contains(storeSchemaVersion),
+              (2...15).contains(storeSchemaVersion),
               Self.canonicalUUID(generationID) != nil,
               Self.canonicalUUID(workspaceID) != nil,
               Self.canonicalUUID(replicaID) != nil,
@@ -742,7 +742,8 @@ struct StoreMigrationJournalV1: Codable, Equatable, Sendable {
                 || (sourceRelease == .v10 && targetRelease == .v11)
                 || (sourceRelease == .v11 && targetRelease == .v12)
                 || (sourceRelease == .v12 && targetRelease == .v13)
-                || (sourceRelease == .v13 && targetRelease == .v14)) else {
+                || (sourceRelease == .v13 && targetRelease == .v14)
+                || (sourceRelease == .v14 && targetRelease == .v15)) else {
             throw StoreMigrationFailure.invalidContract
         }
 

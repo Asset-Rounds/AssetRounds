@@ -654,6 +654,22 @@ final class V9_16SnapshotProjectionTests: XCTestCase {
 }
 
 extension V9_16SnapshotProjectionTests {
+    func testV23P03C15SnapshotProjectionIncludesActiveClaimAndLease() throws {
+        let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_116)
+        let projection = try WorkPacketProjectionBuilderV1.rebuild(
+            workspaceID: fixture.workspaceID, manifest: fixture.manifest,
+            claims: [fixture.claim], leases: [fixture.lease], releases: [], handoffs: [],
+            at: fixture.lease.startsAt.addingTimeInterval(1)
+        )
+        let item = try XCTUnwrap(projection.items.first(where: { $0.item.itemID == fixture.item.itemID }))
+        XCTAssertEqual(item.currentClaim, fixture.claim)
+        XCTAssertEqual(item.currentLease, fixture.lease)
+        XCTAssertNil(item.latestRelease)
+        XCTAssertTrue(item.exceptions.isEmpty)
+    }
+}
+
+extension V9_16SnapshotProjectionTests {
     func testV23P03C14SnapshotCandidateStartsAsDraftWithoutAcceptanceClaim() throws {
         let fixture = try C14InspectionReviewTestSupportV1.makeFixture(seed: 145_016)
         let candidate = try CheckRunnerInspectionReviewCandidateV1(subject: fixture.subject)

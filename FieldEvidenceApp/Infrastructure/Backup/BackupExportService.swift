@@ -44,6 +44,8 @@ final class BackupExportService {
     private static let checkpointBasisExportedAt = Date(timeIntervalSince1970: 0)
 
     private struct Rows {
+        let workPacketManifests:[WorkPacketManifestRow];let workItemClaims:[WorkItemClaimRow]
+        let workLeases:[WorkLeaseRow];let workReleases:[WorkReleaseRow];let workHandoffs:[WorkHandoffRow]
         let inspectionReviewTransitions: [InspectionReviewTransitionRow]
         let reviewDispositions: [ReviewDispositionRow]
         let changeRequests: [ChangeRequestRow]
@@ -680,6 +682,8 @@ private extension BackupExportService {
         do {
             recordsData = try BackupCanonicalEncoderV1().encodeRecords(records).data
             let semanticRecords = V4BackupRecordsV1(
+                workPackets: records.workPackets,
+                inspectionReview: records.inspectionReview,
                 evidenceAssurance: records.evidenceAssurance,
                 functionalRelationships: records.functionalRelationships,
                 authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
@@ -907,9 +911,9 @@ private extension BackupExportService {
             source: .init(
                 appBuild: appBuild(),
                 appVersion: appVersion(),
-                persistentSchemaVersion: 14,
+                persistentSchemaVersion: 15,
                 replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: 13,
+                recordsSchemaVersion: 14,
                 sourceGenerationID: generationID,
                 workspaceID: sourceIdentity.workspaceID.rawValue
             )
@@ -1424,6 +1428,7 @@ private extension BackupExportService {
     private func fetchRows() throws -> Rows {
         do {
             return Rows(
+                workPacketManifests:try modelContext.fetch(FetchDescriptor<WorkPacketManifestRow>()),workItemClaims:try modelContext.fetch(FetchDescriptor<WorkItemClaimRow>()),workLeases:try modelContext.fetch(FetchDescriptor<WorkLeaseRow>()),workReleases:try modelContext.fetch(FetchDescriptor<WorkReleaseRow>()),workHandoffs:try modelContext.fetch(FetchDescriptor<WorkHandoffRow>()),
                 inspectionReviewTransitions: try modelContext.fetch(FetchDescriptor<InspectionReviewTransitionRow>()),
                 reviewDispositions: try modelContext.fetch(FetchDescriptor<ReviewDispositionRow>()),
                 changeRequests: try modelContext.fetch(FetchDescriptor<ChangeRequestRow>()),
@@ -1917,7 +1922,9 @@ private extension BackupExportService {
         let functionalRelationships = mutationHistory == nil ? [] : try functionalRelationshipRecords(rows)
         let evidenceAssurance = mutationHistory == nil ? [] : try evidenceAssuranceRecords(rows)
         let inspectionReview = mutationHistory == nil ? [] : try inspectionReviewRecords(rows)
+        let workPackets = mutationHistory == nil ? [] : try workPacketRecords(rows)
         return V4BackupRecordsV1(
+            workPackets:workPackets,
             inspectionReview: inspectionReview,
             evidenceAssurance: evidenceAssurance,
             functionalRelationships: functionalRelationships,
@@ -1971,7 +1978,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : 13,
+                : 14,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -2025,6 +2032,16 @@ private extension BackupExportService {
             kind: .correctiveActionEvent, id: v.eventID, workspaceID: v.workspaceID.rawValue,
             revision: v.revision, canonicalData: try InspectionReviewCanonicalCodecV1.encode(v)) }
         return result.sorted { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)" }
+    }
+
+    private func workPacketRecords(_ rows:Rows)throws->[V15BackupWorkPacketRecordV1]{
+        var result:[V15BackupWorkPacketRecordV1]=[]
+        result += try rows.workPacketManifests.map{let v=try $0.value();return .init(kind:.manifest,id:v.manifestID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try WorkPacketCanonicalCodecV1.encode(v))}
+        result += try rows.workItemClaims.map{let v=try $0.value();return .init(kind:.claim,id:v.claimID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try WorkPacketCanonicalCodecV1.encode(v))}
+        result += try rows.workLeases.map{let v=try $0.value();return .init(kind:.lease,id:v.leaseID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try WorkPacketCanonicalCodecV1.encode(v))}
+        result += try rows.workReleases.map{let v=try $0.value();return .init(kind:.release,id:v.releaseID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try WorkPacketCanonicalCodecV1.encode(v))}
+        result += try rows.workHandoffs.map{let v=try $0.value();return .init(kind:.handoff,id:v.handoffID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try WorkPacketCanonicalCodecV1.encode(v))}
+        return result.sorted{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"}
     }
 
     private func functionalRelationshipRecords(

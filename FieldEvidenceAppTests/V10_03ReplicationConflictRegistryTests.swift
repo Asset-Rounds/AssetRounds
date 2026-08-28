@@ -691,6 +691,23 @@ final class V10_03ReplicationConflictRegistryTests: XCTestCase {
     }
 }
 
+extension V10_03ReplicationConflictRegistryTests {
+    func testV23P03C15ReplicationClassifiesIdempotentAndDivergentPackets() throws {
+        let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_203)
+        XCTAssertEqual(
+            try WorkPacketReplayValidatorV1.disposition(
+                existing: fixture.claim, incoming: fixture.claim, identityMatches: true
+            ), .idempotentReplay
+        )
+        XCTAssertEqual(
+            try WorkPacketReplayValidatorV1.disposition(
+                existing: fixture.manifest, incoming: fixture.alternateManifest, identityMatches: true
+            ), .quarantineDivergentBytes
+        )
+        XCTAssertEqual(WorkPacketConflictKindV1.divergentSameIdentity.rawValue, "DIVERGENT_SAME_IDENTITY")
+    }
+}
+
 private struct ReplicationConflictPolicyCorpusFixtureV1: Decodable {
     struct InventoryExpectations: Decodable {
         let registrationCount: Int

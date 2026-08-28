@@ -230,6 +230,7 @@ struct SnapshotValidatorV1 {
         try validateAuthorityCriterion(snapshot)
         try validateFunctionalRelationships(snapshot)
         try validateInspectionReviewHistory(snapshot)
+        try validateWorkPacket(snapshot)
         guard try ReportSnapshotEncoderV1().encode(snapshot).data == snapshotData,
               snapshot.snapshotSchemaVersion == report.snapshotSchemaVersion,
               snapshot.reportID == report.id,
@@ -568,6 +569,32 @@ struct SnapshotValidatorV1 {
                           == WorkspaceID(rawValue: dependencies.workspaceID) else {
                     throw SnapshotValidationErrorV1.invalidAuthority
                 }
+            }
+        } catch {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+    }
+
+    /// C15 packet coordination is an optional, bounded report projection. Its
+    /// completed snapshot and event rows remain the source of truth; this
+    /// validator admits only the typed customer-safe projection and never
+    /// reconstructs claims, leases, actors, results, or evidence content.
+    private func validateWorkPacket(_ snapshot: ReportSnapshotV1) throws {
+        guard let workPacket = snapshot.workPacket else { return }
+        do {
+            guard snapshot.snapshotSchemaVersion >= 4,
+                  workPacket.packetID == snapshot.packetID else {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+            try EvidenceDetailWorkPacketProjectionGuardV1.validate(
+                workPacket,
+                sourceSnapshotSHA256: workPacket.sourceSnapshotSHA256
+            )
+            guard workPacket.itemCount == workPacket.itemIDs.count,
+                  workPacket.itemCount == workPacket.itemStateLabels.count,
+                  workPacket.preservedResultCount >= 0,
+                  workPacket.collisionCount >= 0 else {
+                throw SnapshotValidationErrorV1.invalidAuthority
             }
         } catch {
             throw SnapshotValidationErrorV1.invalidAuthority

@@ -71,6 +71,7 @@ enum WholeSignDeletionServiceError: Error, Equatable {
     case cleanupFailed
     case injectedFailure
     case retainedInspectionReviewReferences([String])
+    case retainedWorkPacketReferences([String])
 }
 
 enum WholeSignDeletionFailurePoint: Equatable, Sendable {
@@ -1244,6 +1245,7 @@ private extension WholeSignDeletionService {
         let changeRequests: [ChangeRequestRow]
         let correctiveActionPolicies: [CorrectiveActionPolicyRow]
         let correctiveActionEvents: [CorrectiveActionEventRow]
+        let workPacketManifests:[WorkPacketManifestRow];let workItemClaims:[WorkItemClaimRow];let workLeases:[WorkLeaseRow];let workReleases:[WorkReleaseRow];let workHandoffs:[WorkHandoffRow]
         let observationAndTime: [UUID: ObservationAndTimeRow]
         let recordPayloads: [WorkflowRecordPayloadV1]
         let evidence: [EvidenceFile]
@@ -1294,6 +1296,7 @@ private extension WholeSignDeletionService {
                 changeRequests: try boundedFetch(ChangeRequestRow.self),
                 correctiveActionPolicies: try boundedFetch(CorrectiveActionPolicyRow.self),
                 correctiveActionEvents: try boundedFetch(CorrectiveActionEventRow.self),
+                workPacketManifests:try boundedFetch(WorkPacketManifestRow.self),workItemClaims:try boundedFetch(WorkItemClaimRow.self),workLeases:try boundedFetch(WorkLeaseRow.self),workReleases:try boundedFetch(WorkReleaseRow.self),workHandoffs:try boundedFetch(WorkHandoffRow.self),
                 observationAndTime: observationAndTime,
                 recordPayloads: recordPayloads,
                 evidence: try boundedFetch(EvidenceFile.self),
@@ -1314,6 +1317,11 @@ private extension WholeSignDeletionService {
         try validateInspectionReviewPreservation(
             rows, deletingAssetID: deletingAssetID, deletingSiteID: deletingSiteID
         )
+        try validateWorkPacketPreservation(
+            rows, deletingAssetID: deletingAssetID, deletingSiteID: deletingSiteID
+        )
+        let workPacketInventory=WorkPacketDeletionInventoryV1(manifestIDs:Set(rows.workPacketManifests.map(\.manifestID)),claimIDs:Set(rows.workItemClaims.map(\.claimID)),leaseIDs:Set(rows.workLeases.map(\.leaseID)),releaseIDs:Set(rows.workReleases.map(\.releaseID)),handoffIDs:Set(rows.workHandoffs.map(\.handoffID)))
+        try WholeSignDeletionRule.validateWorkPacketLifecycle(authority:.ordinaryAssetOrSiteDelete,before:workPacketInventory,after:workPacketInventory)
         do {
             let descriptors = try rows.functionalRelationshipDescriptors.map { try $0.value() }
             let events = try rows.functionalRelationshipEvents.map { try $0.value() }
@@ -1420,6 +1428,67 @@ private extension WholeSignDeletionService {
             }
             guard diagnostics.isEmpty else {
                 throw WholeSignDeletionServiceError.retainedInspectionReviewReferences(diagnostics.sorted())
+            }
+        } catch let error as WholeSignDeletionServiceError { throw error }
+        catch { throw WholeSignDeletionServiceError.graphInvalid }
+    }
+
+    func validateWorkPacketPreservation(
+        _ rows: Rows, deletingAssetID: UUID?, deletingSiteID: UUID?
+    ) throws {
+        do {
+            var assetIDs = Set<UUID>()
+            if let deletingAssetID { assetIDs.insert(deletingAssetID) }
+            if let deletingSiteID {
+                assetIDs.formUnion(rows.assets.filter { $0.siteID == deletingSiteID }.map(\.id))
+            }
+            let recordIDs = Set(rows.records.filter { assetIDs.contains($0.assetID) }.map(\.id))
+            let packets = rows.packets.filter { $0.currentRecordID.map(recordIDs.contains) ?? false }
+            let packetIDs = Set(packets.map(\.id))
+            let stableRootIDs = Set(packets.map(\.stableRootID))
+            let reports = rows.reports.filter {
+                recordIDs.contains($0.sourceRecordID) || packetIDs.contains($0.packetID)
+            }
+            let reportIDs = Set(reports.map(\.id))
+            let evidenceIDs = Set(rows.evidence.filter { recordIDs.contains($0.recordID) }.map(\.id))
+            let affectedUUIDs = assetIDs.union(recordIDs).union(packetIDs).union(stableRootIDs)
+                .union(reportIDs).union(evidenceIDs)
+            let affectedStrings = Set(affectedUUIDs.flatMap {
+                [$0.uuidString, $0.uuidString.lowercased()]
+            })
+            let manifests = try rows.workPacketManifests.map { try $0.value() }
+            let claims = try rows.workItemClaims.map { try $0.value() }
+            let leases = try rows.workLeases.map { try $0.value() }
+            let releases = try rows.workReleases.map { try $0.value() }
+            let handoffs = try rows.workHandoffs.map { try $0.value() }
+            var diagnostics = Set<String>()
+            for value in manifests {
+                if packetIDs.contains(value.packetID) {
+                    diagnostics.insert("MANIFEST_PACKET:\(value.manifestID.uuidString):\(value.packetID.uuidString):\(value.packetVersion):\(value.manifestSHA256)")
+                }
+                for item in value.items where affectedStrings.contains(item.itemID) {
+                    diagnostics.insert("MANIFEST_ITEM:\(item.kind.rawValue):\(item.itemID):\(item.expectedRevision):\(item.itemSHA256)")
+                }
+            }
+            func inspect(_ item: WorkPacketItemReferenceV1, results: [WorkPacketResultLinkV1]) {
+                if affectedStrings.contains(item.itemID) {
+                    diagnostics.insert("ITEM_REFERENCE:\(item.itemKind.rawValue):\(item.itemID):\(item.expectedRevision):\(item.itemSHA256)")
+                }
+                for result in results {
+                    if affectedUUIDs.contains(result.resultID) {
+                        diagnostics.insert("RESULT:\(result.resultID.uuidString):\(result.resultRevision):\(result.resultSHA256)")
+                    }
+                    for evidence in result.evidence where affectedStrings.contains(evidence.referenceID) {
+                        diagnostics.insert("RESULT_EVIDENCE:\(evidence.kind.rawValue):\(evidence.referenceID):\(evidence.revision):\(evidence.sha256)")
+                    }
+                }
+            }
+            claims.forEach { inspect($0.item, results: []) }
+            leases.forEach { inspect($0.item, results: []) }
+            releases.forEach { inspect($0.item, results: $0.resultLinks) }
+            handoffs.forEach { inspect($0.item, results: $0.resultLinks) }
+            guard diagnostics.isEmpty else {
+                throw WholeSignDeletionServiceError.retainedWorkPacketReferences(diagnostics.sorted())
             }
         } catch let error as WholeSignDeletionServiceError { throw error }
         catch { throw WholeSignDeletionServiceError.graphInvalid }

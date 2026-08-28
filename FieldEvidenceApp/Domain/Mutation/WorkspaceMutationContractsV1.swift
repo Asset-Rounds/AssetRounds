@@ -55,6 +55,11 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case changeRequest
     case correctiveActionPolicy
     case correctiveActionEvent
+    case workPacketManifest
+    case workItemClaim
+    case workLease
+    case workRelease
+    case workHandoff
     case workflowRecord
     case evidenceFile
     case issue
@@ -1231,6 +1236,15 @@ var predecessorIdentity:WorkspaceEntityIdentityV1?{get throws{switch self{case l
 func validate()throws{switch self{case let .applyReviewBundle(v):try v.validate();case let .appendCorrectivePolicy(v):try v.validate();guard v.supersedesReleaseID==nil else{throw WorkspaceMutationContractFailureV1.invalidPlan};case let .supersedeCorrectivePolicy(v):try v.validate();guard v.supersedesReleaseID != nil else{throw WorkspaceMutationContractFailureV1.invalidPlan};case let .appendCorrectiveEvent(v):try v.validate();guard v.predecessorEventID==nil else{throw WorkspaceMutationContractFailureV1.invalidPlan};case let .appendCorrectiveEventSuccessor(v):try v.validate();guard v.predecessorEventID != nil else{throw WorkspaceMutationContractFailureV1.invalidPlan}}}}
 struct InspectionReviewMutationV1:Codable,Equatable,Sendable{static let schemaVersion=1;let schemaVersion:Int;let workspaceID:WorkspaceID;let expectedRevision:UInt64;let mutationID:MutationIDV1;let postImage:InspectionReviewMutationPayloadV1;init(workspaceID:WorkspaceID,expectedRevision:UInt64,mutationID:MutationIDV1,postImage:InspectionReviewMutationPayloadV1)throws{schemaVersion=Self.schemaVersion;self.workspaceID=workspaceID;self.expectedRevision=expectedRevision;self.mutationID=mutationID;self.postImage=postImage;try validate()}func validate()throws{try postImage.validate();let p=try postImage.predecessorIdentity;guard schemaVersion==Self.schemaVersion,workspaceID==postImage.workspaceID,mutationID==postImage.mutationID,(p==nil ? expectedRevision==0&&postImage.revision==1:expectedRevision>0&&expectedRevision<UInt64.max&&postImage.revision==expectedRevision+1)else{throw WorkspaceMutationContractFailureV1.invalidPlan}}var affectedIdentities:[WorkspaceEntityIdentityV1]{get throws{try postImage.affectedIdentities}}var concurrencyIdentities:[WorkspaceEntityIdentityV1]{get throws{try postImage.concurrencyIdentities}}var affectedIdentity:WorkspaceEntityIdentityV1{get throws{switch postImage{case let .applyReviewBundle(b):try .init(kind:.inspectionReviewTransition,id:b.transition.transitionID);default:try affectedIdentities[0]}}}var concurrencyIdentity:WorkspaceEntityIdentityV1{get throws{try postImage.predecessorIdentity ?? affectedIdentity}}func canonicalSHA256()throws->String{try validate();return try WorkspaceMutationCanonicalV1.sha256(self)}}
 
+enum WorkPacketMutationPayloadV1:Codable,Equatable,Sendable{case appendManifest(WorkPacketManifestV1);case appendClaim(WorkItemClaimV1);case supersedeClaim(WorkItemClaimV1);case appendLease(WorkLeaseV1);case supersedeLease(WorkLeaseV1);case recordRelease(WorkReleaseV1);case recordHandoff(WorkHandoffV1)
+var workspaceID:WorkspaceID{switch self{case let .appendManifest(v):v.workspaceID;case let .appendClaim(v),let .supersedeClaim(v):v.workspaceID;case let .appendLease(v),let .supersedeLease(v):v.workspaceID;case let .recordRelease(v):v.workspaceID;case let .recordHandoff(v):v.workspaceID}}
+var mutationID:MutationIDV1{switch self{case let .appendManifest(v):v.mutationID;case let .appendClaim(v),let .supersedeClaim(v):v.mutationID;case let .appendLease(v),let .supersedeLease(v):v.mutationID;case let .recordRelease(v):v.mutationID;case let .recordHandoff(v):v.mutationID}}
+var revision:UInt64{switch self{case let .appendManifest(v):v.revision;case let .appendClaim(v),let .supersedeClaim(v):v.revision;case let .appendLease(v),let .supersedeLease(v):v.revision;case let .recordRelease(v):v.revision;case let .recordHandoff(v):v.revision}}
+var affectedIdentity:WorkspaceEntityIdentityV1{get throws{switch self{case let .appendManifest(v):try .init(kind:.workPacketManifest,id:v.manifestID);case let .appendClaim(v),let .supersedeClaim(v):try .init(kind:.workItemClaim,id:v.claimID);case let .appendLease(v),let .supersedeLease(v):try .init(kind:.workLease,id:v.leaseID);case let .recordRelease(v):try .init(kind:.workRelease,id:v.releaseID);case let .recordHandoff(v):try .init(kind:.workHandoff,id:v.handoffID)}}}
+var predecessorIdentity:WorkspaceEntityIdentityV1?{get throws{switch self{case .appendManifest,.appendClaim,.appendLease,.recordRelease,.recordHandoff:nil;case let .supersedeClaim(v):try v.supersedesClaimID.map{try .init(kind:.workItemClaim,id:$0)};case let .supersedeLease(v):try v.supersedesLeaseID.map{try .init(kind:.workLease,id:$0)}}}}
+func validate()throws{switch self{case let .appendManifest(v):try v.validate();case let .appendClaim(v):try v.validate();guard v.supersedesClaimID==nil else{throw WorkspaceMutationContractFailureV1.invalidPlan};case let .supersedeClaim(v):try v.validate();guard v.supersedesClaimID != nil else{throw WorkspaceMutationContractFailureV1.invalidPlan};case let .appendLease(v):try v.validate();guard v.supersedesLeaseID==nil else{throw WorkspaceMutationContractFailureV1.invalidPlan};case let .supersedeLease(v):try v.validate();guard v.supersedesLeaseID != nil else{throw WorkspaceMutationContractFailureV1.invalidPlan};case let .recordRelease(v):try v.validate();case let .recordHandoff(v):try v.validate()}}}
+struct WorkPacketMutationV1:Codable,Equatable,Sendable{static let schemaVersion=1;let schemaVersion:Int;let workspaceID:WorkspaceID;let expectedRevision:UInt64;let mutationID:MutationIDV1;let postImage:WorkPacketMutationPayloadV1;init(workspaceID:WorkspaceID,expectedRevision:UInt64,mutationID:MutationIDV1,postImage:WorkPacketMutationPayloadV1)throws{schemaVersion=Self.schemaVersion;self.workspaceID=workspaceID;self.expectedRevision=expectedRevision;self.mutationID=mutationID;self.postImage=postImage;try validate()}func validate()throws{try postImage.validate();let p=try postImage.predecessorIdentity;guard schemaVersion==Self.schemaVersion,workspaceID==postImage.workspaceID,mutationID==postImage.mutationID,(p==nil ? expectedRevision==0&&postImage.revision==1:expectedRevision>0&&expectedRevision<UInt64.max&&postImage.revision==expectedRevision+1)else{throw WorkspaceMutationContractFailureV1.invalidPlan}}var affectedIdentity:WorkspaceEntityIdentityV1{get throws{try postImage.affectedIdentity}}var concurrencyIdentity:WorkspaceEntityIdentityV1{get throws{try postImage.predecessorIdentity ?? postImage.affectedIdentity}}func canonicalSHA256()throws->String{try validate();return try WorkspaceMutationCanonicalV1.sha256(self)}}
+
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
     case createCheckDraft(CheckDraftMutationV1)
@@ -1255,6 +1269,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyFunctionalRelationship(FunctionalRelationshipMutationV1)
     case applyEvidenceAssurance(EvidenceAssuranceMutationV1)
     case applyInspectionReview(InspectionReviewMutationV1)
+    case applyWorkPacket(WorkPacketMutationV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -1281,6 +1296,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyFunctionalRelationship: .applyFunctionalRelationship
         case .applyEvidenceAssurance: .applyEvidenceAssurance
         case .applyInspectionReview:.applyInspectionReview
+        case .applyWorkPacket:.applyWorkPacket
         }
     }
 }
@@ -1309,6 +1325,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyFunctionalRelationship = "apply_functional_relationship"
     case applyEvidenceAssurance = "apply_evidence_assurance"
     case applyInspectionReview="apply_inspection_review"
+    case applyWorkPacket="apply_work_packet"
 }
 
 extension WorkspaceCommandV1 {
@@ -2049,6 +2066,7 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind: .applyFunctionalRelationship, disposition: .compensatable, stableReason: "append_functional_relationship_successor_only"),
         .init(commandKind: .applyEvidenceAssurance, disposition: .compensatable, stableReason: "append_evidence_assurance_successor_only"),
         .init(commandKind:.applyInspectionReview,disposition:.compensatable,stableReason:"append_review_corrective_successor_only"),
+        .init(commandKind:.applyWorkPacket,disposition:.compensatable,stableReason:"append_work_packet_history_only"),
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {

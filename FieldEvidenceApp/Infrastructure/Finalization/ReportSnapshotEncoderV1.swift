@@ -228,6 +228,21 @@ struct ReportSnapshotEncoderV1: Sendable {
         catch { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
     }
 
+    /// C15's additive completed snapshot codec. The V8 review history remains
+    /// immutable and the packet event history is encoded as a sibling value
+    /// bound to the same workspace and packet identity.
+    func encode(_ snapshot: CompletedActivitySnapshotV9) throws -> EncodedReportSnapshotV1 {
+        do {
+            let data = try CompletedActivitySnapshotCanonicalCodecV9.encode(snapshot)
+            return EncodedReportSnapshotV1(data: data, sha256: KernelCanonicalHashV1.sha256(data))
+        } catch { throw ReportSnapshotEncodingErrorV1.invalidSnapshot }
+    }
+
+    func decodeCompletedActivityV9(_ data: Data) throws -> CompletedActivitySnapshotV9 {
+        do { return try CompletedActivitySnapshotCanonicalCodecV9.decode(data) }
+        catch { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
+    }
+
     func encode(
         _ history: CompletedInspectionReviewHistorySnapshotV1
     ) throws -> EncodedReportSnapshotV1 {
@@ -401,6 +416,17 @@ struct ReportSnapshotEncoderV1: Sendable {
                   snapshot.functionalRelationships != nil,
                   snapshot.assurance != nil else { return false }
         }
+        if let workPacket = snapshot.workPacket {
+            guard snapshot.snapshotSchemaVersion >= 4,
+                  (try? workPacket.validate()) != nil,
+                  workPacket.packetID == snapshot.packetID,
+                  workPacket.itemCount == workPacket.itemIDs.count,
+                  workPacket.itemCount == workPacket.itemStateLabels.count,
+                  ReportWorkPacketProjectionPolicyV1.supports(.openJSON),
+                  ReportWorkPacketProjectionPolicyV1.supports(.structuredText) else {
+                return false
+            }
+        }
 
         guard validObservationAndTime(
             basis: snapshot.observationBasis,
@@ -533,6 +559,9 @@ extension CanonicalJSONV1 {
                 inspectionReviewHistory
             )
         }
+        if let workPacket = value.workPacket {
+            object["workPacket"] = Self.workPacket(workPacket)
+        }
         return .object(object)
     }
 
@@ -601,6 +630,20 @@ extension CanonicalJSONV1 {
         _ value: ReportEvidenceAssuranceProjectionV1
     ) -> CanonicalJSONValueV1 {
         guard let data = try? ReportEvidenceAssuranceCanonicalCodecV1.encode(value),
+              let object = try? JSONSerialization.jsonObject(with: data) else {
+            return .null
+        }
+        return canonicalValue(object)
+    }
+
+    /// C15 report output is a typed count/state projection. The packet's
+    /// actor, lease, result, and evidence rows are intentionally not copied.
+    private static func workPacket(
+        _ value: ReportWorkPacketProjectionV1
+    ) -> CanonicalJSONValueV1 {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        guard let data = try? encoder.encode(value),
               let object = try? JSONSerialization.jsonObject(with: data) else {
             return .null
         }

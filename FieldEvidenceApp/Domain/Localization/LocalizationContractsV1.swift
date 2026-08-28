@@ -1229,3 +1229,368 @@ extension InspectionReviewLocalizationKeyV1 {
     static func nextStepKey() -> Self { .nextStep }
     static func minimumRequirementKey() -> Self { .minimumNextRequirement }
 }
+
+/// C15's packet-coordination presentation vocabulary is closed and English
+/// only.  Packet, claim, lease, release, handoff, conflict, expiry, and
+/// replay values remain recorded facts; these keys never localize wire values
+/// into canonical bytes or expose packet contents.
+enum WorkPacketLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
+    case heading = "work.packet.heading"
+    case manifest = "work.packet.manifest"
+    case item = "work.packet.item"
+    case manifestState = "work.packet.manifest.state"
+    case manifestDraft = "work.packet.manifest.state.draft"
+    case manifestReady = "work.packet.manifest.state.ready"
+    case manifestInvalid = "work.packet.manifest.state.invalid"
+    case manifestReplayed = "work.packet.manifest.state.replayed"
+    case manifestConflicted = "work.packet.manifest.state.conflicted"
+    case manifestSuperseded = "work.packet.manifest.state.superseded"
+    case claim = "work.packet.claim"
+    case claimState = "work.packet.claim.state"
+    case claimUnclaimed = "work.packet.claim.state.unclaimed"
+    case claimClaimed = "work.packet.claim.state.claimed"
+    case claimReleased = "work.packet.claim.state.released"
+    case claimConflicted = "work.packet.claim.state.conflicted"
+    case lease = "work.packet.lease"
+    case leaseState = "work.packet.lease.state"
+    case leaseActive = "work.packet.lease.state.active"
+    case leaseExpiring = "work.packet.lease.state.expiring"
+    case leaseExpired = "work.packet.lease.state.expired"
+    case leaseReclaimed = "work.packet.lease.state.reclaimed"
+    case release = "work.packet.release"
+    case releaseState = "work.packet.release.state"
+    case releaseRecorded = "work.packet.release.state.recorded"
+    case releaseAvailable = "work.packet.release.state.available"
+    case releaseSuperseded = "work.packet.release.state.superseded"
+    case handoff = "work.packet.handoff"
+    case handoffState = "work.packet.handoff.state"
+    case handoffPending = "work.packet.handoff.state.pending"
+    case handoffAccepted = "work.packet.handoff.state.accepted"
+    case handoffRejected = "work.packet.handoff.state.rejected"
+    case handoffCompleted = "work.packet.handoff.state.completed"
+    case conflict = "work.packet.conflict"
+    case conflictState = "work.packet.conflict.state"
+    case conflictDetected = "work.packet.conflict.state.detected"
+    case conflictQuarantined = "work.packet.conflict.state.quarantined"
+    case conflictReviewRequired = "work.packet.conflict.state.review_required"
+    case conflictResolved = "work.packet.conflict.state.resolved"
+    case expiry = "work.packet.expiry"
+    case expiryState = "work.packet.expiry.state"
+    case expiryNotExpired = "work.packet.expiry.state.not_expired"
+    case expiryExpiring = "work.packet.expiry.state.expiring"
+    case expiryExpired = "work.packet.expiry.state.expired"
+    case replay = "work.packet.replay"
+    case replayState = "work.packet.replay.state"
+    case replayPending = "work.packet.replay.state.pending"
+    case replayApplied = "work.packet.replay.state.applied"
+    case replayIdempotent = "work.packet.replay.state.idempotent"
+    case replayQuarantined = "work.packet.replay.state.quarantined"
+    case nextStep = "work.packet.next_step"
+    case minimumNextRequirement = "work.packet.next_step.minimum_requirement"
+
+    static var packetHeading: Self { .heading }
+    static var packetManifest: Self { .manifest }
+    static var packetItem: Self { .item }
+    static var packetManifestState: Self { .manifestState }
+    static var packetClaim: Self { .claim }
+    static var packetLease: Self { .lease }
+    static var packetRelease: Self { .release }
+    static var packetHandoff: Self { .handoff }
+    static var packetConflict: Self { .conflict }
+    static var packetExpiry: Self { .expiry }
+    static var packetReplay: Self { .replay }
+    static var packetNextStep: Self { .nextStep }
+    static var actionableNextStep: Self { .nextStep }
+    static var minimumRequirement: Self { .minimumNextRequirement }
+
+    var localizationKey: LocalizationKeyV1 {
+        // This enum is repository-owned and closed; registry construction is
+        // still the validation boundary for serialized declarations.
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+}
+
+typealias WorkPacketManifestLocalizationKeyV1 = WorkPacketLocalizationKeyV1
+typealias PacketCoordinationLocalizationKeyV1 = WorkPacketLocalizationKeyV1
+
+enum WorkPacketLocalizationPolicyV1 {
+    static let semanticNamespace = "work.packet"
+    static let sourceLocale = "en"
+    static let shippingLocale = "en"
+    static let metadataLocale = "en-US"
+    static let testOnlyLocales = TestOnlyPseudoLocaleV1.allCases.map(\.rawValue).sorted()
+    static let keys = WorkPacketLocalizationKeyV1.allCases.map(\.rawValue)
+    static let reportKeys = WorkPacketLocalizationKeyV1.allCases.map(\.rawValue)
+    static let stateKeys = [
+        WorkPacketLocalizationKeyV1.manifestDraft.rawValue,
+        WorkPacketLocalizationKeyV1.manifestReady.rawValue,
+        WorkPacketLocalizationKeyV1.manifestInvalid.rawValue,
+        WorkPacketLocalizationKeyV1.manifestReplayed.rawValue,
+        WorkPacketLocalizationKeyV1.manifestConflicted.rawValue,
+        WorkPacketLocalizationKeyV1.manifestSuperseded.rawValue,
+        WorkPacketLocalizationKeyV1.claimUnclaimed.rawValue,
+        WorkPacketLocalizationKeyV1.claimClaimed.rawValue,
+        WorkPacketLocalizationKeyV1.claimReleased.rawValue,
+        WorkPacketLocalizationKeyV1.claimConflicted.rawValue,
+        WorkPacketLocalizationKeyV1.leaseActive.rawValue,
+        WorkPacketLocalizationKeyV1.leaseExpiring.rawValue,
+        WorkPacketLocalizationKeyV1.leaseExpired.rawValue,
+        WorkPacketLocalizationKeyV1.leaseReclaimed.rawValue,
+        WorkPacketLocalizationKeyV1.releaseRecorded.rawValue,
+        WorkPacketLocalizationKeyV1.releaseAvailable.rawValue,
+        WorkPacketLocalizationKeyV1.releaseSuperseded.rawValue,
+        WorkPacketLocalizationKeyV1.handoffPending.rawValue,
+        WorkPacketLocalizationKeyV1.handoffAccepted.rawValue,
+        WorkPacketLocalizationKeyV1.handoffRejected.rawValue,
+        WorkPacketLocalizationKeyV1.handoffCompleted.rawValue,
+        WorkPacketLocalizationKeyV1.conflictDetected.rawValue,
+        WorkPacketLocalizationKeyV1.conflictQuarantined.rawValue,
+        WorkPacketLocalizationKeyV1.conflictReviewRequired.rawValue,
+        WorkPacketLocalizationKeyV1.conflictResolved.rawValue,
+        WorkPacketLocalizationKeyV1.expiryNotExpired.rawValue,
+        WorkPacketLocalizationKeyV1.expiryExpiring.rawValue,
+        WorkPacketLocalizationKeyV1.expiryExpired.rawValue,
+        WorkPacketLocalizationKeyV1.replayPending.rawValue,
+        WorkPacketLocalizationKeyV1.replayApplied.rawValue,
+        WorkPacketLocalizationKeyV1.replayIdempotent.rawValue,
+        WorkPacketLocalizationKeyV1.replayQuarantined.rawValue,
+    ]
+    static let indeterminateStateKeys: Set<String> = [
+        WorkPacketLocalizationKeyV1.manifestDraft.rawValue,
+        WorkPacketLocalizationKeyV1.manifestInvalid.rawValue,
+        WorkPacketLocalizationKeyV1.manifestConflicted.rawValue,
+        WorkPacketLocalizationKeyV1.claimUnclaimed.rawValue,
+        WorkPacketLocalizationKeyV1.claimConflicted.rawValue,
+        WorkPacketLocalizationKeyV1.leaseExpiring.rawValue,
+        WorkPacketLocalizationKeyV1.leaseExpired.rawValue,
+        WorkPacketLocalizationKeyV1.leaseReclaimed.rawValue,
+        WorkPacketLocalizationKeyV1.releaseAvailable.rawValue,
+        WorkPacketLocalizationKeyV1.releaseSuperseded.rawValue,
+        WorkPacketLocalizationKeyV1.handoffPending.rawValue,
+        WorkPacketLocalizationKeyV1.handoffRejected.rawValue,
+        WorkPacketLocalizationKeyV1.conflictDetected.rawValue,
+        WorkPacketLocalizationKeyV1.conflictQuarantined.rawValue,
+        WorkPacketLocalizationKeyV1.conflictReviewRequired.rawValue,
+        WorkPacketLocalizationKeyV1.expiryExpiring.rawValue,
+        WorkPacketLocalizationKeyV1.expiryExpired.rawValue,
+        WorkPacketLocalizationKeyV1.replayPending.rawValue,
+        WorkPacketLocalizationKeyV1.replayQuarantined.rawValue,
+    ]
+
+    static let denyByDefault = true
+    static let requiresNonColorStateText = true
+    static let requiresTextAndIconForIndeterminateStates = true
+    static let requiresActionableNextStep = true
+    static let allowsColorOnlyState = false
+    static let allowsIconOnlyState = false
+    static let excludesSecrets = true
+    static let excludesCustomerData = true
+    static let excludesWorkData = true
+    static let excludesCustomerDataLeakage = true
+    static let excludesPrivateLocators = true
+    static let excludesUnsupportedClaims = true
+
+    static let prohibitedClaimPhrases: Set<String> = [
+        "approval", "approve", "approved", "authorization", "authorize", "authorized",
+        "verified", "verified identity", "identity verified", "legal", "legal signature",
+        "compliance", "compliant", "tamperproof", "tamper proof", "tamper-proof",
+        "nonrepudiation", "non repudiation", "non-repudiation", "secure", "secured",
+        "sent", "delivered", "professional", "certification", "certified", "saved",
+        "complete", "customer data", "customer information", "private data", "personal data",
+        "work data", "work item data", "work product", "secret", "secrets", "credential",
+        "credentials", "password", "token", "customer record", "data leakage", "account",
+        "accounts", "authentication", "authorize", "rbac", "remote", "transport", "provider",
+        "delivery", "cmms", "artificial intelligence", "signing", "upload", "submission",
+        "dispatch", "telemetry", "finalization",
+    ]
+
+    private static func normalized(_ value: String) -> String {
+        value
+            .folding(
+                options: [.caseInsensitive, .diacriticInsensitive],
+                locale: Locale(identifier: "en_US_POSIX")
+            )
+            .split { !$0.isLetter && !$0.isNumber }
+            .joined(separator: " ")
+    }
+
+    static func containsProhibitedClaim(in values: [String]) -> Bool {
+        values.contains { value in
+            let bounded = " \(normalized(value)) "
+            prohibitedClaimPhrases.contains { phrase in
+                bounded.contains(" \(normalized(phrase)) ")
+            }
+        }
+    }
+
+    static func containsSensitiveDataLeakage(in values: [String]) -> Bool {
+        values.contains { value in
+            let bounded = " \(normalized(value)) "
+            [
+                "customer data", "customer information", "customer record", "private data",
+                "personal data", "work data", "work item data", "work product", "secret",
+                "credentials", "credential", "password", "token", "account", "accounts",
+                "data leakage",
+            ].contains { bounded.contains(" \($0) ") }
+        }
+    }
+
+    static func containsCustomerDataLeakage(in values: [String]) -> Bool {
+        containsSensitiveDataLeakage(in: values)
+    }
+
+    static func containsCustomerOrWorkDataLeakage(in values: [String]) -> Bool {
+        containsSensitiveDataLeakage(in: values)
+    }
+}
+
+typealias WorkPacketManifestLocalizationPolicyV1 = WorkPacketLocalizationPolicyV1
+typealias PacketCoordinationLocalizationPolicyV1 = WorkPacketLocalizationPolicyV1
+
+enum WorkPacketClaimVocabularyV1 {
+    static let prohibitedTokens = WorkPacketLocalizationPolicyV1.prohibitedClaimPhrases
+
+    static func containsProhibitedClaim(in values: [String]) -> Bool {
+        WorkPacketLocalizationPolicyV1.containsProhibitedClaim(in: values)
+    }
+
+    static func containsSensitiveDataLeakage(in values: [String]) -> Bool {
+        WorkPacketLocalizationPolicyV1.containsSensitiveDataLeakage(in: values)
+    }
+
+    static func containsCustomerDataLeakage(in values: [String]) -> Bool {
+        WorkPacketLocalizationPolicyV1.containsSensitiveDataLeakage(in: values)
+    }
+
+    static func containsCustomerOrWorkDataLeakage(in values: [String]) -> Bool {
+        WorkPacketLocalizationPolicyV1.containsSensitiveDataLeakage(in: values)
+    }
+}
+
+typealias WorkPacketManifestClaimVocabularyV1 = WorkPacketClaimVocabularyV1
+
+extension WorkPacketLocalizationKeyV1 {
+    static func manifestStateKey(_ rawValue: String) -> Self? {
+        switch rawValue {
+        case "DRAFT": return .manifestDraft
+        case "READY": return .manifestReady
+        case "INVALID": return .manifestInvalid
+        case "REPLAYED": return .manifestReplayed
+        case "CONFLICTED": return .manifestConflicted
+        case "SUPERSEDED": return .manifestSuperseded
+        default: return nil
+        }
+    }
+
+    static func claimStateKey(_ rawValue: String) -> Self? {
+        switch rawValue {
+        case "UNCLAIMED", "AVAILABLE": return .claimUnclaimed
+        case "CLAIMED": return .claimClaimed
+        case "RELEASED": return .claimReleased
+        case "CONFLICTED": return .claimConflicted
+        default: return nil
+        }
+    }
+
+    static func leaseStateKey(_ rawValue: String) -> Self? {
+        switch rawValue {
+        case "ACTIVE": return .leaseActive
+        case "EXPIRING": return .leaseExpiring
+        case "EXPIRED": return .leaseExpired
+        case "RECLAIMED": return .leaseReclaimed
+        default: return nil
+        }
+    }
+
+    static func releaseStateKey(_ rawValue: String) -> Self? {
+        switch rawValue {
+        case "RECORDED": return .releaseRecorded
+        case "AVAILABLE": return .releaseAvailable
+        case "SUPERSEDED": return .releaseSuperseded
+        default: return nil
+        }
+    }
+
+    static func handoffStateKey(_ rawValue: String) -> Self? {
+        switch rawValue {
+        case "PENDING": return .handoffPending
+        case "ACCEPTED": return .handoffAccepted
+        case "REJECTED": return .handoffRejected
+        case "COMPLETED": return .handoffCompleted
+        default: return nil
+        }
+    }
+
+    static func conflictStateKey(_ rawValue: String) -> Self? {
+        switch rawValue {
+        case "DETECTED": return .conflictDetected
+        case "QUARANTINED": return .conflictQuarantined
+        case "REVIEW_REQUIRED": return .conflictReviewRequired
+        case "RESOLVED": return .conflictResolved
+        default: return nil
+        }
+    }
+
+    static func expiryStateKey(_ rawValue: String) -> Self? {
+        switch rawValue {
+        case "NOT_EXPIRED": return .expiryNotExpired
+        case "EXPIRING": return .expiryExpiring
+        case "EXPIRED": return .expiryExpired
+        default: return nil
+        }
+    }
+
+    static func replayStateKey(_ rawValue: String) -> Self? {
+        switch rawValue {
+        case "PENDING": return .replayPending
+        case "APPLIED": return .replayApplied
+        case "IDEMPOTENT": return .replayIdempotent
+        case "QUARANTINED": return .replayQuarantined
+        default: return nil
+        }
+    }
+
+    /// Core replay dispositions are recorded wire facts; these mappings only
+    /// select truthful local display states and never rewrite the disposition.
+    static func replayStateKey(_ disposition: WorkPacketReplayDispositionV1) -> Self {
+        switch disposition {
+        case .apply: return .replayApplied
+        case .idempotentReplay: return .replayIdempotent
+        case .quarantineDivergentBytes: return .replayQuarantined
+        }
+    }
+
+    static func replayDispositionKey(_ disposition: WorkPacketReplayDispositionV1) -> Self {
+        replayStateKey(disposition)
+    }
+
+    /// Conflict kinds stay in the recorded domain.  Divergent bytes are
+    /// quarantined; other collision classes require a recorded review.
+    static func conflictStateKey(_ kind: WorkPacketConflictKindV1) -> Self {
+        switch kind {
+        case .simultaneousClaim: return .conflictDetected
+        case .staleResultRevision, .expiredLeaseResult: return .conflictReviewRequired
+        case .divergentSameIdentity: return .conflictQuarantined
+        }
+    }
+
+    static func conflictKindKey(_ kind: WorkPacketConflictKindV1) -> Self {
+        conflictStateKey(kind)
+    }
+
+    static func releaseStateKey(_ reason: WorkReleaseReasonV1) -> Self {
+        switch reason {
+        case .leaseExpired: return .releaseAvailable
+        case .completed, .deliberatelyReleased, .handoff, .reclaimed:
+            return .releaseRecorded
+        }
+    }
+
+    static func releaseReasonKey(_ reason: WorkReleaseReasonV1) -> Self {
+        releaseStateKey(reason)
+    }
+
+    static func nextStepKey() -> Self { .nextStep }
+    static func minimumRequirementKey() -> Self { .minimumNextRequirement }
+}

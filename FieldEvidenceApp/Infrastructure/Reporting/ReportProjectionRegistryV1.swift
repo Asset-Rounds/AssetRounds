@@ -1372,7 +1372,9 @@ struct ReportProjectionRegistryV8: Codable, Equatable, Sendable {
     static let publicationDisposition = "PROVISIONAL_READ_ONLY_PRE_S10"
     static let nativeCompileRan = false
     static let hostedDispatchRan = false
+    static let hostedDispatchEnabled = false
     static let adoptionEnabled = false
+    static let acceptanceEnabled = false
     static let acceptanceCredit = false
     static let releaseCredit = false
 
@@ -1497,6 +1499,164 @@ struct ReportProjectionRegistryV8: Codable, Equatable, Sendable {
 
     func renderStructuredText(
         snapshot: CompletedActivitySnapshotV8,
+        manifest: ContractManifestV1
+    ) throws -> ReportProjectionOutputV1 {
+        let semantic = try semanticProjection(snapshot: snapshot, manifest: manifest)
+        let output = try DeterministicOpenJSONRendererV1.renderStructuredText(semantic)
+        guard try DeterministicOpenJSONRendererV1.reopenStructuredText(output.data) == semantic else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return output
+    }
+}
+
+/// Additive C15 registry. It accepts only the V9 completed snapshot and emits
+/// the read-only packet projection through the existing semantic renderer.
+/// There is no finalization, recovery, hosted, adoption, acceptance, or
+/// release authority in this registry.
+struct ReportProjectionRegistryV9: Codable, Equatable, Sendable {
+    static let schemaVersion = 9
+    static let registryID = "report-projection-registry-v9"
+    static let persistentContractSchema = "PERSISTENT_SCHEMA_V15_WORK_PACKET_COORDINATION"
+    static let publicationDisposition = "PROVISIONAL_READ_ONLY_PRE_S10"
+    static let nativeCompileRan = false
+    static let hostedDispatchRan = false
+    static let adoptionEnabled = false
+    static let acceptanceCredit = false
+    static let releaseCredit = false
+
+    let schemaVersion: Int
+    let registryID: String
+    let persistentContractSchema: String
+    let supportedPersistentContractSchemas: [String]
+    let publicationDisposition: String
+    let nativeCompileRan: Bool
+    let hostedDispatchRan: Bool
+    let adoptionEnabled: Bool
+    let acceptanceCredit: Bool
+    let releaseCredit: Bool
+    let requiresAcceptedS10_6Reconciliation: Bool
+    let baseRendererRegistry: ReportProjectionRegistryV1
+
+    init() {
+        schemaVersion = Self.schemaVersion
+        registryID = Self.registryID
+        persistentContractSchema = Self.persistentContractSchema
+        supportedPersistentContractSchemas = [
+            "KERNEL_SNAPSHOT_V1", "KERNEL_SNAPSHOT_V2", "KERNEL_SNAPSHOT_V3",
+            "KERNEL_SNAPSHOT_V4", "KERNEL_SNAPSHOT_V5", "KERNEL_SNAPSHOT_V6",
+            "KERNEL_SNAPSHOT_V7", "KERNEL_SNAPSHOT_V8", "KERNEL_SNAPSHOT_V9",
+            Self.persistentContractSchema,
+        ]
+        publicationDisposition = Self.publicationDisposition
+        nativeCompileRan = Self.nativeCompileRan
+        hostedDispatchRan = Self.hostedDispatchRan
+        adoptionEnabled = Self.adoptionEnabled
+        acceptanceCredit = Self.acceptanceCredit
+        releaseCredit = Self.releaseCredit
+        requiresAcceptedS10_6Reconciliation = true
+        baseRendererRegistry = ReportProjectionRegistryV1()
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, registryID, persistentContractSchema
+        case supportedPersistentContractSchemas, publicationDisposition
+        case nativeCompileRan, hostedDispatchRan, adoptionEnabled
+        case acceptanceCredit, releaseCredit, requiresAcceptedS10_6Reconciliation
+        case baseRendererRegistry
+    }
+
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(
+            decoder,
+            allowed: Set(CodingKeys.allCases.map(\.rawValue))
+        )
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        let expected = Self()
+        guard try values.decode(Int.self, forKey: .schemaVersion) == expected.schemaVersion,
+              try values.decode(String.self, forKey: .registryID) == expected.registryID,
+              try values.decode(String.self, forKey: .persistentContractSchema)
+                    == expected.persistentContractSchema,
+              try values.decode([String].self, forKey: .supportedPersistentContractSchemas)
+                    == expected.supportedPersistentContractSchemas,
+              try values.decode(String.self, forKey: .publicationDisposition)
+                    == expected.publicationDisposition,
+              try values.decode(Bool.self, forKey: .nativeCompileRan) == expected.nativeCompileRan,
+              try values.decode(Bool.self, forKey: .hostedDispatchRan) == expected.hostedDispatchRan,
+              try values.decode(Bool.self, forKey: .adoptionEnabled) == expected.adoptionEnabled,
+              try values.decode(Bool.self, forKey: .acceptanceCredit) == expected.acceptanceCredit,
+              try values.decode(Bool.self, forKey: .releaseCredit) == expected.releaseCredit,
+              try values.decode(Bool.self, forKey: .requiresAcceptedS10_6Reconciliation)
+                    == expected.requiresAcceptedS10_6Reconciliation,
+              try values.decode(ReportProjectionRegistryV1.self, forKey: .baseRendererRegistry)
+                    == expected.baseRendererRegistry else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        self = expected
+    }
+
+    func validate() throws {
+        guard self == Self(),
+              ReportWorkPacketProjectionPolicyV1.sectionID == "work-packet",
+              ReportWorkPacketProjectionPolicyV1.sectionVersion == 1,
+              ReportWorkPacketProjectionPolicyV1.projectionVersion == "report-work-packet-v1",
+              ReportWorkPacketProjectionPolicyV1.publicationDisposition
+                    == Self.publicationDisposition,
+              ReportWorkPacketProjectionPolicyV1.requiredTypedLabels,
+              ReportWorkPacketProjectionPolicyV1.indexesCurrentHeadsOnly,
+              ReportWorkPacketProjectionPolicyV1.excludesActorPrivateDetail,
+              ReportWorkPacketProjectionPolicyV1.excludesResultAndEvidenceLinks,
+              ReportWorkPacketProjectionPolicyV1.excludesClaimsAndAuthorization,
+              ReportWorkPacketProjectionPolicyV1.excludesTelemetryAndDelivery,
+              ReportWorkPacketProjectionPolicyV1.supports(.openJSON),
+              ReportWorkPacketProjectionPolicyV1.supports(.structuredText) else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try baseRendererRegistry.validate()
+    }
+
+    func semanticProjection(
+        snapshot: CompletedActivitySnapshotV9,
+        manifest: ContractManifestV1
+    ) throws -> ReportSemanticProjectionV1 {
+        try validate()
+        try snapshot.validate()
+        try manifest.validate()
+        let v8 = snapshot.payload.activity
+        let v7 = v8.payload.activity
+        let v6 = v7.payload.activity
+        let base = v6.payload.activity.activity.activity.activity.activity
+        let binding = base.profileBinding
+        guard binding.rendererVersion == baseRendererRegistry.soleRenderer,
+              binding.sectionIDs.contains(ReportWorkPacketProjectionPolicyV1.sectionID),
+              let section = manifest.reportSectionRegistry.sections.first(where: {
+                  $0.sectionID == ReportWorkPacketProjectionPolicyV1.sectionID
+              }),
+              section.version == ReportWorkPacketProjectionPolicyV1.sectionVersion,
+              section.privacyClass == ReportWorkPacketProjectionPolicyV1.privacyClass,
+              ReportWorkPacketProjectionPolicyV1.supportedFormats.allSatisfy({
+                  section.supportedFormats.contains($0)
+              }),
+              base.evidenceCards.allSatisfy({ $0.audience == binding.audience }) else {
+            throw SnapshotProjectionFailureV1.missingBinding
+        }
+        return try ReportSemanticProjectorV1.project(snapshot: snapshot, manifest: manifest)
+    }
+
+    func renderOpenJSON(
+        snapshot: CompletedActivitySnapshotV9,
+        manifest: ContractManifestV1
+    ) throws -> ReportProjectionOutputV1 {
+        let semantic = try semanticProjection(snapshot: snapshot, manifest: manifest)
+        let output = try DeterministicOpenJSONRendererV1.render(semantic)
+        guard try DeterministicOpenJSONRendererV1.reopen(output.data) == semantic else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return output
+    }
+
+    func renderStructuredText(
+        snapshot: CompletedActivitySnapshotV9,
         manifest: ContractManifestV1
     ) throws -> ReportProjectionOutputV1 {
         let semantic = try semanticProjection(snapshot: snapshot, manifest: manifest)

@@ -1140,3 +1140,220 @@ struct ReportInspectionReviewHistoryProjectionV1: Codable, Equatable, Sendable {
 }
 
 typealias ReportReviewChangeActionHistoryProjectionV1 = ReportInspectionReviewHistoryProjectionV1
+
+// MARK: - C15 work-packet report projection
+
+/// C15 exposes only bounded, customer-safe packet coordination facts. The
+/// canonical packet event rows, actor snapshots, result/evidence links, and
+/// collision digests remain in the completed snapshot and are never copied to
+/// this report DTO.
+enum ReportWorkPacketProjectionPolicyV1 {
+    static let sectionID = "work-packet"
+    static let sectionVersion = 1
+    static let projectionVersion = "report-work-packet-v1"
+    static let privacyClass = ReportPrivacyClassV1.audienceSafe
+    static let publicationDisposition = "PROVISIONAL_READ_ONLY_PRE_S10"
+    static let requiredTypedLabels = true
+    static let indexesCurrentHeadsOnly = true
+    static let excludesActorPrivateDetail = true
+    static let excludesResultAndEvidenceLinks = true
+    static let excludesClaimsAndAuthorization = true
+    static let excludesTelemetryAndDelivery = true
+    static let supportedFormats: [ReportProjectionFormatV1] = [.openJSON, .structuredText]
+
+    static func supports(_ format: ReportProjectionFormatV1) -> Bool {
+        supportedFormats.contains(format)
+    }
+}
+
+struct ReportWorkPacketProjectionV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let projectionVersion: String
+    let sourceSnapshotSHA256: String
+    let packetID: UUID
+    let manifestSHA256: String
+    let itemCount: Int
+    let itemIDs: [String]
+    let itemStateLabels: [String]
+    let preservedResultCount: Int
+    let collisionCount: Int
+    let historyEventCount: Int
+    let bindingSHA256: String
+
+    init(
+        snapshot: CompletedWorkPacketSnapshotV1,
+        sourceSnapshotSHA256: String
+    ) throws {
+        try snapshot.validate()
+        guard KernelCanonicalHashV1.validSHA256(sourceSnapshotSHA256) else {
+            throw SnapshotProjectionFailureV1.missingBinding
+        }
+        let ordered = snapshot.items.sorted { $0.itemID < $1.itemID }
+        let ids = ordered.map(\.itemID)
+        let states = ordered.map(\.state.rawValue)
+        let resultCount = ordered.reduce(0) { $0 + $1.preservedResultCount }
+        let collisionCount = ordered.reduce(0) { $0 + $1.conflictKinds.count }
+        let historyCount = snapshot.claims.count + snapshot.leases.count
+            + snapshot.releases.count + snapshot.handoffs.count
+        let binding = try Self.binding(
+            sourceSnapshotSHA256: sourceSnapshotSHA256,
+            packetID: snapshot.manifest.packetID,
+            manifestSHA256: snapshot.manifest.manifestSHA256,
+            itemCount: ordered.count,
+            itemIDs: ids,
+            itemStateLabels: states,
+            preservedResultCount: resultCount,
+            collisionCount: collisionCount,
+            historyEventCount: historyCount
+        )
+        self.init(
+            sourceSnapshotSHA256: sourceSnapshotSHA256,
+            packetID: snapshot.manifest.packetID,
+            manifestSHA256: snapshot.manifest.manifestSHA256,
+            itemCount: ordered.count,
+            itemIDs: ids,
+            itemStateLabels: states,
+            preservedResultCount: resultCount,
+            collisionCount: collisionCount,
+            historyEventCount: historyCount,
+            bindingSHA256: binding
+        )
+    }
+
+    private init(
+        sourceSnapshotSHA256: String,
+        packetID: UUID,
+        manifestSHA256: String,
+        itemCount: Int,
+        itemIDs: [String],
+        itemStateLabels: [String],
+        preservedResultCount: Int,
+        collisionCount: Int,
+        historyEventCount: Int,
+        bindingSHA256: String
+    ) {
+        schemaVersion = Self.schemaVersion
+        projectionVersion = ReportWorkPacketProjectionPolicyV1.projectionVersion
+        self.sourceSnapshotSHA256 = sourceSnapshotSHA256
+        self.packetID = packetID
+        self.manifestSHA256 = manifestSHA256
+        self.itemCount = itemCount
+        self.itemIDs = itemIDs
+        self.itemStateLabels = itemStateLabels
+        self.preservedResultCount = preservedResultCount
+        self.collisionCount = collisionCount
+        self.historyEventCount = historyEventCount
+        self.bindingSHA256 = bindingSHA256
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              projectionVersion == ReportWorkPacketProjectionPolicyV1.projectionVersion,
+              KernelCanonicalHashV1.validSHA256(sourceSnapshotSHA256),
+              packetID != UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
+              KernelCanonicalHashV1.validSHA256(manifestSHA256),
+              itemCount > 0,
+              itemIDs.count == itemCount,
+              itemStateLabels.count == itemCount,
+              itemIDs == itemIDs.sorted(),
+              Set(itemIDs).count == itemIDs.count,
+              itemIDs.allSatisfy(SnapshotProjectionValidationV1.validID),
+              itemStateLabels.allSatisfy {
+                  CompletedWorkPacketItemStateV1(rawValue: $0) != nil
+              },
+              preservedResultCount >= 0,
+              collisionCount >= 0,
+              historyEventCount >= 0,
+              KernelCanonicalHashV1.validSHA256(bindingSHA256) else {
+            throw SnapshotProjectionFailureV1.invalidValue
+        }
+        let expected = try Self.binding(
+            sourceSnapshotSHA256: sourceSnapshotSHA256,
+            packetID: packetID,
+            manifestSHA256: manifestSHA256,
+            itemCount: itemCount,
+            itemIDs: itemIDs,
+            itemStateLabels: itemStateLabels,
+            preservedResultCount: preservedResultCount,
+            collisionCount: collisionCount,
+            historyEventCount: historyEventCount
+        )
+        guard expected == bindingSHA256 else {
+            throw SnapshotProjectionFailureV1.digestMismatch
+        }
+    }
+
+    private static func binding(
+        sourceSnapshotSHA256: String,
+        packetID: UUID,
+        manifestSHA256: String,
+        itemCount: Int,
+        itemIDs: [String],
+        itemStateLabels: [String],
+        preservedResultCount: Int,
+        collisionCount: Int,
+        historyEventCount: Int
+    ) throws -> String {
+        KernelCanonicalHashV1.sha256(try WorkspaceMutationCanonicalV1.data(Basis(
+            schemaVersion: Self.schemaVersion,
+            projectionVersion: ReportWorkPacketProjectionPolicyV1.projectionVersion,
+            sourceSnapshotSHA256: sourceSnapshotSHA256,
+            packetID: packetID,
+            manifestSHA256: manifestSHA256,
+            itemCount: itemCount,
+            itemIDs: itemIDs,
+            itemStateLabels: itemStateLabels,
+            preservedResultCount: preservedResultCount,
+            collisionCount: collisionCount,
+            historyEventCount: historyEventCount
+        )))
+    }
+
+    private struct Basis: Codable {
+        let schemaVersion: Int
+        let projectionVersion: String
+        let sourceSnapshotSHA256: String
+        let packetID: UUID
+        let manifestSHA256: String
+        let itemCount: Int
+        let itemIDs: [String]
+        let itemStateLabels: [String]
+        let preservedResultCount: Int
+        let collisionCount: Int
+        let historyEventCount: Int
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, projectionVersion, sourceSnapshotSHA256, packetID
+        case manifestSHA256, itemCount, itemIDs, itemStateLabels
+        case preservedResultCount, collisionCount, historyEventCount, bindingSHA256
+    }
+
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(
+            decoder,
+            allowed: Set(CodingKeys.allCases.map(\.rawValue))
+        )
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            sourceSnapshotSHA256: values.decode(String.self, forKey: .sourceSnapshotSHA256),
+            packetID: values.decode(UUID.self, forKey: .packetID),
+            manifestSHA256: values.decode(String.self, forKey: .manifestSHA256),
+            itemCount: values.decode(Int.self, forKey: .itemCount),
+            itemIDs: values.decode([String].self, forKey: .itemIDs),
+            itemStateLabels: values.decode([String].self, forKey: .itemStateLabels),
+            preservedResultCount: values.decode(Int.self, forKey: .preservedResultCount),
+            collisionCount: values.decode(Int.self, forKey: .collisionCount),
+            historyEventCount: values.decode(Int.self, forKey: .historyEventCount),
+            bindingSHA256: values.decode(String.self, forKey: .bindingSHA256)
+        )
+        guard try values.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion,
+              try values.decode(String.self, forKey: .projectionVersion)
+                    == ReportWorkPacketProjectionPolicyV1.projectionVersion else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try validate()
+    }
+}

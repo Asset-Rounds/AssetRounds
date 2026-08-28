@@ -557,3 +557,167 @@ struct LegacyLocalizationAccessibilityAllowlistV1: Codable, Equatable, Sendable 
         }
     }
 }
+
+/// Closed C15 semantic IDs for local packet coordination.  These IDs identify
+/// packet concepts and recorded states, never packet contents or actor data.
+/// Transitional, expired, conflicted, and quarantined states carry an
+/// actionable next-step hint and must remain understandable without color or
+/// an icon alone.
+enum WorkPacketAccessibilityIDV1: String, Codable, CaseIterable, Sendable {
+    case screen = "work.packet.screen"
+    case heading = "work.packet.heading"
+    case manifest = "work.packet.manifest"
+    case item = "work.packet.item"
+    case manifestState = "work.packet.manifest.state"
+    case manifestDraft = "work.packet.manifest.state.draft"
+    case manifestReady = "work.packet.manifest.state.ready"
+    case manifestInvalid = "work.packet.manifest.state.invalid"
+    case manifestReplayed = "work.packet.manifest.state.replayed"
+    case manifestConflicted = "work.packet.manifest.state.conflicted"
+    case manifestSuperseded = "work.packet.manifest.state.superseded"
+    case claim = "work.packet.claim"
+    case claimState = "work.packet.claim.state"
+    case claimUnclaimed = "work.packet.claim.state.unclaimed"
+    case claimClaimed = "work.packet.claim.state.claimed"
+    case claimReleased = "work.packet.claim.state.released"
+    case claimConflicted = "work.packet.claim.state.conflicted"
+    case lease = "work.packet.lease"
+    case leaseState = "work.packet.lease.state"
+    case leaseActive = "work.packet.lease.state.active"
+    case leaseExpiring = "work.packet.lease.state.expiring"
+    case leaseExpired = "work.packet.lease.state.expired"
+    case leaseReclaimed = "work.packet.lease.state.reclaimed"
+    case release = "work.packet.release"
+    case releaseState = "work.packet.release.state"
+    case releaseRecorded = "work.packet.release.state.recorded"
+    case releaseAvailable = "work.packet.release.state.available"
+    case releaseSuperseded = "work.packet.release.state.superseded"
+    case handoff = "work.packet.handoff"
+    case handoffState = "work.packet.handoff.state"
+    case handoffPending = "work.packet.handoff.state.pending"
+    case handoffAccepted = "work.packet.handoff.state.accepted"
+    case handoffRejected = "work.packet.handoff.state.rejected"
+    case handoffCompleted = "work.packet.handoff.state.completed"
+    case conflict = "work.packet.conflict"
+    case conflictState = "work.packet.conflict.state"
+    case conflictDetected = "work.packet.conflict.state.detected"
+    case conflictQuarantined = "work.packet.conflict.state.quarantined"
+    case conflictReviewRequired = "work.packet.conflict.state.review-required"
+    case conflictResolved = "work.packet.conflict.state.resolved"
+    case expiry = "work.packet.expiry"
+    case expiryState = "work.packet.expiry.state"
+    case expiryNotExpired = "work.packet.expiry.state.not-expired"
+    case expiryExpiring = "work.packet.expiry.state.expiring"
+    case expiryExpired = "work.packet.expiry.state.expired"
+    case replay = "work.packet.replay"
+    case replayState = "work.packet.replay.state"
+    case replayPending = "work.packet.replay.state.pending"
+    case replayApplied = "work.packet.replay.state.applied"
+    case replayIdempotent = "work.packet.replay.state.idempotent"
+    case replayQuarantined = "work.packet.replay.state.quarantined"
+    case nextStep = "work.packet.next-step"
+    case minimumNextRequirement = "work.packet.next-step.minimum-requirement"
+
+    static var packetHeading: Self { .heading }
+    static var packetManifest: Self { .manifest }
+    static var packetItem: Self { .item }
+    static var packetClaim: Self { .claim }
+    static var packetLease: Self { .lease }
+    static var packetRelease: Self { .release }
+    static var packetHandoff: Self { .handoff }
+    static var packetConflict: Self { .conflict }
+    static var packetExpiry: Self { .expiry }
+    static var packetReplay: Self { .replay }
+    static var actionableNextStep: Self { .nextStep }
+}
+
+typealias WorkPacketManifestAccessibilityIDV1 = WorkPacketAccessibilityIDV1
+typealias PacketCoordinationAccessibilityIDV1 = WorkPacketAccessibilityIDV1
+
+/// C15 accessibility policy keeps local packet coordination truthful and
+/// usable with VoiceOver, Voice Control, Switch Control, Dynamic Type, RTL,
+/// and non-color presentation.  It has no authority, delivery, or identity
+/// semantics.
+enum WorkPacketAccessibilityPolicyV1 {
+    static let semanticIDs = WorkPacketAccessibilityIDV1.allCases.map(\.rawValue)
+    static let stateSemanticIDs: Set<String> = [
+        WorkPacketAccessibilityIDV1.manifestDraft.rawValue,
+        WorkPacketAccessibilityIDV1.manifestReady.rawValue,
+        WorkPacketAccessibilityIDV1.manifestInvalid.rawValue,
+        WorkPacketAccessibilityIDV1.manifestReplayed.rawValue,
+        WorkPacketAccessibilityIDV1.manifestConflicted.rawValue,
+        WorkPacketAccessibilityIDV1.manifestSuperseded.rawValue,
+        WorkPacketAccessibilityIDV1.claimUnclaimed.rawValue,
+        WorkPacketAccessibilityIDV1.claimClaimed.rawValue,
+        WorkPacketAccessibilityIDV1.claimReleased.rawValue,
+        WorkPacketAccessibilityIDV1.claimConflicted.rawValue,
+        WorkPacketAccessibilityIDV1.leaseActive.rawValue,
+        WorkPacketAccessibilityIDV1.leaseExpiring.rawValue,
+        WorkPacketAccessibilityIDV1.leaseExpired.rawValue,
+        WorkPacketAccessibilityIDV1.leaseReclaimed.rawValue,
+        WorkPacketAccessibilityIDV1.releaseRecorded.rawValue,
+        WorkPacketAccessibilityIDV1.releaseAvailable.rawValue,
+        WorkPacketAccessibilityIDV1.releaseSuperseded.rawValue,
+        WorkPacketAccessibilityIDV1.handoffPending.rawValue,
+        WorkPacketAccessibilityIDV1.handoffAccepted.rawValue,
+        WorkPacketAccessibilityIDV1.handoffRejected.rawValue,
+        WorkPacketAccessibilityIDV1.handoffCompleted.rawValue,
+        WorkPacketAccessibilityIDV1.conflictDetected.rawValue,
+        WorkPacketAccessibilityIDV1.conflictQuarantined.rawValue,
+        WorkPacketAccessibilityIDV1.conflictReviewRequired.rawValue,
+        WorkPacketAccessibilityIDV1.conflictResolved.rawValue,
+        WorkPacketAccessibilityIDV1.expiryNotExpired.rawValue,
+        WorkPacketAccessibilityIDV1.expiryExpiring.rawValue,
+        WorkPacketAccessibilityIDV1.expiryExpired.rawValue,
+        WorkPacketAccessibilityIDV1.replayPending.rawValue,
+        WorkPacketAccessibilityIDV1.replayApplied.rawValue,
+        WorkPacketAccessibilityIDV1.replayIdempotent.rawValue,
+        WorkPacketAccessibilityIDV1.replayQuarantined.rawValue,
+    ]
+    static let indeterminateSemanticIDs: Set<String> = [
+        WorkPacketAccessibilityIDV1.manifestDraft.rawValue,
+        WorkPacketAccessibilityIDV1.manifestInvalid.rawValue,
+        WorkPacketAccessibilityIDV1.manifestConflicted.rawValue,
+        WorkPacketAccessibilityIDV1.claimUnclaimed.rawValue,
+        WorkPacketAccessibilityIDV1.claimConflicted.rawValue,
+        WorkPacketAccessibilityIDV1.leaseExpiring.rawValue,
+        WorkPacketAccessibilityIDV1.leaseExpired.rawValue,
+        WorkPacketAccessibilityIDV1.leaseReclaimed.rawValue,
+        WorkPacketAccessibilityIDV1.releaseAvailable.rawValue,
+        WorkPacketAccessibilityIDV1.releaseSuperseded.rawValue,
+        WorkPacketAccessibilityIDV1.handoffPending.rawValue,
+        WorkPacketAccessibilityIDV1.handoffRejected.rawValue,
+        WorkPacketAccessibilityIDV1.conflictDetected.rawValue,
+        WorkPacketAccessibilityIDV1.conflictQuarantined.rawValue,
+        WorkPacketAccessibilityIDV1.conflictReviewRequired.rawValue,
+        WorkPacketAccessibilityIDV1.expiryExpiring.rawValue,
+        WorkPacketAccessibilityIDV1.expiryExpired.rawValue,
+        WorkPacketAccessibilityIDV1.replayPending.rawValue,
+        WorkPacketAccessibilityIDV1.replayQuarantined.rawValue,
+    ]
+    static let statusSemanticIDs = stateSemanticIDs
+    static let denyByDefault = true
+    static let nonColorStateTextRequired = true
+    static let textAndIconRequiredForIndeterminateStates = true
+    static let actionableNextStepRequiredForIndeterminateStates = true
+    static let colorOnlyStateAllowed = false
+    static let iconOnlyStateAllowed = false
+    static let rtlRequired = true
+    static let dynamicTypeRequired = true
+    static let voiceOverRequired = true
+    static let voiceControlRequired = true
+    static let switchControlRequired = true
+    static let actionableNextStepRequired = true
+    static let textIconActionableNextStepRequired = true
+
+    static func requiresTextAndIcon(for semanticID: String) -> Bool {
+        indeterminateSemanticIDs.contains(semanticID)
+    }
+
+    static func requiresActionableNextStep(for semanticID: String) -> Bool {
+        indeterminateSemanticIDs.contains(semanticID)
+    }
+}
+
+typealias WorkPacketManifestAccessibilityPolicyV1 = WorkPacketAccessibilityPolicyV1
+typealias PacketCoordinationAccessibilityPolicyV1 = WorkPacketAccessibilityPolicyV1

@@ -441,6 +441,7 @@ final class LocalChangeJournalV1 {
             try Self.validateFunctionalRelationshipChange(change)
             try Self.validateEvidenceAssuranceChange(change)
             try Self.validateInspectionReviewChange(change)
+            try WorkPacketJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)
             let disposition: MutationReplayDispositionV1
             if blocked {
                 disposition = try .init(mutationID: change.envelope.mutationID, disposition: .deferredGap, reasonCode: "PRIOR_CAUSAL_GAP")

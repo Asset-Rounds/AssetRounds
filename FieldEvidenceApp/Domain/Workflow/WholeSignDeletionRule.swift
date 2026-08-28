@@ -143,6 +143,8 @@ struct InspectionReviewDeletionInventoryV1: Equatable, Sendable {
         && policyReleaseIDs.isEmpty && actionEventIDs.isEmpty }
 }
 
+struct WorkPacketDeletionInventoryV1:Equatable,Sendable{let manifestIDs:Set<UUID>;let claimIDs:Set<UUID>;let leaseIDs:Set<UUID>;let releaseIDs:Set<UUID>;let handoffIDs:Set<UUID>}
+
 struct EvidenceAssuranceOrdinaryDeletionPreviewV1: Equatable, Sendable {
     let blockingManifestIDs: [UUID]
     let blockingAttestationIDs: [UUID]
@@ -232,6 +234,8 @@ enum WholeSignDeletionRule {
             guard after.isEmpty else { throw WholeSignDeletionRuleError.invalidGraph }
         }
     }
+
+    static func validateWorkPacketLifecycle(authority:PartyAccountabilityDeletionAuthorityV1,before:WorkPacketDeletionInventoryV1,after:WorkPacketDeletionInventoryV1)throws{try WorkPacketDeletionLedgerPolicyV1.validate();switch authority{case .ordinaryAssetOrSiteDelete:guard before==after else{throw WholeSignDeletionRuleError.invalidGraph};case .workspaceErase:guard after.manifestIDs.isEmpty,after.claimIDs.isEmpty,after.leaseIDs.isEmpty,after.releaseIDs.isEmpty,after.handoffIDs.isEmpty else{throw WholeSignDeletionRuleError.invalidGraph}}}
 
     static func evidenceAssuranceOrdinaryDeletionPreview(
         manifests: [AssuranceManifestV1], attestations: [AttestationV1]

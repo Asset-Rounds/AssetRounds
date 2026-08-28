@@ -391,6 +391,17 @@ final class V9_06DeletionArchiveIntegrationTests: XCTestCase {
 }
 
 extension V9_06DeletionArchiveIntegrationTests {
+    func testV23P03C15ArchivedReleaseRoundTripsCanonicalBytes() throws {
+        let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_107)
+        let row = try WorkReleaseRow(fixture.completedRelease)
+        XCTAssertEqual(row.canonicalData, try WorkPacketCanonicalCodecV1.encode(fixture.completedRelease))
+        XCTAssertEqual(try row.value(), fixture.completedRelease)
+        XCTAssertEqual(row.releaseID, fixture.completedRelease.releaseID)
+        XCTAssertEqual(row.claimID, fixture.claim.claimID)
+    }
+}
+
+extension V9_06DeletionArchiveIntegrationTests {
     func testV23P03C41ArchiveReplayLeavesNoCurrentRelationship() throws {
         let fixture = try C41FunctionalRelationshipTestSupportV1.makeFixture(seed: 41_062)
         let projection = try FunctionalRelationshipProjectionBuilderV1.rebuild(

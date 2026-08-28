@@ -5298,3 +5298,227 @@ enum C14InspectionReviewTestSupportV1 {
         )
     }
 }
+
+enum C15WorkPacketManifestTestSupportV1 {
+    struct Fixture {
+        let workspaceID: WorkspaceID
+        let otherWorkspaceID: WorkspaceID
+        let manifest: WorkPacketManifestV1
+        let alternateManifest: WorkPacketManifestV1
+        let manifestReference: WorkPacketManifestReferenceV1
+        let item: WorkPacketItemV1
+        let secondItem: WorkPacketItemV1
+        let itemReference: WorkPacketItemReferenceV1
+        let creator: ActorSnapshotV1
+        let holder: ActorSnapshotV1
+        let successorHolder: ActorSnapshotV1
+        let claim: WorkItemClaimV1
+        let successorClaim: WorkItemClaimV1
+        let competingClaim: WorkItemClaimV1
+        let lease: WorkLeaseV1
+        let successorLease: WorkLeaseV1
+        let result: WorkPacketResultLinkV1
+        let staleResult: WorkPacketResultLinkV1
+        let divergentResult: WorkPacketResultLinkV1
+        let alternateResult: WorkPacketResultLinkV1
+        let completedRelease: WorkReleaseV1
+        let handoffRelease: WorkReleaseV1
+        let expiredRelease: WorkReleaseV1
+        let divergentRelease: WorkReleaseV1
+        let handoff: WorkHandoffV1
+        let packageRelease: PackageReleaseIdentityV1
+        let policyReference: WorkPacketPolicyReferenceV1
+        let evidenceRequirement: WorkPacketEvidenceRequirementV1
+    }
+
+    static let fixedDate = C14InspectionReviewTestSupportV1.fixedDate.addingTimeInterval(10_000)
+    static let digest = String(repeating: "d", count: 64)
+    static let alternateDigest = String(repeating: "e", count: 64)
+
+    static func id(_ seed: Int) -> UUID {
+        C14InspectionReviewTestSupportV1.id(seed)
+    }
+
+    static func workspace(_ seed: Int) -> WorkspaceID {
+        C14InspectionReviewTestSupportV1.workspace(seed)
+    }
+
+    static func mutation(_ seed: Int) throws -> MutationIDV1 {
+        try C14InspectionReviewTestSupportV1.mutation(seed)
+    }
+
+    static func makeFixture(seed: Int = 150_000) throws -> Fixture {
+        let workspaceID = workspace(seed)
+        let otherWorkspaceID = workspace(seed + 900)
+        let base = fixedDate.addingTimeInterval(Double(seed % 100))
+        let creatorReference = try C14InspectionReviewTestSupportV1.actorReference(
+            seed: seed + 1, workspaceID: workspaceID, name: "C15 recorder"
+        )
+        let holderReference = try C14InspectionReviewTestSupportV1.actorReference(
+            seed: seed + 2, workspaceID: workspaceID, name: "C15 holder"
+        )
+        let successorReference = try C14InspectionReviewTestSupportV1.actorReference(
+            seed: seed + 3, workspaceID: workspaceID, name: "C15 successor"
+        )
+        let creator = try C14InspectionReviewTestSupportV1.actorSnapshot(
+            seed: seed + 4, workspaceID: workspaceID, actor: creatorReference,
+            responsibility: .recordedBy, capturedAt: base
+        )
+        let holder = try C14InspectionReviewTestSupportV1.actorSnapshot(
+            seed: seed + 5, workspaceID: workspaceID, actor: holderReference,
+            responsibility: .assignedTo, capturedAt: base.addingTimeInterval(1)
+        )
+        let successorHolder = try C14InspectionReviewTestSupportV1.actorSnapshot(
+            seed: seed + 6, workspaceID: workspaceID, actor: successorReference,
+            responsibility: .assignedTo, capturedAt: base.addingTimeInterval(2)
+        )
+        let packageRelease = try PackageReleaseIdentityV1(
+            packageID: "com.assetrounds.c15", schemaVersion: 1, contentVersion: 1
+        )
+        let policyReference = try WorkPacketPolicyReferenceV1(
+            policyID: "c15-policy", policyRevision: 1, policySHA256: digest
+        )
+        let evidenceRequirement = try WorkPacketEvidenceRequirementV1(
+            requirementID: "c15-result-evidence",
+            evidenceKind: .completedActivitySnapshot,
+            minimumCount: 1
+        )
+        let item = try WorkPacketItemV1(
+            itemID: "c15-inspection", kind: .inspection, expectedRevision: 1,
+            itemSHA256: digest, policyReferences: [policyReference],
+            evidenceRequirements: [evidenceRequirement]
+        )
+        let secondItem = try WorkPacketItemV1(
+            itemID: "c15-recheck", kind: .operationalRecheck, expectedRevision: 1,
+            itemSHA256: alternateDigest
+        )
+        let correctiveItem = try WorkPacketItemV1(
+            itemID: "c15-corrective", kind: .correctiveAction, expectedRevision: 1,
+            itemSHA256: digest
+        )
+        let changeRequestItem = try WorkPacketItemV1(
+            itemID: "c15-change-request", kind: .reviewChangeRequest, expectedRevision: 1,
+            itemSHA256: alternateDigest
+        )
+        let manifest = try WorkPacketManifestV1(
+            manifestID: id(seed + 10), packetID: id(seed + 11), packetVersion: 1,
+            workspaceID: workspaceID, items: [secondItem, item, correctiveItem, changeRequestItem],
+            packageReleases: [packageRelease], creationBasis: .explicitLocalSelection,
+            creator: creator, createdAt: base.addingTimeInterval(3),
+            mutationID: try mutation(seed + 12)
+        )
+        let alternateManifest = try WorkPacketManifestV1(
+            manifestID: id(seed + 10), packetID: id(seed + 11), packetVersion: 2,
+            workspaceID: workspaceID, items: [item, secondItem, correctiveItem, changeRequestItem],
+            packageReleases: [packageRelease], creationBasis: .deterministicDueProjection,
+            creator: creator, createdAt: base.addingTimeInterval(4),
+            mutationID: try mutation(seed + 13)
+        )
+        let manifestReference = try WorkPacketManifestReferenceV1(manifest)
+        let itemReference = try WorkPacketItemReferenceV1(manifest: manifest, item: item)
+        let claim = try WorkItemClaimV1(
+            claimID: id(seed + 20), workspaceID: workspaceID, manifest: manifestReference,
+            item: itemReference, holder: holder, claimSequence: 1,
+            claimedAt: base.addingTimeInterval(5), mutationID: try mutation(seed + 21)
+        )
+        let successorClaim = try WorkItemClaimV1(
+            claimID: id(seed + 22), workspaceID: workspaceID, manifest: manifestReference,
+            item: itemReference, holder: successorHolder, claimSequence: 2,
+            claimedAt: base.addingTimeInterval(6), supersedesClaimID: claim.claimID,
+            revision: 2, mutationID: try mutation(seed + 23)
+        )
+        let competingClaim = try WorkItemClaimV1(
+            claimID: id(seed + 24), workspaceID: workspaceID, manifest: manifestReference,
+            item: itemReference, holder: successorHolder, claimSequence: 1,
+            claimedAt: base.addingTimeInterval(7), mutationID: try mutation(seed + 25)
+        )
+        let lease = try WorkLeaseV1(
+            leaseID: id(seed + 30), workspaceID: workspaceID, claimID: claim.claimID,
+            item: itemReference, holder: holder, leaseSequence: 1,
+            startsAt: base.addingTimeInterval(8), expiresAt: base.addingTimeInterval(3_608),
+            mutationID: try mutation(seed + 31)
+        )
+        let successorLease = try WorkLeaseV1(
+            leaseID: id(seed + 32), workspaceID: workspaceID, claimID: claim.claimID,
+            item: itemReference, holder: holder, leaseSequence: 2,
+            startsAt: base.addingTimeInterval(9), expiresAt: base.addingTimeInterval(3_609),
+            supersedesLeaseID: lease.leaseID, revision: 2,
+            mutationID: try mutation(seed + 33)
+        )
+        let evidence = try ReviewEvidenceReferenceV1(
+            kind: .completedActivitySnapshot, referenceID: "c15-result-evidence",
+            revision: 1, sha256: digest
+        )
+        let result = try WorkPacketResultLinkV1(
+            resultID: id(seed + 40), resultMutationID: try mutation(seed + 41),
+            itemExpectedRevision: 1, resultRevision: 1, resultSHA256: digest,
+            evidence: [evidence]
+        )
+        let staleResult = try WorkPacketResultLinkV1(
+            resultID: id(seed + 42), resultMutationID: try mutation(seed + 43),
+            itemExpectedRevision: 2, resultRevision: 1, resultSHA256: digest,
+            evidence: [evidence]
+        )
+        let divergentResult = try WorkPacketResultLinkV1(
+            resultID: result.resultID, resultMutationID: try mutation(seed + 44),
+            itemExpectedRevision: 1, resultRevision: 1, resultSHA256: alternateDigest,
+            evidence: [evidence]
+        )
+        let alternateResult = try WorkPacketResultLinkV1(
+            resultID: id(seed + 45), resultMutationID: try mutation(seed + 46),
+            itemExpectedRevision: 1, resultRevision: 1, resultSHA256: alternateDigest,
+            evidence: [evidence]
+        )
+        let completedRelease = try WorkReleaseV1(
+            releaseID: id(seed + 50), workspaceID: workspaceID, claimID: claim.claimID,
+            leaseID: lease.leaseID, item: itemReference, holder: holder, reason: .completed,
+            resultLinks: [result], releasedAt: base.addingTimeInterval(100),
+            mutationID: try mutation(seed + 51)
+        )
+        let handoffRelease = try WorkReleaseV1(
+            releaseID: id(seed + 52), workspaceID: workspaceID, claimID: claim.claimID,
+            leaseID: lease.leaseID, item: itemReference, holder: holder, reason: .handoff,
+            resultLinks: [alternateResult], releasedAt: base.addingTimeInterval(120),
+            mutationID: try mutation(seed + 53)
+        )
+        let expiredRelease = try WorkReleaseV1(
+            releaseID: id(seed + 54), workspaceID: workspaceID, claimID: claim.claimID,
+            leaseID: lease.leaseID, item: itemReference, holder: holder,
+            reason: .leaseExpired, resultLinks: [staleResult],
+            releasedAt: base.addingTimeInterval(3_609), mutationID: try mutation(seed + 55)
+        )
+        let divergentRelease = try WorkReleaseV1(
+            releaseID: id(seed + 56), workspaceID: workspaceID, claimID: claim.claimID,
+            leaseID: lease.leaseID, item: itemReference, holder: holder, reason: .completed,
+            resultLinks: [divergentResult], releasedAt: base.addingTimeInterval(130),
+            mutationID: try mutation(seed + 57)
+        )
+        let handoff = try WorkHandoffV1(
+            handoffID: id(seed + 60), workspaceID: workspaceID,
+            releaseID: handoffRelease.releaseID, item: itemReference,
+            fromHolder: holder, toHolder: successorHolder, resultLinks: [alternateResult],
+            reason: "C15 local handoff", handedOffAt: base.addingTimeInterval(121),
+            mutationID: try mutation(seed + 61)
+        )
+        return Fixture(
+            workspaceID: workspaceID, otherWorkspaceID: otherWorkspaceID,
+            manifest: manifest, alternateManifest: alternateManifest,
+            manifestReference: manifestReference, item: item, secondItem: secondItem,
+            itemReference: itemReference, creator: creator, holder: holder,
+            successorHolder: successorHolder, claim: claim, successorClaim: successorClaim,
+            competingClaim: competingClaim, lease: lease, successorLease: successorLease,
+            result: result, staleResult: staleResult, divergentResult: divergentResult,
+            alternateResult: alternateResult, completedRelease: completedRelease,
+            handoffRelease: handoffRelease, expiredRelease: expiredRelease,
+            divergentRelease: divergentRelease, handoff: handoff,
+            packageRelease: packageRelease, policyReference: policyReference,
+            evidenceRequirement: evidenceRequirement
+        )
+    }
+
+    static func corpusURL() -> URL {
+        KernelConformanceFixtureHarnessV1.sourceRoot().appendingPathComponent(
+            "FieldEvidenceAppTests/Fixtures/V21/WorkPacketManifest/V21P03C15WorkPacketManifestCorpusV1.json"
+        )
+    }
+}

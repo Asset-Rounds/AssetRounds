@@ -27,6 +27,8 @@ enum InspectionReviewEraseIntentStorePolicyV1 {
     }
 }
 
+enum WorkPacketEraseIntentStorePolicyV1{static func validate()throws{guard WorkPacketEraseBoundaryV1.immutableManifestClaimLeaseReleaseAndHandoffHistoryClearedOnlyByWorkspaceErase,WorkPacketEraseBoundaryV1.ordinaryDeletionPreservesReplayHistory else{throw EraseIntentStoreError.invalidAuthority}}}
+
 enum EraseIntentStoreError: Error, Equatable {
     case invalidAuthority
     case invalidIntent
@@ -343,6 +345,7 @@ final class EraseIntentStore {
         try FunctionalRelationshipEraseIntentStorePolicyV1.validate()
         try EvidenceAssuranceEraseIntentStorePolicyV1.validate()
         try InspectionReviewEraseIntentStorePolicyV1.validate()
+        try WorkPacketEraseIntentStorePolicyV1.validate()
         let root = applicationSupportURL.standardizedFileURL
         guard root.isFileURL else { throw EraseIntentStoreError.invalidAuthority }
         if expectedApplicationSupportIdentity == nil {

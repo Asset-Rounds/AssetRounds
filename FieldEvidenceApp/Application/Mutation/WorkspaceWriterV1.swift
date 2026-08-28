@@ -514,6 +514,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
             do{try value.validate();let target=try value.concurrencyIdentity;let expected=request.expectedRevision.entityRevisions.first(where:{$0.identity==target})?.revision;guard value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,sourceKind == .importedHistory || occurredAtOverride != nil || expected==value.expectedRevision else{throw WorkspaceMutationFailureV1.invalidCommand}}catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
         case .applyInspectionReview(let value):
             do{try value.validate();let targets=try value.concurrencyIdentities;let expected=Dictionary(uniqueKeysWithValues:request.expectedRevision.entityRevisions.map{($0.identity,$0.revision)});guard value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,sourceKind == .importedHistory || occurredAtOverride != nil || targets.allSatisfy{expected[$0] != nil} else{throw WorkspaceMutationFailureV1.invalidCommand}}catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
+        case .applyWorkPacket(let value):
+            do{try value.validate();let target=try value.concurrencyIdentity;let expected=request.expectedRevision.entityRevisions.first(where:{$0.identity==target})?.revision;guard value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,sourceKind == .importedHistory || occurredAtOverride != nil || expected==value.expectedRevision else{throw WorkspaceMutationFailureV1.invalidCommand}}catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
         default:
             break
         }
@@ -703,6 +705,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
             entityRevisions[try mutation.affectedIdentity] = mutation.postImage.revision
         } else if case let .applyInspectionReview(mutation) = request.command {
             for image in try mutation.postImage.mutationPostImages{entityRevisions[try image.identity]=image.revision}
+        } else if case let .applyWorkPacket(mutation) = request.command {
+            entityRevisions[try mutation.affectedIdentity]=mutation.postImage.revision
         } else {
             for target in targets { entityRevisions[target, default: 0] += 1 }
         }
@@ -1150,6 +1154,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
             try value.validate();values=[try value.affectedIdentity]
         case let .applyInspectionReview(value):
             try value.validate();values=try value.affectedIdentities
+        case let .applyWorkPacket(value):
+            try value.validate();values=[try value.affectedIdentity]
         }
         guard Set(values).count == values.count else {
             throw WorkspaceMutationFailureV1.invalidCommand
@@ -1170,6 +1176,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
         }
         if case let .applyEvidenceAssurance(value)=command{try value.validate();return[try value.concurrencyIdentity]}
         if case let .applyInspectionReview(value)=command{try value.validate();return try value.concurrencyIdentities}
+        if case let .applyWorkPacket(value)=command{try value.validate();return[try value.concurrencyIdentity]}
         return try targetIdentities(for: command)
     }
 

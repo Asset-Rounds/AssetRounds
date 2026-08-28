@@ -410,8 +410,8 @@ struct ReleasedDataCompatibilityPolicyV1: Codable, Equatable, Sendable {
             switch value.family {
             case .liveStore:
                 return path(.liveStore, .publiclyPersisted, [
-                    "1.0.0", "2.0.0", "3.0.0", "4.0.0", "5.0.0", "6.0.0", "7.0.0", "8.0.0", "9.0.0", "10.0.0", "11.0.0", "12.0.0", "13.0.0", "14.0.0",
-                ], "13.0.0", transitions: [
+                    "1.0.0", "2.0.0", "3.0.0", "4.0.0", "5.0.0", "6.0.0", "7.0.0", "8.0.0", "9.0.0", "10.0.0", "11.0.0", "12.0.0", "13.0.0", "14.0.0", "15.0.0",
+                ], "15.0.0", transitions: [
                     .init(fromVersion: "1.0.0", toVersion: "2.0.0"),
                     .init(fromVersion: "2.0.0", toVersion: "3.0.0"),
                     .init(fromVersion: "3.0.0", toVersion: "4.0.0"),
@@ -425,6 +425,7 @@ struct ReleasedDataCompatibilityPolicyV1: Codable, Equatable, Sendable {
                     .init(fromVersion: "11.0.0", toVersion: "12.0.0"),
                     .init(fromVersion: "12.0.0", toVersion: "13.0.0"),
                     .init(fromVersion: "13.0.0", toVersion: "14.0.0"),
+                    .init(fromVersion: "14.0.0", toVersion: "15.0.0"),
                 ], search: .available, rebuild: .available)
             case .backupPackage:
                 return path(.backupPackage, .publiclyPersisted, [
@@ -439,8 +440,9 @@ struct ReleasedDataCompatibilityPolicyV1: Codable, Equatable, Sendable {
                     "archive1-backup4-persistent12-records11",
                     "archive1-backup4-persistent13-records12",
                     "archive1-backup4-persistent14-records13",
+                    "archive1-backup4-persistent15-records14",
                     "directory-v4-backup1-persistent1-records1",
-                ], "archive1-backup4-persistent14-records13",
+                ], "archive1-backup4-persistent15-records14",
                 search: .available, rebuild: .available)
             case .reportOpenJSON:
                 return path(.reportOpenJSON, .publiclyPersisted,
@@ -469,5 +471,106 @@ struct ReleasedDataCompatibilityPolicyV1: Codable, Equatable, Sendable {
             searchDisposition: search,
             rebuildDisposition: rebuild
         )
+    }
+}
+
+/// C15's V15 coordination contract is an additive compatibility successor.
+/// Released C07 values remain available through `current`; this policy only
+/// describes the provisional V15 writer and its pre-activation downgrade
+/// boundary.
+enum WorkPacketCompatibilityPolicyV1 {
+    static let persistentSchemaVersion = 15
+    static let recordsSchemaVersion = 14
+    static let persistentContractSchema = "PERSISTENT_SCHEMA_V15_WORK_PACKET_COORDINATION"
+    static let currentPersistentWriterVersion = "15.0.0"
+    static let currentBackupWriterVersion = "archive1-backup4-persistent15-records14"
+    static let readablePersistentWriterVersions = [
+        "1.0.0", "2.0.0", "3.0.0", "4.0.0", "5.0.0", "6.0.0", "7.0.0",
+        "8.0.0", "9.0.0", "10.0.0", "11.0.0", "12.0.0", "13.0.0",
+        "14.0.0", "15.0.0",
+    ]
+    static let readableBackupWriterVersions = [
+        "archive1-backup2-persistent1-records1",
+        "archive1-backup2-persistent3-records2",
+        "archive1-backup4-persistent5-records4",
+        "archive1-backup4-persistent6-records5",
+        "archive1-backup4-persistent7-records6",
+        "archive1-backup4-persistent9-records8",
+        "archive1-backup4-persistent10-records9",
+        "archive1-backup4-persistent11-records10",
+        "archive1-backup4-persistent12-records11",
+        "archive1-backup4-persistent13-records12",
+        "archive1-backup4-persistent14-records13",
+        "archive1-backup4-persistent15-records14",
+        "directory-v4-backup1-persistent1-records1",
+    ]
+    static let downgradeDisposition =
+        "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_FIRST_V15_WRITE"
+    static let migrationRequired = true
+    static let backupRequired = true
+    static let restoreRequired = true
+    static let importRequired = true
+    static let exportRequired = true
+    static let deleteRequired = true
+    static let eraseRequired = true
+    static let replayRequired = true
+    static let searchRequired = true
+    static let reportRequired = true
+    static let requiresAcceptedS10_6Reconciliation = true
+    static let nativeCompileRan = false
+    static let hostedDispatchEnabled = false
+    static let adoptionEnabled = false
+    static let acceptanceEnabled = false
+    static let acceptanceCredit = false
+    static let releaseCredit = false
+
+    static func validate() throws {
+        guard persistentSchemaVersion == 15,
+              recordsSchemaVersion == 14,
+              persistentContractSchema
+                  == "PERSISTENT_SCHEMA_V15_WORK_PACKET_COORDINATION",
+              currentPersistentWriterVersion
+                  == readablePersistentWriterVersions.last,
+              currentBackupWriterVersion
+                  == readableBackupWriterVersions[
+                      readableBackupWriterVersions.count - 2
+                  ],
+              readablePersistentWriterVersions
+                  == readablePersistentWriterVersions.sorted(),
+              Set(readablePersistentWriterVersions).count
+                  == readablePersistentWriterVersions.count,
+              Set(readableBackupWriterVersions).count
+                  == readableBackupWriterVersions.count,
+              downgradeDisposition
+                  == "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_FIRST_V15_WRITE",
+              migrationRequired,
+              backupRequired,
+              restoreRequired,
+              importRequired,
+              exportRequired,
+              deleteRequired,
+              eraseRequired,
+              replayRequired,
+              searchRequired,
+              reportRequired,
+              requiresAcceptedS10_6Reconciliation,
+              !nativeCompileRan,
+              !hostedDispatchEnabled,
+              !adoptionEnabled,
+              !acceptanceEnabled,
+              !acceptanceCredit,
+              !releaseCredit else {
+            throw CompatibilityContractErrorV1.invalidSupportTable
+        }
+    }
+
+    static func acceptsPersistentWriterVersion(_ version: String) -> Bool {
+        (try? validate()) != nil
+            && readablePersistentWriterVersions.contains(version)
+    }
+
+    static func acceptsBackupWriterVersion(_ version: String) -> Bool {
+        (try? validate()) != nil
+            && readableBackupWriterVersions.contains(version)
     }
 }

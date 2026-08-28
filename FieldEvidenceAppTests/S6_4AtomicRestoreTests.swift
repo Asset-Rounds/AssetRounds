@@ -691,6 +691,22 @@ final class S6_4AtomicRestoreTests: XCTestCase {
 }
 
 extension S6_4AtomicRestoreTests {
+    func testV23P03C15AtomicRestoreRoundTripsAllPacketRowsTogether() throws {
+        let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_164)
+        let manifest = try WorkPacketManifestRow(fixture.manifest).value()
+        let claim = try WorkItemClaimRow(fixture.claim).value()
+        let lease = try WorkLeaseRow(fixture.lease).value()
+        let release = try WorkReleaseRow(fixture.completedRelease).value()
+        let handoff = try WorkHandoffRow(fixture.handoff).value()
+        XCTAssertEqual(manifest, fixture.manifest)
+        XCTAssertEqual(claim, fixture.claim)
+        XCTAssertEqual(lease, fixture.lease)
+        XCTAssertEqual(release, fixture.completedRelease)
+        XCTAssertEqual(handoff, fixture.handoff)
+    }
+}
+
+extension S6_4AtomicRestoreTests {
     func testV23P03C13AtomicRestoreRebindsCompleteAssuranceBundle() throws {
         let fixture = try C13EvidenceAssuranceTestSupportV1.makeFixture(seed: 51_640)
         let destination = C13EvidenceAssuranceTestSupportV1.workspace(51_641)

@@ -894,6 +894,20 @@ final class V9_01VersionedSchemaIdentityTests: XCTestCase {
 }
 
 extension V9_01VersionedSchemaIdentityTests {
+    func testV23P03C15ManifestAndHistorySchemasStayVersioned() throws {
+        let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_101)
+        XCTAssertEqual(fixture.manifest.schemaVersion, WorkPacketManifestV1.schemaVersion)
+        XCTAssertEqual(fixture.claim.schemaVersion, WorkItemClaimV1.schemaVersion)
+        XCTAssertEqual(fixture.lease.schemaVersion, WorkLeaseV1.schemaVersion)
+        XCTAssertEqual(
+            Set(fixture.manifest.items.map(\.kind)),
+            Set(WorkPacketItemKindV1.allCases)
+        )
+        XCTAssertEqual(fixture.manifestReference.manifestSHA256.count, 64)
+    }
+}
+
+extension V9_01VersionedSchemaIdentityTests {
     func testV23P03C41SchemaIdentityIncludesFunctionalRelationshipHistory() throws {
         let fixture = try C41FunctionalRelationshipTestSupportV1.makeFixture()
 

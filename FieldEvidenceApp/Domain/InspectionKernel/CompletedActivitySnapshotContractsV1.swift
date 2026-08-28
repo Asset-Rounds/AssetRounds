@@ -2777,3 +2777,622 @@ enum CompletedActivitySnapshotCanonicalCodecV8 {
 }
 
 typealias CompletedReviewHistorySnapshotV1 = CompletedInspectionReviewHistorySnapshotV1
+
+// MARK: - C15 replayable work-packet snapshot
+
+/// The completed C15 snapshot keeps the complete packet event history in the
+/// immutable snapshot boundary.  Reports consume the deliberately smaller
+/// `ReportWorkPacketProjectionV1`; actor snapshots, result links, and evidence
+/// references never cross that boundary into customer-facing output.
+enum CompletedWorkPacketItemStateV1: String, Codable, CaseIterable, Hashable, Sendable {
+    case unclaimed = "UNCLAIMED"
+    case claimed = "CLAIMED"
+    case leased = "LEASED"
+    case released = "RELEASED"
+    case handedOff = "HANDED_OFF"
+    case conflicted = "CONFLICTED"
+    case expired = "EXPIRED"
+}
+
+struct CompletedWorkPacketItemSnapshotV1: Codable, Equatable, Hashable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let itemID: String
+    let itemKind: WorkPacketItemKindV1
+    let expectedRevision: UInt64
+    let itemSHA256: String
+    let state: CompletedWorkPacketItemStateV1
+    let currentClaimID: UUID?
+    let currentLeaseID: UUID?
+    let latestReleaseID: UUID?
+    let latestHandoffID: UUID?
+    let preservedResultCount: Int
+    let conflictKinds: [WorkPacketConflictKindV1]
+    let itemSnapshotSHA256: String
+
+    init(
+        item: WorkPacketItemReferenceV1,
+        projection: WorkPacketItemProjectionV1
+    ) throws {
+        guard item == projection.item else {
+            throw SnapshotProjectionFailureV1.missingBinding
+        }
+        let conflictKinds = projection.exceptions.map(\.kind).sorted {
+            $0.rawValue < $1.rawValue
+        }
+        let state: CompletedWorkPacketItemStateV1
+        if !conflictKinds.isEmpty {
+            state = .conflicted
+        } else if projection.latestHandoff != nil {
+            state = .handedOff
+        } else if let release = projection.latestRelease {
+            state = release.reason == .leaseExpired ? .expired : .released
+        } else if projection.currentLease != nil {
+            state = .leased
+        } else if projection.currentClaim != nil {
+            state = .claimed
+        } else {
+            state = .unclaimed
+        }
+        let basis = Basis(
+            schemaVersion: Self.schemaVersion,
+            itemID: item.itemID,
+            itemKind: item.itemKind,
+            expectedRevision: item.expectedRevision,
+            itemSHA256: item.itemSHA256,
+            state: state,
+            currentClaimID: projection.currentClaim?.claimID,
+            currentLeaseID: projection.currentLease?.leaseID,
+            latestReleaseID: projection.latestRelease?.releaseID,
+            latestHandoffID: projection.latestHandoff?.handoffID,
+            preservedResultCount: projection.preservedResults.count,
+            conflictKinds: conflictKinds
+        )
+        schemaVersion = Self.schemaVersion
+        itemID = item.itemID
+        itemKind = item.itemKind
+        expectedRevision = item.expectedRevision
+        itemSHA256 = item.itemSHA256
+        self.state = state
+        currentClaimID = projection.currentClaim?.claimID
+        currentLeaseID = projection.currentLease?.leaseID
+        latestReleaseID = projection.latestRelease?.releaseID
+        latestHandoffID = projection.latestHandoff?.handoffID
+        preservedResultCount = projection.preservedResults.count
+        self.conflictKinds = conflictKinds
+        itemSnapshotSHA256 = KernelCanonicalHashV1.sha256(
+            try CompletedWorkPacketSnapshotCanonicalCodecV1.encode(basis)
+        )
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              SnapshotProjectionValidationV1.validText(itemID),
+              expectedRevision > 0,
+              KernelCanonicalHashV1.validSHA256(itemSHA256),
+              preservedResultCount >= 0,
+              conflictKinds == conflictKinds.sorted(by: { $0.rawValue < $1.rawValue }),
+              Set(conflictKinds).count == conflictKinds.count,
+              KernelCanonicalHashV1.validSHA256(itemSnapshotSHA256) else {
+            throw SnapshotProjectionFailureV1.invalidValue
+        }
+        let expected = KernelCanonicalHashV1.sha256(
+            try CompletedWorkPacketSnapshotCanonicalCodecV1.encode(Basis(
+                schemaVersion: schemaVersion,
+                itemID: itemID,
+                itemKind: itemKind,
+                expectedRevision: expectedRevision,
+                itemSHA256: itemSHA256,
+                state: state,
+                currentClaimID: currentClaimID,
+                currentLeaseID: currentLeaseID,
+                latestReleaseID: latestReleaseID,
+                latestHandoffID: latestHandoffID,
+                preservedResultCount: preservedResultCount,
+                conflictKinds: conflictKinds
+            ))
+        )
+        guard expected == itemSnapshotSHA256 else {
+            throw SnapshotProjectionFailureV1.digestMismatch
+        }
+    }
+
+    private struct Basis: Codable {
+        let schemaVersion: Int
+        let itemID: String
+        let itemKind: WorkPacketItemKindV1
+        let expectedRevision: UInt64
+        let itemSHA256: String
+        let state: CompletedWorkPacketItemStateV1
+        let currentClaimID: UUID?
+        let currentLeaseID: UUID?
+        let latestReleaseID: UUID?
+        let latestHandoffID: UUID?
+        let preservedResultCount: Int
+        let conflictKinds: [WorkPacketConflictKindV1]
+    }
+}
+
+enum CompletedWorkPacketSnapshotCanonicalCodecV1 {
+    static func encode<T: Encodable>(_ value: T) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return try encoder.encode(value)
+    }
+}
+
+struct CompletedWorkPacketSnapshotV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let workspaceID: WorkspaceID
+    let manifest: WorkPacketManifestV1
+    let claims: [WorkItemClaimV1]
+    let leases: [WorkLeaseV1]
+    let releases: [WorkReleaseV1]
+    let handoffs: [WorkHandoffV1]
+    let items: [CompletedWorkPacketItemSnapshotV1]
+    let sourceRevision: UInt64
+    let createdAt: Date
+    let snapshotSHA256: String
+
+    init(
+        manifest: WorkPacketManifestV1,
+        claims: [WorkItemClaimV1],
+        leases: [WorkLeaseV1],
+        releases: [WorkReleaseV1],
+        handoffs: [WorkHandoffV1],
+        sourceRevision: UInt64 = 1,
+        createdAt: Date
+    ) throws {
+        let orderedClaims = claims.sorted {
+            ($0.claimSequence, $0.claimID.uuidString.lowercased())
+                < ($1.claimSequence, $1.claimID.uuidString.lowercased())
+        }
+        let orderedLeases = leases.sorted {
+            ($0.leaseSequence, $0.leaseID.uuidString.lowercased())
+                < ($1.leaseSequence, $1.leaseID.uuidString.lowercased())
+        }
+        let orderedReleases = releases.sorted {
+            ($0.releasedAt, $0.releaseID.uuidString.lowercased())
+                < ($1.releasedAt, $1.releaseID.uuidString.lowercased())
+        }
+        let orderedHandoffs = handoffs.sorted {
+            ($0.handedOffAt, $0.handoffID.uuidString.lowercased())
+                < ($1.handedOffAt, $1.handoffID.uuidString.lowercased())
+        }
+        let projection = try WorkPacketProjectionBuilderV1.rebuild(
+            workspaceID: manifest.workspaceID,
+            manifest: manifest,
+            claims: orderedClaims,
+            leases: orderedLeases,
+            releases: orderedReleases,
+            handoffs: orderedHandoffs,
+            at: createdAt
+        )
+        guard sourceRevision > 0,
+              createdAt.timeIntervalSinceReferenceDate.isFinite else {
+            throw SnapshotProjectionFailureV1.invalidValue
+        }
+        let itemValues = try projection.items.map {
+            try CompletedWorkPacketItemSnapshotV1(item: $0.item, projection: $0)
+        }
+        schemaVersion = Self.schemaVersion
+        workspaceID = manifest.workspaceID
+        self.manifest = manifest
+        claims = orderedClaims
+        leases = orderedLeases
+        releases = orderedReleases
+        handoffs = orderedHandoffs
+        items = itemValues
+        self.sourceRevision = sourceRevision
+        self.createdAt = createdAt
+        snapshotSHA256 = KernelCanonicalHashV1.sha256(
+            try CompletedWorkPacketSnapshotCanonicalCodecV1.encode(Basis(
+                schemaVersion: Self.schemaVersion,
+                workspaceID: manifest.workspaceID,
+                manifest: manifest,
+                claims: orderedClaims,
+                leases: orderedLeases,
+                releases: orderedReleases,
+                handoffs: orderedHandoffs,
+                items: itemValues,
+                sourceRevision: sourceRevision,
+                createdAt: createdAt
+            ))
+        )
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              workspaceID == manifest.workspaceID,
+              sourceRevision > 0,
+              createdAt.timeIntervalSinceReferenceDate.isFinite,
+              KernelCanonicalHashV1.validSHA256(snapshotSHA256),
+              claims.count <= WorkPacketLimitsV1.maximumHistory,
+              leases.count <= WorkPacketLimitsV1.maximumHistory,
+              releases.count <= WorkPacketLimitsV1.maximumHistory,
+              handoffs.count <= WorkPacketLimitsV1.maximumHistory,
+              items.count == manifest.items.count,
+              items == items.sorted(by: { $0.itemID < $1.itemID }),
+              Set(items.map(\.itemID)).count == items.count else {
+            throw SnapshotProjectionFailureV1.invalidValue
+        }
+        try manifest.validate()
+        let manifestReference = try WorkPacketManifestReferenceV1(manifest)
+        let itemReferences = try manifest.items.map {
+            try WorkPacketItemReferenceV1(manifest: manifest, item: $0)
+        }
+        let itemBelongs: (WorkPacketItemReferenceV1) -> Bool = { item in
+            itemReferences.contains(item)
+        }
+        try claims.forEach { claim in
+            try claim.validate()
+            guard claim.workspaceID == workspaceID,
+                  claim.manifest == manifestReference,
+                  itemBelongs(claim.item) else {
+                throw SnapshotProjectionFailureV1.wrongWorkspace
+            }
+        }
+        try leases.forEach { lease in
+            try lease.validate()
+            guard lease.workspaceID == workspaceID,
+                  itemBelongs(lease.item),
+                  claims.contains(where: {
+                      $0.claimID == lease.claimID
+                          && $0.item == lease.item
+                          && $0.workspaceID == workspaceID
+                  }) else {
+                throw SnapshotProjectionFailureV1.missingBinding
+            }
+        }
+        try releases.forEach { release in
+            try release.validate()
+            guard release.workspaceID == workspaceID,
+                  itemBelongs(release.item),
+                  claims.contains(where: {
+                      $0.claimID == release.claimID
+                          && $0.item == release.item
+                          && $0.workspaceID == workspaceID
+                  }),
+                  leases.contains(where: {
+                      $0.leaseID == release.leaseID
+                          && $0.claimID == release.claimID
+                          && $0.item == release.item
+                          && $0.workspaceID == workspaceID
+                  }) else {
+                throw SnapshotProjectionFailureV1.missingBinding
+            }
+        }
+        try handoffs.forEach { handoff in
+            try handoff.validate()
+            guard handoff.workspaceID == workspaceID,
+                  itemBelongs(handoff.item),
+                  releases.contains(where: {
+                      $0.releaseID == handoff.releaseID
+                          && $0.item == handoff.item
+                          && $0.workspaceID == workspaceID
+                  }) else {
+                throw SnapshotProjectionFailureV1.missingBinding
+            }
+        }
+        guard claims == claims.sorted(by: Self.claimOrder),
+              leases == leases.sorted(by: Self.leaseOrder),
+              releases == releases.sorted(by: Self.releaseOrder),
+              handoffs == handoffs.sorted(by: Self.handoffOrder) else {
+            throw SnapshotProjectionFailureV1.invalidValue
+        }
+        let projection = try WorkPacketProjectionBuilderV1.rebuild(
+            workspaceID: workspaceID,
+            manifest: manifest,
+            claims: claims,
+            leases: leases,
+            releases: releases,
+            handoffs: handoffs,
+            at: createdAt
+        )
+        let expectedItems = try projection.items.map {
+            try CompletedWorkPacketItemSnapshotV1(item: $0.item, projection: $0)
+        }
+        guard expectedItems == items else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        let expected = KernelCanonicalHashV1.sha256(
+            try CompletedWorkPacketSnapshotCanonicalCodecV1.encode(Basis(
+                schemaVersion: schemaVersion,
+                workspaceID: workspaceID,
+                manifest: manifest,
+                claims: claims,
+                leases: leases,
+                releases: releases,
+                handoffs: handoffs,
+                items: items,
+                sourceRevision: sourceRevision,
+                createdAt: createdAt
+            ))
+        )
+        guard snapshotSHA256 == expected else {
+            throw SnapshotProjectionFailureV1.digestMismatch
+        }
+    }
+
+    private static func claimOrder(
+        _ lhs: WorkItemClaimV1,
+        _ rhs: WorkItemClaimV1
+    ) -> Bool {
+        (lhs.claimSequence, lhs.claimID.uuidString.lowercased())
+            < (rhs.claimSequence, rhs.claimID.uuidString.lowercased())
+    }
+
+    private static func leaseOrder(
+        _ lhs: WorkLeaseV1,
+        _ rhs: WorkLeaseV1
+    ) -> Bool {
+        (lhs.leaseSequence, lhs.leaseID.uuidString.lowercased())
+            < (rhs.leaseSequence, rhs.leaseID.uuidString.lowercased())
+    }
+
+    private static func releaseOrder(
+        _ lhs: WorkReleaseV1,
+        _ rhs: WorkReleaseV1
+    ) -> Bool {
+        (lhs.releasedAt, lhs.releaseID.uuidString.lowercased())
+            < (rhs.releasedAt, rhs.releaseID.uuidString.lowercased())
+    }
+
+    private static func handoffOrder(
+        _ lhs: WorkHandoffV1,
+        _ rhs: WorkHandoffV1
+    ) -> Bool {
+        (lhs.handedOffAt, lhs.handoffID.uuidString.lowercased())
+            < (rhs.handedOffAt, rhs.handoffID.uuidString.lowercased())
+    }
+
+    /// Amendments may add immutable events but cannot rewrite an existing
+    /// manifest/event/result link. This is the packet analogue of the V8
+    /// completed-history supersession check.
+    func validateImmutableHistory(of prior: Self) throws {
+        try validate()
+        try prior.validate()
+        guard workspaceID == prior.workspaceID,
+              manifest.manifestID == prior.manifest.manifestID,
+              manifest.packetID == prior.manifest.packetID,
+              manifest.manifestSHA256 == prior.manifest.manifestSHA256,
+              sourceRevision > prior.sourceRevision,
+              createdAt >= prior.createdAt else {
+            throw SnapshotProjectionFailureV1.historyRewrite
+        }
+        guard Self.containsExact(prior.claims, in: claims, id: { $0.claimID }),
+              Self.containsExact(prior.leases, in: leases, id: { $0.leaseID }),
+              Self.containsExact(prior.releases, in: releases, id: { $0.releaseID }),
+              Self.containsExact(prior.handoffs, in: handoffs, id: { $0.handoffID }) else {
+            throw SnapshotProjectionFailureV1.historyRewrite
+        }
+    }
+
+    private static func containsExact<Value: Equatable>(
+        _ prior: [Value],
+        in current: [Value],
+        id: (Value) -> UUID
+    ) -> Bool {
+        let currentByID = Dictionary(uniqueKeysWithValues: current.map { (id($0), $0) })
+        return prior.allSatisfy { currentByID[id($0)] == $0 }
+    }
+
+    private struct Basis: Codable {
+        let schemaVersion: Int
+        let workspaceID: WorkspaceID
+        let manifest: WorkPacketManifestV1
+        let claims: [WorkItemClaimV1]
+        let leases: [WorkLeaseV1]
+        let releases: [WorkReleaseV1]
+        let handoffs: [WorkHandoffV1]
+        let items: [CompletedWorkPacketItemSnapshotV1]
+        let sourceRevision: UInt64
+        let createdAt: Date
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, workspaceID, manifest, claims, leases, releases
+        case handoffs, items, sourceRevision, createdAt, snapshotSHA256
+    }
+
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(
+            decoder,
+            allowed: Set(CodingKeys.allCases.map(\.rawValue))
+        )
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        let manifest = try values.decode(WorkPacketManifestV1.self, forKey: .manifest)
+        let decodedClaims = try values.decode([WorkItemClaimV1].self, forKey: .claims)
+        let decodedLeases = try values.decode([WorkLeaseV1].self, forKey: .leases)
+        let decodedReleases = try values.decode([WorkReleaseV1].self, forKey: .releases)
+        let decodedHandoffs = try values.decode([WorkHandoffV1].self, forKey: .handoffs)
+        let rebuilt = try Self(
+            manifest: manifest,
+            claims: decodedClaims,
+            leases: decodedLeases,
+            releases: decodedReleases,
+            handoffs: decodedHandoffs,
+            sourceRevision: values.decode(UInt64.self, forKey: .sourceRevision),
+            createdAt: values.decode(Date.self, forKey: .createdAt)
+        )
+        guard try values.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion,
+              try values.decode(WorkspaceID.self, forKey: .workspaceID) == rebuilt.workspaceID,
+              decodedClaims == rebuilt.claims,
+              decodedLeases == rebuilt.leases,
+              decodedReleases == rebuilt.releases,
+              decodedHandoffs == rebuilt.handoffs,
+              try values.decode([CompletedWorkPacketItemSnapshotV1].self, forKey: .items)
+                    == rebuilt.items,
+              try values.decode(String.self, forKey: .snapshotSHA256) == rebuilt.snapshotSHA256 else {
+            throw SnapshotProjectionFailureV1.digestMismatch
+        }
+        self = rebuilt
+    }
+}
+
+/// V9 is an additive wrapper. V8 and its C14 history remain byte-for-byte
+/// immutable while the packet snapshot is bound to the same completed
+/// workspace/packet identity.
+struct CompletedActivitySnapshotPayloadV9: Codable, Equatable, Sendable {
+    static let schemaVersion = 9
+    let schemaVersion: Int
+    let activity: CompletedActivitySnapshotV8
+    let workPacket: CompletedWorkPacketSnapshotV1
+
+    init(activity: CompletedActivitySnapshotV8, workPacket: CompletedWorkPacketSnapshotV1) throws {
+        schemaVersion = Self.schemaVersion
+        self.activity = activity
+        self.workPacket = workPacket
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try activity.validate()
+        try workPacket.validate()
+        let v7 = activity.payload.activity
+        let v6 = v7.payload.activity
+        let v5 = v6.payload.activity
+        let v4 = v5.activity
+        let v3 = v4.activity
+        let base = v3.activity.activity
+        guard workPacket.workspaceID.rawValue.uuidString.lowercased() == base.workspaceID.lowercased(),
+              workPacket.manifest.packetID == base.packetID else {
+            throw SnapshotProjectionFailureV1.wrongWorkspace
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, activity, workPacket
+    }
+
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(
+            decoder,
+            allowed: Set(CodingKeys.allCases.map(\.rawValue))
+        )
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        guard try values.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try self.init(
+            activity: values.decode(CompletedActivitySnapshotV8.self, forKey: .activity),
+            workPacket: values.decode(CompletedWorkPacketSnapshotV1.self, forKey: .workPacket)
+        )
+    }
+}
+
+struct CompletedActivitySnapshotV9: Codable, Equatable, Identifiable, Sendable {
+    static let schemaVersion = 9
+    let schemaVersion: Int
+    let payload: CompletedActivitySnapshotPayloadV9
+    let snapshotSHA256: String
+
+    var id: String { payload.activity.id }
+
+    private init(payload: CompletedActivitySnapshotPayloadV9, snapshotSHA256: String) throws {
+        schemaVersion = Self.schemaVersion
+        self.payload = payload
+        self.snapshotSHA256 = snapshotSHA256
+        try validate()
+    }
+
+    static func freezeOriginal(_ payload: CompletedActivitySnapshotPayloadV9) throws -> Self {
+        try payload.activity.validate()
+        return try Self(
+            payload: payload,
+            snapshotSHA256: KernelCanonicalHashV1.sha256(
+                try CompletedActivitySnapshotCanonicalCodecV9.encodePayload(payload)
+            )
+        )
+    }
+
+    static func freezeAmendment(
+        _ payload: CompletedActivitySnapshotPayloadV9,
+        superseding prior: Self
+    ) throws -> Self {
+        let value = try Self(
+            payload: payload,
+            snapshotSHA256: KernelCanonicalHashV1.sha256(
+                try CompletedActivitySnapshotCanonicalCodecV9.encodePayload(payload)
+            )
+        )
+        try payload.activity.validateSupersession(of: prior.payload.activity)
+        try payload.workPacket.validateImmutableHistory(of: prior.payload.workPacket)
+        return value
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              KernelCanonicalHashV1.validSHA256(snapshotSHA256) else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try payload.validate()
+        guard snapshotSHA256 == KernelCanonicalHashV1.sha256(
+            try CompletedActivitySnapshotCanonicalCodecV9.encodePayload(payload)
+        ) else {
+            throw SnapshotProjectionFailureV1.digestMismatch
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, payload, snapshotSHA256
+    }
+
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(
+            decoder,
+            allowed: Set(CodingKeys.allCases.map(\.rawValue))
+        )
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        guard try values.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try self.init(
+            payload: values.decode(CompletedActivitySnapshotPayloadV9.self, forKey: .payload),
+            snapshotSHA256: values.decode(String.self, forKey: .snapshotSHA256)
+        )
+    }
+}
+
+enum CompletedActivitySnapshotCanonicalCodecV9 {
+    static func encodePayload(_ payload: CompletedActivitySnapshotPayloadV9) throws -> Data {
+        try payload.validate()
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let data = try encoder.encode(payload)
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        return data
+    }
+
+    static func encode(_ snapshot: CompletedActivitySnapshotV9) throws -> Data {
+        try snapshot.validate()
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return try encoder.encode(snapshot)
+    }
+
+    static func decode(_ data: Data) throws -> CompletedActivitySnapshotV9 {
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        let decoder = JSONDecoder()
+        let value = try decoder.decode(CompletedActivitySnapshotV9.self, from: data)
+        try value.validate()
+        guard try encode(value) == data else {
+            throw SnapshotProjectionFailureV1.digestMismatch
+        }
+        return value
+    }
+}

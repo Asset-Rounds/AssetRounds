@@ -47,6 +47,37 @@ struct MetricKitSummaryV1: Codable, Equatable, Sendable {
     }
 }
 
+/// A bounded, privacy-safe summary of WorkPacket coordination. It carries
+/// counts only: packet/item identifiers, actors, claim/lease payloads,
+/// evidence, and result content never enter a diagnostic export.
+struct WorkPacketDiagnosticSummaryV1: Codable, Equatable, Sendable {
+    let packetCount: Int
+    let itemCount: Int
+    let claimedItemCount: Int
+    let leasedItemCount: Int
+    let releasedItemCount: Int
+    let handedOffItemCount: Int
+    let collisionCount: Int
+
+    var isValid: Bool {
+        let values = [
+            packetCount,
+            itemCount,
+            claimedItemCount,
+            leasedItemCount,
+            releasedItemCount,
+            handedOffItemCount,
+            collisionCount,
+        ]
+        return values.allSatisfy { $0 >= 0 }
+            && claimedItemCount <= itemCount
+            && leasedItemCount <= itemCount
+            && releasedItemCount <= itemCount
+            && handedOffItemCount <= itemCount
+            && collisionCount <= itemCount
+    }
+}
+
 struct DiagnosticExportV1: Codable, Equatable, Sendable {
     let app: DiagnosticAppContextV1
     let counters: DiagnosticsV1
@@ -57,6 +88,9 @@ struct DiagnosticExportV1: Codable, Equatable, Sendable {
     /// Optional frozen assurance evidence.  The default remains nil until the
     /// owning production finalization surface is activated.
     var requirementAssurance: RequirementAssuranceSnapshotV1? = nil
+    /// Optional WorkPacket coordination counts. This is deliberately a
+    /// summary-only surface and is absent unless the caller supplies it.
+    var workPacket: WorkPacketDiagnosticSummaryV1? = nil
 
     var isValid: Bool {
         diagnosticSchemaVersion == 1
@@ -70,6 +104,7 @@ struct DiagnosticExportV1: Codable, Equatable, Sendable {
             && (requirementAssurance.map {
                 RequirementAssuranceSnapshotCanonicalCodecV1.isValid($0)
             } ?? true)
+            && (workPacket?.isValid ?? true)
     }
 
     var requirementExplanations: [RequirementExplanationItemV1] {
@@ -92,12 +127,14 @@ struct DiagnosticExportService {
     typealias CountersProvider = () async -> DiagnosticsV1
     typealias MetricKitProvider = () -> MetricKitSummaryV1?
     typealias RequirementAssuranceProvider = () -> RequirementAssuranceSnapshotV1?
+    typealias WorkPacketProvider = () -> WorkPacketDiagnosticSummaryV1?
     typealias ContextProvider<Value> = () -> Value
     typealias Clock = () -> Date
 
     private let countersProvider: CountersProvider
     private let metricKitProvider: MetricKitProvider
     private let requirementAssuranceProvider: RequirementAssuranceProvider
+    private let workPacketProvider: WorkPacketProvider
     private let appProvider: ContextProvider<DiagnosticAppContextV1>
     private let deviceProvider: ContextProvider<DiagnosticDeviceContextV1>
     private let clock: Clock
@@ -108,11 +145,13 @@ struct DiagnosticExportService {
         app: @escaping ContextProvider<DiagnosticAppContextV1>,
         device: @escaping ContextProvider<DiagnosticDeviceContextV1>,
         clock: @escaping Clock,
-        requirementAssurance: @escaping RequirementAssuranceProvider = { nil }
+        requirementAssurance: @escaping RequirementAssuranceProvider = { nil },
+        workPacket: @escaping WorkPacketProvider = { nil }
     ) {
         countersProvider = counters
         metricKitProvider = metricKit
         requirementAssuranceProvider = requirementAssurance
+        workPacketProvider = workPacket
         appProvider = app
         deviceProvider = device
         self.clock = clock
@@ -123,6 +162,7 @@ struct DiagnosticExportService {
         diagnosticsStore: DiagnosticsStore,
         metricKitAdapter: MetricKitDiagnosticsAdapter,
         requirementAssurance: @escaping RequirementAssuranceProvider = { nil },
+        workPacket: @escaping WorkPacketProvider = { nil },
         bundle: Bundle = .main,
         device: UIDevice = .current,
         clock: @escaping Clock = Date.init
@@ -145,7 +185,8 @@ struct DiagnosticExportService {
             app: { app },
             device: { device },
             clock: clock,
-            requirementAssurance: requirementAssurance
+            requirementAssurance: requirementAssurance,
+            workPacket: workPacket
         )
     }
 
@@ -157,7 +198,8 @@ struct DiagnosticExportService {
             diagnosticSchemaVersion: 1,
             generatedAt: clock(),
             metricKit: metricKitProvider(),
-            requirementAssurance: requirementAssuranceProvider()
+            requirementAssurance: requirementAssuranceProvider(),
+            workPacket: workPacketProvider()
         )
         guard value.isValid else {
             throw DiagnosticExportError.invalidValue
@@ -191,7 +233,24 @@ enum DiagnosticExportCanonicalEncoderV1 {
         if let assurance = value.requirementAssurance {
             object["requirementAssurance"] = CanonicalJSONV1.requirementAssurance(assurance)
         }
+        if let workPacket = value.workPacket {
+            object["workPacket"] = workPacketValue(workPacket)
+        }
         return try CanonicalJSONV1.encode(.object(object))
+    }
+
+    private static func workPacketValue(
+        _ value: WorkPacketDiagnosticSummaryV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "claimedItemCount": .integer(value.claimedItemCount),
+            "collisionCount": .integer(value.collisionCount),
+            "handedOffItemCount": .integer(value.handedOffItemCount),
+            "itemCount": .integer(value.itemCount),
+            "leasedItemCount": .integer(value.leasedItemCount),
+            "packetCount": .integer(value.packetCount),
+            "releasedItemCount": .integer(value.releasedItemCount),
+        ])
     }
 
     private static func counters(

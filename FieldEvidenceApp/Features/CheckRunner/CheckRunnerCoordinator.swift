@@ -2078,3 +2078,66 @@ extension CheckRunnerCoordinator {
         try .init(subject: subject)
     }
 }
+
+// MARK: - C15 WorkPacket read-only check context
+
+@MainActor
+extension CheckRunnerCoordinator {
+    /// Resolves the immutable packet/item context used by a check without
+    /// claiming, leasing, or otherwise mutating packet state.
+    func workPacketContext(
+        from snapshot: CompletedWorkPacketSnapshotV1,
+        itemID: String
+    ) throws -> CheckRunnerWorkPacketContextV1 {
+        let context = try CheckRunnerWorkPacketContextV1(
+            snapshot: snapshot,
+            itemID: itemID
+        )
+        guard snapshot.items.contains(where: { $0.itemID == itemID }) else {
+            throw CheckRunnerCoordinatorError.workPacketUnavailable
+        }
+        return context
+    }
+
+    /// Returns collision metadata for review. The result intentionally
+    /// contains no actor, claim, lease, evidence, or result content.
+    func workPacketCollisionReview(
+        from snapshot: CompletedWorkPacketSnapshotV1,
+        itemID: String
+    ) throws -> CheckRunnerWorkPacketCollisionReviewV1 {
+        try snapshot.validate()
+        guard let item = snapshot.items.first(where: { $0.itemID == itemID }) else {
+            throw CheckRunnerCoordinatorError.workPacketUnavailable
+        }
+        return try CheckRunnerWorkPacketCollisionReviewV1(
+            packetID: snapshot.manifest.packetID,
+            item: item
+        )
+    }
+
+    /// Revalidates a previously resolved context against the latest immutable
+    /// snapshot before a check begins. A changed revision/digest is stale;
+    /// an explicitly conflicted item requires collision review.
+    func validateWorkPacketReadyForCheck(
+        _ context: CheckRunnerWorkPacketContextV1,
+        currentSnapshot: CompletedWorkPacketSnapshotV1
+    ) throws {
+        try context.validate()
+        try currentSnapshot.validate()
+        let current = try CheckRunnerWorkPacketContextV1(
+            snapshot: currentSnapshot,
+            itemID: context.itemID
+        )
+        guard current.workspaceID == context.workspaceID,
+              current.packetID == context.packetID,
+              current.manifestID == context.manifestID,
+              current.manifestSHA256 == context.manifestSHA256,
+              current.expectedRevision == context.expectedRevision,
+              current.itemSHA256 == context.itemSHA256 else {
+            throw CheckRunnerCoordinatorError.workPacketStaleRevision
+        }
+        guard current.currentState != .conflicted else {
+            throw CheckRunnerCoordinatorError.workPacketCollisionReviewRequired
+        }
+    }
+}

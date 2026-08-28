@@ -309,6 +309,36 @@ enum ReportSemanticProjectorV1 {
         )
     }
 
+    /// C15's additive report boundary. The V8 snapshot remains immutable;
+    /// packet history is represented by a bounded report projection whose
+    /// source and manifest digests are retained for exact provenance.
+    static func project(
+        snapshot: CompletedActivitySnapshotV9,
+        manifest: ContractManifestV1
+    ) throws -> ReportSemanticProjectionV1 {
+        let v8 = snapshot.payload.activity
+        let v7 = v8.payload.activity
+        let v6 = v7.payload.activity
+        let packetProjection = try ReportWorkPacketProjectionV1(
+            snapshot: snapshot.payload.workPacket,
+            sourceSnapshotSHA256: snapshot.snapshotSHA256
+        )
+        return try project(
+            activity: v6.payload.activity.activity.activity.activity.activity,
+            snapshotSHA256: snapshot.snapshotSHA256,
+            locationComposition: v6.payload.activity.activity.activity.activity.locationComposition,
+            accountability: v6.payload.activity.activity.activity.accountability,
+            assetSemantics: v6.payload.activity.assetSemantics,
+            authorityCriterion: v6.payload.authorityCriterion,
+            functionalRelationships: v6.payload.functionalRelationships,
+            assurance: v7.payload.assurance,
+            assuranceSnapshotSHA256: v6.snapshotSHA256,
+            inspectionReviewHistory: v8.payload.inspectionReviewHistory,
+            workPacket: packetProjection,
+            manifest: manifest
+        )
+    }
+
     private static func project(
         activity: CompletedActivitySnapshotPayloadV1,
         snapshotSHA256: String,
@@ -320,6 +350,7 @@ enum ReportSemanticProjectorV1 {
         assurance: ReportEvidenceAssuranceProjectionV1? = nil,
         assuranceSnapshotSHA256: String? = nil,
         inspectionReviewHistory: CompletedInspectionReviewHistorySnapshotV1? = nil,
+        workPacket: ReportWorkPacketProjectionV1? = nil,
         manifest: ContractManifestV1
     ) throws -> ReportSemanticProjectionV1 {
         let encoder = JSONEncoder()
@@ -421,6 +452,15 @@ enum ReportSemanticProjectorV1 {
         if let inspectionReviewHistory {
             try appendInspectionReviewHistory(
                 inspectionReviewHistory,
+                binding: binding,
+                append: append,
+                visibleID: visibleID,
+                visibleDigest: visibleDigest
+            )
+        }
+        if let workPacket {
+            try appendWorkPacket(
+                workPacket,
                 binding: binding,
                 append: append,
                 visibleID: visibleID,
@@ -761,6 +801,89 @@ enum ReportSemanticProjectorV1 {
         }
         for (id, state) in zip(projection.actionEventIDs, projection.actionStateLabels) {
             try append(section, "state", "Corrective action state", state, visibleID("corrective-action", id))
+        }
+    }
+
+    private static func appendWorkPacket(
+        _ packet: ReportWorkPacketProjectionV1,
+        binding: FinalizedReportProfileBindingV1,
+        append: (
+            _ section: String,
+            _ role: String,
+            _ label: String,
+            _ value: String,
+            _ ref: String?
+        ) throws -> Void,
+        visibleID: (_ kind: String, _ value: String) -> String,
+        visibleDigest: (_ kind: String, _ value: String) -> String
+    ) throws {
+        try packet.validate()
+        let section = ReportWorkPacketProjectionPolicyV1.sectionID
+        guard binding.sectionIDs.contains(section),
+              ReportWorkPacketProjectionPolicyV1.supports(.openJSON),
+              ReportWorkPacketProjectionPolicyV1.supports(.structuredText) else {
+            throw SnapshotProjectionFailureV1.missingBinding
+        }
+        try append(
+            section,
+            "heading",
+            BundledLocalizationCatalogV1.localized(.packetHeading),
+            BundledLocalizationCatalogV1.localized(.packetHeading),
+            nil
+        )
+        try append(
+            section,
+            "fact",
+            BundledLocalizationCatalogV1.localized(.packetManifest),
+            visibleID("work-packet", packet.packetID.uuidString.lowercased()),
+            nil
+        )
+        try append(
+            section,
+            "digest",
+            "Packet manifest SHA-256",
+            visibleDigest("work-packet-manifest", packet.manifestSHA256),
+            nil
+        )
+        try append(section, "fact", "Packet items", String(packet.itemCount), nil)
+        try append(section, "fact", "Packet history events", String(packet.historyEventCount), nil)
+        try append(section, "fact", "Preserved results", String(packet.preservedResultCount), nil)
+        try append(section, "status", "Collisions", String(packet.collisionCount), nil)
+        try append(
+            section,
+            "digest",
+            "Packet source snapshot SHA-256",
+            visibleDigest("work-packet-source", packet.sourceSnapshotSHA256),
+            nil
+        )
+        for (itemID, state) in zip(packet.itemIDs, packet.itemStateLabels) {
+            guard let itemState = CompletedWorkPacketItemStateV1(rawValue: state) else {
+                throw SnapshotProjectionFailureV1.invalidValue
+            }
+            let localizedState: String
+            switch itemState {
+            case .unclaimed:
+                localizedState = BundledLocalizationCatalogV1.localized(.workPacketClaimUnclaimed)
+            case .claimed:
+                localizedState = BundledLocalizationCatalogV1.localized(.workPacketClaimClaimed)
+            case .leased:
+                localizedState = BundledLocalizationCatalogV1.localized(.workPacketLeaseActive)
+            case .released:
+                localizedState = BundledLocalizationCatalogV1.localized(.workPacketReleaseRecorded)
+            case .handedOff:
+                localizedState = BundledLocalizationCatalogV1.localized(.workPacketHandoffCompleted)
+            case .conflicted:
+                localizedState = BundledLocalizationCatalogV1.localized(.workPacketConflictReviewRequired)
+            case .expired:
+                localizedState = BundledLocalizationCatalogV1.localized(.workPacketExpiryExpired)
+            }
+            try append(
+                section,
+                "state",
+                BundledLocalizationCatalogV1.localized(.packetItem),
+                localizedState,
+                visibleID("work-packet-item", itemID)
+            )
         }
     }
 

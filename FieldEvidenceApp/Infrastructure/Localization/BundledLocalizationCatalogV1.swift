@@ -120,6 +120,58 @@ enum BundledLocalizationKeyV1: String, CaseIterable, Sendable {
     case inspectionReviewCorrectiveActionSuperseded = "inspection.review.corrective_action.state.superseded"
     case inspectionReviewNextStep = "inspection.review.next_step"
     case inspectionReviewMinimumNextRequirement = "inspection.review.next_step.minimum_requirement"
+    case workPacketHeading = "work.packet.heading"
+    case workPacketManifest = "work.packet.manifest"
+    case workPacketItem = "work.packet.item"
+    case workPacketManifestState = "work.packet.manifest.state"
+    case workPacketManifestDraft = "work.packet.manifest.state.draft"
+    case workPacketManifestReady = "work.packet.manifest.state.ready"
+    case workPacketManifestInvalid = "work.packet.manifest.state.invalid"
+    case workPacketManifestReplayed = "work.packet.manifest.state.replayed"
+    case workPacketManifestConflicted = "work.packet.manifest.state.conflicted"
+    case workPacketManifestSuperseded = "work.packet.manifest.state.superseded"
+    case workPacketClaim = "work.packet.claim"
+    case workPacketClaimState = "work.packet.claim.state"
+    case workPacketClaimUnclaimed = "work.packet.claim.state.unclaimed"
+    case workPacketClaimClaimed = "work.packet.claim.state.claimed"
+    case workPacketClaimReleased = "work.packet.claim.state.released"
+    case workPacketClaimConflicted = "work.packet.claim.state.conflicted"
+    case workPacketLease = "work.packet.lease"
+    case workPacketLeaseState = "work.packet.lease.state"
+    case workPacketLeaseActive = "work.packet.lease.state.active"
+    case workPacketLeaseExpiring = "work.packet.lease.state.expiring"
+    case workPacketLeaseExpired = "work.packet.lease.state.expired"
+    case workPacketLeaseReclaimed = "work.packet.lease.state.reclaimed"
+    case workPacketRelease = "work.packet.release"
+    case workPacketReleaseState = "work.packet.release.state"
+    case workPacketReleaseRecorded = "work.packet.release.state.recorded"
+    case workPacketReleaseAvailable = "work.packet.release.state.available"
+    case workPacketReleaseSuperseded = "work.packet.release.state.superseded"
+    case workPacketHandoff = "work.packet.handoff"
+    case workPacketHandoffState = "work.packet.handoff.state"
+    case workPacketHandoffPending = "work.packet.handoff.state.pending"
+    case workPacketHandoffAccepted = "work.packet.handoff.state.accepted"
+    case workPacketHandoffRejected = "work.packet.handoff.state.rejected"
+    case workPacketHandoffCompleted = "work.packet.handoff.state.completed"
+    case workPacketConflict = "work.packet.conflict"
+    case workPacketConflictState = "work.packet.conflict.state"
+    case workPacketConflictDetected = "work.packet.conflict.state.detected"
+    case workPacketConflictQuarantined = "work.packet.conflict.state.quarantined"
+    case workPacketConflictReviewRequired = "work.packet.conflict.state.review_required"
+    case workPacketConflictResolved = "work.packet.conflict.state.resolved"
+    case workPacketExpiry = "work.packet.expiry"
+    case workPacketExpiryState = "work.packet.expiry.state"
+    case workPacketExpiryNotExpired = "work.packet.expiry.state.not_expired"
+    case workPacketExpiryExpiring = "work.packet.expiry.state.expiring"
+    case workPacketExpiryExpired = "work.packet.expiry.state.expired"
+    case workPacketReplay = "work.packet.replay"
+    case workPacketReplayState = "work.packet.replay.state"
+    case workPacketReplayPending = "work.packet.replay.state.pending"
+    case workPacketReplayApplied = "work.packet.replay.state.applied"
+    case workPacketReplayIdempotent = "work.packet.replay.state.idempotent"
+    case workPacketReplayQuarantined = "work.packet.replay.state.quarantined"
+    case workPacketNextStep = "work.packet.next_step"
+    case workPacketMinimumNextRequirement = "work.packet.next_step.minimum_requirement"
 
     static var functionalRelationshipDirected: Self { .functionalRelationshipDirectedSourceToTarget }
     static var functionalRelationshipActive: Self { .functionalRelationshipActiveState }
@@ -166,6 +218,18 @@ enum BundledLocalizationKeyV1: String, CaseIterable, Sendable {
     static var changeRequestHeading: Self { .inspectionReviewChangeRequest }
     static var correctiveActionHeading: Self { .inspectionReviewCorrectiveAction }
     static var reviewNextStep: Self { .inspectionReviewNextStep }
+
+    static var packetHeading: Self { .workPacketHeading }
+    static var packetManifest: Self { .workPacketManifest }
+    static var packetItem: Self { .workPacketItem }
+    static var packetClaim: Self { .workPacketClaim }
+    static var packetLease: Self { .workPacketLease }
+    static var packetRelease: Self { .workPacketRelease }
+    static var packetHandoff: Self { .workPacketHandoff }
+    static var packetConflict: Self { .workPacketConflict }
+    static var packetExpiry: Self { .workPacketExpiry }
+    static var packetReplay: Self { .workPacketReplay }
+    static var packetNextStep: Self { .workPacketNextStep }
 }
 
 enum LocalizationCatalogPublicationBoundaryV1: String, CaseIterable, Sendable {
@@ -814,6 +878,246 @@ enum BundledLocalizationCatalogV1 {
 
     static func reviewAndCorrectiveActionRegistry() throws -> LocalizationKeyRegistryV1 {
         try inspectionReviewRegistry()
+    }
+
+    /// C15's additive key surface.  Packet coordination values remain local
+    /// recorded facts; this registry supplies only their closed English
+    /// labels and never persists or renders packet contents.
+    static func workPacketRegistry() throws -> LocalizationKeyRegistryV1 {
+        let base = try inspectionReviewRegistry()
+        let additions = [
+            try definition(
+                .workPacketHeading, "work.packet.heading", "Work packet",
+                "Heading for recorded local packet coordination facts."
+            ),
+            try definition(
+                .workPacketManifest, "work.packet.manifest", "Packet manifest",
+                "Localized label for an immutable bounded packet manifest."
+            ),
+            try definition(
+                .workPacketItem, "work.packet.item", "Work item",
+                "Localized label for one bounded packet item."
+            ),
+            try definition(
+                .workPacketManifestState, "work.packet.manifest.state", "Manifest state",
+                "Localized label for the recorded packet manifest state."
+            ),
+            try definition(
+                .workPacketManifestDraft, "work.packet.manifest.state.draft", "Draft",
+                "Accessible text for a packet manifest in draft state."
+            ),
+            try definition(
+                .workPacketManifestReady, "work.packet.manifest.state.ready", "Ready",
+                "Accessible text for a packet manifest ready for local work."
+            ),
+            try definition(
+                .workPacketManifestInvalid, "work.packet.manifest.state.invalid", "Invalid",
+                "Accessible text for a packet manifest that failed recorded validation."
+            ),
+            try definition(
+                .workPacketManifestReplayed, "work.packet.manifest.state.replayed", "Replayed",
+                "Accessible text for a packet manifest with a recorded replay."
+            ),
+            try definition(
+                .workPacketManifestConflicted,
+                "work.packet.manifest.state.conflicted", "Conflict recorded",
+                "Accessible text for a packet manifest with a recorded conflict."
+            ),
+            try definition(
+                .workPacketManifestSuperseded,
+                "work.packet.manifest.state.superseded", "Superseded",
+                "Accessible text for a packet manifest superseded by a later record."
+            ),
+            try definition(
+                .workPacketClaim, "work.packet.claim", "Item claim",
+                "Localized label for a recorded local item claim."
+            ),
+            try definition(
+                .workPacketClaimState, "work.packet.claim.state", "Claim state",
+                "Localized label for the recorded item claim state."
+            ),
+            try definition(
+                .workPacketClaimUnclaimed, "work.packet.claim.state.unclaimed", "Unclaimed",
+                "Accessible text for an item with no recorded claim."
+            ),
+            try definition(
+                .workPacketClaimClaimed, "work.packet.claim.state.claimed", "Claimed",
+                "Accessible text for an item with a recorded claim."
+            ),
+            try definition(
+                .workPacketClaimReleased, "work.packet.claim.state.released", "Released",
+                "Accessible text for an item with a recorded claim release."
+            ),
+            try definition(
+                .workPacketClaimConflicted,
+                "work.packet.claim.state.conflicted", "Conflict recorded",
+                "Accessible text for an item claim with a recorded conflict."
+            ),
+            try definition(
+                .workPacketLease, "work.packet.lease", "Work lease",
+                "Localized label for a recorded local work lease."
+            ),
+            try definition(
+                .workPacketLeaseState, "work.packet.lease.state", "Lease state",
+                "Localized label for the recorded work lease state."
+            ),
+            try definition(
+                .workPacketLeaseActive, "work.packet.lease.state.active", "Active",
+                "Accessible text for an active recorded work lease."
+            ),
+            try definition(
+                .workPacketLeaseExpiring, "work.packet.lease.state.expiring", "Expiring",
+                "Accessible text for a work lease approaching its recorded expiry."
+            ),
+            try definition(
+                .workPacketLeaseExpired, "work.packet.lease.state.expired", "Expired",
+                "Accessible text for a work lease past its recorded expiry."
+            ),
+            try definition(
+                .workPacketLeaseReclaimed, "work.packet.lease.state.reclaimed", "Reclaimed",
+                "Accessible text for a work lease reclaimed by a recorded local action."
+            ),
+            try definition(
+                .workPacketRelease, "work.packet.release", "Item release",
+                "Localized label for a recorded local item release."
+            ),
+            try definition(
+                .workPacketReleaseState, "work.packet.release.state", "Release state",
+                "Localized label for the recorded item release state."
+            ),
+            try definition(
+                .workPacketReleaseRecorded, "work.packet.release.state.recorded", "Recorded",
+                "Accessible text for an item release recorded in the local history."
+            ),
+            try definition(
+                .workPacketReleaseAvailable, "work.packet.release.state.available", "Available",
+                "Accessible text for an item available after a recorded release."
+            ),
+            try definition(
+                .workPacketReleaseSuperseded,
+                "work.packet.release.state.superseded", "Superseded",
+                "Accessible text for an item release superseded by a later record."
+            ),
+            try definition(
+                .workPacketHandoff, "work.packet.handoff", "Packet handoff",
+                "Localized label for a recorded local packet handoff."
+            ),
+            try definition(
+                .workPacketHandoffState, "work.packet.handoff.state", "Handoff state",
+                "Localized label for the recorded packet handoff state."
+            ),
+            try definition(
+                .workPacketHandoffPending, "work.packet.handoff.state.pending", "Pending",
+                "Accessible text for a packet handoff awaiting a recorded result."
+            ),
+            try definition(
+                .workPacketHandoffAccepted, "work.packet.handoff.state.accepted", "Accepted",
+                "Accessible text for a packet handoff with an accepted recorded result."
+            ),
+            try definition(
+                .workPacketHandoffRejected, "work.packet.handoff.state.rejected", "Rejected",
+                "Accessible text for a packet handoff with a rejected recorded result."
+            ),
+            try definition(
+                .workPacketHandoffCompleted, "work.packet.handoff.state.completed", "Completed",
+                "Accessible text for a packet handoff with a completed recorded result."
+            ),
+            try definition(
+                .workPacketConflict, "work.packet.conflict", "Packet conflict",
+                "Localized label for a recorded packet coordination conflict."
+            ),
+            try definition(
+                .workPacketConflictState, "work.packet.conflict.state", "Conflict state",
+                "Localized label for the recorded packet conflict state."
+            ),
+            try definition(
+                .workPacketConflictDetected,
+                "work.packet.conflict.state.detected", "Detected",
+                "Accessible text for a packet conflict detected in the local record."
+            ),
+            try definition(
+                .workPacketConflictQuarantined,
+                "work.packet.conflict.state.quarantined", "Quarantined",
+                "Accessible text for a conflicting packet result held for review."
+            ),
+            try definition(
+                .workPacketConflictReviewRequired,
+                "work.packet.conflict.state.review_required", "Review required",
+                "Accessible text for a packet conflict requiring a recorded review."
+            ),
+            try definition(
+                .workPacketConflictResolved,
+                "work.packet.conflict.state.resolved", "Resolved",
+                "Accessible text for a packet conflict with a recorded resolution."
+            ),
+            try definition(
+                .workPacketExpiry, "work.packet.expiry", "Lease expiry",
+                "Localized label for the recorded lease expiry condition."
+            ),
+            try definition(
+                .workPacketExpiryState, "work.packet.expiry.state", "Expiry state",
+                "Localized label for the recorded packet expiry state."
+            ),
+            try definition(
+                .workPacketExpiryNotExpired,
+                "work.packet.expiry.state.not_expired", "Not expired",
+                "Accessible text for a lease whose recorded expiry has not passed."
+            ),
+            try definition(
+                .workPacketExpiryExpiring,
+                "work.packet.expiry.state.expiring", "Expiring",
+                "Accessible text for a lease approaching its recorded expiry."
+            ),
+            try definition(
+                .workPacketExpiryExpired,
+                "work.packet.expiry.state.expired", "Expired",
+                "Accessible text for a lease past its recorded expiry."
+            ),
+            try definition(
+                .workPacketReplay, "work.packet.replay", "Packet replay",
+                "Localized label for a recorded local packet replay."
+            ),
+            try definition(
+                .workPacketReplayState, "work.packet.replay.state", "Replay state",
+                "Localized label for the recorded packet replay state."
+            ),
+            try definition(
+                .workPacketReplayPending, "work.packet.replay.state.pending", "Pending",
+                "Accessible text for a packet replay awaiting a recorded result."
+            ),
+            try definition(
+                .workPacketReplayApplied, "work.packet.replay.state.applied", "Applied",
+                "Accessible text for a packet replay with a recorded application."
+            ),
+            try definition(
+                .workPacketReplayIdempotent,
+                "work.packet.replay.state.idempotent", "Already applied",
+                "Accessible text for a packet replay recognized as already applied."
+            ),
+            try definition(
+                .workPacketReplayQuarantined,
+                "work.packet.replay.state.quarantined", "Quarantined",
+                "Accessible text for a packet replay held for recorded review."
+            ),
+            try definition(
+                .workPacketNextStep, "work.packet.next_step", "Next step",
+                "Actionable label for the next recorded packet-coordination step."
+            ),
+            try definition(
+                .workPacketMinimumNextRequirement,
+                "work.packet.next_step.minimum_requirement", "Minimum requirement",
+                "Actionable label for the minimum recorded requirement before the next step."
+            ),
+        ]
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+
+    static func workPacketManifestRegistry() throws -> LocalizationKeyRegistryV1 {
+        try workPacketRegistry()
+    }
+
+    static func packetCoordinationRegistry() throws -> LocalizationKeyRegistryV1 {
+        try workPacketRegistry()
     }
 
     static func accessibilityRegistry(
@@ -1594,6 +1898,102 @@ enum BundledLocalizationCatalogV1 {
         try inspectionReviewAccessibilityRegistry(localization: localization)
     }
 
+    /// C15 semantic IDs inherit the earlier catalog bindings and add packet,
+    /// claim, lease, release, handoff, conflict, expiry, and replay states.
+    /// Indeterminate states carry the localized next-step hint so their meaning
+    /// remains available without color or icon inference.
+    static func workPacketAccessibilityRegistry(
+        localization: LocalizationKeyRegistryV1
+    ) throws -> SemanticAccessibilityIDRegistryV1 {
+        let base = try inspectionReviewAccessibilityRegistry(localization: localization)
+        let nextStep = try LocalizationKeyV1(
+            BundledLocalizationKeyV1.workPacketNextStep.rawValue
+        )
+        let values: [
+            (WorkPacketAccessibilityIDV1, SemanticAccessibilityRoleV1, BundledLocalizationKeyV1)
+        ] = [
+            (.screen, .screen, .workPacketHeading),
+            (.heading, .heading, .workPacketHeading),
+            (.manifest, .group, .workPacketManifest),
+            (.item, .group, .workPacketItem),
+            (.manifestState, .group, .workPacketManifestState),
+            (.manifestDraft, .status, .workPacketManifestDraft),
+            (.manifestReady, .status, .workPacketManifestReady),
+            (.manifestInvalid, .status, .workPacketManifestInvalid),
+            (.manifestReplayed, .status, .workPacketManifestReplayed),
+            (.manifestConflicted, .status, .workPacketManifestConflicted),
+            (.manifestSuperseded, .status, .workPacketManifestSuperseded),
+            (.claim, .group, .workPacketClaim),
+            (.claimState, .group, .workPacketClaimState),
+            (.claimUnclaimed, .status, .workPacketClaimUnclaimed),
+            (.claimClaimed, .status, .workPacketClaimClaimed),
+            (.claimReleased, .status, .workPacketClaimReleased),
+            (.claimConflicted, .status, .workPacketClaimConflicted),
+            (.lease, .group, .workPacketLease),
+            (.leaseState, .group, .workPacketLeaseState),
+            (.leaseActive, .status, .workPacketLeaseActive),
+            (.leaseExpiring, .status, .workPacketLeaseExpiring),
+            (.leaseExpired, .status, .workPacketLeaseExpired),
+            (.leaseReclaimed, .status, .workPacketLeaseReclaimed),
+            (.release, .group, .workPacketRelease),
+            (.releaseState, .group, .workPacketReleaseState),
+            (.releaseRecorded, .status, .workPacketReleaseRecorded),
+            (.releaseAvailable, .status, .workPacketReleaseAvailable),
+            (.releaseSuperseded, .status, .workPacketReleaseSuperseded),
+            (.handoff, .group, .workPacketHandoff),
+            (.handoffState, .group, .workPacketHandoffState),
+            (.handoffPending, .status, .workPacketHandoffPending),
+            (.handoffAccepted, .status, .workPacketHandoffAccepted),
+            (.handoffRejected, .status, .workPacketHandoffRejected),
+            (.handoffCompleted, .status, .workPacketHandoffCompleted),
+            (.conflict, .group, .workPacketConflict),
+            (.conflictState, .group, .workPacketConflictState),
+            (.conflictDetected, .status, .workPacketConflictDetected),
+            (.conflictQuarantined, .status, .workPacketConflictQuarantined),
+            (.conflictReviewRequired, .status, .workPacketConflictReviewRequired),
+            (.conflictResolved, .status, .workPacketConflictResolved),
+            (.expiry, .group, .workPacketExpiry),
+            (.expiryState, .group, .workPacketExpiryState),
+            (.expiryNotExpired, .status, .workPacketExpiryNotExpired),
+            (.expiryExpiring, .status, .workPacketExpiryExpiring),
+            (.expiryExpired, .status, .workPacketExpiryExpired),
+            (.replay, .group, .workPacketReplay),
+            (.replayState, .group, .workPacketReplayState),
+            (.replayPending, .status, .workPacketReplayPending),
+            (.replayApplied, .status, .workPacketReplayApplied),
+            (.replayIdempotent, .status, .workPacketReplayIdempotent),
+            (.replayQuarantined, .status, .workPacketReplayQuarantined),
+            (.nextStep, .button, .workPacketNextStep),
+            (.minimumNextRequirement, .button, .workPacketMinimumNextRequirement),
+        ]
+        let entries = try values.map { id, role, key in
+            AccessibilityContractV1(
+                semanticID: id.rawValue,
+                role: role,
+                reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(key.rawValue),
+                hintKey: WorkPacketAccessibilityPolicyV1
+                    .indeterminateSemanticIDs.contains(id.rawValue) ? nextStep : nil,
+                valueKey: nil,
+                dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            )
+        }
+        return try base.appending(entries, localization: localization)
+    }
+
+    static func workPacketManifestAccessibilityRegistry(
+        localization: LocalizationKeyRegistryV1
+    ) throws -> SemanticAccessibilityIDRegistryV1 {
+        try workPacketAccessibilityRegistry(localization: localization)
+    }
+
+    static func packetCoordinationAccessibilityRegistry(
+        localization: LocalizationKeyRegistryV1
+    ) throws -> SemanticAccessibilityIDRegistryV1 {
+        try workPacketAccessibilityRegistry(localization: localization)
+    }
+
     static func publish(
         sourceCatalogBytes: Data,
         packagePublications: [InspectionPackagePublishedReleaseV1] = [],
@@ -1609,6 +2009,9 @@ enum BundledLocalizationCatalogV1 {
         includeInspectionReview: Bool = false,
         includeReviewCorrectiveAction: Bool = false,
         includeReviewAndCorrectiveAction: Bool = false,
+        includeWorkPacket: Bool = false,
+        includeWorkPacketManifest: Bool = false,
+        includePacketCoordination: Bool = false,
         interruption: Interruption = { _ in }
     ) throws -> LocalizationCatalogPublicationV1 {
         try interruption(.beforeValidation)
@@ -1616,7 +2019,9 @@ enum BundledLocalizationCatalogV1 {
         let locales = LocalizationLocaleManifestV1.shippingV1()
         try locales.validate()
         let keys: LocalizationKeyRegistryV1
-        if includeInspectionReview || includeReviewCorrectiveAction || includeReviewAndCorrectiveAction {
+        if includeWorkPacket || includeWorkPacketManifest || includePacketCoordination {
+            keys = try workPacketRegistry()
+        } else if includeInspectionReview || includeReviewCorrectiveAction || includeReviewAndCorrectiveAction {
             keys = try inspectionReviewRegistry()
         } else if includeEvidenceVisibility || includeEvidenceAssurance {
             keys = try evidenceVisibilityRegistry()
@@ -1639,7 +2044,9 @@ enum BundledLocalizationCatalogV1 {
         }
         if let previousLegacy { try previousLegacy.validateObserved(legacy.entries) }
         let accessibility: SemanticAccessibilityIDRegistryV1
-        if includeInspectionReview || includeReviewCorrectiveAction || includeReviewAndCorrectiveAction {
+        if includeWorkPacket || includeWorkPacketManifest || includePacketCoordination {
+            accessibility = try workPacketAccessibilityRegistry(localization: keys)
+        } else if includeInspectionReview || includeReviewCorrectiveAction || includeReviewAndCorrectiveAction {
             accessibility = try inspectionReviewAccessibilityRegistry(localization: keys)
         } else if includeEvidenceVisibility || includeEvidenceAssurance {
             accessibility = try evidenceVisibilityAccessibilityRegistry(localization: keys)
@@ -1700,7 +2107,10 @@ enum BundledLocalizationCatalogV1 {
         includeEvidenceAssurance: Bool = false,
         includeInspectionReview: Bool = false,
         includeReviewCorrectiveAction: Bool = false,
-        includeReviewAndCorrectiveAction: Bool = false
+        includeReviewAndCorrectiveAction: Bool = false,
+        includeWorkPacket: Bool = false,
+        includeWorkPacketManifest: Bool = false,
+        includePacketCoordination: Bool = false
     ) throws -> LocalizationCatalogPublicationV1 {
         switch (sourceCatalogBytes, receipt) {
         case (nil, nil): return .zero
@@ -1717,7 +2127,10 @@ enum BundledLocalizationCatalogV1 {
                 includeEvidenceAssurance: includeEvidenceAssurance,
                 includeInspectionReview: includeInspectionReview,
                 includeReviewCorrectiveAction: includeReviewCorrectiveAction,
-                includeReviewAndCorrectiveAction: includeReviewAndCorrectiveAction
+                includeReviewAndCorrectiveAction: includeReviewAndCorrectiveAction,
+                includeWorkPacket: includeWorkPacket,
+                includeWorkPacketManifest: includeWorkPacketManifest,
+                includePacketCoordination: includePacketCoordination
             )
             guard case let .complete(_, _, _, _, actual) = publication,
                   actual == expected else { throw LocalizationContractFailureV1.digestMismatch }
@@ -1967,6 +2380,110 @@ enum BundledLocalizationCatalogV1 {
             return String(localized: "inspection.review.next_step", defaultValue: "Next step", bundle: bundle, locale: locale, comment: "Actionable label for the next recorded step accompanying a review state.")
         case .inspectionReviewMinimumNextRequirement:
             return String(localized: "inspection.review.next_step.minimum_requirement", defaultValue: "Minimum requirement", bundle: bundle, locale: locale, comment: "Actionable label for the minimum recorded requirement before the next review step.")
+        case .workPacketHeading:
+            return String(localized: "work.packet.heading", defaultValue: "Work packet", bundle: bundle, locale: locale, comment: "Heading for recorded local packet coordination facts.")
+        case .workPacketManifest:
+            return String(localized: "work.packet.manifest", defaultValue: "Packet manifest", bundle: bundle, locale: locale, comment: "Localized label for an immutable bounded packet manifest.")
+        case .workPacketItem:
+            return String(localized: "work.packet.item", defaultValue: "Work item", bundle: bundle, locale: locale, comment: "Localized label for one bounded packet item.")
+        case .workPacketManifestState:
+            return String(localized: "work.packet.manifest.state", defaultValue: "Manifest state", bundle: bundle, locale: locale, comment: "Localized label for the recorded packet manifest state.")
+        case .workPacketManifestDraft:
+            return String(localized: "work.packet.manifest.state.draft", defaultValue: "Draft", bundle: bundle, locale: locale, comment: "Accessible text for a packet manifest in draft state.")
+        case .workPacketManifestReady:
+            return String(localized: "work.packet.manifest.state.ready", defaultValue: "Ready", bundle: bundle, locale: locale, comment: "Accessible text for a packet manifest ready for local work.")
+        case .workPacketManifestInvalid:
+            return String(localized: "work.packet.manifest.state.invalid", defaultValue: "Invalid", bundle: bundle, locale: locale, comment: "Accessible text for a packet manifest that failed recorded validation.")
+        case .workPacketManifestReplayed:
+            return String(localized: "work.packet.manifest.state.replayed", defaultValue: "Replayed", bundle: bundle, locale: locale, comment: "Accessible text for a packet manifest with a recorded replay.")
+        case .workPacketManifestConflicted:
+            return String(localized: "work.packet.manifest.state.conflicted", defaultValue: "Conflict recorded", bundle: bundle, locale: locale, comment: "Accessible text for a packet manifest with a recorded conflict.")
+        case .workPacketManifestSuperseded:
+            return String(localized: "work.packet.manifest.state.superseded", defaultValue: "Superseded", bundle: bundle, locale: locale, comment: "Accessible text for a packet manifest superseded by a later record.")
+        case .workPacketClaim:
+            return String(localized: "work.packet.claim", defaultValue: "Item claim", bundle: bundle, locale: locale, comment: "Localized label for a recorded local item claim.")
+        case .workPacketClaimState:
+            return String(localized: "work.packet.claim.state", defaultValue: "Claim state", bundle: bundle, locale: locale, comment: "Localized label for the recorded item claim state.")
+        case .workPacketClaimUnclaimed:
+            return String(localized: "work.packet.claim.state.unclaimed", defaultValue: "Unclaimed", bundle: bundle, locale: locale, comment: "Accessible text for an item with no recorded claim.")
+        case .workPacketClaimClaimed:
+            return String(localized: "work.packet.claim.state.claimed", defaultValue: "Claimed", bundle: bundle, locale: locale, comment: "Accessible text for an item with a recorded claim.")
+        case .workPacketClaimReleased:
+            return String(localized: "work.packet.claim.state.released", defaultValue: "Released", bundle: bundle, locale: locale, comment: "Accessible text for an item with a recorded claim release.")
+        case .workPacketClaimConflicted:
+            return String(localized: "work.packet.claim.state.conflicted", defaultValue: "Conflict recorded", bundle: bundle, locale: locale, comment: "Accessible text for an item claim with a recorded conflict.")
+        case .workPacketLease:
+            return String(localized: "work.packet.lease", defaultValue: "Work lease", bundle: bundle, locale: locale, comment: "Localized label for a recorded local work lease.")
+        case .workPacketLeaseState:
+            return String(localized: "work.packet.lease.state", defaultValue: "Lease state", bundle: bundle, locale: locale, comment: "Localized label for the recorded work lease state.")
+        case .workPacketLeaseActive:
+            return String(localized: "work.packet.lease.state.active", defaultValue: "Active", bundle: bundle, locale: locale, comment: "Accessible text for an active recorded work lease.")
+        case .workPacketLeaseExpiring:
+            return String(localized: "work.packet.lease.state.expiring", defaultValue: "Expiring", bundle: bundle, locale: locale, comment: "Accessible text for a work lease approaching its recorded expiry.")
+        case .workPacketLeaseExpired:
+            return String(localized: "work.packet.lease.state.expired", defaultValue: "Expired", bundle: bundle, locale: locale, comment: "Accessible text for a work lease past its recorded expiry.")
+        case .workPacketLeaseReclaimed:
+            return String(localized: "work.packet.lease.state.reclaimed", defaultValue: "Reclaimed", bundle: bundle, locale: locale, comment: "Accessible text for a work lease reclaimed by a recorded local action.")
+        case .workPacketRelease:
+            return String(localized: "work.packet.release", defaultValue: "Item release", bundle: bundle, locale: locale, comment: "Localized label for a recorded local item release.")
+        case .workPacketReleaseState:
+            return String(localized: "work.packet.release.state", defaultValue: "Release state", bundle: bundle, locale: locale, comment: "Localized label for the recorded item release state.")
+        case .workPacketReleaseRecorded:
+            return String(localized: "work.packet.release.state.recorded", defaultValue: "Recorded", bundle: bundle, locale: locale, comment: "Accessible text for an item release recorded in the local history.")
+        case .workPacketReleaseAvailable:
+            return String(localized: "work.packet.release.state.available", defaultValue: "Available", bundle: bundle, locale: locale, comment: "Accessible text for an item available after a recorded release.")
+        case .workPacketReleaseSuperseded:
+            return String(localized: "work.packet.release.state.superseded", defaultValue: "Superseded", bundle: bundle, locale: locale, comment: "Accessible text for an item release superseded by a later record.")
+        case .workPacketHandoff:
+            return String(localized: "work.packet.handoff", defaultValue: "Packet handoff", bundle: bundle, locale: locale, comment: "Localized label for a recorded local packet handoff.")
+        case .workPacketHandoffState:
+            return String(localized: "work.packet.handoff.state", defaultValue: "Handoff state", bundle: bundle, locale: locale, comment: "Localized label for the recorded packet handoff state.")
+        case .workPacketHandoffPending:
+            return String(localized: "work.packet.handoff.state.pending", defaultValue: "Pending", bundle: bundle, locale: locale, comment: "Accessible text for a packet handoff awaiting a recorded result.")
+        case .workPacketHandoffAccepted:
+            return String(localized: "work.packet.handoff.state.accepted", defaultValue: "Accepted", bundle: bundle, locale: locale, comment: "Accessible text for a packet handoff with an accepted recorded result.")
+        case .workPacketHandoffRejected:
+            return String(localized: "work.packet.handoff.state.rejected", defaultValue: "Rejected", bundle: bundle, locale: locale, comment: "Accessible text for a packet handoff with a rejected recorded result.")
+        case .workPacketHandoffCompleted:
+            return String(localized: "work.packet.handoff.state.completed", defaultValue: "Completed", bundle: bundle, locale: locale, comment: "Accessible text for a packet handoff with a completed recorded result.")
+        case .workPacketConflict:
+            return String(localized: "work.packet.conflict", defaultValue: "Packet conflict", bundle: bundle, locale: locale, comment: "Localized label for a recorded packet coordination conflict.")
+        case .workPacketConflictState:
+            return String(localized: "work.packet.conflict.state", defaultValue: "Conflict state", bundle: bundle, locale: locale, comment: "Localized label for the recorded packet conflict state.")
+        case .workPacketConflictDetected:
+            return String(localized: "work.packet.conflict.state.detected", defaultValue: "Detected", bundle: bundle, locale: locale, comment: "Accessible text for a packet conflict detected in the local record.")
+        case .workPacketConflictQuarantined:
+            return String(localized: "work.packet.conflict.state.quarantined", defaultValue: "Quarantined", bundle: bundle, locale: locale, comment: "Accessible text for a conflicting packet result held for review.")
+        case .workPacketConflictReviewRequired:
+            return String(localized: "work.packet.conflict.state.review_required", defaultValue: "Review required", bundle: bundle, locale: locale, comment: "Accessible text for a packet conflict requiring a recorded review.")
+        case .workPacketConflictResolved:
+            return String(localized: "work.packet.conflict.state.resolved", defaultValue: "Resolved", bundle: bundle, locale: locale, comment: "Accessible text for a packet conflict with a recorded resolution.")
+        case .workPacketExpiry:
+            return String(localized: "work.packet.expiry", defaultValue: "Lease expiry", bundle: bundle, locale: locale, comment: "Localized label for the recorded lease expiry condition.")
+        case .workPacketExpiryState:
+            return String(localized: "work.packet.expiry.state", defaultValue: "Expiry state", bundle: bundle, locale: locale, comment: "Localized label for the recorded packet expiry state.")
+        case .workPacketExpiryNotExpired:
+            return String(localized: "work.packet.expiry.state.not_expired", defaultValue: "Not expired", bundle: bundle, locale: locale, comment: "Accessible text for a lease whose recorded expiry has not passed.")
+        case .workPacketExpiryExpiring:
+            return String(localized: "work.packet.expiry.state.expiring", defaultValue: "Expiring", bundle: bundle, locale: locale, comment: "Accessible text for a lease approaching its recorded expiry.")
+        case .workPacketExpiryExpired:
+            return String(localized: "work.packet.expiry.state.expired", defaultValue: "Expired", bundle: bundle, locale: locale, comment: "Accessible text for a lease past its recorded expiry.")
+        case .workPacketReplay:
+            return String(localized: "work.packet.replay", defaultValue: "Packet replay", bundle: bundle, locale: locale, comment: "Localized label for a recorded local packet replay.")
+        case .workPacketReplayState:
+            return String(localized: "work.packet.replay.state", defaultValue: "Replay state", bundle: bundle, locale: locale, comment: "Localized label for the recorded packet replay state.")
+        case .workPacketReplayPending:
+            return String(localized: "work.packet.replay.state.pending", defaultValue: "Pending", bundle: bundle, locale: locale, comment: "Accessible text for a packet replay awaiting a recorded result.")
+        case .workPacketReplayApplied:
+            return String(localized: "work.packet.replay.state.applied", defaultValue: "Applied", bundle: bundle, locale: locale, comment: "Accessible text for a packet replay with a recorded application.")
+        case .workPacketReplayIdempotent:
+            return String(localized: "work.packet.replay.state.idempotent", defaultValue: "Already applied", bundle: bundle, locale: locale, comment: "Accessible text for a packet replay recognized as already applied.")
+        case .workPacketReplayQuarantined:
+            return String(localized: "work.packet.replay.state.quarantined", defaultValue: "Quarantined", bundle: bundle, locale: locale, comment: "Accessible text for a packet replay held for recorded review.")
+        case .workPacketNextStep:
+            return String(localized: "work.packet.next_step", defaultValue: "Next step", bundle: bundle, locale: locale, comment: "Actionable label for the next recorded packet-coordination step.")
+        case .workPacketMinimumNextRequirement:
+            return String(localized: "work.packet.next_step.minimum_requirement", defaultValue: "Minimum requirement", bundle: bundle, locale: locale, comment: "Actionable label for the minimum recorded requirement before the next step.")
         }
     }
 
@@ -2019,7 +2536,7 @@ enum BundledLocalizationCatalogV1 {
         // additive projection, while the selected registry still controls the
         // required subset.  This keeps C16/C38 compatibility callers frozen
         // and lets each additive typed surface publish atomically.
-        let supportedKeys = Set((try? inspectionReviewRegistry())?.definitions.map(\.key.rawValue) ?? [])
+        let supportedKeys = Set((try? workPacketRegistry())?.definitions.map(\.key.rawValue) ?? [])
         guard registeredKeys.isSubset(of: Set(strings.keys)),
               Set(strings.keys).isSubset(of: supportedKeys) else {
             throw LocalizationContractFailureV1.invalidValue

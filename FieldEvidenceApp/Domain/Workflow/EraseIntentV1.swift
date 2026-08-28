@@ -21,6 +21,8 @@ enum InspectionReviewEraseBoundaryV1 {
     static let ordinaryDeletionPreservesAcceptedFinalizedAndActionHistory = true
 }
 
+enum WorkPacketEraseBoundaryV1{static let immutableManifestClaimLeaseReleaseAndHandoffHistoryClearedOnlyByWorkspaceErase=true;static let ordinaryDeletionPreservesReplayHistory=true}
+
 enum EraseIntentPhaseV1: String, CaseIterable, Codable, Sendable {
     case emptyGenerationPrepared = "empty_generation_prepared"
     case pointerSwitched = "pointer_switched"

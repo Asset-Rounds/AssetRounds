@@ -554,6 +554,18 @@ final class V9_05RestoreIdentityTests: XCTestCase {
     }
 }
 
+extension V9_05RestoreIdentityTests {
+    func testV23P03C15RestoreRebindPreservesPacketIdentity() throws {
+        let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_105)
+        let restored = try WorkPacketManifestRow(fixture.manifest).value()
+        let rebound = try restored.rebound(to: fixture.otherWorkspaceID)
+        XCTAssertEqual(rebound.manifestID, fixture.manifest.manifestID)
+        XCTAssertEqual(rebound.packetID, fixture.manifest.packetID)
+        XCTAssertEqual(rebound.workspaceID, fixture.otherWorkspaceID)
+        XCTAssertNotEqual(rebound.manifestSHA256, fixture.manifest.manifestSHA256)
+    }
+}
+
 enum C40BackupLifecycleTestValues {
     static func id(_ value: Int) -> UUID {
         UUID(uuidString: String(format: "00000000-0000-0000-0000-%012x", value))!

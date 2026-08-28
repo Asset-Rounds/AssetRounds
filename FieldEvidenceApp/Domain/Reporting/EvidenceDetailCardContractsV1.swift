@@ -1557,3 +1557,29 @@ enum EvidenceDetailInspectionReviewProjectionGuardV1 {
         }
     }
 }
+
+/// C15 packet coordination is provenance for a report, not evidence detail.
+/// Keep this boundary explicit so a packet projection cannot accidentally make
+/// actor snapshots, lease data, result links, or collision digests renderable
+/// as an evidence card.
+enum EvidenceDetailWorkPacketProjectionGuardV1 {
+    static let excludesActorPrivateDetail = true
+    static let excludesLeaseAndClaimData = true
+    static let excludesResultAndEvidenceContent = true
+    static let excludesAuthorizationAndTelemetry = true
+
+    static func validate(
+        _ projection: ReportWorkPacketProjectionV1,
+        sourceSnapshotSHA256: String
+    ) throws {
+        try projection.validate()
+        guard KernelCanonicalHashV1.validSHA256(sourceSnapshotSHA256),
+              projection.sourceSnapshotSHA256 == sourceSnapshotSHA256,
+              excludesActorPrivateDetail,
+              excludesLeaseAndClaimData,
+              excludesResultAndEvidenceContent,
+              excludesAuthorizationAndTelemetry else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+    }
+}

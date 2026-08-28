@@ -139,6 +139,8 @@ enum InspectionReviewDeletionLedgerPolicyV1 {
     }
 }
 
+enum WorkPacketDeletionLedgerPolicyV1 {static func validate()throws{let kinds=V15BackupWorkPacketRecordV1.Kind.allCases;guard kinds.count==5,Set(kinds.map(\.rawValue)).count==kinds.count else{throw DeletionLedgerFailureV2.invalidIdentity}}}
+
 struct DeletionIdentityV2: Codable, Comparable, Equatable, Hashable, Sendable {
     static let separator = ":"
 

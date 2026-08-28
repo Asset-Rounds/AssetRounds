@@ -1059,6 +1059,20 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
     }
 }
 
+extension V9_13PersistentKindLifecycleCoverageTests {
+    func testV23P03C15DeclaredKindsAndReleaseStatesAreComplete() throws {
+        let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_113)
+        XCTAssertEqual(
+            Set(fixture.manifest.items.map(\.kind)),
+            Set(WorkPacketItemKindV1.allCases)
+        )
+        XCTAssertEqual(Set(WorkReleaseReasonV1.allCases), Set([
+            .completed, .deliberatelyReleased, .leaseExpired, .handoff, .reclaimed
+        ]))
+        try fixture.completedRelease.validate(claim: fixture.claim, lease: fixture.lease)
+    }
+}
+
 private extension V9_13PersistentKindLifecycleCoverageTests {
     nonisolated static func copy(
         _ value: PersistentLifecyclePolicyV1,

@@ -319,6 +319,17 @@ final class S6_2BackupExportTests: XCTestCase {
     }
 }
 
+extension S6_2BackupExportTests {
+    func testV23P03C15BackupExportPreservesCanonicalPacketRecord() throws {
+        let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_162)
+        let row = try WorkPacketManifestRow(fixture.manifest)
+        let canonicalData = try WorkPacketCanonicalCodecV1.encode(fixture.manifest)
+        XCTAssertEqual(row.canonicalData, canonicalData)
+        XCTAssertEqual(row.canonicalSHA256, fixture.manifest.manifestSHA256)
+        XCTAssertEqual(try row.value(), fixture.manifest)
+    }
+}
+
 private extension S6_2BackupExportTests {
     struct Harness {
         let applicationSupportURL: URL

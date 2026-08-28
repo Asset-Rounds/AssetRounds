@@ -672,6 +672,23 @@ final class V9_19LocalSearchTests: XCTestCase {
     }
 }
 
+extension V9_19LocalSearchTests {
+    func testV23P03C15SearchProjectionRetainsStablePacketTokens() throws {
+        let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_119)
+        let searchable = [
+            fixture.manifest.manifestID.uuidString,
+            fixture.manifest.packetID.uuidString,
+            fixture.item.itemID,
+            fixture.claim.claimID.uuidString,
+            fixture.result.resultID.uuidString
+        ]
+        XCTAssertTrue(searchable.contains(fixture.itemReference.itemID))
+        XCTAssertTrue(searchable.contains(fixture.manifest.packetID.uuidString))
+        XCTAssertTrue(searchable.contains(fixture.claim.claimID.uuidString))
+        XCTAssertEqual(fixture.manifest.items.first(where: { $0.itemID == fixture.item.itemID }), fixture.item)
+    }
+}
+
 private extension V9_19LocalSearchTests {
     struct Harness {
         let root: URL
