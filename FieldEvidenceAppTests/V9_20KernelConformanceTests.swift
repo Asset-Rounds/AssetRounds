@@ -498,3 +498,17 @@ final class V9_20KernelConformanceTests: XCTestCase {
     }
 
 }
+
+extension V9_20KernelConformanceTests {
+    func testV23P03C36KernelConformanceCorpusHasFiveSelectorsAndPrivacyExclusions() throws {
+        let data = try Data(contentsOf: C36FieldDraftTestSupportV1.corpusURL())
+        let source = try XCTUnwrap(String(data: data, encoding: .utf8))
+        XCTAssertTrue(source.contains("V21P03C36FieldDraftResilienceCorpusV1"))
+        XCTAssertTrue(source.contains("\"persistentModelCount\": 64"))
+        XCTAssertTrue(source.contains("\"recordsSchemaVersion\": 15"))
+        XCTAssertTrue(source.contains("\"privacyExclusions\": [\"EVIDENCE\", \"REPORT\", \"EXPORT\", \"SEARCH\", \"SPOTLIGHT\", \"SUPPORT\", \"INTEGRATION_EVENT\", \"METRICS\"]"))
+        for selector in ["G01", "A01", "H01", "I01", "R01"] {
+            XCTAssertTrue(source.contains("V23-P03-C36-\(selector)"))
+        }
+    }
+}

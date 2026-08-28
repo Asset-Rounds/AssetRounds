@@ -187,6 +187,123 @@ struct CaptureCandidate: Equatable, Sendable {
     let stagedBundle: StagedEvidenceBundle
 }
 
+// MARK: - C36 draft capture bridge
+
+enum CheckRunnerDraftBridgeFailureV1: Error, Equatable, Sendable {
+    case invalidDraft
+    case wrongWorkspace
+    case stageNotReady
+    case accessRequired
+    case legacyEvidenceIDRequiredAfterCommit
+}
+
+/// The check runner's C36 boundary is a draft-owned candidate.  It deliberately
+/// carries no EvidenceID and no canonical evidence bytes; the C36 coordinator
+/// obtains a content reservation and commits it before any legacy finalization
+/// route is considered.
+struct CheckRunnerDraftCaptureCandidateV1: Codable, Equatable, Sendable {
+    let workspaceID: WorkspaceID
+    let draftID: UUID
+    let stageID: UUID
+    let attachmentKind: DraftAttachmentKindV1
+    let itemRevision: UInt64
+    let stageSHA256: String
+    let durability: DraftAttachmentPresentationStateV1
+    let legacyBridgeDisposition: CheckRunnerLegacyBridgeDispositionV1
+
+    init(
+        item: AttachmentStagingItemV1,
+        durableReceiptReadBack: Bool
+    ) throws {
+        try item.validate()
+        guard item.state == .readyLocal || item.state == .committed else {
+            throw CheckRunnerDraftBridgeFailureV1.stageNotReady
+        }
+        workspaceID = item.workspaceID
+        draftID = item.draftID
+        stageID = item.stageID
+        attachmentKind = item.attachmentKind
+        itemRevision = item.revision
+        stageSHA256 = item.stageSHA256
+        durability = DraftAttachmentPresentationMapperV1.state(
+            for: item,
+            durableReceiptReadBack: durableReceiptReadBack
+        )
+        legacyBridgeDisposition = .draftOwnedUntilCanonicalCommit
+    }
+}
+
+enum CheckRunnerLegacyBridgeDispositionV1: String, Codable, Equatable, Hashable, Sendable {
+    case draftOwnedUntilCanonicalCommit = "DRAFT_OWNED_UNTIL_CANONICAL_COMMIT"
+    case legacyEvidenceRouteAfterCommit = "LEGACY_EVIDENCE_ROUTE_AFTER_COMMIT"
+}
+
+struct CheckRunnerDraftDurabilitySnapshotV1: Codable, Equatable, Sendable {
+    let workspaceID: WorkspaceID
+    let draftID: UUID
+    let state: DraftDurabilityPresentationStateV1
+    let stagedItemCount: Int
+    let readyItemCount: Int
+    let retryableItemCount: Int
+    let protectedDataBlocked: Bool
+    let lowStorageBlocked: Bool
+
+    init(
+        checkpoint: FieldDraftCheckpointV1,
+        items: [AttachmentStagingItemV1],
+        receiptReadBack: Bool = true
+    ) throws {
+        try checkpoint.validate()
+        guard items.count <= FieldDraftLimitsV1.maximumStageItems,
+              items.allSatisfy({ $0.workspaceID == checkpoint.workspaceID
+                  && $0.draftID == checkpoint.draftID }) else {
+            throw CheckRunnerDraftBridgeFailureV1.wrongWorkspace
+        }
+        workspaceID = checkpoint.workspaceID
+        draftID = checkpoint.draftID
+        state = DraftDurabilityPresentationMapperV1.state(
+            checkpoint: checkpoint,
+            hasDirtyChanges: checkpoint.state == .active && !receiptReadBack,
+            writeInFlight: false,
+            writeBlocked: items.contains {
+                $0.protectionState != .available
+                    || $0.state == .failedFinal
+            },
+            receiptReadBack: receiptReadBack
+        )
+        stagedItemCount = items.count
+        readyItemCount = items.filter {
+            $0.state == .readyLocal || $0.state == .committed
+        }.count
+        retryableItemCount = items.filter { $0.state == .failedRetryable }.count
+        protectedDataBlocked = items.contains { $0.protectionState == .protectedDataUnavailable }
+        lowStorageBlocked = items.contains { $0.protectionState == .lowStorage }
+    }
+}
+
+enum CheckRunnerDraftBridgeV1 {
+    static let preservesExistingEntitlementGate = true
+    static let assignsEvidenceIDBeforeCommit = false
+    static let importsLegacyBundleBeforeCommit = false
+
+    static func captureCandidate(
+        item: AttachmentStagingItemV1,
+        durableReceiptReadBack: Bool,
+        accessState: DraftAccessNormalizedStateV1
+    ) throws -> CheckRunnerDraftCaptureCandidateV1 {
+        guard accessState == .entitled
+                || accessState == .formerPaidInactive
+                || accessState == .neverPaid
+                || accessState == .loading(.validCachedEntitlement) else {
+            throw CheckRunnerDraftBridgeFailureV1.accessRequired
+        }
+        return try CheckRunnerDraftCaptureCandidateV1(
+            item: item,
+            durableReceiptReadBack: durableReceiptReadBack
+        )
+    }
+}
+
 enum CheckRunnerCoordinatorFailurePoint: Equatable, Sendable {
     case evidenceModelSave
 }

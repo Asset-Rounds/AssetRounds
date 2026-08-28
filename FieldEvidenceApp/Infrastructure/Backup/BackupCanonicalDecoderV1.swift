@@ -52,6 +52,7 @@ struct BackupCanonicalDecoderV1: Sendable {
             try Self.validateEvidenceAssurance(value)
             try Self.validateInspectionReview(value)
             try Self.validateWorkPackets(value)
+            try Self.validateFieldDrafts(value)
             let canonical = try BackupCanonicalEncoderV1().encodeRecords(value).data
             guard canonical == data else {
                 throw BackupCanonicalDecodingErrorV1.invalidRecords
@@ -64,6 +65,40 @@ struct BackupCanonicalDecoderV1: Sendable {
 }
 
 private extension BackupCanonicalDecoderV1 {
+    static func validateFieldDrafts(_ records: V4BackupRecordsV1) throws {
+        guard records.recordsSchemaVersion >= 15 else {
+            guard records.fieldDrafts.isEmpty else { throw BackupCanonicalDecodingErrorV1.invalidRecords }
+            return
+        }
+        for record in records.fieldDrafts {
+            let identity: (UUID, WorkspaceID, UInt64)
+            switch record.kind {
+            case .checkpoint:
+                let v = try FieldDraftCanonicalCodecV1.decode(FieldDraftCheckpointV1.self, from: record.canonicalData)
+                identity = (v.draftID, v.workspaceID, v.draftRevision)
+            case .stagingItem:
+                let v = try FieldDraftCanonicalCodecV1.decode(AttachmentStagingItemV1.self, from: record.canonicalData)
+                identity = (v.stageID, v.workspaceID, v.revision)
+            case .commitSaga:
+                let v = try FieldDraftCanonicalCodecV1.decode(DraftCommitSagaV1.self, from: record.canonicalData)
+                identity = (v.sagaID, v.workspaceID, v.revision)
+            case .contentReservation:
+                let v = try FieldDraftCanonicalCodecV1.decode(DraftContentReservationV1.self, from: record.canonicalData)
+                identity = (v.reservationID, v.workspaceID, v.revision)
+            case .commitReceipt:
+                let v = try FieldDraftCanonicalCodecV1.decode(DraftCommitReceiptV1.self, from: record.canonicalData)
+                identity = (v.receiptID, v.workspaceID, v.revision)
+            case .discardReceipt:
+                let v = try FieldDraftCanonicalCodecV1.decode(DraftDiscardReceiptV1.self, from: record.canonicalData)
+                identity = (v.receiptID, v.workspaceID, v.revision)
+            }
+            guard identity.0 == record.id, identity.1.rawValue == record.workspaceID,
+                  identity.2 == record.revision else {
+                throw BackupCanonicalDecodingErrorV1.invalidRecords
+            }
+        }
+    }
+
     static func validateWorkPackets(_ records: V4BackupRecordsV1) throws {
         guard records.recordsSchemaVersion >= 14 else {
             guard records.workPackets.isEmpty else { throw BackupCanonicalDecodingErrorV1.invalidRecords }

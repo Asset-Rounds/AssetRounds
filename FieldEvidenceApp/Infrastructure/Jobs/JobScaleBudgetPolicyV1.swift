@@ -26,6 +26,14 @@ enum JobScaleBudgetPolicyV1 {
     static let maximumStagingPathDepth = 16
     static let maximumStagingCleanupEntryCount = 100_000
 
+    // C36 uses the same bounded executor as the existing local-job lane.  A
+    // dedicated value makes the attachment policy inspectable without adding
+    // another scale fixture or silently increasing global concurrency.
+    static let draftAttachmentMaximumConcurrency = maximumRunnerConcurrency
+    static let draftAttachmentChunkByteCount = 512 * 1024
+    static let draftAttachmentMaximumResidentMemoryBytes: Int64 = 128 * 1024 * 1024
+    static let draftAttachmentRetryLimit = 3
+
     static let frozen: [JobScaleBudgetV1] = [
         JobScaleBudgetV1(
             fixture: .oneAsset, assetCount: 1, proxyByteCount: 0,

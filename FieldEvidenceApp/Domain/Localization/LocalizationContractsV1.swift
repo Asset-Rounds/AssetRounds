@@ -1594,3 +1594,570 @@ extension WorkPacketLocalizationKeyV1 {
     static func nextStepKey() -> Self { .nextStep }
     static func minimumRequirementKey() -> Self { .minimumNextRequirement }
 }
+
+/// C36 keeps durable draft and attachment lifecycle values in the recorded
+/// domain.  These closed presentation states are English-only labels and do
+/// not rewrite the checkpoint, staging item, or commit-saga bytes.
+enum FieldDraftCheckpointLocalizationStateV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case active = "ACTIVE"
+    case committing = "COMMITTING"
+    case conflicted = "CONFLICTED"
+    case recoveryRequired = "RECOVERY_REQUIRED"
+    case committed = "COMMITTED"
+    case discardPending = "DISCARD_PENDING"
+    case discarded = "DISCARDED"
+}
+
+enum FieldDraftDurabilityLocalizationStateV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case unsavedChanges = "UNSAVED_CHANGES"
+    case savingOnThisIPhone = "SAVING_ON_THIS_IPHONE"
+    case savedOnThisIPhone = "SAVED_ON_THIS_IPHONE"
+    case saveBlocked = "SAVE_BLOCKED"
+    case committing = "COMMITTING"
+    case conflicted = "CONFLICTED"
+    case recoveryRequired = "RECOVERY_REQUIRED"
+    case committed = "COMMITTED"
+    case discarding = "DISCARDING"
+    case discarded = "DISCARDED"
+}
+
+enum FieldDraftAttachmentLocalizationStateV1: String, CaseIterable, Codable, Hashable, Sendable {
+    // V21's visible per-selected-attachment refinement.
+    case selected = "SELECTED"
+    case loading = "LOADING"
+    case stagedLocal = "STAGED_LOCAL"
+    case processing = "PROCESSING"
+    case ready = "READY"
+    case retryableFailure = "RETRYABLE_FAILURE"
+    case blocked = "BLOCKED"
+    case removed = "REMOVED"
+    case promoted = "PROMOTED"
+    // C36's durable staging item states.
+    case capturing = "CAPTURING"
+    case hashing = "HASHING"
+    case readyLocal = "READY_LOCAL"
+    case failedRetryable = "FAILED_RETRYABLE"
+    case failedFinal = "FAILED_FINAL"
+    case removePending = "REMOVE_PENDING"
+    case committed = "COMMITTED"
+    case orphanQuarantined = "ORPHAN_QUARANTINED"
+}
+
+enum FieldDraftCommitSagaLocalizationStateV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case prepared = "PREPARED"
+    case contentPromotedUnbound = "CONTENT_PROMOTED_UNBOUND"
+    case targetCommitted = "TARGET_COMMITTED"
+    case draftRetirePending = "DRAFT_RETIRE_PENDING"
+    case draftRetired = "DRAFT_RETIRED"
+    case conflicted = "CONFLICTED"
+    case recoveryRequired = "RECOVERY_REQUIRED"
+}
+
+enum FieldDraftRecoveryLocalizationStateV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case resumeAvailable = "RESUME_AVAILABLE"
+    case conflict = "CONFLICT"
+    case missingMedia = "MISSING_MEDIA"
+    case lowStorage = "LOW_STORAGE"
+    case protectedData = "PROTECTED_DATA"
+    case unsupportedCodec = "UNSUPPORTED_CODEC"
+    case partialStage = "PARTIAL_STAGE"
+    case staleTarget = "STALE_TARGET"
+    case recoveryRequired = "RECOVERY_REQUIRED"
+}
+
+enum FieldDraftLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
+    case screen = "field.draft.screen"
+    case heading = "field.draft.heading"
+    case durability = "field.draft.durability"
+    case durabilityState = "field.draft.durability.state"
+    case nextStep = "field.draft.next_step"
+    case minimumNextRequirement = "field.draft.next_step.minimum_requirement"
+    case checkpoint = "field.draft.checkpoint"
+    case checkpointState = "field.draft.checkpoint.state"
+    case attachment = "field.draft.attachment"
+    case attachmentState = "field.draft.attachment.state"
+    case commitSaga = "field.draft.commit.saga"
+    case commitSagaState = "field.draft.commit.saga.state"
+    case recovery = "field.draft.recovery"
+    case recoveryState = "field.draft.recovery.state"
+    case recoverySafeAction = "field.draft.recovery.safe_action"
+    case recoveryFallback = "field.draft.recovery.fallback"
+
+    case durabilityUnsavedChanges = "field.draft.durability.state.unsaved_changes"
+    case durabilitySavingOnThisIPhone = "field.draft.durability.state.saving_on_this_iphone"
+    case durabilitySavedOnThisIPhone = "field.draft.durability.state.saved_on_this_iphone"
+    case durabilitySaveBlocked = "field.draft.durability.state.save_blocked"
+    case durabilityCommitting = "field.draft.durability.state.committing"
+    case durabilityConflicted = "field.draft.durability.state.conflicted"
+    case durabilityRecoveryRequired = "field.draft.durability.state.recovery_required"
+    case durabilityCommitted = "field.draft.durability.state.committed"
+    case durabilityDiscarding = "field.draft.durability.state.discarding"
+    case durabilityDiscarded = "field.draft.durability.state.discarded"
+
+    case checkpointActive = "field.draft.checkpoint.state.active"
+    case checkpointCommitting = "field.draft.checkpoint.state.committing"
+    case checkpointConflicted = "field.draft.checkpoint.state.conflicted"
+    case checkpointRecoveryRequired = "field.draft.checkpoint.state.recovery_required"
+    case checkpointCommitted = "field.draft.checkpoint.state.committed"
+    case checkpointDiscardPending = "field.draft.checkpoint.state.discard_pending"
+    case checkpointDiscarded = "field.draft.checkpoint.state.discarded"
+
+    case attachmentSelected = "field.draft.attachment.state.selected"
+    case attachmentLoading = "field.draft.attachment.state.loading"
+    case attachmentStagedLocal = "field.draft.attachment.state.staged_local"
+    case attachmentProcessing = "field.draft.attachment.state.processing"
+    case attachmentReady = "field.draft.attachment.state.ready"
+    case attachmentRetryableFailure = "field.draft.attachment.state.retryable_failure"
+    case attachmentBlocked = "field.draft.attachment.state.blocked"
+    case attachmentRemoved = "field.draft.attachment.state.removed"
+    case attachmentPromoted = "field.draft.attachment.state.promoted"
+    case attachmentCapturing = "field.draft.attachment.state.capturing"
+    case attachmentHashing = "field.draft.attachment.state.hashing"
+    case attachmentReadyLocal = "field.draft.attachment.state.ready_local"
+    case attachmentFailedRetryable = "field.draft.attachment.state.failed_retryable"
+    case attachmentFailedFinal = "field.draft.attachment.state.failed_final"
+    case attachmentRemovePending = "field.draft.attachment.state.remove_pending"
+    case attachmentCommitted = "field.draft.attachment.state.committed"
+    case attachmentOrphanQuarantined = "field.draft.attachment.state.orphan_quarantined"
+
+    case sagaPrepared = "field.draft.commit.saga.state.prepared"
+    case sagaContentPromotedUnbound = "field.draft.commit.saga.state.content_promoted_unbound"
+    case sagaTargetCommitted = "field.draft.commit.saga.state.target_committed"
+    case sagaDraftRetirePending = "field.draft.commit.saga.state.draft_retire_pending"
+    case sagaDraftRetired = "field.draft.commit.saga.state.draft_retired"
+    case sagaConflicted = "field.draft.commit.saga.state.conflicted"
+    case sagaRecoveryRequired = "field.draft.commit.saga.state.recovery_required"
+
+    case recoveryResumeAvailable = "field.draft.recovery.state.resume_available"
+    case recoveryConflict = "field.draft.recovery.state.conflict"
+    case recoveryMissingMedia = "field.draft.recovery.state.missing_media"
+    case recoveryLowStorage = "field.draft.recovery.state.low_storage"
+    case recoveryProtectedData = "field.draft.recovery.state.protected_data"
+    case recoveryUnsupportedCodec = "field.draft.recovery.state.unsupported_codec"
+    case recoveryPartialStage = "field.draft.recovery.state.partial_stage"
+    case recoveryStaleTarget = "field.draft.recovery.state.stale_target"
+    case recoveryRecoveryRequired = "field.draft.recovery.state.recovery_required"
+
+    static var actionableNextStep: Self { .nextStep }
+    static var minimumRequirement: Self { .minimumNextRequirement }
+    static var savedLocally: Self { .durabilitySavedOnThisIPhone }
+    static var readyLocally: Self { .attachmentReadyLocal }
+
+    var localizationKey: LocalizationKeyV1 {
+        // This is a closed repository-owned set; registry construction remains
+        // the validation boundary for serialized declarations.
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+
+    var englishDefaultValue: String {
+        switch self {
+        case .screen: return "Field draft"
+        case .heading: return "Field draft"
+        case .durability: return "Draft durability"
+        case .durabilityState: return "Durability state"
+        case .nextStep: return "Next step"
+        case .minimumNextRequirement: return "Minimum requirement"
+        case .checkpoint: return "Draft checkpoint"
+        case .checkpointState: return "Checkpoint state"
+        case .attachment: return "Attachment"
+        case .attachmentState: return "Attachment state"
+        case .commitSaga: return "Commit progress"
+        case .commitSagaState: return "Commit state"
+        case .recovery: return "Draft recovery"
+        case .recoveryState: return "Recovery state"
+        case .recoverySafeAction: return "Safe action"
+        case .recoveryFallback: return "Fallback"
+        case .durabilityUnsavedChanges: return "Unsaved changes"
+        case .durabilitySavingOnThisIPhone: return "Saving on this iPhone"
+        case .durabilitySavedOnThisIPhone: return "Saved on this iPhone"
+        case .durabilitySaveBlocked: return "Save blocked"
+        case .durabilityCommitting: return "Committing"
+        case .durabilityConflicted: return "Conflict recorded"
+        case .durabilityRecoveryRequired: return "Recovery required"
+        case .durabilityCommitted: return "Committed"
+        case .durabilityDiscarding: return "Discarding"
+        case .durabilityDiscarded: return "Discarded"
+        case .checkpointActive: return "Active"
+        case .checkpointCommitting: return "Committing"
+        case .checkpointConflicted: return "Conflict recorded"
+        case .checkpointRecoveryRequired: return "Recovery required"
+        case .checkpointCommitted: return "Committed"
+        case .checkpointDiscardPending: return "Discard pending"
+        case .checkpointDiscarded: return "Discarded"
+        case .attachmentSelected: return "Selected"
+        case .attachmentLoading: return "Loading"
+        case .attachmentStagedLocal: return "Staged locally"
+        case .attachmentProcessing: return "Processing"
+        case .attachmentReady: return "Ready"
+        case .attachmentRetryableFailure: return "Retryable failure"
+        case .attachmentBlocked: return "Blocked"
+        case .attachmentRemoved: return "Removed"
+        case .attachmentPromoted: return "Promoted"
+        case .attachmentCapturing: return "Capturing"
+        case .attachmentHashing: return "Hashing"
+        case .attachmentReadyLocal: return "Ready locally"
+        case .attachmentFailedRetryable: return "Retry available"
+        case .attachmentFailedFinal: return "Final failure"
+        case .attachmentRemovePending: return "Remove pending"
+        case .attachmentCommitted: return "Committed"
+        case .attachmentOrphanQuarantined: return "Quarantined"
+        case .sagaPrepared: return "Prepared"
+        case .sagaContentPromotedUnbound: return "Content promoted locally"
+        case .sagaTargetCommitted: return "Target committed"
+        case .sagaDraftRetirePending: return "Draft retirement pending"
+        case .sagaDraftRetired: return "Draft retired"
+        case .sagaConflicted: return "Conflict recorded"
+        case .sagaRecoveryRequired: return "Recovery required"
+        case .recoveryResumeAvailable: return "Resume available"
+        case .recoveryConflict: return "Conflict review"
+        case .recoveryMissingMedia: return "Missing media"
+        case .recoveryLowStorage: return "Low storage"
+        case .recoveryProtectedData: return "Protected data unavailable"
+        case .recoveryUnsupportedCodec: return "Unsupported format"
+        case .recoveryPartialStage: return "Partial stage"
+        case .recoveryStaleTarget: return "Stale target"
+        case .recoveryRecoveryRequired: return "Recovery required"
+        }
+    }
+
+    var translatorComment: String {
+        switch self {
+        case .screen: return "Accessible label for the local field draft surface."
+        case .heading: return "Heading for a local field draft."
+        case .durability: return "Localized label for truthful local draft durability."
+        case .durabilityState: return "Localized label for a recorded draft durability state."
+        case .nextStep: return "Actionable label for the next safe local draft step."
+        case .minimumNextRequirement: return "Actionable label for the minimum local draft requirement."
+        case .checkpoint: return "Localized label for a durable field draft checkpoint."
+        case .checkpointState: return "Localized label for the recorded draft checkpoint state."
+        case .attachment: return "Localized label for a locally staged draft attachment."
+        case .attachmentState: return "Localized label for the recorded attachment staging state."
+        case .commitSaga: return "Localized label for the receipt-backed draft commit saga."
+        case .commitSagaState: return "Localized label for the recorded commit saga state."
+        case .recovery: return "Localized label for local draft recovery."
+        case .recoveryState: return "Localized label for a recorded draft recovery state."
+        case .recoverySafeAction: return "Actionable label for one safe draft recovery action."
+        case .recoveryFallback: return "Localized label for a bounded draft recovery fallback."
+        default: return "Accessible text for a recorded local draft or attachment state."
+        }
+    }
+}
+
+enum FieldDraftLocalizationPolicyV1 {
+    static let semanticNamespace = "field.draft"
+    static let sourceLocale = "en"
+    static let shippingLocale = "en"
+    static let metadataLocale = "en-US"
+    static let testOnlyLocales = TestOnlyPseudoLocaleV1.allCases.map(\.rawValue).sorted()
+    static let keys = FieldDraftLocalizationKeyV1.allCases.map(\.rawValue)
+    static let reportKeys: [String] = []
+    static let semanticIDs = FieldDraftAccessibilityIDV1.allCases.map(\.rawValue)
+    static let stateKeys = FieldDraftLocalizationKeyV1.allCases.filter { key in
+        key.rawValue.contains(".state.")
+    }.map(\.rawValue)
+    static let indeterminateStateKeys: Set<String> = Set([
+        FieldDraftLocalizationKeyV1.durabilityUnsavedChanges,
+        .durabilitySavingOnThisIPhone,
+        .durabilitySaveBlocked,
+        .durabilityConflicted,
+        .durabilityRecoveryRequired,
+        .durabilityDiscarding,
+        .checkpointConflicted,
+        .checkpointRecoveryRequired,
+        .checkpointDiscardPending,
+        .attachmentSelected,
+        .attachmentLoading,
+        .attachmentStagedLocal,
+        .attachmentProcessing,
+        .attachmentRetryableFailure,
+        .attachmentBlocked,
+        .attachmentCapturing,
+        .attachmentHashing,
+        .attachmentFailedRetryable,
+        .attachmentFailedFinal,
+        .attachmentRemovePending,
+        .attachmentOrphanQuarantined,
+        .sagaPrepared,
+        .sagaContentPromotedUnbound,
+        .sagaDraftRetirePending,
+        .sagaConflicted,
+        .sagaRecoveryRequired,
+        .recoveryResumeAvailable,
+        .recoveryConflict,
+        .recoveryMissingMedia,
+        .recoveryLowStorage,
+        .recoveryProtectedData,
+        .recoveryUnsupportedCodec,
+        .recoveryPartialStage,
+        .recoveryStaleTarget,
+        .recoveryRecoveryRequired,
+    ].map(\.rawValue))
+    static let denyByDefault = true
+    static let requiresNonColorStateText = true
+    static let requiresTextAndIconForIndeterminateStates = true
+    static let requiresActionableNextStep = true
+    static let allowsColorOnlyState = false
+    static let allowsIconOnlyState = false
+    static let allowsMotionOnlyState = false
+    static let requiresTextValueForEveryState = true
+    static let requiresReceiptReadBackForSavedOnThisIPhone = true
+    static let readyLocallyIsStagingOnly = true
+    static let excludesEvidenceTruth = true
+    static let excludesReportTruth = true
+    static let excludesExportTruth = true
+    static let excludesSearchTruth = true
+    static let excludesSupportAndMetricTruth = true
+    static let excludesSecrets = true
+    static let excludesCustomerData = true
+    static let excludesWorkData = true
+    static let excludesPrivateLocators = true
+    static let excludesUnsupportedClaims = true
+
+    static let permittedRecordedPhrases: Set<String> = [
+        "saved on this iphone", "ready locally", "saving on this iphone",
+    ]
+    static let prohibitedClaimTokens: Set<String> = [
+        "synced", "sync", "synchronized", "synchronised", "synchronize", "cloud",
+        "approval", "approve", "approved",
+        "authorization", "authorize", "authorized", "verified", "identity", "legal",
+        "signature", "compliance", "compliant", "tamperproof", "tamper proof", "tamper",
+        "nonrepudiation", "non repudiation",
+        "secure", "secured", "sent", "delivered", "complete", "customer", "work",
+        "secret", "credential", "password", "token", "locator", "filename", "exif",
+        "telemetry", "remote", "upload", "submission", "delivery",
+    ]
+    static let prohibitedSensitivePhrases: Set<String> = [
+        "customer data", "customer information", "customer record", "private data",
+        "personal data", "work data", "work item data", "work product", "secret",
+        "credential", "credentials", "password", "private locator", "file locator",
+        "filename", "exif", "photo metadata",
+    ]
+
+    private static func normalized(_ value: String) -> String {
+        value
+            .folding(
+                options: [.caseInsensitive, .diacriticInsensitive],
+                locale: Locale(identifier: "en_US_POSIX")
+            )
+            .split { !$0.isLetter && !$0.isNumber }
+            .joined(separator: " ")
+    }
+
+    static func containsProhibitedClaim(in values: [String]) -> Bool {
+        values.contains { value in
+            let normalizedValue = normalized(value)
+            if permittedRecordedPhrases.contains(normalizedValue) { return false }
+            let bounded = " \(normalizedValue) "
+            return prohibitedClaimTokens.contains { token in
+                bounded.contains(" \(normalized(token)) ")
+            }
+        }
+    }
+
+    static func containsSensitiveDataLeakage(in values: [String]) -> Bool {
+        values.contains { value in
+            let normalizedValue = normalized(value)
+            let bounded = " \(normalizedValue) "
+            return prohibitedSensitivePhrases.contains { phrase in
+                bounded.contains(" \(normalized(phrase)) ")
+            }
+        }
+    }
+
+    static func containsCustomerDataLeakage(in values: [String]) -> Bool {
+        containsSensitiveDataLeakage(in: values)
+    }
+
+    static func containsCustomerOrWorkDataLeakage(in values: [String]) -> Bool {
+        containsSensitiveDataLeakage(in: values)
+    }
+}
+
+enum FieldDraftClaimVocabularyV1 {
+    static let prohibitedTokens = FieldDraftLocalizationPolicyV1.prohibitedClaimTokens
+
+    static func containsProhibitedClaim(in values: [String]) -> Bool {
+        FieldDraftLocalizationPolicyV1.containsProhibitedClaim(in: values)
+    }
+
+    static func containsSensitiveDataLeakage(in values: [String]) -> Bool {
+        FieldDraftLocalizationPolicyV1.containsSensitiveDataLeakage(in: values)
+    }
+
+    static func containsCustomerDataLeakage(in values: [String]) -> Bool {
+        FieldDraftLocalizationPolicyV1.containsCustomerDataLeakage(in: values)
+    }
+
+    static func containsCustomerOrWorkDataLeakage(in values: [String]) -> Bool {
+        FieldDraftLocalizationPolicyV1.containsCustomerOrWorkDataLeakage(in: values)
+    }
+}
+
+extension FieldDraftLocalizationKeyV1 {
+    static func durabilityStateKey(_ state: FieldDraftDurabilityLocalizationStateV1) -> Self {
+        switch state {
+        case .unsavedChanges: return .durabilityUnsavedChanges
+        case .savingOnThisIPhone: return .durabilitySavingOnThisIPhone
+        case .savedOnThisIPhone: return .durabilitySavedOnThisIPhone
+        case .saveBlocked: return .durabilitySaveBlocked
+        case .committing: return .durabilityCommitting
+        case .conflicted: return .durabilityConflicted
+        case .recoveryRequired: return .durabilityRecoveryRequired
+        case .committed: return .durabilityCommitted
+        case .discarding: return .durabilityDiscarding
+        case .discarded: return .durabilityDiscarded
+        }
+    }
+
+    static func checkpointStateKey(_ state: FieldDraftCheckpointLocalizationStateV1) -> Self {
+        switch state {
+        case .active: return .checkpointActive
+        case .committing: return .checkpointCommitting
+        case .conflicted: return .checkpointConflicted
+        case .recoveryRequired: return .checkpointRecoveryRequired
+        case .committed: return .checkpointCommitted
+        case .discardPending: return .checkpointDiscardPending
+        case .discarded: return .checkpointDiscarded
+        }
+    }
+
+    static func attachmentStateKey(_ state: FieldDraftAttachmentLocalizationStateV1) -> Self {
+        switch state {
+        case .selected: return .attachmentSelected
+        case .loading: return .attachmentLoading
+        case .stagedLocal: return .attachmentStagedLocal
+        case .processing: return .attachmentProcessing
+        case .ready: return .attachmentReady
+        case .retryableFailure: return .attachmentRetryableFailure
+        case .blocked: return .attachmentBlocked
+        case .removed: return .attachmentRemoved
+        case .promoted: return .attachmentPromoted
+        case .capturing: return .attachmentCapturing
+        case .hashing: return .attachmentHashing
+        case .readyLocal: return .attachmentReadyLocal
+        case .failedRetryable: return .attachmentFailedRetryable
+        case .failedFinal: return .attachmentFailedFinal
+        case .removePending: return .attachmentRemovePending
+        case .committed: return .attachmentCommitted
+        case .orphanQuarantined: return .attachmentOrphanQuarantined
+        }
+    }
+
+    static func commitSagaStateKey(_ state: FieldDraftCommitSagaLocalizationStateV1) -> Self {
+        switch state {
+        case .prepared: return .sagaPrepared
+        case .contentPromotedUnbound: return .sagaContentPromotedUnbound
+        case .targetCommitted: return .sagaTargetCommitted
+        case .draftRetirePending: return .sagaDraftRetirePending
+        case .draftRetired: return .sagaDraftRetired
+        case .conflicted: return .sagaConflicted
+        case .recoveryRequired: return .sagaRecoveryRequired
+        }
+    }
+
+    static func recoveryStateKey(_ state: FieldDraftRecoveryLocalizationStateV1) -> Self {
+        switch state {
+        case .resumeAvailable: return .recoveryResumeAvailable
+        case .conflict: return .recoveryConflict
+        case .missingMedia: return .recoveryMissingMedia
+        case .lowStorage: return .recoveryLowStorage
+        case .protectedData: return .recoveryProtectedData
+        case .unsupportedCodec: return .recoveryUnsupportedCodec
+        case .partialStage: return .recoveryPartialStage
+        case .staleTarget: return .recoveryStaleTarget
+        case .recoveryRequired: return .recoveryRecoveryRequired
+        }
+    }
+
+    static func nextStepKey() -> Self { .nextStep }
+    static func minimumRequirementKey() -> Self { .minimumNextRequirement }
+}
+
+// Bind the presentation catalog to the canonical C36 domain enums when they
+// are available.  The overloads are exhaustive so a newly added durable value
+// cannot silently fall through to a generic or raw enum label.
+extension FieldDraftLocalizationKeyV1 {
+    static func checkpointStateKey(_ state: FieldDraftStateV1) -> Self {
+        switch state {
+        case .active: return .checkpointActive
+        case .committing: return .checkpointCommitting
+        case .conflicted: return .checkpointConflicted
+        case .recoveryRequired: return .checkpointRecoveryRequired
+        case .committed: return .checkpointCommitted
+        case .discardPending: return .checkpointDiscardPending
+        case .discarded: return .checkpointDiscarded
+        }
+    }
+
+    static func durabilityStateKey(_ state: DraftDurabilityPresentationStateV1) -> Self {
+        switch state {
+        case .unsavedChanges: return .durabilityUnsavedChanges
+        case .savingOnThisIPhone: return .durabilitySavingOnThisIPhone
+        case .savedOnThisIPhone: return .durabilitySavedOnThisIPhone
+        case .saveBlocked: return .durabilitySaveBlocked
+        case .committing: return .durabilityCommitting
+        case .conflicted: return .durabilityConflicted
+        case .recoveryRequired: return .durabilityRecoveryRequired
+        case .committed: return .durabilityCommitted
+        case .discarding: return .durabilityDiscarding
+        case .discarded: return .durabilityDiscarded
+        }
+    }
+
+    static func attachmentStateKey(_ state: AttachmentStagingStateV1) -> Self {
+        switch state {
+        case .capturing: return .attachmentCapturing
+        case .hashing: return .attachmentHashing
+        case .processing: return .attachmentProcessing
+        case .readyLocal: return .attachmentReadyLocal
+        case .failedRetryable: return .attachmentFailedRetryable
+        case .failedFinal: return .attachmentFailedFinal
+        case .removePending: return .attachmentRemovePending
+        case .committed: return .attachmentCommitted
+        case .orphanQuarantined: return .attachmentOrphanQuarantined
+        }
+    }
+
+    static func attachmentPresentationStateKey(
+        _ state: DraftAttachmentPresentationStateV1
+    ) -> Self {
+        switch state {
+        case .selected: return .attachmentSelected
+        case .loading: return .attachmentLoading
+        case .stagedLocal: return .attachmentStagedLocal
+        case .processing: return .attachmentProcessing
+        case .ready: return .attachmentReady
+        case .retryableFailure: return .attachmentRetryableFailure
+        case .blocked: return .attachmentBlocked
+        case .removed: return .attachmentRemoved
+        case .promoted: return .attachmentPromoted
+        }
+    }
+
+    static func commitSagaStateKey(_ state: DraftCommitSagaStateV1) -> Self {
+        switch state {
+        case .prepared: return .sagaPrepared
+        case .contentPromotedUnbound: return .sagaContentPromotedUnbound
+        case .targetCommitted: return .sagaTargetCommitted
+        case .draftRetirePending: return .sagaDraftRetirePending
+        case .draftRetired: return .sagaDraftRetired
+        case .conflicted: return .sagaConflicted
+        case .recoveryRequired: return .sagaRecoveryRequired
+        }
+    }
+
+    static func recoveryStateKey(_ state: DraftRecoveryStatusV1) -> Self {
+        switch state {
+        case .resumable: return .recoveryResumeAvailable
+        case .conflict: return .recoveryConflict
+        case .missingMedia: return .recoveryMissingMedia
+        case .lowStorage: return .recoveryLowStorage
+        case .protectedData: return .recoveryProtectedData
+        case .unsupportedCodec: return .recoveryUnsupportedCodec
+        case .partialStage: return .recoveryPartialStage
+        case .staleTarget: return .recoveryStaleTarget
+        case .recoveryRequired: return .recoveryRecoveryRequired
+        }
+    }
+}

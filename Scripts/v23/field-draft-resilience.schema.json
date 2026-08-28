@@ -1,0 +1,747 @@
+{
+  "$id": "https://assetrounds.invalid/schemas/v23/field-draft-resilience.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "attachmentPresentationStates": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 9,
+      "minItems": 9,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "attachmentStates": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 9,
+      "minItems": 9,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "autosave": {
+      "additionalProperties": false,
+      "properties": {
+        "forceFlushBoundaries": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 5,
+          "minItems": 5,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "maximumDirtyNanoseconds": {
+          "type": "integer"
+        },
+        "trailingNanoseconds": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "forceFlushBoundaries",
+        "maximumDirtyNanoseconds",
+        "trailingNanoseconds"
+      ],
+      "type": "object"
+    },
+    "backupRestore": {
+      "additionalProperties": false,
+      "properties": {
+        "cloneDisposition": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "configurationCloneDisposition": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "fieldDraftKinds": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 6,
+          "minItems": 6,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "restoresCheckpoint": {
+          "type": "boolean"
+        },
+        "restoresPromotedUnbound": {
+          "type": "boolean"
+        },
+        "restoresReadyLocal": {
+          "type": "boolean"
+        },
+        "restoresReservations": {
+          "type": "boolean"
+        },
+        "restoresStableSagaEdge": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "cloneDisposition",
+        "configurationCloneDisposition",
+        "fieldDraftKinds",
+        "restoresCheckpoint",
+        "restoresPromotedUnbound",
+        "restoresReadyLocal",
+        "restoresReservations",
+        "restoresStableSagaEdge"
+      ],
+      "type": "object"
+    },
+    "boundaryRefs": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "cardID": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "checkpointStates": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 7,
+      "minItems": 7,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "conflictPlans": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 4,
+      "minItems": 4,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "containsCustomerData": {
+      "type": "boolean"
+    },
+    "containsSecrets": {
+      "type": "boolean"
+    },
+    "coverage": {
+      "additionalProperties": false,
+      "properties": {
+        "casDraftAndBaseRevision": {
+          "type": "boolean"
+        },
+        "exactRetryReusesReservation": {
+          "type": "boolean"
+        },
+        "noCloudStore": {
+          "type": "boolean"
+        },
+        "noSecondStore": {
+          "type": "boolean"
+        },
+        "noSecondWriter": {
+          "type": "boolean"
+        },
+        "perItemFailureIsolation": {
+          "type": "boolean"
+        },
+        "recordsAreCanonicalOnlyAfterCommit": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "casDraftAndBaseRevision",
+        "exactRetryReusesReservation",
+        "noCloudStore",
+        "noSecondStore",
+        "noSecondWriter",
+        "perItemFailureIsolation",
+        "recordsAreCanonicalOnlyAfterCommit"
+      ],
+      "type": "object"
+    },
+    "evidenceCases": {
+      "items": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "evidenceID": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "expected": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "focus": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 4,
+                "minItems": 4,
+                "type": "array",
+                "uniqueItems": true
+              },
+              "kind": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "evidenceID",
+              "expected",
+              "focus",
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "evidenceID": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "expected": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "focus": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 5,
+                "minItems": 5,
+                "type": "array",
+                "uniqueItems": true
+              },
+              "kind": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "evidenceID",
+              "expected",
+              "focus",
+              "kind"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array"
+    },
+    "forbiddenClaims": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 10,
+      "minItems": 10,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "lifecycleDimensions": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 15,
+      "minItems": 15,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "lifecycleDispositions": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "limits": {
+      "additionalProperties": false,
+      "properties": {
+        "maximumAnchorComponents": {
+          "type": "integer"
+        },
+        "maximumPayloadBytes": {
+          "type": "integer"
+        },
+        "maximumScopeComponents": {
+          "type": "integer"
+        },
+        "maximumStageItems": {
+          "type": "integer"
+        },
+        "maximumTextBytes": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "maximumAnchorComponents",
+        "maximumPayloadBytes",
+        "maximumScopeComponents",
+        "maximumStageItems",
+        "maximumTextBytes"
+      ],
+      "type": "object"
+    },
+    "persistence": {
+      "additionalProperties": false,
+      "properties": {
+        "addedPersistentModelCount": {
+          "type": "integer"
+        },
+        "backupRestoreRequired": {
+          "type": "boolean"
+        },
+        "c35ReadOnly": {
+          "type": "boolean"
+        },
+        "canonicalWriter": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "compatibilityRequired": {
+          "type": "boolean"
+        },
+        "crossFilesystemAtomicityClaim": {
+          "type": "boolean"
+        },
+        "currentProjectionRowCount": {
+          "type": "integer"
+        },
+        "currentProjectionRows": {
+          "type": "integer"
+        },
+        "deleteEraseRequired": {
+          "type": "boolean"
+        },
+        "downgrade": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "exportImportPreviewRequired": {
+          "type": "boolean"
+        },
+        "firstWriteEnrolled": {
+          "type": "boolean"
+        },
+        "lifecycleOwner": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "migration": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "nonPersistentFamilies": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "persistedContractFamilies": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 6,
+          "minItems": 6,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "persistentFamilies": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "contract": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "familyID": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "model": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "contract",
+              "familyID",
+              "model"
+            ],
+            "type": "object"
+          },
+          "maxItems": 6,
+          "minItems": 6,
+          "type": "array"
+        },
+        "persistentModelCount": {
+          "type": "integer"
+        },
+        "persistentModelFamilyCount": {
+          "type": "integer"
+        },
+        "predecessorModelCount": {
+          "type": "integer"
+        },
+        "predecessorRecordSchemaVersion": {
+          "type": "integer"
+        },
+        "predecessorSchemaVersion": {
+          "type": "integer"
+        },
+        "recordSchemaVersion": {
+          "type": "integer"
+        },
+        "recordsSchemaVersion": {
+          "type": "integer"
+        },
+        "schemaRelease": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "secondStore": {
+          "type": "boolean"
+        },
+        "secondWriter": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "addedPersistentModelCount",
+        "backupRestoreRequired",
+        "c35ReadOnly",
+        "canonicalWriter",
+        "compatibilityRequired",
+        "crossFilesystemAtomicityClaim",
+        "currentProjectionRowCount",
+        "currentProjectionRows",
+        "deleteEraseRequired",
+        "downgrade",
+        "exportImportPreviewRequired",
+        "firstWriteEnrolled",
+        "lifecycleOwner",
+        "migration",
+        "nonPersistentFamilies",
+        "persistedContractFamilies",
+        "persistentFamilies",
+        "persistentModelCount",
+        "persistentModelFamilyCount",
+        "predecessorModelCount",
+        "predecessorRecordSchemaVersion",
+        "predecessorSchemaVersion",
+        "recordSchemaVersion",
+        "recordsSchemaVersion",
+        "schemaRelease",
+        "secondStore",
+        "secondWriter"
+      ],
+      "type": "object"
+    },
+    "persistentModelCount": {
+      "type": "integer"
+    },
+    "persistentModelFamilies": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "contract": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "familyID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "model": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "contract",
+          "familyID",
+          "model"
+        ],
+        "type": "object"
+      },
+      "maxItems": 6,
+      "minItems": 6,
+      "type": "array"
+    },
+    "persistentModelFamilyCount": {
+      "type": "integer"
+    },
+    "presentationStates": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 10,
+      "minItems": 10,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "privacyExclusions": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 8,
+      "minItems": 8,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "purposes": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "attachmentKinds": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 4,
+            "minItems": 4,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "codecID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "codecVersion": {
+            "type": "integer"
+          },
+          "maximumPayloadBytes": {
+            "type": "integer"
+          },
+          "maximumStageItems": {
+            "type": "integer"
+          },
+          "privacy": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "purpose": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "retention": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "targetCommand": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "attachmentKinds",
+          "codecID",
+          "codecVersion",
+          "maximumPayloadBytes",
+          "maximumStageItems",
+          "privacy",
+          "purpose",
+          "retention",
+          "targetCommand"
+        ],
+        "type": "object"
+      },
+      "maxItems": 6,
+      "minItems": 6,
+      "type": "array"
+    },
+    "recoveryStatuses": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 9,
+      "minItems": 9,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "requiredBehaviors": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 14,
+      "minItems": 14,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "requiredContractNames": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 18,
+      "minItems": 18,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "reservationStates": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "safeActions": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 7,
+      "minItems": 7,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "sagaEdges": {
+      "items": {
+        "items": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 2,
+        "minItems": 2,
+        "type": "array",
+        "uniqueItems": true
+      },
+      "maxItems": 16,
+      "minItems": 16,
+      "type": "array"
+    },
+    "sagaStates": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 7,
+      "minItems": 7,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "schema": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "integer"
+    },
+    "singleAuthority": {
+      "additionalProperties": false,
+      "properties": {
+        "coordinator": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "persistentRows": {
+          "type": "integer"
+        },
+        "recoveryProjection": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "secondStore": {
+          "type": "boolean"
+        },
+        "secondWriter": {
+          "type": "boolean"
+        },
+        "writerProtocol": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "coordinator",
+        "persistentRows",
+        "recoveryProjection",
+        "secondStore",
+        "secondWriter",
+        "writerProtocol"
+      ],
+      "type": "object"
+    },
+    "synthetic": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "attachmentPresentationStates",
+    "attachmentStates",
+    "autosave",
+    "backupRestore",
+    "boundaryRefs",
+    "cardID",
+    "checkpointStates",
+    "conflictPlans",
+    "containsCustomerData",
+    "containsSecrets",
+    "coverage",
+    "evidenceCases",
+    "forbiddenClaims",
+    "lifecycleDimensions",
+    "lifecycleDispositions",
+    "limits",
+    "persistence",
+    "persistentModelCount",
+    "persistentModelFamilies",
+    "persistentModelFamilyCount",
+    "presentationStates",
+    "privacyExclusions",
+    "purposes",
+    "recoveryStatuses",
+    "requiredBehaviors",
+    "requiredContractNames",
+    "reservationStates",
+    "safeActions",
+    "sagaEdges",
+    "sagaStates",
+    "schema",
+    "schemaVersion",
+    "singleAuthority",
+    "synthetic"
+  ],
+  "title": "V23-P03-C36 field-draft resilience corpus",
+  "type": "object"
+}

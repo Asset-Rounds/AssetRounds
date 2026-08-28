@@ -198,6 +198,14 @@ final class V9_06DeletionRightsTests: XCTestCase {
 }
 
 extension V9_06DeletionRightsTests {
+    func testV23P03C36DeletionRightsPreserveOperationalHistoryUntilErase() throws {
+        try FieldDraftDeletionLedgerPolicyV1.validate()
+        XCTAssertTrue(FieldDraftEraseBoundaryV1.operationalStateClearedOnlyByWorkspaceErase)
+        XCTAssertTrue(FieldDraftEraseBoundaryV1.byteCleanupRequiresTerminalDiscardOrOrphanQuarantine)
+    }
+}
+
+extension V9_06DeletionRightsTests {
     func testV23P03C15ReleaseRightsRetainTypedPredecessorIdentity() throws {
         let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_106)
         let mutation = try WorkPacketMutationV1(

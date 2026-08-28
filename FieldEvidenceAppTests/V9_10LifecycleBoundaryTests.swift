@@ -1404,3 +1404,19 @@ private struct V910Corpus: Decodable, Sendable {
         let dst: Bool
     }
 }
+
+extension V9_10LifecycleBoundaryTests {
+    func testV23P03C36LifecycleSeparatesOperationalDraftsFromCanonicalTruth() throws {
+        let fixture = try C36FieldDraftTestSupportV1.makeFixture()
+        XCTAssertEqual(DraftLifecycleDispositionV1.allCases.map(\.rawValue), [
+            "PERSISTENT_WORKSPACE_OPERATIONAL", "SAFE_RESUME_DERIVED_ONLY", "EXCLUDED_FROM_CANONICAL_TRUTH"
+        ])
+        XCTAssertEqual(V16BackupFieldDraftRecordV1.Kind.allCases.map { $0.rawValue.uppercased() }, [
+            "CHECKPOINT", "STAGINGITEM", "COMMITSAGA", "CONTENTRESERVATION", "COMMITRECEIPT", "DISCARDRECEIPT"
+        ])
+        XCTAssertEqual(fixture.activeCheckpoint.state, .active)
+        XCTAssertEqual(fixture.committedCheckpoint.state, .committed)
+        XCTAssertEqual(fixture.committedItem.state, .committed)
+        XCTAssertEqual(fixture.commitReceipt.sagaEventSHA256Chain.count, 5)
+    }
+}

@@ -347,3 +347,13 @@ private struct CameraHarness {
 private enum CameraFixtureError: Error {
     case couldNotCreateImage
 }
+
+extension S3_6CameraRecoveryTests {
+    func testC36AttachmentKindsRemainTypedAtCaptureBoundary() {
+        XCTAssertEqual(DraftAttachmentKindV1.allCases.count, 4)
+        XCTAssertTrue(DraftAttachmentKindV1.allCases.contains(.photo))
+        XCTAssertTrue(DraftAttachmentKindV1.allCases.contains(.audio))
+        XCTAssertTrue(DraftAttachmentKindV1.allCases.contains(.video))
+        XCTAssertTrue(DraftAttachmentKindV1.allCases.contains(.file))
+    }
+}

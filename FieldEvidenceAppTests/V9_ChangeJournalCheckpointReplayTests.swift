@@ -776,6 +776,22 @@ extension V9_ChangeJournalCheckpointReplayTests {
     }
 }
 
+extension V9_ChangeJournalCheckpointReplayTests {
+    func testV23P03C36JournalReplayPreservesEveryDraftCanonicalByteSequence() throws {
+        let fixture = try C36FieldDraftTestSupportV1.makeFixture()
+        let values: [(Data, Data)] = [
+            (try FieldDraftCanonicalCodecV1.encode(fixture.activeCheckpoint), try FieldDraftCanonicalCodecV1.encode(try FieldDraftCanonicalCodecV1.decode(FieldDraftCheckpointV1.self, from: FieldDraftCanonicalCodecV1.encode(fixture.activeCheckpoint)))),
+            (try FieldDraftCanonicalCodecV1.encode(fixture.readyItem), try FieldDraftCanonicalCodecV1.encode(try FieldDraftCanonicalCodecV1.decode(AttachmentStagingItemV1.self, from: FieldDraftCanonicalCodecV1.encode(fixture.readyItem)))),
+            (try FieldDraftCanonicalCodecV1.encode(fixture.preparedSaga), try FieldDraftCanonicalCodecV1.encode(try FieldDraftCanonicalCodecV1.decode(DraftCommitSagaV1.self, from: FieldDraftCanonicalCodecV1.encode(fixture.preparedSaga)))),
+            (try FieldDraftCanonicalCodecV1.encode(fixture.reservation), try FieldDraftCanonicalCodecV1.encode(try FieldDraftCanonicalCodecV1.decode(DraftContentReservationV1.self, from: FieldDraftCanonicalCodecV1.encode(fixture.reservation)))),
+            (try FieldDraftCanonicalCodecV1.encode(fixture.commitReceipt), try FieldDraftCanonicalCodecV1.encode(try FieldDraftCanonicalCodecV1.decode(DraftCommitReceiptV1.self, from: FieldDraftCanonicalCodecV1.encode(fixture.commitReceipt)))),
+            (try FieldDraftCanonicalCodecV1.encode(fixture.discardReceipt), try FieldDraftCanonicalCodecV1.encode(try FieldDraftCanonicalCodecV1.decode(DraftDiscardReceiptV1.self, from: FieldDraftCanonicalCodecV1.encode(fixture.discardReceipt))))
+        ]
+        XCTAssertTrue(values.allSatisfy { $0.0 == $0.1 })
+        XCTAssertEqual(fixture.commitReceipt.sagaEventSHA256Chain.last, fixture.retiredSaga.sagaSHA256)
+    }
+}
+
 private struct ReplicaConvergenceScenarioV1: Equatable, Sendable {
     let workspaceID: UUID
     let fixedSeed: String

@@ -656,6 +656,7 @@ final class V9_22LocalizationAccessibilityTests: XCTestCase {
             Set(accessibility.entries.map(\.semanticID))
         )
         XCTAssertTrue(KernelCanonicalHashV1.validSHA256(receipt.release.releaseSHA256))
+
     }
 
     func testV23P03C40ReportLabelsAreTypedAndAuthorityHostilesFailClosed() throws {
@@ -1413,6 +1414,177 @@ final class V9_22LocalizationAccessibilityTests: XCTestCase {
             Set(accessibility.entries.map(\.semanticID))
         )
         XCTAssertTrue(KernelCanonicalHashV1.validSHA256(receipt.release.releaseSHA256))
+    }
+
+    func testV23P03C36FieldDraftLocalizationAndAccessibilityIsEnglishOnly() throws {
+        let expectedKeys = Set(FieldDraftLocalizationKeyV1.allCases.map(\.rawValue))
+        XCTAssertEqual(expectedKeys.count, FieldDraftLocalizationKeyV1.allCases.count)
+        XCTAssertEqual(Set(FieldDraftLocalizationPolicyV1.keys), expectedKeys)
+        XCTAssertEqual(
+            Set(FieldDraftLocalizationPolicyV1.semanticIDs),
+            Set(FieldDraftAccessibilityIDV1.allCases.map(\.rawValue))
+        )
+        XCTAssertEqual(FieldDraftLocalizationPolicyV1.semanticNamespace, "field.draft")
+        XCTAssertEqual(FieldDraftLocalizationPolicyV1.sourceLocale, "en")
+        XCTAssertEqual(FieldDraftLocalizationPolicyV1.shippingLocale, "en")
+        XCTAssertEqual(FieldDraftLocalizationPolicyV1.metadataLocale, "en-US")
+        XCTAssertEqual(
+            Set(FieldDraftLocalizationPolicyV1.testOnlyLocales),
+            Set(TestOnlyPseudoLocaleV1.allCases.map(\.rawValue))
+        )
+        XCTAssertTrue(FieldDraftLocalizationPolicyV1.denyByDefault)
+        XCTAssertTrue(FieldDraftLocalizationPolicyV1.requiresNonColorStateText)
+        XCTAssertTrue(FieldDraftLocalizationPolicyV1.requiresTextAndIconForIndeterminateStates)
+        XCTAssertTrue(FieldDraftLocalizationPolicyV1.requiresActionableNextStep)
+        XCTAssertTrue(FieldDraftLocalizationPolicyV1.requiresReceiptReadBackForSavedOnThisIPhone)
+        XCTAssertTrue(FieldDraftLocalizationPolicyV1.readyLocallyIsStagingOnly)
+        XCTAssertFalse(FieldDraftLocalizationPolicyV1.allowsColorOnlyState)
+        XCTAssertFalse(FieldDraftLocalizationPolicyV1.allowsIconOnlyState)
+        XCTAssertFalse(FieldDraftLocalizationPolicyV1.allowsMotionOnlyState)
+        XCTAssertTrue(FieldDraftLocalizationPolicyV1.excludesEvidenceTruth)
+        XCTAssertTrue(FieldDraftLocalizationPolicyV1.excludesReportTruth)
+        XCTAssertTrue(FieldDraftLocalizationPolicyV1.excludesExportTruth)
+        XCTAssertTrue(FieldDraftLocalizationPolicyV1.excludesSearchTruth)
+        XCTAssertTrue(FieldDraftLocalizationPolicyV1.excludesSecrets)
+        XCTAssertTrue(FieldDraftLocalizationPolicyV1.excludesCustomerData)
+        XCTAssertTrue(FieldDraftLocalizationPolicyV1.excludesWorkData)
+        XCTAssertTrue(FieldDraftLocalizationPolicyV1.excludesPrivateLocators)
+        XCTAssertTrue(FieldDraftLocalizationPolicyV1.excludesUnsupportedClaims)
+
+        XCTAssertTrue(FieldDraftStateV1.allCases.allSatisfy {
+            FieldDraftLocalizationPolicyV1.stateKeys.contains(
+                FieldDraftLocalizationKeyV1.checkpointStateKey($0).rawValue
+            )
+        })
+        XCTAssertTrue(DraftDurabilityPresentationStateV1.allCases.allSatisfy {
+            FieldDraftLocalizationPolicyV1.stateKeys.contains(
+                FieldDraftLocalizationKeyV1.durabilityStateKey($0).rawValue
+            )
+        })
+        XCTAssertTrue(AttachmentStagingStateV1.allCases.allSatisfy {
+            FieldDraftLocalizationPolicyV1.stateKeys.contains(
+                FieldDraftLocalizationKeyV1.attachmentStateKey($0).rawValue
+            )
+        })
+        XCTAssertTrue(DraftAttachmentPresentationStateV1.allCases.allSatisfy {
+            FieldDraftLocalizationPolicyV1.stateKeys.contains(
+                FieldDraftLocalizationKeyV1.attachmentPresentationStateKey($0).rawValue
+            )
+        })
+        XCTAssertTrue(DraftCommitSagaStateV1.allCases.allSatisfy {
+            FieldDraftLocalizationPolicyV1.stateKeys.contains(
+                FieldDraftLocalizationKeyV1.commitSagaStateKey($0).rawValue
+            )
+        })
+        XCTAssertTrue(DraftRecoveryStatusV1.allCases.allSatisfy {
+            FieldDraftLocalizationPolicyV1.stateKeys.contains(
+                FieldDraftLocalizationKeyV1.recoveryStateKey($0).rawValue
+            )
+        })
+
+        let registry = try BundledLocalizationCatalogV1.fieldDraftRegistry()
+        try registry.validate()
+        let registeredDraftKeys = Set(
+            registry.definitions.map(\.key.rawValue).filter { $0.hasPrefix("field.draft.") }
+        )
+        XCTAssertEqual(registeredDraftKeys, expectedKeys)
+
+        let accessibility = try BundledLocalizationCatalogV1
+            .fieldDraftAccessibilityRegistry(localization: registry)
+        try accessibility.validate()
+        let expectedIDs = Set(FieldDraftAccessibilityIDV1.allCases.map(\.rawValue))
+        let entriesByID = Dictionary(uniqueKeysWithValues: accessibility.entries.map {
+            ($0.semanticID, $0)
+        })
+        XCTAssertTrue(expectedIDs.isSubset(of: Set(entriesByID.keys)))
+        XCTAssertTrue(FieldDraftAccessibilityPolicyV1.denyByDefault)
+        XCTAssertTrue(FieldDraftAccessibilityPolicyV1.nonColorStateTextRequired)
+        XCTAssertTrue(FieldDraftAccessibilityPolicyV1.textAndIconRequiredForIndeterminateStates)
+        XCTAssertTrue(FieldDraftAccessibilityPolicyV1.actionableNextStepRequired)
+        XCTAssertFalse(FieldDraftAccessibilityPolicyV1.colorOnlyStateAllowed)
+        XCTAssertFalse(FieldDraftAccessibilityPolicyV1.iconOnlyStateAllowed)
+        XCTAssertFalse(FieldDraftAccessibilityPolicyV1.motionOnlyStateAllowed)
+        XCTAssertEqual(
+            FieldDraftAccessibilityPolicyV1.perItemDynamicSuffixPolicy,
+            .opaqueLowercaseHex
+        )
+        for semanticID in FieldDraftAccessibilityIDV1.allCases {
+            let entry = try XCTUnwrap(entriesByID[semanticID.rawValue])
+            XCTAssertEqual(entry.labelKey, semanticID.localizationKey.localizationKey)
+            XCTAssertTrue(registry.definitions.contains { $0.key == entry.labelKey })
+            if FieldDraftAccessibilityPolicyV1.stateSemanticIDs.contains(semanticID.rawValue) {
+                XCTAssertEqual(entry.role, .status)
+            }
+            if FieldDraftAccessibilityPolicyV1.requiresTextAndIcon(for: semanticID.rawValue) {
+                XCTAssertNotNil(entry.hintKey)
+                XCTAssertTrue(
+                    FieldDraftAccessibilityPolicyV1.requiresActionableNextStep(
+                        for: semanticID.rawValue
+                    )
+                )
+            }
+        }
+
+        let source = try JSONSerialization.jsonObject(with: sourceCatalogData()) as? [String: Any]
+        let strings = try XCTUnwrap(source?["strings"] as? [String: Any])
+        var text = [String]()
+        for key in FieldDraftLocalizationKeyV1.allCases {
+            let entry = try XCTUnwrap(strings[key.rawValue] as? [String: Any])
+            XCTAssertEqual(
+                try XCTUnwrap(entry["comment"] as? String),
+                key.translatorComment
+            )
+            let localizations = try XCTUnwrap(entry["localizations"] as? [String: Any])
+            XCTAssertEqual(Set(localizations.keys), Set(["en"]))
+            let english = try XCTUnwrap(localizations["en"] as? [String: Any])
+            let unit = try XCTUnwrap(english["stringUnit"] as? [String: Any])
+            let value = try XCTUnwrap(unit["value"] as? String)
+            XCTAssertEqual(value, key.englishDefaultValue)
+            text.append(contentsOf: [key.translatorComment, value])
+            let bundledKey = try XCTUnwrap(BundledLocalizationKeyV1(rawValue: key.rawValue))
+            XCTAssertEqual(BundledLocalizationCatalogV1.localized(bundledKey), value)
+        }
+        XCTAssertFalse(FieldDraftLocalizationPolicyV1.containsProhibitedClaim(in: text))
+        XCTAssertFalse(FieldDraftLocalizationPolicyV1.containsSensitiveDataLeakage(in: text))
+        XCTAssertEqual(
+            BundledLocalizationCatalogV1.localized(.fieldDraftDurabilitySavedOnThisIPhone),
+            "Saved on this iPhone"
+        )
+        XCTAssertEqual(
+            BundledLocalizationCatalogV1.localized(.fieldDraftAttachmentReadyLocal),
+            "Ready locally"
+        )
+
+        let publication = try BundledLocalizationCatalogV1.publish(
+            sourceCatalogBytes: sourceCatalogData(),
+            legacy: legacyAllowlist(),
+            includeFieldDraft: true
+        )
+        guard case let .complete(
+            publishedRegistry, publishedAccessibility, _, _, receipt
+        ) = publication else {
+            return XCTFail("C36 requires one complete field-draft catalog publication")
+        }
+        XCTAssertEqual(publishedRegistry, registry)
+        XCTAssertEqual(
+            Set(publishedAccessibility.entries.map(\.semanticID)),
+            Set(accessibility.entries.map(\.semanticID))
+        )
+        XCTAssertTrue(KernelCanonicalHashV1.validSHA256(receipt.release.releaseSHA256))
+        let recovered = try BundledLocalizationCatalogV1.recover(
+            sourceCatalogBytes: sourceCatalogData(),
+            receipt: receipt,
+            legacy: legacyAllowlist(),
+            includeFieldDraft: true
+        )
+        guard case let .complete(
+            recoveredRegistry, recoveredAccessibility, _, _, recoveredReceipt
+        ) = recovered else {
+            return XCTFail("C36 recovery must replay the receipt-backed catalog publication")
+        }
+        XCTAssertEqual(recoveredRegistry, publishedRegistry)
+        XCTAssertEqual(recoveredAccessibility, publishedAccessibility)
+        XCTAssertEqual(recoveredReceipt, receipt)
     }
 
     private func corpus() throws -> Corpus {

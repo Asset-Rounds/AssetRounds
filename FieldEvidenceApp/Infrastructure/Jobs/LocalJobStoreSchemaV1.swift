@@ -100,6 +100,15 @@ enum LocalJobStoreSchemaV1 {
     static let expiryRemovesCheckpoints = true
     static let relaunchReplayEnabled = true
     static let downgradeDisposition = "DROP_AND_REBUILD_AFTER_CANONICAL_SURVIVAL_PROOF"
+
+    // C36 attachment jobs remain operational checkpoint rows.  They are
+    // rebuilt from canonical staging items after restore and never become
+    // backup/export content themselves.
+    static let c36AttachmentJobKind = ResumableLocalJobKindV1.draftAttachmentProcessing
+    static let c36IncludedInUserBackup = false
+    static let c36IncludedInUserExport = false
+    static let c36RebuiltFromStagingItems = true
+    static let c36MaximumConcurrency = JobScaleBudgetPolicyV1.maximumRunnerConcurrency
 }
 
 struct LocalJobStoreEnvelopeV1: Codable, Equatable, Sendable {

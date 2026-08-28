@@ -538,6 +538,86 @@ final class S8_3DiagnosticPrivacyTests: XCTestCase {
             )
         )
     }
+
+    func testV23P03C36FieldDraftLocalizationIsSecretAndClaimFree() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let catalogURL = root
+            .appendingPathComponent("FieldEvidenceApp/Resources/Localizable.xcstrings")
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: catalogURL)) as? [String: Any]
+        )
+        XCTAssertEqual(object["sourceLanguage"] as? String, "en")
+        XCTAssertEqual(object["version"] as? String, "1.0")
+        let strings = try XCTUnwrap(object["strings"] as? [String: Any])
+        let expectedKeys = Set(FieldDraftLocalizationKeyV1.allCases.map(\.rawValue))
+        XCTAssertEqual(
+            Set(strings.keys.filter { $0.hasPrefix("field.draft.") }),
+            expectedKeys
+        )
+
+        let text = try FieldDraftLocalizationKeyV1.allCases.flatMap { key -> [String] in
+            let entry = try XCTUnwrap(strings[key.rawValue] as? [String: Any])
+            let comment = try XCTUnwrap(entry["comment"] as? String)
+            XCTAssertFalse(comment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            let localizations = try XCTUnwrap(entry["localizations"] as? [String: Any])
+            XCTAssertEqual(Set(localizations.keys), Set(["en"]))
+            let english = try XCTUnwrap(localizations["en"] as? [String: Any])
+            let unit = try XCTUnwrap(english["stringUnit"] as? [String: Any])
+            let value = try XCTUnwrap(unit["value"] as? String)
+            XCTAssertEqual(value, key.englishDefaultValue)
+            return [comment, value]
+        }
+
+        XCTAssertFalse(FieldDraftClaimVocabularyV1.containsProhibitedClaim(in: text))
+        XCTAssertFalse(FieldDraftClaimVocabularyV1.containsSensitiveDataLeakage(in: text))
+        XCTAssertTrue(FieldDraftLocalizationPolicyV1.denyByDefault)
+        XCTAssertTrue(FieldDraftLocalizationPolicyV1.excludesSecrets)
+        XCTAssertTrue(FieldDraftLocalizationPolicyV1.excludesCustomerData)
+        XCTAssertTrue(FieldDraftLocalizationPolicyV1.excludesWorkData)
+        XCTAssertTrue(FieldDraftLocalizationPolicyV1.excludesPrivateLocators)
+        XCTAssertTrue(FieldDraftLocalizationPolicyV1.excludesUnsupportedClaims)
+        XCTAssertTrue(FieldDraftLocalizationPolicyV1.readyLocallyIsStagingOnly)
+        XCTAssertTrue(
+            FieldDraftClaimVocabularyV1.containsProhibitedClaim(
+                in: [
+                    "approval granted", "authorization granted", "verified identity",
+                    "legal signature", "compliance result", "tamperproof history",
+                    "tamper-proof history", "nonrepudiation asserted",
+                    "non-repudiation asserted", "secure delivery", "sent successfully",
+                    "delivered successfully", "synced to the cloud", "remote upload",
+                ]
+            )
+        )
+        XCTAssertTrue(
+            FieldDraftClaimVocabularyV1.containsSensitiveDataLeakage(
+                in: [
+                    "customer data", "customer-information leak", "private data",
+                    "personal data", "work item data", "secret credential", "password",
+                    "private locator", "filename", "photo EXIF metadata",
+                ]
+            )
+        )
+        XCTAssertTrue(
+            FieldDraftClaimVocabularyV1.containsCustomerOrWorkDataLeakage(
+                in: ["customer data", "work data"]
+            )
+        )
+        XCTAssertFalse(
+            FieldDraftClaimVocabularyV1.containsProhibitedClaim(
+                in: [
+                    "Saved on this iPhone", "Saving on this iPhone", "Ready locally",
+                    "Recorded checkpoint state", "Resume available", "Safe action",
+                ]
+            )
+        )
+        XCTAssertFalse(
+            FieldDraftClaimVocabularyV1.containsSensitiveDataLeakage(
+                in: ["Recorded local state", "Ready locally", "Minimum requirement"]
+            )
+        )
+    }
 }
 
 private final class DiagnosticsLogProbe: @unchecked Sendable {

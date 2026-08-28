@@ -634,6 +634,172 @@ enum WorkPacketAccessibilityIDV1: String, Codable, CaseIterable, Sendable {
 typealias WorkPacketManifestAccessibilityIDV1 = WorkPacketAccessibilityIDV1
 typealias PacketCoordinationAccessibilityIDV1 = WorkPacketAccessibilityIDV1
 
+/// C36 semantic IDs cover the reusable durability/status surface only.  They
+/// identify recorded draft and attachment states, never draft contents,
+/// customer/work data, private locators, or a feature screen implementation.
+enum FieldDraftAccessibilityIDV1: String, Codable, CaseIterable, Sendable {
+    case screen = "field.draft.screen"
+    case heading = "field.draft.heading"
+    case durability = "field.draft.durability"
+    case durabilityState = "field.draft.durability.state"
+    case nextStep = "field.draft.next-step"
+    case minimumNextRequirement = "field.draft.next-step.minimum-requirement"
+    case checkpoint = "field.draft.checkpoint"
+    case checkpointState = "field.draft.checkpoint.state"
+    case attachment = "field.draft.attachment"
+    case attachmentState = "field.draft.attachment.state"
+    case commitSaga = "field.draft.commit.saga"
+    case commitSagaState = "field.draft.commit.saga.state"
+    case recovery = "field.draft.recovery"
+    case recoveryState = "field.draft.recovery.state"
+    case recoverySafeAction = "field.draft.recovery.safe-action"
+    case recoveryFallback = "field.draft.recovery.fallback"
+
+    case durabilityUnsavedChanges = "field.draft.durability.state.unsaved-changes"
+    case durabilitySavingOnThisIPhone = "field.draft.durability.state.saving-on-this-iphone"
+    case durabilitySavedOnThisIPhone = "field.draft.durability.state.saved-on-this-iphone"
+    case durabilitySaveBlocked = "field.draft.durability.state.save-blocked"
+    case durabilityCommitting = "field.draft.durability.state.committing"
+    case durabilityConflicted = "field.draft.durability.state.conflicted"
+    case durabilityRecoveryRequired = "field.draft.durability.state.recovery-required"
+    case durabilityCommitted = "field.draft.durability.state.committed"
+    case durabilityDiscarding = "field.draft.durability.state.discarding"
+    case durabilityDiscarded = "field.draft.durability.state.discarded"
+
+    case checkpointActive = "field.draft.checkpoint.state.active"
+    case checkpointCommitting = "field.draft.checkpoint.state.committing"
+    case checkpointConflicted = "field.draft.checkpoint.state.conflicted"
+    case checkpointRecoveryRequired = "field.draft.checkpoint.state.recovery-required"
+    case checkpointCommitted = "field.draft.checkpoint.state.committed"
+    case checkpointDiscardPending = "field.draft.checkpoint.state.discard-pending"
+    case checkpointDiscarded = "field.draft.checkpoint.state.discarded"
+
+    case attachmentSelected = "field.draft.attachment.state.selected"
+    case attachmentLoading = "field.draft.attachment.state.loading"
+    case attachmentStagedLocal = "field.draft.attachment.state.staged-local"
+    case attachmentProcessing = "field.draft.attachment.state.processing"
+    case attachmentReady = "field.draft.attachment.state.ready"
+    case attachmentRetryableFailure = "field.draft.attachment.state.retryable-failure"
+    case attachmentBlocked = "field.draft.attachment.state.blocked"
+    case attachmentRemoved = "field.draft.attachment.state.removed"
+    case attachmentPromoted = "field.draft.attachment.state.promoted"
+    case attachmentCapturing = "field.draft.attachment.state.capturing"
+    case attachmentHashing = "field.draft.attachment.state.hashing"
+    case attachmentReadyLocal = "field.draft.attachment.state.ready-local"
+    case attachmentFailedRetryable = "field.draft.attachment.state.failed-retryable"
+    case attachmentFailedFinal = "field.draft.attachment.state.failed-final"
+    case attachmentRemovePending = "field.draft.attachment.state.remove-pending"
+    case attachmentCommitted = "field.draft.attachment.state.committed"
+    case attachmentOrphanQuarantined = "field.draft.attachment.state.orphan-quarantined"
+
+    case sagaPrepared = "field.draft.commit.saga.state.prepared"
+    case sagaContentPromotedUnbound = "field.draft.commit.saga.state.content-promoted-unbound"
+    case sagaTargetCommitted = "field.draft.commit.saga.state.target-committed"
+    case sagaDraftRetirePending = "field.draft.commit.saga.state.draft-retire-pending"
+    case sagaDraftRetired = "field.draft.commit.saga.state.draft-retired"
+    case sagaConflicted = "field.draft.commit.saga.state.conflicted"
+    case sagaRecoveryRequired = "field.draft.commit.saga.state.recovery-required"
+
+    case recoveryResumeAvailable = "field.draft.recovery.state.resume-available"
+    case recoveryConflict = "field.draft.recovery.state.conflict"
+    case recoveryMissingMedia = "field.draft.recovery.state.missing-media"
+    case recoveryLowStorage = "field.draft.recovery.state.low-storage"
+    case recoveryProtectedData = "field.draft.recovery.state.protected-data"
+    case recoveryUnsupportedCodec = "field.draft.recovery.state.unsupported-codec"
+    case recoveryPartialStage = "field.draft.recovery.state.partial-stage"
+    case recoveryStaleTarget = "field.draft.recovery.state.stale-target"
+    case recoveryRecoveryRequired = "field.draft.recovery.state.recovery-required"
+
+    static var actionableNextStep: Self { .nextStep }
+    static var minimumRequirement: Self { .minimumNextRequirement }
+
+    var localizationKey: FieldDraftLocalizationKeyV1 {
+        // Accessibility IDs intentionally use hyphens while localization keys
+        // use the existing underscore convention for compound words.
+        // swiftlint:disable:next force_unwrapping
+        FieldDraftLocalizationKeyV1(
+            rawValue: rawValue.replacingOccurrences(of: "-", with: "_")
+        )!
+    }
+}
+
+/// C36 statuses are text-bearing and actionable wherever state is uncertain;
+/// color, icon, motion, and haptic feedback are reinforcement only.
+enum FieldDraftAccessibilityPolicyV1 {
+    static let semanticIDs = FieldDraftAccessibilityIDV1.allCases.map(\.rawValue)
+    static let stateSemanticIDs: Set<String> = Set(
+        FieldDraftAccessibilityIDV1.allCases
+            .filter { $0.rawValue.contains(".state.") }
+            .map(\.rawValue)
+    )
+    static let indeterminateSemanticIDs: Set<String> = Set(
+        ([
+        FieldDraftAccessibilityIDV1.durabilityUnsavedChanges,
+        .durabilitySavingOnThisIPhone,
+        .durabilitySaveBlocked,
+        .durabilityConflicted,
+        .durabilityRecoveryRequired,
+        .durabilityDiscarding,
+        .checkpointConflicted,
+        .checkpointRecoveryRequired,
+        .checkpointDiscardPending,
+        .attachmentSelected,
+        .attachmentLoading,
+        .attachmentStagedLocal,
+        .attachmentProcessing,
+        .attachmentRetryableFailure,
+        .attachmentBlocked,
+        .attachmentCapturing,
+        .attachmentHashing,
+        .attachmentFailedRetryable,
+        .attachmentFailedFinal,
+        .attachmentRemovePending,
+        .attachmentOrphanQuarantined,
+        .sagaPrepared,
+        .sagaContentPromotedUnbound,
+        .sagaDraftRetirePending,
+        .sagaConflicted,
+        .sagaRecoveryRequired,
+        .recoveryResumeAvailable,
+        .recoveryConflict,
+        .recoveryMissingMedia,
+        .recoveryLowStorage,
+        .recoveryProtectedData,
+        .recoveryUnsupportedCodec,
+        .recoveryPartialStage,
+        .recoveryStaleTarget,
+        .recoveryRecoveryRequired,
+    ] as [FieldDraftAccessibilityIDV1]).map(\.rawValue)
+    )
+    static let statusSemanticIDs = stateSemanticIDs
+    static let perItemDynamicSuffixPolicy = AccessibilityDynamicSuffixPolicyV1.opaqueLowercaseHex
+    static let denyByDefault = true
+    static let nonColorStateTextRequired = true
+    static let textAndIconRequiredForIndeterminateStates = true
+    static let actionableNextStepRequiredForIndeterminateStates = true
+    static let colorOnlyStateAllowed = false
+    static let iconOnlyStateAllowed = false
+    static let motionOnlyStateAllowed = false
+    static let rtlRequired = true
+    static let dynamicTypeRequired = true
+    static let voiceOverRequired = true
+    static let voiceControlRequired = true
+    static let switchControlRequired = true
+    static let actionableNextStepRequired = true
+    static let textIconActionableNextStepRequired = true
+
+    static func requiresTextAndIcon(for semanticID: String) -> Bool {
+        indeterminateSemanticIDs.contains(semanticID)
+    }
+
+    static func requiresActionableNextStep(for semanticID: String) -> Bool {
+        indeterminateSemanticIDs.contains(semanticID)
+    }
+}
+
+typealias FieldDraftResilienceAccessibilityIDV1 = FieldDraftAccessibilityIDV1
+typealias FieldDraftResilienceAccessibilityPolicyV1 = FieldDraftAccessibilityPolicyV1
+
 /// C15 accessibility policy keeps local packet coordination truthful and
 /// usable with VoiceOver, Voice Control, Switch Control, Dynamic Type, RTL,
 /// and non-color presentation.  It has no authority, delivery, or identity

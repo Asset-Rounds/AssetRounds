@@ -144,6 +144,11 @@ struct InspectionReviewDeletionInventoryV1: Equatable, Sendable {
 }
 
 struct WorkPacketDeletionInventoryV1:Equatable,Sendable{let manifestIDs:Set<UUID>;let claimIDs:Set<UUID>;let leaseIDs:Set<UUID>;let releaseIDs:Set<UUID>;let handoffIDs:Set<UUID>}
+struct FieldDraftDeletionInventoryV1: Equatable, Sendable {
+    let draftIDs: Set<UUID>; let stageIDs: Set<UUID>; let sagaIDs: Set<UUID>
+    let reservationIDs: Set<UUID>; let commitReceiptIDs: Set<UUID>; let discardReceiptIDs: Set<UUID>
+    var isEmpty: Bool { draftIDs.isEmpty && stageIDs.isEmpty && sagaIDs.isEmpty && reservationIDs.isEmpty && commitReceiptIDs.isEmpty && discardReceiptIDs.isEmpty }
+}
 
 struct EvidenceAssuranceOrdinaryDeletionPreviewV1: Equatable, Sendable {
     let blockingManifestIDs: [UUID]
@@ -236,6 +241,16 @@ enum WholeSignDeletionRule {
     }
 
     static func validateWorkPacketLifecycle(authority:PartyAccountabilityDeletionAuthorityV1,before:WorkPacketDeletionInventoryV1,after:WorkPacketDeletionInventoryV1)throws{try WorkPacketDeletionLedgerPolicyV1.validate();switch authority{case .ordinaryAssetOrSiteDelete:guard before==after else{throw WholeSignDeletionRuleError.invalidGraph};case .workspaceErase:guard after.manifestIDs.isEmpty,after.claimIDs.isEmpty,after.leaseIDs.isEmpty,after.releaseIDs.isEmpty,after.handoffIDs.isEmpty else{throw WholeSignDeletionRuleError.invalidGraph}}}
+
+    static func validateFieldDraftLifecycle(authority: PartyAccountabilityDeletionAuthorityV1, before: FieldDraftDeletionInventoryV1, after: FieldDraftDeletionInventoryV1) throws {
+        try FieldDraftDeletionLedgerPolicyV1.validate()
+        switch authority {
+        case .ordinaryAssetOrSiteDelete:
+            guard before == after else { throw WholeSignDeletionRuleError.invalidGraph }
+        case .workspaceErase:
+            guard after.isEmpty else { throw WholeSignDeletionRuleError.invalidGraph }
+        }
+    }
 
     static func evidenceAssuranceOrdinaryDeletionPreview(
         manifests: [AssuranceManifestV1], attestations: [AttestationV1]

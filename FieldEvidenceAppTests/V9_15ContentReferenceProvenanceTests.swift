@@ -644,3 +644,21 @@ final class V9_15ContentReferenceProvenanceTests: XCTestCase {
         return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
     }
 }
+
+extension V9_15ContentReferenceProvenanceTests {
+    func testC36MediaBoundaryHasNoEvidenceIDBeforeCanonicalCommit() {
+        let staged = DraftMediaPromotionBoundaryV1.stagedWithoutEvidenceID(
+            stageID: UUID(uuidString: "40000000-0000-0000-0000-000000000001")!,
+            draftID: UUID(uuidString: "40000000-0000-0000-0000-000000000002")!
+        )
+        let committed = DraftMediaPromotionBoundaryV1.committed(
+            contentID: "content.001",
+            locatorID: "locator.001"
+        )
+
+        XCTAssertFalse(staged.exposesEvidenceID)
+        XCTAssertFalse(staged.isCanonical)
+        XCTAssertFalse(committed.exposesEvidenceID)
+        XCTAssertTrue(committed.isCanonical)
+    }
+}

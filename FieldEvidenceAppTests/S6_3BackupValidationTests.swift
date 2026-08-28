@@ -324,6 +324,29 @@ final class S6_3BackupValidationTests: XCTestCase {
 }
 
 extension S6_3BackupValidationTests {
+    func testV23P03C36CanonicalDecoderRejectsNonCanonicalCheckpointBytes() throws {
+        XCTAssertThrowsError(try FieldDraftCanonicalCodecV1.decode(FieldDraftCheckpointV1.self,from:Data("{}".utf8)))
+        XCTAssertEqual(Set(V16BackupFieldDraftRecordV1.Kind.allCases.map(\.rawValue)).count,6)
+        XCTAssertEqual(
+            [
+                DraftCommitSagaStateV1.prepared,
+                .contentPromotedUnbound,
+                .targetCommitted,
+                .draftRetirePending,
+                .draftRetired,
+            ].map(\.rawValue),
+            [
+                "PREPARED",
+                "CONTENT_PROMOTED_UNBOUND",
+                "TARGET_COMMITTED",
+                "DRAFT_RETIRE_PENDING",
+                "DRAFT_RETIRED",
+            ]
+        )
+    }
+}
+
+extension S6_3BackupValidationTests {
     func testV23P03C15BackupValidationUsesV15SchemaAndTypedRows() throws {
         let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_163)
         let rows: [Data] = [

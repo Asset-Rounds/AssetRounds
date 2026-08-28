@@ -173,6 +173,73 @@ enum BundledLocalizationKeyV1: String, CaseIterable, Sendable {
     case workPacketNextStep = "work.packet.next_step"
     case workPacketMinimumNextRequirement = "work.packet.next_step.minimum_requirement"
 
+    case fieldDraftScreen = "field.draft.screen"
+    case fieldDraftHeading = "field.draft.heading"
+    case fieldDraftDurability = "field.draft.durability"
+    case fieldDraftDurabilityState = "field.draft.durability.state"
+    case fieldDraftNextStep = "field.draft.next_step"
+    case fieldDraftMinimumNextRequirement = "field.draft.next_step.minimum_requirement"
+    case fieldDraftCheckpoint = "field.draft.checkpoint"
+    case fieldDraftCheckpointState = "field.draft.checkpoint.state"
+    case fieldDraftAttachment = "field.draft.attachment"
+    case fieldDraftAttachmentState = "field.draft.attachment.state"
+    case fieldDraftCommitSaga = "field.draft.commit.saga"
+    case fieldDraftCommitSagaState = "field.draft.commit.saga.state"
+    case fieldDraftRecovery = "field.draft.recovery"
+    case fieldDraftRecoveryState = "field.draft.recovery.state"
+    case fieldDraftRecoverySafeAction = "field.draft.recovery.safe_action"
+    case fieldDraftRecoveryFallback = "field.draft.recovery.fallback"
+    case fieldDraftDurabilityUnsavedChanges = "field.draft.durability.state.unsaved_changes"
+    case fieldDraftDurabilitySavingOnThisIPhone = "field.draft.durability.state.saving_on_this_iphone"
+    case fieldDraftDurabilitySavedOnThisIPhone = "field.draft.durability.state.saved_on_this_iphone"
+    case fieldDraftDurabilitySaveBlocked = "field.draft.durability.state.save_blocked"
+    case fieldDraftDurabilityCommitting = "field.draft.durability.state.committing"
+    case fieldDraftDurabilityConflicted = "field.draft.durability.state.conflicted"
+    case fieldDraftDurabilityRecoveryRequired = "field.draft.durability.state.recovery_required"
+    case fieldDraftDurabilityCommitted = "field.draft.durability.state.committed"
+    case fieldDraftDurabilityDiscarding = "field.draft.durability.state.discarding"
+    case fieldDraftDurabilityDiscarded = "field.draft.durability.state.discarded"
+    case fieldDraftCheckpointActive = "field.draft.checkpoint.state.active"
+    case fieldDraftCheckpointCommitting = "field.draft.checkpoint.state.committing"
+    case fieldDraftCheckpointConflicted = "field.draft.checkpoint.state.conflicted"
+    case fieldDraftCheckpointRecoveryRequired = "field.draft.checkpoint.state.recovery_required"
+    case fieldDraftCheckpointCommitted = "field.draft.checkpoint.state.committed"
+    case fieldDraftCheckpointDiscardPending = "field.draft.checkpoint.state.discard_pending"
+    case fieldDraftCheckpointDiscarded = "field.draft.checkpoint.state.discarded"
+    case fieldDraftAttachmentSelected = "field.draft.attachment.state.selected"
+    case fieldDraftAttachmentLoading = "field.draft.attachment.state.loading"
+    case fieldDraftAttachmentStagedLocal = "field.draft.attachment.state.staged_local"
+    case fieldDraftAttachmentProcessing = "field.draft.attachment.state.processing"
+    case fieldDraftAttachmentReady = "field.draft.attachment.state.ready"
+    case fieldDraftAttachmentRetryableFailure = "field.draft.attachment.state.retryable_failure"
+    case fieldDraftAttachmentBlocked = "field.draft.attachment.state.blocked"
+    case fieldDraftAttachmentRemoved = "field.draft.attachment.state.removed"
+    case fieldDraftAttachmentPromoted = "field.draft.attachment.state.promoted"
+    case fieldDraftAttachmentCapturing = "field.draft.attachment.state.capturing"
+    case fieldDraftAttachmentHashing = "field.draft.attachment.state.hashing"
+    case fieldDraftAttachmentReadyLocal = "field.draft.attachment.state.ready_local"
+    case fieldDraftAttachmentFailedRetryable = "field.draft.attachment.state.failed_retryable"
+    case fieldDraftAttachmentFailedFinal = "field.draft.attachment.state.failed_final"
+    case fieldDraftAttachmentRemovePending = "field.draft.attachment.state.remove_pending"
+    case fieldDraftAttachmentCommitted = "field.draft.attachment.state.committed"
+    case fieldDraftAttachmentOrphanQuarantined = "field.draft.attachment.state.orphan_quarantined"
+    case fieldDraftSagaPrepared = "field.draft.commit.saga.state.prepared"
+    case fieldDraftSagaContentPromotedUnbound = "field.draft.commit.saga.state.content_promoted_unbound"
+    case fieldDraftSagaTargetCommitted = "field.draft.commit.saga.state.target_committed"
+    case fieldDraftSagaDraftRetirePending = "field.draft.commit.saga.state.draft_retire_pending"
+    case fieldDraftSagaDraftRetired = "field.draft.commit.saga.state.draft_retired"
+    case fieldDraftSagaConflicted = "field.draft.commit.saga.state.conflicted"
+    case fieldDraftSagaRecoveryRequired = "field.draft.commit.saga.state.recovery_required"
+    case fieldDraftRecoveryResumeAvailable = "field.draft.recovery.state.resume_available"
+    case fieldDraftRecoveryConflict = "field.draft.recovery.state.conflict"
+    case fieldDraftRecoveryMissingMedia = "field.draft.recovery.state.missing_media"
+    case fieldDraftRecoveryLowStorage = "field.draft.recovery.state.low_storage"
+    case fieldDraftRecoveryProtectedData = "field.draft.recovery.state.protected_data"
+    case fieldDraftRecoveryUnsupportedCodec = "field.draft.recovery.state.unsupported_codec"
+    case fieldDraftRecoveryPartialStage = "field.draft.recovery.state.partial_stage"
+    case fieldDraftRecoveryStaleTarget = "field.draft.recovery.state.stale_target"
+    case fieldDraftRecoveryRecoveryRequired = "field.draft.recovery.state.recovery_required"
+
     static var functionalRelationshipDirected: Self { .functionalRelationshipDirectedSourceToTarget }
     static var functionalRelationshipActive: Self { .functionalRelationshipActiveState }
     static var functionalRelationshipEnded: Self { .functionalRelationshipEndedState }
@@ -230,6 +297,10 @@ enum BundledLocalizationKeyV1: String, CaseIterable, Sendable {
     static var packetExpiry: Self { .workPacketExpiry }
     static var packetReplay: Self { .workPacketReplay }
     static var packetNextStep: Self { .workPacketNextStep }
+
+    static var fieldDraftHeadingKey: Self { .fieldDraftHeading }
+    static var fieldDraftDurabilityKey: Self { .fieldDraftDurability }
+    static var fieldDraftNextStepKey: Self { .fieldDraftNextStep }
 }
 
 enum LocalizationCatalogPublicationBoundaryV1: String, CaseIterable, Sendable {
@@ -1120,6 +1191,33 @@ enum BundledLocalizationCatalogV1 {
         try workPacketRegistry()
     }
 
+    /// C36's additive key surface.  Existing C16/C38/C39/C40/C41 and C15
+    /// registries remain available as compatibility projections; this registry
+    /// is selected only for the durable field-draft presentation contract.
+    static func fieldDraftRegistry() throws -> LocalizationKeyRegistryV1 {
+        let base = try workPacketRegistry()
+        let additions = try FieldDraftLocalizationKeyV1.allCases.map { key in
+            guard let bundledKey = BundledLocalizationKeyV1(rawValue: key.rawValue) else {
+                throw LocalizationContractFailureV1.missingKey
+            }
+            return try definition(
+                bundledKey,
+                key.rawValue,
+                key.englishDefaultValue,
+                key.translatorComment
+            )
+        }
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+
+    static func fieldDraftResilienceRegistry() throws -> LocalizationKeyRegistryV1 {
+        try fieldDraftRegistry()
+    }
+
+    static func draftDurabilityRegistry() throws -> LocalizationKeyRegistryV1 {
+        try fieldDraftRegistry()
+    }
+
     static func accessibilityRegistry(
         localization: LocalizationKeyRegistryV1
     ) throws -> SemanticAccessibilityIDRegistryV1 {
@@ -1994,6 +2092,49 @@ enum BundledLocalizationCatalogV1 {
         try workPacketAccessibilityRegistry(localization: localization)
     }
 
+    /// C36 accessibility is a reusable status projection.  Per-item callers
+    /// may append an opaque suffix at their presentation boundary, while the
+    /// registry itself remains a closed set of stable semantic IDs.
+    static func fieldDraftAccessibilityRegistry(
+        localization: LocalizationKeyRegistryV1
+    ) throws -> SemanticAccessibilityIDRegistryV1 {
+        let base = try workPacketAccessibilityRegistry(localization: localization)
+        let nextStep = try LocalizationKeyV1(
+            FieldDraftLocalizationKeyV1.nextStep.rawValue
+        )
+        let entries = try FieldDraftAccessibilityIDV1.allCases.map {
+            id -> AccessibilityContractV1 in
+            let role: SemanticAccessibilityRoleV1
+            switch id {
+            case .screen: role = .screen
+            case .heading: role = .heading
+            case .nextStep, .minimumNextRequirement, .recoverySafeAction:
+                role = .button
+            default:
+                role = FieldDraftAccessibilityPolicyV1.stateSemanticIDs.contains(id.rawValue)
+                    ? .status : .group
+            }
+            return AccessibilityContractV1(
+                semanticID: id.rawValue,
+                role: role,
+                reachability: .whenAvailable,
+                labelKey: id.localizationKey.localizationKey,
+                hintKey: FieldDraftAccessibilityPolicyV1
+                    .indeterminateSemanticIDs.contains(id.rawValue) ? nextStep : nil,
+                valueKey: nil,
+                dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            )
+        }
+        return try base.appending(entries, localization: localization)
+    }
+
+    static func fieldDraftResilienceAccessibilityRegistry(
+        localization: LocalizationKeyRegistryV1
+    ) throws -> SemanticAccessibilityIDRegistryV1 {
+        try fieldDraftAccessibilityRegistry(localization: localization)
+    }
+
     static func publish(
         sourceCatalogBytes: Data,
         packagePublications: [InspectionPackagePublishedReleaseV1] = [],
@@ -2012,6 +2153,7 @@ enum BundledLocalizationCatalogV1 {
         includeWorkPacket: Bool = false,
         includeWorkPacketManifest: Bool = false,
         includePacketCoordination: Bool = false,
+        includeFieldDraft: Bool = false,
         interruption: Interruption = { _ in }
     ) throws -> LocalizationCatalogPublicationV1 {
         try interruption(.beforeValidation)
@@ -2019,7 +2161,9 @@ enum BundledLocalizationCatalogV1 {
         let locales = LocalizationLocaleManifestV1.shippingV1()
         try locales.validate()
         let keys: LocalizationKeyRegistryV1
-        if includeWorkPacket || includeWorkPacketManifest || includePacketCoordination {
+        if includeFieldDraft {
+            keys = try fieldDraftRegistry()
+        } else if includeWorkPacket || includeWorkPacketManifest || includePacketCoordination {
             keys = try workPacketRegistry()
         } else if includeInspectionReview || includeReviewCorrectiveAction || includeReviewAndCorrectiveAction {
             keys = try inspectionReviewRegistry()
@@ -2044,7 +2188,9 @@ enum BundledLocalizationCatalogV1 {
         }
         if let previousLegacy { try previousLegacy.validateObserved(legacy.entries) }
         let accessibility: SemanticAccessibilityIDRegistryV1
-        if includeWorkPacket || includeWorkPacketManifest || includePacketCoordination {
+        if includeFieldDraft {
+            accessibility = try fieldDraftAccessibilityRegistry(localization: keys)
+        } else if includeWorkPacket || includeWorkPacketManifest || includePacketCoordination {
             accessibility = try workPacketAccessibilityRegistry(localization: keys)
         } else if includeInspectionReview || includeReviewCorrectiveAction || includeReviewAndCorrectiveAction {
             accessibility = try inspectionReviewAccessibilityRegistry(localization: keys)
@@ -2110,7 +2256,8 @@ enum BundledLocalizationCatalogV1 {
         includeReviewAndCorrectiveAction: Bool = false,
         includeWorkPacket: Bool = false,
         includeWorkPacketManifest: Bool = false,
-        includePacketCoordination: Bool = false
+        includePacketCoordination: Bool = false,
+        includeFieldDraft: Bool = false
     ) throws -> LocalizationCatalogPublicationV1 {
         switch (sourceCatalogBytes, receipt) {
         case (nil, nil): return .zero
@@ -2130,7 +2277,8 @@ enum BundledLocalizationCatalogV1 {
                 includeReviewAndCorrectiveAction: includeReviewAndCorrectiveAction,
                 includeWorkPacket: includeWorkPacket,
                 includeWorkPacketManifest: includeWorkPacketManifest,
-                includePacketCoordination: includePacketCoordination
+                includePacketCoordination: includePacketCoordination,
+                includeFieldDraft: includeFieldDraft
             )
             guard case let .complete(_, _, _, _, actual) = publication,
                   actual == expected else { throw LocalizationContractFailureV1.digestMismatch }
@@ -2141,6 +2289,12 @@ enum BundledLocalizationCatalogV1 {
 
     static func localized(_ key: BundledLocalizationKeyV1, bundle: Bundle = .main) -> String {
         let locale = Locale(identifier: runtimeLanguage)
+        if let fieldDraftKey = FieldDraftLocalizationKeyV1(rawValue: key.rawValue) {
+            // C36 is English-only by policy.  Returning the typed default here
+            // keeps this path compatible with the dynamic bundled-key switch
+            // while preventing raw lifecycle values from becoming UI copy.
+            return fieldDraftKey.englishDefaultValue
+        }
         switch key {
         case .feedbackSubject:
             return String(localized: "feedback.mail.subject", defaultValue: "App feedback", bundle: bundle, locale: locale, comment: "Subject of the support email.")
@@ -2536,7 +2690,7 @@ enum BundledLocalizationCatalogV1 {
         // additive projection, while the selected registry still controls the
         // required subset.  This keeps C16/C38 compatibility callers frozen
         // and lets each additive typed surface publish atomically.
-        let supportedKeys = Set((try? workPacketRegistry())?.definitions.map(\.key.rawValue) ?? [])
+        let supportedKeys = Set((try? fieldDraftRegistry())?.definitions.map(\.key.rawValue) ?? [])
         guard registeredKeys.isSubset(of: Set(strings.keys)),
               Set(strings.keys).isSubset(of: supportedKeys) else {
             throw LocalizationContractFailureV1.invalidValue

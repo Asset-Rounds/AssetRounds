@@ -708,6 +708,36 @@ extension V10_03ReplicationConflictRegistryTests {
     }
 }
 
+extension V10_03ReplicationConflictRegistryTests {
+    func testV23P03C36ConflictPlanRejectsDivergentSagaAndKeepsExplicitChoicesClosed() throws {
+        let fixture = try C36FieldDraftTestSupportV1.makeFixture()
+        XCTAssertEqual(DraftConflictResolutionPlanV1.allCases, [
+            .reviewAndRebase, .commitAsCopy, .continueEditing, .discard
+        ])
+        XCTAssertEqual(fixture.recoverySaga.state, .recoveryRequired)
+        XCTAssertEqual(fixture.conflictedSaga.state, .conflicted)
+
+        let divergentPlan = try DraftCommitPlanV1(
+            planID: C36FieldDraftTestSupportV1.id(138_000), workspaceID: fixture.workspaceID,
+            draftID: fixture.draftID, draftRevision: fixture.plan.draftRevision,
+            baseCanonicalRevision: fixture.plan.baseCanonicalRevision,
+            payloadSHA256: fixture.plan.payloadSHA256, stageDigests: fixture.plan.stageDigests,
+            targetCommandKind: fixture.plan.targetCommandKind,
+            expectedTargetRevision: fixture.plan.expectedTargetRevision,
+            mutationID: try C36FieldDraftTestSupportV1.mutation(138_001), outputKeys: ["divergent"]
+        )
+        let divergentSaga = try DraftCommitSagaV1(
+            sagaID: C36FieldDraftTestSupportV1.id(138_002), workspaceID: fixture.workspaceID,
+            draftID: fixture.draftID, plan: divergentPlan, state: .contentPromotedUnbound,
+            predecessorSagaID: fixture.preparedSaga.sagaID, revision: 2,
+            mutationID: try C36FieldDraftTestSupportV1.mutation(138_003),
+            updatedAt: C36FieldDraftTestSupportV1.fixedDate.addingTimeInterval(30)
+        )
+        XCTAssertThrowsError(try divergentSaga.validateSuccessor(of: fixture.preparedSaga))
+        XCTAssertNotEqual(divergentSaga.plan.planSHA256, fixture.plan.planSHA256)
+    }
+}
+
 private struct ReplicationConflictPolicyCorpusFixtureV1: Decodable {
     struct InventoryExpectations: Decodable {
         let registrationCount: Int

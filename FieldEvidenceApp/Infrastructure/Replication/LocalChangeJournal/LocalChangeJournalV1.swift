@@ -260,12 +260,9 @@ final class LocalChangeJournalV1 {
         ))
         let recordSchemaSHA256 = try Self.sha256(RecordSchemaDigestBasis(
             recordsSchemaVersion: destination.recordsSchemaVersion,
-            orderedFields: destination.recordsSchemaVersion == 7
-                ? Self.v7BackupRecordFields
-                : (destination.recordsSchemaVersion == 6
-                    ? Self.v6BackupRecordFields
-                : (destination.recordsSchemaVersion == 5
-                    ? Self.v5BackupRecordFields : Self.v4BackupRecordFields))
+            orderedFields: Self.backupRecordFields(
+                for: destination.recordsSchemaVersion
+            )
         ))
         guard destination.workspaceIdentity == identity,
               destination.generationID == generationID,
@@ -442,6 +439,7 @@ final class LocalChangeJournalV1 {
             try Self.validateEvidenceAssuranceChange(change)
             try Self.validateInspectionReviewChange(change)
             try WorkPacketJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)
+            try FieldDraftJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)
             let disposition: MutationReplayDispositionV1
             if blocked {
                 disposition = try .init(mutationID: change.envelope.mutationID, disposition: .deferredGap, reasonCode: "PRIOR_CAUSAL_GAP")
@@ -657,8 +655,8 @@ final class LocalChangeJournalV1 {
         guard basis.workspaceIdentity == identity, basis.generationID == generationID else {
             throw ChangeJournalFailureV1.wrongGeneration
         }
-        guard basis.persistentSchemaVersion == 8,
-              basis.recordsSchemaVersion == 7 else {
+        guard basis.persistentSchemaVersion == 16,
+              basis.recordsSchemaVersion == 15 else {
             throw ChangeJournalFailureV1.incompatibleVersion
         }
         guard basis.memberInventory.map(\.path) == basis.memberInventory.map(\.path).sorted(),
@@ -710,7 +708,9 @@ final class LocalChangeJournalV1 {
             recordSchemaVersion: basis.recordsSchemaVersion,
             recordSchemaSHA256: try Self.sha256(RecordSchemaDigestBasis(
                 recordsSchemaVersion: basis.recordsSchemaVersion,
-                orderedFields: Self.v7BackupRecordFields
+                orderedFields: Self.backupRecordFields(
+                    for: basis.recordsSchemaVersion
+                )
             )),
             packages: packages,
             frontier: currentFrontier,
@@ -1136,6 +1136,14 @@ final class LocalChangeJournalV1 {
         case 6: return PersistentSchemaReleaseV1.v6.compatibilityID
         case 7: return PersistentSchemaReleaseV1.v7.compatibilityID
         case 8: return PersistentSchemaReleaseV1.v8.compatibilityID
+        case 9: return PersistentSchemaReleaseV1.v9.compatibilityID
+        case 10: return PersistentSchemaReleaseV1.v10.compatibilityID
+        case 11: return PersistentSchemaReleaseV1.v11.compatibilityID
+        case 12: return PersistentSchemaReleaseV1.v12.compatibilityID
+        case 13: return PersistentSchemaReleaseV1.v13.compatibilityID
+        case 14: return PersistentSchemaReleaseV1.v14.compatibilityID
+        case 15: return PersistentSchemaReleaseV1.v15.compatibilityID
+        case 16: return PersistentSchemaReleaseV1.v16.compatibilityID
         default: throw ChangeJournalFailureV1.incompatibleVersion
         }
     }
@@ -1391,6 +1399,22 @@ final class LocalChangeJournalV1 {
         "recordsSchemaVersion", "reports", "requirementAssurance", "savedSmartViews",
         "sites", "workflowRecords",
     ]
+
+    private static func backupRecordFields(for version: Int) -> [String] {
+        if version <= 4 { return v4BackupRecordFields }
+        if version == 5 { return v5BackupRecordFields }
+        if version == 6 { return v6BackupRecordFields }
+        var fields = v7BackupRecordFields
+        if version >= 8 { fields.append("partyAccountability") }
+        if version >= 9 { fields.append("assetSemantics") }
+        if version >= 10 { fields.append("authorityCriterion") }
+        if version >= 11 { fields.append("functionalRelationships") }
+        if version >= 12 { fields.append("evidenceAssurance") }
+        if version >= 13 { fields.append("inspectionReview") }
+        if version >= 14 { fields.append("workPackets") }
+        if version >= 15 { fields.append("fieldDrafts") }
+        return fields.sorted()
+    }
 
     private static let decoder: JSONDecoder = {
         let value = JSONDecoder()

@@ -16,6 +16,176 @@ enum ContentIntegrityFailureV1: Error, Equatable, Sendable {
     case partialEffect
 }
 
+/// The one bridge from C36's verified, noncanonical draft bytes into the
+/// existing C05 immutable-content writer.  This request carries metadata only;
+/// the bytes are supplied separately and are never assigned an EvidenceID.
+struct DraftImmutableContentWriteRequestV1: Equatable, Hashable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let workspaceID: WorkspaceID
+    let contentID: String
+    let digest: ContentDigestV1
+    let byteLength: Int64
+    let mediaType: String
+    let mutationID: MutationIDV1
+    let createdAt: String
+
+    init(
+        workspaceID: WorkspaceID,
+        contentID: String,
+        digest: ContentDigestV1,
+        byteLength: Int64,
+        mediaType: String,
+        mutationID: MutationIDV1,
+        createdAt: String
+    ) throws {
+        schemaVersion = Self.schemaVersion
+        self.workspaceID = workspaceID
+        self.contentID = contentID
+        self.digest = digest
+        self.byteLength = byteLength
+        self.mediaType = mediaType
+        self.mutationID = mutationID
+        self.createdAt = createdAt
+        try validate()
+    }
+
+    /// The content namespace is inside the C05 generation root.  It is a
+    /// content-ID path, not an EvidenceID path, and is therefore safe for
+    /// audio/video/file attachments as well as JPEGs.
+    var relativePath: String {
+        "content/\(workspaceID.rawValue.uuidString.lowercased())/\(contentID)/original.bin"
+    }
+
+    /// Locators are scoped by WorkspaceID, so the content ID is sufficient for
+    /// a stable locator identity without manufacturing an EvidenceID.
+    var locatorID: String { "c05-\(contentID)" }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              workspaceID.rawValue != Self.zero,
+              ContentContractValidationV1.validID(workspaceString),
+              validPathComponent(contentID),
+              ContentContractValidationV1.validID(locatorID),
+              digest.algorithm == .sha256,
+              byteLength >= 0,
+              ContentContractValidationV1.validMediaType(mediaType),
+              mutationID.rawValue != Self.zero,
+              FindingContractValidationV1.validInstant(createdAt) else {
+            throw DraftImmutableContentWriterFailureV1.invalidRequest
+        }
+    }
+
+    private var workspaceString: String {
+        workspaceID.rawValue.uuidString.lowercased()
+    }
+
+    private func validPathComponent(_ value: String) -> Bool {
+        ContentContractValidationV1.validID(value)
+            && value != "." && value != ".."
+    }
+
+    private static let zero = UUID(uuid: (
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    ))
+}
+
+enum DraftImmutableContentWriterFailureV1: Error, Equatable, Sendable {
+    case invalidRequest
+    case wrongWorkspace
+    case digestMismatch
+    case byteLengthMismatch
+    case mediaTypeMismatch
+    case pathMismatch
+    case immutableConflict
+}
+
+/// Result returned only after C05 has durably written and read back the exact
+/// immutable bytes.  The result is the metadata source for C36's reservation.
+struct DraftImmutableContentWriteReceiptV1: Equatable, Hashable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let workspaceID: WorkspaceID
+    let contentID: String
+    let locatorID: String
+    let relativePath: String
+    let digest: ContentDigestV1
+    let byteLength: Int64
+    let mediaType: String
+    let byteRole: ContentByteRoleV1
+    let createdAt: String
+    let mutationID: MutationIDV1
+    let reusedExistingBytes: Bool
+
+    init(
+        request: DraftImmutableContentWriteRequestV1,
+        relativePath: String,
+        reusedExistingBytes: Bool
+    ) throws {
+        try request.validate()
+        guard relativePath == request.relativePath else {
+            throw DraftImmutableContentWriterFailureV1.pathMismatch
+        }
+        schemaVersion = Self.schemaVersion
+        workspaceID = request.workspaceID
+        contentID = request.contentID
+        locatorID = request.locatorID
+        self.relativePath = relativePath
+        digest = request.digest
+        byteLength = request.byteLength
+        mediaType = request.mediaType
+        byteRole = .immutableOriginal
+        createdAt = request.createdAt
+        mutationID = request.mutationID
+        self.reusedExistingBytes = reusedExistingBytes
+    }
+
+    func validate(
+        request: DraftImmutableContentWriteRequestV1,
+        bytes: Data
+    ) throws {
+        try request.validate()
+        guard schemaVersion == Self.schemaVersion,
+              workspaceID == request.workspaceID,
+              contentID == request.contentID,
+              locatorID == request.locatorID,
+              relativePath == request.relativePath,
+              digest == request.digest,
+              byteLength == request.byteLength,
+              mediaType == request.mediaType,
+              byteRole == .immutableOriginal,
+              createdAt == request.createdAt,
+              mutationID == request.mutationID else {
+            throw DraftImmutableContentWriterFailureV1.pathMismatch
+        }
+        guard Int64(bytes.count) == request.byteLength else {
+            throw DraftImmutableContentWriterFailureV1.byteLengthMismatch
+        }
+        let observed = try ContentIntegrityV1.observe(
+            workspaceID: request.workspaceID.rawValue.uuidString.lowercased(),
+            contentID: request.contentID,
+            data: bytes,
+            mediaType: request.mediaType,
+            algorithms: ContentDigestAlgorithmV1.allCases
+                .filter { $0 == .sha256 || $0 == request.digest.algorithm }
+        )
+        guard observed.digests.digest(for: request.digest.algorithm) == request.digest else {
+            throw DraftImmutableContentWriterFailureV1.digestMismatch
+        }
+    }
+}
+
+/// C05 remains the sole immutable byte writer/root.  C36 may only submit a
+/// complete, already-verified item through this reservation-aware seam.
+protocol DraftImmutableContentWriterV1: Sendable {
+    func persistImmutableOriginal(
+        bytes: Data,
+        request: DraftImmutableContentWriteRequestV1
+    ) async throws -> DraftImmutableContentWriteReceiptV1
+}
+
 struct ContentObservedBytesV1: Equatable, Sendable {
     let workspaceID: String
     let contentID: String
@@ -213,5 +383,108 @@ extension ContentIntegrityReceiptV1 {
         verifiedDigest = digest
         verifiedByteLength = byteLength
         verifiedMediaType = mediaType
+    }
+}
+
+// MARK: - C36 draft promotion boundary
+
+/// A promotion receipt for a draft attachment is deliberately keyed by the
+/// draft/stage/content digest tuple.  It contains no EvidenceID and therefore
+/// cannot make a pre-commit attachment look like canonical evidence.
+struct DraftContentPromotionReceiptV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let reservationID: UUID
+    let workspaceID: WorkspaceID
+    let draftID: UUID
+    let stageID: UUID
+    let contentDigest: ContentDigestV1
+    let locator: ContentLocatorV1
+    let byteLength: Int64
+    let mediaType: String
+    let immutableOriginal: Bool
+    let createdAt: Date
+
+    init(
+        reservation: DraftContentReservationV1,
+        reference: ContentReferenceV1,
+        createdAt: Date
+    ) throws {
+        try ContentIntegrityV1.validateDraftReservation(
+            reservation,
+            reference: reference
+        )
+        guard createdAt.timeIntervalSinceReferenceDate.isFinite else {
+            throw ContentIntegrityFailureV1.partialEffect
+        }
+        schemaVersion = Self.schemaVersion
+        reservationID = reservation.reservationID
+        workspaceID = reservation.workspaceID
+        draftID = reservation.draftID
+        stageID = reservation.stageID
+        contentDigest = reservation.contentDigest
+        locator = reservation.locator
+        byteLength = reference.byteLength
+        mediaType = reference.mediaType
+        immutableOriginal = reference.byteRole == .immutableOriginal
+        self.createdAt = createdAt
+    }
+
+    func validate(reference: ContentReferenceV1) throws {
+        guard schemaVersion == Self.schemaVersion,
+              immutableOriginal,
+              byteLength == reference.byteLength,
+              mediaType == reference.mediaType,
+              createdAt.timeIntervalSinceReferenceDate.isFinite else {
+            throw ContentIntegrityFailureV1.partialEffect
+        }
+        guard reference.workspaceID == workspaceID.rawValue.uuidString.lowercased(),
+              locator.workspaceID == reference.workspaceID,
+              locator.contentID == reference.contentID,
+              locator.contentDigest == contentDigest,
+              reference.digests.digest(for: contentDigest.algorithm) == contentDigest else {
+            throw ContentIntegrityFailureV1.digestMismatch
+        }
+    }
+}
+
+enum DraftContentPromotionBoundaryV1 {
+    static let assignsEvidenceID = false
+    static let writesCanonicalBytes = true
+    static let requiresImmutableContentWriter = true
+    static let byteRole: ContentByteRoleV1 = .immutableOriginal
+
+    static func validate(
+        reservation: DraftContentReservationV1,
+        reference: ContentReferenceV1
+    ) throws {
+        try ContentIntegrityV1.validateDraftReservation(
+            reservation,
+            reference: reference
+        )
+    }
+}
+
+extension ContentIntegrityV1 {
+    /// Validates the metadata-only reservation made by the C36 staging
+    /// adapter.  This is intentionally separate from `verify(reference:...)`
+    /// because a reservation has no bytes and no EvidenceID yet.
+    static func validateDraftReservation(
+        _ reservation: DraftContentReservationV1,
+        reference: ContentReferenceV1
+    ) throws {
+        try reservation.validate()
+        guard reservation.workspaceID.rawValue.uuidString.lowercased() == reference.workspaceID,
+              reservation.contentDigest == reference.digests.digest(
+                  for: reservation.contentDigest.algorithm
+              ),
+              reservation.locator.workspaceID == reference.workspaceID,
+              reservation.locator.contentID == reference.contentID,
+              reservation.locator.contentDigest == reservation.contentDigest,
+              reservation.locator.expectedByteLength == reference.byteLength,
+              reference.byteRole == .immutableOriginal else {
+            throw ContentIntegrityFailureV1.digestMismatch
+        }
     }
 }

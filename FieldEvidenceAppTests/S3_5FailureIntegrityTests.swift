@@ -613,3 +613,61 @@ private struct EvidenceAuthority {
 private enum FailureFixtureError: Error {
     case couldNotCreateImage
 }
+
+extension S3_5FailureIntegrityTests {
+    func testC36PrePromotionRejectsEvidenceIdentityAndInvalidStage() throws {
+        XCTAssertFalse(DraftContentPromotionBoundaryV1.assignsEvidenceID)
+        XCTAssertTrue(DraftContentPromotionBoundaryV1.writesCanonicalBytes)
+        XCTAssertTrue(DraftContentPromotionBoundaryV1.requiresImmutableContentWriter)
+        XCTAssertTrue(EvidenceBundleStoreC36GuardV1.prePromotionRequiresNoEvidenceID)
+
+        let draftID = UUID(uuidString: "30000000-0000-0000-0000-000000000001")!
+        let stageID = UUID(uuidString: "30000000-0000-0000-0000-000000000002")!
+        XCTAssertNoThrow(
+            try EvidenceBundleStoreC36GuardV1.validatePrePromotion(
+                stageID: stageID,
+                draftID: draftID
+            )
+        )
+        XCTAssertThrowsError(
+            try EvidenceBundleStoreC36GuardV1.validatePrePromotion(
+                stageID: UUID(),
+                draftID: draftID,
+                evidenceID: UUID()
+            )
+        )
+    }
+
+    func testC36WriterReceiptBindsExactBytesWithoutEvidencePath() throws {
+        let workspaceID = WorkspaceID(rawValue: UUID(uuidString: "30000000-0000-0000-0000-000000000011")!)
+        let mutationID = try MutationIDV1(
+            rawValue: UUID(uuidString: "30000000-0000-0000-0000-000000000012")!
+        )
+        let bytes = Data("c36-payload".utf8)
+        let digest = try ContentDigestV1(
+            algorithm: .sha256,
+            hexadecimalValue: "91f66597b62bf37789b428f57cc43330354ce71aed4f441e0167dcf656171c65"
+        )
+        let request = try DraftImmutableContentWriteRequestV1(
+            workspaceID: workspaceID,
+            contentID: "draft-content-\(workspaceID.rawValue.uuidString.lowercased())-\(digest.hexadecimalValue)",
+            digest: digest,
+            byteLength: Int64(bytes.count),
+            mediaType: "application/octet-stream",
+            mutationID: mutationID,
+            createdAt: "2026-01-01T00:00:00.000Z"
+        )
+        let receipt = try DraftImmutableContentWriteReceiptV1(
+            request: request,
+            relativePath: request.relativePath,
+            reusedExistingBytes: false
+        )
+        XCTAssertFalse(receipt.relativePath.contains("evidence/"))
+        XCTAssertNoThrow(try receipt.validate(request: request, bytes: bytes))
+        XCTAssertThrowsError(
+            try receipt.validate(request: request, bytes: Data("changed".utf8))
+        ) { error in
+            XCTAssertEqual(error as? DraftImmutableContentWriterFailureV1, .byteLengthMismatch)
+        }
+    }
+}

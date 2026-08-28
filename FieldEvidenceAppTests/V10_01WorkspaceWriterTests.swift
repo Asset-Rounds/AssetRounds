@@ -528,6 +528,28 @@ extension V10_01WorkspaceWriterTests {
     }
 }
 
+extension V10_01WorkspaceWriterTests {
+    func testV23P03C36WriterMutationUsesOneTypedDraftPostImageAndCASIdentity() throws {
+        let fixture = try C36FieldDraftTestSupportV1.makeFixture()
+        let mutation = try FieldDraftMutationV1(
+            workspaceID: fixture.workspaceID, expectedRevision: 0,
+            expectedBaseCanonicalRevision: fixture.activeCheckpoint.baseCanonicalRevision,
+            mutationID: fixture.activeCheckpoint.mutationID,
+            postImage: .createCheckpoint(fixture.activeCheckpoint)
+        )
+        try mutation.validate()
+        XCTAssertEqual(try mutation.affectedIdentity.kind, .fieldDraftCheckpoint)
+        XCTAssertEqual(try mutation.concurrencyIdentity.kind, .fieldDraftCheckpoint)
+        XCTAssertEqual(WorkspaceCommandV1.applyFieldDraft(mutation).kind, .applyFieldDraft)
+        XCTAssertEqual(try mutation.affectedIdentity.id, fixture.draftID)
+        XCTAssertEqual(try mutation.canonicalSHA256().count, 64)
+
+        let stagingPayload = FieldDraftMutationPayloadV1.appendStagingItem(fixture.readyItem)
+        XCTAssertEqual(stagingPayload.workspaceID, fixture.workspaceID)
+        XCTAssertEqual(try stagingPayload.affectedIdentity.kind, .attachmentStagingItem)
+    }
+}
+
 @MainActor
 private final class TestWorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
     private(set) var applyCount = 0

@@ -1061,3 +1061,38 @@ private struct SeededRecovery {
 }
 
 private enum ResumeFixtureError: Error { case image }
+
+extension S3_4ResumeRecoveryTests {
+    func testC36AttachmentProcessingJobResumesFromDurableCheckpoint() throws {
+        let workspaceID = WorkspaceID(rawValue: UUID(uuidString: "20000000-0000-0000-0000-000000000001")!)
+        let draftID = UUID(uuidString: "20000000-0000-0000-0000-000000000002")!
+        let stageID = UUID(uuidString: "20000000-0000-0000-0000-000000000003")!
+        let request = try DraftAttachmentJobRequestV1(
+            workspaceID: workspaceID,
+            draftID: draftID,
+            stageID: stageID,
+            stageSHA256: String(repeating: "b", count: 64),
+            stagingRelativePath: "draft-(draftID.uuidString.lowercased())/stage-(stageID.uuidString.lowercased())/payload.bin",
+            totalUnitCount: 3,
+            createdAt: Date(timeIntervalSince1970: 1)
+        )
+        let job = try ResumableLocalJobV1.draftAttachmentProcessing(request)
+
+        try job.validate()
+        XCTAssertTrue(job.isDraftAttachmentProcessing)
+        XCTAssertEqual(job.checkpoint.completedUnitCount, 0)
+        XCTAssertEqual(job.checkpoint.totalUnitCount, 3)
+
+        let restoreReceipt = try DraftAttachmentRestorePublicationReceiptV1(
+            restoreID: UUID(uuidString: "20000000-0000-0000-0000-000000000004")!,
+            workspaceID: workspaceID,
+            sourceManifestSHA256: String(repeating: "c", count: 64),
+            adoptedStageIDs: [stageID],
+            reusedStageIDs: [],
+            publishedAt: Date(timeIntervalSince1970: 2)
+        )
+        try restoreReceipt.validate()
+        XCTAssertFalse(restoreReceipt.atomicAcrossRoots)
+        XCTAssertTrue(restoreReceipt.canonicalCommitRequired)
+    }
+}

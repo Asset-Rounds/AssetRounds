@@ -44,6 +44,12 @@ final class BackupExportService {
     private static let checkpointBasisExportedAt = Date(timeIntervalSince1970: 0)
 
     private struct Rows {
+        let fieldDraftCheckpoints: [FieldDraftCheckpointRow]
+        let attachmentStagingItems: [AttachmentStagingItemRow]
+        let draftCommitSagas: [DraftCommitSagaRow]
+        let draftContentReservations: [DraftContentReservationRow]
+        let draftCommitReceipts: [DraftCommitReceiptRow]
+        let draftDiscardReceipts: [DraftDiscardReceiptRow]
         let workPacketManifests:[WorkPacketManifestRow];let workItemClaims:[WorkItemClaimRow]
         let workLeases:[WorkLeaseRow];let workReleases:[WorkReleaseRow];let workHandoffs:[WorkHandoffRow]
         let inspectionReviewTransitions: [InspectionReviewTransitionRow]
@@ -99,6 +105,7 @@ final class BackupExportService {
         enum Location: Equatable, Sendable {
             case generatedRecords
             case generationRelative(String)
+            case draftRelative(String)
         }
 
         let path: String
@@ -509,6 +516,14 @@ final class BackupExportService {
             device: UInt64(pinnedGenerationRootIdentity.device),
             inode: UInt64(pinnedGenerationRootIdentity.inode)
         )
+        let draftSourceRoot = generationRootURL.deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent(DraftAttachmentStagingAdapterV1.directoryName,isDirectory:true)
+        let draftDescriptor = Darwin.open(draftSourceRoot.path,O_RDONLY|O_DIRECTORY|O_NOFOLLOW)
+        var draftInfo = stat()
+        let hasDraftSources = frozen.sources.contains { if case .draftRelative = $0.location{return true};return false }
+        guard !hasDraftSources || (draftDescriptor >= 0 && Darwin.fstat(draftDescriptor,&draftInfo)==0 && (draftInfo.st_mode&S_IFMT)==S_IFDIR) else { if draftDescriptor>=0{Darwin.close(draftDescriptor)};throw BackupExportServiceError.invalidGeneration }
+        if draftDescriptor>=0{Darwin.close(draftDescriptor)}
+        let draftSourceRootIdentity = StreamingArchiveRootIdentityV1(device:UInt64(draftInfo.st_dev),inode:UInt64(draftInfo.st_ino))
 
         let manifestSource = stagingRoot.appendingPathComponent(
             ".backup-export-\(uuid(previewID))-manifest.json"
@@ -554,6 +569,10 @@ final class BackupExportService {
                     sourceRootURL = generationRootURL
                     sourceRelativePath = relativePath
                     expectedSourceRootIdentity = generationSourceRootIdentity
+                case .draftRelative(let relativePath):
+                    sourceRootURL = draftSourceRoot
+                    sourceRelativePath = relativePath
+                    expectedSourceRootIdentity = draftSourceRootIdentity
                 }
                 return StreamingArchiveWriteEntryV1(
                     path: source.path,
@@ -682,6 +701,7 @@ private extension BackupExportService {
         do {
             recordsData = try BackupCanonicalEncoderV1().encodeRecords(records).data
             let semanticRecords = V4BackupRecordsV1(
+                fieldDrafts: records.fieldDrafts,
                 workPackets: records.workPackets,
                 inspectionReview: records.inspectionReview,
                 evidenceAssurance: records.evidenceAssurance,
@@ -776,6 +796,16 @@ private extension BackupExportService {
                 sha256: evidence.thumbnailSHA256,
                 location: .generationRelative(evidence.thumbnailRelativePath)
             ))
+        }
+
+        for item in try rows.attachmentStagingItems.map({try $0.value()}).sorted(by:{$0.stageID.uuidString<$1.stageID.uuidString}){
+            guard let byteCount=item.actualByteCount else{continue}
+            let relative=DraftAttachmentStagingAdapterV1.relativeDataPath(draftID:item.draftID,stageID:item.stageID)
+            let draftRoot=generationRootURL.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent(DraftAttachmentStagingAdapterV1.directoryName,isDirectory:true)
+            let bytes=try Data(contentsOf:draftRoot.appendingPathComponent(relative),options:.mappedIfSafe)
+            let expectedSHA=item.contentReference?.digests.digest(for:.sha256)?.hexadecimalValue ?? (item.contentDigest?.algorithm == .sha256 ? item.contentDigest?.hexadecimalValue:nil)
+            guard bytes.count==Int(byteCount),let expectedSHA,CanonicalJSONV1.sha256(bytes)==expectedSHA else{throw BackupExportServiceError.invalidAuthority}
+            sources.append(.init(path:"draft-staging/\(uuid(item.draftID))/\(uuid(item.stageID)).bin",mimeType:"application/octet-stream",byteCount:bytes.count,sha256:expectedSHA,location:.draftRelative(relative)))
         }
 
         for report in rows.reports.sorted(by: { uuid($0.id) < uuid($1.id) }) {
@@ -911,9 +941,9 @@ private extension BackupExportService {
             source: .init(
                 appBuild: appBuild(),
                 appVersion: appVersion(),
-                persistentSchemaVersion: 15,
+                persistentSchemaVersion: 16,
                 replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: 14,
+                recordsSchemaVersion: 15,
                 sourceGenerationID: generationID,
                 workspaceID: sourceIdentity.workspaceID.rawValue
             )
@@ -1056,6 +1086,19 @@ private extension BackupExportService {
                 mimeType: "image/jpeg",
                 data: thumbnail
             ))
+        }
+
+        for item in try rows.attachmentStagingItems.map({ try $0.value() }).sorted(by: { uuid($0.stageID) < uuid($1.stageID) }) {
+            guard let byteCount = item.actualByteCount else { continue }
+            let relative = DraftAttachmentStagingAdapterV1.relativeDataPath(draftID:item.draftID,stageID:item.stageID)
+            let dataRoot = generationRootURL.deletingLastPathComponent().deletingLastPathComponent()
+            let url = dataRoot.appendingPathComponent(DraftAttachmentStagingAdapterV1.directoryName,isDirectory:true).appendingPathComponent(relative)
+            let bytes = try Data(contentsOf:url,options:.mappedIfSafe)
+            let expectedSHA = item.contentReference?.digests.digest(for:.sha256)?.hexadecimalValue
+                ?? (item.contentDigest?.algorithm == .sha256 ? item.contentDigest?.hexadecimalValue : nil)
+            guard bytes.count == Int(byteCount), let expectedSHA,
+                  CanonicalJSONV1.sha256(bytes) == expectedSHA else { throw BackupExportServiceError.invalidAuthority }
+            members.append(.init(path:"draft-staging/\(uuid(item.draftID))/\(uuid(item.stageID)).bin",mimeType:"application/octet-stream",data:bytes))
         }
 
         for report in rows.reports.sorted(by: { uuid($0.id) < uuid($1.id) }) {
@@ -1428,6 +1471,12 @@ private extension BackupExportService {
     private func fetchRows() throws -> Rows {
         do {
             return Rows(
+                fieldDraftCheckpoints: try modelContext.fetch(FetchDescriptor<FieldDraftCheckpointRow>()),
+                attachmentStagingItems: try modelContext.fetch(FetchDescriptor<AttachmentStagingItemRow>()),
+                draftCommitSagas: try modelContext.fetch(FetchDescriptor<DraftCommitSagaRow>()),
+                draftContentReservations: try modelContext.fetch(FetchDescriptor<DraftContentReservationRow>()),
+                draftCommitReceipts: try modelContext.fetch(FetchDescriptor<DraftCommitReceiptRow>()),
+                draftDiscardReceipts: try modelContext.fetch(FetchDescriptor<DraftDiscardReceiptRow>()),
                 workPacketManifests:try modelContext.fetch(FetchDescriptor<WorkPacketManifestRow>()),workItemClaims:try modelContext.fetch(FetchDescriptor<WorkItemClaimRow>()),workLeases:try modelContext.fetch(FetchDescriptor<WorkLeaseRow>()),workReleases:try modelContext.fetch(FetchDescriptor<WorkReleaseRow>()),workHandoffs:try modelContext.fetch(FetchDescriptor<WorkHandoffRow>()),
                 inspectionReviewTransitions: try modelContext.fetch(FetchDescriptor<InspectionReviewTransitionRow>()),
                 reviewDispositions: try modelContext.fetch(FetchDescriptor<ReviewDispositionRow>()),
@@ -1558,6 +1607,7 @@ private extension BackupExportService {
             throw BackupExportServiceError.invalidAuthority
         }
         try validateAssetSemanticRows(rows, deletionLedger: deletionLedger)
+        try validateFieldDraftRows(rows, workspaceID: sourceIdentity.workspaceID)
         let siteIDs = Set(rows.sites.map(\.id))
         let assetIDs = Set(rows.assets.map(\.id))
         let recordIDs = Set(rows.records.map(\.id))
@@ -1716,6 +1766,29 @@ private extension BackupExportService {
               unique(rows.reports.compactMap(\.replacesReportID)) else {
             throw BackupExportServiceError.invalidAuthority
         }
+    }
+
+    private func validateFieldDraftRows(_ rows: Rows, workspaceID: WorkspaceID) throws {
+        let checkpoints = try rows.fieldDraftCheckpoints.map { try $0.value() }
+        let stages = try rows.attachmentStagingItems.map { try $0.value() }
+        let sagas = try rows.draftCommitSagas.map { try $0.value() }
+        let reservations = try rows.draftContentReservations.map { try $0.value() }
+        let commitReceipts = try rows.draftCommitReceipts.map { try $0.value() }
+        let discardReceipts = try rows.draftDiscardReceipts.map { try $0.value() }
+        let checkpointByID = Dictionary(uniqueKeysWithValues: checkpoints.map { ($0.draftID, $0) })
+        let stageByID = Dictionary(uniqueKeysWithValues: stages.map { ($0.stageID, $0) })
+        let sagaByID = Dictionary(uniqueKeysWithValues: sagas.map { ($0.sagaID, $0) })
+        let reservationByID = Dictionary(uniqueKeysWithValues: reservations.map { ($0.reservationID, $0) })
+        guard (checkpoints.map(\.workspaceID) + stages.map(\.workspaceID) + sagas.map(\.workspaceID)
+                + reservations.map(\.workspaceID) + commitReceipts.map(\.workspaceID)
+                + discardReceipts.map(\.workspaceID)).allSatisfy({ $0 == workspaceID }),
+              checkpoints.allSatisfy({ checkpoint in checkpoint.stageIDs.allSatisfy { stageByID[$0]?.draftID == checkpoint.draftID } }),
+              stages.allSatisfy({ checkpointByID[$0.draftID]?.stageIDs.contains($0.stageID) == true }),
+              reservations.allSatisfy({ reservation in stageByID[reservation.stageID]?.draftID == reservation.draftID && checkpointByID[reservation.draftID] != nil }),
+              sagas.allSatisfy({ checkpointByID[$0.draftID] != nil && ($0.predecessorSagaID == nil || sagaByID[$0.predecessorSagaID!]?.draftID == $0.draftID) }),
+              commitReceipts.allSatisfy({ sagaByID[$0.sagaID]?.draftID == $0.draftID }),
+              discardReceipts.allSatisfy({ receipt in receipt.disposedStageIDs.allSatisfy { stageByID[$0]?.draftID == receipt.draftID } && receipt.quarantinedReservationIDs.allSatisfy { reservationByID[$0]?.draftID == receipt.draftID } })
+        else { throw BackupExportServiceError.invalidAuthority }
     }
 
     private func lifecycleProfile(
@@ -1923,7 +1996,9 @@ private extension BackupExportService {
         let evidenceAssurance = mutationHistory == nil ? [] : try evidenceAssuranceRecords(rows)
         let inspectionReview = mutationHistory == nil ? [] : try inspectionReviewRecords(rows)
         let workPackets = mutationHistory == nil ? [] : try workPacketRecords(rows)
+        let fieldDrafts = mutationHistory == nil ? [] : try fieldDraftRecords(rows)
         return V4BackupRecordsV1(
+            fieldDrafts: fieldDrafts,
             workPackets:workPackets,
             inspectionReview: inspectionReview,
             evidenceAssurance: evidenceAssurance,
@@ -1978,7 +2053,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : 14,
+                : 15,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -2042,6 +2117,17 @@ private extension BackupExportService {
         result += try rows.workReleases.map{let v=try $0.value();return .init(kind:.release,id:v.releaseID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try WorkPacketCanonicalCodecV1.encode(v))}
         result += try rows.workHandoffs.map{let v=try $0.value();return .init(kind:.handoff,id:v.handoffID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try WorkPacketCanonicalCodecV1.encode(v))}
         return result.sorted{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"}
+    }
+
+    private func fieldDraftRecords(_ rows: Rows) throws -> [V16BackupFieldDraftRecordV1] {
+        var result: [V16BackupFieldDraftRecordV1] = []
+        result += try rows.fieldDraftCheckpoints.map { let v = try $0.value(); return .init(kind: .checkpoint, id: v.draftID, workspaceID: v.workspaceID.rawValue, revision: v.draftRevision, canonicalData: try FieldDraftCanonicalCodecV1.encode(v)) }
+        result += try rows.attachmentStagingItems.map { let v = try $0.value(); return .init(kind: .stagingItem, id: v.stageID, workspaceID: v.workspaceID.rawValue, revision: v.revision, canonicalData: try FieldDraftCanonicalCodecV1.encode(v)) }
+        result += try rows.draftCommitSagas.map { let v = try $0.value(); return .init(kind: .commitSaga, id: v.sagaID, workspaceID: v.workspaceID.rawValue, revision: v.revision, canonicalData: try FieldDraftCanonicalCodecV1.encode(v)) }
+        result += try rows.draftContentReservations.map { let v = try $0.value(); return .init(kind: .contentReservation, id: v.reservationID, workspaceID: v.workspaceID.rawValue, revision: v.revision, canonicalData: try FieldDraftCanonicalCodecV1.encode(v)) }
+        result += try rows.draftCommitReceipts.map { let v = try $0.value(); return .init(kind: .commitReceipt, id: v.receiptID, workspaceID: v.workspaceID.rawValue, revision: v.revision, canonicalData: try FieldDraftCanonicalCodecV1.encode(v)) }
+        result += try rows.draftDiscardReceipts.map { let v = try $0.value(); return .init(kind: .discardReceipt, id: v.receiptID, workspaceID: v.workspaceID.rawValue, revision: v.revision, canonicalData: try FieldDraftCanonicalCodecV1.encode(v)) }
+        return result.sorted { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)" }
     }
 
     private func functionalRelationshipRecords(

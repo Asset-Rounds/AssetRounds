@@ -310,3 +310,12 @@ private actor CommerceRuntimeProbe {
     func recordSync() { syncCount += 1 }
     func recordFinish() { finishCount += 1 }
 }
+
+extension S7_5DataRightsIntegrationTests {
+    func testC36StagingBytesRemainOutsideBackupAndExport() {
+        XCTAssertTrue(LocalContentStoreDraftBoundaryV1.requiresCanonicalCommit)
+        XCTAssertFalse(LocalContentStoreDraftBoundaryV1.carriesEvidenceID)
+        XCTAssertFalse(LocalContentStoreDraftBoundaryV1.storesStagingBytes)
+        XCTAssertTrue(OwnedStorageLedgerV1.c36StagingExcludedFromBackup)
+    }
+}

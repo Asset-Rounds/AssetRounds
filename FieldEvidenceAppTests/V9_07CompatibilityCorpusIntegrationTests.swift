@@ -591,6 +591,21 @@ extension V9_07CompatibilityCorpusIntegrationTests {
     }
 }
 
+extension V9_07CompatibilityCorpusIntegrationTests {
+    func testV23P03C36CorpusBindsAllFiveEvidenceSelectorsAndSchemaBoundary() throws {
+        let source = try XCTUnwrap(String(data: Data(contentsOf: C36FieldDraftTestSupportV1.corpusURL()), encoding: .utf8))
+        XCTAssertTrue(source.contains("V23-P03-C36"))
+        XCTAssertTrue(source.contains("\"persistentModelCount\": 64"))
+        XCTAssertTrue(source.contains("\"recordsSchemaVersion\": 15"))
+        for selector in ["G01", "A01", "H01", "I01", "R01"] {
+            XCTAssertTrue(source.contains("V23-P03-C36-\(selector)"))
+        }
+        XCTAssertTrue(source.contains("\"noSecondWriter\": true"))
+        XCTAssertTrue(source.contains("\"noSecondStore\": true"))
+        XCTAssertTrue(source.contains("\"recordsAreCanonicalOnlyAfterCommit\": true"))
+    }
+}
+
 @MainActor
 private func restorePointer(
     factory: StoreGenerationFactory,

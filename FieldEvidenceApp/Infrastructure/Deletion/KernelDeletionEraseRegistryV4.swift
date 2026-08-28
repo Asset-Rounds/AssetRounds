@@ -220,6 +220,7 @@ enum KernelDeletionEraseRegistryV4 {
     static let evidenceAssuranceDeleteKinds = V13BackupEvidenceAssuranceRecordV1.Kind.allCases
     static let inspectionReviewDeleteKinds = V14BackupInspectionReviewRecordV1.Kind.allCases
     static let workPacketDeleteKinds=V15BackupWorkPacketRecordV1.Kind.allCases
+    static let fieldDraftDeleteKinds = V16BackupFieldDraftRecordV1.Kind.allCases
 
     static func validateFunctionalRelationshipLifecycle() throws {
         guard functionalRelationshipDeleteKinds.count == 2,
@@ -241,6 +242,10 @@ enum KernelDeletionEraseRegistryV4 {
         try InspectionReviewDeletionLedgerPolicyV1.validate()
     }
     static func validateWorkPacketLifecycle()throws{guard workPacketDeleteKinds.count==5 else{throw KernelPersistenceV4Failure.incompleteCoverage}}
+    static func validateFieldDraftLifecycle() throws {
+        guard fieldDraftDeleteKinds.count == 6 else { throw KernelPersistenceV4Failure.incompleteCoverage }
+        try FieldDraftDeletionLedgerPolicyV1.validate()
+    }
     /// Search V1 has one canonical workspace-owned record and one disposable
     /// local projection. Keeping these routes beside the kernel registry makes
     /// delete/Erase audits distinguish canonical deletion from index rebuild.
@@ -292,6 +297,7 @@ enum KernelDeletionEraseRegistryV4 {
         try validateEvidenceAssuranceLifecycle()
         try validateInspectionReviewLifecycle()
         try validateWorkPacketLifecycle()
+        try validateFieldDraftLifecycle()
         try validateSearchLifecycle()
         try validate(registrations)
     }

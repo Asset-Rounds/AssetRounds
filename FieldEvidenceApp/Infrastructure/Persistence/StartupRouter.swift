@@ -9,12 +9,14 @@ enum StartupMaintenanceReason: String, CaseIterable, Error, Sendable {
     case mediaInconsistent = "media_inconsistent"
     case restoreInconsistent = "restore_inconsistent"
     case eraseInconsistent = "erase_inconsistent"
+    case fieldDraftInconsistent = "field_draft_inconsistent"
 }
 
 enum StartupStep: String, CaseIterable, Sendable {
     case erase
     case restore
     case currentOpen
+    case fieldDraft
     case finalization
     case deletion
     case media
@@ -147,6 +149,15 @@ final class StartupRouter: ObservableObject {
             let coordinator = try StoreSessionCoordinator(
                 validatingSession: session
             )
+
+            didBeginStep(.fieldDraft)
+            do {
+                _ = try DraftCommitSagaRecoveryV1(
+                    modelContext: session.modelContext
+                ).reconcile()
+            } catch {
+                throw StartupMaintenanceReason.fieldDraftInconsistent
+            }
 
             didBeginStep(.finalization)
             do {

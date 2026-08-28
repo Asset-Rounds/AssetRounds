@@ -691,6 +691,15 @@ final class S6_4AtomicRestoreTests: XCTestCase {
 }
 
 extension S6_4AtomicRestoreTests {
+    func testV23P03C36RestorePublicationReceiptRequiresCanonicalCommit() throws {
+        let receipt = try DraftAttachmentRestorePublicationReceiptV1(restoreID:UUID(),workspaceID:WorkspaceID(rawValue:UUID()),sourceManifestSHA256:String(repeating:"a",count:64),adoptedStageIDs:[UUID()],reusedStageIDs:[],publishedAt:Date(timeIntervalSince1970:1))
+        try receipt.validate()
+        XCTAssertFalse(receipt.atomicAcrossRoots)
+        XCTAssertTrue(receipt.canonicalCommitRequired)
+    }
+}
+
+extension S6_4AtomicRestoreTests {
     func testV23P03C15AtomicRestoreRoundTripsAllPacketRowsTogether() throws {
         let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_164)
         let manifest = try WorkPacketManifestRow(fixture.manifest).value()

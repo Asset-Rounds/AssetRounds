@@ -569,6 +569,15 @@ final class S6_1DeletionGraphTests: XCTestCase {
 }
 
 extension S6_1DeletionGraphTests {
+    func testV23P03C36OrdinaryDeletionPreservesCompleteDraftGraph() throws {
+        let ids = (0..<6).map { _ in UUID() }
+        let inventory = FieldDraftDeletionInventoryV1(draftIDs:[ids[0]],stageIDs:[ids[1]],sagaIDs:[ids[2]],reservationIDs:[ids[3]],commitReceiptIDs:[ids[4]],discardReceiptIDs:[ids[5]])
+        XCTAssertNoThrow(try WholeSignDeletionRule.validateFieldDraftLifecycle(authority:.ordinaryAssetOrSiteDelete,before:inventory,after:inventory))
+        XCTAssertThrowsError(try WholeSignDeletionRule.validateFieldDraftLifecycle(authority:.ordinaryAssetOrSiteDelete,before:inventory,after:.init(draftIDs:[],stageIDs:[],sagaIDs:[],reservationIDs:[],commitReceiptIDs:[],discardReceiptIDs:[])))
+    }
+}
+
+extension S6_1DeletionGraphTests {
     func testV23P03C15ReleaseGraphRequiresValidatedClaimLeaseAndHandoff() throws {
         let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_161)
         try fixture.completedRelease.validate(claim: fixture.claim, lease: fixture.lease)

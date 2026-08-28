@@ -555,6 +555,16 @@ final class V9_05RestoreIdentityTests: XCTestCase {
 }
 
 extension V9_05RestoreIdentityTests {
+    func testV23P03C36CloneDraftIdentityMappingIsDeterministicAndNamespaced() throws {
+        let source=UUID(),workspace=UUID()
+        let pointer=RestorePointerIdentityV1(generationID:UUID(),generationManifestSHA256:String(repeating:"a",count:64),workspaceID:workspace,replicaID:UUID())
+        let identity=RestoreIdentityV1(mode:.clone,source:.init(workspaceID:UUID(),replicaID:UUID()),oldPointer:pointer,targetPointer:pointer,recordIdentityDisposition:.preserve)
+        XCTAssertEqual(identity.destinationFieldDraftID(for:source,namespace:"stage"),identity.destinationFieldDraftID(for:source,namespace:"stage"))
+        XCTAssertNotEqual(identity.destinationFieldDraftID(for:source,namespace:"stage"),identity.destinationFieldDraftID(for:source,namespace:"draft"))
+    }
+}
+
+extension V9_05RestoreIdentityTests {
     func testV23P03C15RestoreRebindPreservesPacketIdentity() throws {
         let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_105)
         let restored = try WorkPacketManifestRow(fixture.manifest).value()

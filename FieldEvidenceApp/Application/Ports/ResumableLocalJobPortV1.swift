@@ -18,6 +18,45 @@ protocol ResumableLocalJobPortV1: Sendable {
     func eraseAll() async throws
 }
 
+/// Narrow C36 adapter for bounded attachment-processing work.  The request
+/// and result are job metadata only; bytes remain owned by the draft staging
+/// adapter and are never returned through this port.
+protocol DraftAttachmentJobPortV1: Sendable {
+    @discardableResult
+    func enqueueDraftAttachment(
+        _ request: DraftAttachmentJobRequestV1
+    ) async throws -> ResumableLocalJobV1
+
+    func draftAttachmentJob(
+        workspaceID: WorkspaceID,
+        stageID: UUID
+    ) async throws -> ResumableLocalJobV1?
+}
+
+struct DraftAttachmentJobProgressV1: Codable, Equatable, Sendable {
+    let stageID: UUID
+    let state: LocalJobStateV1
+    let completedUnitCount: Int
+    let totalUnitCount: Int
+    let retryClassification: LocalJobRetryClassificationV1?
+
+    init(job: ResumableLocalJobV1, stageID: UUID) throws {
+        guard job.kind == .draftAttachmentProcessing,
+              job.workspaceID != UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0,
+                                               0, 0, 0, 0, 0, 0, 0, 0)),
+              stageID != UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0,
+                                      0, 0, 0, 0, 0, 0, 0, 0)) else {
+            throw LocalJobValidationFailureV1.invalidContract
+        }
+        try job.validate()
+        self.stageID = stageID
+        state = job.state
+        completedUnitCount = job.checkpoint.completedUnitCount
+        totalUnitCount = job.checkpoint.totalUnitCount
+        retryClassification = job.retryClassification
+    }
+}
+
 enum LocalJobLifecycleSuspensionReasonV1: String, Equatable, Hashable, Sendable {
     case protectedDataUnavailable = "PROTECTED_DATA_UNAVAILABLE"
     case sceneBackground = "SCENE_BACKGROUND"

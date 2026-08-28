@@ -480,6 +480,79 @@ private extension OwnedStorageLedgerV1 {
     }
 }
 
+// MARK: - C36 draft attachment admission
+
+enum DraftStorageReservationPurposeV1: String, Codable, CaseIterable, Hashable, Sendable {
+    case attachmentScratch = "ATTACHMENT_SCRATCH"
+    case attachmentStaging = "ATTACHMENT_STAGING"
+    case contentPromotion = "CONTENT_PROMOTION"
+}
+
+struct DraftStorageReservationRequestV1: Codable, Equatable, Sendable {
+    let purpose: DraftStorageReservationPurposeV1
+    let workspaceID: WorkspaceID
+    let draftID: UUID
+    let stageID: UUID
+    let mutationID: MutationIDV1
+    let byteCount: Int64
+
+    init(
+        purpose: DraftStorageReservationPurposeV1,
+        workspaceID: WorkspaceID,
+        draftID: UUID,
+        stageID: UUID,
+        mutationID: MutationIDV1,
+        byteCount: Int64
+    ) throws {
+        let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0,
+                               0, 0, 0, 0, 0, 0, 0, 0))
+        guard workspaceID.rawValue != zero, draftID != zero, stageID != zero,
+              byteCount > 0 else {
+            throw OwnedStorageLedgerFailureV1.accountingOverflow
+        }
+        self.purpose = purpose
+        self.workspaceID = workspaceID
+        self.draftID = draftID
+        self.stageID = stageID
+        self.mutationID = mutationID
+        self.byteCount = byteCount
+    }
+}
+
+struct DraftStorageReservationV1: Equatable, Sendable {
+    let request: DraftStorageReservationRequestV1
+    let reservation: OwnedStorageReservationV1
+}
+
+extension OwnedStorageLedgerV1 {
+    /// Reserves bytes for one draft/stage attempt.  The attempt identity is
+    /// deterministic and therefore an idempotent retry adopts the existing
+    /// reservation instead of double-counting capacity.
+    func reserveDraftAttachment(
+        _ request: DraftStorageReservationRequestV1
+    ) throws -> DraftStorageReservationV1 {
+        let attemptID = try OwnedStorageAttemptIDV1(
+            workspaceID: request.workspaceID,
+            generationID: request.stageID,
+            mutationID: request.mutationID
+        )
+        return DraftStorageReservationV1(
+            request: request,
+            reservation: try reserve(
+                attemptID: attemptID,
+                requiredBytes: request.byteCount
+            )
+        )
+    }
+
+    func releaseDraftAttachment(_ reservation: DraftStorageReservationV1) {
+        release(reservation: reservation.reservation)
+    }
+
+    static let c36StagingExcludedFromBackup = true
+    static let c36PressureNeverAuthorizesDeletion = true
+}
+
 enum ScratchDataLeaseStoreFailureV1: Error, Equatable, Sendable {
     case invalidRoot
     case invalidLease

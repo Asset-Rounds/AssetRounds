@@ -650,6 +650,16 @@ final class S6_6EraseRecoveryTests: XCTestCase {
 }
 
 extension S6_6EraseRecoveryTests {
+    func testV23P03C36EraseIsSoleAuthorityForDraftRows() throws {
+        let id=UUID()
+        let before=FieldDraftDeletionInventoryV1(draftIDs:[id],stageIDs:[],sagaIDs:[],reservationIDs:[],commitReceiptIDs:[],discardReceiptIDs:[])
+        let empty=FieldDraftDeletionInventoryV1(draftIDs:[],stageIDs:[],sagaIDs:[],reservationIDs:[],commitReceiptIDs:[],discardReceiptIDs:[])
+        XCTAssertNoThrow(try WholeSignDeletionRule.validateFieldDraftLifecycle(authority:.workspaceErase,before:before,after:empty))
+        XCTAssertThrowsError(try WholeSignDeletionRule.validateFieldDraftLifecycle(authority:.workspaceErase,before:before,after:before))
+    }
+}
+
+extension S6_6EraseRecoveryTests {
     func testV23P03C15EraseRecoveryRebindsPacketHistoryWithoutChangingIDs() throws {
         let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_166)
         let reboundManifest = try fixture.manifest.rebound(to: fixture.otherWorkspaceID)

@@ -317,3 +317,11 @@ private extension S7_4DraftAccessPolicyTests {
         )
     }
 }
+
+extension S7_4DraftAccessPolicyTests {
+    func testC36DraftBridgePreservesEntitlementGateAndDefersEvidenceID() {
+        XCTAssertTrue(CheckRunnerDraftBridgeV1.preservesExistingEntitlementGate)
+        XCTAssertFalse(CheckRunnerDraftBridgeV1.assignsEvidenceIDBeforeCommit)
+        XCTAssertFalse(CheckRunnerDraftBridgeV1.importsLegacyBundleBeforeCommit)
+    }
+}

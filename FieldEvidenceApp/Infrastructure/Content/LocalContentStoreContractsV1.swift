@@ -130,3 +130,58 @@ struct LocalContentStoreV1: Sendable {
 // ContentReferenceV1 intentionally contains no external storage coordinates or
 // delivery lifecycle state. Only LocalContentStoreV1 resolves the opaque
 // ContentLocatorV1, which cannot change canonical identity.
+
+// MARK: - C36 draft reservation boundary
+
+/// C36 uses the local content store only after a draft has produced a valid
+/// immutable reservation.  This value makes that boundary explicit for
+/// callers that need to carry the result across an async job without carrying
+/// bytes or an EvidenceID.
+struct DraftLocalContentReservationV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let reservation: DraftContentReservationV1
+    let byteRole: ContentByteRoleV1
+    let backupIncluded: Bool
+    let exportIncluded: Bool
+
+    init(reservation: DraftContentReservationV1) throws {
+        try reservation.validate()
+        schemaVersion = Self.schemaVersion
+        self.reservation = reservation
+        byteRole = .immutableOriginal
+        // The reservation is metadata-only until the canonical commit binds
+        // it.  In particular, this object cannot turn staging bytes into a
+        // portable export or a user backup member.
+        backupIncluded = false
+        exportIncluded = false
+    }
+
+    func validate(workspaceID: WorkspaceID, draftID: UUID) throws {
+        guard schemaVersion == Self.schemaVersion,
+              byteRole == .immutableOriginal,
+              backupIncluded == false,
+              exportIncluded == false,
+              reservation.workspaceID == workspaceID,
+              reservation.draftID == draftID else {
+            throw ContentContractFailureV1.invalidValue
+        }
+        try reservation.validate()
+    }
+}
+
+enum LocalContentStoreDraftBoundaryV1 {
+    static let requiresCanonicalCommit = true
+    static let carriesEvidenceID = false
+    static let storesStagingBytes = false
+
+    static func validate(
+        _ reservation: DraftContentReservationV1,
+        workspaceID: WorkspaceID,
+        draftID: UUID
+    ) throws {
+        try DraftLocalContentReservationV1(reservation: reservation)
+            .validate(workspaceID: workspaceID, draftID: draftID)
+    }
+}

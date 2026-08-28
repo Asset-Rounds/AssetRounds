@@ -48,6 +48,12 @@ struct DeviceLifecycleTransitionV1: Equatable, Sendable {
     let previous: DeviceLifecycleStateV1
     let current: DeviceLifecycleStateV1
     let action: DeviceLifecycleActionV1
+
+    /// Draft staging bytes are protected-data gated. Callers use this edge to
+    /// refresh persisted staging protection state through the sole writer.
+    var requiresFieldDraftProtectionRefresh: Bool {
+        previous.protectedData != current.protectedData
+    }
 }
 
 enum DeviceLifecycleReducerV1 {

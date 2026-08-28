@@ -859,7 +859,7 @@ private extension BackupImportService {
         case (1, 1, 1), (2, 1, 1), (2, 3, 2), (3, 4, 3),
              (4, 5, 4), (4, 6, 5), (4, 7, 6), (4, 8, 7),
              (4, 9, 8), (4, 10, 9), (4, 11, 10), (4, 12, 11),
-             (4, 13, 12), (4, 14, 13), (4, 15, 14):
+             (4, 13, 12), (4, 14, 13), (4, 15, 14), (4, 16, 15):
             schemaPairIsValid = true
         default:
             schemaPairIsValid = false

@@ -110,8 +110,39 @@ struct RestoreIdentityV1: Equatable, Sendable {
 
     func destinationWorkPacketWorkspaceID()->WorkspaceID{WorkspaceID(rawValue:targetPointer.workspaceID)}
 
+    func destinationFieldDraftWorkspaceID() -> WorkspaceID {
+        WorkspaceID(rawValue: targetPointer.workspaceID)
+    }
+
+    /// Draft operational identities are preserved by exact replacement but
+    /// must be deterministically remapped by clone/fork to prevent a restored
+    /// scratch lease or reservation from aliasing the source workspace.
+    func destinationFieldDraftID(for sourceID: UUID, namespace: String) -> UUID? {
+        switch mode {
+        case .emptyInstall, .replaceExisting: return sourceID
+        case .clone, .fork:
+            return Self.deterministicUUID(
+                namespace: namespace,
+                sourceID: sourceID,
+                workspaceID: targetPointer.workspaceID
+            )
+        }
+    }
+
     func destinationInspectionReviewRecordID(for sourceID: UUID) -> UUID? {
         destinationRecordID(for: sourceID)
+    }
+}
+
+private extension RestoreIdentityV1 {
+    static func deterministicUUID(namespace: String, sourceID: UUID, workspaceID: UUID) -> UUID {
+        let digest = CanonicalJSONV1.sha256(Data("field-draft\u{0}\(namespace)\u{0}\(sourceID.uuidString.lowercased())\u{0}\(workspaceID.uuidString.lowercased())".utf8))
+        var bytes = stride(from: 0, to: 32, by: 2).map { offset -> UInt8 in
+            UInt8(digest.dropFirst(offset).prefix(2), radix: 16) ?? 0
+        }
+        bytes[6] = (bytes[6] & 0x0f) | 0x50
+        bytes[8] = (bytes[8] & 0x3f) | 0x80
+        return UUID(uuid: (bytes[0],bytes[1],bytes[2],bytes[3],bytes[4],bytes[5],bytes[6],bytes[7],bytes[8],bytes[9],bytes[10],bytes[11],bytes[12],bytes[13],bytes[14],bytes[15]))
     }
 }
 

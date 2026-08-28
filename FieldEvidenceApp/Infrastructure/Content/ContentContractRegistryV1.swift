@@ -169,3 +169,32 @@ extension ContentContractRegistryReceiptV1 {
         try self.init(registrySHA256: c.decode(String.self, forKey: .registrySHA256))
     }
 }
+
+// MARK: - C36 contract registration
+
+extension ContentContractRegistryV1 {
+    /// C36 is additive to the C05 content contract.  These names describe
+    /// device-local staging/reservation boundaries and do not claim a second
+    /// canonical content store.
+    static let c36StagingContracts: [String] = [
+        "AttachmentStagingItemV1",
+        "DraftAttachmentStagingAdapterV1",
+        "DraftContentReservationV1",
+        "DraftContentPromotionPortV1",
+    ]
+
+    static func c36BoundaryContracts() throws -> [String] {
+        let registry = try canonical()
+        return registry.declaredContracts + c36StagingContracts
+    }
+
+    static func validateC36Reservation(
+        _ reservation: DraftContentReservationV1,
+        reference: ContentReferenceV1
+    ) throws {
+        try ContentIntegrityV1.validateDraftReservation(
+            reservation,
+            reference: reference
+        )
+    }
+}

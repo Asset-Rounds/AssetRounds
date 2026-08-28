@@ -1445,6 +1445,25 @@ extension V9_03MigrationRecoveryTests {
 }
 
 extension V9_03MigrationRecoveryTests {
+    func testV23P03C36MigrationAddsOnlyTheSixFieldDraftRows() throws {
+        XCTAssertEqual(PersistentSchemaV15.versionIdentifier, Schema.Version(15, 0, 0))
+        XCTAssertEqual(PersistentSchemaV15.models.count, 58)
+        XCTAssertEqual(PersistentSchemaV16.versionIdentifier, Schema.Version(16, 0, 0))
+        XCTAssertEqual(PersistentSchemaV16.models.count, 64)
+        XCTAssertEqual(PersistentSchemaMigrationPlanV15.schemas.count, 2)
+        XCTAssertEqual(PersistentSchemaMigrationPlanV15.stages.count, 1)
+
+        let fixture = try C36FieldDraftTestSupportV1.makeFixture()
+        XCTAssertEqual(try FieldDraftCheckpointRow(fixture.activeCheckpoint).value(), fixture.activeCheckpoint)
+        XCTAssertEqual(try AttachmentStagingItemRow(fixture.readyItem).value(), fixture.readyItem)
+        XCTAssertEqual(try DraftCommitSagaRow(fixture.preparedSaga).value(), fixture.preparedSaga)
+        XCTAssertEqual(try DraftContentReservationRow(fixture.reservation).value(), fixture.reservation)
+        XCTAssertEqual(try DraftCommitReceiptRow(fixture.commitReceipt).value(), fixture.commitReceipt)
+        XCTAssertEqual(try DraftDiscardReceiptRow(fixture.discardReceipt).value(), fixture.discardReceipt)
+    }
+}
+
+extension V9_03MigrationRecoveryTests {
     func testV23P03C41MigrationReplayRetainsCanonicalRelationshipHistory() throws {
         let fixture = try C41FunctionalRelationshipTestSupportV1.makeFixture(seed: 41_030)
         try fixture.ended.validateSuccessor(of: fixture.added)

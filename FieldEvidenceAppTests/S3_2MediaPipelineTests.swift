@@ -764,3 +764,17 @@ private struct JPEGMetadataSegment {
     let marker: UInt8
     let payload: Data
 }
+
+extension S3_2MediaPipelineTests {
+    func testC36AttachmentPreflightAccountsForScratchAndDurableStage() throws {
+        let service = StoragePreflightService(capacityProvider: { _ in Int64.max })
+        let byteCount: Int64 = 4_096
+        XCTAssertEqual(
+            try service.draftAttachmentRequiredBytes(byteCount: byteCount),
+            byteCount * 2 + StoragePreflightService.reserveBytes
+        )
+        XCTAssertTrue(StoragePreflightService.c36StagingExcludedFromBackup)
+        XCTAssertTrue(StoragePreflightService.c36StoragePressureIsRetryable)
+        XCTAssertThrowsError(try service.draftAttachmentRequiredBytes(byteCount: 0))
+    }
+}

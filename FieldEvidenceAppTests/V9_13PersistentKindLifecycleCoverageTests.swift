@@ -1073,6 +1073,24 @@ extension V9_13PersistentKindLifecycleCoverageTests {
     }
 }
 
+extension V9_13PersistentKindLifecycleCoverageTests {
+    func testV23P03C36PersistentKindsAndBackupKindsCoverEveryDraftRecord() throws {
+        let expectedTypes: [Any.Type] = [
+            FieldDraftCheckpointRow.self, AttachmentStagingItemRow.self, DraftCommitSagaRow.self,
+            DraftContentReservationRow.self, DraftCommitReceiptRow.self, DraftDiscardReceiptRow.self
+        ]
+        XCTAssertEqual(expectedTypes.count, 6)
+        for type in expectedTypes {
+            XCTAssertTrue(PersistentSchemaV16.models.contains { ObjectIdentifier($0) == ObjectIdentifier(type) })
+        }
+        XCTAssertEqual(V16BackupFieldDraftRecordV1.Kind.allCases.count, 6)
+
+        let fixture = try C36FieldDraftTestSupportV1.makeFixture()
+        XCTAssertEqual(try DraftCommitReceiptRow(fixture.commitReceipt).value().sagaEventSHA256Chain.count, 5)
+        XCTAssertEqual(try DraftDiscardReceiptRow(fixture.discardReceipt).value().quarantinedReservationIDs.count, 1)
+    }
+}
+
 private extension V9_13PersistentKindLifecycleCoverageTests {
     nonisolated static func copy(
         _ value: PersistentLifecyclePolicyV1,

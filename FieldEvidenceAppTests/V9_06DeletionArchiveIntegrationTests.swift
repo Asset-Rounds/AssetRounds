@@ -391,6 +391,17 @@ final class V9_06DeletionArchiveIntegrationTests: XCTestCase {
 }
 
 extension V9_06DeletionArchiveIntegrationTests {
+    func testV23P03C36ArchiveReceiptRoundTripsPublicationPosture() throws {
+        let receipt=try DraftAttachmentRestorePublicationReceiptV1(restoreID:UUID(),workspaceID:WorkspaceID(rawValue:UUID()),sourceManifestSHA256:String(repeating:"b",count:64),adoptedStageIDs:[],reusedStageIDs:[UUID()],publishedAt:Date(timeIntervalSince1970:2))
+        let encoder=JSONEncoder();encoder.dateEncodingStrategy = .millisecondsSince1970
+        let decoder=JSONDecoder();decoder.dateDecodingStrategy = .millisecondsSince1970
+        let restored=try decoder.decode(DraftAttachmentRestorePublicationReceiptV1.self,from:encoder.encode(receipt))
+        try restored.validate()
+        XCTAssertEqual(restored,receipt)
+    }
+}
+
+extension V9_06DeletionArchiveIntegrationTests {
     func testV23P03C15ArchivedReleaseRoundTripsCanonicalBytes() throws {
         let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_107)
         let row = try WorkReleaseRow(fixture.completedRelease)

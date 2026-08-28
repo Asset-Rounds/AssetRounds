@@ -50,3 +50,14 @@ enum V15WorkPacketImportBoundaryV1 {
         }
     }
 }
+
+enum V16FieldDraftImportBoundaryV1 {
+    static let persistentSchemaVersion = 16
+    static let recordsSchemaVersion = 15
+    static func validate(persistent: Int, records: Int) throws {
+        guard persistent == persistentSchemaVersion, records == recordsSchemaVersion,
+              V16BackupFieldDraftRecordV1.Kind.allCases.count == 6 else {
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
+        }
+    }
+}

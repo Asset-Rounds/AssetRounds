@@ -9,6 +9,7 @@ enum OwnedFileKindV1: String, CaseIterable, Equatable, Hashable, Sendable {
     case stagingDirectory
     case restoreStaging
     case stagingFile
+    case fieldDraftStagingFile
     case temporaryFile
     case database
     case databaseWAL
@@ -110,6 +111,7 @@ enum ProtectedFilePolicyV1 {
                 isExcludedFromBackup: true
             )
         case .stagingFile,
+             .fieldDraftStagingFile,
              .temporaryFile,
              .generationPointerTemporary,
              .generationLeaseControl,

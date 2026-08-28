@@ -371,6 +371,15 @@ final class S6_5ReplacementUnionTests: XCTestCase {
     }
 }
 
+extension S6_5ReplacementUnionTests {
+    func testV23P03C36ReplacementRecordRetainsCanonicalOperationalIdentity() {
+        let id=UUID(),workspaceID=UUID(),bytes=Data("canonical-draft".utf8)
+        let record=V16BackupFieldDraftRecordV1(kind:.checkpoint,id:id,workspaceID:workspaceID,revision:7,canonicalData:bytes)
+        XCTAssertEqual(record,V16BackupFieldDraftRecordV1(kind:.checkpoint,id:id,workspaceID:workspaceID,revision:7,canonicalData:bytes))
+        XCTAssertNotEqual(record.kind,.discardReceipt)
+    }
+}
+
 private extension S6_5ReplacementUnionTests {
     struct LiveHarness {
         let support: URL

@@ -5522,3 +5522,398 @@ enum C15WorkPacketManifestTestSupportV1 {
         )
     }
 }
+
+/// Deterministic C36 field-draft evidence.  The fixture deliberately keeps the
+/// operational graph in one place so each legacy V9/V10 lane exercises the
+/// same checkpoint, staging, saga, reservation, receipt, and restore bytes.
+enum C36FieldDraftTestSupportV1 {
+    struct Fixture {
+        let workspaceID: WorkspaceID
+        let otherWorkspaceID: WorkspaceID
+        let draftID: UUID
+        let codec: DraftPayloadCodecReleaseV1
+        let registry: DraftPurposeRegistryV1
+        let scope: DraftScopeKeyV1
+        let anchor: DraftResumeAnchorV1
+        let payload: Data
+        let activeCheckpoint: FieldDraftCheckpointV1
+        let committingCheckpoint: FieldDraftCheckpointV1
+        let committedCheckpoint: FieldDraftCheckpointV1
+        let discardPendingCheckpoint: FieldDraftCheckpointV1
+        let discardedCheckpoint: FieldDraftCheckpointV1
+        let readyItem: AttachmentStagingItemV1
+        let alternateReadyItem: AttachmentStagingItemV1
+        let failedItem: AttachmentStagingItemV1
+        let retryCapture: AttachmentStagingItemV1
+        let retryHashing: AttachmentStagingItemV1
+        let retryProcessing: AttachmentStagingItemV1
+        let retryReady: AttachmentStagingItemV1
+        let committedItem: AttachmentStagingItemV1
+        let plan: DraftCommitPlanV1
+        let rowMutationIDs: DraftCommitRowMutationIDsV1
+        let preparedSaga: DraftCommitSagaV1
+        let promotedSaga: DraftCommitSagaV1
+        let targetCommittedSaga: DraftCommitSagaV1
+        let retirePendingSaga: DraftCommitSagaV1
+        let retiredSaga: DraftCommitSagaV1
+        let conflictedSaga: DraftCommitSagaV1
+        let recoverySaga: DraftCommitSagaV1
+        let reservation: DraftContentReservationV1
+        let reusedReservation: DraftContentReservationV1
+        let associatedReservation: DraftContentReservationV1
+        let quarantinedReservation: DraftContentReservationV1
+        let deletedReservation: DraftContentReservationV1
+        let commitReceipt: DraftCommitReceiptV1
+        let commitTerminalBundle: DraftCommitTerminalBundleV1
+        let discardPlan: DraftDiscardPlanV1
+        let discardReceipt: DraftDiscardReceiptV1
+        let discardTerminalBundle: DraftDiscardTerminalBundleV1
+    }
+
+    static let fixedDate = Date(timeIntervalSince1970: 1_748_000_000.125)
+    static let digest = String(repeating: "a", count: 64)
+    static let alternateDigest = String(repeating: "b", count: 64)
+
+    static func id(_ seed: Int) -> UUID {
+        C14InspectionReviewTestSupportV1.id(seed)
+    }
+
+    static func workspace(_ seed: Int = 136_000) -> WorkspaceID {
+        WorkspaceID(rawValue: id(seed))
+    }
+
+    static func mutation(_ seed: Int) throws -> MutationIDV1 {
+        try C14InspectionReviewTestSupportV1.mutation(seed)
+    }
+
+    static func codec(for purpose: DraftPurposeV1) throws -> DraftPayloadCodecReleaseV1 {
+        try DraftPayloadCodecReleaseV1(
+            codecID: "c36.\(purpose.rawValue.lowercased())",
+            codecVersion: 1,
+            releaseSHA256: digest
+        )
+    }
+
+    static func makeRegistry() throws -> DraftPurposeRegistryV1 {
+        let definitions = try DraftPurposeV1.allCases.map { purpose in
+            try DraftPurposeDefinitionV1(
+                purpose: purpose,
+                codec: codec(for: purpose),
+                maximumPayloadBytes: 4_096,
+                maximumStageItems: 4,
+                targetCommandKind: targetCommandKind(for: purpose),
+                retention: purpose == .assetFieldEdit ? .retireAfterCommit : .explicitDiscardOnly,
+                attachmentKinds: DraftAttachmentKindV1.allCases.sorted(),
+                privacyClass: purpose == .evidenceCuration ? .restrictedEvidence : .workspacePrivate
+            )
+        }
+        return try DraftPurposeRegistryV1(definitions)
+    }
+
+    static func targetCommandKind(for purpose: DraftPurposeV1) -> WorkspaceCommandKindV1 {
+        switch purpose {
+        case .inspectionReview: .applyInspectionReview
+        case .workPacket: .applyWorkPacket
+        case .correctiveAction: .finalizeCorrection
+        case .requirementEvaluation: .applyRequirementAssurance
+        case .evidenceCuration: .applyEvidenceAssurance
+        case .assetFieldEdit: .applyAssetSemantics
+        }
+    }
+
+    static func makeFixture(seed: Int = 136_000) throws -> Fixture {
+        let workspaceID = workspace(seed)
+        let otherWorkspaceID = workspace(seed + 900)
+        let draftID = id(seed + 1)
+        let codec = try codec(for: .inspectionReview)
+        let registry = try makeRegistry()
+        let scope = try DraftScopeKeyV1(
+            scopeKind: "inspection-field",
+            stableComponentIDs: ["section-observation", "field-notes"]
+        )
+        let anchor = try DraftResumeAnchorV1(
+            sectionID: "section-observation", fieldID: "field-notes",
+            selectedStableID: "field-notes", boundedPosition: 7
+        )
+        let payload = Data("notes=Visible local draft • א".utf8)
+        let readyDigest = try ContentDigestV1(algorithm: .sha256, hexadecimalValue: digest)
+        let alternateContentDigest = try ContentDigestV1(
+            algorithm: .sha256, hexadecimalValue: alternateDigest
+        )
+        let workspaceString = workspaceID.rawValue.uuidString.lowercased()
+        let readyReference = try ContentReferenceV1(
+            workspaceID: workspaceString, contentID: "c36-content-one", byteLength: 64,
+            mediaType: "image/jpeg", digests: try ContentDigestSetV1([readyDigest]),
+            byteRole: .immutableOriginal, createdAt: "2025-05-01T00:00:00.000Z"
+        )
+        let alternateReference = try ContentReferenceV1(
+            workspaceID: workspaceString, contentID: "c36-content-two", byteLength: 32,
+            mediaType: "audio/mpeg", digests: try ContentDigestSetV1([alternateContentDigest]),
+            byteRole: .immutableOriginal, createdAt: "2025-05-01T00:00:01.000Z"
+        )
+        let readyLocator = try ContentLocatorV1(
+            locatorID: "c36-locator-one", workspaceID: workspaceString,
+            contentID: readyReference.contentID, locatorRevision: 1,
+            contentDigest: readyDigest, expectedByteLength: readyReference.byteLength
+        )
+        let alternateLocator = try ContentLocatorV1(
+            locatorID: "c36-locator-two", workspaceID: workspaceString,
+            contentID: alternateReference.contentID, locatorRevision: 1,
+            contentDigest: alternateContentDigest, expectedByteLength: alternateReference.byteLength
+        )
+        let readyItem = try AttachmentStagingItemV1(
+            stageID: id(seed + 10), draftID: draftID, workspaceID: workspaceID,
+            attachmentKind: .photo, scratchLeaseID: id(seed + 20), expectedByteCount: 64,
+            actualByteCount: 64, contentDigest: readyDigest, retryClass: .none,
+            state: .readyLocal, protectionState: .available, revision: 1,
+            mutationID: try mutation(seed + 30)
+        )
+        let alternateReadyItem = try AttachmentStagingItemV1(
+            stageID: id(seed + 11), draftID: draftID, workspaceID: workspaceID,
+            attachmentKind: .audio, scratchLeaseID: id(seed + 21), expectedByteCount: 32,
+            actualByteCount: 32, contentDigest: alternateContentDigest, retryClass: .none,
+            state: .readyLocal, protectionState: .available, revision: 1,
+            mutationID: try mutation(seed + 31)
+        )
+        let failedItem = try AttachmentStagingItemV1(
+            stageID: id(seed + 12), draftID: draftID, workspaceID: workspaceID,
+            attachmentKind: .video, scratchLeaseID: id(seed + 22), expectedByteCount: 16,
+            retryClass: .retryable, state: .failedRetryable,
+            protectionState: .available, revision: 1, mutationID: try mutation(seed + 32)
+        )
+        let retryCapture = try AttachmentStagingItemV1(
+            stageID: failedItem.stageID, draftID: draftID, workspaceID: workspaceID,
+            attachmentKind: .video, scratchLeaseID: failedItem.scratchLeaseID,
+            expectedByteCount: 16, retryClass: .retryable, state: .capturing,
+            protectionState: .available, revision: 2, mutationID: try mutation(seed + 33)
+        )
+        let retryHashing = try AttachmentStagingItemV1(
+            stageID: failedItem.stageID, draftID: draftID, workspaceID: workspaceID,
+            attachmentKind: .video, scratchLeaseID: failedItem.scratchLeaseID,
+            expectedByteCount: 16, retryClass: .retryable, state: .hashing,
+            protectionState: .available, revision: 3, mutationID: try mutation(seed + 34)
+        )
+        let retryProcessing = try AttachmentStagingItemV1(
+            stageID: failedItem.stageID, draftID: draftID, workspaceID: workspaceID,
+            attachmentKind: .video, scratchLeaseID: failedItem.scratchLeaseID,
+            expectedByteCount: 16, retryClass: .retryable, state: .processing,
+            protectionState: .available, revision: 4, mutationID: try mutation(seed + 35)
+        )
+        let retryDigest = try ContentDigestV1(algorithm: .sha256, hexadecimalValue: digest)
+        let retryReady = try AttachmentStagingItemV1(
+            stageID: failedItem.stageID, draftID: draftID, workspaceID: workspaceID,
+            attachmentKind: .video, scratchLeaseID: failedItem.scratchLeaseID,
+            expectedByteCount: 16, actualByteCount: 16, contentDigest: retryDigest,
+            retryClass: .none, state: .readyLocal, protectionState: .available,
+            revision: 5, mutationID: try mutation(seed + 36)
+        )
+        let committedItem = try AttachmentStagingItemV1(
+            stageID: readyItem.stageID, draftID: draftID, workspaceID: workspaceID,
+            attachmentKind: .photo, scratchLeaseID: readyItem.scratchLeaseID,
+            expectedByteCount: 64, actualByteCount: 64, contentDigest: readyDigest,
+            contentReference: readyReference, retryClass: .none, state: .committed,
+            protectionState: .available, revision: 2, mutationID: try mutation(seed + 37)
+        )
+        let plan = try DraftCommitPlanV1(
+            planID: id(seed + 40), workspaceID: workspaceID, draftID: draftID,
+            draftRevision: 2, baseCanonicalRevision: 7,
+            payloadSHA256: FieldDraftCanonicalCodecV1.sha256(payload),
+            stageDigests: [readyItem.stageSHA256, alternateReadyItem.stageSHA256],
+            targetCommandKind: .applyInspectionReview, expectedTargetRevision: 3,
+            mutationID: try mutation(seed + 41), outputKeys: ["inspection-review", "c36-local"]
+        )
+        let activeCheckpoint = try FieldDraftCheckpointV1(
+            draftID: draftID, workspaceID: workspaceID, scope: scope,
+            purpose: .inspectionReview, codec: codec, baseCanonicalRevision: 7,
+            draftRevision: 1, payloadData: payload,
+            stageIDs: [readyItem.stageID, alternateReadyItem.stageID, failedItem.stageID],
+            resumeAnchor: anchor, state: .active, updatedAt: fixedDate,
+            mutationID: try mutation(seed + 42)
+        )
+        let committingCheckpoint = try FieldDraftCheckpointV1(
+            draftID: draftID, workspaceID: workspaceID, scope: scope,
+            purpose: .inspectionReview, codec: codec, baseCanonicalRevision: 7,
+            draftRevision: 2, payloadData: payload,
+            stageIDs: [readyItem.stageID, alternateReadyItem.stageID, failedItem.stageID],
+            resumeAnchor: anchor, state: .committing,
+            lastDurableMutationID: try mutation(seed + 43),
+            updatedAt: fixedDate.addingTimeInterval(1), mutationID: try mutation(seed + 44)
+        )
+        let preparedSaga = try DraftCommitSagaV1(
+            sagaID: id(seed + 50), workspaceID: workspaceID, draftID: draftID,
+            plan: plan, state: .prepared, revision: 1,
+            mutationID: try mutation(seed + 51), updatedAt: fixedDate.addingTimeInterval(2)
+        )
+        let promotedSaga = try DraftCommitSagaV1(
+            sagaID: id(seed + 52), workspaceID: workspaceID, draftID: draftID,
+            plan: plan, state: .contentPromotedUnbound, predecessorSagaID: preparedSaga.sagaID,
+            revision: 2, mutationID: try mutation(seed + 53), updatedAt: fixedDate.addingTimeInterval(3)
+        )
+        let targetCommittedSaga = try DraftCommitSagaV1(
+            sagaID: id(seed + 54), workspaceID: workspaceID, draftID: draftID,
+            plan: plan, state: .targetCommitted, predecessorSagaID: promotedSaga.sagaID,
+            revision: 3, mutationID: try mutation(seed + 55), updatedAt: fixedDate.addingTimeInterval(4)
+        )
+        let retirePendingSaga = try DraftCommitSagaV1(
+            sagaID: id(seed + 56), workspaceID: workspaceID, draftID: draftID,
+            plan: plan, state: .draftRetirePending, predecessorSagaID: targetCommittedSaga.sagaID,
+            revision: 4, mutationID: try mutation(seed + 57), updatedAt: fixedDate.addingTimeInterval(5)
+        )
+        let retiredSaga = try DraftCommitSagaV1(
+            sagaID: id(seed + 58), workspaceID: workspaceID, draftID: draftID,
+            plan: plan, state: .draftRetired, predecessorSagaID: retirePendingSaga.sagaID,
+            revision: 5, mutationID: try mutation(seed + 102), updatedAt: fixedDate.addingTimeInterval(6)
+        )
+        let rowMutationIDs = try DraftCommitRowMutationIDsV1(
+            reservationByStageID: [
+                readyItem.stageID: try mutation(seed + 100),
+                alternateReadyItem.stageID: try mutation(seed + 101)
+            ],
+            terminalBundleMutationID: try mutation(seed + 102)
+        )
+        try rowMutationIDs.validate(
+            stageIDs: [readyItem.stageID, alternateReadyItem.stageID],
+            targetMutationID: plan.mutationID,
+            sagaMutationIDs: [
+                preparedSaga.mutationID, promotedSaga.mutationID,
+                targetCommittedSaga.mutationID, retirePendingSaga.mutationID
+            ]
+        )
+        let conflictedSaga = try DraftCommitSagaV1(
+            sagaID: id(seed + 60), workspaceID: workspaceID, draftID: draftID,
+            plan: plan, state: .conflicted, predecessorSagaID: preparedSaga.sagaID,
+            revision: 2, mutationID: try mutation(seed + 61), updatedAt: fixedDate.addingTimeInterval(7)
+        )
+        let recoverySaga = try DraftCommitSagaV1(
+            sagaID: id(seed + 62), workspaceID: workspaceID, draftID: draftID,
+            plan: plan, state: .recoveryRequired, predecessorSagaID: promotedSaga.sagaID,
+            revision: 3, mutationID: try mutation(seed + 63), updatedAt: fixedDate.addingTimeInterval(8)
+        )
+        let sagaChain = [
+            preparedSaga.sagaSHA256, promotedSaga.sagaSHA256, targetCommittedSaga.sagaSHA256,
+            retirePendingSaga.sagaSHA256, retiredSaga.sagaSHA256
+        ]
+        let commitReceipt = try DraftCommitReceiptV1(
+            receiptID: id(seed + 90), workspaceID: workspaceID, draftID: draftID,
+            sagaID: retiredSaga.sagaID, commitPlanSHA256: plan.planSHA256,
+            sagaEventSHA256Chain: sagaChain, targetMutationID: plan.mutationID,
+            targetReceiptSHA256: digest,
+            consumedStageToContentID: [
+                readyItem.stageID.uuidString: readyReference.contentID,
+                alternateReadyItem.stageID.uuidString: alternateReference.contentID
+            ], committedAt: fixedDate.addingTimeInterval(10),
+            mutationID: rowMutationIDs.terminalBundleMutationID
+        )
+        let committedCheckpoint = try FieldDraftCheckpointV1(
+            draftID: draftID, workspaceID: workspaceID, scope: scope,
+            purpose: .inspectionReview, codec: codec, baseCanonicalRevision: 7,
+            draftRevision: 3, payloadData: payload,
+            stageIDs: [readyItem.stageID, alternateReadyItem.stageID, failedItem.stageID],
+            resumeAnchor: anchor, state: .committed,
+            lastDurableMutationID: rowMutationIDs.terminalBundleMutationID,
+            lastReceiptSHA256: commitReceipt.receiptSHA256,
+            updatedAt: fixedDate.addingTimeInterval(10), mutationID: rowMutationIDs.terminalBundleMutationID
+        )
+        let commitTerminalBundle = try DraftCommitTerminalBundleV1(
+            retiredSaga: retiredSaga, committedCheckpoint: committedCheckpoint,
+            receipt: commitReceipt
+        )
+        let reservation = try DraftContentReservationV1(
+            reservationID: id(seed + 70), workspaceID: workspaceID, draftID: draftID,
+            stageID: readyItem.stageID, commitPlanSHA256: plan.planSHA256,
+            mutationID: try mutation(seed + 71), contentDigest: readyDigest,
+            locator: readyLocator, createdAt: fixedDate, reviewAfter: fixedDate.addingTimeInterval(86_400),
+            reconciliationState: .reserved, revision: 1
+        )
+        let reusedReservation = try DraftContentReservationV1(
+            reservationID: reservation.reservationID, workspaceID: workspaceID, draftID: draftID,
+            stageID: readyItem.stageID, commitPlanSHA256: plan.planSHA256,
+            mutationID: try mutation(seed + 72), contentDigest: readyDigest, locator: readyLocator,
+            createdAt: fixedDate, reviewAfter: fixedDate.addingTimeInterval(86_400),
+            reconciliationState: .reused, revision: 2
+        )
+        let associatedReservation = try DraftContentReservationV1(
+            reservationID: id(seed + 73), workspaceID: workspaceID, draftID: draftID,
+            stageID: alternateReadyItem.stageID, commitPlanSHA256: plan.planSHA256,
+            mutationID: try mutation(seed + 74), contentDigest: alternateContentDigest,
+            locator: alternateLocator, createdAt: fixedDate, reviewAfter: fixedDate.addingTimeInterval(86_400),
+            reconciliationState: .associated, revision: 1
+        )
+        let quarantinedReservation = try DraftContentReservationV1(
+            reservationID: id(seed + 75), workspaceID: workspaceID, draftID: draftID,
+            stageID: failedItem.stageID, commitPlanSHA256: plan.planSHA256,
+            mutationID: try mutation(seed + 76), contentDigest: readyDigest, locator: readyLocator,
+            createdAt: fixedDate, reviewAfter: fixedDate.addingTimeInterval(86_400),
+            reconciliationState: .orphanQuarantined, revision: 2
+        )
+        let deletedReservation = try DraftContentReservationV1(
+            reservationID: quarantinedReservation.reservationID, workspaceID: workspaceID, draftID: draftID,
+            stageID: failedItem.stageID, commitPlanSHA256: plan.planSHA256,
+            mutationID: try mutation(seed + 77), contentDigest: readyDigest, locator: readyLocator,
+            createdAt: fixedDate, reviewAfter: fixedDate.addingTimeInterval(86_400),
+            reconciliationState: .deleted, revision: 3
+        )
+        let discardPlan = try DraftDiscardPlanV1(
+            planID: id(seed + 80), workspaceID: workspaceID, draftID: draftID,
+            expectedDraftRevision: 2, nonemptyPayload: true,
+            stageIDs: [failedItem.stageID], reservationIDs: [quarantinedReservation.reservationID],
+            estimatedBytes: 16
+        )
+        let discardPendingCheckpoint = try FieldDraftCheckpointV1(
+            draftID: draftID, workspaceID: workspaceID, scope: scope,
+            purpose: .inspectionReview, codec: codec, baseCanonicalRevision: 7,
+            draftRevision: 2, payloadData: payload,
+            stageIDs: [readyItem.stageID, alternateReadyItem.stageID, failedItem.stageID],
+            resumeAnchor: anchor, state: .discardPending,
+            updatedAt: fixedDate.addingTimeInterval(11), mutationID: try mutation(seed + 83)
+        )
+        let discardReceipt = try DraftDiscardReceiptV1(
+            receiptID: id(seed + 81), workspaceID: workspaceID, draftID: draftID,
+            planSHA256: discardPlan.planSHA256, disposedStageIDs: [failedItem.stageID],
+            quarantinedReservationIDs: [quarantinedReservation.reservationID],
+            discardedAt: fixedDate.addingTimeInterval(12), mutationID: try mutation(seed + 82)
+        )
+        let discardedCheckpoint = try FieldDraftCheckpointV1(
+            draftID: draftID, workspaceID: workspaceID, scope: scope,
+            purpose: .inspectionReview, codec: codec, baseCanonicalRevision: 7,
+            draftRevision: 3, payloadData: payload,
+            stageIDs: [readyItem.stageID, alternateReadyItem.stageID, failedItem.stageID],
+            resumeAnchor: anchor, state: .discarded,
+            lastDurableMutationID: discardReceipt.mutationID,
+            lastReceiptSHA256: discardReceipt.receiptSHA256,
+            updatedAt: fixedDate.addingTimeInterval(12), mutationID: discardReceipt.mutationID
+        )
+        let discardTerminalBundle = try DraftDiscardTerminalBundleV1(
+            discardedCheckpoint: discardedCheckpoint, receipt: discardReceipt
+        )
+        _ = readyReference
+        _ = alternateReference
+        return Fixture(
+            workspaceID: workspaceID, otherWorkspaceID: otherWorkspaceID, draftID: draftID,
+            codec: codec, registry: registry, scope: scope, anchor: anchor, payload: payload,
+            activeCheckpoint: activeCheckpoint, committingCheckpoint: committingCheckpoint,
+            committedCheckpoint: committedCheckpoint,
+            discardPendingCheckpoint: discardPendingCheckpoint,
+            discardedCheckpoint: discardedCheckpoint,
+            readyItem: readyItem,
+            alternateReadyItem: alternateReadyItem, failedItem: failedItem,
+            retryCapture: retryCapture, retryHashing: retryHashing, retryProcessing: retryProcessing,
+            retryReady: retryReady, committedItem: committedItem, plan: plan,
+            rowMutationIDs: rowMutationIDs,
+            preparedSaga: preparedSaga, promotedSaga: promotedSaga,
+            targetCommittedSaga: targetCommittedSaga, retirePendingSaga: retirePendingSaga,
+            retiredSaga: retiredSaga, conflictedSaga: conflictedSaga, recoverySaga: recoverySaga,
+            reservation: reservation, reusedReservation: reusedReservation,
+            associatedReservation: associatedReservation, quarantinedReservation: quarantinedReservation,
+            deletedReservation: deletedReservation, commitReceipt: commitReceipt,
+            commitTerminalBundle: commitTerminalBundle, discardPlan: discardPlan,
+            discardReceipt: discardReceipt, discardTerminalBundle: discardTerminalBundle
+        )
+    }
+
+    static func corpusURL() -> URL {
+        KernelConformanceFixtureHarnessV1.sourceRoot().appendingPathComponent(
+            "FieldEvidenceAppTests/Fixtures/V21/Drafts/V21P03C36FieldDraftResilienceCorpusV1.json"
+        )
+    }
+}

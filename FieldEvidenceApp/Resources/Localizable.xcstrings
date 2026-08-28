@@ -1529,6 +1529,270 @@
     "work.packet.next_step.minimum_requirement" : {
       "comment" : "Actionable label for the minimum recorded requirement before the next step.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Minimum requirement" } } }
+    },
+    "field.draft.screen" : {
+      "comment" : "Accessible label for the local field draft surface.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Field draft" } } }
+    },
+    "field.draft.heading" : {
+      "comment" : "Heading for a local field draft.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Field draft" } } }
+    },
+    "field.draft.durability" : {
+      "comment" : "Localized label for truthful local draft durability.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Draft durability" } } }
+    },
+    "field.draft.durability.state" : {
+      "comment" : "Localized label for a recorded draft durability state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Durability state" } } }
+    },
+    "field.draft.next_step" : {
+      "comment" : "Actionable label for the next safe local draft step.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Next step" } } }
+    },
+    "field.draft.next_step.minimum_requirement" : {
+      "comment" : "Actionable label for the minimum local draft requirement.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Minimum requirement" } } }
+    },
+    "field.draft.checkpoint" : {
+      "comment" : "Localized label for a durable field draft checkpoint.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Draft checkpoint" } } }
+    },
+    "field.draft.checkpoint.state" : {
+      "comment" : "Localized label for the recorded draft checkpoint state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Checkpoint state" } } }
+    },
+    "field.draft.attachment" : {
+      "comment" : "Localized label for a locally staged draft attachment.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Attachment" } } }
+    },
+    "field.draft.attachment.state" : {
+      "comment" : "Localized label for the recorded attachment staging state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Attachment state" } } }
+    },
+    "field.draft.commit.saga" : {
+      "comment" : "Localized label for the receipt-backed draft commit saga.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Commit progress" } } }
+    },
+    "field.draft.commit.saga.state" : {
+      "comment" : "Localized label for the recorded commit saga state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Commit state" } } }
+    },
+    "field.draft.recovery" : {
+      "comment" : "Localized label for local draft recovery.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Draft recovery" } } }
+    },
+    "field.draft.recovery.state" : {
+      "comment" : "Localized label for a recorded draft recovery state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recovery state" } } }
+    },
+    "field.draft.recovery.safe_action" : {
+      "comment" : "Actionable label for one safe draft recovery action.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Safe action" } } }
+    },
+    "field.draft.recovery.fallback" : {
+      "comment" : "Localized label for a bounded draft recovery fallback.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Fallback" } } }
+    },
+    "field.draft.durability.state.unsaved_changes" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Unsaved changes" } } }
+    },
+    "field.draft.durability.state.saving_on_this_iphone" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Saving on this iPhone" } } }
+    },
+    "field.draft.durability.state.saved_on_this_iphone" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Saved on this iPhone" } } }
+    },
+    "field.draft.durability.state.save_blocked" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Save blocked" } } }
+    },
+    "field.draft.durability.state.committing" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Committing" } } }
+    },
+    "field.draft.durability.state.conflicted" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Conflict recorded" } } }
+    },
+    "field.draft.durability.state.recovery_required" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recovery required" } } }
+    },
+    "field.draft.durability.state.committed" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Committed" } } }
+    },
+    "field.draft.durability.state.discarding" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Discarding" } } }
+    },
+    "field.draft.durability.state.discarded" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Discarded" } } }
+    },
+    "field.draft.checkpoint.state.active" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Active" } } }
+    },
+    "field.draft.checkpoint.state.committing" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Committing" } } }
+    },
+    "field.draft.checkpoint.state.conflicted" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Conflict recorded" } } }
+    },
+    "field.draft.checkpoint.state.recovery_required" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recovery required" } } }
+    },
+    "field.draft.checkpoint.state.committed" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Committed" } } }
+    },
+    "field.draft.checkpoint.state.discard_pending" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Discard pending" } } }
+    },
+    "field.draft.checkpoint.state.discarded" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Discarded" } } }
+    },
+    "field.draft.attachment.state.selected" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Selected" } } }
+    },
+    "field.draft.attachment.state.loading" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Loading" } } }
+    },
+    "field.draft.attachment.state.staged_local" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Staged locally" } } }
+    },
+    "field.draft.attachment.state.processing" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Processing" } } }
+    },
+    "field.draft.attachment.state.ready" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Ready" } } }
+    },
+    "field.draft.attachment.state.retryable_failure" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Retryable failure" } } }
+    },
+    "field.draft.attachment.state.blocked" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Blocked" } } }
+    },
+    "field.draft.attachment.state.removed" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Removed" } } }
+    },
+    "field.draft.attachment.state.promoted" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Promoted" } } }
+    },
+    "field.draft.attachment.state.capturing" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Capturing" } } }
+    },
+    "field.draft.attachment.state.hashing" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Hashing" } } }
+    },
+    "field.draft.attachment.state.ready_local" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Ready locally" } } }
+    },
+    "field.draft.attachment.state.failed_retryable" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Retry available" } } }
+    },
+    "field.draft.attachment.state.failed_final" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Final failure" } } }
+    },
+    "field.draft.attachment.state.remove_pending" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Remove pending" } } }
+    },
+    "field.draft.attachment.state.committed" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Committed" } } }
+    },
+    "field.draft.attachment.state.orphan_quarantined" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Quarantined" } } }
+    },
+    "field.draft.commit.saga.state.prepared" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Prepared" } } }
+    },
+    "field.draft.commit.saga.state.content_promoted_unbound" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Content promoted locally" } } }
+    },
+    "field.draft.commit.saga.state.target_committed" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Target committed" } } }
+    },
+    "field.draft.commit.saga.state.draft_retire_pending" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Draft retirement pending" } } }
+    },
+    "field.draft.commit.saga.state.draft_retired" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Draft retired" } } }
+    },
+    "field.draft.commit.saga.state.conflicted" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Conflict recorded" } } }
+    },
+    "field.draft.commit.saga.state.recovery_required" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recovery required" } } }
+    },
+    "field.draft.recovery.state.resume_available" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Resume available" } } }
+    },
+    "field.draft.recovery.state.conflict" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Conflict review" } } }
+    },
+    "field.draft.recovery.state.missing_media" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Missing media" } } }
+    },
+    "field.draft.recovery.state.low_storage" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Low storage" } } }
+    },
+    "field.draft.recovery.state.protected_data" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Protected data unavailable" } } }
+    },
+    "field.draft.recovery.state.unsupported_codec" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Unsupported format" } } }
+    },
+    "field.draft.recovery.state.partial_stage" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Partial stage" } } }
+    },
+    "field.draft.recovery.state.stale_target" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Stale target" } } }
+    },
+    "field.draft.recovery.state.recovery_required" : {
+      "comment" : "Accessible text for a recorded local draft or attachment state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recovery required" } } }
     }
   },
   "version" : "1.0"

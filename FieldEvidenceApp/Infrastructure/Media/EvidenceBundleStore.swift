@@ -84,7 +84,7 @@ final class EvidenceBundleStoreFailureInjection: @unchecked Sendable {
     }
 }
 
-actor EvidenceBundleStore {
+actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
     private struct FileIdentity: Equatable {
         let device: dev_t
         let inode: ino_t
@@ -102,6 +102,104 @@ actor EvidenceBundleStore {
         self.generationRootURL = generationRootURL.standardizedFileURL
         self.fileManager = fileManager
         self.failureInjection = failureInjection
+    }
+
+    /// Persists a C36 immutable original through the existing C05 generation
+    /// root.  The content namespace is intentionally separate from the
+    /// evidence-ID bundle namespace: attachments do not receive an
+    /// EvidenceID, while all descriptor-safe writing, protection, and
+    /// read-back still belong to this one store.
+    func persistImmutableOriginal(
+        bytes: Data,
+        request: DraftImmutableContentWriteRequestV1
+    ) async throws -> DraftImmutableContentWriteReceiptV1 {
+        try request.validate()
+        guard Int64(bytes.count) == request.byteLength else {
+            throw DraftImmutableContentWriterFailureV1.byteLengthMismatch
+        }
+        do {
+            let observed = try ContentIntegrityV1.observe(
+                workspaceID: request.workspaceID.rawValue.uuidString.lowercased(),
+                contentID: request.contentID,
+                data: bytes,
+                mediaType: request.mediaType,
+                algorithms: [.sha256]
+            )
+            guard observed.digests.digest(for: request.digest.algorithm) == request.digest else {
+                throw DraftImmutableContentWriterFailureV1.digestMismatch
+            }
+        } catch let failure as DraftImmutableContentWriterFailureV1 {
+            throw failure
+        } catch {
+            throw DraftImmutableContentWriterFailureV1.invalidRequest
+        }
+
+        try validateGenerationRoot()
+        let workspaceComponent = request.workspaceID.rawValue.uuidString.lowercased()
+        let components = ["content", workspaceComponent, request.contentID]
+        try ensureDirectory(
+            relativeComponents: components,
+            policyKind: .durableDirectory
+        )
+        let target = generationRootURL.appendingPathComponent(request.relativePath)
+
+        if let existingType = try itemType(at: target) {
+            guard existingType == .typeRegular else {
+                throw DraftImmutableContentWriterFailureV1.immutableConflict
+            }
+            do {
+                let existing = try withParentDescriptor(of: target) { parent, leaf in
+                    try readProtectedRegularFile(
+                        .mediaOriginal,
+                        at: target,
+                        parent: parent,
+                        name: leaf
+                    )
+                }
+                guard existing == bytes else {
+                    throw DraftImmutableContentWriterFailureV1.immutableConflict
+                }
+                let receipt = try DraftImmutableContentWriteReceiptV1(
+                    request: request,
+                    relativePath: request.relativePath,
+                    reusedExistingBytes: true
+                )
+                try receipt.validate(request: request, bytes: existing)
+                return receipt
+            } catch let failure as DraftImmutableContentWriterFailureV1 {
+                throw failure
+            } catch {
+                throw DraftImmutableContentWriterFailureV1.immutableConflict
+            }
+        }
+
+        do {
+            try writeProtectedImmutableFile(bytes, to: target)
+            let verified = try withParentDescriptor(of: target) { parent, leaf in
+                try readProtectedRegularFile(
+                    .mediaOriginal,
+                    at: target,
+                    parent: parent,
+                    name: leaf
+                )
+            }
+            guard verified == bytes else {
+                throw DraftImmutableContentWriterFailureV1.digestMismatch
+            }
+            let receipt = try DraftImmutableContentWriteReceiptV1(
+                request: request,
+                relativePath: request.relativePath,
+                reusedExistingBytes: false
+            )
+            try receipt.validate(request: request, bytes: verified)
+            return receipt
+        } catch let failure as DraftImmutableContentWriterFailureV1 {
+            throw failure
+        } catch let failure as EvidenceBundleStoreError {
+            throw failure
+        } catch {
+            throw EvidenceBundleStoreError.fileOperationFailed
+        }
     }
 
     func stage(
@@ -850,9 +948,10 @@ actor EvidenceBundleStore {
         }
     }
 
-    private func writeProtectedStagingFile(
+    private func writeProtectedFile(
         _ data: Data,
-        to url: URL
+        to url: URL,
+        policy: OwnedFileKindV1
     ) throws {
         let temporaryName = ".\(url.lastPathComponent).\(UUID().uuidString.lowercased()).tmp"
         let temporaryURL = url
@@ -873,7 +972,7 @@ actor EvidenceBundleStore {
             var published = false
             do {
                 try applyLeafPolicy(
-                    .stagingFile,
+                    policy,
                     at: temporaryURL,
                     parent: parent,
                     name: temporaryName,
@@ -915,7 +1014,7 @@ actor EvidenceBundleStore {
                     throw EvidenceBundleStoreError.fileOperationFailed
                 }
                 try applyLeafPolicy(
-                    .stagingFile,
+                    policy,
                     at: url,
                     parent: parent,
                     name: leaf,
@@ -940,6 +1039,20 @@ actor EvidenceBundleStore {
                 throw writeError
             }
         }
+    }
+
+    private func writeProtectedStagingFile(
+        _ data: Data,
+        to url: URL
+    ) throws {
+        try writeProtectedFile(data, to: url, policy: .stagingFile)
+    }
+
+    private func writeProtectedImmutableFile(
+        _ data: Data,
+        to url: URL
+    ) throws {
+        try writeProtectedFile(data, to: url, policy: .mediaOriginal)
     }
 
     private func applyPromotedMediaPolicy(
@@ -1684,5 +1797,47 @@ actor EvidenceBundleStore {
 
     private func sha256(_ data: Data) -> String {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+// MARK: - C36 draft/media boundary
+
+/// The legacy media store remains the post-commit EvidenceID store.  C36
+/// capture/import bytes must use DraftAttachmentStagingAdapterV1 until the
+/// draft coordinator has obtained a canonical commit receipt.
+enum DraftMediaPromotionBoundaryV1: Equatable, Sendable {
+    case stagedWithoutEvidenceID(stageID: UUID, draftID: UUID)
+    case committed(contentID: String, locatorID: String)
+
+    var exposesEvidenceID: Bool {
+        switch self {
+        case .stagedWithoutEvidenceID: false
+        case .committed: false
+        }
+    }
+
+    var isCanonical: Bool {
+        switch self {
+        case .stagedWithoutEvidenceID: false
+        case .committed: true
+        }
+    }
+}
+
+enum EvidenceBundleStoreC36GuardV1 {
+    static let prePromotionRequiresNoEvidenceID = true
+    static let stagingExcludedFromBackup = true
+    static let stagingExcludedFromPortableExport = true
+
+    static func validatePrePromotion(
+        stageID: UUID,
+        draftID: UUID,
+        evidenceID: UUID? = nil
+    ) throws {
+        let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0,
+                               0, 0, 0, 0, 0, 0, 0, 0))
+        guard stageID != zero, draftID != zero, evidenceID == nil else {
+            throw EvidenceBundleStoreError.bundleShapeInvalid
+        }
     }
 }

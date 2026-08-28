@@ -51,6 +51,24 @@ final class BackupRestoreFailureInjection {
 
 @MainActor
 final class BackupRestoreService {
+    private struct DraftRestorePublicationBindingV1: Codable, Equatable {
+        let schemaVersion: Int
+        let receipt: DraftAttachmentRestorePublicationReceiptV1
+
+        init(receipt: DraftAttachmentRestorePublicationReceiptV1) throws {
+            try receipt.validate()
+            schemaVersion = 1
+            self.receipt = receipt
+        }
+
+        func validate() throws {
+            guard schemaVersion == 1 else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            try receipt.validate()
+        }
+    }
+
     private struct PinnedIdentity: Equatable {
         let device: UInt64
         let inode: UInt64
@@ -200,6 +218,12 @@ final class BackupRestoreService {
                 && modelContext.fetchCount(FetchDescriptor<ChangeRequestRow>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<CorrectiveActionPolicyRow>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<CorrectiveActionEventRow>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<FieldDraftCheckpointRow>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<AttachmentStagingItemRow>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<DraftCommitSagaRow>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<DraftContentReservationRow>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<DraftCommitReceiptRow>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<DraftDiscardReceiptRow>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<WorkPacketManifestRow>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<WorkItemClaimRow>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<WorkLeaseRow>()) == 0
@@ -591,7 +615,20 @@ final class BackupRestoreService {
             guard RestoreIntentCodecV1.valid(intent) else {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
             }
+            try inject(.beforePreparedWrite)
             try Task.checkCancellation()
+            try intentStore.create(intent)
+            try inject(.afterPreparedWrite)
+            let draftPublicationReceipt = try publishRestoredDraftStaging(
+                package: validatedPackage,
+                records: expectedRecords,
+                identityDecision: identityDecision,
+                restoreID: restoreID
+            )
+            if let draftPublicationReceipt {
+                try persistDraftPublicationBinding(draftPublicationReceipt)
+            }
+            try validateDraftPublicationBinding(intent: intent, records: expectedRecords)
             try discardImportedPackage(validatedPackage, currentGenerationRootURL)
             let expectedInstalledNames = Set(
                 (initialRetiredIDs + [currentGenerationID]).map(canonical)
@@ -604,13 +641,9 @@ final class BackupRestoreService {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
             }
 
-            try inject(.beforePreparedWrite)
-            try Task.checkCancellation()
-            try intentStore.create(intent)
-            try inject(.afterPreparedWrite)
-
             try inject(.beforeGenerationInstall)
             try Task.checkCancellation()
+            try validateDraftPublicationBinding(intent: intent, records: expectedRecords)
             try protectGenerationTree(
                 id: newGenerationID,
                 root: generationFactory.restoreStagingGenerationURL(id: newGenerationID),
@@ -710,6 +743,7 @@ final class BackupRestoreService {
                 authority: generationAuthority
             )
             try intentStore.remove(expected: validated)
+            try removeDraftPublicationBinding(validated)
             try cleanupEmptyRestoreDirectories()
             try await searchIndexLifecycle.dropProjection(
                 workspaceID: session.workspaceID.rawValue
@@ -779,6 +813,47 @@ final class BackupRestoreService {
             id: intent.newGenerationID,
             authority: generationAuthority
         )
+        let liveImportNames = try generationAuthority.importStagingNames()
+        if intent.phase == .prepared, !liveImportNames.isEmpty {
+            guard liveImportNames.count == 1, presence.staging,
+                  let stagedRecords = try validStagingGenerationRecords(
+                    id: intent.newGenerationID,
+                    identity: try intent.identity.map {
+                        try workspaceIdentity($0.targetPointer)
+                    }
+                  ) else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            let packageURL = applicationSupportURL
+                .appendingPathComponent("FieldEvidenceRestore", isDirectory: true)
+                .appendingPathComponent("staging", isDirectory: true)
+                .appendingPathComponent(liveImportNames[0], isDirectory: true)
+            let package = try BackupPackageValidatorV1(
+                route: packageValidationRoute()
+            ).validate(stagedPackageURL: packageURL)
+            let bindingURL = draftPublicationBindingURL(
+                restoreID: intent.restoreID
+            )
+            if !fileManager.fileExists(atPath: bindingURL.path),
+               let receipt = try publishRestoredDraftStaging(
+                    package: package,
+                    records: stagedRecords,
+                    identityDecision: intent.identity,
+                    restoreID: intent.restoreID
+               ) {
+                try persistDraftPublicationBinding(receipt)
+            }
+            try validateDraftPublicationBinding(
+                intent: intent,
+                records: stagedRecords
+            )
+            try discardImportedPackage(
+                package,
+                generationFactory.installedGenerationURL(
+                    id: intent.oldGenerationID
+                )
+            )
+        }
         var expectedInstalledNames = Set(retiredIDs.map(canonical))
         expectedInstalledNames.insert(canonical(intent.oldGenerationID))
         if presence.installed {
@@ -842,6 +917,7 @@ final class BackupRestoreService {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
             }
             try intentStore.remove(expected: intent)
+            try removeDraftPublicationBinding(intent)
             try cleanupEmptyRestoreDirectories()
             return nil
         }
@@ -884,6 +960,10 @@ final class BackupRestoreService {
             ) else {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
             }
+            try validateDraftPublicationBinding(
+                intent: intent,
+                records: newRecords
+            )
         }
         if presence.staging,
            let stagedRecords = try validStagingGenerationRecords(
@@ -891,13 +971,18 @@ final class BackupRestoreService {
                identity: try intent.identity.map {
                    try workspaceIdentity($0.targetPointer)
                }
-           ),
-           !validRecoveredRecords(
+           ) {
+            guard validRecoveredRecords(
                intent: intent,
                old: oldRecords,
                target: stagedRecords
-           ) {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
+            ) else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            try validateDraftPublicationBinding(
+                intent: intent,
+                records: stagedRecords
+            )
         }
 
         switch intent.phase {
@@ -938,6 +1023,7 @@ final class BackupRestoreService {
                 )
             }
             try intentStore.remove(expected: intent)
+            try removeDraftPublicationBinding(intent)
             try cleanupEmptyRestoreDirectories()
             return nil
 
@@ -966,6 +1052,7 @@ final class BackupRestoreService {
                     authority: generationAuthority
                 )
                 try intentStore.remove(expected: intent)
+                try removeDraftPublicationBinding(intent)
                 try cleanupEmptyRestoreDirectories()
                 return nil
             }
@@ -1006,6 +1093,7 @@ final class BackupRestoreService {
                     authority: generationAuthority
                 )
                 try intentStore.remove(expected: intent)
+                try removeDraftPublicationBinding(intent)
                 try cleanupEmptyRestoreDirectories()
                 return nil
             }
@@ -1029,6 +1117,7 @@ final class BackupRestoreService {
                 authority: generationAuthority
             )
             try intentStore.remove(expected: intent)
+            try removeDraftPublicationBinding(intent)
             try cleanupEmptyRestoreDirectories()
             return newSession
         }
@@ -1515,6 +1604,7 @@ private extension BackupRestoreService {
             authority: generationAuthority
         )
         try intentStore.remove(expected: validated)
+        try removeDraftPublicationBinding(validated)
         try cleanupEmptyRestoreDirectories()
         return session
     }
@@ -1524,7 +1614,7 @@ private extension BackupRestoreService {
         with packets: [V4BackupPacketDTO]
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
-            workPackets:records.workPackets, inspectionReview: records.inspectionReview,
+            fieldDrafts: records.fieldDrafts, workPackets:records.workPackets, inspectionReview: records.inspectionReview,
             evidenceAssurance: records.evidenceAssurance,
             functionalRelationships: records.functionalRelationships,
             authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
@@ -1573,7 +1663,7 @@ private extension BackupRestoreService {
         with history: MutationHistorySnapshotV1
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
-            workPackets:records.workPackets, inspectionReview: records.inspectionReview,
+            fieldDrafts: records.fieldDrafts, workPackets:records.workPackets, inspectionReview: records.inspectionReview,
             evidenceAssurance: records.evidenceAssurance,
             functionalRelationships: records.functionalRelationships,
             authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
@@ -1618,6 +1708,7 @@ private extension BackupRestoreService {
             )
             normalized = try rebindingLocationMigrationReceipt(
                 in: normalized,
+                identity: identityDecision,
                 workspaceID: WorkspaceID(
                     rawValue: identityDecision.targetPointer.workspaceID
                 ),
@@ -1686,7 +1777,7 @@ private extension BackupRestoreService {
             return try V8BackupRequirementAssuranceRecordV1(row)
         }.sorted { canonical($0.workflowRecordID) < canonical($1.workflowRecordID) }
         return V4BackupRecordsV1(
-            workPackets:records.workPackets, inspectionReview: records.inspectionReview,
+            fieldDrafts: records.fieldDrafts, workPackets:records.workPackets, inspectionReview: records.inspectionReview,
             evidenceAssurance: records.evidenceAssurance,
             functionalRelationships: records.functionalRelationships,
             authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
@@ -1708,6 +1799,7 @@ private extension BackupRestoreService {
 
     func rebindingLocationMigrationReceipt(
         in records: V4BackupRecordsV1,
+        identity: RestoreIdentityV1,
         workspaceID: WorkspaceID,
         generationID: UUID,
         sourceAssurancePreviews: [UUID: AssuranceProjectionPreviewV1],
@@ -1917,9 +2009,10 @@ private extension BackupRestoreService {
             members: members
         )
         let workPackets = try rebindingWorkPackets(records.workPackets, workspaceID:workspaceID)
+        let fieldDrafts = try rebindingFieldDrafts(records.fieldDrafts, identity: identity)
         guard let archived = records.locationMigrationReceipts.first else {
             return V4BackupRecordsV1(
-                workPackets:workPackets,
+                fieldDrafts: fieldDrafts, workPackets:workPackets,
                 inspectionReview: inspectionReview,
                 evidenceAssurance: evidenceAssurance,
                 functionalRelationships: functionalRelationships,
@@ -1969,7 +2062,7 @@ private extension BackupRestoreService {
             bindings: receipt.bindings
         )
         return V4BackupRecordsV1(
-            workPackets:workPackets,
+            fieldDrafts: fieldDrafts, workPackets:workPackets,
             inspectionReview: inspectionReview,
             evidenceAssurance: evidenceAssurance,
             functionalRelationships: functionalRelationships,
@@ -2442,6 +2535,108 @@ private extension BackupRestoreService {
         }
     }
 
+    func rebindingFieldDrafts(
+        _ records: [V16BackupFieldDraftRecordV1],
+        identity: RestoreIdentityV1
+    ) throws -> [V16BackupFieldDraftRecordV1] {
+        guard !records.isEmpty else { return [] }
+        if identity.mode == .emptyInstall || identity.mode == .replaceExisting,
+           records.allSatisfy({ $0.workspaceID == identity.targetPointer.workspaceID }) {
+            return records
+        }
+        let target = identity.destinationFieldDraftWorkspaceID()
+        func mapped(_ id: UUID, _ namespace: String) throws -> UUID {
+            guard let value = identity.destinationFieldDraftID(for: id, namespace: namespace) else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            return value
+        }
+        let decodedCheckpoints = try records.filter { $0.kind == .checkpoint }.map { try FieldDraftCanonicalCodecV1.decode(FieldDraftCheckpointV1.self, from: $0.canonicalData) }
+        let decodedStages = try records.filter { $0.kind == .stagingItem }.map { try FieldDraftCanonicalCodecV1.decode(AttachmentStagingItemV1.self, from: $0.canonicalData) }
+        let decodedSagas = try records.filter { $0.kind == .commitSaga }.map { try FieldDraftCanonicalCodecV1.decode(DraftCommitSagaV1.self, from: $0.canonicalData) }
+        let decodedReservations = try records.filter { $0.kind == .contentReservation }.map { try FieldDraftCanonicalCodecV1.decode(DraftContentReservationV1.self, from: $0.canonicalData) }
+        let decodedCommitReceipts = try records.filter { $0.kind == .commitReceipt }.map { try FieldDraftCanonicalCodecV1.decode(DraftCommitReceiptV1.self, from: $0.canonicalData) }
+        let decodedDiscardReceipts = try records.filter { $0.kind == .discardReceipt }.map { try FieldDraftCanonicalCodecV1.decode(DraftDiscardReceiptV1.self, from: $0.canonicalData) }
+        func pairs(_ ids: [UUID], _ namespace: String) throws -> [UUID: UUID] {
+            guard Set(ids).count == ids.count else { throw BackupRestoreServiceError.invalidPackage }
+            return try Dictionary(uniqueKeysWithValues: ids.map { ($0, try mapped($0, namespace)) })
+        }
+        let receiptIDs = decodedCommitReceipts.map(\.receiptID) + decodedDiscardReceipts.map(\.receiptID)
+        let map = try DraftRestoreIdentityMapV1(
+            targetWorkspaceID: target,
+            draftIDs: try pairs(decodedCheckpoints.map(\.draftID), "draft"),
+            stageIDs: try pairs(decodedStages.map(\.stageID), "stage"),
+            sagaIDs: try pairs(decodedSagas.map(\.sagaID), "saga"),
+            reservationIDs: try pairs(decodedReservations.map(\.reservationID), "reservation"),
+            receiptIDs: try pairs(receiptIDs, "receipt")
+        )
+        func mutation(_ id: MutationIDV1, _ namespace: String) throws -> MutationIDV1 {
+            try MutationIDV1(rawValue: mapped(id.rawValue, "mutation.\(namespace)"))
+        }
+        var planByDigest: [String: DraftCommitPlanV1] = [:]
+        for saga in decodedSagas {
+            let source = saga.plan
+            let rebound = try source.rebound(
+                using: map, planID: mapped(source.planID, "plan"),
+                stageDigests: source.stageDigests,
+                expectedTargetRevision: source.expectedTargetRevision,
+                mutationID: mutation(source.mutationID, "plan"), outputKeys: source.outputKeys
+            )
+            planByDigest[source.planSHA256] = rebound
+        }
+        var output: [V16BackupFieldDraftRecordV1] = []
+        for source in decodedCheckpoints {
+            let scope = try DraftScopeKeyV1(
+                scopeKind: source.scope.scopeKind,
+                stableComponentIDs: source.scope.stableComponentIDs.map { component in
+                    guard let id = UUID(uuidString: component) else { return component }
+                    return (try? mapped(id, "scope").uuidString.lowercased()) ?? component
+                }
+            )
+            let value = try source.rebound(using: map, scope: scope, mutationID: mutation(source.mutationID, "checkpoint"))
+            output.append(.init(kind:.checkpoint,id:value.draftID,workspaceID:target.rawValue,revision:value.draftRevision,canonicalData:try FieldDraftCanonicalCodecV1.encode(value)))
+        }
+        for source in decodedStages {
+            let contentReference = try source.contentReference.map { reference in
+                try ContentReferenceV1(workspaceID: target.rawValue.uuidString.lowercased(), contentID: reference.contentID, byteLength: reference.byteLength, mediaType: reference.mediaType, digests: reference.digests, byteRole: reference.byteRole, createdAt: reference.createdAt)
+            }
+            let value = try source.rebound(using: map, scratchLeaseID: mapped(source.scratchLeaseID, "scratchLease"), contentReference: contentReference, processingJobID: try source.processingJobID.map { try mapped($0, "processingJob") }, mutationID: mutation(source.mutationID, "stage"))
+            output.append(.init(kind:.stagingItem,id:value.stageID,workspaceID:target.rawValue,revision:value.revision,canonicalData:try FieldDraftCanonicalCodecV1.encode(value)))
+        }
+        var reboundSagaSHA: [String: String] = [:]
+        for source in decodedSagas.sorted(by: { $0.revision < $1.revision }) {
+            guard let plan = planByDigest[source.plan.planSHA256] else { throw BackupRestoreServiceError.invalidPackage }
+            let value = try source.rebound(using: map, plan: plan, mutationID: mutation(source.mutationID, "saga"))
+            reboundSagaSHA[source.sagaSHA256] = value.sagaSHA256
+            output.append(.init(kind:.commitSaga,id:value.sagaID,workspaceID:target.rawValue,revision:value.revision,canonicalData:try FieldDraftCanonicalCodecV1.encode(value)))
+        }
+        for source in decodedReservations {
+            guard let plan = planByDigest[source.commitPlanSHA256] else { throw BackupRestoreServiceError.invalidPackage }
+            let locator = try ContentLocatorV1(locatorID: source.locator.locatorID, workspaceID: target.rawValue.uuidString.lowercased(), contentID: source.locator.contentID, locatorRevision: source.locator.locatorRevision, contentDigest: source.contentDigest, expectedByteLength: source.locator.expectedByteLength)
+            let value = try source.rebound(using: map, commitPlanSHA256: plan.planSHA256, contentDigest: source.contentDigest, locator: locator, mutationID: mutation(source.mutationID, "reservation"))
+            output.append(.init(kind:.contentReservation,id:value.reservationID,workspaceID:target.rawValue,revision:value.revision,canonicalData:try FieldDraftCanonicalCodecV1.encode(value)))
+        }
+        for source in decodedCommitReceipts {
+            guard let plan = planByDigest[source.commitPlanSHA256] else { throw BackupRestoreServiceError.invalidPackage }
+            var consumed: [String: String] = [:]
+            for (key, contentID) in source.consumedStageToContentID {
+                guard let sourceStageID = UUID(uuidString: key) else { throw BackupRestoreServiceError.invalidPackage }
+                consumed[try map.stageID(sourceStageID).uuidString] = contentID
+            }
+            let chain = try source.sagaEventSHA256Chain.map { digest -> String in
+                guard let rebound = reboundSagaSHA[digest] else { throw BackupRestoreServiceError.invalidPackage }
+                return rebound
+            }
+            let value = try source.rebound(using: map, commitPlanSHA256: plan.planSHA256, sagaEventSHA256Chain: chain, targetMutationID: mutation(source.targetMutationID, "target"), targetReceiptSHA256: source.targetReceiptSHA256, consumedStageToContentID: consumed, mutationID: mutation(source.mutationID, "commitReceipt"))
+            output.append(.init(kind:.commitReceipt,id:value.receiptID,workspaceID:target.rawValue,revision:value.revision,canonicalData:try FieldDraftCanonicalCodecV1.encode(value)))
+        }
+        for source in decodedDiscardReceipts {
+            let value = try source.rebound(using: map, planSHA256: source.planSHA256, mutationID: mutation(source.mutationID, "discardReceipt"))
+            output.append(.init(kind:.discardReceipt,id:value.receiptID,workspaceID:target.rawValue,revision:value.revision,canonicalData:try FieldDraftCanonicalCodecV1.encode(value)))
+        }
+        return output.sorted { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)" }
+    }
+
     func rebindingInspectionReview(
         _ records: [V14BackupInspectionReviewRecordV1], workspaceID: WorkspaceID,
         sourceEvidenceAssurance: [V13BackupEvidenceAssuranceRecordV1],
@@ -2804,6 +2999,198 @@ private extension BackupRestoreService {
         }
     }
 
+    func publishRestoredDraftStaging(
+        package: ValidatedV4BackupPackageV1,
+        records: V4BackupRecordsV1,
+        identityDecision: RestoreIdentityV1?,
+        restoreID: UUID
+    ) throws -> DraftAttachmentRestorePublicationReceiptV1? {
+        let sourceItems = try package.records.fieldDrafts.compactMap { record -> AttachmentStagingItemV1? in
+            guard record.kind == .stagingItem else { return nil }
+            return try FieldDraftCanonicalCodecV1.decode(AttachmentStagingItemV1.self,from:record.canonicalData)
+        }
+        let targetItems = try records.fieldDrafts.compactMap { record -> AttachmentStagingItemV1? in
+            guard record.kind == .stagingItem else { return nil }
+            return try FieldDraftCanonicalCodecV1.decode(AttachmentStagingItemV1.self,from:record.canonicalData)
+        }
+        let restorableSources = sourceItems.filter {
+            ($0.state == .readyLocal || $0.state == .committed)
+                && $0.actualByteCount != nil && $0.contentDigest != nil
+        }
+        guard !restorableSources.isEmpty else {
+            guard targetItems.filter({ $0.state == .readyLocal || $0.state == .committed }).isEmpty else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            return nil
+        }
+        let targets = Dictionary(uniqueKeysWithValues: targetItems.map { ($0.stageID,$0) })
+        var entries: [DraftAttachmentStagingEntryV1] = []
+        for source in restorableSources {
+            let targetID: UUID
+            if let identityDecision {
+                guard let mapped = identityDecision.destinationFieldDraftID(for:source.stageID,namespace:"stage") else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                targetID = mapped
+            } else { targetID = source.stageID }
+            guard let target = targets[targetID],
+                  target.actualByteCount == source.actualByteCount,
+                  target.contentDigest == source.contentDigest else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            entries.append(try DraftAttachmentStagingEntryV1(
+                item:target,
+                relativeDataPath:"\(source.draftID.uuidString.lowercased())/\(source.stageID.uuidString.lowercased()).bin",
+                mediaType:draftAttachmentMediaType(source.attachmentKind),
+                updatedAt:package.manifest.exportedAt
+            ))
+        }
+        let manifest = try DraftAttachmentStagingManifestV1(entries:entries)
+        let workspaceID = entries[0].item.workspaceID
+        guard entries.allSatisfy({$0.item.workspaceID == workspaceID}) else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        let adapter = try DraftAttachmentStagingAdapterV1(
+            applicationSupportURL:applicationSupportURL,
+            workspaceID:workspaceID,
+            fileManager:fileManager,
+            clock:now
+        )
+        let receipt = try adapter.adoptRestoredStaging(
+            from:package.stagedPackageURL.appendingPathComponent("draft-staging",isDirectory:true),
+            entries:entries,
+            workspaceID:workspaceID,
+            sourceManifestSHA256:manifest.manifestSHA256,
+            restoreID:restoreID
+        )
+        try receipt.validate()
+        guard Set(receipt.adoptedStageIDs + receipt.reusedStageIDs) == Set(entries.map{$0.item.stageID}),
+              receipt.atomicAcrossRoots == false, receipt.canonicalCommitRequired else {
+            throw BackupRestoreServiceError.recoveryRequired
+        }
+        return receipt
+    }
+
+    func draftPublicationBindingURL(restoreID: UUID) -> URL {
+        applicationSupportURL
+            .appendingPathComponent("FieldEvidenceRestore", isDirectory: true)
+            .appendingPathComponent(
+                "draft-publication-\(canonical(restoreID)).json",
+                isDirectory: false
+            )
+    }
+
+    func expectedDraftPublicationStageIDs(
+        in records: V4BackupRecordsV1
+    ) throws -> Set<UUID> {
+        Set(try records.fieldDrafts.compactMap { record in
+            guard record.kind == .stagingItem else { return nil }
+            let item = try FieldDraftCanonicalCodecV1.decode(
+                AttachmentStagingItemV1.self,
+                from: record.canonicalData
+            )
+            guard (item.state == .readyLocal || item.state == .committed),
+                  item.actualByteCount != nil,
+                  item.contentDigest != nil else { return nil }
+            return item.stageID
+        })
+    }
+
+    func persistDraftPublicationBinding(
+        _ receipt: DraftAttachmentRestorePublicationReceiptV1
+    ) throws {
+        let binding = try DraftRestorePublicationBindingV1(receipt: receipt)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .millisecondsSince1970
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let data = try encoder.encode(binding)
+        let url = draftPublicationBindingURL(restoreID: receipt.restoreID)
+        if fileManager.fileExists(atPath: url.path) {
+            guard try Data(contentsOf: url) == data else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+        } else {
+            try data.write(to: url, options: [.atomic])
+        }
+        try ProtectedFilePolicyV1.applyAndVerify(.stagingFile, at: url)
+        let descriptor = Darwin.open(url.path, O_RDONLY | O_NOFOLLOW)
+        guard descriptor >= 0 else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        defer { _ = Darwin.close(descriptor) }
+        let directory = Darwin.open(
+            url.deletingLastPathComponent().path,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard directory >= 0 else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        defer { _ = Darwin.close(directory) }
+        guard Darwin.fsync(descriptor) == 0,
+              Darwin.fsync(directory) == 0,
+              try Data(contentsOf: url) == data else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+    }
+
+    func validateDraftPublicationBinding(
+        intent: RestoreIntentV1,
+        records: V4BackupRecordsV1
+    ) throws {
+        let expected = try expectedDraftPublicationStageIDs(in: records)
+        let url = draftPublicationBindingURL(restoreID: intent.restoreID)
+        guard !expected.isEmpty else {
+            guard !fileManager.fileExists(atPath: url.path) else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            return
+        }
+        try ProtectedFilePolicyV1.verify(.stagingFile, at: url)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .millisecondsSince1970
+        let data = try Data(contentsOf: url)
+        let binding = try decoder.decode(
+            DraftRestorePublicationBindingV1.self,
+            from: data
+        )
+        try binding.validate()
+        let receipt = binding.receipt
+        let actual = Set(receipt.adoptedStageIDs + receipt.reusedStageIDs)
+        guard let targetWorkspaceID = intent.identity?.targetPointer.workspaceID
+                ?? records.fieldDrafts.first?.workspaceID else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        guard receipt.restoreID == intent.restoreID,
+              receipt.workspaceID.rawValue == targetWorkspaceID,
+              actual == expected,
+              receipt.adoptedStageIDs.count + receipt.reusedStageIDs.count
+                == expected.count else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+    }
+
+    func removeDraftPublicationBinding(_ intent: RestoreIntentV1) throws {
+        let url = draftPublicationBindingURL(restoreID: intent.restoreID)
+        guard fileManager.fileExists(atPath: url.path) else { return }
+        try ProtectedFilePolicyV1.verify(.stagingFile, at: url)
+        try fileManager.removeItem(at: url)
+        let directory = Darwin.open(
+            url.deletingLastPathComponent().path,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard directory >= 0 else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        defer { _ = Darwin.close(directory) }
+        guard Darwin.fsync(directory) == 0 else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+    }
+
+    func draftAttachmentMediaType(_ kind:DraftAttachmentKindV1)->String{
+        switch kind{case .photo:return "image/jpeg";case .audio:return "audio/mpeg";case .video:return "video/mp4";case .file:return "application/octet-stream"}
+    }
+
     func observationAndTimeData(
         for value: V4BackupWorkflowRecordDTO,
         recordsSchemaVersion: Int
@@ -2894,7 +3281,8 @@ private extension BackupRestoreService {
                 || records.recordsSchemaVersion == 11
                 || records.recordsSchemaVersion == 12
                 || records.recordsSchemaVersion == 13
-                || records.recordsSchemaVersion == 14)
+                || records.recordsSchemaVersion == 14
+                || records.recordsSchemaVersion == 15)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -3149,7 +3537,8 @@ private extension BackupRestoreService {
             || records.recordsSchemaVersion == 10
             || records.recordsSchemaVersion == 11
             || records.recordsSchemaVersion == 12
-            || records.recordsSchemaVersion == 13 || records.recordsSchemaVersion == 14 {
+            || records.recordsSchemaVersion == 13 || records.recordsSchemaVersion == 14
+            || records.recordsSchemaVersion == 15 {
             do {
                 for record in records.savedSmartViews {
                     let descriptor = try record.descriptor()
@@ -3338,6 +3727,20 @@ private extension BackupRestoreService {
                 case .handoff:context.insert(try WorkHandoffRow(WorkPacketCanonicalCodecV1.decode(WorkHandoffV1.self,from:record.canonicalData)))
             }}}catch{throw BackupRestoreServiceError.invalidPackage}
         }
+        if records.recordsSchemaVersion >= 15 {
+            do {
+                for record in records.fieldDrafts {
+                    switch record.kind {
+                    case .checkpoint: context.insert(try FieldDraftCheckpointRow(FieldDraftCanonicalCodecV1.decode(FieldDraftCheckpointV1.self, from: record.canonicalData)))
+                    case .stagingItem: context.insert(try AttachmentStagingItemRow(FieldDraftCanonicalCodecV1.decode(AttachmentStagingItemV1.self, from: record.canonicalData)))
+                    case .commitSaga: context.insert(try DraftCommitSagaRow(FieldDraftCanonicalCodecV1.decode(DraftCommitSagaV1.self, from: record.canonicalData)))
+                    case .contentReservation: context.insert(try DraftContentReservationRow(FieldDraftCanonicalCodecV1.decode(DraftContentReservationV1.self, from: record.canonicalData)))
+                    case .commitReceipt: context.insert(try DraftCommitReceiptRow(FieldDraftCanonicalCodecV1.decode(DraftCommitReceiptV1.self, from: record.canonicalData)))
+                    case .discardReceipt: context.insert(try DraftDiscardReceiptRow(FieldDraftCanonicalCodecV1.decode(DraftDiscardReceiptV1.self, from: record.canonicalData)))
+                    }
+                }
+            } catch { throw BackupRestoreServiceError.invalidPackage }
+        }
         if let mutationHistory = records.mutationHistory {
             guard records.recordsSchemaVersion == 3
                     || records.recordsSchemaVersion == 4
@@ -3350,7 +3753,8 @@ private extension BackupRestoreService {
                     || records.recordsSchemaVersion == 11
                     || records.recordsSchemaVersion == 12
                     || records.recordsSchemaVersion == 13
-                    || records.recordsSchemaVersion == 14 else {
+                    || records.recordsSchemaVersion == 14
+                    || records.recordsSchemaVersion == 15 else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {
@@ -4432,7 +4836,8 @@ private extension BackupRestoreService {
                 || actual.recordsSchemaVersion == 11
                 || actual.recordsSchemaVersion == 12
                 || actual.recordsSchemaVersion == 13
-                || actual.recordsSchemaVersion == 14) else {
+                || actual.recordsSchemaVersion == 14
+                || actual.recordsSchemaVersion == 15) else {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
         if expected.recordsSchemaVersion == 5 || expected.recordsSchemaVersion == 6 {
@@ -4451,6 +4856,7 @@ private extension BackupRestoreService {
         schemaVersion: Int
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            fieldDrafts: schemaVersion >= 15 ? records.fieldDrafts : [],
             workPackets:schemaVersion>=14 ? records.workPackets:[],
             inspectionReview: schemaVersion >= 13 ? records.inspectionReview : [],
             evidenceAssurance: schemaVersion >= 12 ? records.evidenceAssurance : [],
@@ -4484,6 +4890,7 @@ private extension BackupRestoreService {
         expected: V4BackupRecordsV1
     ) throws -> Bool {
         let predecessor = V4BackupRecordsV1(
+            fieldDrafts: expected.recordsSchemaVersion >= 15 ? expected.fieldDrafts : [],
             workPackets:expected.recordsSchemaVersion>=14 ? expected.workPackets:[],
             inspectionReview: expected.recordsSchemaVersion >= 13 ? expected.inspectionReview : [],
             evidenceAssurance: expected.recordsSchemaVersion >= 12 ? expected.evidenceAssurance : [],
@@ -4662,6 +5069,12 @@ private extension BackupRestoreService {
         let changeRequests = try context.fetch(FetchDescriptor<ChangeRequestRow>())
         let correctiveActionPolicies = try context.fetch(FetchDescriptor<CorrectiveActionPolicyRow>())
         let correctiveActionEvents = try context.fetch(FetchDescriptor<CorrectiveActionEventRow>())
+        let fieldDraftCheckpoints = try context.fetch(FetchDescriptor<FieldDraftCheckpointRow>())
+        let attachmentStagingItems = try context.fetch(FetchDescriptor<AttachmentStagingItemRow>())
+        let draftCommitSagas = try context.fetch(FetchDescriptor<DraftCommitSagaRow>())
+        let draftContentReservations = try context.fetch(FetchDescriptor<DraftContentReservationRow>())
+        let draftCommitReceipts = try context.fetch(FetchDescriptor<DraftCommitReceiptRow>())
+        let draftDiscardReceipts = try context.fetch(FetchDescriptor<DraftDiscardReceiptRow>())
         let workPacketManifests=try context.fetch(FetchDescriptor<WorkPacketManifestRow>()),workItemClaims=try context.fetch(FetchDescriptor<WorkItemClaimRow>()),workLeases=try context.fetch(FetchDescriptor<WorkLeaseRow>()),workReleases=try context.fetch(FetchDescriptor<WorkReleaseRow>()),workHandoffs=try context.fetch(FetchDescriptor<WorkHandoffRow>())
         let evidenceVisibilities = try context.fetch(FetchDescriptor<EvidenceVisibilityRow>())
         let claimEvidenceLinks = try context.fetch(FetchDescriptor<ClaimEvidenceLinkRow>())
@@ -4691,6 +5104,14 @@ private extension BackupRestoreService {
             mutationHistory = nil
         }
         return V4BackupRecordsV1(
+            fieldDrafts: try (
+                fieldDraftCheckpoints.map { let v=try $0.value(); return .init(kind:.checkpoint,id:v.draftID,workspaceID:v.workspaceID.rawValue,revision:v.draftRevision,canonicalData:try FieldDraftCanonicalCodecV1.encode(v)) }
+                + attachmentStagingItems.map { let v=try $0.value(); return .init(kind:.stagingItem,id:v.stageID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try FieldDraftCanonicalCodecV1.encode(v)) }
+                + draftCommitSagas.map { let v=try $0.value(); return .init(kind:.commitSaga,id:v.sagaID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try FieldDraftCanonicalCodecV1.encode(v)) }
+                + draftContentReservations.map { let v=try $0.value(); return .init(kind:.contentReservation,id:v.reservationID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try FieldDraftCanonicalCodecV1.encode(v)) }
+                + draftCommitReceipts.map { let v=try $0.value(); return .init(kind:.commitReceipt,id:v.receiptID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try FieldDraftCanonicalCodecV1.encode(v)) }
+                + draftDiscardReceipts.map { let v=try $0.value(); return .init(kind:.discardReceipt,id:v.receiptID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try FieldDraftCanonicalCodecV1.encode(v)) }
+            ).sorted { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)" },
             workPackets:try(workPacketManifests.map{let v=try $0.value();return .init(kind:.manifest,id:v.manifestID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData)}+workItemClaims.map{let v=try $0.value();return .init(kind:.claim,id:v.claimID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData)}+workLeases.map{let v=try $0.value();return .init(kind:.lease,id:v.leaseID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData)}+workReleases.map{let v=try $0.value();return .init(kind:.release,id:v.releaseID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData)}+workHandoffs.map{let v=try $0.value();return .init(kind:.handoff,id:v.handoffID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData)}).sorted{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"},
             inspectionReview: try (
                 inspectionReviewTransitions.map { let v=try $0.value(); return .init(kind:.reviewTransition,id:v.transitionID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData) }
@@ -5061,6 +5482,30 @@ private extension BackupRestoreService {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
             }
             try generationAuthority.removeImportStagingPackage(name: name)
+        }
+        let restoreRoot = applicationSupportURL.appendingPathComponent(
+            "FieldEvidenceRestore",
+            isDirectory: true
+        )
+        for url in try fileManager.contentsOfDirectory(
+            at: restoreRoot,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) {
+            let name = url.lastPathComponent
+            guard name.hasPrefix("draft-publication-"),
+                  name.hasSuffix(".json") else { continue }
+            let start = name.index(
+                name.startIndex,
+                offsetBy: "draft-publication-".count
+            )
+            let end = name.index(name.endIndex, offsetBy: -".json".count)
+            let rawID = String(name[start..<end])
+            guard let id = UUID(uuidString: rawID), canonical(id) == rawID else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            try ProtectedFilePolicyV1.verify(.stagingFile, at: url)
+            try fileManager.removeItem(at: url)
         }
         try cleanupEmptyRestoreDirectories()
     }

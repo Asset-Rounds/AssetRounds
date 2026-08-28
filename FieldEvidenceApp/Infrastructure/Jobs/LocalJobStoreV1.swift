@@ -1,7 +1,7 @@
 import Darwin
 import Foundation
 
-actor LocalJobStoreV1: ResumableLocalJobPortV1 {
+actor LocalJobStoreV1: ResumableLocalJobPortV1, DraftAttachmentJobPortV1 {
     private let rootURL: URL
     private let storeURL: URL
     private let receiptURL: URL
@@ -457,6 +457,28 @@ actor LocalJobStoreV1: ResumableLocalJobPortV1 {
             job.outputSHA256 = nil
             job.failureCode = nil
             job.updatedAt = clock.now()
+        }
+    }
+}
+
+// MARK: - C36 attachment jobs
+
+extension LocalJobStoreV1 {
+    @discardableResult
+    func enqueueDraftAttachment(
+        _ request: DraftAttachmentJobRequestV1
+    ) async throws -> ResumableLocalJobV1 {
+        try enqueue(ResumableLocalJobV1.draftAttachmentProcessing(request))
+    }
+
+    func draftAttachmentJob(
+        workspaceID: WorkspaceID,
+        stageID: UUID
+    ) async throws -> ResumableLocalJobV1? {
+        let jobs = try jobs(workspaceID: workspaceID.rawValue)
+        return jobs.first {
+            guard $0.kind == .draftAttachmentProcessing else { return false }
+            return $0.stagingRelativePath.contains(stageID.uuidString.lowercased())
         }
     }
 }

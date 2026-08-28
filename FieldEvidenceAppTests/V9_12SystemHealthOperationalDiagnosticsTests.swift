@@ -1096,6 +1096,18 @@ private final class V912Counter: @unchecked Sendable {
     func increment() { lock.withLock { count += 1 } }
 }
 
+extension V9_12SystemHealthOperationalDiagnosticsTests {
+    func testC36JobLedgerIsRebuiltFromDraftStagingAndNeverBackedUp() {
+        XCTAssertEqual(
+            LocalJobStoreSchemaV1.c36AttachmentJobKind,
+            .draftAttachmentProcessing
+        )
+        XCTAssertFalse(LocalJobStoreSchemaV1.c36IncludedInUserBackup)
+        XCTAssertFalse(LocalJobStoreSchemaV1.c36IncludedInUserExport)
+        XCTAssertTrue(LocalJobStoreSchemaV1.c36RebuiltFromStagingItems)
+    }
+}
+
 private func XCTAssertThrowsErrorAsync<T, E: Error & Equatable>(
     _ expression: @autoclosure () async throws -> T,
     equals expected: E,

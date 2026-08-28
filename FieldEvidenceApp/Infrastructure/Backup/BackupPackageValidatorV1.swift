@@ -444,7 +444,7 @@ private extension BackupPackageValidatorV1 {
                     throw BackupPackageValidationErrorV1.invalidPackage
                 }
             case .directory:
-                guard ["media", "thumbnails", "snapshots", "pdfs"].contains(name),
+                guard ["media", "thumbnails", "snapshots", "pdfs", "draft-staging"].contains(name),
                       result.directories.insert(name).inserted else {
                     throw BackupPackageValidationErrorV1.invalidPackage
                 }
@@ -460,10 +460,26 @@ private extension BackupPackageValidatorV1 {
                 for child in children {
                     let childName = child.lastPathComponent
                     try validateComponent(childName)
-                    guard childFolded.insert(fold(childName)).inserted,
-                          try itemType(child) == .regular else {
+                    guard childFolded.insert(fold(childName)).inserted else {
                         throw BackupPackageValidationErrorV1.invalidPackage
                     }
+                    if name == "draft-staging" {
+                        guard canonicalUUIDComponent(childName), try itemType(child) == .directory else {
+                            throw BackupPackageValidationErrorV1.invalidPackage
+                        }
+                        let stageFiles = try fileManager.contentsOfDirectory(at:child,includingPropertiesForKeys:nil,options:[])
+                        guard !stageFiles.isEmpty else { throw BackupPackageValidationErrorV1.invalidPackage }
+                        var stageFolded=Set<String>()
+                        for stageFile in stageFiles {
+                            let stageName=stageFile.lastPathComponent
+                            try validateComponent(stageName)
+                            let stem=String(stageName.dropLast(4))
+                            guard stageName.hasSuffix(".bin"),canonicalUUIDComponent(stem),stageFolded.insert(fold(stageName)).inserted,try itemType(stageFile) == .regular,
+                                  result.files.insert("\(name)/\(childName)/\(stageName)").inserted else{throw BackupPackageValidationErrorV1.invalidPackage}
+                        }
+                        continue
+                    }
+                    guard try itemType(child) == .regular else { throw BackupPackageValidationErrorV1.invalidPackage }
                     let relative = "\(name)/\(childName)"
                     guard result.files.insert(relative).inserted else {
                         throw BackupPackageValidationErrorV1.invalidPackage
@@ -472,6 +488,11 @@ private extension BackupPackageValidatorV1 {
             }
         }
         return result
+    }
+
+    func canonicalUUIDComponent(_ value:String)->Bool{
+        guard let id=UUID(uuidString:value) else{return false}
+        return id.uuidString.lowercased()==value
     }
 
     func itemType(_ url: URL) throws -> ItemType {
@@ -571,7 +592,7 @@ private extension BackupPackageValidatorV1 {
         case (1, 1, 1), (2, 1, 1), (2, 3, 2), (3, 4, 3),
              (4, 5, 4), (4, 6, 5), (4, 7, 6), (4, 8, 7), (4, 9, 8),
              (4, 10, 9), (4, 11, 10), (4, 12, 11), (4, 13, 12),
-             (4, 14, 13), (4, 15, 14):
+             (4, 14, 13), (4, 15, 14), (4, 16, 15):
             schemaPairIsValid = true
         default:
             schemaPairIsValid = false
@@ -726,6 +747,7 @@ private extension BackupPackageValidatorV1 {
         try validateEvidenceAssurance(records, manifest: manifest, members: members)
         try validateInspectionReview(records, manifest: manifest, members: members)
         try validateWorkPackets(records, manifest: manifest, members: members)
+        try validateFieldDrafts(records, manifest: manifest, members: members)
         let savedSmartViews: [SavedSmartViewDescriptorV1]
         do {
             savedSmartViews = try records.savedSmartViews.map { try $0.descriptor() }
@@ -742,7 +764,8 @@ private extension BackupPackageValidatorV1 {
                         || records.recordsSchemaVersion == 11
                         || records.recordsSchemaVersion == 12
                         || records.recordsSchemaVersion == 13
-                        || records.recordsSchemaVersion == 14)
+                        || records.recordsSchemaVersion == 14
+                        || records.recordsSchemaVersion == 15)
                     && savedSmartViews.allSatisfy({
                         $0.workspaceID == manifest.source.workspaceID
                     }))) else {
@@ -798,7 +821,8 @@ private extension BackupPackageValidatorV1 {
                         || records.recordsSchemaVersion == 11
                         || records.recordsSchemaVersion == 12
                         || records.recordsSchemaVersion == 13
-                        || records.recordsSchemaVersion == 14)
+                        || records.recordsSchemaVersion == 14
+                        || records.recordsSchemaVersion == 15)
                     && assuranceSnapshots.allSatisfy({ snapshot in
                         snapshot.workspaceID == manifest.source.workspaceID
                             && workflow[snapshot.workflowRecordID] != nil
@@ -1089,7 +1113,7 @@ private extension BackupPackageValidatorV1 {
             }) else { throw invalid() }
             return
         }
-        guard (4...14).contains(records.recordsSchemaVersion) else { throw invalid() }
+        guard (4...15).contains(records.recordsSchemaVersion) else { throw invalid() }
         for record in records.workflowRecords {
             guard let basisData = record.observationBasisV1Data,
                   let temporalData = record.temporalContextV1Data else {
@@ -1137,14 +1161,15 @@ private extension BackupPackageValidatorV1 {
             guard records.partyAccountability.isEmpty else { throw invalid() }
             return
         }
-        guard (8...14).contains(records.recordsSchemaVersion),
+        guard (8...15).contains(records.recordsSchemaVersion),
               (manifest.source.persistentSchemaVersion == 9
                 || manifest.source.persistentSchemaVersion == 10
                 || manifest.source.persistentSchemaVersion == 11
                 || manifest.source.persistentSchemaVersion == 12
                 || manifest.source.persistentSchemaVersion == 13
                 || manifest.source.persistentSchemaVersion == 14
-                || manifest.source.persistentSchemaVersion == 15),
+                || manifest.source.persistentSchemaVersion == 15
+                || manifest.source.persistentSchemaVersion == 16),
               let workspaceID = manifest.source.workspaceID else { throw invalid() }
         let keys = records.partyAccountability.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
@@ -1224,13 +1249,14 @@ private extension BackupPackageValidatorV1 {
             guard records.assetSemantics.isEmpty else { throw invalid() }
             return
         }
-        guard (9...14).contains(records.recordsSchemaVersion),
+        guard (9...15).contains(records.recordsSchemaVersion),
               (manifest.source.persistentSchemaVersion == 10
                 || manifest.source.persistentSchemaVersion == 11
                 || manifest.source.persistentSchemaVersion == 12
                 || manifest.source.persistentSchemaVersion == 13
                 || manifest.source.persistentSchemaVersion == 14
-                || manifest.source.persistentSchemaVersion == 15),
+                || manifest.source.persistentSchemaVersion == 15
+                || manifest.source.persistentSchemaVersion == 16),
               let sourceWorkspaceID = manifest.source.workspaceID else { throw invalid() }
         let keys = records.assetSemantics.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         guard keys == keys.sorted(), Set(keys).count == keys.count,
@@ -1431,12 +1457,13 @@ private extension BackupPackageValidatorV1 {
             guard records.authorityCriterion.isEmpty else { throw invalid() }
             return
         }
-        guard (10...14).contains(records.recordsSchemaVersion),
+        guard (10...15).contains(records.recordsSchemaVersion),
               (manifest.source.persistentSchemaVersion == 11
                 || manifest.source.persistentSchemaVersion == 12
                 || manifest.source.persistentSchemaVersion == 13
                 || manifest.source.persistentSchemaVersion == 14
-                || manifest.source.persistentSchemaVersion == 15),
+                || manifest.source.persistentSchemaVersion == 15
+                || manifest.source.persistentSchemaVersion == 16),
               let workspaceID = manifest.source.workspaceID else { throw invalid() }
         let keys = records.authorityCriterion.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         guard keys == keys.sorted(), Set(keys).count == keys.count,
@@ -1578,11 +1605,12 @@ private extension BackupPackageValidatorV1 {
             guard records.functionalRelationships.isEmpty else { throw invalid() }
             return
         }
-        guard (11...14).contains(records.recordsSchemaVersion),
+        guard (11...15).contains(records.recordsSchemaVersion),
               (manifest.source.persistentSchemaVersion == 12
                 || manifest.source.persistentSchemaVersion == 13
                 || manifest.source.persistentSchemaVersion == 14
-                || manifest.source.persistentSchemaVersion == 15),
+                || manifest.source.persistentSchemaVersion == 15
+                || manifest.source.persistentSchemaVersion == 16),
               let sourceWorkspaceID = manifest.source.workspaceID else { throw invalid() }
         do {
             let workspaceID = WorkspaceID(rawValue: sourceWorkspaceID)
@@ -1645,9 +1673,10 @@ private extension BackupPackageValidatorV1 {
             guard records.evidenceAssurance.isEmpty else { throw invalid() }
             return
         }
-        guard (12...14).contains(records.recordsSchemaVersion),
+        guard (12...15).contains(records.recordsSchemaVersion),
               (manifest.source.persistentSchemaVersion == 13 || manifest.source.persistentSchemaVersion == 14
-                || manifest.source.persistentSchemaVersion == 15),
+                || manifest.source.persistentSchemaVersion == 15
+                || manifest.source.persistentSchemaVersion == 16),
               let rawWorkspaceID = manifest.source.workspaceID else { throw invalid() }
         do {
             let workspaceID = WorkspaceID(rawValue: rawWorkspaceID)
@@ -1721,7 +1750,7 @@ private extension BackupPackageValidatorV1 {
         members: ValidatedV4BackupMembersV1
     ) throws {
         guard records.recordsSchemaVersion >= 14 else { guard records.workPackets.isEmpty else { throw invalid() }; return }
-        guard records.recordsSchemaVersion == 14, manifest.source.persistentSchemaVersion == 15,
+        guard (14...15).contains(records.recordsSchemaVersion), manifest.source.persistentSchemaVersion >= 15,
               let rawWorkspaceID=manifest.source.workspaceID,records.workPackets.count<=WorkPacketLimitsV1.maximumHistory else{throw invalid()}
         do {
             let workspaceID=WorkspaceID(rawValue:rawWorkspaceID)
@@ -1759,6 +1788,136 @@ private extension BackupPackageValidatorV1 {
         } catch {throw invalid()}
     }
 
+    func validateFieldDrafts(
+        _ records: V4BackupRecordsV1,
+        manifest: V4BackupManifestV1,
+        members: ValidatedV4BackupMembersV1
+    ) throws {
+        _ = members
+        guard records.recordsSchemaVersion >= 15 else {
+            guard records.fieldDrafts.isEmpty else { throw invalid() }
+            return
+        }
+        guard records.recordsSchemaVersion == 15,
+              manifest.source.persistentSchemaVersion == 16,
+              let rawWorkspaceID = manifest.source.workspaceID else { throw invalid() }
+        let workspaceID = WorkspaceID(rawValue: rawWorkspaceID)
+        var checkpoints: [UUID: FieldDraftCheckpointV1] = [:]
+        var stages: [UUID: AttachmentStagingItemV1] = [:]
+        var sagas: [UUID: DraftCommitSagaV1] = [:]
+        var reservations: [UUID: DraftContentReservationV1] = [:]
+        var commitReceipts: [UUID: DraftCommitReceiptV1] = [:]
+        var discardReceipts: [UUID: DraftDiscardReceiptV1] = [:]
+        for row in records.fieldDrafts {
+            guard row.workspaceID == rawWorkspaceID else { throw invalid() }
+            switch row.kind {
+            case .checkpoint:
+                let v = try FieldDraftCanonicalCodecV1.decode(FieldDraftCheckpointV1.self, from: row.canonicalData)
+                guard v.workspaceID == workspaceID, v.draftID == row.id, v.draftRevision == row.revision,
+                      checkpoints.updateValue(v, forKey: v.draftID) == nil else { throw invalid() }
+            case .stagingItem:
+                let v = try FieldDraftCanonicalCodecV1.decode(AttachmentStagingItemV1.self, from: row.canonicalData)
+                guard v.workspaceID == workspaceID, v.stageID == row.id, v.revision == row.revision,
+                      stages.updateValue(v, forKey: v.stageID) == nil else { throw invalid() }
+            case .commitSaga:
+                let v = try FieldDraftCanonicalCodecV1.decode(DraftCommitSagaV1.self, from: row.canonicalData)
+                guard v.workspaceID == workspaceID, v.sagaID == row.id, v.revision == row.revision,
+                      sagas.updateValue(v, forKey: v.sagaID) == nil else { throw invalid() }
+            case .contentReservation:
+                let v = try FieldDraftCanonicalCodecV1.decode(DraftContentReservationV1.self, from: row.canonicalData)
+                guard v.workspaceID == workspaceID, v.reservationID == row.id, v.revision == row.revision,
+                      reservations.updateValue(v, forKey: v.reservationID) == nil else { throw invalid() }
+            case .commitReceipt:
+                let v = try FieldDraftCanonicalCodecV1.decode(DraftCommitReceiptV1.self, from: row.canonicalData)
+                guard v.workspaceID == workspaceID, v.receiptID == row.id, v.revision == row.revision,
+                      commitReceipts.updateValue(v, forKey: v.receiptID) == nil else { throw invalid() }
+            case .discardReceipt:
+                let v = try FieldDraftCanonicalCodecV1.decode(DraftDiscardReceiptV1.self, from: row.canonicalData)
+                guard v.workspaceID == workspaceID, v.receiptID == row.id, v.revision == row.revision,
+                      discardReceipts.updateValue(v, forKey: v.receiptID) == nil else { throw invalid() }
+            }
+        }
+        for checkpoint in checkpoints.values {
+            guard checkpoint.stageIDs.allSatisfy { stages[$0]?.draftID == checkpoint.draftID } else { throw invalid() }
+        }
+        for stage in stages.values {
+            guard checkpoints[stage.draftID]?.stageIDs.contains(stage.stageID) == true else { throw invalid() }
+        }
+        for reservation in reservations.values {
+            guard let stage = stages[reservation.stageID], stage.draftID == reservation.draftID,
+                  checkpoints[reservation.draftID] != nil,
+                  stage.contentDigest == reservation.contentDigest else { throw invalid() }
+        }
+        for saga in sagas.values {
+            let availableDigests = Set(stages.values.filter { $0.draftID == saga.draftID }.compactMap { $0.contentDigest?.hexadecimalValue })
+            guard checkpoints[saga.draftID] != nil,
+                  Set(saga.plan.stageDigests).isSubset(of: availableDigests) else { throw invalid() }
+            if let predecessorID = saga.predecessorSagaID {
+                guard let predecessor = sagas[predecessorID] else { throw invalid() }
+                try saga.validateSuccessor(of: predecessor)
+            } else if saga.revision != 1 { throw invalid() }
+        }
+        var consumedSagaIDs = Set<UUID>()
+        var committedReceiptDraftIDs = Set<UUID>()
+        for receipt in commitReceipts.values {
+            guard let saga = sagas[receipt.sagaID], saga.draftID == receipt.draftID,
+                  saga.state == .draftRetired,
+                  saga.plan.planSHA256 == receipt.commitPlanSHA256,
+                  saga.plan.mutationID == receipt.targetMutationID,
+                  let checkpoint = checkpoints[receipt.draftID],
+                  checkpoint.state == .committed,
+                  saga.mutationID == receipt.mutationID,
+                  checkpoint.mutationID == receipt.mutationID,
+                  checkpoint.lastDurableMutationID == receipt.mutationID,
+                  checkpoint.lastReceiptSHA256 == receipt.receiptSHA256 else { throw invalid() }
+            var chain: [DraftCommitSagaV1] = []
+            var cursor: DraftCommitSagaV1? = saga
+            var visited = Set<UUID>()
+            while let value = cursor {
+                guard visited.insert(value.sagaID).inserted else { throw invalid() }
+                chain.append(value)
+                cursor = try value.predecessorSagaID.map { predecessorID in
+                    guard let predecessor = sagas[predecessorID] else { throw invalid() }
+                    return predecessor
+                }
+            }
+            let ordered = Array(chain.reversed())
+            let expectedStates: [DraftCommitSagaStateV1] = [
+                .prepared, .contentPromotedUnbound, .targetCommitted,
+                .draftRetirePending, .draftRetired,
+            ]
+            let consumedReservations = reservations.values.filter {
+                $0.workspaceID == saga.workspaceID
+                    && $0.draftID == saga.draftID
+                    && $0.commitPlanSHA256 == saga.plan.planSHA256
+            }
+            let consumed = Dictionary(uniqueKeysWithValues: consumedReservations.map {
+                ($0.stageID.uuidString, $0.locator.contentID)
+            })
+            guard ordered.map(\.state) == expectedStates,
+                  ordered.map(\.revision) == [1, 2, 3, 4, 5],
+                  ordered.map(\.sagaSHA256) == receipt.sagaEventSHA256Chain,
+                  consumedReservations.count == saga.plan.stageDigests.count,
+                  Set(consumedReservations.map(\.stageID)).count == consumedReservations.count,
+                  consumed == receipt.consumedStageToContentID else { throw invalid() }
+            let chainIDs = Set(ordered.map(\.sagaID))
+            guard consumedSagaIDs.isDisjoint(with: chainIDs),
+                  committedReceiptDraftIDs.insert(receipt.draftID).inserted else {
+                throw invalid()
+            }
+            consumedSagaIDs.formUnion(chainIDs)
+        }
+        guard consumedSagaIDs == Set(sagas.keys),
+              Set(checkpoints.values.filter { $0.state == .committed }.map(\.draftID))
+                == committedReceiptDraftIDs else { throw invalid() }
+        for receipt in discardReceipts.values {
+            guard checkpoints[receipt.draftID] != nil,
+                  receipt.disposedStageIDs.allSatisfy { stages[$0]?.draftID == receipt.draftID },
+                  receipt.quarantinedReservationIDs.allSatisfy { reservations[$0]?.draftID == receipt.draftID }
+            else { throw invalid() }
+        }
+    }
+
     func validateInspectionReview(
         _ records: V4BackupRecordsV1, manifest: V4BackupManifestV1,
         members: ValidatedV4BackupMembersV1
@@ -1767,8 +1926,9 @@ private extension BackupPackageValidatorV1 {
             guard records.inspectionReview.isEmpty else { throw invalid() }
             return
         }
-        guard (13...14).contains(records.recordsSchemaVersion),
-              (manifest.source.persistentSchemaVersion == 14 || manifest.source.persistentSchemaVersion == 15),
+        guard (13...15).contains(records.recordsSchemaVersion),
+              (manifest.source.persistentSchemaVersion == 14 || manifest.source.persistentSchemaVersion == 15
+                || manifest.source.persistentSchemaVersion == 16),
               records.inspectionReview.count <= InspectionReviewLimitsV1.maximumHistory,
               let rawWorkspaceID = manifest.source.workspaceID else { throw invalid() }
         do {
@@ -2103,7 +2263,9 @@ private extension BackupPackageValidatorV1 {
                 || (records.recordsSchemaVersion == 13
                     && manifest.source.persistentSchemaVersion == 14)
                 || (records.recordsSchemaVersion == 14
-                    && manifest.source.persistentSchemaVersion == 15)),
+                    && manifest.source.persistentSchemaVersion == 15)
+                || (records.recordsSchemaVersion == 15
+                    && manifest.source.persistentSchemaVersion == 16)),
               let sourceWorkspaceID = manifest.source.workspaceID else {
             throw invalid()
         }
@@ -2489,6 +2651,16 @@ private extension BackupPackageValidatorV1 {
             case nil:
                 throw invalid()
             }
+        }
+        for record in records.fieldDrafts where record.kind == .stagingItem {
+            let item = try FieldDraftCanonicalCodecV1.decode(AttachmentStagingItemV1.self,from:record.canonicalData)
+            guard let byteCount=item.actualByteCount else { continue }
+            let path="draft-staging/\(uuid(item.draftID))/\(uuid(item.stageID)).bin"
+            let expectedSHA=item.contentReference?.digests.digest(for:.sha256)?.hexadecimalValue
+                ?? (item.contentDigest?.algorithm == .sha256 ? item.contentDigest?.hexadecimalValue:nil)
+            guard let bytes=members[path],bytes.count==Int(byteCount),let expectedSHA,
+                  CanonicalJSONV1.sha256(bytes)==expectedSHA else{throw invalid()}
+            expected.insert(path)
         }
         guard members.keys == expected,
               Set(manifest.entries.map(\.path)) == expected.subtracting(["manifest.json"]) else {

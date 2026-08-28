@@ -29,7 +29,8 @@ private enum PendingLifecycleCancellationV1: Equatable, Sendable {
 /// transition per claimed attempt. Operations never run on the UI actor.
 actor ResumableLocalJobRunnerV1:
     ResumableLocalJobPortV1,
-    ResumableLocalJobLifecyclePortV1 {
+    ResumableLocalJobLifecyclePortV1,
+    DraftAttachmentJobPortV1 {
     private let store: LocalJobStoreV1
     private let stagingRootURL: URL
     private let generationLeaseRegistry: GenerationLeaseRegistryV1?
@@ -343,6 +344,42 @@ actor ResumableLocalJobRunnerV1:
             _ = try await store.requeue(id: id)
         }
         try await scheduleAvailableWork()
+    }
+}
+
+// MARK: - C36 attachment jobs
+
+extension ResumableLocalJobRunnerV1 {
+    @discardableResult
+    func enqueueDraftAttachment(
+        _ request: DraftAttachmentJobRequestV1
+    ) async throws -> ResumableLocalJobV1 {
+        try await enqueue(ResumableLocalJobV1.draftAttachmentProcessing(request))
+    }
+
+    func draftAttachmentJob(
+        workspaceID: WorkspaceID,
+        stageID: UUID
+    ) async throws -> ResumableLocalJobV1? {
+        let jobs = try await jobs(workspaceID: workspaceID.rawValue)
+        return jobs.first {
+            $0.kind == .draftAttachmentProcessing
+                && $0.stagingRelativePath.contains(stageID.uuidString.lowercased())
+        }
+    }
+
+    /// Registers a bounded processing operation without allowing callers to
+    /// change the runner's global concurrency budget.
+    func registerDraftAttachmentOperation(
+        _ operation: @escaping ResumableLocalJobOperationV1
+    ) {
+        register(.draftAttachmentProcessing, operation: operation)
+    }
+
+    func registerDraftAttachmentPublisher(
+        _ publisher: @escaping ResumableLocalJobPublisherV1
+    ) {
+        registerPublisher(.draftAttachmentProcessing, publisher: publisher)
     }
 }
 

@@ -244,6 +244,7 @@ enum KernelBackupRestoreRegistryV4 {
     static let evidenceAssuranceArchiveKinds = V13BackupEvidenceAssuranceRecordV1.Kind.allCases
     static let inspectionReviewArchiveKinds = V14BackupInspectionReviewRecordV1.Kind.allCases
     static let workPacketArchiveKinds=V15BackupWorkPacketRecordV1.Kind.allCases
+    static let fieldDraftArchiveKinds = V16BackupFieldDraftRecordV1.Kind.allCases
 
     static func validateFunctionalRelationshipLifecycle() throws {
         guard functionalRelationshipArchiveKinds.count == 2,
@@ -265,6 +266,12 @@ enum KernelBackupRestoreRegistryV4 {
         }
     }
     static func validateWorkPacketLifecycle()throws{guard workPacketArchiveKinds.count==5,Set(workPacketArchiveKinds.map(\.rawValue)).count==5 else{throw KernelPersistenceV4Failure.incompleteCoverage}}
+    static func validateFieldDraftLifecycle() throws {
+        guard fieldDraftArchiveKinds.count == 6,
+              Set(fieldDraftArchiveKinds.map(\.rawValue)).count == 6 else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
     typealias Route = (
         archive: KernelArchiveDispositionV4,
         restore: KernelRestoreDispositionV4,
@@ -306,6 +313,7 @@ enum KernelBackupRestoreRegistryV4 {
         try validateEvidenceAssuranceLifecycle()
         try validateInspectionReviewLifecycle()
         try validateWorkPacketLifecycle()
+        try validateFieldDraftLifecycle()
         try validate(registrations)
     }
 

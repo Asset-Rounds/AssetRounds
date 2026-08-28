@@ -16,4 +16,10 @@ final class MutationReceiptRecoveryServiceV1 {
             try store.validateAll()
         }
     }
+
+    /// Field-draft saga recovery shares the canonical journal repair boundary;
+    /// it must not become a second receipt or mutation authority.
+    func recoverFieldDraftEffectsBeforeWriterActivation() throws {
+        try recoverBeforeWriterActivation()
+    }
 }

@@ -1257,6 +1257,33 @@ extension V10_02MutationEnvelopeReceiptTests {
     }
 }
 
+extension V10_02MutationEnvelopeReceiptTests {
+    func testV23P03C36ReceiptBindsMutationDigestSagaChainAndCanonicalReadBack() throws {
+        let fixture = try C36FieldDraftTestSupportV1.makeFixture()
+        let mutation = try FieldDraftMutationV1(
+            workspaceID: fixture.workspaceID, expectedRevision: 0,
+            expectedBaseCanonicalRevision: fixture.activeCheckpoint.baseCanonicalRevision,
+            mutationID: fixture.activeCheckpoint.mutationID,
+            postImage: .createCheckpoint(fixture.activeCheckpoint)
+        )
+        let mutationDigest = try mutation.canonicalSHA256()
+        let receiptData = try FieldDraftCanonicalCodecV1.encode(fixture.commitReceipt)
+        let replayed = try FieldDraftCanonicalCodecV1.decode(DraftCommitReceiptV1.self, from: receiptData)
+        XCTAssertEqual(replayed, fixture.commitReceipt)
+        XCTAssertEqual(try FieldDraftCanonicalCodecV1.encode(replayed), receiptData)
+        XCTAssertEqual(mutationDigest.count, 64)
+        XCTAssertEqual(replayed.sagaEventSHA256Chain, [
+            fixture.preparedSaga.sagaSHA256, fixture.promotedSaga.sagaSHA256,
+            fixture.targetCommittedSaga.sagaSHA256, fixture.retirePendingSaga.sagaSHA256,
+            fixture.retiredSaga.sagaSHA256
+        ])
+        XCTAssertEqual(replayed.sagaID, fixture.retiredSaga.sagaID)
+        XCTAssertEqual(replayed.commitPlanSHA256, fixture.plan.planSHA256)
+        XCTAssertEqual(replayed.mutationID, fixture.rowMutationIDs.terminalBundleMutationID)
+        XCTAssertNotEqual(replayed.mutationID, fixture.plan.mutationID)
+    }
+}
+
 private struct MutationEnvelopeReceiptCorpusFixtureV1: Decodable {
     struct CanonicalVector: Decodable {
         let workspaceID: String

@@ -600,3 +600,49 @@ private struct FixtureIDs {
     let report = UUID(uuidString: "00000000-0000-0000-0000-000000000013")!
     let replacesReport = UUID(uuidString: "00000000-0000-0000-0000-000000000014")!
 }
+
+extension S3_1DraftSchemaTests {
+    func testC36AttachmentStageIsDurableAndEvidenceFreeUntilCommit() throws {
+        let workspaceID = WorkspaceID(rawValue: UUID(uuidString: "10000000-0000-0000-0000-000000000001")!)
+        let stageID = UUID(uuidString: "10000000-0000-0000-0000-000000000002")!
+        let draftID = UUID(uuidString: "10000000-0000-0000-0000-000000000003")!
+        let scratchLeaseID = UUID(uuidString: "10000000-0000-0000-0000-000000000004")!
+        let mutationID = try MutationIDV1(rawValue: UUID(uuidString: "10000000-0000-0000-0000-000000000005")!)
+        let digest = try ContentDigestV1(
+            algorithm: .sha256,
+            hexadecimalValue: String(repeating: "a", count: 64)
+        )
+        let item = try AttachmentStagingItemV1(
+            stageID: stageID,
+            draftID: draftID,
+            workspaceID: workspaceID,
+            attachmentKind: .photo,
+            scratchLeaseID: scratchLeaseID,
+            expectedByteCount: 4,
+            actualByteCount: 4,
+            contentDigest: digest,
+            retryClass: .none,
+            state: .readyLocal,
+            protectionState: .available,
+            revision: 1,
+            mutationID: mutationID
+        )
+
+        try item.validate()
+        XCTAssertNil(item.contentReference)
+        XCTAssertEqual(
+            DraftAttachmentPresentationMapperV1.state(
+                for: item,
+                durableReceiptReadBack: false
+            ),
+            .stagedLocal
+        )
+        XCTAssertEqual(
+            DraftAttachmentPresentationMapperV1.state(
+                for: item,
+                durableReceiptReadBack: true
+            ),
+            .ready
+        )
+    }
+}

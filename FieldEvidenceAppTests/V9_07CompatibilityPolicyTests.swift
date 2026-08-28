@@ -271,6 +271,17 @@ extension V9_07CompatibilityPolicyTests {
 }
 
 extension V9_07CompatibilityPolicyTests {
+    func testV23P03C36CompatibilityBoundaryRequiresRecords15AndPersistent16() throws {
+        XCTAssertNoThrow(try V16FieldDraftImportBoundaryV1.validate(persistent: 16, records: 15))
+        XCTAssertThrowsError(try V16FieldDraftImportBoundaryV1.validate(persistent: 15, records: 15))
+        XCTAssertThrowsError(try V16FieldDraftImportBoundaryV1.validate(persistent: 16, records: 14))
+        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeVersionIdentifier, PersistentSchemaV16.versionIdentifier)
+        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeCompatibilityID, PersistentSchemaReleaseV1.v16.compatibilityID)
+        XCTAssertEqual(PersistentSchemaReleaseV1.v16.models.count, 64)
+    }
+}
+
+extension V9_07CompatibilityPolicyTests {
     func testV23P03C41CompatibilityRoundTripRetainsPackageAndDescriptorIdentity() throws {
         let fixture = try C41FunctionalRelationshipTestSupportV1.makeFixture(seed: 41_070)
         let encoded = try FunctionalRelationshipCanonicalCodecV1.encode(fixture.descriptor)

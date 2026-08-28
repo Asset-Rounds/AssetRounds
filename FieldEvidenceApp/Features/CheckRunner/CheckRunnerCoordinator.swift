@@ -2079,6 +2079,88 @@ extension CheckRunnerCoordinator {
     }
 }
 
+// MARK: - C36 durable draft attachment bridge
+
+@MainActor
+extension CheckRunnerCoordinator {
+    /// Builds the device-local staging adapter with the same application
+    /// support root used by the other persistence writers.  When capture is
+    /// configured, the existing C05 EvidenceBundleStore is injected as the
+    /// sole immutable-content writer; no legacy EvidenceID is allocated here.
+    func makeDraftAttachmentStagingAdapter(
+        applicationSupportURL: URL,
+        workspaceID: WorkspaceID,
+        scratchStore: (any ScratchDataLeasePortV1)? = nil,
+        storageLedger: OwnedStorageLedgerV1? = nil,
+        immutableContentWriter: (any DraftImmutableContentWriterV1)? = nil
+    ) throws -> DraftAttachmentStagingAdapterV1 {
+        let writer: (any DraftImmutableContentWriterV1)?
+        if let immutableContentWriter {
+            writer = immutableContentWriter
+        } else if let evidenceBundleStore {
+            writer = evidenceBundleStore
+        } else {
+            writer = nil
+        }
+        try DraftAttachmentStagingAdapterV1(
+            applicationSupportURL: applicationSupportURL,
+            workspaceID: workspaceID,
+            scratchStore: scratchStore,
+            storageLedger: storageLedger,
+            immutableContentWriter: writer,
+            clock: { [clock] in clock.now() }
+        )
+    }
+
+    /// Stages one capture after the existing entitlement/access provider has
+    /// been consulted.  A missing provider fails closed so callers cannot
+    /// accidentally bypass the legacy check/work entitlement gate.
+    func stageDraftAttachment(
+        data: Data,
+        draftID: UUID,
+        workspaceID: WorkspaceID,
+        attachmentKind: DraftAttachmentKindV1,
+        adapter: DraftAttachmentStagingAdapterV1,
+        stageID: UUID = UUID(),
+        mutationID: MutationIDV1? = nil,
+        mediaType: String? = nil,
+        createdAt: Date? = nil,
+        durableReceiptReadBack: Bool = false
+    ) async throws -> CheckRunnerDraftCaptureCandidateV1 {
+        guard let draftAccessState else {
+            throw CheckRunnerDraftBridgeFailureV1.accessRequired
+        }
+        let item = try await adapter.stage(
+            data: data,
+            draftID: draftID,
+            workspaceID: workspaceID,
+            attachmentKind: attachmentKind,
+            stageID: stageID,
+            mutationID: mutationID,
+            mediaType: mediaType,
+            createdAt: createdAt
+        )
+        return try CheckRunnerDraftBridgeV1.captureCandidate(
+            item: item,
+            durableReceiptReadBack: durableReceiptReadBack,
+            accessState: draftAccessState()
+        )
+    }
+
+    /// Converts a committed draft reservation into a legacy media boundary
+    /// without manufacturing the legacy EvidenceID.  The actual legacy
+    /// finalization route remains responsible for any post-commit ID mapping.
+    nonisolated static func draftMediaBoundary(
+        reservation: DraftContentReservationV1
+    ) throws -> DraftMediaPromotionBoundaryV1 {
+        try reservation.validate()
+        return .committed(
+            contentID: reservation.locator.contentID,
+            locatorID: reservation.locator.locatorID
+        )
+    }
+}
+
 // MARK: - C15 WorkPacket read-only check context
 
 @MainActor

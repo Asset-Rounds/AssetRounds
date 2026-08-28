@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "schema": "V21P03C36FieldDraftResilienceCorpusV1",
+  "corpusID": "V21P03C36FieldDraftResilienceCorpusV1",
+  "cardID": "V23-P03-C36",
+  "ordinal": 53,
+  "phase": "P03",
+  "previousCardID": "V23-P03-C15",
+  "persistentSchemaVersion": 16,
+  "persistentModelCount": 64,
+  "recordsSchemaVersion": 15,
+  "records": 15,
+  "evidenceSelectors": [
+    { "id": "V23-P03-C36-G01", "selector": "G", "focus": "golden checkpoint autosave and presentation truth" },
+    { "id": "V23-P03-C36-A01", "selector": "A", "focus": "alternate per-item staging and exact retry" },
+    { "id": "V23-P03-C36-H01", "selector": "H", "focus": "hostile codec budget workspace and privacy inputs" },
+    { "id": "V23-P03-C36-I01", "selector": "I", "focus": "interruption saga edges CAS and retry" },
+    { "id": "V23-P03-C36-R01", "selector": "R", "focus": "recovery reservations backup restore and authority" }
+  ],
+  "coverage": ["GOLDEN", "ALTERNATE", "HOSTILE", "INTERRUPTION", "RECOVERY"],
+  "evidenceIDs": ["G01", "A01", "H01", "I01", "R01"],
+  "integrationSurfaces": ["backup", "restore", "import", "delete", "erase", "migration", "search", "report", "replay", "clone", "fork"],
+  "autosave": {
+    "trailingNanoseconds": 750000000,
+    "maximumDirtyNanoseconds": 5000000000,
+    "forceFlushBoundaries": ["NAVIGATION", "BACKGROUND", "HANDOFF", "PROMOTION", "SHARE"]
+  },
+  "limits": {
+    "maximumPayloadBytes": 2097152,
+    "maximumStageItems": 128,
+    "maximumScopeComponents": 16,
+    "maximumAnchorComponents": 12,
+    "maximumTextBytes": 512
+  },
+  "purposeDefinitions": [
+    { "purpose": "INSPECTION_REVIEW", "codecID": "c36.inspection_review", "codecVersion": 1, "maximumPayloadBytes": 4096, "maximumStageItems": 4, "targetCommand": "apply_inspection_review", "retention": "EXPLICIT_DISCARD_ONLY", "privacy": "WORKSPACE_PRIVATE", "attachmentKinds": ["AUDIO", "FILE", "PHOTO", "VIDEO"] },
+    { "purpose": "WORK_PACKET", "codecID": "c36.work_packet", "codecVersion": 1, "maximumPayloadBytes": 4096, "maximumStageItems": 4, "targetCommand": "apply_work_packet", "retention": "EXPLICIT_DISCARD_ONLY", "privacy": "WORKSPACE_PRIVATE", "attachmentKinds": ["AUDIO", "FILE", "PHOTO", "VIDEO"] },
+    { "purpose": "CORRECTIVE_ACTION", "codecID": "c36.corrective_action", "codecVersion": 1, "maximumPayloadBytes": 4096, "maximumStageItems": 4, "targetCommand": "finalize_correction", "retention": "EXPLICIT_DISCARD_ONLY", "privacy": "WORKSPACE_PRIVATE", "attachmentKinds": ["AUDIO", "FILE", "PHOTO", "VIDEO"] },
+    { "purpose": "REQUIREMENT_EVALUATION", "codecID": "c36.requirement_evaluation", "codecVersion": 1, "maximumPayloadBytes": 4096, "maximumStageItems": 4, "targetCommand": "apply_requirement_assurance", "retention": "EXPLICIT_DISCARD_ONLY", "privacy": "WORKSPACE_PRIVATE", "attachmentKinds": ["AUDIO", "FILE", "PHOTO", "VIDEO"] },
+    { "purpose": "EVIDENCE_CURATION", "codecID": "c36.evidence_curation", "codecVersion": 1, "maximumPayloadBytes": 4096, "maximumStageItems": 4, "targetCommand": "apply_evidence_assurance", "retention": "EXPLICIT_DISCARD_ONLY", "privacy": "RESTRICTED_EVIDENCE", "attachmentKinds": ["AUDIO", "FILE", "PHOTO", "VIDEO"] },
+    { "purpose": "ASSET_FIELD_EDIT", "codecID": "c36.asset_field_edit", "codecVersion": 1, "maximumPayloadBytes": 4096, "maximumStageItems": 4, "targetCommand": "apply_asset_semantics", "retention": "RETIRE_AFTER_COMMIT", "privacy": "WORKSPACE_PRIVATE", "attachmentKinds": ["AUDIO", "FILE", "PHOTO", "VIDEO"] }
+  ],
+  "checkpointStates": ["ACTIVE", "COMMITTING", "CONFLICTED", "RECOVERY_REQUIRED", "COMMITTED", "DISCARD_PENDING", "DISCARDED"],
+  "presentationStates": ["UNSAVED_CHANGES", "SAVING_ON_THIS_IPHONE", "SAVED_ON_THIS_IPHONE", "SAVE_BLOCKED", "COMMITTING", "CONFLICTED", "RECOVERY_REQUIRED", "COMMITTED", "DISCARDING", "DISCARDED"],
+  "attachmentPresentationStates": ["SELECTED", "LOADING", "STAGED_LOCAL", "PROCESSING", "READY", "RETRYABLE_FAILURE", "BLOCKED", "REMOVED", "PROMOTED"],
+  "stagingStates": ["CAPTURING", "HASHING", "PROCESSING", "READY_LOCAL", "FAILED_RETRYABLE", "FAILED_FINAL", "REMOVE_PENDING", "COMMITTED", "ORPHAN_QUARANTINED"],
+  "sagaStates": ["PREPARED", "CONTENT_PROMOTED_UNBOUND", "TARGET_COMMITTED", "DRAFT_RETIRE_PENDING", "DRAFT_RETIRED", "CONFLICTED", "RECOVERY_REQUIRED"],
+  "sagaEdges": [
+    ["PREPARED", "CONTENT_PROMOTED_UNBOUND"],
+    ["CONTENT_PROMOTED_UNBOUND", "TARGET_COMMITTED"],
+    ["TARGET_COMMITTED", "DRAFT_RETIRE_PENDING"],
+    ["DRAFT_RETIRE_PENDING", "DRAFT_RETIRED"],
+    ["PREPARED", "CONFLICTED"],
+    ["PREPARED", "RECOVERY_REQUIRED"],
+    ["CONTENT_PROMOTED_UNBOUND", "CONFLICTED"],
+    ["CONTENT_PROMOTED_UNBOUND", "RECOVERY_REQUIRED"],
+    ["TARGET_COMMITTED", "RECOVERY_REQUIRED"],
+    ["DRAFT_RETIRE_PENDING", "RECOVERY_REQUIRED"],
+    ["CONFLICTED", "RECOVERY_REQUIRED"],
+    ["CONFLICTED", "PREPARED"],
+    ["RECOVERY_REQUIRED", "PREPARED"],
+    ["RECOVERY_REQUIRED", "CONTENT_PROMOTED_UNBOUND"],
+    ["RECOVERY_REQUIRED", "TARGET_COMMITTED"],
+    ["RECOVERY_REQUIRED", "DRAFT_RETIRE_PENDING"]
+  ],
+  "rowMutationIDs": {
+    "perStageReservationIDs": true,
+    "terminalBundleMutationIDDistinct": true,
+    "collisionRejected": true,
+    "promotionMapByStageID": true
+  },
+  "terminalBundles": {
+    "commitUsesAtomicWriter": true,
+    "discardUsesAtomicWriter": true,
+    "commitDerivesTerminalCheckpoint": true,
+    "discardRequiresCurrentPendingCheckpoint": true
+  },
+  "conflictPlans": ["REVIEW_AND_REBASE", "COMMIT_AS_COPY", "CONTINUE_EDITING", "DISCARD"],
+  "reservationStates": ["RESERVED", "REUSED", "ASSOCIATED", "ORPHAN_QUARANTINED", "DELETED"],
+  "recoveryStatuses": ["RESUMABLE", "CONFLICT", "MISSING_MEDIA", "LOW_STORAGE", "PROTECTED_DATA", "UNSUPPORTED_CODEC", "PARTIAL_STAGE", "STALE_TARGET", "RECOVERY_REQUIRED"],
+  "safeActions": ["RESUME_REVIEW", "REVIEW_CONFLICT", "RETRY_ITEM", "FREE_STORAGE", "UNLOCK_DEVICE", "DISCARD", "OPEN_SAFE_PARENT"],
+  "lifecycleDispositions": ["PERSISTENT_WORKSPACE_OPERATIONAL", "SAFE_RESUME_DERIVED_ONLY", "EXCLUDED_FROM_CANONICAL_TRUTH"],
+  "backupRestore": {
+    "fieldDraftKinds": ["CHECKPOINT", "STAGING_ITEM", "COMMIT_SAGA", "CONTENT_RESERVATION", "COMMIT_RECEIPT", "DISCARD_RECEIPT"],
+    "restoresCheckpoint": true,
+    "restoresReadyLocal": true,
+    "restoresReservations": true,
+    "restoresPromotedUnbound": true,
+    "restoresStableSagaEdge": true,
+    "cloneDisposition": "RESTORE_REQUIRES_USER_REVIEW",
+    "configurationCloneDisposition": "EXCLUDED_FROM_CONFIGURATION_CLONE"
+  },
+  "privacyExclusions": ["EVIDENCE", "REPORT", "EXPORT", "SEARCH", "SPOTLIGHT", "SUPPORT", "INTEGRATION_EVENT", "METRICS"],
+  "coverageAssertions": {
+    "casDraftAndBaseRevision": true,
+    "perItemFailureIsolation": true,
+    "exactRetryReusesReservation": true,
+    "noSecondWriter": true,
+    "noSecondStore": true,
+    "noCloudStore": true,
+    "recordsAreCanonicalOnlyAfterCommit": true
+  },
+  "singleAuthority": {
+    "writerProtocol": "FieldDraftWritingV1",
+    "coordinator": "FieldDraftCoordinatorV1",
+    "recoveryProjection": "DraftRecoveryProjectionCoordinatorV1",
+    "persistentRows": 6,
+    "secondWriter": false,
+    "secondStore": false
+  },
+  "boundaryRefs": ["V23-P03-C36-G01", "V23-P03-C36-A01", "V23-P03-C36-H01", "V23-P03-C36-I01", "V23-P03-C36-R01"],
+  "provisionalFlags": { "native": false, "hosted": false, "adoption": false, "acceptance": false, "release": false }
+}

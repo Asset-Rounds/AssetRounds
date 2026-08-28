@@ -1297,6 +1297,18 @@ private enum V909InjectedFailure: Error {
     case timeout
 }
 
+extension V9_09ConcurrencyScaleTests {
+    func testC36AttachmentJobsUseBoundedDedicatedKind() {
+        XCTAssertTrue(ResumableLocalJobKindV1.allCases.contains(.draftAttachmentProcessing))
+        XCTAssertEqual(
+            JobScaleBudgetPolicyV1.draftAttachmentMaximumConcurrency,
+            JobScaleBudgetPolicyV1.maximumRunnerConcurrency
+        )
+        XCTAssertGreaterThan(JobScaleBudgetPolicyV1.draftAttachmentChunkByteCount, 0)
+        XCTAssertGreaterThan(JobScaleBudgetPolicyV1.draftAttachmentRetryLimit, 0)
+    }
+}
+
 private struct V909Corpus: Decodable, Sendable {
     let schemaVersion: Int
     let synthetic: Bool

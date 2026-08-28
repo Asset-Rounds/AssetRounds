@@ -908,6 +908,30 @@ extension V9_01VersionedSchemaIdentityTests {
 }
 
 extension V9_01VersionedSchemaIdentityTests {
+    func testV23P03C36SchemaIdentityAndCanonicalDraftRecordsAreVersioned() throws {
+        let fixture = try C36FieldDraftTestSupportV1.makeFixture()
+        XCTAssertEqual(FieldDraftCheckpointV1.schemaVersion, 1)
+        XCTAssertEqual(AttachmentStagingItemV1.schemaVersion, 1)
+        XCTAssertEqual(DraftCommitSagaV1.schemaVersion, 1)
+        XCTAssertEqual(DraftContentReservationV1.schemaVersion, 1)
+        XCTAssertEqual(FieldDraftStateV1.allCases.count, 7)
+        XCTAssertEqual(AttachmentStagingStateV1.allCases.count, 9)
+        XCTAssertEqual(DraftCommitSagaStateV1.allCases.count, 7)
+
+        let checkpointData = try FieldDraftCanonicalCodecV1.encode(fixture.activeCheckpoint)
+        let stagingData = try FieldDraftCanonicalCodecV1.encode(fixture.readyItem)
+        let planData = try FieldDraftCanonicalCodecV1.encode(fixture.plan)
+        let sagaData = try FieldDraftCanonicalCodecV1.encode(fixture.preparedSaga)
+        let reservationData = try FieldDraftCanonicalCodecV1.encode(fixture.reservation)
+        XCTAssertEqual(try FieldDraftCanonicalCodecV1.decode(FieldDraftCheckpointV1.self, from: checkpointData), fixture.activeCheckpoint)
+        XCTAssertEqual(try FieldDraftCanonicalCodecV1.decode(AttachmentStagingItemV1.self, from: stagingData), fixture.readyItem)
+        XCTAssertEqual(try FieldDraftCanonicalCodecV1.decode(DraftCommitPlanV1.self, from: planData), fixture.plan)
+        XCTAssertEqual(try FieldDraftCanonicalCodecV1.decode(DraftCommitSagaV1.self, from: sagaData), fixture.preparedSaga)
+        XCTAssertEqual(try FieldDraftCanonicalCodecV1.decode(DraftContentReservationV1.self, from: reservationData), fixture.reservation)
+    }
+}
+
+extension V9_01VersionedSchemaIdentityTests {
     func testV23P03C41SchemaIdentityIncludesFunctionalRelationshipHistory() throws {
         let fixture = try C41FunctionalRelationshipTestSupportV1.makeFixture()
 

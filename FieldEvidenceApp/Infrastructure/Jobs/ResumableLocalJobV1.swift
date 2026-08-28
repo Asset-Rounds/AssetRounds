@@ -65,6 +65,9 @@ enum ResumableLocalJobKindV1: String, Codable, CaseIterable, Hashable, Sendable 
     case mediaProcessing = "MEDIA_PROCESSING"
     case resourceProjection = "RESOURCE_PROJECTION"
     case scheduleGeneration = "SCHEDULE_GENERATION"
+    /// Device-local per-attachment processing.  Its output is a staging
+    /// checkpoint; publication remains the draft content reservation boundary.
+    case draftAttachmentProcessing = "DRAFT_ATTACHMENT_PROCESSING"
 }
 
 enum LocalJobStateV1: String, Codable, Equatable, Sendable {
@@ -436,5 +439,76 @@ struct ResumableLocalJobV1: Codable, Equatable, Sendable {
         !value.isEmpty && value.utf8.count <= 128 && value.unicodeScalars.allSatisfy {
             CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_.")).contains($0)
         }
+    }
+}
+
+// MARK: - C36 attachment processing jobs
+
+struct DraftAttachmentJobRequestV1: Codable, Equatable, Sendable {
+    let workspaceID: WorkspaceID
+    let draftID: UUID
+    let stageID: UUID
+    let stageSHA256: String
+    let stagingRelativePath: String
+    let totalUnitCount: Int
+    let createdAt: Date
+
+    init(
+        workspaceID: WorkspaceID,
+        draftID: UUID,
+        stageID: UUID,
+        stageSHA256: String,
+        stagingRelativePath: String,
+        totalUnitCount: Int = 1,
+        createdAt: Date
+    ) throws {
+        let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0,
+                               0, 0, 0, 0, 0, 0, 0, 0))
+        guard workspaceID.rawValue != zero, draftID != zero, stageID != zero,
+              ResumableLocalJobV1.isSHA256(stageSHA256),
+              totalUnitCount > 0,
+              !stagingRelativePath.isEmpty,
+              !stagingRelativePath.hasPrefix("/"),
+              !stagingRelativePath.hasPrefix("\\"),
+              !stagingRelativePath.replacingOccurrences(of: "\\", with: "/")
+                  .split(separator: "/", omittingEmptySubsequences: false)
+                  .contains(where: { $0.isEmpty || $0 == "." || $0 == ".." }),
+              createdAt.timeIntervalSinceReferenceDate.isFinite else {
+            throw LocalJobValidationFailureV1.invalidContract
+        }
+        self.workspaceID = workspaceID
+        self.draftID = draftID
+        self.stageID = stageID
+        self.stageSHA256 = stageSHA256
+        self.stagingRelativePath = stagingRelativePath
+        self.totalUnitCount = totalUnitCount
+        self.createdAt = createdAt
+    }
+}
+
+extension ResumableLocalJobV1 {
+    /// Creates the stable queue row for one staging item.  The input digest is
+    /// the item digest, not a mutable file timestamp, so retries adopt the
+    /// same job and resume from its durable checkpoint.
+    static func draftAttachmentProcessing(
+        _ request: DraftAttachmentJobRequestV1
+    ) throws -> Self {
+        let checkpoint = LocalJobCheckpointV1(
+            nextChunkIndex: 0,
+            completedUnitCount: 0,
+            totalUnitCount: request.totalUnitCount
+        )
+        return try Self(
+            workspaceID: request.workspaceID.rawValue,
+            kind: .draftAttachmentProcessing,
+            immutableInputSHA256: request.stageSHA256,
+            stagingRelativePath: request.stagingRelativePath,
+            createdAt: request.createdAt,
+            checkpoint: checkpoint
+        )
+    }
+
+    var isDraftAttachmentProcessing: Bool {
+        kind == .draftAttachmentProcessing
     }
 }

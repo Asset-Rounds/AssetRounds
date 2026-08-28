@@ -236,3 +236,39 @@ struct StoragePreflightService {
         }
     }
 }
+
+// MARK: - C36 draft attachment admission
+
+extension StoragePreflightService {
+    /// Draft capture has two local byte boundaries: disposable scratch and
+    /// durable per-item staging.  The caller supplies the item size once;
+    /// overflow and zero-byte inputs are rejected before either writer runs.
+    func draftAttachmentRequiredBytes(byteCount: Int64) throws -> Int64 {
+        guard byteCount > 0 else {
+            throw StoragePreflightError.capacityEstimateOverflow
+        }
+        let (stagingAndScratch, overflow) = byteCount.multipliedReportingOverflow(by: 2)
+        guard !overflow else {
+            throw StoragePreflightError.capacityEstimateOverflow
+        }
+        let (required, reserveOverflow) = stagingAndScratch
+            .addingReportingOverflow(Self.reserveBytes)
+        guard !reserveOverflow, required > 0 else {
+            throw StoragePreflightError.capacityEstimateOverflow
+        }
+        return required
+    }
+
+    func checkDraftAttachment(
+        byteCount: Int64,
+        onVolumeContaining stagingRootURL: URL
+    ) throws {
+        try check(
+            requiredBytes: draftAttachmentRequiredBytes(byteCount: byteCount),
+            onVolumeContaining: stagingRootURL
+        )
+    }
+
+    static let c36StagingExcludedFromBackup = true
+    static let c36StoragePressureIsRetryable = true
+}

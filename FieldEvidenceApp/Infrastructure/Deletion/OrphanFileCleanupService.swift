@@ -16,6 +16,12 @@ enum OrphanFileCleanupServiceError: Error, Equatable, Sendable {
     case invalidOwnedLayout
     case identityChanged
     case cleanupFailed
+    case nonterminalDraftContent
+}
+
+struct FieldDraftOrphanCleanupProofV1: Equatable, Sendable {
+    let removableStageIDs: [UUID]
+    let removableReservationIDs: [UUID]
 }
 
 final class OrphanFileCleanupReplacementInjection {
@@ -90,6 +96,35 @@ final class OrphanFileCleanupService {
         let summary = try reconcile(references: Set(referencedRelativePaths))
         try purgeDerivedSearchProjection()
         return summary
+    }
+
+    /// Produces the closed set that a private draft-content adapter may remove.
+    /// This file-only service never guesses paths from a scratch lease or locator.
+    func fieldDraftCleanupProof(
+        stagingItems: [AttachmentStagingItemV1],
+        reservations: [DraftContentReservationV1],
+        discardReceipts: [DraftDiscardReceiptV1],
+        liveStageIDs: Set<UUID>,
+        liveReservationIDs: Set<UUID>
+    ) throws -> FieldDraftOrphanCleanupProofV1 {
+        try stagingItems.forEach { try $0.validate() }
+        try reservations.forEach { try $0.validate() }
+        try discardReceipts.forEach { try $0.validate() }
+        let disposedStages = Set(discardReceipts.flatMap(\.disposedStageIDs))
+        let quarantinedReservations = Set(discardReceipts.flatMap(\.quarantinedReservationIDs))
+        let removableStages = stagingItems.filter {
+            !liveStageIDs.contains($0.stageID)
+                && (disposedStages.contains($0.stageID) || $0.state == .orphanQuarantined)
+        }.map(\.stageID).sorted { $0.uuidString < $1.uuidString }
+        let removableReservations = reservations.filter {
+            quarantinedReservations.contains($0.reservationID)
+                && $0.mayDelete(hasLiveReference: liveReservationIDs.contains($0.reservationID))
+        }.map(\.reservationID).sorted { $0.uuidString < $1.uuidString }
+        guard Set(removableStages).isSubset(of: disposedStages.union(Set(stagingItems.filter { $0.state == .orphanQuarantined }.map(\.stageID)))),
+              Set(removableReservations).isSubset(of: quarantinedReservations) else {
+            throw OrphanFileCleanupServiceError.nonterminalDraftContent
+        }
+        return .init(removableStageIDs: removableStages, removableReservationIDs: removableReservations)
     }
 
     /// The local search projection is derived and has no canonical row-owned
