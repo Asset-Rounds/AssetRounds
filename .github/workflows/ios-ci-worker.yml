@@ -1467,7 +1467,11 @@ jobs:
                   .suggestedHumanReadableName == "UI Snapshot"
                   or .suggestedHumanReadableName == "Synthesized Event"
                   or .suggestedHumanReadableName == "Screen Recording"
-                  or ((.suggestedHumanReadableName // "") | test("diagnostic"; "i"))
+                  or (
+                    (.suggestedHumanReadableName // "") as $name
+                    | (($name | startswith("S10.4 candidate ")) | not)
+                      and ($name | test("diagnostic"; "i"))
+                  )
                   or .isAssociatedWithFailure == true)
             ] | length == 0
           ' "$attachment_manifest_path" > /dev/null

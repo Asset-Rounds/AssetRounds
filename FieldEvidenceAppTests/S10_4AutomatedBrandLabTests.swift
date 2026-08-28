@@ -120,8 +120,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 228_700,
-            sha256: "0C09D607534A07383D8425F921F40225F03483EBE9851EFA333EBB3517BC96C5"
+            byteCount: 228_854,
+            sha256: "F3457E019F706D577639138842C209442708DC91601CF43D5ED4BEA8F7F26422"
         )
         let workflowSource = try text(workflowPath)
         let workerCallHeader =
@@ -752,10 +752,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workerExecutionSource = String(
             workflowSource[workerExecutionStart.lowerBound..<workerExecutionEnd.lowerBound]
         )
-        XCTAssertEqual(workerExecutionSource.utf8.count, 99_798)
+        XCTAssertEqual(workerExecutionSource.utf8.count, 99_952)
         XCTAssertEqual(
             Data(workerExecutionSource.utf8).sha256,
-            "E64C3F923AC2B02A42751D7F53B0B2724340368CFECDF0593A103CAE0AF98771"
+            "D0AD65C5E613108C0A36470777006129EF5D6D7690BD11252F1F16CCAF7ADC05"
         )
         let warpScopeSource = String(
             warpJobSource[warpScopeStart.lowerBound..<warpExecutionStart.lowerBound]
@@ -23419,9 +23419,16 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "segmentTerminalAttachmentCount: 1",
             "accessibilityRowCount: 0",
             "test ! -e \"$shard_evidence_path/shard-receipt.json\"",
+            "(($name | startswith(\"S10.4 candidate \")) | not)",
+            "and ($name | test(\"diagnostic\"; \"i\"))",
         ] {
             XCTAssertTrue(retainSegmentSource.contains(exact), exact)
         }
+        XCTAssertFalse(
+            retainSegmentSource.contains(
+                #"or ((.suggestedHumanReadableName // "") | test("diagnostic"; "i"))"#
+            )
+        )
         for exact in [
             ".resumeMode == $segmentPlan.resumeMode",
             ".dependencySegmentIDs == $segmentPlan.dependencySegmentIDs",
@@ -23660,8 +23667,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let assemblerSource = try text(assemblerPath)
         try assertFile(
             assemblerPath,
-            byteCount: 35_686,
-            sha256: "941B037447F1D27D2B98ADFC6AB8B26729833AA9C1845CBF13144B69500F3C46"
+            byteCount: 35_784,
+            sha256: "5AB000504087FA059A168F9FB307CB5C69F097BEA04CFDB6AFF7D69983A2D19D"
         )
         XCTAssertFalse(assemblerSource.contains("\r"))
         XCTAssertTrue(
@@ -23780,7 +23787,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ".suggestedHumanReadableName == \"UI Snapshot\"",
             ".suggestedHumanReadableName == \"Synthesized Event\"",
             ".suggestedHumanReadableName == \"Screen Recording\"",
-            #"or ((.suggestedHumanReadableName // "") | test("diagnostic"; "i"))"#,
+            "(($name | startswith(\"S10.4 candidate \")) | not)",
+            "and ($name | test(\"diagnostic\"; \"i\"))",
             ".isAssociatedWithFailure == true",
             "S10.4 segment terminal $segment_id $shard_id",
             "([.[]?.attachments[]?] | length) == ($stateCount + 1)",
@@ -23796,6 +23804,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertTrue(assemblerSourceLoop.contains(exact), exact)
         }
+        XCTAssertFalse(
+            assemblerSourceLoop.contains(
+                #"or ((.suggestedHumanReadableName // "") | test("diagnostic"; "i"))"#
+            )
+        )
         let assemblerTerminalPredicateSource = try boundedSource(
             assemblerSourceLoop,
             from: "  jq -e --arg name \"S10.4 segment terminal $segment_id $shard_id\"",

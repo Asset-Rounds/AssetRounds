@@ -396,7 +396,11 @@ for source_dir in "${source_dirs[@]}"; do
     .suggestedHumanReadableName == "UI Snapshot"
     or .suggestedHumanReadableName == "Synthesized Event"
     or .suggestedHumanReadableName == "Screen Recording"
-    or ((.suggestedHumanReadableName // "") | test("diagnostic"; "i"))
+    or (
+      (.suggestedHumanReadableName // "") as $name
+      | (($name | startswith("S10.4 candidate ")) | not)
+        and ($name | test("diagnostic"; "i"))
+    )
     or .isAssociatedWithFailure == true)] | length == 0' \
     "$shard_source/xcresult-attachment-manifest.json" > /dev/null
   jq -e --arg name "S10.4 segment terminal $segment_id $shard_id" \
