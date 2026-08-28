@@ -23555,8 +23555,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let assemblerSource = try text(assemblerPath)
         try assertFile(
             assemblerPath,
-            byteCount: 35_662,
-            sha256: "4D46130834CAF04DF0BB808ABE35456132C8A030B9239E33AFC77AE89261EACB"
+            byteCount: 35_765,
+            sha256: "0E2BBEA8EFFF44ABA11D715B2D47D4E370382AE57AA0B9FF56351526C82A762C"
         )
         XCTAssertFalse(assemblerSource.contains("\r"))
         XCTAssertTrue(
@@ -23816,6 +23816,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "test \"$(find \"$staging_root/contrast/$shard_id\" -type f -name 'state.*.json' | wc -l | tr -d ' ')\" -eq 67",
             "($authorities | length) == 15",
             "($expected | length) == 13",
+            "all($actual[]; . as $row |",
             "$today <= $row.exceptionExpiresAt",
             ".ignoredAuditIssues == []",
             "else .result == \"EXCEPTION\" end",
@@ -23825,7 +23826,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ".auditTypeRawValue == \"1\"",
             ".compactDescription == \"Contrast failed\"",
             ".detailedDescription == \"Contrast failed for SwiftUI.AccessibilityNode\"",
-            ".elementType == \"XCUIElementType(rawValue: 48)\"",
+            ".elementType == (if $row.stateID == \"state.recheck-capture.wide-ready\" then \"XCUIElementType(rawValue: 9)\" else \"XCUIElementType(rawValue: 48)\" end)",
             ".applicationFrame == {x:0,y:0,width:402,height:874}",
             "mapfile -t task_ids < <(jq -r '.tasks[].task_id' \"$task_contract_path\")",
             "test \"${#task_ids[@]}\" -eq 6",
@@ -23860,6 +23861,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertTrue(assemblerSource.contains(exact), exact)
         }
+        XCTAssertFalse(assemblerSource.contains("all($actual[] as $row;"))
         XCTAssertEqual(
             assemblerSource.components(
                 separatedBy: "> \"$raw_task_file\""

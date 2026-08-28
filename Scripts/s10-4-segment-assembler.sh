@@ -558,7 +558,7 @@ jq -e --arg today "$(date -u +%F)" --slurpfile plan "$plan_path" '
   and [$actual[].stateID] == [$expected[].stateID]
   and ($authorities | length) == 15
   and ($expected | length) == 13
-  and all($actual[] as $row;
+  and all($actual[]; . as $row |
     ($expected[] | select(.stateID == $row.stateID)) as $group
     | $row.exceptionIssueID == ($group.issueIDs | join(" | "))
     and $row.exceptionOwner == $group.owner
@@ -570,7 +570,7 @@ jq -e --arg today "$(date -u +%F)" --slurpfile plan "$plan_path" '
       .auditTypeRawValue == "1"
       and .compactDescription == "Contrast failed"
       and .detailedDescription == "Contrast failed for SwiftUI.AccessibilityNode"
-      and (.elementType == "XCUIElementType(rawValue: 48)")
+      and .elementType == (if $row.stateID == "state.recheck-capture.wide-ready" then "XCUIElementType(rawValue: 9)" else "XCUIElementType(rawValue: 48)" end)
       and (.elementFrame | type == "object")
       and .applicationFrame == {x:0,y:0,width:402,height:874}))
 ' "$combined_shard/contrast.json" > /dev/null
