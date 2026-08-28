@@ -795,7 +795,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(warpExecutionSource.utf8.count, 36_998)
         XCTAssertEqual(
             Data(warpExecutionSource.utf8).sha256,
-            "61931F902E44BDF80EE7C53E41F0BF321167622926805033C59CD23ABA5BCA70"
+            "9F065CA54D98829D380F0352B82B96429DB14866364C7C76CA6FFEBE1BA8836B"
         )
         XCTAssertEqual(
             warpExecutionSource.components(
