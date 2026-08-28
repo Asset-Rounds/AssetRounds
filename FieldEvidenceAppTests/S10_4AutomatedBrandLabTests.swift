@@ -121,7 +121,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         try assertFile(
             workflowPath,
             byteCount: 226_898,
-            sha256: "0F39CD231943FE9AFBB68C04566D4F6DB9C5B5907D4874E38387A8E3E88B425B"
+            sha256: "9CC08AB19F59C6BAAAEBD3222920AFB01ACADB539E5B0F4969D3396E28054168"
         )
         let workflowSource = try text(workflowPath)
         let workerCallHeader =
@@ -755,7 +755,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(workerExecutionSource.utf8.count, 99_952)
         XCTAssertEqual(
             Data(workerExecutionSource.utf8).sha256,
-            "447C10994D1B3ABECDBA79CFF7197993DFDC2CB57CE95D1E5D8879407F3F8B6D"
+            "70C24085091CEA853F1DAE582D377F49CC2A5B1AE70538826C1C3782E54A5A74"
         )
         let warpScopeSource = String(
             warpJobSource[warpScopeStart.lowerBound..<warpExecutionStart.lowerBound]
@@ -23232,6 +23232,65 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertTrue(retainSegmentSource.contains(exact), exact)
         }
+        let unitResultsRead =
+            #"xcrun xcresulttool get test-results tests --path "$CI_ARTIFACT_DIR/UnitTests.xcresult""#
+        let uiResultsRead =
+            #"xcrun xcresulttool get test-results tests --path "$CI_ARTIFACT_DIR/UISmoke.xcresult""#
+        let buildIdentityAssignment =
+            #"build_identity="$(directory_digest "$CI_ARTIFACT_DIR/Build.xcresult")""#
+        let unitIdentityAssignment =
+            #"unit_identity="$(directory_digest "$CI_ARTIFACT_DIR/UnitTests.xcresult")""#
+        let uiIdentityAssignment =
+            #"ui_identity="$(directory_digest "$CI_ARTIFACT_DIR/UISmoke.xcresult")""#
+        let selectorParsingAnchor = #"unit_executed_test_selectors="$(jq -c '"#
+        let sessionIdentityAnchor = #"session_identity="$(printf '%s\n%s\n%s\n%s\n'"#
+        let pendingReceiptAnchor = #"receiptKind: "s10.4-segment-pending""#
+        for exact in [
+            unitResultsRead,
+            uiResultsRead,
+            buildIdentityAssignment,
+            unitIdentityAssignment,
+            uiIdentityAssignment,
+            selectorParsingAnchor,
+            sessionIdentityAnchor,
+            pendingReceiptAnchor,
+        ] {
+            XCTAssertEqual(
+                retainSegmentSource.components(separatedBy: exact).count - 1,
+                1,
+                exact
+            )
+        }
+        guard
+            let unitResultsReadRange = retainSegmentSource.range(of: unitResultsRead),
+            let uiResultsReadRange = retainSegmentSource.range(of: uiResultsRead),
+            let buildIdentityRange = retainSegmentSource.range(of: buildIdentityAssignment),
+            let unitIdentityRange = retainSegmentSource.range(of: unitIdentityAssignment),
+            let uiIdentityRange = retainSegmentSource.range(of: uiIdentityAssignment),
+            let selectorParsingRange = retainSegmentSource.range(of: selectorParsingAnchor),
+            let sessionIdentityRange = retainSegmentSource.range(of: sessionIdentityAnchor),
+            let pendingReceiptRange = retainSegmentSource.range(of: pendingReceiptAnchor)
+        else {
+            XCTFail("The segment result-read and receipt-identity order is not exactly anchored")
+            return
+        }
+        let beforeFirstResultRead = String(
+            retainSegmentSource[..<unitResultsReadRange.lowerBound]
+        )
+        for exact in [
+            buildIdentityAssignment,
+            unitIdentityAssignment,
+            uiIdentityAssignment,
+        ] {
+            XCTAssertFalse(beforeFirstResultRead.contains(exact), exact)
+        }
+        XCTAssertTrue(unitResultsReadRange.lowerBound < uiResultsReadRange.lowerBound)
+        XCTAssertTrue(uiResultsReadRange.upperBound < buildIdentityRange.lowerBound)
+        XCTAssertTrue(buildIdentityRange.lowerBound < unitIdentityRange.lowerBound)
+        XCTAssertTrue(unitIdentityRange.lowerBound < uiIdentityRange.lowerBound)
+        XCTAssertTrue(uiIdentityRange.upperBound < selectorParsingRange.lowerBound)
+        XCTAssertTrue(selectorParsingRange.lowerBound < sessionIdentityRange.lowerBound)
+        XCTAssertTrue(sessionIdentityRange.lowerBound < pendingReceiptRange.lowerBound)
         XCTAssertFalse(
             retainSegmentSource.contains(
                 #"or ((.suggestedHumanReadableName // "") | test("diagnostic"; "i"))"#

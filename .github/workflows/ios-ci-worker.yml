@@ -1681,13 +1681,13 @@ jobs:
             done < <(find "$source_dir" -type f | LC_ALL=C sort)
             shasum -a 256 "$digest_rows" | awk '{print toupper($1)}'
           }
-          build_identity="$(directory_digest "$CI_ARTIFACT_DIR/Build.xcresult")"
-          unit_identity="$(directory_digest "$CI_ARTIFACT_DIR/UnitTests.xcresult")"
-          ui_identity="$(directory_digest "$CI_ARTIFACT_DIR/UISmoke.xcresult")"
           xcrun xcresulttool get test-results tests --path "$CI_ARTIFACT_DIR/UnitTests.xcresult" \
             --compact > "$RUNNER_TEMP/s10-4-segment-unit-tests.json"
           xcrun xcresulttool get test-results tests --path "$CI_ARTIFACT_DIR/UISmoke.xcresult" \
             --compact > "$RUNNER_TEMP/s10-4-segment-ui-tests.json"
+          build_identity="$(directory_digest "$CI_ARTIFACT_DIR/Build.xcresult")"
+          unit_identity="$(directory_digest "$CI_ARTIFACT_DIR/UnitTests.xcresult")"
+          ui_identity="$(directory_digest "$CI_ARTIFACT_DIR/UISmoke.xcresult")"
           unit_executed_test_selectors="$(jq -c '
             [.. | objects
               | select(.nodeType? == "Test Case" and .result? == "Passed")
