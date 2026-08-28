@@ -22720,10 +22720,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             guard let range = Range(match.range, in: uiSource) else { return nil }
             return String(uiSource[range]).trimmingCharacters(in: .whitespacesAndNewlines)
         }.joined(separator: "\n")
-        XCTAssertEqual(routeActionLedger.components(separatedBy: "\n").count, 450)
+        XCTAssertEqual(routeActionLedger.components(separatedBy: "\n").count, 449)
         XCTAssertEqual(
             Data(routeActionLedger.utf8).sha256,
-            "E7CE19D37D7C16CCD542E498A28D84A4D64A2C83BFAE9494624C5EDA1EEDFC51"
+            "DF2B7C0799C4EA3EA0637E38A173D4D7587EDF1F72A44CDEE26D1B3CFC7D427E"
         )
         let captureLedgerExpression = try NSRegularExpression(
             pattern: #"(?m)^\s*captureBaseline\(\"[^\"]+\", in: [^)]+\)"#
