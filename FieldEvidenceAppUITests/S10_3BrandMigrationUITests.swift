@@ -6342,7 +6342,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                         && outcomeScreen.isHittable
                         && outcomeScreen.identifier == "s3.outcome.screen"
                         && outcomeScreen.elementType == .scrollView
-                        && app.frame.contains(outcomeScreen.frame)
+                        && outcomeScreen.frame.intersection(app.frame) == app.frame
                         && app.navigationBars.firstMatch.exists
                         && app.navigationBars.firstMatch.isEnabled
                         && app.navigationBars.firstMatch.isHittable
