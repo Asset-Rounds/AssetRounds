@@ -23407,8 +23407,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let assemblerSource = try text(assemblerPath)
         try assertFile(
             assemblerPath,
-            byteCount: 35_784,
-            sha256: "8A5AFCFD97D127C5CC19358408E4E6BF97D76E7C0DE810827A4C6156C732C3AB"
+            byteCount: 35_662,
+            sha256: "F8315DC65209D026BDAA9224A31DF162DAAFD31589B00C90E7D664CCA8CBC226"
         )
         XCTAssertFalse(assemblerSource.contains("\r"))
         XCTAssertTrue(
@@ -23450,8 +23450,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "test \"$(grep -Fxc '** TEST BUILD SUCCEEDED **' \"$source_dir/build-smoke.log\" || true)\" -eq 1",
             "test \"$(grep -Fxc '** TEST EXECUTE SUCCEEDED **' \"$source_dir/test-smoke.log\" || true)\" -eq 1",
             "test \"$(grep -Fxc '** TEST EXECUTE SUCCEEDED **' \"$source_dir/ui-smoke.log\" || true)\" -eq 1",
-            "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testPinnedOverlaySelectorAndExactSevenPlusSevenShardContract",
-            "FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests/testAutomatedBrandLabShard",
+            "S10_4AutomatedBrandLabTests/testPinnedOverlaySelectorAndExactSevenPlusSevenShardContract()",
+            "S10_4AutomatedBrandLabUITests/testAutomatedBrandLabShard()",
             "for bundle in Build.xcresult UnitTests.xcresult UISmoke.xcresult",
             "directory_digest \"$source_dir/Build.xcresult\"",
             "directory_digest \"$source_dir/UnitTests.xcresult\"",
