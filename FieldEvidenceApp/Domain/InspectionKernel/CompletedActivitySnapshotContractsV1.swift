@@ -3625,3 +3625,90 @@ extension CompletedActivitySnapshotV9 {
         return projection
     }
 }
+
+// MARK: - C23 immutable work-session reference binding
+
+extension CompletedWorkPacketSnapshotV1 {
+    /// Rebuilds a completed packet's reference projection from the exact
+    /// immutable packet snapshot. A finalized subject can be read/exported,
+    /// but no later release may silently replace its binding.
+    func c23FieldReferenceProjection(
+        fieldReferenceBindings: [FieldReferenceBindingV1],
+        fieldReferenceReleases: [FieldReferenceReleaseV1],
+        fieldReferenceReadiness: [FieldReferenceOfflineReadinessV1]
+    ) throws -> WorkPacketFieldReferenceProjectionV1 {
+        try validate()
+        let projection = try WorkPacketReferenceProjectionBuilderV1.rebuild(
+            workspaceID: workspaceID,
+            manifest: manifest,
+            claims: claims,
+            leases: leases,
+            releases: releases,
+            handoffs: handoffs,
+            fieldReferenceBindings: fieldReferenceBindings,
+            fieldReferenceReleases: fieldReferenceReleases,
+            fieldReferenceReadiness: fieldReferenceReadiness,
+            subjectState: .finalized,
+            at: createdAt
+        )
+        try projection.validate()
+        return projection
+    }
+
+    func c23ValidateFieldReferenceProjection(
+        _ projection: WorkPacketFieldReferenceProjectionV1,
+        fieldReferenceBindings: [FieldReferenceBindingV1],
+        fieldReferenceReleases: [FieldReferenceReleaseV1],
+        fieldReferenceReadiness: [FieldReferenceOfflineReadinessV1]
+    ) throws -> WorkPacketFieldReferenceProjectionV1 {
+        let expected = try c23FieldReferenceProjection(
+            fieldReferenceBindings: fieldReferenceBindings,
+            fieldReferenceReleases: fieldReferenceReleases,
+            fieldReferenceReadiness: fieldReferenceReadiness
+        )
+        guard expected == projection else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return projection
+    }
+}
+
+extension CompletedActivitySnapshotV9 {
+    /// Completed-activity reports may carry the metadata-only C23 projection
+    /// only after its workspace is re-derived from the immutable snapshot.
+    /// No subject identity or reference bytes are copied into the snapshot.
+    func c23ValidateFieldReferenceProjection(
+        _ projection: WorkSessionFieldReferenceProjectionV1,
+        expectedWorkspaceID: WorkspaceID? = nil
+    ) throws -> WorkSessionFieldReferenceProjectionV1 {
+        try validate()
+        let v7 = payload.activity.payload.activity
+        let v6 = v7.payload.activity
+        let v5 = v6.payload.activity
+        let v4 = v5.activity
+        let v3 = v4.activity
+        let base = v3.activity.activity
+        guard let rawWorkspaceID = UUID(uuidString: base.workspaceID) else {
+            throw SnapshotProjectionFailureV1.wrongWorkspace
+        }
+        let snapshotWorkspaceID = WorkspaceID(rawValue: rawWorkspaceID)
+        guard projection.workspaceID == snapshotWorkspaceID,
+              projection.subjectState == .finalized,
+              expectedWorkspaceID.map({ $0 == projection.workspaceID }) ?? true else {
+            throw SnapshotProjectionFailureV1.wrongWorkspace
+        }
+        try projection.validate(expectedWorkspaceID: snapshotWorkspaceID)
+        return projection
+    }
+
+    static func c23ValidateFieldReferenceProjection(
+        _ projection: WorkSessionFieldReferenceProjectionV1,
+        expectedWorkspaceID: WorkspaceID? = nil
+    ) throws -> WorkSessionFieldReferenceProjectionV1 {
+        try projection.validate(expectedWorkspaceID: expectedWorkspaceID)
+        guard projection.subjectState == .finalized else {
+            throw SnapshotProjectionFailureV1.missingBinding
+        }
+        return projection
+    }
+}

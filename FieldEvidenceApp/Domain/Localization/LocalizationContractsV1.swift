@@ -2898,3 +2898,222 @@ enum ClientCapabilityLocalizationPolicyV1 {
 }
 
 typealias ClientCapabilityClaimVocabularyV1 = ClientCapabilityLocalizationPolicyV1
+
+// MARK: - C23 version-bound field-reference labels
+
+/// English-only keys for the immutable field-reference release/binding
+/// projection.  Raw release, binding, content, and locator identifiers are
+/// never used as display labels and labels never participate in identity.
+enum FieldReferenceLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
+    case heading = "field.reference.heading"
+    case provenance = "field.reference.provenance"
+    case pack = "field.reference.pack"
+    case kind = "field.reference.kind"
+    case kindSOP = "field.reference.kind.sop"
+    case kindManual = "field.reference.kind.manual"
+    case kindDrawing = "field.reference.kind.drawing"
+    case kindSpecification = "field.reference.kind.specification"
+    case semanticVersion = "field.reference.semantic-version"
+    case release = "field.reference.release"
+    case releaseActive = "field.reference.release.active"
+    case releaseRevoked = "field.reference.release.revoked"
+    case binding = "field.reference.binding"
+    case subject = "field.reference.subject"
+    case subjectWorkPacket = "field.reference.subject.work-packet"
+    case subjectRoundSession = "field.reference.subject.round-session"
+    case subjectActive = "field.reference.subject.active"
+    case subjectFinalized = "field.reference.subject.finalized"
+    case provenanceKind = "field.reference.provenance.kind"
+    case provenanceLicensed = "field.reference.provenance.licensed"
+    case provenanceSynthetic = "field.reference.provenance.synthetic"
+    case licenseScope = "field.reference.provenance.license-scope"
+    case licenseLocalUseOnly = "field.reference.provenance.license-scope.local-use-only"
+    case licenseCitationAllowed = "field.reference.provenance.license-scope.citation-allowed"
+    case licenseCitationAndExportAllowed = "field.reference.provenance.license-scope.citation-and-export-allowed"
+    case licenseRestricted = "field.reference.provenance.license-scope.restricted"
+    case availability = "field.reference.availability"
+    case availabilityReadyOffline = "field.reference.availability.ready-offline"
+    case availabilityMissingBytes = "field.reference.availability.missing-bytes"
+    case availabilityExpired = "field.reference.availability.expired"
+    case availabilityRevoked = "field.reference.availability.revoked"
+    case availabilitySuperseded = "field.reference.availability.superseded"
+    case availabilityStaleBinding = "field.reference.availability.stale-binding"
+    case availabilityProtectedDataUnavailable = "field.reference.availability.protected-data-unavailable"
+    case availabilityUnavailable = "field.reference.availability.unavailable"
+    case requiredContent = "field.reference.required-content"
+    case missingContent = "field.reference.missing-content"
+    case nextStep = "field.reference.next-step"
+
+    var localizationKey: LocalizationKeyV1 {
+        // The bundled catalog validates this closed enum before publication.
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+
+    var englishDefaultValue: String {
+        switch self {
+        case .heading: return "Field reference"
+        case .provenance: return "Reference provenance"
+        case .pack: return "Reference pack"
+        case .kind: return "Reference kind"
+        case .kindSOP: return "Standard operating procedure"
+        case .kindManual: return "Manual"
+        case .kindDrawing: return "Drawing"
+        case .kindSpecification: return "Specification"
+        case .semanticVersion: return "Reference version"
+        case .release: return "Reference release"
+        case .releaseActive: return "Release active"
+        case .releaseRevoked: return "Release revoked"
+        case .binding: return "Work binding"
+        case .subject: return "Bound work"
+        case .subjectWorkPacket: return "Work packet"
+        case .subjectRoundSession: return "Round session"
+        case .subjectActive: return "Active work"
+        case .subjectFinalized: return "Finalized work"
+        case .provenanceKind: return "Provenance type"
+        case .provenanceLicensed: return "Licensed source"
+        case .provenanceSynthetic: return "Synthetic source"
+        case .licenseScope: return "License scope"
+        case .licenseLocalUseOnly: return "Local use only"
+        case .licenseCitationAllowed: return "Citation allowed"
+        case .licenseCitationAndExportAllowed: return "Citation and export allowed"
+        case .licenseRestricted: return "Restricted use"
+        case .availability: return "Reference availability"
+        case .availabilityReadyOffline: return "Ready offline"
+        case .availabilityMissingBytes: return "Required bytes missing"
+        case .availabilityExpired: return "Reference expired"
+        case .availabilityRevoked: return "Reference revoked"
+        case .availabilitySuperseded: return "Reference superseded"
+        case .availabilityStaleBinding: return "Binding is stale"
+        case .availabilityProtectedDataUnavailable: return "Protected data unavailable"
+        case .availabilityUnavailable: return "Reference unavailable"
+        case .requiredContent: return "Required reference bytes"
+        case .missingContent: return "Missing required bytes"
+        case .nextStep: return "Review the recorded reference state"
+        }
+    }
+
+    var translatorComment: String {
+        "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity."
+    }
+}
+
+extension FieldReferenceLocalizationKeyV1 {
+    static func kindKey(_ value: FieldReferenceKindV1) -> Self {
+        switch value {
+        case .sop: return .kindSOP
+        case .manual: return .kindManual
+        case .drawing: return .kindDrawing
+        case .specification: return .kindSpecification
+        }
+    }
+
+    static func availabilityKey(_ value: FieldReferenceAvailabilityV1) -> Self {
+        switch value {
+        case .readyOffline: return .availabilityReadyOffline
+        case .missingBytes: return .availabilityMissingBytes
+        case .expired: return .availabilityExpired
+        case .revoked: return .availabilityRevoked
+        case .superseded: return .availabilitySuperseded
+        case .staleBinding: return .availabilityStaleBinding
+        case .protectedDataUnavailable: return .availabilityProtectedDataUnavailable
+        case .unavailable: return .availabilityUnavailable
+        }
+    }
+
+    static func subjectKindKey(_ value: FieldReferenceSubjectKindV1) -> Self {
+        switch value {
+        case .workPacket: return .subjectWorkPacket
+        case .roundSession: return .subjectRoundSession
+        }
+    }
+
+    static func subjectStateKey(_ value: FieldReferenceSubjectStateV1) -> Self {
+        switch value {
+        case .active: return .subjectActive
+        case .finalized: return .subjectFinalized
+        }
+    }
+
+    static func provenanceKindKey(_ value: FieldReferenceProvenanceKindV1) -> Self {
+        switch value {
+        case .licensed: return .provenanceLicensed
+        case .synthetic: return .provenanceSynthetic
+        }
+    }
+
+    static func licenseScopeKey(_ value: FieldReferenceLicenseScopeV1) -> Self {
+        switch value {
+        case .localUseOnly: return .licenseLocalUseOnly
+        case .citationAllowed: return .licenseCitationAllowed
+        case .citationAndExportAllowed: return .licenseCitationAndExportAllowed
+        case .restricted: return .licenseRestricted
+        }
+    }
+}
+
+enum FieldReferenceLocalizationPolicyV1 {
+    static let semanticNamespace = "field.reference"
+    static let sourceLocale = "en"
+    static let shippingLocale = "en"
+    static let metadataLocale = "en-US"
+    static let testOnlyLocales = TestOnlyPseudoLocaleV1.allCases.map(\.rawValue).sorted()
+    static let keys = FieldReferenceLocalizationKeyV1.allCases.map(\.rawValue)
+    static let stateKeys = FieldReferenceLocalizationKeyV1.allCases.filter {
+        $0.rawValue.contains(".availability.")
+            || $0.rawValue.contains(".release.")
+            || $0.rawValue.contains(".subject.")
+            || $0.rawValue.contains(".provenance.")
+            || $0 == .requiredContent
+            || $0 == .missingContent
+    }.map(\.rawValue)
+    static let denyByDefault = true
+    static let requiresTruthfulClosedValues = true
+    static let requiresNonColorStateText = true
+    static let requiresTextAndIconForIndeterminateStates = true
+    static let requiresActionableNextStep = true
+    static let allowsColorOnlyState = false
+    static let allowsIconOnlyState = false
+    static let allowsMotionOnlyState = false
+    static let excludesReferenceBytes = true
+    static let excludesPrivateLocators = true
+    static let excludesLicenseSecrets = true
+    static let excludesSubjectIdentity = true
+    static let excludesObservationClaims = true
+    static let excludesComplianceClaims = true
+
+    static let prohibitedClaimPhrases: Set<String> = [
+        "approved", "approval", "authorized", "authorization", "authority",
+        "compliant", "compliance", "certified", "verified", "verified identity",
+        "authenticated", "secure", "secure storage", "tamperproof", "tamper proof",
+        "nonrepudiation", "non repudiation", "legal signature", "professional",
+        "safety",
+        "customer data", "work data", "private data", "password", "credential",
+        "license secret", "remote delivery", "sent", "delivered",
+        "observation complete", "requirement complete",
+    ]
+
+    private static func normalized(_ value: String) -> String {
+        value.folding(
+            options: [.caseInsensitive, .diacriticInsensitive],
+            locale: Locale(identifier: "en_US_POSIX")
+        ).split { !$0.isLetter && !$0.isNumber }.joined(separator: " ")
+    }
+
+    static func containsProhibitedClaim(in values: [String]) -> Bool {
+        values.contains { value in
+            let bounded = " \(normalized(value)) "
+            prohibitedClaimPhrases.contains { bounded.contains(" \($0) ") }
+        }
+    }
+
+    static func containsCustomerOrWorkDataLeakage(in values: [String]) -> Bool {
+        values.contains { value in
+            let bounded = " \(normalized(value)) "
+            [" customer data ", " work data ", " private data ", " password ", " credential ", " token ", " locator "]
+                .contains { bounded.contains($0) }
+        }
+    }
+}
+
+typealias FieldReferenceClaimVocabularyV1 = FieldReferenceLocalizationPolicyV1

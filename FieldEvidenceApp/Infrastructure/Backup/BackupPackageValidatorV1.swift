@@ -607,7 +607,7 @@ private extension BackupPackageValidatorV1 {
         case (1, 1, 1), (2, 1, 1), (2, 3, 2), (3, 4, 3),
              (4, 5, 4), (4, 6, 5), (4, 7, 6), (4, 8, 7), (4, 9, 8),
              (4, 10, 9), (4, 11, 10), (4, 12, 11), (4, 13, 12),
-             (4, 14, 13), (4, 15, 14), (4, 16, 15), (4, 17, 16), (4, 18, 17), (4, 19, 18), (4, 20, 19), (4, 21, 20):
+             (4, 14, 13), (4, 15, 14), (4, 16, 15), (4, 17, 16), (4, 18, 17), (4, 19, 18), (4, 20, 19), (4, 21, 20), (4, 22, 21):
             schemaPairIsValid = true
         default:
             schemaPairIsValid = false
@@ -761,6 +761,7 @@ private extension BackupPackageValidatorV1 {
         try validatePrivacyTransforms(records, manifest: manifest)
         try validateClientCapabilities(records, manifest: manifest)
         try validateRecoverabilityReceipts(records, manifest: manifest)
+        try validateFieldReferences(records,manifest:manifest)
         try validateAssetSemantics(records, manifest: manifest)
         try validateAuthorityCriterion(records, manifest: manifest)
         try validateFunctionalRelationships(records, manifest: manifest)
@@ -790,7 +791,7 @@ private extension BackupPackageValidatorV1 {
                         || records.recordsSchemaVersion == 17
                         || records.recordsSchemaVersion == 18
                         || records.recordsSchemaVersion == 19
-                        || records.recordsSchemaVersion == 20)
+                        || records.recordsSchemaVersion == 20 || records.recordsSchemaVersion == 21)
                     && savedSmartViews.allSatisfy({
                         $0.workspaceID == manifest.source.workspaceID
                     }))) else {
@@ -852,7 +853,7 @@ private extension BackupPackageValidatorV1 {
                         || records.recordsSchemaVersion == 17
                         || records.recordsSchemaVersion == 18
                         || records.recordsSchemaVersion == 19
-                        || records.recordsSchemaVersion == 20)
+                        || records.recordsSchemaVersion == 20 || records.recordsSchemaVersion == 21)
                     && assuranceSnapshots.allSatisfy({ snapshot in
                         snapshot.workspaceID == manifest.source.workspaceID
                             && workflow[snapshot.workflowRecordID] != nil
@@ -1143,7 +1144,7 @@ private extension BackupPackageValidatorV1 {
             }) else { throw invalid() }
             return
         }
-        guard (4...20).contains(records.recordsSchemaVersion) else { throw invalid() }
+        guard (4...21).contains(records.recordsSchemaVersion) else { throw invalid() }
         for record in records.workflowRecords {
             guard let basisData = record.observationBasisV1Data,
                   let temporalData = record.temporalContextV1Data else {
@@ -1191,7 +1192,7 @@ private extension BackupPackageValidatorV1 {
             guard records.partyAccountability.isEmpty else { throw invalid() }
             return
         }
-        guard (8...20).contains(records.recordsSchemaVersion),
+        guard (8...21).contains(records.recordsSchemaVersion),
               (manifest.source.persistentSchemaVersion == 9
                 || manifest.source.persistentSchemaVersion == 10
                 || manifest.source.persistentSchemaVersion == 11
@@ -1204,7 +1205,7 @@ private extension BackupPackageValidatorV1 {
                 || manifest.source.persistentSchemaVersion == 18
                 || manifest.source.persistentSchemaVersion == 19
                 || manifest.source.persistentSchemaVersion == 20
-                || manifest.source.persistentSchemaVersion == 21),
+                || manifest.source.persistentSchemaVersion == 21 || manifest.source.persistentSchemaVersion == 22),
               let workspaceID = manifest.source.workspaceID else { throw invalid() }
         let keys = records.partyAccountability.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
@@ -1284,7 +1285,7 @@ private extension BackupPackageValidatorV1 {
             guard records.assetSemantics.isEmpty else { throw invalid() }
             return
         }
-        guard (9...20).contains(records.recordsSchemaVersion),
+        guard (9...21).contains(records.recordsSchemaVersion),
               (manifest.source.persistentSchemaVersion == 10
                 || manifest.source.persistentSchemaVersion == 11
                 || manifest.source.persistentSchemaVersion == 12
@@ -1296,7 +1297,7 @@ private extension BackupPackageValidatorV1 {
                 || manifest.source.persistentSchemaVersion == 18
                 || manifest.source.persistentSchemaVersion == 19
                 || manifest.source.persistentSchemaVersion == 20
-                || manifest.source.persistentSchemaVersion == 21),
+                || manifest.source.persistentSchemaVersion == 21 || manifest.source.persistentSchemaVersion == 22),
               let sourceWorkspaceID = manifest.source.workspaceID else { throw invalid() }
         let keys = records.assetSemantics.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         guard keys == keys.sorted(), Set(keys).count == keys.count,
@@ -1497,7 +1498,7 @@ private extension BackupPackageValidatorV1 {
             guard records.authorityCriterion.isEmpty else { throw invalid() }
             return
         }
-        guard (10...20).contains(records.recordsSchemaVersion),
+        guard (10...21).contains(records.recordsSchemaVersion),
               (manifest.source.persistentSchemaVersion == 11
                 || manifest.source.persistentSchemaVersion == 12
                 || manifest.source.persistentSchemaVersion == 13
@@ -1508,7 +1509,7 @@ private extension BackupPackageValidatorV1 {
                 || manifest.source.persistentSchemaVersion == 18
                 || manifest.source.persistentSchemaVersion == 19
                 || manifest.source.persistentSchemaVersion == 20
-                || manifest.source.persistentSchemaVersion == 21),
+                || manifest.source.persistentSchemaVersion == 21 || manifest.source.persistentSchemaVersion == 22),
               let workspaceID = manifest.source.workspaceID else { throw invalid() }
         let keys = records.authorityCriterion.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         guard keys == keys.sorted(), Set(keys).count == keys.count,
@@ -1650,7 +1651,7 @@ private extension BackupPackageValidatorV1 {
             guard records.functionalRelationships.isEmpty else { throw invalid() }
             return
         }
-        guard (11...20).contains(records.recordsSchemaVersion),
+        guard (11...21).contains(records.recordsSchemaVersion),
               (manifest.source.persistentSchemaVersion == 12
                 || manifest.source.persistentSchemaVersion == 13
                 || manifest.source.persistentSchemaVersion == 14
@@ -1660,7 +1661,7 @@ private extension BackupPackageValidatorV1 {
                 || manifest.source.persistentSchemaVersion == 18
                 || manifest.source.persistentSchemaVersion == 19
                 || manifest.source.persistentSchemaVersion == 20
-                || manifest.source.persistentSchemaVersion == 21),
+                || manifest.source.persistentSchemaVersion == 21 || manifest.source.persistentSchemaVersion == 22),
               let sourceWorkspaceID = manifest.source.workspaceID else { throw invalid() }
         do {
             let workspaceID = WorkspaceID(rawValue: sourceWorkspaceID)
@@ -1723,7 +1724,7 @@ private extension BackupPackageValidatorV1 {
             guard records.evidenceAssurance.isEmpty else { throw invalid() }
             return
         }
-        guard (12...20).contains(records.recordsSchemaVersion),
+        guard (12...21).contains(records.recordsSchemaVersion),
               (manifest.source.persistentSchemaVersion == 13 || manifest.source.persistentSchemaVersion == 14
                 || manifest.source.persistentSchemaVersion == 15
                 || manifest.source.persistentSchemaVersion == 16
@@ -1731,7 +1732,7 @@ private extension BackupPackageValidatorV1 {
                 || manifest.source.persistentSchemaVersion == 18
                 || manifest.source.persistentSchemaVersion == 19
                 || manifest.source.persistentSchemaVersion == 20
-                || manifest.source.persistentSchemaVersion == 21),
+                || manifest.source.persistentSchemaVersion == 21 || manifest.source.persistentSchemaVersion == 22),
               let rawWorkspaceID = manifest.source.workspaceID else { throw invalid() }
         do {
             let workspaceID = WorkspaceID(rawValue: rawWorkspaceID)
@@ -1805,7 +1806,7 @@ private extension BackupPackageValidatorV1 {
         members: ValidatedV4BackupMembersV1
     ) throws {
         guard records.recordsSchemaVersion >= 14 else { guard records.workPackets.isEmpty else { throw invalid() }; return }
-        guard (14...20).contains(records.recordsSchemaVersion), manifest.source.persistentSchemaVersion >= 15,
+        guard (14...21).contains(records.recordsSchemaVersion), manifest.source.persistentSchemaVersion >= 15,
               let rawWorkspaceID=manifest.source.workspaceID,records.workPackets.count<=WorkPacketLimitsV1.maximumHistory else{throw invalid()}
         do {
             let workspaceID=WorkspaceID(rawValue:rawWorkspaceID)
@@ -1853,7 +1854,7 @@ private extension BackupPackageValidatorV1 {
             guard records.fieldDrafts.isEmpty else { throw invalid() }
             return
         }
-        guard (15...20).contains(records.recordsSchemaVersion),
+        guard (15...21).contains(records.recordsSchemaVersion),
               manifest.source.persistentSchemaVersion >= 16,
               let rawWorkspaceID = manifest.source.workspaceID else { throw invalid() }
         let workspaceID = WorkspaceID(rawValue: rawWorkspaceID)
@@ -1981,7 +1982,7 @@ private extension BackupPackageValidatorV1 {
             guard records.packageEvolution.isEmpty else { throw invalid() }
             return
         }
-        guard (16...20).contains(records.recordsSchemaVersion),
+        guard (16...21).contains(records.recordsSchemaVersion),
               (17...21).contains(manifest.source.persistentSchemaVersion),
               let rawWorkspaceID = manifest.source.workspaceID else { throw invalid() }
         let workspaceID = WorkspaceID(rawValue: rawWorkspaceID)
@@ -2049,7 +2050,7 @@ private extension BackupPackageValidatorV1 {
             guard records.measurementIntegrity.isEmpty else { throw invalid() }
             return
         }
-        guard (17...20).contains(records.recordsSchemaVersion),
+        guard (17...21).contains(records.recordsSchemaVersion),
               (18...21).contains(manifest.source.persistentSchemaVersion),
               let rawWorkspaceID = manifest.source.workspaceID else { throw invalid() }
         let workspaceID = WorkspaceID(rawValue: rawWorkspaceID)
@@ -2122,7 +2123,9 @@ private extension BackupPackageValidatorV1 {
                 || (records.recordsSchemaVersion == 19
                     && manifest.source.persistentSchemaVersion == 20)
                 || (records.recordsSchemaVersion == 20
-                    && manifest.source.persistentSchemaVersion == 21),
+                    && manifest.source.persistentSchemaVersion == 21)
+                || (records.recordsSchemaVersion == 21
+                    && manifest.source.persistentSchemaVersion == 22),
               let rawWorkspaceID = manifest.source.workspaceID else { throw invalid() }
         let workspaceID = WorkspaceID(rawValue: rawWorkspaceID)
         var policies: [UUID: PrivacyTransformPolicyV1] = [:]
@@ -2236,7 +2239,7 @@ private extension BackupPackageValidatorV1 {
 
     func validateClientCapabilities(_ records:V4BackupRecordsV1,manifest:V4BackupManifestV1)throws{
         guard records.recordsSchemaVersion>=19 else{guard records.clientCapabilities.isEmpty else{throw invalid()};return}
-        guard ((records.recordsSchemaVersion==19 && manifest.source.persistentSchemaVersion==20)||(records.recordsSchemaVersion==20 && manifest.source.persistentSchemaVersion==21)),let rawWorkspaceID=manifest.source.workspaceID else{throw invalid()};let workspaceID=WorkspaceID(rawValue:rawWorkspaceID)
+        guard ((records.recordsSchemaVersion==19 && manifest.source.persistentSchemaVersion==20)||(records.recordsSchemaVersion==20 && manifest.source.persistentSchemaVersion==21)||(records.recordsSchemaVersion==21 && manifest.source.persistentSchemaVersion==22)),let rawWorkspaceID=manifest.source.workspaceID else{throw invalid()};let workspaceID=WorkspaceID(rawValue:rawWorkspaceID)
         do{
             let releases=try records.packageEvolution.filter{$0.kind == .promotedRelease}.map{try PackageEvolutionCanonicalCodecV1.decode(PromotedPackageReleaseV1.self,from:$0.canonicalData).packageRelease};let releaseIndex=Dictionary(uniqueKeysWithValues:releases.map{($0.packageReleaseID,$0)})
             var profiles:[UUID:ClientCapabilityProfileV1]=[:],policies:[UUID:PackageLifecyclePolicyV1]=[:],dispositions:[UUID:PackageLifecycleDispositionV1]=[:],decisions:[UUID:ClientCapabilityAdmissionDecisionV1]=[:]
@@ -2251,7 +2254,7 @@ private extension BackupPackageValidatorV1 {
 
     func validateRecoverabilityReceipts(_ records:V4BackupRecordsV1,manifest:V4BackupManifestV1)throws{
         guard records.recordsSchemaVersion>=20 else{guard records.recoverabilityReceipts.isEmpty else{throw invalid()};return}
-        guard records.recordsSchemaVersion==20,manifest.source.persistentSchemaVersion==21,let rawWorkspaceID=manifest.source.workspaceID else{throw invalid()}
+        guard ((records.recordsSchemaVersion==20 && manifest.source.persistentSchemaVersion==21)||(records.recordsSchemaVersion==21 && manifest.source.persistentSchemaVersion==22)),let rawWorkspaceID=manifest.source.workspaceID else{throw invalid()}
         let workspaceID=WorkspaceID(rawValue:rawWorkspaceID)
         do{
             let decisions=try records.clientCapabilities.filter{$0.kind == .admissionDecision}.map{try ClientCapabilityCanonicalCodecV1.decode(ClientCapabilityAdmissionDecisionV1.self,from:$0.canonicalData)}
@@ -2259,13 +2262,14 @@ private extension BackupPackageValidatorV1 {
             var values:[UUID:RecoverabilityVerificationReceiptV1]=[:],successorCounts:[UUID:Int]=[:]
             for record in records.recoverabilityReceipts{
                 let value=try RecoverabilityVerificationReceiptRow(RecoverabilityVerificationCanonicalCodecV1.decode(RecoverabilityVerificationReceiptV1.self,from:record.canonicalData)).value()
-                guard value.workspaceID==workspaceID,value.receiptID==record.id,value.revision==record.revision,[(20,19),(21,20)].contains(where:{$0.0==value.archive.persistentSchemaVersion && $0.1==value.archive.recordsSchemaVersion}),values.updateValue(value,forKey:value.receiptID)==nil else{throw invalid()}
+                guard value.workspaceID==workspaceID,value.receiptID==record.id,value.revision==record.revision,[(20,19),(21,20),(22,21)].contains(where:{$0.0==value.archive.persistentSchemaVersion && $0.1==value.archive.recordsSchemaVersion}),values.updateValue(value,forKey:value.receiptID)==nil else{throw invalid()}
                 if value.archive.sourceWorkspaceID == workspaceID{guard let decision=decisionIndex[value.archive.clientCapability.decisionID],decision.revision==value.archive.clientCapability.decisionRevision,decision.decisionSHA256==value.archive.clientCapability.decisionSHA256 else{throw invalid()}}
             }
             for value in values.values{if let predecessorID=value.supersedesReceiptID{guard let predecessor=values[predecessorID]else{throw invalid()};try value.validateSuccessor(of:predecessor);successorCounts[predecessorID,default:0]+=1;guard successorCounts[predecessorID]==1 else{throw invalid()}}else if value.revision != 1{throw invalid()}}
             try requireAcyclic(Array(values.values),id:\.receiptID,next:\.supersedesReceiptID)
         }catch{throw invalid()}
     }
+    func validateFieldReferences(_ records:V4BackupRecordsV1,manifest:V4BackupManifestV1)throws{guard records.recordsSchemaVersion>=21 else{guard records.fieldReferences.isEmpty else{throw invalid()};return};guard records.recordsSchemaVersion==21,manifest.source.persistentSchemaVersion==22,let rawWorkspaceID=manifest.source.workspaceID else{throw invalid()};let workspaceID=WorkspaceID(rawValue:rawWorkspaceID);do{var releases:[UUID:FieldReferenceReleaseV1]=[:],bindings:[UUID:FieldReferenceBindingV1]=[:],releaseChildren:[UUID:Int]=[:],bindingChildren:[UUID:Int]=[:];for row in records.fieldReferences where row.kind == .release{let value=try FieldReferenceReleaseRow(FieldReferencePackCanonicalCodecV1.decode(FieldReferenceReleaseV1.self,from:row.canonicalData)).value();guard value.workspaceID==workspaceID,row.id==value.releaseID,row.workspaceID==rawWorkspaceID,row.revision==value.revision,releases.updateValue(value,forKey:value.releaseID)==nil else{throw invalid()}};for row in records.fieldReferences where row.kind == .binding{let seed=try FieldReferencePackCanonicalCodecV1.decode(FieldReferenceBindingV1.self,from:row.canonicalData);guard let release=releases[seed.releaseID]else{throw invalid()};let value=try FieldReferenceBindingRow(seed,release:release).value(release:release);guard value.workspaceID==workspaceID,row.id==value.bindingID,row.workspaceID==rawWorkspaceID,row.revision==value.revision,bindings.updateValue(value,forKey:value.bindingID)==nil else{throw invalid()}};for value in releases.values{if let id=value.supersedesReleaseID{guard let predecessor=releases[id]else{throw invalid()};try value.validateSuccessor(of:predecessor);releaseChildren[id,default:0]+=1;guard releaseChildren[id]==1 else{throw invalid()}}else if value.revision != 1{throw invalid()}};for value in bindings.values{if let id=value.supersedesBindingID{guard let predecessor=bindings[id],let release=releases[value.releaseID]else{throw invalid()};try value.validateSuccessor(of:predecessor,release:release);bindingChildren[id,default:0]+=1;guard bindingChildren[id]==1 else{throw invalid()}}else if value.revision != 1{throw invalid()}};try requireAcyclic(Array(releases.values),id:\.releaseID,next:\.supersedesReleaseID);try requireAcyclic(Array(bindings.values),id:\.bindingID,next:\.supersedesBindingID)}catch{throw invalid()}}
 
     func validateInspectionReview(
         _ records: V4BackupRecordsV1, manifest: V4BackupManifestV1,
@@ -2275,14 +2279,14 @@ private extension BackupPackageValidatorV1 {
             guard records.inspectionReview.isEmpty else { throw invalid() }
             return
         }
-        guard (13...20).contains(records.recordsSchemaVersion),
+        guard (13...21).contains(records.recordsSchemaVersion),
               (manifest.source.persistentSchemaVersion == 14 || manifest.source.persistentSchemaVersion == 15
                 || manifest.source.persistentSchemaVersion == 16
                 || manifest.source.persistentSchemaVersion == 17
                 || manifest.source.persistentSchemaVersion == 18
                 || manifest.source.persistentSchemaVersion == 19
                 || manifest.source.persistentSchemaVersion == 20
-                || manifest.source.persistentSchemaVersion == 21),
+                || manifest.source.persistentSchemaVersion == 21 || manifest.source.persistentSchemaVersion == 22),
               records.inspectionReview.count <= InspectionReviewLimitsV1.maximumHistory,
               let rawWorkspaceID = manifest.source.workspaceID else { throw invalid() }
         do {
@@ -2629,7 +2633,9 @@ private extension BackupPackageValidatorV1 {
                 || (records.recordsSchemaVersion == 19
                     && manifest.source.persistentSchemaVersion == 20)
                 || (records.recordsSchemaVersion == 20
-                    && manifest.source.persistentSchemaVersion == 21)),
+                    && manifest.source.persistentSchemaVersion == 21)
+                || (records.recordsSchemaVersion == 21
+                    && manifest.source.persistentSchemaVersion == 22)),
               let sourceWorkspaceID = manifest.source.workspaceID else {
             throw invalid()
         }

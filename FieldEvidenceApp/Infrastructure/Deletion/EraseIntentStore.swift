@@ -33,6 +33,7 @@ enum PackageEvolutionEraseIntentStorePolicyV1{static func validate()throws{guard
 enum MeasurementIntegrityEraseIntentStorePolicyV1{static func validate()throws{guard MeasurementIntegrityEraseBoundaryV1.atomicFamilyCount==5,MeasurementIntegrityEraseBoundaryV1.ordinaryDeletionPreservesFrozenHistory,MeasurementIntegrityEraseBoundaryV1.workspaceEraseClearsEntireClosure else{throw EraseIntentStoreError.invalidAuthority}}}
 enum PrivacyTransformEraseIntentStorePolicyV1{static func validate()throws{guard PrivacyTransformEraseBoundaryV1.atomicFamilyCount==4,PrivacyTransformEraseBoundaryV1.ordinaryDeletionPreservesOriginalsDerivativesAndImmutableHistory,PrivacyTransformEraseBoundaryV1.workspaceEraseClearsEntireClosure,PrivacyTransformEraseBoundaryV1.escapedFilesCannotBeRecalled else{throw EraseIntentStoreError.invalidAuthority}}}
 enum ClientCapabilityEraseIntentStorePolicyV1{static func validate()throws{guard ClientCapabilityEraseBoundaryV1.atomicFamilyCount==4,ClientCapabilityEraseBoundaryV1.ordinaryDeletionPreservesReadableHistory,ClientCapabilityEraseBoundaryV1.workspaceEraseClearsEntireClosure,ClientCapabilityEraseBoundaryV1.escapedArchivesCannotBeRecalled else{throw EraseIntentStoreError.invalidAuthority}}}
+enum FieldReferenceEraseIntentStorePolicyV1{static func validate()throws{guard FieldReferenceEraseBoundaryV1.atomicFamilyCount==2,FieldReferenceEraseBoundaryV1.ordinaryDeletionRetainsBoundAndFinalizedReleaseBytes,FieldReferenceEraseBoundaryV1.unboundReleaseMayBeDiscarded,FieldReferenceEraseBoundaryV1.workspaceEraseClearsRowsAndOwnedBytes,FieldReferenceEraseBoundaryV1.readinessProjectionIsNonpersistent else{throw EraseIntentStoreError.invalidAuthority}}}
 
 enum EraseIntentStoreError: Error, Equatable {
     case invalidAuthority
@@ -356,6 +357,7 @@ final class EraseIntentStore {
         try ClientCapabilityEraseIntentStorePolicyV1.validate()
         try PrivacyTransformEraseIntentStorePolicyV1.validate()
         try MeasurementIntegrityEraseIntentStorePolicyV1.validate()
+        try FieldReferenceEraseIntentStorePolicyV1.validate()
         let root = applicationSupportURL.standardizedFileURL
         guard root.isFileURL else { throw EraseIntentStoreError.invalidAuthority }
         if expectedApplicationSupportIdentity == nil {

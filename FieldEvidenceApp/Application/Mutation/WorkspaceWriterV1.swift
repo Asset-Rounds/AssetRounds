@@ -317,6 +317,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
     func commitMeasurementIntegrity(_ bundle:MeasurementIntegrityAtomicBundleV1) async throws->MeasurementIntegrityWriteReceiptV1{let mutation=try MeasurementIntegrityMutationV1(bundle:bundle);let current=try currentRevision();let concurrency=try mutation.concurrencyIdentities;let byIdentity=Dictionary(uniqueKeysWithValues:current.entityRevisions.map{($0.identity,$0.revision)});guard try concurrency.allSatisfy({byIdentity[$0,default:0] == (try mutation.expectedRevision(for:$0))})else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision};let expected=try WorkspaceExpectedRevisionV1(workspaceID:current.workspaceID,generationID:current.generationID,writerInstanceID:current.writerInstanceID,workspaceRevision:current.revision,entityRevisions:concurrency.map{WorkspaceEntityRevisionV1(identity:$0,revision:byIdentity[$0,default:0])});_ = try execute(WorkspaceMutationRequestV1(mutationID:bundle.mutationID,expectedRevision:expected,command:.applyMeasurementIntegrity(mutation)));guard let receipt=try journalStore?.receipt(mutationID:bundle.mutationID)else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};_ = try MeasurementIntegrityMutationReceiptV1(mutation:mutation,mutationReceipt:receipt);return try MeasurementIntegrityWriteReceiptV1(workspaceID:bundle.workspaceID,mutationID:bundle.mutationID,bundleSHA256:bundle.bundleSHA256,journalReceiptSHA256:receipt.canonicalSHA256())}
     func commitPrivacyTransform(_ mutation:PrivacyTransformMutationV1)throws->MutationReceiptV1{try mutation.validate();let current=try currentRevision();let concurrency=try mutation.concurrencyIdentities;let expected=try WorkspaceExpectedRevisionV1(workspaceID:current.workspaceID,generationID:current.generationID,writerInstanceID:current.writerInstanceID,workspaceRevision:current.revision,entityRevisions:try concurrency.map{WorkspaceEntityRevisionV1(identity:$0,revision:try mutation.expectedRevision(for:$0))});_ = try execute(.init(mutationID:mutation.mutationID,expectedRevision:expected,command:.applyPrivacyTransform(mutation)));guard let receipt=try journalStore?.receipt(mutationID:mutation.mutationID)else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};_ = try PrivacyTransformMutationReceiptV1(mutation:mutation,mutationReceipt:receipt);return receipt}
     func commitClientCapability(_ mutation:ClientCapabilityMutationV1)throws->MutationReceiptV1{try mutation.validate();let current=try currentRevision(),concurrency=try mutation.concurrencyIdentity;let known=Dictionary(uniqueKeysWithValues:current.entityRevisions.map{($0.identity,$0.revision)});guard known[concurrency,default:0]==mutation.expectedRevision else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision};let expected=try WorkspaceExpectedRevisionV1(workspaceID:current.workspaceID,generationID:current.generationID,writerInstanceID:current.writerInstanceID,workspaceRevision:current.revision,entityRevisions:[.init(identity:concurrency,revision:mutation.expectedRevision)]);_ = try execute(.init(mutationID:mutation.mutationID,expectedRevision:expected,command:.applyClientCapability(mutation)));guard let receipt=try journalStore?.receipt(mutationID:mutation.mutationID)else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};_ = try ClientCapabilityMutationReceiptV1(mutation:mutation,mutationReceipt:receipt);return receipt}
+    func commitFieldReference(_ mutation:FieldReferenceMutationV1)throws->MutationReceiptV1{try mutation.validate();let current=try currentRevision(),concurrency=try mutation.concurrencyIdentity;let known=Dictionary(uniqueKeysWithValues:current.entityRevisions.map{($0.identity,$0.revision)});guard known[concurrency,default:0]==mutation.expectedRevision else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision};let expected=try WorkspaceExpectedRevisionV1(workspaceID:current.workspaceID,generationID:current.generationID,writerInstanceID:current.writerInstanceID,workspaceRevision:current.revision,entityRevisions:[.init(identity:concurrency,revision:mutation.expectedRevision)]);_ = try execute(.init(mutationID:mutation.mutationID,expectedRevision:expected,command:.applyFieldReference(mutation)));guard let receipt=try journalStore?.receipt(mutationID:mutation.mutationID)else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};_ = try FieldReferenceMutationReceiptV1(mutation:mutation,mutationReceipt:receipt);return receipt}
 
     func execute(
         _ command: WorkspaceCommandV1,
@@ -539,6 +540,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             do{try value.validate();let targets=try value.concurrencyIdentities;let expected=Dictionary(uniqueKeysWithValues:request.expectedRevision.entityRevisions.map{($0.identity,$0.revision)});guard value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,sourceKind == .importedHistory || occurredAtOverride != nil || (try targets.allSatisfy{expected[$0] == (try value.expectedRevision(for:$0))}) else{throw WorkspaceMutationFailureV1.invalidCommand}}catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
         case .applyClientCapability(let value):
             do{try value.validate();let target=try value.concurrencyIdentity;let expected=request.expectedRevision.entityRevisions.first(where:{$0.identity==target})?.revision;guard value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,sourceKind == .importedHistory || occurredAtOverride != nil || expected==value.expectedRevision else{throw WorkspaceMutationFailureV1.invalidCommand}}catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
+        case .applyFieldReference(let value):
+            do{try value.validate();let target=try value.concurrencyIdentity;let expected=request.expectedRevision.entityRevisions.first(where:{$0.identity==target})?.revision;guard value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,sourceKind == .importedHistory || occurredAtOverride != nil || expected==value.expectedRevision else{throw WorkspaceMutationFailureV1.invalidCommand}}catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
         default:
             break
         }
@@ -739,6 +742,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         } else if case let .applyPrivacyTransform(mutation) = request.command {
             for image in try mutation.mutationPostImages{entityRevisions[try image.identity]=image.revision}
         } else if case let .applyClientCapability(mutation) = request.command {
+            entityRevisions[try mutation.affectedIdentity]=mutation.revision
+        } else if case let .applyFieldReference(mutation) = request.command {
             entityRevisions[try mutation.affectedIdentity]=mutation.revision
         } else {
             for target in targets { entityRevisions[target, default: 0] += 1 }
@@ -1199,6 +1204,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             try value.validate();values=try value.affectedIdentities
         case let .applyClientCapability(value):
             try value.validate();values=[try value.affectedIdentity]
+        case let .applyFieldReference(value):
+            try value.validate();values=[try value.affectedIdentity]
         }
         guard Set(values).count == values.count else {
             throw WorkspaceMutationFailureV1.invalidCommand
@@ -1225,6 +1232,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         if case let .applyMeasurementIntegrity(value)=command{try value.validate();return try value.concurrencyIdentities}
         if case let .applyPrivacyTransform(value)=command{try value.validate();return try value.concurrencyIdentities}
         if case let .applyClientCapability(value)=command{try value.validate();return[try value.concurrencyIdentity]}
+        if case let .applyFieldReference(value)=command{try value.validate();return[try value.concurrencyIdentity]}
         return try targetIdentities(for: command)
     }
 

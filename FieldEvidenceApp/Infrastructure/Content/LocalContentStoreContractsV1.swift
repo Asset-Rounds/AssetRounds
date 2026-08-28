@@ -7,6 +7,19 @@ enum LocalContentStoreAvailabilityV1: Equatable, Sendable {
     case cancelled
 }
 
+extension LocalContentStoreV1 {
+    func fieldReferenceContent(for release: FieldReferenceReleaseV1) throws -> ([ContentReferenceV1], [ContentLocatorV1]) {
+        try release.validate()
+        guard workspaceID == release.manifest.workspaceID else { throw ContentContractFailureV1.wrongWorkspace }
+        let ids = Set(release.manifest.entries.map(\.contentID))
+        let selected = entries.values.filter { ids.contains($0.reference.contentID) }
+        let references = selected.map(\.reference).sorted { $0.contentID < $1.contentID }
+        let locators = selected.map(\.locator).sorted { $0.contentID < $1.contentID }
+        try release.validateContent(references: references, locators: locators)
+        return (references, locators)
+    }
+}
+
 struct LocalContentStoreEntryV1: Equatable, Sendable {
     let reference: ContentReferenceV1
     let locator: ContentLocatorV1

@@ -11,6 +11,15 @@ protocol PackageSandboxCheckExecutingV1: Sendable {
 }
 
 extension PackageSandboxRunnerV1 {
+    func validateFieldReferences(_ closures: [FieldReferenceLifecycleClosureV1], checkedAt: Date) throws {
+        for closure in closures {
+            let readiness = try closure.validate(checkedAt: checkedAt)
+            guard readiness.availability == .readyOffline else { throw FieldReferencePackFailureV1.missingContent }
+        }
+    }
+}
+
+extension PackageSandboxRunnerV1 {
     func run(
         runID: UUID,
         workspaceID: WorkspaceID,

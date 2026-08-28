@@ -7,3 +7,48 @@ private func workPacketDomainRevision(_ v:Int64)throws->UInt64{guard v>0 else{th
 @Model final class WorkLeaseRow{@Attribute(.unique)private(set)var leaseID:UUID;private(set)var claimID:UUID;private(set)var workspaceID:UUID;private(set)var revision:Int64;private(set)var mutationID:UUID;private(set)var canonicalSHA256:String;private(set)var canonicalData:Data;init(_ v:WorkLeaseV1)throws{try v.validate();leaseID=v.leaseID;claimID=v.claimID;workspaceID=v.workspaceID.rawValue;revision=try workPacketStoredRevision(v.revision);mutationID=v.mutationID.rawValue;canonicalSHA256=v.leaseSHA256;canonicalData=try WorkPacketCanonicalCodecV1.encode(v)}func value()throws->WorkLeaseV1{let v=try WorkPacketCanonicalCodecV1.decode(WorkLeaseV1.self,from:canonicalData);guard v.leaseID==leaseID,v.claimID==claimID,v.workspaceID.rawValue==workspaceID,v.revision==(try workPacketDomainRevision(revision)),v.mutationID.rawValue==mutationID,v.leaseSHA256==canonicalSHA256 else{throw WorkPacketFailureV1.digestMismatch};return v}}
 @Model final class WorkReleaseRow{@Attribute(.unique)private(set)var releaseID:UUID;private(set)var claimID:UUID;private(set)var leaseID:UUID;private(set)var workspaceID:UUID;private(set)var revision:Int64;private(set)var mutationID:UUID;private(set)var canonicalSHA256:String;private(set)var canonicalData:Data;init(_ v:WorkReleaseV1)throws{try v.validate();releaseID=v.releaseID;claimID=v.claimID;leaseID=v.leaseID;workspaceID=v.workspaceID.rawValue;revision=try workPacketStoredRevision(v.revision);mutationID=v.mutationID.rawValue;canonicalSHA256=v.releaseSHA256;canonicalData=try WorkPacketCanonicalCodecV1.encode(v)}func value()throws->WorkReleaseV1{let v=try WorkPacketCanonicalCodecV1.decode(WorkReleaseV1.self,from:canonicalData);guard v.releaseID==releaseID,v.claimID==claimID,v.leaseID==leaseID,v.workspaceID.rawValue==workspaceID,v.revision==(try workPacketDomainRevision(revision)),v.mutationID.rawValue==mutationID,v.releaseSHA256==canonicalSHA256 else{throw WorkPacketFailureV1.digestMismatch};return v}}
 @Model final class WorkHandoffRow{@Attribute(.unique)private(set)var handoffID:UUID;private(set)var releaseID:UUID;private(set)var workspaceID:UUID;private(set)var revision:Int64;private(set)var mutationID:UUID;private(set)var canonicalSHA256:String;private(set)var canonicalData:Data;init(_ v:WorkHandoffV1)throws{try v.validate();handoffID=v.handoffID;releaseID=v.releaseID;workspaceID=v.workspaceID.rawValue;revision=try workPacketStoredRevision(v.revision);mutationID=v.mutationID.rawValue;canonicalSHA256=v.handoffSHA256;canonicalData=try WorkPacketCanonicalCodecV1.encode(v)}func value()throws->WorkHandoffV1{let v=try WorkPacketCanonicalCodecV1.decode(WorkHandoffV1.self,from:canonicalData);guard v.handoffID==handoffID,v.releaseID==releaseID,v.workspaceID.rawValue==workspaceID,v.revision==(try workPacketDomainRevision(revision)),v.mutationID.rawValue==mutationID,v.handoffSHA256==canonicalSHA256 else{throw WorkPacketFailureV1.digestMismatch};return v}}
+
+/// C23 reference bindings are separate canonical rows. Work-packet rows only
+/// expose a read-only proof boundary and never duplicate the binding store.
+enum WorkPacketReferencePersistenceBoundaryV1 {
+    static let bindingFamily = "FieldReferenceBindingV1"
+    static let releaseFamily = "FieldReferenceReleaseV1"
+    static let projectionPersistence = "DERIVED_ONLY"
+    static let writer = "SOLE_CANONICAL_WORKSPACE_WRITER"
+
+    static func validate(
+        manifest: WorkPacketManifestV1,
+        binding: FieldReferenceBindingV1,
+        release: FieldReferenceReleaseV1,
+        readiness: FieldReferenceOfflineReadinessV1,
+        subjectState: FieldReferenceSubjectStateV1 = .active
+    ) throws -> WorkSessionFieldReferenceProjectionV1 {
+        try manifest.c23ValidateReferenceBinding(
+            binding,
+            release: release,
+            readiness: readiness,
+            subjectState: subjectState
+        )
+    }
+}
+
+extension WorkPacketManifestRow {
+    /// A persisted manifest may be consumed only with an independently read
+    /// C23 binding whose packet subject and exact release/manifest digests
+    /// match this row's decoded manifest.
+    func c23ValidateReferenceBinding(
+        _ binding: FieldReferenceBindingV1,
+        release: FieldReferenceReleaseV1,
+        readiness: FieldReferenceOfflineReadinessV1,
+        subjectState: FieldReferenceSubjectStateV1 = .active
+    ) throws -> WorkSessionFieldReferenceProjectionV1 {
+        let manifest = try value()
+        return try WorkPacketReferencePersistenceBoundaryV1.validate(
+            manifest: manifest,
+            binding: binding,
+            release: release,
+            readiness: readiness,
+            subjectState: subjectState
+        )
+    }
+}

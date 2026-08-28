@@ -45,6 +45,13 @@ struct ContentLocatorV1: Codable, Equatable, Hashable, Identifiable, Sendable {
     }
 }
 
+extension ContentManifestV1 {
+    func validateFieldReferenceOfflineClosure(references: [ContentReferenceV1], locators: [ContentLocatorV1]) throws {
+        guard entries.allSatisfy(\.requiredForOpen) else { throw ContentContractFailureV1.missingContent }
+        try validate(references: references, locators: locators)
+    }
+}
+
 struct ContentManifestEntryV1: Codable, Equatable, Sendable {
     let contentID: String
     let expectedByteLength: Int64

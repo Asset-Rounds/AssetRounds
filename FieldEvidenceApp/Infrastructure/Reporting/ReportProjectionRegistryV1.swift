@@ -2046,3 +2046,28 @@ extension ReportProjectionRegistryV1 {
         return projection
     }
 }
+
+// MARK: - C23 version-bound field-reference consumer
+
+extension ReportProjectionRegistryV1 {
+    func validateFieldReferenceConsumer(
+        _ projection: FieldReferenceReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> FieldReferenceReportProjectionV1 {
+        try validate()
+        return try FieldReferenceReportProjectionPolicyV1.validate(
+            projection,
+            format: format
+        )
+    }
+
+    static func validateFieldReferenceConsumer(
+        _ projection: FieldReferenceReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> FieldReferenceReportProjectionV1 {
+        try Self().validateFieldReferenceConsumer(projection, format: format)
+    }
+
+    static let fieldReferenceProjectionSectionID =
+        FieldReferenceReportProjectionPolicyV1.sectionID
+}

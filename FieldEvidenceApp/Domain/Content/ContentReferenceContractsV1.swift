@@ -19,6 +19,17 @@ enum ContentContractFailureV1: Error, Equatable, Sendable {
     case incompatibleVersion
 }
 
+enum FieldReferenceContentBoundaryV1 {
+    static func validateImmutableOriginals(_ references: [ContentReferenceV1], workspaceID: WorkspaceID) throws {
+        let expected = workspaceID.rawValue.uuidString.lowercased()
+        guard !references.isEmpty,
+              Set(references.map(\.contentID)).count == references.count,
+              references.allSatisfy({ $0.workspaceID == expected && $0.byteRole == .immutableOriginal }) else {
+            throw ContentContractFailureV1.immutableOriginal
+        }
+    }
+}
+
 enum ContentContractLimitsV1 {
     static let maximumIDBytes = 128
     static let maximumMediaTypeBytes = 127

@@ -1634,6 +1634,7 @@ private extension BackupRestoreService {
         with packets: [V4BackupPacketDTO]
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            fieldReferences:records.fieldReferences,
             recoverabilityReceipts:records.recoverabilityReceipts,
             clientCapabilities: records.clientCapabilities,
             privacyTransforms: records.privacyTransforms,
@@ -1688,6 +1689,7 @@ private extension BackupRestoreService {
         with history: MutationHistorySnapshotV1
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            fieldReferences:records.fieldReferences,
             recoverabilityReceipts:records.recoverabilityReceipts,
             clientCapabilities: records.clientCapabilities,
             privacyTransforms: records.privacyTransforms,
@@ -1807,6 +1809,7 @@ private extension BackupRestoreService {
             return try V8BackupRequirementAssuranceRecordV1(row)
         }.sorted { canonical($0.workflowRecordID) < canonical($1.workflowRecordID) }
         return V4BackupRecordsV1(
+            fieldReferences:records.fieldReferences,
             recoverabilityReceipts:records.recoverabilityReceipts,
             clientCapabilities: records.clientCapabilities,
             privacyTransforms: records.privacyTransforms,
@@ -2059,8 +2062,10 @@ private extension BackupRestoreService {
         )
         let clientCapabilities = try rebindingClientCapabilities(records.clientCapabilities,workspaceID:workspaceID,packageEvolution:packageEvolution)
         let recoverabilityReceipts = try records.recoverabilityReceipts.map{record in let value=try RecoverabilityVerificationCanonicalCodecV1.decode(RecoverabilityVerificationReceiptV1.self,from:record.canonicalData);guard value.workspaceID != workspaceID else{return record};let rebound=try value.rebound(to:workspaceID);return V21BackupRecoverabilityReceiptRecordV1(id:rebound.receiptID,workspaceID:workspaceID.rawValue,revision:rebound.revision,canonicalData:try RecoverabilityVerificationCanonicalCodecV1.encode(rebound))}.sorted{$0.id.uuidString<$1.id.uuidString}
+        let fieldReferences = try rebindingFieldReferences(records.fieldReferences,workspaceID:workspaceID)
         guard let archived = records.locationMigrationReceipts.first else {
             return V4BackupRecordsV1(
+                fieldReferences:fieldReferences,
                 recoverabilityReceipts:recoverabilityReceipts,
                 clientCapabilities: clientCapabilities,
                 privacyTransforms: privacyTransforms,
@@ -2105,6 +2110,7 @@ private extension BackupRestoreService {
            inspectionReview == records.inspectionReview,
            privacyTransforms == records.privacyTransforms,
            recoverabilityReceipts == records.recoverabilityReceipts,
+           fieldReferences == records.fieldReferences,
            clientCapabilities == records.clientCapabilities,
            workPackets == records.workPackets,
            reports == records.reports {
@@ -2119,6 +2125,7 @@ private extension BackupRestoreService {
             bindings: receipt.bindings
         )
         return V4BackupRecordsV1(
+            fieldReferences:fieldReferences,
             recoverabilityReceipts:recoverabilityReceipts,
             clientCapabilities: clientCapabilities,
             privacyTransforms: privacyTransforms,
@@ -2350,6 +2357,15 @@ private extension BackupRestoreService {
         } catch {
             throw BackupRestoreServiceError.invalidPackage
         }
+    }
+
+    func rebindingFieldReferences(_ records:[V22BackupFieldReferenceRecordV1],workspaceID:WorkspaceID)throws->[V22BackupFieldReferenceRecordV1]{
+        let sourceReleases=try records.filter{$0.kind == .release}.map{try FieldReferencePackCanonicalCodecV1.decode(FieldReferenceReleaseV1.self,from:$0.canonicalData)}
+        var releases:[UUID:FieldReferenceReleaseV1]=[:]
+        for source in sourceReleases{let manifest=try ContentManifestV1(manifestID:source.manifest.manifestID,workspaceID:workspaceID.rawValue.uuidString.lowercased(),manifestRevision:source.manifest.manifestRevision,entries:source.manifest.entries);let value=source.workspaceID == workspaceID ? source:try source.rebound(to:workspaceID,manifest:manifest);guard releases.updateValue(value,forKey:value.releaseID)==nil else{throw BackupRestoreServiceError.invalidPackage}}
+        var output=try releases.values.map{V22BackupFieldReferenceRecordV1(kind:.release,id:$0.releaseID,workspaceID:workspaceID.rawValue,revision:$0.revision,canonicalData:try FieldReferencePackCanonicalCodecV1.encode($0))}
+        output += try records.filter{$0.kind == .binding}.map{record in let source=try FieldReferencePackCanonicalCodecV1.decode(FieldReferenceBindingV1.self,from:record.canonicalData);guard let release=releases[source.releaseID]else{throw BackupRestoreServiceError.invalidPackage};let value=source.workspaceID == workspaceID ? source:try source.rebound(to:workspaceID,release:release);try value.validate(release:release);return .init(kind:.binding,id:value.bindingID,workspaceID:workspaceID.rawValue,revision:value.revision,canonicalData:try FieldReferencePackCanonicalCodecV1.encode(value))}
+        return output.sorted{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"}
     }
 
     func rebindingAssetSemantics(
@@ -3168,6 +3184,7 @@ private extension BackupRestoreService {
             )
         }
         return V4BackupRecordsV1(
+            fieldReferences: [],
             evidenceAssurance: [], functionalRelationships: [], authorityCriterion: [], assetSemantics: [],
             assetCompositionEdges: records.assetCompositionEdges,
             assetCompositionEvents: records.assetCompositionEvents,
@@ -3540,7 +3557,8 @@ private extension BackupRestoreService {
                 || records.recordsSchemaVersion == 17
                 || records.recordsSchemaVersion == 18
                 || records.recordsSchemaVersion == 19
-                || records.recordsSchemaVersion == 20)
+                || records.recordsSchemaVersion == 20
+                || records.recordsSchemaVersion == 21)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -3801,7 +3819,8 @@ private extension BackupRestoreService {
             || records.recordsSchemaVersion == 17
             || records.recordsSchemaVersion == 18
             || records.recordsSchemaVersion == 19
-            || records.recordsSchemaVersion == 20 {
+            || records.recordsSchemaVersion == 20
+            || records.recordsSchemaVersion == 21 {
             do {
                 for record in records.savedSmartViews {
                     let descriptor = try record.descriptor()
@@ -4073,6 +4092,14 @@ private extension BackupRestoreService {
         if records.recordsSchemaVersion >= 20 {
             do{let rows=try records.recoverabilityReceipts.map{record in let value=try RecoverabilityVerificationCanonicalCodecV1.decode(RecoverabilityVerificationReceiptV1.self,from:record.canonicalData);let row=try RecoverabilityVerificationReceiptRow(value);_ = try row.value();return row};rows.forEach{context.insert($0)}}catch{throw BackupRestoreServiceError.invalidPackage}
         }
+        if records.recordsSchemaVersion >= 21 {
+            do{
+                let releaseEntries=try records.fieldReferences.filter{$0.kind == .release}.map{record in let value=try FieldReferencePackCanonicalCodecV1.decode(FieldReferenceReleaseV1.self,from:record.canonicalData);let row=try FieldReferenceReleaseRow(value);return(row,try row.value())}
+                let releases=Dictionary(uniqueKeysWithValues:releaseEntries.map{($0.1.releaseID,$0.1)})
+                let bindingRows=try records.fieldReferences.filter{$0.kind == .binding}.map{record in let seed=try FieldReferencePackCanonicalCodecV1.decode(FieldReferenceBindingV1.self,from:record.canonicalData);guard let release=releases[seed.releaseID]else{throw BackupRestoreServiceError.invalidPackage};let row=try FieldReferenceBindingRow(seed,release:release);_ = try row.value(release:release);return row}
+                releaseEntries.forEach{context.insert($0.0)};bindingRows.forEach{context.insert($0)}
+            }catch{throw BackupRestoreServiceError.invalidPackage}
+        }
         if let mutationHistory = records.mutationHistory {
             guard records.recordsSchemaVersion == 3
                     || records.recordsSchemaVersion == 4
@@ -4091,7 +4118,8 @@ private extension BackupRestoreService {
                     || records.recordsSchemaVersion == 17
                     || records.recordsSchemaVersion == 18
                     || records.recordsSchemaVersion == 19
-                    || records.recordsSchemaVersion == 20 else {
+                    || records.recordsSchemaVersion == 20
+                    || records.recordsSchemaVersion == 21 else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {
@@ -5179,7 +5207,8 @@ private extension BackupRestoreService {
                 || actual.recordsSchemaVersion == 17
                 || actual.recordsSchemaVersion == 18
                 || actual.recordsSchemaVersion == 19
-                || actual.recordsSchemaVersion == 20) else {
+                || actual.recordsSchemaVersion == 20
+                || actual.recordsSchemaVersion == 21) else {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
         if expected.recordsSchemaVersion == 5 || expected.recordsSchemaVersion == 6 {
@@ -5198,6 +5227,7 @@ private extension BackupRestoreService {
         schemaVersion: Int
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            fieldReferences:schemaVersion >= 21 ? records.fieldReferences:[],
             recoverabilityReceipts:schemaVersion >= 20 ? records.recoverabilityReceipts:[],
             clientCapabilities: schemaVersion >= 19 ? records.clientCapabilities : [],
             privacyTransforms: schemaVersion >= 18 ? records.privacyTransforms : [],
@@ -5237,6 +5267,7 @@ private extension BackupRestoreService {
         expected: V4BackupRecordsV1
     ) throws -> Bool {
         let predecessor = V4BackupRecordsV1(
+            fieldReferences:expected.recordsSchemaVersion >= 21 ? expected.fieldReferences:[],
             recoverabilityReceipts:expected.recordsSchemaVersion >= 20 ? expected.recoverabilityReceipts:[],
             clientCapabilities: expected.recordsSchemaVersion >= 19 ? expected.clientCapabilities : [],
             privacyTransforms: expected.recordsSchemaVersion >= 18 ? expected.privacyTransforms : [],
@@ -5431,6 +5462,7 @@ private extension BackupRestoreService {
         let packageSandboxRuns = try context.fetch(FetchDescriptor<PackageSandboxRunRow>())
         let packagePromotionReceipts = try context.fetch(FetchDescriptor<PackagePromotionReceiptRow>())
         let activePackageRegistryPointers = try context.fetch(FetchDescriptor<ActivePackageRegistryPointerRow>())
+        let fieldReferenceReleases=try context.fetch(FetchDescriptor<FieldReferenceReleaseRow>()),fieldReferenceBindings=try context.fetch(FetchDescriptor<FieldReferenceBindingRow>())
         let recoverabilityVerificationReceipts=try context.fetch(FetchDescriptor<RecoverabilityVerificationReceiptRow>())
         let clientCapabilityProfiles=try context.fetch(FetchDescriptor<ClientCapabilityProfileRow>()),packageLifecyclePolicies=try context.fetch(FetchDescriptor<PackageLifecyclePolicyRow>()),packageLifecycleDispositions=try context.fetch(FetchDescriptor<PackageLifecycleDispositionRow>()),clientCapabilityAdmissionDecisions=try context.fetch(FetchDescriptor<ClientCapabilityAdmissionDecisionRow>())
         let privacyTransformPolicies=try context.fetch(FetchDescriptor<PrivacyTransformPolicyRow>()),privacyRegions=try context.fetch(FetchDescriptor<PrivacyRegionRow>()),privacyTransformManifests=try context.fetch(FetchDescriptor<PrivacyTransformManifestRow>()),privacyReviewReceipts=try context.fetch(FetchDescriptor<PrivacyReviewReceiptRow>())
@@ -5485,7 +5517,10 @@ private extension BackupRestoreService {
         var clientCapabilityRecords:[V20BackupClientCapabilityRecordV1]=[]
         if mutationHistory != nil{clientCapabilityRecords=try capabilityProfiles.values.map{.init(kind:.profile,id:$0.profileID,workspaceID:$0.workspaceID.rawValue,revision:$0.revision,canonicalData:try ClientCapabilityCanonicalCodecV1.encode($0))}+capabilityPolicies.values.map{.init(kind:.policy,id:$0.policyID,workspaceID:$0.workspaceID.rawValue,revision:$0.revision,canonicalData:try ClientCapabilityCanonicalCodecV1.encode($0))}+capabilityDispositions.values.map{.init(kind:.disposition,id:$0.dispositionID,workspaceID:$0.workspaceID.rawValue,revision:$0.revision,canonicalData:try ClientCapabilityCanonicalCodecV1.encode($0))};clientCapabilityRecords += try clientCapabilityAdmissionDecisions.map{row in guard let profile=capabilityProfiles[row.profileID],let policy=capabilityPolicies[row.policyID],let disposition=capabilityDispositions[row.dispositionID],let release=capabilityReleases[row.packageReleaseID]else{throw BackupRestoreServiceError.invalidRestoreAuthority};let v=try row.value(profile:profile,policy:policy,disposition:disposition,release:release);return .init(kind:.admissionDecision,id:v.decisionID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try ClientCapabilityCanonicalCodecV1.encode(v))};clientCapabilityRecords.sort{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"}}
         let recoverabilityReceiptRecords:[V21BackupRecoverabilityReceiptRecordV1]=mutationHistory == nil ? [] : try recoverabilityVerificationReceipts.map{let value=try $0.value();return .init(id:value.receiptID,workspaceID:value.workspaceID.rawValue,revision:value.revision,canonicalData:try RecoverabilityVerificationCanonicalCodecV1.encode(value))}.sorted{$0.id.uuidString<$1.id.uuidString}
+        let fieldReferenceReleaseValues=try Dictionary(uniqueKeysWithValues:fieldReferenceReleases.map{let value=try $0.value();return(value.releaseID,value)})
+        let fieldReferenceRecords:[V22BackupFieldReferenceRecordV1]=mutationHistory == nil ? [] : try (fieldReferenceReleaseValues.values.map{.init(kind:.release,id:$0.releaseID,workspaceID:$0.workspaceID.rawValue,revision:$0.revision,canonicalData:try FieldReferencePackCanonicalCodecV1.encode($0))}+fieldReferenceBindings.map{row in guard let release=fieldReferenceReleaseValues[row.releaseID]else{throw BackupRestoreServiceError.invalidRestoreAuthority};let value=try row.value(release:release);return .init(kind:.binding,id:value.bindingID,workspaceID:value.workspaceID.rawValue,revision:value.revision,canonicalData:try FieldReferencePackCanonicalCodecV1.encode(value))}).sorted{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"}
         return V4BackupRecordsV1(
+            fieldReferences:fieldReferenceRecords,
             recoverabilityReceipts:recoverabilityReceiptRecords,
             clientCapabilities: clientCapabilityRecords,
             privacyTransforms: privacyTransformRecords,
@@ -5683,7 +5718,7 @@ private extension BackupRestoreService {
                 "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
                     < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
             },
-            recordsSchemaVersion: mutationHistory != nil ? 20
+            recordsSchemaVersion: mutationHistory != nil ? 21
                 : !(privacyTransformPolicies.isEmpty && privacyRegions.isEmpty
                 && privacyTransformManifests.isEmpty && privacyReviewReceipts.isEmpty) ? 18
                 : !(instrumentReferences.isEmpty && calibrationStatusSnapshots.isEmpty

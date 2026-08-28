@@ -27,6 +27,8 @@ struct PrivacyTransformDeletionInventoryV1: Equatable, Sendable {
 }
 struct ClientCapabilityDeletionInventoryV1:Equatable,Sendable{let profiles:Int;let policies:Int;let dispositions:Int;let decisions:Int;static let empty=Self(profiles:0,policies:0,dispositions:0,decisions:0)}
 extension WholeSignDeletionRule{static func validateClientCapabilityLifecycle(before:ClientCapabilityDeletionInventoryV1,after:ClientCapabilityDeletionInventoryV1,workspaceErase:Bool)throws{guard workspaceErase ? after == .empty:before == after else{throw WholeSignDeletionRuleError.invalidGraph}}}
+struct FieldReferenceDeletionInventoryV1:Equatable,Sendable{let releaseIDs:Set<UUID>;let bindingIDs:Set<UUID>;let retainedReleaseIDs:Set<UUID>;static let empty=Self(releaseIDs:[],bindingIDs:[],retainedReleaseIDs:[])}
+extension WholeSignDeletionRule{static func validateFieldReferenceLifecycle(before:FieldReferenceDeletionInventoryV1,after:FieldReferenceDeletionInventoryV1,workspaceErase:Bool)throws{if workspaceErase{guard after == .empty else{throw WholeSignDeletionRuleError.invalidGraph};return};guard after.bindingIDs==before.bindingIDs,after.retainedReleaseIDs==before.retainedReleaseIDs,before.retainedReleaseIDs.isSubset(of:after.releaseIDs)else{throw WholeSignDeletionRuleError.invalidGraph}}}
 
 enum PrivacyTransformDeletionAuthorityV1: Sendable { case ordinaryDelete, workspaceErase }
 

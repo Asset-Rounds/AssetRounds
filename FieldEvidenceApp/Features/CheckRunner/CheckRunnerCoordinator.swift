@@ -2285,3 +2285,49 @@ extension CheckRunnerCoordinator {
         try context.reviewedDerivative()
     }
 }
+
+// MARK: - C23 field-reference check boundary
+
+@MainActor
+extension CheckRunnerCoordinator {
+    /// Resolves the completed packet and its exact C23 release/binding
+    /// projections without claiming or mutating any work-packet state.
+    func fieldReferenceContext(
+        from snapshot: CompletedWorkPacketSnapshotV1,
+        itemID: String,
+        fieldReferenceBindings: [FieldReferenceBindingV1],
+        fieldReferenceReleases: [FieldReferenceReleaseV1],
+        fieldReferenceReadiness: [FieldReferenceOfflineReadinessV1]
+    ) throws -> CheckRunnerFieldReferenceContextV1 {
+        try CheckRunnerFieldReferenceContextV1(
+            snapshot: snapshot,
+            itemID: itemID,
+            fieldReferenceBindings: fieldReferenceBindings,
+            fieldReferenceReleases: fieldReferenceReleases,
+            fieldReferenceReadiness: fieldReferenceReadiness
+        )
+    }
+
+    /// Re-proves the packet and binding digests against the latest completed
+    /// snapshot before a check consumes an offline reference.
+    func validateFieldReferenceContext(
+        _ context: CheckRunnerFieldReferenceContextV1,
+        currentSnapshot: CompletedWorkPacketSnapshotV1,
+        fieldReferenceBindings: [FieldReferenceBindingV1],
+        fieldReferenceReleases: [FieldReferenceReleaseV1],
+        fieldReferenceReadiness: [FieldReferenceOfflineReadinessV1]
+    ) throws {
+        try context.validate()
+        let current = try CheckRunnerFieldReferenceContextV1(
+            snapshot: currentSnapshot,
+            itemID: context.packet.itemID,
+            fieldReferenceBindings: fieldReferenceBindings,
+            fieldReferenceReleases: fieldReferenceReleases,
+            fieldReferenceReadiness: fieldReferenceReadiness
+        )
+        guard current.packet == context.packet,
+              current.fieldReferences == context.fieldReferences else {
+            throw CheckRunnerCoordinatorError.workPacketStaleRevision
+        }
+    }
+}

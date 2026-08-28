@@ -1111,3 +1111,11 @@ extension V9_25AuthorityCriterionDerivationTests {
         try fixture.original.validatePrivacyDerivative(fixture.derivative)
     }
 }
+
+extension V9_25AuthorityCriterionDerivationTests {
+    func testC23FieldReferencePackAnchor() throws {
+        XCTAssertFalse(FieldReferencePackLifecycleV1.drmOrAccountRequired)
+        XCTAssertFalse(FieldReferencePackLifecycleV1.runtimeFetchingAllowed)
+        XCTAssertEqual(FieldReferencePackLifecycleV1.writer, "SOLE_CANONICAL_WORKSPACE_WRITER")
+    }
+}

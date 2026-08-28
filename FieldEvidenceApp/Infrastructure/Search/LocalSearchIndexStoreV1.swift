@@ -1166,4 +1166,24 @@ extension LocalSearchIndexStoreV1 {
         try ClientCapabilitySearchPersistencePolicyV1().validate()
         return record
     }
+
+    /// Creates a disposable C23 row from the frozen report projection. The
+    /// local index receives digests and closed state values only; it never
+    /// reads reference bytes, content IDs, locators, or subject identity.
+    static func fieldReferenceSearchRecord(
+        from projection: FieldReferenceReportProjectionV1
+    ) throws -> FieldReferenceSearchRecordV1 {
+        let record = try FieldReferenceSearchRecordV1(projection: projection)
+        try record.validate()
+        try FieldReferenceSearchPersistencePolicyV1().validate()
+        return record
+    }
+
+    static func validateFieldReferenceSearchRecord(
+        _ record: FieldReferenceSearchRecordV1
+    ) throws -> FieldReferenceSearchRecordV1 {
+        try record.validate()
+        try FieldReferenceSearchPersistencePolicyV1().validate()
+        return record
+    }
 }

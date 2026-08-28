@@ -9,6 +9,18 @@ enum PackageReleaseBindingKindV1: String, CaseIterable, Codable, Sendable {
 }
 
 extension PackageReleaseBindingV1 {
+    func validateFieldReferenceBinding(
+        _ closure: FieldReferenceLifecycleClosureV1,
+        checkedAt: Date
+    ) throws -> FieldReferenceOfflineReadinessV1 {
+        try validate()
+        let readiness = try closure.validate(checkedAt: checkedAt)
+        guard readiness.availability == .readyOffline else { throw FieldReferencePackFailureV1.missingContent }
+        return readiness
+    }
+}
+
+extension PackageReleaseBindingV1 {
     func validateClientAdmission(_ closure: ClientCapabilityLifecycleClosureV1,
                                  operation: PackageLifecycleOperationV1,
                                  forWrite: Bool) throws {

@@ -211,6 +211,113 @@ private protocol FieldDraftValidatableV1{func validate()throws}
 extension FieldDraftCheckpointV1:FieldDraftValidatableV1{};extension AttachmentStagingItemV1:FieldDraftValidatableV1{};extension DraftCommitSagaV1:FieldDraftValidatableV1{};extension DraftContentReservationV1:FieldDraftValidatableV1{};extension DraftCommitReceiptV1:FieldDraftValidatableV1{};extension DraftDiscardReceiptV1:FieldDraftValidatableV1{};extension DraftCommitTerminalBundleV1:FieldDraftValidatableV1{};extension DraftDiscardTerminalBundleV1:FieldDraftValidatableV1{}
 enum FieldDraftCanonicalCodecV1{static func encode<T:Encodable>(_ value:T)throws->Data{try WorkspaceMutationCanonicalV1.data(value)}static func sha256(_ data:Data)->String{SHA256.hash(data:data).map{String(format:"%02x",$0)}.joined()}static func sha256<T:Encodable>(_ value:T)throws->String{try WorkspaceMutationCanonicalV1.sha256(value)}static func decode<T:Codable>(_ type:T.Type,from data:Data)throws->T{guard !data.isEmpty,data.count<=FieldDraftLimitsV1.maximumCanonicalBytes else{throw FieldDraftFailureV1.limitExceeded};let decoder=JSONDecoder();decoder.dateDecodingStrategy = .millisecondsSince1970;let value=try decoder.decode(type,from:data);if let v=value as? any FieldDraftValidatableV1{try v.validate()};guard try encode(value)==data else{throw FieldDraftFailureV1.digestMismatch};return value}}
 
+// MARK: - C23 field-reference binding at the round-session boundary
+
+/// A draft carries only a derived reference projection. The durable release
+/// and binding rows remain in the FieldReferencePack family and are never
+/// duplicated in the draft checkpoint schema.
+struct FieldDraftReferenceProjectionV1: Codable, Equatable, Hashable, Sendable {
+    let draftID: UUID
+    let draftRevision: UInt64
+    let draftState: FieldDraftStateV1
+    let reference: WorkSessionFieldReferenceProjectionV1
+
+    init(
+        checkpoint: FieldDraftCheckpointV1,
+        binding: FieldReferenceBindingV1,
+        release: FieldReferenceReleaseV1,
+        readiness: FieldReferenceOfflineReadinessV1
+    ) throws {
+        try checkpoint.validate()
+        let subjectState: FieldReferenceSubjectStateV1
+        switch checkpoint.state {
+        case .committed, .discarded:
+            subjectState = .finalized
+        case .active, .committing, .conflicted, .recoveryRequired, .discardPending:
+            subjectState = .active
+        }
+        guard binding.subjectKind == .roundSession,
+              binding.subjectID == checkpoint.draftID,
+              binding.subjectRevision == checkpoint.draftRevision,
+              binding.subjectState == subjectState else {
+            throw FieldDraftFailureV1.staleDraftRevision
+        }
+        let value = try WorkSessionFieldReferenceProjectionV1(
+            binding: binding, release: release, readiness: readiness
+        )
+        try value.validate(
+            expectedWorkspaceID: checkpoint.workspaceID,
+            expectedSubjectKind: .roundSession,
+            expectedSubjectID: checkpoint.draftID,
+            expectedSubjectRevision: checkpoint.draftRevision,
+            expectedSubjectState: subjectState
+        )
+        draftID = checkpoint.draftID
+        draftRevision = checkpoint.draftRevision
+        draftState = checkpoint.state
+        reference = value
+    }
+
+    func validate() throws {
+        try reference.validate(
+            expectedWorkspaceID: reference.workspaceID,
+            expectedSubjectKind: .roundSession,
+            expectedSubjectID: draftID,
+            expectedSubjectRevision: draftRevision,
+            expectedSubjectState: draftState == .committed || draftState == .discarded
+                ? .finalized : .active
+        )
+    }
+}
+
+enum FieldDraftReferenceBindingPolicyV1 {
+    static let persistentFamilies = FieldReferencePackLifecycleV1.persistentFamilies
+    static let projectionPersistence = "DERIVED_ONLY"
+    static let silentRebindAllowed = false
+
+    static func subjectState(for state: FieldDraftStateV1) -> FieldReferenceSubjectStateV1 {
+        switch state {
+        case .committed, .discarded: return .finalized
+        default: return .active
+        }
+    }
+}
+
+extension FieldDraftCheckpointV1 {
+    func c23ReferenceProjection(
+        binding: FieldReferenceBindingV1,
+        release: FieldReferenceReleaseV1,
+        readiness: FieldReferenceOfflineReadinessV1
+    ) throws -> FieldDraftReferenceProjectionV1 {
+        try FieldDraftReferenceProjectionV1(
+            checkpoint: self,
+            binding: binding,
+            release: release,
+            readiness: readiness
+        )
+    }
+
+    func c23ValidateReferenceSuccessor(
+        from predecessor: FieldReferenceBindingV1,
+        to successor: FieldReferenceBindingV1,
+        release: FieldReferenceReleaseV1,
+        readiness: FieldReferenceOfflineReadinessV1
+    ) throws -> FieldDraftReferenceProjectionV1 {
+        guard state != .committed, state != .discarded else {
+            throw FieldDraftFailureV1.invalidTransition
+        }
+        try WorkSessionFieldReferenceBindingV1.validateSuccessor(
+            successor, release: release, after: predecessor
+        )
+        return try FieldDraftReferenceProjectionV1(
+            checkpoint: self,
+            binding: successor,
+            release: release,
+            readiness: readiness
+        )
+    }
+}
+
 /// C18 is a nonpersistent preview consumer of C36. It may create exactly one
 /// active-checkpoint CAS successor and owns no draft row, store or writer.
 enum PackageEvolutionDraftBoundaryV1 {

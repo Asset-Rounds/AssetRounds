@@ -6,6 +6,18 @@ enum PrivacyTransformFailureV1: Error, Equatable, Sendable {
     case digestMismatch, staleDerivative, reviewRequired, rejected, invalidSuccessor, partialEffect
 }
 
+enum FieldReferencePrivacyBoundaryV1 {
+    /// A privacy derivative is distinct content and cannot replace immutable
+    /// licensed/synthetic reference-pack source bytes in-place.
+    static func validateNoInPlaceTransform(original: ContentReferenceV1, derivative: ContentReferenceV1) throws {
+        guard original.byteRole == .immutableOriginal,
+              derivative.byteRole == .derivative,
+              original.contentID != derivative.contentID else {
+            throw PrivacyTransformFailureV1.immutableOriginal
+        }
+    }
+}
+
 enum PrivacyTransformKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case solidFill = "SOLID_FILL"
     case pixelate = "PIXELATE"

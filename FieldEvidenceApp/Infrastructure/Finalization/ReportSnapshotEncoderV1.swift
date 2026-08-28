@@ -1302,4 +1302,36 @@ extension ReportSnapshotEncoderV1 {
         }
         return projection
     }
+
+    /// Encodes only the bounded C23 release/binding projection.  The
+    /// canonical pack codec is reused so reports never acquire reference
+    /// bytes, private locators, license notices, or subject identity.
+    func encode(
+        _ projection: FieldReferenceReportProjectionV1
+    ) throws -> EncodedReportSnapshotV1 {
+        try FieldReferenceReportProjectionPolicyV1.validate(projection, format: .openJSON)
+        let data = try FieldReferencePackCanonicalCodecV1.encode(projection)
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        return EncodedReportSnapshotV1(
+            data: data,
+            sha256: KernelCanonicalHashV1.sha256(data)
+        )
+    }
+
+    func decodeFieldReferenceProjection(
+        _ data: Data
+    ) throws -> FieldReferenceReportProjectionV1 {
+        let projection = try FieldReferencePackCanonicalCodecV1.decode(
+            FieldReferenceReportProjectionV1.self,
+            from: data
+        )
+        try FieldReferenceReportProjectionPolicyV1.validate(projection, format: .openJSON)
+        guard try encode(projection).data == data else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return projection
+    }
 }

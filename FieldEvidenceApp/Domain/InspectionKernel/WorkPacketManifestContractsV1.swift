@@ -199,3 +199,170 @@ enum WorkPacketProjectionBuilderV1{
 private protocol WorkPacketValidatableV1{func validate()throws}
 extension WorkPacketManifestV1:WorkPacketValidatableV1{};extension WorkItemClaimV1:WorkPacketValidatableV1{};extension WorkLeaseV1:WorkPacketValidatableV1{};extension WorkReleaseV1:WorkPacketValidatableV1{};extension WorkHandoffV1:WorkPacketValidatableV1{}
 enum WorkPacketCanonicalCodecV1{static func encode<T:Encodable>(_ value:T)throws->Data{try WorkspaceMutationCanonicalV1.data(value)}static func sha256<T:Encodable>(_ value:T)throws->String{try WorkspaceMutationCanonicalV1.sha256(value)}static func decode<T:Codable>(_ type:T.Type,from data:Data)throws->T{guard !data.isEmpty,data.count<=WorkPacketLimitsV1.maximumCanonicalBytes else{throw WorkPacketFailureV1.limitExceeded};let decoder=JSONDecoder();decoder.dateDecodingStrategy = .millisecondsSince1970;let value=try decoder.decode(type,from:data);if let validatable=value as? any WorkPacketValidatableV1{try validatable.validate()};guard try encode(value)==data else{throw WorkPacketFailureV1.digestMismatch};return value}}
+
+// MARK: - C23 immutable field-reference binding projection
+
+/// Work-packet consumers receive reference metadata as a derived projection.
+/// The canonical release/binding rows and their content remain owned by the
+/// field-reference pack writer; this value deliberately carries no bytes or
+/// locators.
+struct WorkPacketFieldReferenceProjectionV1: Equatable, Sendable {
+    let workspaceID: WorkspaceID
+    let packetID: UUID
+    let packetVersion: UInt64
+    let manifestSHA256: String
+    let subjectState: FieldReferenceSubjectStateV1
+    let projection: WorkPacketProjectionV1
+    let references: [WorkSessionFieldReferenceProjectionV1]
+
+    init(
+        projection: WorkPacketProjectionV1,
+        manifest: WorkPacketManifestV1,
+        bindings: [FieldReferenceBindingV1],
+        releases: [FieldReferenceReleaseV1],
+        readiness: [FieldReferenceOfflineReadinessV1],
+        subjectState: FieldReferenceSubjectStateV1 = .active
+    ) throws {
+        try manifest.validate()
+        guard projection.workspaceID == manifest.workspaceID,
+              projection.manifest == manifest else {
+            throw WorkPacketFailureV1.wrongWorkspace
+        }
+        var values: [WorkSessionFieldReferenceProjectionV1] = []
+        guard bindings.allSatisfy({ $0.workspaceID == manifest.workspaceID }),
+              releases.allSatisfy({ $0.workspaceID == manifest.workspaceID }),
+              Set(bindings.map(\.bindingID)).count == bindings.count else {
+            throw WorkPacketFailureV1.divergentReplay
+        }
+        for binding in bindings {
+            guard binding.subjectKind == .workPacket,
+                  binding.subjectID == manifest.packetID,
+                  binding.subjectRevision == manifest.packetVersion,
+                  binding.subjectState == subjectState else {
+                throw WorkPacketFailureV1.wrongWorkspace
+            }
+            let matchingReleases = releases.filter {
+                $0.workspaceID == manifest.workspaceID && $0.releaseID == binding.releaseID
+            }
+            guard matchingReleases.count == 1, let release = matchingReleases.first else {
+                throw WorkPacketFailureV1.divergentReplay
+            }
+            let matchingReadiness = readiness.filter {
+                $0.releaseID == release.releaseID && $0.bindingID == binding.bindingID
+            }
+            guard matchingReadiness.count == 1, let state = matchingReadiness.first else {
+                throw WorkPacketFailureV1.divergentReplay
+            }
+            let value = try WorkSessionFieldReferenceProjectionV1(
+                binding: binding, release: release, readiness: state
+            )
+            try value.validate(
+                expectedWorkspaceID: manifest.workspaceID,
+                expectedSubjectKind: .workPacket,
+                expectedSubjectID: manifest.packetID,
+                expectedSubjectRevision: manifest.packetVersion,
+                expectedSubjectState: subjectState
+            )
+            values.append(value)
+        }
+        workspaceID = manifest.workspaceID
+        packetID = manifest.packetID
+        packetVersion = manifest.packetVersion
+        manifestSHA256 = manifest.manifestSHA256
+        self.subjectState = subjectState
+        self.projection = projection
+        references = values.sorted {
+            ($0.releaseID.uuidString.lowercased(), $0.bindingID.uuidString.lowercased())
+                < ($1.releaseID.uuidString.lowercased(), $1.bindingID.uuidString.lowercased())
+        }
+    }
+
+    func validate() throws {
+        try projection.manifest.validate()
+        guard projection.workspaceID == workspaceID,
+              projection.manifest.packetID == packetID,
+              projection.manifest.packetVersion == packetVersion,
+              projection.manifest.manifestSHA256 == manifestSHA256,
+              projection.items.count == projection.manifest.items.count,
+              references == references.sorted(by: {
+                  ($0.releaseID.uuidString.lowercased(), $0.bindingID.uuidString.lowercased())
+                      < ($1.releaseID.uuidString.lowercased(), $1.bindingID.uuidString.lowercased())
+              }),
+              Set(references.map(\.bindingID)).count == references.count else {
+            throw WorkPacketFailureV1.digestMismatch
+        }
+        for reference in references {
+            try reference.validate(
+                expectedWorkspaceID: workspaceID,
+                expectedSubjectKind: .workPacket,
+                expectedSubjectID: packetID,
+                expectedSubjectRevision: packetVersion,
+                expectedSubjectState: subjectState
+            )
+        }
+    }
+}
+
+enum WorkPacketReferenceProjectionBuilderV1 {
+    static func rebuild(
+        workspaceID: WorkspaceID,
+        manifest: WorkPacketManifestV1,
+        claims: [WorkItemClaimV1],
+        leases: [WorkLeaseV1],
+        releases: [WorkReleaseV1],
+        handoffs: [WorkHandoffV1],
+        fieldReferenceBindings: [FieldReferenceBindingV1],
+        fieldReferenceReleases: [FieldReferenceReleaseV1],
+        fieldReferenceReadiness: [FieldReferenceOfflineReadinessV1],
+        subjectState: FieldReferenceSubjectStateV1 = .active,
+        at instant: Date
+    ) throws -> WorkPacketFieldReferenceProjectionV1 {
+        let projection = try WorkPacketProjectionBuilderV1.rebuild(
+            workspaceID: workspaceID,
+            manifest: manifest,
+            claims: claims,
+            leases: leases,
+            releases: releases,
+            handoffs: handoffs,
+            at: instant
+        )
+        return try WorkPacketFieldReferenceProjectionV1(
+            projection: projection,
+            manifest: manifest,
+            bindings: fieldReferenceBindings,
+            releases: fieldReferenceReleases,
+            readiness: fieldReferenceReadiness,
+            subjectState: subjectState
+        )
+    }
+}
+
+extension WorkPacketManifestV1 {
+    /// Proves a binding is for this exact packet generation. A different
+    /// release must arrive as an explicit C23 binding successor; callers may
+    /// not silently replace the release while a packet is active or final.
+    func c23ValidateReferenceBinding(
+        _ binding: FieldReferenceBindingV1,
+        release: FieldReferenceReleaseV1,
+        readiness: FieldReferenceOfflineReadinessV1,
+        subjectState: FieldReferenceSubjectStateV1 = .active
+    ) throws -> WorkSessionFieldReferenceProjectionV1 {
+        guard binding.subjectKind == .workPacket,
+              binding.subjectID == packetID,
+              binding.subjectRevision == packetVersion,
+              binding.subjectState == subjectState else {
+            throw WorkPacketFailureV1.wrongWorkspace
+        }
+        let projection = try WorkSessionFieldReferenceProjectionV1(
+            binding: binding, release: release, readiness: readiness
+        )
+        try projection.validate(
+            expectedWorkspaceID: workspaceID,
+            expectedSubjectKind: .workPacket,
+            expectedSubjectID: packetID,
+            expectedSubjectRevision: packetVersion,
+            expectedSubjectState: subjectState
+        )
+        return projection
+    }
+}

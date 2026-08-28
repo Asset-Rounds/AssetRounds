@@ -143,6 +143,108 @@ struct ReportPayloadV1: Codable, Equatable, Sendable {
     let replacesReportID: UUID?
 }
 
+// MARK: - C23 finalization/read-only binding gates
+
+extension WorkflowRecordPayloadV1 {
+    /// Finalization payloads retain their historical shape. C23 validates the
+    /// supplied immutable binding as a side-input and never places reference
+    /// bytes, locators, or mutable release state in the payload.
+    func c23ValidateFieldReferenceBinding(
+        workspaceID: WorkspaceID,
+        binding: FieldReferenceBindingV1,
+        release: FieldReferenceReleaseV1,
+        readiness: FieldReferenceOfflineReadinessV1,
+        subjectRevision: UInt64,
+        subjectState: FieldReferenceSubjectStateV1? = nil
+    ) throws -> WorkSessionFieldReferenceProjectionV1 {
+        let expectedKind: FieldReferenceSubjectKindV1 =
+            packetID == nil ? .roundSession : .workPacket
+        let expectedSubjectID = packetID ?? id
+        let expectedState: FieldReferenceSubjectStateV1 =
+            state == WorkflowState.completed.rawValue ? .finalized : .active
+        guard binding.subjectKind == expectedKind,
+              binding.subjectID == expectedSubjectID,
+              binding.subjectRevision == subjectRevision,
+              binding.subjectState == expectedState,
+              subjectState.map({ $0 == expectedState }) ?? true else {
+            throw WorkSessionFieldReferenceFailureV1.wrongSubject
+        }
+        let projection = try WorkSessionFieldReferenceProjectionV1(
+            binding: binding, release: release, readiness: readiness
+        )
+        try projection.validate(
+            expectedWorkspaceID: workspaceID,
+            expectedSubjectKind: expectedKind,
+            expectedSubjectID: expectedSubjectID,
+            expectedSubjectRevision: subjectRevision,
+            expectedSubjectState: expectedState
+        )
+        return projection
+    }
+}
+
+extension PacketPayloadV1 {
+    /// Packet payloads are immutable finalization inputs. A binding is valid
+    /// only for this packet and its caller-supplied packet revision/state.
+    func c23ValidateFieldReferenceBinding(
+        workspaceID: WorkspaceID,
+        binding: FieldReferenceBindingV1,
+        release: FieldReferenceReleaseV1,
+        readiness: FieldReferenceOfflineReadinessV1,
+        subjectRevision: UInt64,
+        subjectState: FieldReferenceSubjectStateV1 = .active
+    ) throws -> WorkSessionFieldReferenceProjectionV1 {
+        guard binding.subjectKind == .workPacket,
+              binding.subjectID == id,
+              binding.subjectRevision == subjectRevision,
+              binding.subjectState == subjectState else {
+            throw WorkSessionFieldReferenceFailureV1.wrongSubject
+        }
+        let projection = try WorkSessionFieldReferenceProjectionV1(
+            binding: binding, release: release, readiness: readiness
+        )
+        try projection.validate(
+            expectedWorkspaceID: workspaceID,
+            expectedSubjectKind: .workPacket,
+            expectedSubjectID: id,
+            expectedSubjectRevision: subjectRevision,
+            expectedSubjectState: subjectState
+        )
+        return projection
+    }
+}
+
+extension ReportPayloadV1 {
+    /// Reports expose only metadata projections and must re-prove the packet
+    /// binding before encoding/export. The report payload itself is unchanged.
+    func c23ValidateFieldReferenceBinding(
+        workspaceID: WorkspaceID,
+        binding: FieldReferenceBindingV1,
+        release: FieldReferenceReleaseV1,
+        readiness: FieldReferenceOfflineReadinessV1,
+        subjectRevision: UInt64,
+        subjectState: FieldReferenceSubjectStateV1 = .finalized
+    ) throws -> WorkSessionFieldReferenceProjectionV1 {
+        guard binding.subjectKind == .workPacket,
+              binding.subjectID == packetID,
+              binding.subjectRevision == subjectRevision,
+              binding.subjectState == subjectState else {
+            throw WorkSessionFieldReferenceFailureV1.wrongSubject
+        }
+        let projection = try WorkSessionFieldReferenceProjectionV1(
+            binding: binding, release: release, readiness: readiness
+        )
+        try projection.validate(
+            expectedWorkspaceID: workspaceID,
+            expectedSubjectKind: .workPacket,
+            expectedSubjectID: packetID,
+            expectedSubjectRevision: subjectRevision,
+            expectedSubjectState: subjectState
+        )
+        return projection
+    }
+}
+
 struct EncodedFinalizationContractV1: Equatable, Sendable {
     let data: Data
     let sha256: String

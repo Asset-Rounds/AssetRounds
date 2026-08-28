@@ -256,3 +256,63 @@ enum WorkRule {
         return formatter.string(from: date) == value
     }
 }
+
+// MARK: - C23 round-session binding gate
+
+extension WorkRule {
+    /// Work completion may consume a reference only when it names the exact
+    /// round-session revision. This is a validation seam, not another source
+    /// of release state; the durable binding is appended by the canonical
+    /// field-reference writer.
+    static func validateFieldReferenceBinding(
+        draft: WorkflowRecordPayloadV1,
+        binding: FieldReferenceBindingV1,
+        release: FieldReferenceReleaseV1,
+        readiness: FieldReferenceOfflineReadinessV1,
+        subjectRevision: UInt64
+    ) throws -> WorkSessionFieldReferenceProjectionV1 {
+        guard draft.state == WorkflowState.draft.rawValue,
+              binding.subjectKind == .roundSession,
+              binding.subjectID == draft.id,
+              binding.subjectRevision == subjectRevision,
+              binding.subjectState == .active else {
+            throw WorkRuleError.invalidDraft
+        }
+        let projection = try WorkSessionFieldReferenceProjectionV1(
+            binding: binding, release: release, readiness: readiness
+        )
+        try projection.validate(
+            expectedWorkspaceID: release.workspaceID,
+            expectedSubjectKind: .roundSession,
+            expectedSubjectID: draft.id,
+            expectedSubjectRevision: subjectRevision,
+            expectedSubjectState: .active
+        )
+        return projection
+    }
+
+    /// Source-compatible C23 overload. Existing work-rule callers continue
+    /// to use the original plan path; this overload proves the immutable
+    /// reference tuple before delegating to that same plan builder.
+    static func makePlan(
+        draft: WorkflowRecordPayloadV1,
+        issue: IssuePayloadV1,
+        parent: WorkflowRecordPayloadV1,
+        submission: WorkRuleSubmission,
+        fieldReferenceBinding: FieldReferenceBindingV1,
+        fieldReferenceRelease: FieldReferenceReleaseV1,
+        fieldReferenceReadiness: FieldReferenceOfflineReadinessV1,
+        fieldReferenceSubjectRevision: UInt64
+    ) throws -> WorkRulePlan {
+        _ = try validateFieldReferenceBinding(
+            draft: draft,
+            binding: fieldReferenceBinding,
+            release: fieldReferenceRelease,
+            readiness: fieldReferenceReadiness,
+            subjectRevision: fieldReferenceSubjectRevision
+        )
+        return try makePlan(
+            draft: draft, issue: issue, parent: parent, submission: submission
+        )
+    }
+}

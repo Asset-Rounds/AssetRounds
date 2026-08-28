@@ -38,6 +38,7 @@ actor IntegrationProjectionCheckpointStoreV1: IntegrationProjectionOperationalSt
             try IntegrationProjectionCheckpointStoreV1.validateMeasurementIntegrityEventPage(events)
             try IntegrationProjectionCheckpointStoreV1.validatePrivacyTransformEventPage(events)
             try IntegrationProjectionCheckpointStoreV1.validateClientCapabilityEventPage(events)
+            try IntegrationProjectionCheckpointStoreV1.validateFieldReferenceEventPage(events)
             guard schemaVersion == Self.schemaVersion,
                   generationID == expectedGenerationID,
                   workspaceID == expectedWorkspaceID,
@@ -141,6 +142,7 @@ actor IntegrationProjectionCheckpointStoreV1: IntegrationProjectionOperationalSt
     private static func validateMeasurementIntegrityEventPage(_ events:[IntegrationEventV1])throws{let grouped=Dictionary(grouping:events,by:\.sourceReceiptID);for page in grouped.values{let subjects=page.map(\.subject),present=Set(subjects.map(\.kind)).intersection(IntegrationEventProjectionV1.measurementIntegrityKinds);guard present.isEmpty || (page.count<=128&&Set(subjects).count==subjects.count&&subjects.allSatisfy{IntegrationEventProjectionV1.measurementIntegrityKinds.contains($0.kind)})else{throw IntegrationEventFailureV1.divergentEvent}}}
     private static func validatePrivacyTransformEventPage(_ events:[IntegrationEventV1])throws{let grouped=Dictionary(grouping:events,by:\.sourceReceiptID);for page in grouped.values{let subjects=page.map(\.subject),present=Set(subjects.map(\.kind)).intersection(IntegrationEventProjectionV1.privacyTransformKinds);guard present.isEmpty || (Set(subjects).count==subjects.count&&subjects.allSatisfy{IntegrationEventProjectionV1.privacyTransformKinds.contains($0.kind)})else{throw IntegrationEventFailureV1.divergentEvent}}}
     private static func validateClientCapabilityEventPage(_ events:[IntegrationEventV1])throws{let grouped=Dictionary(grouping:events,by:\.sourceReceiptID);for page in grouped.values{let subjects=page.map(\.subject),present=Set(subjects.map(\.kind)).intersection(IntegrationEventProjectionV1.clientCapabilityKinds);guard present.isEmpty || (page.count==1&&Set(subjects).count==1&&subjects.allSatisfy{IntegrationEventProjectionV1.clientCapabilityKinds.contains($0.kind)})else{throw IntegrationEventFailureV1.divergentEvent}}}
+    private static func validateFieldReferenceEventPage(_ events:[IntegrationEventV1])throws{let grouped=Dictionary(grouping:events,by:\.sourceReceiptID);for page in grouped.values{let subjects=page.map(\.subject),present=Set(subjects.map(\.kind)).intersection(IntegrationEventProjectionV1.fieldReferenceKinds);guard present.isEmpty || (page.count==1&&Set(subjects).count==1&&subjects.allSatisfy{IntegrationEventProjectionV1.fieldReferenceKinds.contains($0.kind)})else{throw IntegrationEventFailureV1.divergentEvent}}}
 
     init(generationRootURL: URL, generationID: UUID, workspaceID: WorkspaceID,
          limits: IntegrationEventLimitsV1 = try! IntegrationEventLimitsV1(),

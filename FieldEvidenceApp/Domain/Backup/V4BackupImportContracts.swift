@@ -109,3 +109,4 @@ enum V21RecoverabilityImportBoundaryV1 {
         guard persistent==persistentSchemaVersion,records==recordsSchemaVersion,durableFamilyCount==1 else{throw BackupImportServiceError.unsupportedSchemaVersion}
     }
 }
+enum V22FieldReferenceImportBoundaryV1{static let persistentSchemaVersion=22;static let recordsSchemaVersion=21;static func validate(persistent:Int,records:Int)throws{guard persistent==22,records==21,V22BackupFieldReferenceRecordV1.Kind.allCases.count==2 else{throw BackupImportServiceError.unsupportedSchemaVersion}}}

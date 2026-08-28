@@ -1,5 +1,7 @@
 import Foundation
 
+enum FieldReferenceOrdinaryDeletionDispositionV1:Equatable,Sendable{case preserveBoundHistory(releaseIDs:Set<UUID>,bindingIDs:Set<UUID>);case discardUnboundRelease(releaseID:UUID);case blockedMissingRequiredBytes(releaseID:UUID,contentIDs:[String])}
+
 enum DeletionPhaseV1: String, Codable, Equatable, Sendable {
     case prepared
     case databaseCommitted = "database_committed"

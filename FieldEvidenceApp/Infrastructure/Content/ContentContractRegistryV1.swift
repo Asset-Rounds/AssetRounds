@@ -6,6 +6,13 @@ enum ContentContractPublicationBoundaryV1: String, CaseIterable, Sendable {
     case afterPublicationBeforeReceipt = "AFTER_PUBLICATION_BEFORE_RECEIPT"
 }
 
+enum FieldReferenceContentContractRegistryV1 {
+    static let releaseFamily = "FieldReferenceReleaseV1"
+    static let bindingFamily = "FieldReferenceBindingV1"
+    static let byteAuthority = "C05_IMMUTABLE_CONTENT_AUTHORITY"
+    static let readinessPersistence = "DERIVED_ONLY"
+}
+
 struct ContentContractRegistryV1: Codable, Equatable, Sendable {
     static let schemaVersion = 1
     static let persistentContractSchema = "KERNEL_MEDIA_V1"

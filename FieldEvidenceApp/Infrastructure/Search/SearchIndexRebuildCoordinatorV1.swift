@@ -1766,4 +1766,26 @@ extension SearchIndexRebuildCoordinatorV1 {
 
     static let clientCapabilityReplayDisposition =
         "DROP_AND_REBUILD_FROM_CANONICAL_CLIENT_CAPABILITY_DECISION"
+
+    /// Rebuilds the C23 disposable search rows from immutable report
+    /// projections. No replay path consults a current pointer or reference
+    /// content store.
+    static func fieldReferenceSearchRecords(
+        from projections: [FieldReferenceReportProjectionV1]
+    ) throws -> [FieldReferenceSearchRecordV1] {
+        try FieldReferenceSearchPersistencePolicyV1().validate()
+        let records = try projections.map {
+            try FieldReferenceSearchRecordV1(projection: $0)
+        }.sorted {
+            $0.projectionSHA256 < $1.projectionSHA256
+        }
+        guard Set(records.map(\.projectionSHA256)).count == records.count else {
+            throw SearchContractFailureV1.duplicateProjection
+        }
+        try records.forEach { try $0.validate() }
+        return records
+    }
+
+    static let fieldReferenceReplayDisposition =
+        "DROP_AND_REBUILD_FROM_FROZEN_FIELD_REFERENCE_BINDING"
 }

@@ -56,6 +56,8 @@ final class BackupExportService {
     private static let checkpointBasisExportedAt = Date(timeIntervalSince1970: 0)
 
     private struct Rows {
+        let fieldReferenceReleases:[FieldReferenceReleaseRow]
+        let fieldReferenceBindings:[FieldReferenceBindingRow]
         let recoverabilityVerificationReceipts:[RecoverabilityVerificationReceiptRow]
         let clientCapabilityProfiles:[ClientCapabilityProfileRow];let packageLifecyclePolicies:[PackageLifecyclePolicyRow];let packageLifecycleDispositions:[PackageLifecycleDispositionRow];let clientCapabilityAdmissionDecisions:[ClientCapabilityAdmissionDecisionRow]
         let privacyTransformPolicies: [PrivacyTransformPolicyRow]
@@ -728,6 +730,7 @@ private extension BackupExportService {
         do {
             recordsData = try BackupCanonicalEncoderV1().encodeRecords(records).data
             let semanticRecords = V4BackupRecordsV1(
+                fieldReferences:records.fieldReferences,
                 fieldDrafts: records.fieldDrafts,
                 workPackets: records.workPackets,
                 inspectionReview: records.inspectionReview,
@@ -968,9 +971,9 @@ private extension BackupExportService {
             source: .init(
                 appBuild: appBuild(),
                 appVersion: appVersion(),
-                persistentSchemaVersion: 21,
+                persistentSchemaVersion: 22,
                 replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: 20,
+                recordsSchemaVersion: 21,
                 sourceGenerationID: generationID,
                 workspaceID: sourceIdentity.workspaceID.rawValue
             )
@@ -1498,6 +1501,8 @@ private extension BackupExportService {
     private func fetchRows() throws -> Rows {
         do {
             return Rows(
+                fieldReferenceReleases:try modelContext.fetch(FetchDescriptor<FieldReferenceReleaseRow>()),
+                fieldReferenceBindings:try modelContext.fetch(FetchDescriptor<FieldReferenceBindingRow>()),
                 recoverabilityVerificationReceipts:try modelContext.fetch(FetchDescriptor<RecoverabilityVerificationReceiptRow>()),
                 clientCapabilityProfiles:try modelContext.fetch(FetchDescriptor<ClientCapabilityProfileRow>()),packageLifecyclePolicies:try modelContext.fetch(FetchDescriptor<PackageLifecyclePolicyRow>()),packageLifecycleDispositions:try modelContext.fetch(FetchDescriptor<PackageLifecycleDispositionRow>()),clientCapabilityAdmissionDecisions:try modelContext.fetch(FetchDescriptor<ClientCapabilityAdmissionDecisionRow>()),
                 privacyTransformPolicies: try modelContext.fetch(FetchDescriptor<PrivacyTransformPolicyRow>()),
@@ -2052,7 +2057,9 @@ private extension BackupExportService {
         let privacyTransforms = mutationHistory == nil ? [] : try privacyTransformRecords(rows)
         let clientCapabilities = mutationHistory == nil ? [] : try clientCapabilityRecords(rows)
         let recoverabilityReceipts = mutationHistory == nil ? [] : try recoverabilityReceiptRecords(rows)
+        let fieldReferences = mutationHistory == nil ? [] : try fieldReferenceRecords(rows)
         return V4BackupRecordsV1(
+            fieldReferences:fieldReferences,
             recoverabilityReceipts:recoverabilityReceipts,
             clientCapabilities: clientCapabilities,
             privacyTransforms: privacyTransforms,
@@ -2113,7 +2120,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : 20,
+                : 21,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -2239,6 +2246,13 @@ private extension BackupExportService {
 
     private func recoverabilityReceiptRecords(_ rows:Rows)throws->[V21BackupRecoverabilityReceiptRecordV1]{
         try rows.recoverabilityVerificationReceipts.map{let value=try $0.value();return .init(id:value.receiptID,workspaceID:value.workspaceID.rawValue,revision:value.revision,canonicalData:try RecoverabilityVerificationCanonicalCodecV1.encode(value))}.sorted{$0.id.uuidString<$1.id.uuidString}
+    }
+
+    private func fieldReferenceRecords(_ rows:Rows)throws->[V22BackupFieldReferenceRecordV1]{
+        let releases=try Dictionary(uniqueKeysWithValues:rows.fieldReferenceReleases.map{row in let value=try row.value();return(value.releaseID,value)})
+        var result=try releases.values.map{V22BackupFieldReferenceRecordV1(kind:.release,id:$0.releaseID,workspaceID:$0.workspaceID.rawValue,revision:$0.revision,canonicalData:try FieldReferencePackCanonicalCodecV1.encode($0))}
+        result += try rows.fieldReferenceBindings.map{row in guard let release=releases[row.releaseID]else{throw BackupExportServiceError.invalidAuthority};let value=try row.value(release:release);return V22BackupFieldReferenceRecordV1(kind:.binding,id:value.bindingID,workspaceID:value.workspaceID.rawValue,revision:value.revision,canonicalData:try FieldReferencePackCanonicalCodecV1.encode(value))}
+        return result.sorted{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"}
     }
 
     private func functionalRelationshipRecords(

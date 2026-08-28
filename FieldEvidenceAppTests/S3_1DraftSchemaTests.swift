@@ -665,3 +665,11 @@ extension S3_1DraftSchemaTests {
         XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
     }
 }
+
+extension S3_1DraftSchemaTests {
+    func testC23FieldReferencePackAnchor() throws {
+        XCTAssertEqual(FieldReferenceReleaseV1.schemaVersion, 1)
+        XCTAssertEqual(FieldReferenceBindingV1.schemaVersion, 1)
+        XCTAssertEqual(FieldReferencePackLifecycleV1.persistentFamilies.count, 2)
+    }
+}

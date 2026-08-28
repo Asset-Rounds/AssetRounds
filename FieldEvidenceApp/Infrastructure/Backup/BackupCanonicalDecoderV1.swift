@@ -66,6 +66,7 @@ struct BackupCanonicalDecoderV1: Sendable {
             try Self.validatePrivacyTransforms(value)
             try Self.validateClientCapabilities(value)
             try Self.validateRecoverabilityReceipts(value)
+            try Self.validateFieldReferences(value)
             let canonical = try BackupCanonicalEncoderV1().encodeRecords(value).data
             guard canonical == data else {
                 throw BackupCanonicalDecodingErrorV1.invalidRecords
@@ -78,6 +79,98 @@ struct BackupCanonicalDecoderV1: Sendable {
 }
 
 private extension BackupCanonicalDecoderV1 {
+    static func validateFieldReferences(_ records: V4BackupRecordsV1) throws {
+        guard records.recordsSchemaVersion >= 21 else {
+            guard records.fieldReferences.isEmpty else { throw BackupCanonicalDecodingErrorV1.invalidRecords }
+            return
+        }
+        var releases: [UUID: FieldReferenceReleaseV1] = [:]
+        var bindings: [UUID: FieldReferenceBindingV1] = [:]
+        var keys = Set<String>()
+        for row in records.fieldReferences where row.kind == .release {
+            let value = try FieldReferenceReleaseRow(
+                FieldReferencePackCanonicalCodecV1.decode(FieldReferenceReleaseV1.self, from: row.canonicalData)
+            ).value()
+            guard row.id == value.releaseID, row.workspaceID == value.workspaceID.rawValue,
+                  row.revision == value.revision, keys.insert("release|\(row.id)").inserted,
+                  releases.updateValue(value, forKey: value.releaseID) == nil else {
+                throw BackupCanonicalDecodingErrorV1.invalidRecords
+            }
+        }
+        for row in records.fieldReferences where row.kind == .binding {
+            let seed = try FieldReferencePackCanonicalCodecV1.decode(
+                FieldReferenceBindingV1.self, from: row.canonicalData
+            )
+            guard let release = releases[seed.releaseID] else {
+                throw BackupCanonicalDecodingErrorV1.invalidRecords
+            }
+            let value = try FieldReferenceBindingRow(seed, release: release).value(release: release)
+            guard row.id == value.bindingID, row.workspaceID == value.workspaceID.rawValue,
+                  row.revision == value.revision, keys.insert("binding|\(row.id)").inserted,
+                  bindings.updateValue(value, forKey: value.bindingID) == nil else {
+                throw BackupCanonicalDecodingErrorV1.invalidRecords
+            }
+        }
+
+        var releaseChildren: [UUID: Int] = [:]
+        for value in releases.values {
+            if let predecessorID = value.supersedesReleaseID {
+                guard let predecessor = releases[predecessorID] else {
+                    throw BackupCanonicalDecodingErrorV1.invalidRecords
+                }
+                try value.validateSuccessor(of: predecessor)
+                releaseChildren[predecessorID, default: 0] += 1
+                guard releaseChildren[predecessorID] == 1 else {
+                    throw BackupCanonicalDecodingErrorV1.invalidRecords
+                }
+            } else if value.revision != 1 {
+                throw BackupCanonicalDecodingErrorV1.invalidRecords
+            }
+        }
+
+        var bindingChildren: [UUID: Int] = [:]
+        for value in bindings.values {
+            guard let release = releases[value.releaseID] else {
+                throw BackupCanonicalDecodingErrorV1.invalidRecords
+            }
+            try value.validate(release: release)
+            if let predecessorID = value.supersedesBindingID {
+                guard let predecessor = bindings[predecessorID] else {
+                    throw BackupCanonicalDecodingErrorV1.invalidRecords
+                }
+                // validateSuccessor enforces subject/workspace continuity and
+                // rejects successors to immutable finalized bindings.
+                try value.validateSuccessor(of: predecessor, release: release)
+                bindingChildren[predecessorID, default: 0] += 1
+                guard bindingChildren[predecessorID] == 1 else {
+                    throw BackupCanonicalDecodingErrorV1.invalidRecords
+                }
+            } else if value.revision != 1 {
+                throw BackupCanonicalDecodingErrorV1.invalidRecords
+            }
+        }
+
+        try validateAcyclicPredecessors(
+            Dictionary(uniqueKeysWithValues: releases.values.map { ($0.releaseID, $0.supersedesReleaseID) })
+        )
+        try validateAcyclicPredecessors(
+            Dictionary(uniqueKeysWithValues: bindings.values.map { ($0.bindingID, $0.supersedesBindingID) })
+        )
+    }
+
+    static func validateAcyclicPredecessors(_ predecessors: [UUID: UUID?]) throws {
+        for start in predecessors.keys {
+            var seen = Set<UUID>()
+            var cursor: UUID? = start
+            while let current = cursor {
+                guard seen.insert(current).inserted else {
+                    throw BackupCanonicalDecodingErrorV1.invalidRecords
+                }
+                cursor = predecessors[current] ?? nil
+            }
+        }
+    }
+
     static func validateRecoverabilityReceipts(_ records:V4BackupRecordsV1)throws{
         guard records.recordsSchemaVersion>=20 else{guard records.recoverabilityReceipts.isEmpty else{throw BackupCanonicalDecodingErrorV1.invalidRecords};return}
         var keys=Set<UUID>()

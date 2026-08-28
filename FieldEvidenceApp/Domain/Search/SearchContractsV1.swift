@@ -1914,3 +1914,161 @@ enum ClientCapabilitySearchProjectionPolicyV1 {
         fieldIDs.contains(field.rawValue)
     }
 }
+
+// MARK: - C23 version-bound field-reference search
+
+/// Closed, metadata-only fields for the C23 disposable search projection.
+/// Subject IDs, content IDs, locators, bytes, license notices, and source
+/// payloads are deliberately not searchable.
+enum FieldReferenceSearchFieldV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case referencePackID = "REFERENCE_PACK_ID"
+    case releaseID = "RELEASE_ID"
+    case bindingID = "BINDING_ID"
+    case kind = "KIND"
+    case semanticVersion = "SEMANTIC_VERSION"
+    case provenanceKind = "PROVENANCE_KIND"
+    case licenseScope = "LICENSE_SCOPE"
+    case releaseDisposition = "RELEASE_DISPOSITION"
+    case subjectKind = "SUBJECT_KIND"
+    case subjectState = "SUBJECT_STATE"
+    case availability = "AVAILABILITY"
+    case requiredContentCount = "REQUIRED_CONTENT_COUNT"
+    case missingContentCount = "MISSING_CONTENT_COUNT"
+    case releaseDigest = "RELEASE_SHA256"
+    case manifestDigest = "MANIFEST_SHA256"
+    case readinessDigest = "READINESS_SHA256"
+    case projectionDigest = "PROJECTION_SHA256"
+}
+
+struct FieldReferenceSearchRecordV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let releaseID: UUID
+    let bindingID: UUID
+    let referencePackID: String
+    let semanticVersion: String
+    let kind: FieldReferenceKindV1
+    let provenanceKind: FieldReferenceProvenanceKindV1
+    let licenseScope: FieldReferenceLicenseScopeV1
+    let releaseDisposition: FieldReferenceReleaseDispositionV1
+    let subjectKind: FieldReferenceSubjectKindV1
+    let subjectState: FieldReferenceSubjectStateV1
+    let availability: FieldReferenceAvailabilityV1
+    let requiredContentCount: Int
+    let missingContentCount: Int
+    let releaseSHA256: String
+    let manifestSHA256: String
+    let readinessSHA256: String
+    let projectionSHA256: String
+    let boundedFieldValues: [FieldReferenceSearchFieldV1: String]
+
+    init(projection: FieldReferenceReportProjectionV1) throws {
+        try projection.validate()
+        schemaVersion = Self.schemaVersion
+        releaseID = projection.releaseID
+        bindingID = projection.bindingID
+        referencePackID = projection.referencePackID
+        semanticVersion = projection.semanticVersion
+        kind = projection.kind
+        provenanceKind = projection.provenanceKind
+        licenseScope = projection.licenseScope
+        releaseDisposition = projection.releaseDisposition
+        subjectKind = projection.subjectKind
+        subjectState = projection.subjectState
+        availability = projection.availability
+        requiredContentCount = projection.requiredContentCount
+        missingContentCount = projection.missingContentCount
+        releaseSHA256 = projection.releaseSHA256
+        manifestSHA256 = projection.manifestSHA256
+        readinessSHA256 = projection.readinessSHA256
+        projectionSHA256 = projection.projectionSHA256
+        boundedFieldValues = [
+            .referencePackID: projection.referencePackID,
+            .releaseID: projection.releaseID.uuidString.lowercased(),
+            .bindingID: projection.bindingID.uuidString.lowercased(),
+            .kind: projection.kind.rawValue,
+            .semanticVersion: projection.semanticVersion,
+            .provenanceKind: projection.provenanceKind.rawValue,
+            .licenseScope: projection.licenseScope.rawValue,
+            .releaseDisposition: projection.releaseDisposition.rawValue,
+            .subjectKind: projection.subjectKind.rawValue,
+            .subjectState: projection.subjectState.rawValue,
+            .availability: projection.availability.rawValue,
+            .requiredContentCount: String(projection.requiredContentCount),
+            .missingContentCount: String(projection.missingContentCount),
+            .releaseDigest: projection.releaseSHA256,
+            .manifestDigest: projection.manifestSHA256,
+            .readinessDigest: projection.readinessSHA256,
+            .projectionDigest: projection.projectionSHA256,
+        ]
+        try validate()
+    }
+
+    func normalizedTokens(for field: FieldReferenceSearchFieldV1) -> [String] {
+        guard let value = boundedFieldValues[field] else { return [] }
+        return SearchContractValidationV1.normalizeSearchText(value)
+            .unicodeScalars
+            .split { !CharacterSet.alphanumerics.contains($0) }
+            .map(String.init)
+    }
+
+    func validate() throws {
+        let required = Set(FieldReferenceSearchFieldV1.allCases)
+        let digestFields: Set<FieldReferenceSearchFieldV1> = [
+            .releaseDigest, .manifestDigest, .readinessDigest, .projectionDigest,
+        ]
+        guard schemaVersion == Self.schemaVersion,
+              releaseID != SearchContractValidationV1.zeroUUID,
+              bindingID != SearchContractValidationV1.zeroUUID,
+              SearchContractValidationV1.validID(referencePackID),
+              SearchContractValidationV1.validID(semanticVersion),
+              requiredContentCount >= 0,
+              missingContentCount >= 0,
+              missingContentCount <= requiredContentCount,
+              KernelCanonicalHashV1.validSHA256(releaseSHA256),
+              KernelCanonicalHashV1.validSHA256(manifestSHA256),
+              KernelCanonicalHashV1.validSHA256(readinessSHA256),
+              KernelCanonicalHashV1.validSHA256(projectionSHA256),
+              Set(boundedFieldValues.keys) == required,
+              boundedFieldValues.allSatisfy({ field, value in
+                  digestFields.contains(field)
+                      ? KernelCanonicalHashV1.validSHA256(value)
+                      : SearchContractValidationV1.validID(value)
+              }),
+              !boundedFieldValues.keys.contains(where: {
+                  $0.rawValue.contains("CONTENT_ID")
+              }) else {
+            throw SearchContractFailureV1.forbiddenField
+        }
+        guard boundedFieldValues.values.allSatisfy({ value in
+            let tokens = SearchContractValidationV1.normalizeSearchText(value)
+                .unicodeScalars
+                .split { !CharacterSet.alphanumerics.contains($0) }
+                .map(String.init)
+            return !tokens.isEmpty
+                && tokens.allSatisfy(SearchContractValidationV1.isCanonicalSearchToken)
+        }) else {
+            throw SearchContractFailureV1.invalidField
+        }
+    }
+}
+
+enum FieldReferenceSearchProjectionPolicyV1 {
+    static let sourceKind = "FIELD_REFERENCE_RELEASE_BINDING"
+    static let semanticLabel = "FIELD_REFERENCE_RELEASE_BINDING_METADATA_V1"
+    static let fieldIDs = FieldReferenceSearchFieldV1.allCases.map(\.rawValue)
+    static let metadataOnly = true
+    static let derivedOnly = true
+    static let dropAndRebuildAfterRestore = true
+    static let dropAndRebuildOnReplay = true
+    static let excludesReferenceBytes = true
+    static let excludesContentIDs = true
+    static let excludesPrivateLocators = true
+    static let excludesLicenseSecrets = true
+    static let excludesSubjectIdentity = true
+
+    static func accepts(_ field: FieldReferenceSearchFieldV1) -> Bool {
+        fieldIDs.contains(field.rawValue)
+    }
+}

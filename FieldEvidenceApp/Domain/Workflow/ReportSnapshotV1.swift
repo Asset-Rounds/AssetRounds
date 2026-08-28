@@ -72,6 +72,11 @@ struct ReportSnapshotV1: Codable, Equatable, Sendable {
     /// and are never rewritten in place.
     var clientCapability: ClientCapabilityReportProjectionV1? = nil
 
+    /// Optional C23 metadata-only field-reference projections. Reference
+    /// bytes, locators, content IDs, and subject identity are never serialized
+    /// into a report snapshot.
+    var fieldReferences: [FieldReferenceReportProjectionV1]? = nil
+
     var audienceSafeDerivativeProjection: PrivacyTransformReportProjectionV1? {
         privacyTransform
     }
@@ -102,6 +107,82 @@ struct ReportSnapshotV1: Codable, Equatable, Sendable {
 
     var actionHistory: [CorrectiveActionEventV1] {
         inspectionReviewHistory?.actionHistory ?? []
+    }
+}
+
+// MARK: - C23 metadata-only reference projection
+
+extension ReportSnapshotV1 {
+    /// Builds the existing audience-safe report projection only after proving
+    /// that the binding names this report's packet generation. Reference bytes,
+    /// locators, content IDs, and subject identity stay outside the report.
+    func c23FieldReferenceProjection(
+        binding: FieldReferenceBindingV1,
+        release: FieldReferenceReleaseV1,
+        readiness: FieldReferenceOfflineReadinessV1,
+        subjectRevision: UInt64
+    ) throws -> FieldReferenceReportProjectionV1 {
+        guard binding.subjectKind == .workPacket,
+              binding.subjectID == packetID,
+              binding.subjectRevision == subjectRevision,
+              binding.subjectState == .finalized else {
+            throw WorkSessionFieldReferenceFailureV1.wrongSubject
+        }
+        let reference = try WorkSessionFieldReferenceProjectionV1(
+            binding: binding, release: release, readiness: readiness
+        )
+        try reference.validate(
+            expectedWorkspaceID: release.workspaceID,
+            expectedSubjectKind: .workPacket,
+            expectedSubjectID: packetID,
+            expectedSubjectRevision: subjectRevision,
+            expectedSubjectState: .finalized
+        )
+        return try FieldReferenceReportProjectionV1(
+            release: release, binding: binding, readiness: readiness
+        )
+    }
+
+    /// Re-validates a previously constructed C23 report projection against
+    /// the immutable packet subject before it is encoded or exported.
+    func c23ValidateFieldReferenceProjection(
+        _ projection: FieldReferenceReportProjectionV1,
+        binding: FieldReferenceBindingV1,
+        release: FieldReferenceReleaseV1,
+        readiness: FieldReferenceOfflineReadinessV1,
+        subjectRevision: UInt64
+    ) throws -> FieldReferenceReportProjectionV1 {
+        let expected = try c23FieldReferenceProjection(
+            binding: binding,
+            release: release,
+            readiness: readiness,
+            subjectRevision: subjectRevision
+        )
+        guard projection == expected else {
+            throw WorkSessionFieldReferenceFailureV1.staleBinding
+        }
+        return projection
+    }
+
+    /// Returns an additive snapshot carrying one validated, finalized
+    /// field-reference projection. Existing snapshot fields and historical
+    /// bytes remain unchanged; a different release requires an explicit new
+    /// snapshot rather than an in-place rebind.
+    func withC23FieldReferenceProjection(
+        binding: FieldReferenceBindingV1,
+        release: FieldReferenceReleaseV1,
+        readiness: FieldReferenceOfflineReadinessV1,
+        subjectRevision: UInt64
+    ) throws -> ReportSnapshotV1 {
+        let projection = try c23FieldReferenceProjection(
+            binding: binding,
+            release: release,
+            readiness: readiness,
+            subjectRevision: subjectRevision
+        )
+        var copy = self
+        copy.fieldReferences = [projection]
+        return copy
     }
 }
 

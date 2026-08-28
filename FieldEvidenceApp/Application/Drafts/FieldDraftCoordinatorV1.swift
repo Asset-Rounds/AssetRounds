@@ -139,3 +139,49 @@ protocol DraftContentPromotionPortV1: Sendable {
         return receipt
     }
 }
+
+extension FieldDraftCoordinatorV1 {
+    /// C23-aware checkpoint entry point. The reference tuple is checked before
+    /// the existing checkpoint CAS and is never copied into the draft row.
+    @MainActor
+    func checkpoint(
+        _ value: FieldDraftCheckpointV1,
+        expectedDraftRevision: UInt64,
+        expectedBaseRevision: UInt64,
+        fieldReferenceBinding: FieldReferenceBindingV1,
+        fieldReferenceRelease: FieldReferenceReleaseV1,
+        fieldReferenceReadiness: FieldReferenceOfflineReadinessV1
+    ) throws -> MutationReceiptV1 {
+        _ = try value.c23ReferenceProjection(
+            binding: fieldReferenceBinding,
+            release: fieldReferenceRelease,
+            readiness: fieldReferenceReadiness
+        )
+        return try checkpoint(
+            value,
+            expectedDraftRevision: expectedDraftRevision,
+            expectedBaseRevision: expectedBaseRevision
+        )
+    }
+
+    /// Read-only validation used by commit/recovery coordinators immediately
+    /// before they operate on a draft. Finalized checkpoints cannot accept a
+    /// replacement binding; callers must use an explicit C23 successor while
+    /// the session is still active.
+    @MainActor
+    func validateFieldReference(
+        checkpoint: FieldDraftCheckpointV1,
+        binding: FieldReferenceBindingV1,
+        release: FieldReferenceReleaseV1,
+        readiness: FieldReferenceOfflineReadinessV1
+    ) throws -> FieldDraftReferenceProjectionV1 {
+        guard let durable = try writer.currentCheckpoint(
+            workspaceID: checkpoint.workspaceID, draftID: checkpoint.draftID
+        ), durable.checkpointSHA256 == checkpoint.checkpointSHA256 else {
+            throw FieldDraftFailureV1.staleDraftRevision
+        }
+        return try durable.c23ReferenceProjection(
+            binding: binding, release: release, readiness: readiness
+        )
+    }
+}

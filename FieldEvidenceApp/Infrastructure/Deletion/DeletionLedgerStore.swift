@@ -1,6 +1,8 @@
 import Foundation
 import SwiftData
 
+enum FieldReferenceDeletionLedgerStorePolicyV1{static func validate()throws{guard FieldReferenceDeletionLedgerPolicyV1.immutableKinds==["FieldReferenceReleaseV1","FieldReferenceBindingV1"],FieldReferenceDeletionLedgerPolicyV1.ordinaryDeletionRetainsBoundAndFinalizedBytes,FieldReferenceDeletionLedgerPolicyV1.workspaceEraseRemovesRowsAndOwnedBytes else{throw DeletionLedgerFailureV2.invalidIdentity}}}
+
 @MainActor
 final class DeletionLedgerStore {
     private let context: ModelContext
@@ -10,6 +12,7 @@ final class DeletionLedgerStore {
     }
 
     func snapshot() throws -> DeletionLedgerV2 {
+        try FieldReferenceDeletionLedgerStorePolicyV1.validate()
         var descriptor = FetchDescriptor<DeletionLedgerRow>()
         descriptor.fetchLimit = DeletionLedgerV2.maximumEntryCount + 1
         let rows = try context.fetch(descriptor)

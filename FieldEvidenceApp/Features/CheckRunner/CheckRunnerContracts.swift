@@ -587,3 +587,67 @@ struct CheckRunnerPrivacyTransformContextV1: Equatable, Sendable {
         )
     }
 }
+
+// MARK: - C23 version-bound field-reference check context
+
+/// A check receives a packet context and an explicit metadata-only reference
+/// projection. Missing bytes remain visible as a typed availability state and
+/// are never treated as an empty successful reference.
+struct CheckRunnerFieldReferenceContextV1: Equatable, Sendable {
+    let packet: CheckRunnerWorkPacketContextV1
+    let fieldReferences: WorkPacketFieldReferenceProjectionV1
+
+    init(
+        snapshot: CompletedWorkPacketSnapshotV1,
+        itemID: String,
+        fieldReferenceBindings: [FieldReferenceBindingV1],
+        fieldReferenceReleases: [FieldReferenceReleaseV1],
+        fieldReferenceReadiness: [FieldReferenceOfflineReadinessV1]
+    ) throws {
+        let packet = try CheckRunnerWorkPacketContextV1(
+            snapshot: snapshot, itemID: itemID
+        )
+        let projection = try WorkPacketReferenceProjectionBuilderV1.rebuild(
+            workspaceID: snapshot.workspaceID,
+            manifest: snapshot.manifest,
+            claims: snapshot.claims,
+            leases: snapshot.leases,
+            releases: snapshot.releases,
+            handoffs: snapshot.handoffs,
+            fieldReferenceBindings: fieldReferenceBindings,
+            fieldReferenceReleases: fieldReferenceReleases,
+            fieldReferenceReadiness: fieldReferenceReadiness,
+            subjectState: .finalized,
+            at: snapshot.createdAt
+        )
+        self.packet = packet
+        fieldReferences = projection
+        try validate()
+    }
+
+    func validate() throws {
+        try packet.validate()
+        try fieldReferences.validate()
+        guard fieldReferences.packetID == packet.packetID,
+              fieldReferences.packetVersion == packet.packetVersion,
+              fieldReferences.manifestSHA256 == packet.manifestSHA256,
+              packet.currentState != .conflicted else {
+            throw CheckRunnerCoordinatorError.workPacketUnavailable
+        }
+        guard fieldReferences.references.allSatisfy({
+            $0.subjectState == .finalized
+        }) else {
+            throw CheckRunnerCoordinatorError.workPacketUnavailable
+        }
+    }
+
+    /// A check may consume bytes only after every supplied reference is
+    /// explicitly ready offline. Empty input is allowed for packets with no
+    /// field-reference requirement; a missing-content state is not success.
+    func requireReadyOffline() throws {
+        try validate()
+        guard fieldReferences.references.allSatisfy(\.isReadyOffline) else {
+            throw CheckRunnerCoordinatorError.workPacketUnavailable
+        }
+    }
+}

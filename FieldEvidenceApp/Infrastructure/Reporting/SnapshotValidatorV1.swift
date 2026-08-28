@@ -1584,6 +1584,29 @@ extension SnapshotValidatorV1 {
         try DeterministicOpenJSONRendererV1.reopenPrivacyTransform(data)
     }
 
+    /// C23 validation is anchored to the release/binding/readiness values
+    /// already recorded in the report.  It does not resolve a current release
+    /// and it never opens restricted reference content.
+    func validateFieldReferenceProjection(
+        _ projection: FieldReferenceReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> FieldReferenceReportProjectionV1 {
+        try FieldReferenceReportProjectionPolicyV1.validate(projection, format: format)
+    }
+
+    static func validateFieldReferenceProjection(
+        _ projection: FieldReferenceReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> FieldReferenceReportProjectionV1 {
+        try FieldReferenceReportProjectionPolicyV1.validate(projection, format: format)
+    }
+
+    static func validateFieldReferenceOpenJSON(
+        _ data: Data
+    ) throws -> FieldReferenceReportProjectionV1 {
+        try DeterministicOpenJSONRendererV1.reopenFieldReference(data)
+    }
+
     /// C21 validates the frozen local admission/lifecycle projection without
     /// consulting a current pointer. Withdrawal therefore cannot rewrite a
     /// historic report, and the stored closed state remains the display truth.

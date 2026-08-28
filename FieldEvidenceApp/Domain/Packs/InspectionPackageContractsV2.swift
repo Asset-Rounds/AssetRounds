@@ -15,6 +15,15 @@ enum InspectionPackageFailureV2: Error, Equatable, Sendable {
 }
 
 extension InspectionPackageV2 {
+    /// C23 references are independently versioned content releases; package
+    /// admission validates them but never folds their bytes into package truth.
+    func validateFieldReference(_ release: FieldReferenceReleaseV1) throws {
+        try validate()
+        try release.validate()
+    }
+}
+
+extension InspectionPackageV2 {
     func validateClientCapabilityBinding(policy: PackageLifecyclePolicyV1,
                                          release: InspectionPackageReleaseV1) throws {
         try validate(); try policy.validate(release: release)

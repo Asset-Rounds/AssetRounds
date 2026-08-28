@@ -409,8 +409,10 @@ struct V20BackupClientCapabilityRecordV1: Codable, Equatable, Sendable {
 struct V21BackupRecoverabilityReceiptRecordV1: Codable, Equatable, Sendable {
     let id: UUID; let workspaceID: UUID; let revision: UInt64; let canonicalData: Data
 }
+struct V22BackupFieldReferenceRecordV1:Codable,Equatable,Sendable{enum Kind:String,Codable,CaseIterable,Sendable{case release,binding};let kind:Kind;let id:UUID;let workspaceID:UUID;let revision:UInt64;let canonicalData:Data}
 
 struct V4BackupRecordsV1: Codable, Equatable, Sendable {
+    let fieldReferences:[V22BackupFieldReferenceRecordV1]
     let recoverabilityReceipts: [V21BackupRecoverabilityReceiptRecordV1]
     let clientCapabilities: [V20BackupClientCapabilityRecordV1]
     let privacyTransforms: [V19BackupPrivacyTransformRecordV1]
@@ -444,6 +446,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     let workflowRecords: [V4BackupWorkflowRecordDTO]
 
     init(
+        fieldReferences:[V22BackupFieldReferenceRecordV1]=[],
         recoverabilityReceipts: [V21BackupRecoverabilityReceiptRecordV1] = [],
         clientCapabilities: [V20BackupClientCapabilityRecordV1] = [],
         privacyTransforms: [V19BackupPrivacyTransformRecordV1] = [],
@@ -476,6 +479,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         sites: [V4BackupSiteDTO],
         workflowRecords: [V4BackupWorkflowRecordDTO]
     ) {
+        self.fieldReferences=fieldReferences
         self.recoverabilityReceipts = recoverabilityReceipts
         self.clientCapabilities = clientCapabilities
         self.privacyTransforms = privacyTransforms
@@ -510,7 +514,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case recoverabilityReceipts, clientCapabilities, privacyTransforms, measurementIntegrity, packageEvolution, fieldDrafts, workPackets, inspectionReview, evidenceAssurance, functionalRelationships, authorityCriterion, assetSemantics, assetCompositionEdges, assetCompositionEvents, assetPlacementEvents, assets
+        case fieldReferences,recoverabilityReceipts, clientCapabilities, privacyTransforms, measurementIntegrity, packageEvolution, fieldDrafts, workPackets, inspectionReview, evidenceAssurance, functionalRelationships, authorityCriterion, assetSemantics, assetCompositionEdges, assetCompositionEvents, assetPlacementEvents, assets
         case deletionLedger, evidenceFiles, issues, locationHierarchyEvents
         case locationMigrationReceipts, locationNodes, mutationHistory, packets, partyAccountability
         case recordsSchemaVersion, reports, requirementAssurance, savedSmartViews, sites
@@ -521,6 +525,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         let version = try values.decode(Int.self, forKey: .recordsSchemaVersion)
         self.init(
+            fieldReferences:try values.decodeIfPresent([V22BackupFieldReferenceRecordV1].self,forKey:.fieldReferences) ?? [],
             recoverabilityReceipts: try values.decodeIfPresent([V21BackupRecoverabilityReceiptRecordV1].self, forKey: .recoverabilityReceipts) ?? [],
             clientCapabilities: try values.decodeIfPresent([V20BackupClientCapabilityRecordV1].self, forKey: .clientCapabilities) ?? [],
             privacyTransforms: try values.decodeIfPresent(

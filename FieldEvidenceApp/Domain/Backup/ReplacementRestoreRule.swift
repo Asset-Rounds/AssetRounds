@@ -273,6 +273,7 @@ private extension ReplacementRestoreRule {
         }
 
         let result = V4BackupRecordsV1(
+            fieldReferences:records.fieldReferences,
             recoverabilityReceipts: records.recoverabilityReceipts,
             clientCapabilities: records.clientCapabilities,
             privacyTransforms: records.privacyTransforms,
@@ -316,6 +317,7 @@ private extension ReplacementRestoreRule {
         with packets: [V4BackupPacketDTO]
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            fieldReferences:records.fieldReferences,
             recoverabilityReceipts: records.recoverabilityReceipts,
             clientCapabilities: records.clientCapabilities,
             privacyTransforms: records.privacyTransforms,
@@ -352,6 +354,7 @@ private extension ReplacementRestoreRule {
         with mutationHistory: MutationHistorySnapshotV1?
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            fieldReferences:records.fieldReferences,
             recoverabilityReceipts: records.recoverabilityReceipts,
             clientCapabilities: records.clientCapabilities,
             privacyTransforms: records.privacyTransforms,
@@ -390,6 +393,7 @@ private extension ReplacementRestoreRule {
         with requirementAssurance: [V8BackupRequirementAssuranceRecordV1]
     ) throws -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            fieldReferences:records.fieldReferences,
             recoverabilityReceipts: records.recoverabilityReceipts,
             clientCapabilities: records.clientCapabilities,
             privacyTransforms: records.privacyTransforms,
@@ -591,7 +595,8 @@ private extension ReplacementRestoreRule {
                 || records.recordsSchemaVersion == 17
                 || records.recordsSchemaVersion == 18
                 || records.recordsSchemaVersion == 19
-                || records.recordsSchemaVersion == 20 else {
+                || records.recordsSchemaVersion == 20
+                || records.recordsSchemaVersion == 21 else {
             return records.locationNodes.isEmpty
                 && records.assetPlacementEvents.isEmpty
                 && records.assetCompositionEdges.isEmpty

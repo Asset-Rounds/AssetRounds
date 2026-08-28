@@ -7,6 +7,29 @@ struct EvidenceBundleInput: Sendable {
     let thumbnailJPEG: Data
 }
 
+extension EvidenceBundleStore {
+    func persistFieldReferenceItem(
+        _ item: FieldReferenceImportItemV1,
+        workspaceID: WorkspaceID,
+        mutationID: MutationIDV1
+    ) async throws -> DraftImmutableContentWriteReceiptV1 {
+        guard item.reference.workspaceID == workspaceID.rawValue.uuidString.lowercased(),
+              let digest = item.reference.digests.digest(for: .sha256) else {
+            throw ContentIntegrityFailureV1.wrongWorkspace
+        }
+        let request = try DraftImmutableContentWriteRequestV1(
+            workspaceID: workspaceID,
+            contentID: item.reference.contentID,
+            digest: digest,
+            byteLength: item.reference.byteLength,
+            mediaType: item.reference.mediaType,
+            mutationID: mutationID,
+            createdAt: item.reference.createdAt
+        )
+        return try await persistImmutableOriginal(bytes: item.bytes, request: request)
+    }
+}
+
 struct StagedEvidenceBundle: Equatable, Sendable {
     let evidenceID: UUID
     let stagingDirectoryRelativePath: String

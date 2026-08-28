@@ -457,3 +457,11 @@ extension S8_1SecondPackZeroForkTests {
         XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
     }
 }
+
+extension S8_1SecondPackZeroForkTests {
+    func testC23FieldReferencePackAnchor() throws {
+        XCTAssertEqual(FieldReferencePackLifecycleV1.writer, "SOLE_CANONICAL_WORKSPACE_WRITER")
+        XCTAssertFalse(FieldReferencePackLifecycleV1.currentProjectionPersistent)
+        XCTAssertFalse(FieldReferencePackLifecycleV1.runtimeFetchingAllowed)
+    }
+}

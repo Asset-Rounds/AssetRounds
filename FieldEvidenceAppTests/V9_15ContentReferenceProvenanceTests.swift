@@ -662,3 +662,11 @@ extension V9_15ContentReferenceProvenanceTests {
         XCTAssertTrue(committed.isCanonical)
     }
 }
+
+extension V9_15ContentReferenceProvenanceTests {
+    func testC23FieldReferencePackAnchor() throws {
+        XCTAssertEqual(FieldReferenceProvenanceKindV1.allCases, [.licensed, .synthetic])
+        XCTAssertEqual(FieldReferenceLicenseScopeV1.allCases.count, 4)
+        XCTAssertFalse(FieldReferencePackLifecycleV1.drmOrAccountRequired)
+    }
+}

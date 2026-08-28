@@ -245,7 +245,7 @@ struct ContentObservedBytesV1: Equatable, Sendable {
     let mediaType: String
     let digests: ContentDigestSetV1
 
-    fileprivate init(
+    init(
         workspaceID: String,
         contentID: String,
         byteLength: Int64,

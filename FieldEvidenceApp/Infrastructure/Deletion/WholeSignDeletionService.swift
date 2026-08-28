@@ -1312,6 +1312,7 @@ private extension WholeSignDeletionService {
         let privacyTransformPolicies:[PrivacyTransformPolicyRow];let privacyRegions:[PrivacyRegionRow]
         let privacyTransformManifests:[PrivacyTransformManifestRow];let privacyReviewReceipts:[PrivacyReviewReceiptRow]
         let clientCapabilityProfiles:[ClientCapabilityProfileRow];let packageLifecyclePolicies:[PackageLifecyclePolicyRow];let packageLifecycleDispositions:[PackageLifecycleDispositionRow];let clientCapabilityAdmissionDecisions:[ClientCapabilityAdmissionDecisionRow]
+        let fieldReferenceReleases:[FieldReferenceReleaseRow];let fieldReferenceBindings:[FieldReferenceBindingRow]
         let observationAndTime: [UUID: ObservationAndTimeRow]
         let recordPayloads: [WorkflowRecordPayloadV1]
         let evidence: [EvidenceFile]
@@ -1368,6 +1369,7 @@ private extension WholeSignDeletionService {
                 instrumentReferences:try boundedFetch(InstrumentReferenceRow.self),calibrationStatusSnapshots:try boundedFetch(CalibrationStatusSnapshotRow.self),measurementCaptures:try boundedFetch(MeasurementCaptureRow.self),measurementSeries:try boundedFetch(MeasurementSeriesRow.self),measurementQualityAssessments:try boundedFetch(MeasurementQualityAssessmentRow.self),
                 privacyTransformPolicies:try boundedFetch(PrivacyTransformPolicyRow.self),privacyRegions:try boundedFetch(PrivacyRegionRow.self),privacyTransformManifests:try boundedFetch(PrivacyTransformManifestRow.self),privacyReviewReceipts:try boundedFetch(PrivacyReviewReceiptRow.self),
                 clientCapabilityProfiles:try boundedFetch(ClientCapabilityProfileRow.self),packageLifecyclePolicies:try boundedFetch(PackageLifecyclePolicyRow.self),packageLifecycleDispositions:try boundedFetch(PackageLifecycleDispositionRow.self),clientCapabilityAdmissionDecisions:try boundedFetch(ClientCapabilityAdmissionDecisionRow.self),
+                fieldReferenceReleases:try boundedFetch(FieldReferenceReleaseRow.self),fieldReferenceBindings:try boundedFetch(FieldReferenceBindingRow.self),
                 observationAndTime: observationAndTime,
                 recordPayloads: recordPayloads,
                 evidence: try boundedFetch(EvidenceFile.self),
@@ -1414,6 +1416,11 @@ private extension WholeSignDeletionService {
         try WholeSignDeletionRule.validatePrivacyTransformLifecycle(authority:.ordinaryDelete,before:privacyInventory,after:privacyInventory)
         let capabilityInventory=ClientCapabilityDeletionInventoryV1(profiles:rows.clientCapabilityProfiles.count,policies:rows.packageLifecyclePolicies.count,dispositions:rows.packageLifecycleDispositions.count,decisions:rows.clientCapabilityAdmissionDecisions.count)
         try WholeSignDeletionRule.validateClientCapabilityLifecycle(before:capabilityInventory,after:capabilityInventory,workspaceErase:false)
+        let fieldReferenceValues=try Dictionary(uniqueKeysWithValues:rows.fieldReferenceReleases.map{let value=try $0.value();return(value.releaseID,value)})
+        for row in rows.fieldReferenceBindings{guard let release=fieldReferenceValues[row.releaseID]else{throw WholeSignDeletionServiceError.graphInvalid};_ = try row.value(release:release)}
+        let retainedReleaseIDs=Set(rows.fieldReferenceBindings.map(\.releaseID))
+        let fieldReferenceInventory=FieldReferenceDeletionInventoryV1(releaseIDs:Set(fieldReferenceValues.keys),bindingIDs:Set(rows.fieldReferenceBindings.map(\.bindingID)),retainedReleaseIDs:retainedReleaseIDs)
+        try WholeSignDeletionRule.validateFieldReferenceLifecycle(before:fieldReferenceInventory,after:fieldReferenceInventory,workspaceErase:false)
         do {
             var assetIDs = Set<UUID>()
             if let deletingAssetID { assetIDs.insert(deletingAssetID) }
@@ -2145,6 +2152,8 @@ private extension WholeSignDeletionService {
             .forEach { modelContext.delete($0) }
         rows.requirementAssurance.filter { recordIDs.contains($0.workflowRecordID) }
             .forEach { modelContext.delete($0) }
+        let boundFieldReferenceReleaseIDs=Set(rows.fieldReferenceBindings.map(\.releaseID))
+        for row in rows.fieldReferenceReleases where !boundFieldReferenceReleaseIDs.contains(row.releaseID){_ = try row.value();modelContext.delete(row)}
         rows.records.filter { recordIDs.contains($0.id) }.forEach { modelContext.delete($0) }
         rows.packets.filter { packetDeleteIDs.contains($0.id) }.forEach { modelContext.delete($0) }
         for packet in rows.packets {

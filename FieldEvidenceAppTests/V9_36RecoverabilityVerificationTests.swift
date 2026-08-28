@@ -896,3 +896,11 @@ final class V9_36RecoverabilityVerificationTests: XCTestCase {
         return try JSONDecoder().decode(C22RecoverabilityCorpus.self, from: Data(contentsOf: url))
     }
 }
+
+extension V9_36RecoverabilityVerificationTests {
+    func testC23FieldReferencePackAnchor() throws {
+        XCTAssertEqual(PersistentSchemaV22.versionIdentifier, Schema.Version(22, 0, 0))
+        XCTAssertEqual(FieldReferencePackLifecycleV1.persistentFamilies.count, 2)
+        XCTAssertNoThrow(try V22FieldReferenceImportBoundaryV1.validate(persistent: 22, records: 21))
+    }
+}

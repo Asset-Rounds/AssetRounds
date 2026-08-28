@@ -468,3 +468,12 @@ extension V9_18PackLifecycleIntegrationTests {
         XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
     }
 }
+
+extension V9_18PackLifecycleIntegrationTests {
+    func testC23FieldReferencePackAnchor() throws {
+        XCTAssertEqual(FieldReferencePackLifecycleV1.persistentFamilies, [
+            "FieldReferenceReleaseV1", "FieldReferenceBindingV1"
+        ])
+        XCTAssertEqual(FieldReferencePackLifecycleV1.stagingPersistence, "DERIVED_ONLY")
+    }
+}

@@ -673,3 +673,64 @@ struct ClientCapabilitySearchPersistencePolicyV1: Codable, Equatable, Sendable {
 extension SearchPersistenceReleaseV1 {
     static let clientCapabilityPolicy = ClientCapabilitySearchPersistencePolicyV1()
 }
+
+// MARK: - C23 version-bound field-reference search persistence
+
+/// C23 rows are disposable derived metadata. They are rebuilt from the
+/// canonical release/binding projection after restore or replay and have no
+/// persistence authority over reference bytes or locators.
+struct FieldReferenceSearchPersistencePolicyV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let sourceSchema: String
+    let searchPersistenceRelease: SearchPersistenceReleaseV1
+    let fieldIDs: [String]
+    let metadataOnly: Bool
+    let derivedOnly: Bool
+    let dropAndRebuildAfterRestore: Bool
+    let dropAndRebuildOnReplay: Bool
+    let excludesReferenceBytes: Bool
+    let excludesContentIDs: Bool
+    let excludesPrivateLocators: Bool
+    let excludesLicenseSecrets: Bool
+    let excludesSubjectIdentity: Bool
+
+    init() {
+        schemaVersion = Self.schemaVersion
+        sourceSchema = FieldReferenceSearchProjectionPolicyV1.semanticLabel
+        searchPersistenceRelease = .v7
+        fieldIDs = FieldReferenceSearchProjectionPolicyV1.fieldIDs.sorted()
+        metadataOnly = true
+        derivedOnly = true
+        dropAndRebuildAfterRestore = true
+        dropAndRebuildOnReplay = true
+        excludesReferenceBytes = true
+        excludesContentIDs = true
+        excludesPrivateLocators = true
+        excludesLicenseSecrets = true
+        excludesSubjectIdentity = true
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              sourceSchema == FieldReferenceSearchProjectionPolicyV1.semanticLabel,
+              searchPersistenceRelease == .v7,
+              fieldIDs == FieldReferenceSearchProjectionPolicyV1.fieldIDs.sorted(),
+              metadataOnly,
+              derivedOnly,
+              dropAndRebuildAfterRestore,
+              dropAndRebuildOnReplay,
+              excludesReferenceBytes,
+              excludesContentIDs,
+              excludesPrivateLocators,
+              excludesLicenseSecrets,
+              excludesSubjectIdentity else {
+            throw SearchContractFailureV1.invalidField
+        }
+    }
+}
+
+extension SearchPersistenceReleaseV1 {
+    static let fieldReferencePolicy = FieldReferenceSearchPersistencePolicyV1()
+}

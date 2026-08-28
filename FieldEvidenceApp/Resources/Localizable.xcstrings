@@ -2249,6 +2249,158 @@
     "client.capability.next_step" : {
       "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Next recorded step" } } }
+    },
+    "field.reference.heading" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Field reference" } } }
+    },
+    "field.reference.provenance" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reference provenance" } } }
+    },
+    "field.reference.pack" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reference pack" } } }
+    },
+    "field.reference.kind" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reference kind" } } }
+    },
+    "field.reference.kind.sop" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Standard operating procedure" } } }
+    },
+    "field.reference.kind.manual" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Manual" } } }
+    },
+    "field.reference.kind.drawing" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Drawing" } } }
+    },
+    "field.reference.kind.specification" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Specification" } } }
+    },
+    "field.reference.semantic-version" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reference version" } } }
+    },
+    "field.reference.release" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reference release" } } }
+    },
+    "field.reference.release.active" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Release active" } } }
+    },
+    "field.reference.release.revoked" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Release revoked" } } }
+    },
+    "field.reference.binding" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Work binding" } } }
+    },
+    "field.reference.subject" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Bound work" } } }
+    },
+    "field.reference.subject.work-packet" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Work packet" } } }
+    },
+    "field.reference.subject.round-session" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Round session" } } }
+    },
+    "field.reference.subject.active" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Active work" } } }
+    },
+    "field.reference.subject.finalized" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Finalized work" } } }
+    },
+    "field.reference.provenance.kind" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Provenance type" } } }
+    },
+    "field.reference.provenance.licensed" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Licensed source" } } }
+    },
+    "field.reference.provenance.synthetic" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Synthetic source" } } }
+    },
+    "field.reference.provenance.license-scope" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "License scope" } } }
+    },
+    "field.reference.provenance.license-scope.local-use-only" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Local use only" } } }
+    },
+    "field.reference.provenance.license-scope.citation-allowed" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Citation allowed" } } }
+    },
+    "field.reference.provenance.license-scope.citation-and-export-allowed" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Citation and export allowed" } } }
+    },
+    "field.reference.provenance.license-scope.restricted" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Restricted use" } } }
+    },
+    "field.reference.availability" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reference availability" } } }
+    },
+    "field.reference.availability.ready-offline" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Ready offline" } } }
+    },
+    "field.reference.availability.missing-bytes" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Required bytes missing" } } }
+    },
+    "field.reference.availability.expired" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reference expired" } } }
+    },
+    "field.reference.availability.revoked" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reference revoked" } } }
+    },
+    "field.reference.availability.superseded" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reference superseded" } } }
+    },
+    "field.reference.availability.stale-binding" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Binding is stale" } } }
+    },
+    "field.reference.availability.protected-data-unavailable" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Protected data unavailable" } } }
+    },
+    "field.reference.availability.unavailable" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reference unavailable" } } }
+    },
+    "field.reference.required-content" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Required reference bytes" } } }
+    },
+    "field.reference.missing-content" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Missing required bytes" } } }
+    },
+    "field.reference.next-step" : {
+      "comment" : "English label for a recorded local field-reference release, binding, provenance, license scope, or offline availability state; never imply authority, compliance, observation, secure storage, remote delivery, customer data, or work identity.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review the recorded reference state" } } }
     }
   },
   "version" : "1.0"

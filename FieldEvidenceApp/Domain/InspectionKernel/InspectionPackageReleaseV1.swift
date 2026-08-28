@@ -8,6 +8,15 @@ enum InspectionPackageReleaseStateV1: String, CaseIterable, Codable, Sendable {
 }
 
 extension InspectionPackageReleaseV1 {
+    func validateFieldReferenceRelease(_ reference: FieldReferenceReleaseV1) throws {
+        try validate()
+        try reference.validate()
+        let package = try InspectionPackageCanonicalCodecV2.decode(canonicalPackageBytes)
+        try package.validateFieldReference(reference)
+    }
+}
+
+extension InspectionPackageReleaseV1 {
     func validateClientCapability(policy: PackageLifecyclePolicyV1,
                                   disposition: PackageLifecycleDispositionV1) throws {
         try validate(); try policy.validate(release: self); try disposition.validate(release: self)

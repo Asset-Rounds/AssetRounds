@@ -1707,6 +1707,170 @@ extension DeterministicOpenJSONRendererV1 {
     }
 }
 
+// MARK: - C23 version-bound field-reference open JSON
+
+struct FieldReferenceOpenJSONLabelsV1: Codable, Equatable, Sendable {
+    let heading: String
+    let provenance: String
+    let provenanceValue: String
+    let licenseScope: String
+    let licenseScopeValue: String
+    let pack: String
+    let kind: String
+    let kindValue: String
+    let semanticVersion: String
+    let release: String
+    let releaseValue: String
+    let binding: String
+    let subject: String
+    let subjectValue: String
+    let availability: String
+    let availabilityValue: String
+    let requiredContent: String
+    let missingContent: String
+    let nextStep: String
+
+    init(projection: FieldReferenceReportProjectionV1) {
+        func display(_ key: FieldReferenceLocalizationKeyV1) -> String {
+            BundledLocalizationCatalogV1.fieldReferenceDisplayLabel(for: key)
+        }
+        heading = display(.heading)
+        provenance = display(.provenance)
+        provenanceValue = display(
+            FieldReferenceLocalizationKeyV1.provenanceKindKey(projection.provenanceKind)
+        )
+        licenseScope = display(.licenseScope)
+        licenseScopeValue = display(
+            FieldReferenceLocalizationKeyV1.licenseScopeKey(projection.licenseScope)
+        )
+        pack = display(.pack)
+        kind = display(.kind)
+        kindValue = display(FieldReferenceLocalizationKeyV1.kindKey(projection.kind))
+        semanticVersion = display(.semanticVersion)
+        release = display(.release)
+        releaseValue = projection.releaseDisposition == .active
+            ? display(.releaseActive) : display(.releaseRevoked)
+        binding = display(.binding)
+        subject = display(.subject)
+        subjectValue = display(FieldReferenceLocalizationKeyV1.subjectKindKey(projection.subjectKind))
+            + " / "
+            + display(FieldReferenceLocalizationKeyV1.subjectStateKey(projection.subjectState))
+        availability = display(.availability)
+        availabilityValue = display(
+            FieldReferenceLocalizationKeyV1.availabilityKey(projection.availability)
+        )
+        requiredContent = display(.requiredContent)
+        missingContent = display(.missingContent)
+        nextStep = display(.nextStep)
+    }
+
+    func validate() throws {
+        let values = [
+            heading, provenance, provenanceValue, licenseScope, licenseScopeValue,
+            pack, kind, kindValue,
+            semanticVersion, release, releaseValue, binding, subject,
+            subjectValue, availability, availabilityValue, requiredContent,
+            missingContent, nextStep,
+        ]
+        guard values.allSatisfy({ !$0.isEmpty }),
+              !FieldReferenceLocalizationPolicyV1.containsProhibitedClaim(in: values),
+              !FieldReferenceLocalizationPolicyV1.containsCustomerOrWorkDataLeakage(in: values) else {
+            throw SnapshotProjectionFailureV1.hostileText
+        }
+    }
+}
+
+struct FieldReferenceOpenJSONEnvelopeV1: Codable, Equatable, Sendable {
+    static let schema = "FIELD_REFERENCE_REPORT_OPEN_JSON_V1"
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let schema: String
+    let locale: String
+    let projection: FieldReferenceReportProjectionV1
+    let labels: FieldReferenceOpenJSONLabelsV1
+
+    init(
+        projection: FieldReferenceReportProjectionV1,
+        locale: String = BundledLocalizationCatalogV1.runtimeLanguage
+    ) throws {
+        try projection.validate()
+        guard locale == "en" else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        schemaVersion = Self.schemaVersion
+        schema = Self.schema
+        self.locale = locale
+        self.projection = projection
+        labels = FieldReferenceOpenJSONLabelsV1(projection: projection)
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              schema == Self.schema,
+              locale == "en" else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try projection.validate()
+        try labels.validate()
+        guard labels == FieldReferenceOpenJSONLabelsV1(projection: projection) else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+    }
+}
+
+extension DeterministicOpenJSONRendererV1 {
+    static func renderFieldReference(
+        _ projection: FieldReferenceReportProjectionV1
+    ) throws -> ReportProjectionOutputV1 {
+        try FieldReferenceReportProjectionPolicyV1.validate(projection, format: .openJSON)
+        let envelope = try FieldReferenceOpenJSONEnvelopeV1(projection: projection)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let data = try encoder.encode(envelope)
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes,
+              try reopenFieldReference(data) == projection else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return ReportProjectionOutputV1(
+            format: .openJSON,
+            data: data,
+            sha256: KernelCanonicalHashV1.sha256(data),
+            semanticSHA256: projection.projectionSHA256,
+            orderedSemanticIDs: [
+                FieldReferenceAccessibilityIDV1.heading.rawValue,
+                FieldReferenceAccessibilityIDV1.provenance.rawValue,
+                FieldReferenceAccessibilityPolicyV1
+                    .availabilityID(projection.availability).rawValue,
+                FieldReferenceAccessibilityIDV1.nextStep.rawValue,
+            ],
+            taggedPDFAccessibilityEvidence: false
+        )
+    }
+
+    static func reopenFieldReference(
+        _ data: Data
+    ) throws -> FieldReferenceReportProjectionV1 {
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        let envelope = try JSONDecoder().decode(
+            FieldReferenceOpenJSONEnvelopeV1.self,
+            from: data
+        )
+        try envelope.validate()
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        guard try encoder.encode(envelope) == data else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return envelope.projection
+    }
+}
+
 // MARK: - C20 audience-safe privacy-transform open JSON
 
 struct PrivacyTransformOpenJSONLabelsV1: Codable, Equatable, Sendable {

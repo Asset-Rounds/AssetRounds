@@ -29,4 +29,11 @@ final class MutationReceiptRecoveryServiceV1 {
     func recoverRecoverabilityVerificationReceiptsBeforeWriterActivation() throws {
         try recoverBeforeWriterActivation()
     }
+
+    /// C23 release imports and subject bindings recover from the same canonical
+    /// effect-before-receipt boundary. Offline readiness remains derived and is
+    /// never reconstructed as durable state here.
+    func recoverFieldReferenceEffectsBeforeWriterActivation() throws {
+        try recoverBeforeWriterActivation()
+    }
 }

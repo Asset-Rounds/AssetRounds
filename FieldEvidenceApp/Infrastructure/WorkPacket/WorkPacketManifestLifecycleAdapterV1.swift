@@ -50,4 +50,51 @@ import Foundation
             at: instant
         )
     }
+
+    /// C23 read-only projection path. The source still supplies only the
+    /// existing work-packet rows; field-reference releases, bindings, and
+    /// readiness are explicit inputs from their canonical owner.
+    func projectionWithFieldReferences(
+        workspaceID: WorkspaceID,
+        manifestID: UUID,
+        fieldReferenceBindings: [FieldReferenceBindingV1],
+        fieldReferenceReleases: [FieldReferenceReleaseV1],
+        fieldReferenceReadiness: [FieldReferenceOfflineReadinessV1],
+        subjectState: FieldReferenceSubjectStateV1 = .active,
+        at instant: Date
+    ) throws -> WorkPacketFieldReferenceProjectionV1 {
+        let value = try manifest(workspaceID: workspaceID, manifestID: manifestID)
+        return try WorkPacketReferenceProjectionBuilderV1.rebuild(
+            workspaceID: workspaceID,
+            manifest: value,
+            claims: source.claims(workspaceID: workspaceID),
+            leases: source.leases(workspaceID: workspaceID),
+            releases: source.releases(workspaceID: workspaceID),
+            handoffs: source.handoffs(workspaceID: workspaceID),
+            fieldReferenceBindings: fieldReferenceBindings,
+            fieldReferenceReleases: fieldReferenceReleases,
+            fieldReferenceReadiness: fieldReferenceReadiness,
+            subjectState: subjectState,
+            at: instant
+        )
+    }
+
+    /// Read-back guard used by session consumers before they display or
+    /// finalize a packet. A stale or missing C23 binding is never inferred.
+    func validateFieldReferenceBinding(
+        workspaceID: WorkspaceID,
+        manifestID: UUID,
+        binding: FieldReferenceBindingV1,
+        release: FieldReferenceReleaseV1,
+        readiness: FieldReferenceOfflineReadinessV1,
+        subjectState: FieldReferenceSubjectStateV1 = .active
+    ) throws -> WorkSessionFieldReferenceProjectionV1 {
+        let value = try manifest(workspaceID: workspaceID, manifestID: manifestID)
+        return try value.c23ValidateReferenceBinding(
+            binding,
+            release: release,
+            readiness: readiness,
+            subjectState: subjectState
+        )
+    }
 }

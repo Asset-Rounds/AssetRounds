@@ -1829,3 +1829,11 @@ extension V9_22LocalizationAccessibilityTests {
         XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
     }
 }
+
+extension V9_22LocalizationAccessibilityTests {
+    func testC23FieldReferencePackAnchor() throws {
+        XCTAssertEqual(FieldReferenceAvailabilityV1.allCases.count, 8)
+        XCTAssertFalse(FieldReferencePackLifecycleV1.runtimeFetchingAllowed)
+        XCTAssertFalse(FieldReferencePackLifecycleV1.drmOrAccountRequired)
+    }
+}

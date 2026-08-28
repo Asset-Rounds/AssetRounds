@@ -1202,6 +1202,46 @@ final class ReportDeliveryCoordinator {
         return formatter
     }()
 }
+
+// MARK: - C23 version-bound field-reference delivery
+
+enum FieldReferenceReportDeliveryPolicyV1 {
+    static let localExportOnly = true
+    static let remoteDeliveryClaimed = false
+    static let deliveryAcknowledgementClaimed = false
+    static let metadataOnly = true
+    static let excludesReferenceBytes = true
+    static let excludesPrivateLocators = true
+    static let excludesLicenseSecrets = true
+    static let excludesSubjectIdentity = true
+
+    static func validateExport(
+        _ projection: FieldReferenceReportProjectionV1
+    ) throws -> FieldReferenceReportProjectionV1 {
+        try FieldReferenceReportProjectionPolicyV1.validate(projection, format: .openJSON)
+        guard projection.licenseScope != .restricted else {
+            throw FieldReferenceReportProjectionFailureV1.restrictedContent
+        }
+        guard localExportOnly,
+              !remoteDeliveryClaimed,
+              !deliveryAcknowledgementClaimed,
+              metadataOnly,
+              excludesReferenceBytes,
+              excludesPrivateLocators,
+              excludesLicenseSecrets,
+              excludesSubjectIdentity else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+        return projection
+    }
+
+    static func localExportData(
+        _ projection: FieldReferenceReportProjectionV1
+    ) throws -> Data {
+        try validateExport(projection)
+        return try DeterministicPDFRendererV1.fieldReferenceMetadataData(projection)
+    }
+}
 private struct ReadyValidatedEvidenceBytes: Sendable {
     let originalJPEG: Data
     let thumbnailJPEG: Data

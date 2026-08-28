@@ -549,3 +549,54 @@ private struct ReportHistoryChronologyValue {
     let assetID: UUID
     let completedAt: Date
 }
+
+// MARK: - C23 version-bound field-reference history
+
+/// History stores the frozen release/binding provenance needed to explain a
+/// report. It intentionally omits reference bytes, locators, license notices,
+/// and the bound subject identifier.
+struct FieldReferenceReportHistoryValueV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let releaseID: UUID
+    let bindingID: UUID
+    let referencePackID: String
+    let semanticVersion: String
+    let releaseSHA256: String
+    let manifestSHA256: String
+    let readinessSHA256: String
+    let availability: FieldReferenceAvailabilityV1
+    let subjectState: FieldReferenceSubjectStateV1
+    let historicBindingImmutable: Bool
+
+    init(projection: FieldReferenceReportProjectionV1) throws {
+        try projection.validate()
+        schemaVersion = Self.schemaVersion
+        releaseID = projection.releaseID
+        bindingID = projection.bindingID
+        referencePackID = projection.referencePackID
+        semanticVersion = projection.semanticVersion
+        releaseSHA256 = projection.releaseSHA256
+        manifestSHA256 = projection.manifestSHA256
+        readinessSHA256 = projection.readinessSHA256
+        availability = projection.availability
+        subjectState = projection.subjectState
+        historicBindingImmutable = projection.historicBindingImmutable
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              releaseID != FieldReferenceValidationV1.zero,
+              bindingID != FieldReferenceValidationV1.zero,
+              ContentContractValidationV1.validID(referencePackID),
+              ContentContractValidationV1.validID(semanticVersion),
+              KernelCanonicalHashV1.validSHA256(releaseSHA256),
+              KernelCanonicalHashV1.validSHA256(manifestSHA256),
+              KernelCanonicalHashV1.validSHA256(readinessSHA256),
+              historicBindingImmutable else {
+            throw FieldReferenceReportProjectionFailureV1.invalidValue
+        }
+    }
+}

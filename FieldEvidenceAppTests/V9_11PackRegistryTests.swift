@@ -583,3 +583,11 @@ extension V9_11PackRegistryTests {
         XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
     }
 }
+
+extension V9_11PackRegistryTests {
+    func testC23FieldReferencePackAnchor() throws {
+        XCTAssertEqual(FieldReferenceSubjectKindV1.allCases.count, 2)
+        XCTAssertEqual(FieldReferenceSubjectStateV1.allCases.count, 2)
+        XCTAssertEqual(FieldReferenceReleaseDispositionV1.allCases.count, 2)
+    }
+}

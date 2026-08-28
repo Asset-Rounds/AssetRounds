@@ -357,6 +357,45 @@ enum BundledLocalizationKeyV1: String, CaseIterable, Sendable {
     case packageLifecycleBlocked = "package.lifecycle.blocked"
     case clientCapabilityNextStep = "client.capability.next_step"
 
+    case fieldReferenceHeading = "field.reference.heading"
+    case fieldReferenceProvenance = "field.reference.provenance"
+    case fieldReferencePack = "field.reference.pack"
+    case fieldReferenceKind = "field.reference.kind"
+    case fieldReferenceKindSOP = "field.reference.kind.sop"
+    case fieldReferenceKindManual = "field.reference.kind.manual"
+    case fieldReferenceKindDrawing = "field.reference.kind.drawing"
+    case fieldReferenceKindSpecification = "field.reference.kind.specification"
+    case fieldReferenceSemanticVersion = "field.reference.semantic-version"
+    case fieldReferenceRelease = "field.reference.release"
+    case fieldReferenceReleaseActive = "field.reference.release.active"
+    case fieldReferenceReleaseRevoked = "field.reference.release.revoked"
+    case fieldReferenceBinding = "field.reference.binding"
+    case fieldReferenceSubject = "field.reference.subject"
+    case fieldReferenceSubjectWorkPacket = "field.reference.subject.work-packet"
+    case fieldReferenceSubjectRoundSession = "field.reference.subject.round-session"
+    case fieldReferenceSubjectActive = "field.reference.subject.active"
+    case fieldReferenceSubjectFinalized = "field.reference.subject.finalized"
+    case fieldReferenceProvenanceKind = "field.reference.provenance.kind"
+    case fieldReferenceProvenanceLicensed = "field.reference.provenance.licensed"
+    case fieldReferenceProvenanceSynthetic = "field.reference.provenance.synthetic"
+    case fieldReferenceLicenseScope = "field.reference.provenance.license-scope"
+    case fieldReferenceLicenseLocalUseOnly = "field.reference.provenance.license-scope.local-use-only"
+    case fieldReferenceLicenseCitationAllowed = "field.reference.provenance.license-scope.citation-allowed"
+    case fieldReferenceLicenseCitationAndExportAllowed = "field.reference.provenance.license-scope.citation-and-export-allowed"
+    case fieldReferenceLicenseRestricted = "field.reference.provenance.license-scope.restricted"
+    case fieldReferenceAvailability = "field.reference.availability"
+    case fieldReferenceAvailabilityReadyOffline = "field.reference.availability.ready-offline"
+    case fieldReferenceAvailabilityMissingBytes = "field.reference.availability.missing-bytes"
+    case fieldReferenceAvailabilityExpired = "field.reference.availability.expired"
+    case fieldReferenceAvailabilityRevoked = "field.reference.availability.revoked"
+    case fieldReferenceAvailabilitySuperseded = "field.reference.availability.superseded"
+    case fieldReferenceAvailabilityStaleBinding = "field.reference.availability.stale-binding"
+    case fieldReferenceAvailabilityProtectedDataUnavailable = "field.reference.availability.protected-data-unavailable"
+    case fieldReferenceAvailabilityUnavailable = "field.reference.availability.unavailable"
+    case fieldReferenceRequiredContent = "field.reference.required-content"
+    case fieldReferenceMissingContent = "field.reference.missing-content"
+    case fieldReferenceNextStep = "field.reference.next-step"
+
     static var functionalRelationshipDirected: Self { .functionalRelationshipDirectedSourceToTarget }
     static var functionalRelationshipActive: Self { .functionalRelationshipActiveState }
     static var functionalRelationshipEnded: Self { .functionalRelationshipEndedState }
@@ -2348,6 +2387,7 @@ enum BundledLocalizationCatalogV1 {
         includeMeasurementIntegrity: Bool = false,
         includePrivacyTransform: Bool = false,
         includeClientCapability: Bool = false,
+        includeFieldReference: Bool = false,
         interruption: Interruption = { _ in }
     ) throws -> LocalizationCatalogPublicationV1 {
         try interruption(.beforeValidation)
@@ -2355,7 +2395,9 @@ enum BundledLocalizationCatalogV1 {
         let locales = LocalizationLocaleManifestV1.shippingV1()
         try locales.validate()
         let keys: LocalizationKeyRegistryV1
-        if includeClientCapability {
+        if includeFieldReference {
+            keys = try fieldReferenceRegistry()
+        } else if includeClientCapability {
             keys = try clientCapabilityRegistry()
         } else if includePrivacyTransform {
             keys = try privacyTransformRegistry()
@@ -2388,7 +2430,9 @@ enum BundledLocalizationCatalogV1 {
         }
         if let previousLegacy { try previousLegacy.validateObserved(legacy.entries) }
         let accessibility: SemanticAccessibilityIDRegistryV1
-        if includeClientCapability {
+        if includeFieldReference {
+            accessibility = try fieldReferenceAccessibilityRegistry(localization: keys)
+        } else if includeClientCapability {
             accessibility = try clientCapabilityAccessibilityRegistry(localization: keys)
         } else if includePrivacyTransform {
             accessibility = try privacyTransformAccessibilityRegistry(localization: keys)
@@ -2466,7 +2510,8 @@ enum BundledLocalizationCatalogV1 {
         includeFieldDraft: Bool = false,
         includeMeasurementIntegrity: Bool = false,
         includePrivacyTransform: Bool = false,
-        includeClientCapability: Bool = false
+        includeClientCapability: Bool = false,
+        includeFieldReference: Bool = false
     ) throws -> LocalizationCatalogPublicationV1 {
         switch (sourceCatalogBytes, receipt) {
         case (nil, nil): return .zero
@@ -2490,7 +2535,8 @@ enum BundledLocalizationCatalogV1 {
                 includeFieldDraft: includeFieldDraft,
                 includeMeasurementIntegrity: includeMeasurementIntegrity,
                 includePrivacyTransform: includePrivacyTransform,
-                includeClientCapability: includeClientCapability
+                includeClientCapability: includeClientCapability,
+                includeFieldReference: includeFieldReference
             )
             guard case let .complete(_, _, _, _, actual) = publication,
                   actual == expected else { throw LocalizationContractFailureV1.digestMismatch }
@@ -3018,6 +3064,45 @@ enum BundledLocalizationCatalogV1 {
              .packageLifecycleBlocked,
              .clientCapabilityNextStep:
             return ClientCapabilityLocalizationKeyV1(rawValue: key.rawValue)?.englishDefaultValue ?? key.rawValue
+        case .fieldReferenceHeading,
+             .fieldReferenceProvenance,
+             .fieldReferencePack,
+             .fieldReferenceKind,
+             .fieldReferenceKindSOP,
+             .fieldReferenceKindManual,
+             .fieldReferenceKindDrawing,
+             .fieldReferenceKindSpecification,
+             .fieldReferenceSemanticVersion,
+             .fieldReferenceRelease,
+             .fieldReferenceReleaseActive,
+             .fieldReferenceReleaseRevoked,
+             .fieldReferenceBinding,
+             .fieldReferenceSubject,
+             .fieldReferenceSubjectWorkPacket,
+             .fieldReferenceSubjectRoundSession,
+             .fieldReferenceSubjectActive,
+             .fieldReferenceSubjectFinalized,
+             .fieldReferenceProvenanceKind,
+             .fieldReferenceProvenanceLicensed,
+             .fieldReferenceProvenanceSynthetic,
+             .fieldReferenceLicenseScope,
+             .fieldReferenceLicenseLocalUseOnly,
+             .fieldReferenceLicenseCitationAllowed,
+             .fieldReferenceLicenseCitationAndExportAllowed,
+             .fieldReferenceLicenseRestricted,
+             .fieldReferenceAvailability,
+             .fieldReferenceAvailabilityReadyOffline,
+             .fieldReferenceAvailabilityMissingBytes,
+             .fieldReferenceAvailabilityExpired,
+             .fieldReferenceAvailabilityRevoked,
+             .fieldReferenceAvailabilitySuperseded,
+             .fieldReferenceAvailabilityStaleBinding,
+             .fieldReferenceAvailabilityProtectedDataUnavailable,
+             .fieldReferenceAvailabilityUnavailable,
+             .fieldReferenceRequiredContent,
+             .fieldReferenceMissingContent,
+             .fieldReferenceNextStep:
+            return FieldReferenceLocalizationKeyV1(rawValue: key.rawValue)?.englishDefaultValue ?? key.rawValue
         }
     }
 
@@ -3070,7 +3155,11 @@ enum BundledLocalizationCatalogV1 {
         // additive projection, while the selected registry still controls the
         // required subset.  This keeps C16/C38 compatibility callers frozen
         // and lets each additive typed surface publish atomically.
-        let supportedKeys = Set((try? clientCapabilityRegistry())?.definitions.map(\.key.rawValue) ?? [])
+        var supportedKeys = Set((try? clientCapabilityRegistry())?.definitions.map(\.key.rawValue) ?? [])
+        // C23 is an additive consumer registry. Keep source-catalog validation
+        // aware of its closed keys even when an older caller requests the
+        // predecessor registry.
+        supportedKeys.formUnion(FieldReferenceLocalizationKeyV1.allCases.map(\.rawValue))
         guard registeredKeys.isSubset(of: Set(strings.keys)),
               Set(strings.keys).isSubset(of: supportedKeys) else {
             throw LocalizationContractFailureV1.invalidValue
@@ -3197,6 +3286,69 @@ extension BundledLocalizationCatalogV1 {
     static func packageEvolutionAccessibilityContracts()
         -> [PackageEvolutionAccessibilityContractV1] {
         PackageEvolutionAccessibilityPolicyV1.contracts
+    }
+}
+
+// MARK: - C23 version-bound field-reference labels
+
+extension BundledLocalizationCatalogV1 {
+    /// Publishes the closed C23 field-reference vocabulary as an additive
+    /// English-only registry.  Release/binding identity is compared by the
+    /// canonical projection and digest fields, never by a localized label.
+    static func fieldReferenceRegistry() throws -> LocalizationKeyRegistryV1 {
+        let base = try clientCapabilityRegistry()
+        let additions = try FieldReferenceLocalizationKeyV1.allCases.map { key in
+            guard let bundledKey = BundledLocalizationKeyV1(rawValue: key.rawValue) else {
+                throw LocalizationContractFailureV1.missingKey
+            }
+            return try definition(
+                bundledKey,
+                key.rawValue,
+                key.englishDefaultValue,
+                key.translatorComment
+            )
+        }
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+
+    static func fieldReferenceAccessibilityRegistry(
+        localization: LocalizationKeyRegistryV1
+    ) throws -> SemanticAccessibilityIDRegistryV1 {
+        let base = try clientCapabilityAccessibilityRegistry(localization: localization)
+        let nextStep = try LocalizationKeyV1(FieldReferenceLocalizationKeyV1.nextStep.rawValue)
+        let entries = try FieldReferenceAccessibilityIDV1.allCases.map {
+            id -> AccessibilityContractV1 in
+            let role: SemanticAccessibilityRoleV1
+            switch id {
+            case .screen: role = .screen
+            case .heading: role = .heading
+            case .nextStep: role = .button
+            default:
+                role = FieldReferenceAccessibilityPolicyV1.stateSemanticIDs
+                    .contains(id.rawValue) ? .status : .group
+            }
+            return AccessibilityContractV1(
+                semanticID: id.rawValue,
+                role: role,
+                reachability: .whenAvailable,
+                labelKey: id.localizationKey,
+                hintKey: FieldReferenceAccessibilityPolicyV1
+                    .requiresActionableNextStep(for: id.rawValue) ? nextStep : nil,
+                valueKey: nil,
+                dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            )
+        }
+        return try base.appending(entries, localization: localization)
+    }
+
+    static func fieldReferenceDisplayLabel(
+        for key: FieldReferenceLocalizationKeyV1
+    ) -> String {
+        guard let bundled = BundledLocalizationKeyV1(rawValue: key.rawValue) else {
+            return key.englishDefaultValue
+        }
+        return localized(bundled)
     }
 }
 

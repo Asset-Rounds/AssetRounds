@@ -738,3 +738,11 @@ final class V9_LocationHierarchyPlacementCompositionTests: XCTestCase {
         return try XCTUnwrap(rows.first { $0["id"] as? String == id })
     }
 }
+
+extension V9_LocationHierarchyPlacementCompositionTests {
+    func testC23FieldReferencePackAnchor() throws {
+        XCTAssertEqual(FieldReferencePackLifecycleV1.stagingPersistence, "DERIVED_ONLY")
+        XCTAssertFalse(FieldReferencePackLifecycleV1.currentProjectionPersistent)
+        XCTAssertEqual(FieldReferencePackLifecycleV1.persistentFamilies.count, 2)
+    }
+}

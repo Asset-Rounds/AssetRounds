@@ -9,6 +9,11 @@ enum BundledInspectionPackageRegistryLoadResultV2: Equatable, Sendable {
     case unavailable(InspectionPackageFailureV2)
 }
 
+enum BundledFieldReferenceBoundaryV1 {
+    static let runtimeFetchAllowed = false
+    static let bundledDeclarationsAreCanonicalReferenceBytes = false
+}
+
 extension BundledInspectionPackageRegistryV2 {
     static func admittedShippingPackage(
         decision: ClientCapabilityAdmissionDecisionV1,

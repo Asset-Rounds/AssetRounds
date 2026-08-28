@@ -2357,3 +2357,314 @@ enum ClientCapabilityReportProjectionPolicyV1 {
 }
 
 typealias ClientCapabilityAdmissionReportProjectionV1 = ClientCapabilityReportProjectionV1
+
+// MARK: - C23 version-bound field-reference projection
+
+enum FieldReferenceReportProjectionFailureV1: Error, Equatable, Sendable {
+    case invalidValue
+    case invalidDigest
+    case wrongWorkspace
+    case staleBinding
+    case missingBytes
+    case restrictedContent
+    case unsupportedFormat
+    case identityLeak
+}
+
+/// Audience-safe report metadata for one immutable field-reference release
+/// bound to a work packet or round session.  The projection carries bounded
+/// provenance and lifecycle/readiness facts only; reference bytes, locators,
+/// content IDs, license notices, and subject IDs remain outside report data.
+struct FieldReferenceReportProjectionV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let projectionVersion = "field-reference-report-v1"
+
+    let schemaVersion: Int
+    let projectionVersion: String
+    let releaseID: UUID
+    let bindingID: UUID
+    let referencePackID: String
+    let kind: FieldReferenceKindV1
+    let semanticVersion: String
+    let provenanceKind: FieldReferenceProvenanceKindV1
+    let sourceName: String
+    let sourceReleaseIdentifier: String
+    let licenseScope: FieldReferenceLicenseScopeV1
+    let releaseDisposition: FieldReferenceReleaseDispositionV1
+    let subjectKind: FieldReferenceSubjectKindV1
+    let subjectState: FieldReferenceSubjectStateV1
+    let availability: FieldReferenceAvailabilityV1
+    let requiredContentCount: Int
+    let missingContentCount: Int
+    let releaseSHA256: String
+    let manifestSHA256: String
+    let readinessSHA256: String
+    let historicBindingImmutable: Bool
+    let restrictedContentOmitted: Bool
+    let projectionSHA256: String
+
+    init(
+        release: FieldReferenceReleaseV1,
+        binding: FieldReferenceBindingV1,
+        readiness: FieldReferenceOfflineReadinessV1
+    ) throws {
+        try release.validate()
+        try binding.validate(release: release)
+        let canonicalBindingProjection = try WorkSessionFieldReferenceProjectionV1(
+            binding: binding,
+            release: release,
+            readiness: readiness
+        )
+        try canonicalBindingProjection.validate()
+        guard readiness.releaseID == release.releaseID,
+              readiness.bindingID == binding.bindingID,
+              readiness.missingContentIDs == readiness.missingContentIDs.sorted(),
+              Set(readiness.missingContentIDs).count == readiness.missingContentIDs.count,
+              KernelCanonicalHashV1.validSHA256(readiness.readinessSHA256) else {
+            throw FieldReferenceReportProjectionFailureV1.staleBinding
+        }
+        if readiness.availability == .readyOffline {
+            guard readiness.missingContentIDs.isEmpty else {
+                throw FieldReferenceReportProjectionFailureV1.missingBytes
+            }
+        }
+        if readiness.availability == .missingBytes {
+            guard !readiness.missingContentIDs.isEmpty else {
+                throw FieldReferenceReportProjectionFailureV1.missingBytes
+            }
+        }
+        guard readiness.availability != .revoked
+                || release.releaseDisposition == .revoked,
+              readiness.availability != .readyOffline
+                || release.releaseDisposition == .active else {
+            throw FieldReferenceReportProjectionFailureV1.invalidValue
+        }
+
+        schemaVersion = Self.schemaVersion
+        projectionVersion = Self.projectionVersion
+        releaseID = release.releaseID
+        bindingID = binding.bindingID
+        referencePackID = release.referencePackID
+        kind = release.kind
+        semanticVersion = release.semanticVersion
+        provenanceKind = release.provenance.kind
+        sourceName = release.provenance.sourceName
+        sourceReleaseIdentifier = release.provenance.sourceReleaseIdentifier
+        licenseScope = release.provenance.licenseScope
+        releaseDisposition = release.releaseDisposition
+        subjectKind = binding.subjectKind
+        subjectState = binding.subjectState
+        availability = readiness.availability
+        requiredContentCount = release.manifest.entries.filter(\.requiredForOpen).count
+        missingContentCount = readiness.missingContentIDs.count
+        releaseSHA256 = release.releaseSHA256
+        manifestSHA256 = release.manifestSHA256
+        readinessSHA256 = readiness.readinessSHA256
+        historicBindingImmutable = true
+        restrictedContentOmitted = true
+        projectionSHA256 = try Self.digest(
+            releaseID: releaseID,
+            bindingID: bindingID,
+            referencePackID: referencePackID,
+            kind: kind,
+            semanticVersion: semanticVersion,
+            provenanceKind: provenanceKind,
+            sourceName: sourceName,
+            sourceReleaseIdentifier: sourceReleaseIdentifier,
+            licenseScope: licenseScope,
+            releaseDisposition: releaseDisposition,
+            subjectKind: subjectKind,
+            subjectState: subjectState,
+            availability: availability,
+            requiredContentCount: requiredContentCount,
+            missingContentCount: missingContentCount,
+            releaseSHA256: releaseSHA256,
+            manifestSHA256: manifestSHA256,
+            readinessSHA256: readinessSHA256,
+            historicBindingImmutable: historicBindingImmutable,
+            restrictedContentOmitted: restrictedContentOmitted
+        )
+        try validate()
+    }
+
+    var isReadyOffline: Bool { availability == .readyOffline && missingContentCount == 0 }
+    var isHistoricBinding: Bool { subjectState == .finalized || availability != .readyOffline }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              projectionVersion == Self.projectionVersion,
+              releaseID != FieldReferenceValidationV1.zero,
+              bindingID != FieldReferenceValidationV1.zero,
+              ContentContractValidationV1.validID(referencePackID),
+              ContentContractValidationV1.validID(semanticVersion),
+              !sourceName.isEmpty,
+              !sourceReleaseIdentifier.isEmpty,
+              !FieldReferenceLocalizationPolicyV1.containsProhibitedClaim(
+                  in: [referencePackID, semanticVersion, sourceName, sourceReleaseIdentifier]
+              ),
+              !FieldReferenceLocalizationPolicyV1.containsCustomerOrWorkDataLeakage(
+                  in: [referencePackID, semanticVersion, sourceName, sourceReleaseIdentifier]
+              ),
+              requiredContentCount >= 0,
+              missingContentCount >= 0,
+              missingContentCount <= requiredContentCount,
+              KernelCanonicalHashV1.validSHA256(releaseSHA256),
+              KernelCanonicalHashV1.validSHA256(manifestSHA256),
+              KernelCanonicalHashV1.validSHA256(readinessSHA256),
+              historicBindingImmutable,
+              restrictedContentOmitted,
+              projectionSHA256 == expectedDigest else {
+            throw FieldReferenceReportProjectionFailureV1.invalidValue
+        }
+        if availability == .readyOffline {
+            guard missingContentCount == 0 else {
+                throw FieldReferenceReportProjectionFailureV1.missingBytes
+            }
+        }
+        if availability == .missingBytes {
+            guard missingContentCount > 0 else {
+                throw FieldReferenceReportProjectionFailureV1.missingBytes
+            }
+        }
+        guard availability != .revoked || releaseDisposition == .revoked,
+              availability != .readyOffline || releaseDisposition == .active else {
+            throw FieldReferenceReportProjectionFailureV1.invalidValue
+        }
+    }
+
+    static func digest(
+        releaseID: UUID,
+        bindingID: UUID,
+        referencePackID: String,
+        kind: FieldReferenceKindV1,
+        semanticVersion: String,
+        provenanceKind: FieldReferenceProvenanceKindV1,
+        sourceName: String,
+        sourceReleaseIdentifier: String,
+        licenseScope: FieldReferenceLicenseScopeV1,
+        releaseDisposition: FieldReferenceReleaseDispositionV1,
+        subjectKind: FieldReferenceSubjectKindV1,
+        subjectState: FieldReferenceSubjectStateV1,
+        availability: FieldReferenceAvailabilityV1,
+        requiredContentCount: Int,
+        missingContentCount: Int,
+        releaseSHA256: String,
+        manifestSHA256: String,
+        readinessSHA256: String,
+        historicBindingImmutable: Bool,
+        restrictedContentOmitted: Bool
+    ) throws -> String {
+        try WorkspaceMutationCanonicalV1.sha256(Basis(
+            schemaVersion: Self.schemaVersion,
+            projectionVersion: Self.projectionVersion,
+            releaseID: releaseID,
+            bindingID: bindingID,
+            referencePackID: referencePackID,
+            kind: kind,
+            semanticVersion: semanticVersion,
+            provenanceKind: provenanceKind,
+            sourceName: sourceName,
+            sourceReleaseIdentifier: sourceReleaseIdentifier,
+            licenseScope: licenseScope,
+            releaseDisposition: releaseDisposition,
+            subjectKind: subjectKind,
+            subjectState: subjectState,
+            availability: availability,
+            requiredContentCount: requiredContentCount,
+            missingContentCount: missingContentCount,
+            releaseSHA256: releaseSHA256,
+            manifestSHA256: manifestSHA256,
+            readinessSHA256: readinessSHA256,
+            historicBindingImmutable: historicBindingImmutable,
+            restrictedContentOmitted: restrictedContentOmitted
+        ))
+    }
+
+    private var expectedDigest: String {
+        // swiftlint:disable:next force_try
+        try! Self.digest(
+            releaseID: releaseID,
+            bindingID: bindingID,
+            referencePackID: referencePackID,
+            kind: kind,
+            semanticVersion: semanticVersion,
+            provenanceKind: provenanceKind,
+            sourceName: sourceName,
+            sourceReleaseIdentifier: sourceReleaseIdentifier,
+            licenseScope: licenseScope,
+            releaseDisposition: releaseDisposition,
+            subjectKind: subjectKind,
+            subjectState: subjectState,
+            availability: availability,
+            requiredContentCount: requiredContentCount,
+            missingContentCount: missingContentCount,
+            releaseSHA256: releaseSHA256,
+            manifestSHA256: manifestSHA256,
+            readinessSHA256: readinessSHA256,
+            historicBindingImmutable: historicBindingImmutable,
+            restrictedContentOmitted: restrictedContentOmitted
+        )
+    }
+
+    private struct Basis: Codable {
+        let schemaVersion: Int
+        let projectionVersion: String
+        let releaseID: UUID
+        let bindingID: UUID
+        let referencePackID: String
+        let kind: FieldReferenceKindV1
+        let semanticVersion: String
+        let provenanceKind: FieldReferenceProvenanceKindV1
+        let sourceName: String
+        let sourceReleaseIdentifier: String
+        let licenseScope: FieldReferenceLicenseScopeV1
+        let releaseDisposition: FieldReferenceReleaseDispositionV1
+        let subjectKind: FieldReferenceSubjectKindV1
+        let subjectState: FieldReferenceSubjectStateV1
+        let availability: FieldReferenceAvailabilityV1
+        let requiredContentCount: Int
+        let missingContentCount: Int
+        let releaseSHA256: String
+        let manifestSHA256: String
+        let readinessSHA256: String
+        let historicBindingImmutable: Bool
+        let restrictedContentOmitted: Bool
+    }
+}
+
+enum FieldReferenceReportProjectionPolicyV1 {
+    static let sectionID = "field-reference"
+    static let projectionVersion = FieldReferenceReportProjectionV1.projectionVersion
+    static let metadataOnly = true
+    static let excludesReferenceBytes = true
+    static let excludesPrivateLocators = true
+    static let excludesLicenseSecrets = true
+    static let excludesSubjectIdentity = true
+    static let excludesObservationClaims = true
+    static let excludesComplianceClaims = true
+    static let silentReleaseReplacementAllowed = false
+    static let supportedFormats: Set<ReportProjectionFormatV1> = [
+        .openJSON, .pdf, .structuredText,
+    ]
+
+    static func validate(
+        _ projection: FieldReferenceReportProjectionV1,
+        format: ReportProjectionFormatV1
+    ) throws -> FieldReferenceReportProjectionV1 {
+        guard supportedFormats.contains(format) else {
+            throw FieldReferenceReportProjectionFailureV1.unsupportedFormat
+        }
+        try projection.validate()
+        guard metadataOnly,
+              excludesReferenceBytes,
+              excludesPrivateLocators,
+              excludesLicenseSecrets,
+              excludesSubjectIdentity,
+              excludesObservationClaims,
+              excludesComplianceClaims,
+              !silentReleaseReplacementAllowed else {
+            throw FieldReferenceReportProjectionFailureV1.identityLeak
+        }
+        return projection
+    }
+}

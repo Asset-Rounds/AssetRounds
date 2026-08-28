@@ -43,4 +43,26 @@ extension FieldDraftLifecycleAdapterV1 {
             admittedBy: capability
         )
     }
+
+    /// C23 read-back seam. The field-reference tuple is checked against the
+    /// durable checkpoint before any caller uses it for resume or commit; no
+    /// binding row is created here and no draft bytes are copied.
+    func validateFieldReferenceBinding(
+        checkpoint: FieldDraftCheckpointV1,
+        binding: FieldReferenceBindingV1,
+        release: FieldReferenceReleaseV1,
+        readiness: FieldReferenceOfflineReadinessV1
+    ) throws -> FieldDraftReferenceProjectionV1 {
+        guard let durable = try currentCheckpoint(
+            workspaceID: checkpoint.workspaceID,
+            draftID: checkpoint.draftID
+        ), durable.checkpointSHA256 == checkpoint.checkpointSHA256 else {
+            throw FieldDraftFailureV1.staleDraftRevision
+        }
+        return try durable.c23ReferenceProjection(
+            binding: binding,
+            release: release,
+            readiness: readiness
+        )
+    }
 }

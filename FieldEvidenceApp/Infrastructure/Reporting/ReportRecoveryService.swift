@@ -851,3 +851,35 @@ final class ReportRecoveryService: ObservableObject {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 }
+
+// MARK: - C23 version-bound field-reference recovery
+
+enum FieldReferenceReportRecoveryPolicyV1 {
+    static let boundReleaseIsRecoverySource = true
+    static let finalizedBindingIsImmutable = true
+    static let silentReleaseReplacementAllowed = false
+    static let discardUnboundReferenceMetadata = true
+    static let excludesReferenceBytes = true
+    static let excludesPrivateLocators = true
+    static let excludesLicenseSecrets = true
+    static let excludesSubjectIdentity = true
+
+    static func validateRecoveredProjection(
+        _ projection: FieldReferenceReportProjectionV1
+    ) throws -> FieldReferenceReportProjectionV1 {
+        try projection.validate()
+        guard boundReleaseIsRecoverySource,
+              finalizedBindingIsImmutable,
+              !silentReleaseReplacementAllowed,
+              discardUnboundReferenceMetadata,
+              excludesReferenceBytes,
+              excludesPrivateLocators,
+              excludesLicenseSecrets,
+              excludesSubjectIdentity,
+              projection.historicBindingImmutable,
+              projection.restrictedContentOmitted else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+        return projection
+    }
+}

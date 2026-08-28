@@ -5,6 +5,12 @@ enum OriginalContentOriginV1: String, CaseIterable, Codable, Hashable, Sendable 
     case localImport = "LOCAL_IMPORT"
 }
 
+enum FieldReferenceCitationProjectionV1 {
+    static func citation(for release: FieldReferenceReleaseV1) throws -> FieldReferenceCitationV1 {
+        try FieldReferenceCitationV1(release: release)
+    }
+}
+
 struct ContentOriginalProvenanceV1: Codable, Equatable, Identifiable, Sendable {
     static let schemaVersion = 1
     let schemaVersion: Int

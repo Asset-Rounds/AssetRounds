@@ -1276,3 +1276,127 @@ enum ClientCapabilityAccessibilityPolicyV1 {
         indeterminateSemanticIDs.contains(semanticID)
     }
 }
+
+// MARK: - C23 version-bound field-reference semantics
+
+/// Stable semantic IDs for the bounded field-reference report companion.
+/// These identify recorded release/binding/readiness meaning only; they are
+/// not content locators, subject identities, license notices, or authority
+/// claims.
+enum FieldReferenceAccessibilityIDV1: String, Codable, CaseIterable, Sendable {
+    case screen = "field.reference.screen"
+    case heading = "field.reference.heading"
+    case provenance = "field.reference.provenance"
+    case pack = "field.reference.pack"
+    case kind = "field.reference.kind"
+    case semanticVersion = "field.reference.semantic-version"
+    case release = "field.reference.release"
+    case binding = "field.reference.binding"
+    case subject = "field.reference.subject"
+    case availability = "field.reference.availability"
+    case requiredContent = "field.reference.required-content"
+    case missingContent = "field.reference.missing-content"
+    case releaseActive = "field.reference.release.active"
+    case releaseRevoked = "field.reference.release.revoked"
+    case subjectActive = "field.reference.subject.active"
+    case subjectFinalized = "field.reference.subject.finalized"
+    case availabilityReadyOffline = "field.reference.availability.ready-offline"
+    case availabilityMissingBytes = "field.reference.availability.missing-bytes"
+    case availabilityExpired = "field.reference.availability.expired"
+    case availabilityRevoked = "field.reference.availability.revoked"
+    case availabilitySuperseded = "field.reference.availability.superseded"
+    case availabilityStaleBinding = "field.reference.availability.stale-binding"
+    case availabilityProtectedDataUnavailable = "field.reference.availability.protected-data-unavailable"
+    case availabilityUnavailable = "field.reference.availability.unavailable"
+    case nextStep = "field.reference.next-step"
+
+    var localizationKey: LocalizationKeyV1 {
+        let rawValue: String
+        switch self {
+        case .screen: rawValue = FieldReferenceLocalizationKeyV1.heading.rawValue
+        case .heading: rawValue = FieldReferenceLocalizationKeyV1.heading.rawValue
+        case .provenance: rawValue = FieldReferenceLocalizationKeyV1.provenance.rawValue
+        case .pack: rawValue = FieldReferenceLocalizationKeyV1.pack.rawValue
+        case .kind: rawValue = FieldReferenceLocalizationKeyV1.kind.rawValue
+        case .semanticVersion: rawValue = FieldReferenceLocalizationKeyV1.semanticVersion.rawValue
+        case .release: rawValue = FieldReferenceLocalizationKeyV1.release.rawValue
+        case .binding: rawValue = FieldReferenceLocalizationKeyV1.binding.rawValue
+        case .subject: rawValue = FieldReferenceLocalizationKeyV1.subject.rawValue
+        case .availability: rawValue = FieldReferenceLocalizationKeyV1.availability.rawValue
+        case .requiredContent: rawValue = FieldReferenceLocalizationKeyV1.requiredContent.rawValue
+        case .missingContent: rawValue = FieldReferenceLocalizationKeyV1.missingContent.rawValue
+        case .releaseActive: rawValue = FieldReferenceLocalizationKeyV1.releaseActive.rawValue
+        case .releaseRevoked: rawValue = FieldReferenceLocalizationKeyV1.releaseRevoked.rawValue
+        case .subjectActive: rawValue = FieldReferenceLocalizationKeyV1.subjectActive.rawValue
+        case .subjectFinalized: rawValue = FieldReferenceLocalizationKeyV1.subjectFinalized.rawValue
+        case .availabilityReadyOffline: rawValue = FieldReferenceLocalizationKeyV1.availabilityReadyOffline.rawValue
+        case .availabilityMissingBytes: rawValue = FieldReferenceLocalizationKeyV1.availabilityMissingBytes.rawValue
+        case .availabilityExpired: rawValue = FieldReferenceLocalizationKeyV1.availabilityExpired.rawValue
+        case .availabilityRevoked: rawValue = FieldReferenceLocalizationKeyV1.availabilityRevoked.rawValue
+        case .availabilitySuperseded: rawValue = FieldReferenceLocalizationKeyV1.availabilitySuperseded.rawValue
+        case .availabilityStaleBinding: rawValue = FieldReferenceLocalizationKeyV1.availabilityStaleBinding.rawValue
+        case .availabilityProtectedDataUnavailable: rawValue = FieldReferenceLocalizationKeyV1.availabilityProtectedDataUnavailable.rawValue
+        case .availabilityUnavailable: rawValue = FieldReferenceLocalizationKeyV1.availabilityUnavailable.rawValue
+        case .nextStep: rawValue = FieldReferenceLocalizationKeyV1.nextStep.rawValue
+        }
+        // swiftlint:disable:next force_try
+        return try! LocalizationKeyV1(rawValue)
+    }
+}
+
+enum FieldReferenceAccessibilityPolicyV1 {
+    static let semanticIDs = FieldReferenceAccessibilityIDV1.allCases.map(\.rawValue)
+    static let stateSemanticIDs: Set<String> = Set(
+        FieldReferenceAccessibilityIDV1.allCases.filter {
+            $0.rawValue.contains(".availability.")
+                || $0.rawValue.contains(".release.")
+                || $0.rawValue.contains(".subject.")
+                || $0 == .requiredContent
+                || $0 == .missingContent
+        }.map(\.rawValue)
+    )
+    static let indeterminateSemanticIDs: Set<String> = [
+        FieldReferenceAccessibilityIDV1.availabilityMissingBytes.rawValue,
+        FieldReferenceAccessibilityIDV1.availabilityExpired.rawValue,
+        FieldReferenceAccessibilityIDV1.availabilityRevoked.rawValue,
+        FieldReferenceAccessibilityIDV1.availabilitySuperseded.rawValue,
+        FieldReferenceAccessibilityIDV1.availabilityStaleBinding.rawValue,
+        FieldReferenceAccessibilityIDV1.availabilityProtectedDataUnavailable.rawValue,
+        FieldReferenceAccessibilityIDV1.availabilityUnavailable.rawValue,
+    ]
+    static let statusSemanticIDs = stateSemanticIDs
+    static let denyByDefault = true
+    static let nonColorStateTextRequired = true
+    static let textAlternativeRequired = true
+    static let textAndIconRequiredForIndeterminateStates = true
+    static let actionableNextStepRequiredForIndeterminateStates = true
+    static let colorOnlyStateAllowed = false
+    static let iconOnlyStateAllowed = false
+    static let motionOnlyStateAllowed = false
+    static let excludesReferenceBytes = true
+    static let excludesPrivateLocators = true
+    static let excludesLicenseSecrets = true
+    static let excludesSubjectIdentity = true
+    static let excludesAuthorityClaims = true
+
+    static func requiresTextAndIcon(for semanticID: String) -> Bool {
+        indeterminateSemanticIDs.contains(semanticID)
+    }
+
+    static func requiresActionableNextStep(for semanticID: String) -> Bool {
+        indeterminateSemanticIDs.contains(semanticID)
+    }
+
+    static func availabilityID(_ value: FieldReferenceAvailabilityV1) -> FieldReferenceAccessibilityIDV1 {
+        switch value {
+        case .readyOffline: return .availabilityReadyOffline
+        case .missingBytes: return .availabilityMissingBytes
+        case .expired: return .availabilityExpired
+        case .revoked: return .availabilityRevoked
+        case .superseded: return .availabilitySuperseded
+        case .staleBinding: return .availabilityStaleBinding
+        case .protectedDataUnavailable: return .availabilityProtectedDataUnavailable
+        case .unavailable: return .availabilityUnavailable
+        }
+    }
+}

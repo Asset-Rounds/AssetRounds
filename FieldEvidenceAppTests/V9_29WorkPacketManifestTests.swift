@@ -388,3 +388,11 @@ final class V9_29WorkPacketManifestTests: XCTestCase {
         XCTAssertFalse(corpus.provisionalFlags.release)
     }
 }
+
+extension V9_29WorkPacketManifestTests {
+    func testC23FieldReferencePackAnchor() throws {
+        XCTAssertEqual(PersistentSchemaV22.versionIdentifier, Schema.Version(22, 0, 0))
+        XCTAssertEqual(PersistentSchemaV22.models.count, PersistentSchemaV21.models.count + 2)
+        XCTAssertNoThrow(try V22FieldReferenceImportBoundaryV1.validate(persistent: 22, records: 21))
+    }
+}

@@ -918,3 +918,11 @@ extension S4_3ReportDeliveryTests {
         XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
     }
 }
+
+extension S4_3ReportDeliveryTests {
+    func testC23FieldReferencePackAnchor() throws {
+        XCTAssertEqual(FieldReferenceLicenseScopeV1.allCases.count, 4)
+        XCTAssertEqual(FieldReferenceLicenseScopeV1.citationAndExportAllowed.rawValue, "CITATION_AND_EXPORT_ALLOWED")
+        XCTAssertFalse(FieldReferencePackLifecycleV1.drmOrAccountRequired)
+    }
+}

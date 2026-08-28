@@ -1323,6 +1323,51 @@ final class ReportRenderService {
     }
 }
 
+// MARK: - C23 version-bound field-reference rendering
+
+enum FieldReferenceReportRenderPolicyV1 {
+    static let metadataOnly = true
+    static let historicalBindingsAreImmutable = true
+    static let silentReleaseReplacementAllowed = false
+    static let excludesReferenceBytes = true
+    static let excludesPrivateLocators = true
+    static let excludesLicenseSecrets = true
+    static let excludesSubjectIdentity = true
+
+    static func validate(
+        _ projection: FieldReferenceReportProjectionV1,
+        format: ReportProjectionFormatV1
+    ) throws -> FieldReferenceReportProjectionV1 {
+        try FieldReferenceReportProjectionPolicyV1.validate(projection, format: format)
+        guard metadataOnly,
+              historicalBindingsAreImmutable,
+              !silentReleaseReplacementAllowed,
+              excludesReferenceBytes,
+              excludesPrivateLocators,
+              excludesLicenseSecrets,
+              excludesSubjectIdentity else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+        return projection
+    }
+}
+
+extension ReportRenderService {
+    static func validateFieldReferenceRenderInputs(
+        projection: FieldReferenceReportProjectionV1,
+        format: ReportProjectionFormatV1
+    ) throws -> FieldReferenceReportProjectionV1 {
+        try FieldReferenceReportRenderPolicyV1.validate(projection, format: format)
+    }
+
+    static func renderFieldReferenceOpenJSON(
+        projection: FieldReferenceReportProjectionV1
+    ) throws -> ReportProjectionOutputV1 {
+        try validateFieldReferenceRenderInputs(projection: projection, format: .openJSON)
+        return try DeterministicOpenJSONRendererV1.renderFieldReference(projection)
+    }
+}
+
 extension ReportRenderService {
     /// Report rendering may consume a package only after the non-activating
     /// sandbox has passed. The render service receives the immutable projection

@@ -1313,6 +1313,59 @@ extension EvidenceDetailCardV1 {
     }
 }
 
+// MARK: - C23 field-reference report guard
+
+/// Evidence cards may carry the C23 projection as bounded report metadata.
+/// This guard keeps restricted reference material, locators, license notices,
+/// and bound-subject identity out of the card projection.
+enum EvidenceDetailFieldReferenceProjectionGuardV1 {
+    static let metadataOnly = true
+    static let excludesReferenceBytes = true
+    static let excludesPrivateLocators = true
+    static let excludesLicenseSecrets = true
+    static let excludesSubjectIdentity = true
+    static let excludesObservationClaims = true
+    static let excludesComplianceClaims = true
+
+    static func validate(
+        _ projection: FieldReferenceReportProjectionV1
+    ) throws -> FieldReferenceReportProjectionV1 {
+        try projection.validate()
+        guard metadataOnly,
+              excludesReferenceBytes,
+              excludesPrivateLocators,
+              excludesLicenseSecrets,
+              excludesSubjectIdentity,
+              excludesObservationClaims,
+              excludesComplianceClaims,
+              projection.restrictedContentOmitted,
+              !FieldReferenceLocalizationPolicyV1.containsProhibitedClaim(
+                  in: [
+                      FieldReferenceLocalizationKeyV1.heading.englishDefaultValue,
+                      FieldReferenceLocalizationKeyV1.nextStep.englishDefaultValue,
+                  ]
+              ),
+              !FieldReferenceLocalizationPolicyV1.containsCustomerOrWorkDataLeakage(
+                  in: [FieldReferenceLocalizationKeyV1.heading.englishDefaultValue]
+              ) else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+        return projection
+    }
+
+    static func accessibilityIDs() -> [String] {
+        FieldReferenceAccessibilityPolicyV1.semanticIDs.sorted()
+    }
+}
+
+extension EvidenceDetailCardV1 {
+    func c23ValidateFieldReferenceProjection(
+        _ projection: FieldReferenceReportProjectionV1
+    ) throws -> FieldReferenceReportProjectionV1 {
+        try EvidenceDetailFieldReferenceProjectionGuardV1.validate(projection)
+    }
+}
+
 // MARK: - C21 capability admission card guard
 
 enum EvidenceDetailClientCapabilityProjectionGuardV1 {

@@ -114,6 +114,12 @@ final class PackageEvolutionLifecycleAdapterV1: PackageEvolutionWritingV1 {
     }
 }
 
+enum PackageEvolutionFieldReferenceBoundaryV1 {
+    /// Package promotion never rewrites existing work/session bindings.
+    static let bindingUpgradePolicy = "EXPLICIT_SUPERSEDING_BINDING_ONLY"
+    static let referenceImportTransactionIsSeparate = true
+}
+
 extension PackageEvolutionLifecycleAdapterV1 {
     static func validateClientCapabilityClosure(_ closure: ClientCapabilityLifecycleClosureV1) throws {
         try closure.validate()

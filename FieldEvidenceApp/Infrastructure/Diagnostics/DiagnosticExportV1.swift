@@ -108,6 +108,10 @@ struct DiagnosticExportV1: Codable, Equatable, Sendable {
     /// staging locators, verifier identity, and client-capability bindings are
     /// never diagnostic payload.
     var recoverabilityVerification: RecoverabilityVerificationDiagnosticMetadataV1? = nil
+    /// Optional C23 release/binding/readiness health summary. It contains
+    /// bounded counts and closed states only; reference bytes, content IDs,
+    /// locators, license notices, and subject identity are excluded.
+    var fieldReference: FieldReferenceDiagnosticMetadataV1? = nil
 
     /// Integration event payloads, subjects, cursors, and checkpoint bytes are
     /// never diagnostic material. Diagnostics may describe only the static
@@ -135,6 +139,7 @@ struct DiagnosticExportV1: Codable, Equatable, Sendable {
             && (privacyTransform?.isValid ?? true)
             && (clientCapability?.isValid ?? true)
             && (recoverabilityVerification?.isValid ?? true)
+            && (fieldReference?.isValid ?? true)
             && integrationProjectionPayloadExcluded
     }
 
@@ -175,6 +180,13 @@ enum IntegrationProjectionDiagnosticExclusionV1 {
         "persistentSchemaVersion", "recordsSchemaVersion", "workspaceID",
         "decisionID", "decisionSHA256", "receiptSHA256", "receiptID",
         "verificationID", "stagingID", "checkpointID", "mutationID",
+        // C23 reference bytes, locators, license notices, subject identity,
+        // and release/binding provenance are not diagnostic material.
+        "releaseID", "bindingID", "referencePackID", "sourceName",
+        "sourceReleaseIdentifier", "licenseNotice", "subjectID",
+        "contentID", "locatorID", "releaseSHA256", "manifestSHA256",
+        "readinessSHA256", "projectionSHA256", "canonicalData", "bytes",
+        "restrictedContent",
     ]
 
     static func validate(_ data: Data) throws {
@@ -193,6 +205,7 @@ struct DiagnosticExportService {
     typealias WorkPacketProvider = () -> WorkPacketDiagnosticSummaryV1?
     typealias ClientCapabilityProvider = () -> ClientCapabilityDiagnosticMetadataV1?
     typealias RecoverabilityVerificationProvider = () -> RecoverabilityVerificationDiagnosticMetadataV1?
+    typealias FieldReferenceProvider = () -> FieldReferenceDiagnosticMetadataV1?
     typealias ContextProvider<Value> = () -> Value
     typealias Clock = () -> Date
 
@@ -202,6 +215,7 @@ struct DiagnosticExportService {
     private let workPacketProvider: WorkPacketProvider
     private let clientCapabilityProvider: ClientCapabilityProvider
     private let recoverabilityVerificationProvider: RecoverabilityVerificationProvider
+    private let fieldReferenceProvider: FieldReferenceProvider
     private let appProvider: ContextProvider<DiagnosticAppContextV1>
     private let deviceProvider: ContextProvider<DiagnosticDeviceContextV1>
     private let clock: Clock
@@ -215,7 +229,8 @@ struct DiagnosticExportService {
         requirementAssurance: @escaping RequirementAssuranceProvider = { nil },
         workPacket: @escaping WorkPacketProvider = { nil },
         clientCapability: @escaping ClientCapabilityProvider = { nil },
-        recoverabilityVerification: @escaping RecoverabilityVerificationProvider = { nil }
+        recoverabilityVerification: @escaping RecoverabilityVerificationProvider = { nil },
+        fieldReference: @escaping FieldReferenceProvider = { nil }
     ) {
         countersProvider = counters
         metricKitProvider = metricKit
@@ -223,6 +238,7 @@ struct DiagnosticExportService {
         workPacketProvider = workPacket
         clientCapabilityProvider = clientCapability
         recoverabilityVerificationProvider = recoverabilityVerification
+        fieldReferenceProvider = fieldReference
         appProvider = app
         deviceProvider = device
         self.clock = clock
@@ -236,6 +252,7 @@ struct DiagnosticExportService {
         workPacket: @escaping WorkPacketProvider = { nil },
         clientCapability: @escaping ClientCapabilityProvider = { nil },
         recoverabilityVerification: @escaping RecoverabilityVerificationProvider = { nil },
+        fieldReference: @escaping FieldReferenceProvider = { nil },
         bundle: Bundle = .main,
         device: UIDevice = .current,
         clock: @escaping Clock = Date.init
@@ -261,7 +278,8 @@ struct DiagnosticExportService {
             requirementAssurance: requirementAssurance,
             workPacket: workPacket,
             clientCapability: clientCapability,
-            recoverabilityVerification: recoverabilityVerification
+            recoverabilityVerification: recoverabilityVerification,
+            fieldReference: fieldReference
         )
     }
 
@@ -276,7 +294,8 @@ struct DiagnosticExportService {
             requirementAssurance: requirementAssuranceProvider(),
             workPacket: workPacketProvider(),
             clientCapability: clientCapabilityProvider(),
-            recoverabilityVerification: recoverabilityVerificationProvider()
+            recoverabilityVerification: recoverabilityVerificationProvider(),
+            fieldReference: fieldReferenceProvider()
         )
         guard value.isValid else {
             throw DiagnosticExportError.invalidValue
@@ -325,6 +344,9 @@ enum DiagnosticExportCanonicalEncoderV1 {
             object["recoverabilityVerification"] = recoverabilityVerificationValue(
                 recoverabilityVerification
             )
+        }
+        if let fieldReference = value.fieldReference {
+            object["fieldReference"] = fieldReferenceValue(fieldReference)
         }
         let data = try CanonicalJSONV1.encode(.object(object))
         try IntegrationProjectionDiagnosticExclusionV1.validate(data)
@@ -441,6 +463,32 @@ enum DiagnosticExportCanonicalEncoderV1 {
             "excludesStagingLocator": .bool(value.excludesStagingLocator),
             "excludesVerifierBuild": .bool(value.excludesVerifierBuild),
             "excludesClientCapability": .bool(value.excludesClientCapability),
+        ])
+    }
+
+    private static func fieldReferenceValue(
+        _ value: FieldReferenceDiagnosticMetadataV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "schemaVersion": .integer(value.schemaVersion),
+            "releaseCount": .integer(value.releaseCount),
+            "bindingCount": .integer(value.bindingCount),
+            "readyOfflineCount": .integer(value.readyOfflineCount),
+            "missingBytesCount": .integer(value.missingBytesCount),
+            "expiredCount": .integer(value.expiredCount),
+            "revokedCount": .integer(value.revokedCount),
+            "supersededCount": .integer(value.supersededCount),
+            "staleBindingCount": .integer(value.staleBindingCount),
+            "protectedDataUnavailableCount": .integer(value.protectedDataUnavailableCount),
+            "unavailableCount": .integer(value.unavailableCount),
+            "availabilityStates": .array(value.availabilityStates.map { .string($0.rawValue) }),
+            "policyVersion": .string(value.policyVersion),
+            "metadataOnly": .bool(value.metadataOnly),
+            "excludesReferenceBytes": .bool(value.excludesReferenceBytes),
+            "excludesContentIDs": .bool(value.excludesContentIDs),
+            "excludesPrivateLocators": .bool(value.excludesPrivateLocators),
+            "excludesLicenseSecrets": .bool(value.excludesLicenseSecrets),
+            "excludesSubjectIdentity": .bool(value.excludesSubjectIdentity),
         ])
     }
 
@@ -1185,5 +1233,107 @@ extension DiagnosticExportV1 {
             receipts: receipts,
             staging: staging
         )
+    }
+}
+
+/// C23 diagnostic health is intentionally aggregate-only. Release, binding,
+/// content, locator, license, and subject identifiers are not included.
+struct FieldReferenceDiagnosticMetadataV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let policyVersion = "FIELD_REFERENCE_RELEASE_BINDING_DIAGNOSTIC_V1"
+    static let maximumValues = 100_000
+
+    let schemaVersion: Int
+    /// Distinct release identities represented by the supplied bindings. A
+    /// single immutable release may account for multiple subject bindings.
+    let releaseCount: Int
+    let bindingCount: Int
+    let readyOfflineCount: Int
+    let missingBytesCount: Int
+    let expiredCount: Int
+    let revokedCount: Int
+    let supersededCount: Int
+    let staleBindingCount: Int
+    let protectedDataUnavailableCount: Int
+    let unavailableCount: Int
+    let availabilityStates: [FieldReferenceAvailabilityV1]
+    let policyVersion: String
+    let metadataOnly: Bool
+    let excludesReferenceBytes: Bool
+    let excludesContentIDs: Bool
+    let excludesPrivateLocators: Bool
+    let excludesLicenseSecrets: Bool
+    let excludesSubjectIdentity: Bool
+
+    init(projections: [FieldReferenceReportProjectionV1]) throws {
+        guard projections.count <= Self.maximumValues else {
+            throw DiagnosticExportError.invalidValue
+        }
+        try projections.forEach { try $0.validate() }
+        let availabilities = projections.map(\.availability)
+        let releaseIDs = Set(projections.map(\.releaseID))
+        schemaVersion = Self.schemaVersion
+        releaseCount = releaseIDs.count
+        bindingCount = projections.count
+        readyOfflineCount = availabilities.filter { $0 == .readyOffline }.count
+        missingBytesCount = availabilities.filter { $0 == .missingBytes }.count
+        expiredCount = availabilities.filter { $0 == .expired }.count
+        revokedCount = availabilities.filter { $0 == .revoked }.count
+        supersededCount = availabilities.filter { $0 == .superseded }.count
+        staleBindingCount = availabilities.filter { $0 == .staleBinding }.count
+        protectedDataUnavailableCount = availabilities.filter {
+            $0 == .protectedDataUnavailable
+        }.count
+        unavailableCount = availabilities.filter { $0 == .unavailable }.count
+        availabilityStates = Array(Set(availabilities)).sorted { $0.rawValue < $1.rawValue }
+        policyVersion = Self.policyVersion
+        metadataOnly = true
+        excludesReferenceBytes = true
+        excludesContentIDs = true
+        excludesPrivateLocators = true
+        excludesLicenseSecrets = true
+        excludesSubjectIdentity = true
+        try validate()
+    }
+
+    var isValid: Bool { (try? validate()) != nil }
+
+    func validate() throws {
+        let availabilityCounts = [
+            readyOfflineCount, missingBytesCount, expiredCount,
+            revokedCount, supersededCount, staleBindingCount,
+            protectedDataUnavailableCount, unavailableCount,
+        ]
+        guard availabilityCounts.allSatisfy({
+            $0 >= 0 && $0 <= Self.maximumValues
+        }) else {
+            throw DiagnosticExportError.invalidValue
+        }
+        let total = availabilityCounts.reduce(0, +)
+        guard schemaVersion == Self.schemaVersion,
+              releaseCount >= 0, releaseCount <= Self.maximumValues,
+              bindingCount >= 0, bindingCount <= Self.maximumValues,
+              bindingCount >= releaseCount,
+              (bindingCount == 0 || releaseCount > 0),
+              total == bindingCount,
+              availabilityStates == availabilityStates.sorted(by: { $0.rawValue < $1.rawValue }),
+              Set(availabilityStates).count == availabilityStates.count,
+              policyVersion == Self.policyVersion,
+              metadataOnly,
+              excludesReferenceBytes,
+              excludesContentIDs,
+              excludesPrivateLocators,
+              excludesLicenseSecrets,
+              excludesSubjectIdentity else {
+            throw DiagnosticExportError.invalidValue
+        }
+    }
+}
+
+extension DiagnosticExportV1 {
+    static func fieldReferenceDiagnosticMetadata(
+        projections: [FieldReferenceReportProjectionV1]
+    ) throws -> FieldReferenceDiagnosticMetadataV1 {
+        try FieldReferenceDiagnosticMetadataV1(projections: projections)
     }
 }

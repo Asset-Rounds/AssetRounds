@@ -73,6 +73,39 @@ final class FinalizationIntentStoreFailureInjection: @unchecked Sendable {
     }
 }
 
+// MARK: - C23 field-reference finalization boundary
+
+/// Finalization consumes the already-bound projection as a value.  It never
+/// follows a newer active release and it never serializes reference bytes or
+/// private locators into a finalized artifact.
+enum FinalizationFieldReferenceProjectionPolicyV1 {
+    static let historicBindingIsImmutable = true
+    static let releaseReplacementIsSilent = false
+    static let retainsDigestProvenanceOnly = true
+    static let excludesReferenceBytes = true
+    static let excludesPrivateLocators = true
+    static let excludesLicenseSecrets = true
+    static let excludesSubjectIdentity = true
+
+    static func validateForFinalization(
+        _ projection: FieldReferenceReportProjectionV1
+    ) throws -> FieldReferenceReportProjectionV1 {
+        try projection.validate()
+        guard historicBindingIsImmutable,
+              releaseReplacementIsSilent == false,
+              retainsDigestProvenanceOnly,
+              excludesReferenceBytes,
+              excludesPrivateLocators,
+              excludesLicenseSecrets,
+              excludesSubjectIdentity,
+              projection.historicBindingImmutable,
+              projection.restrictedContentOmitted else {
+            throw FieldReferenceReportProjectionFailureV1.invalidValue
+        }
+        return projection
+    }
+}
+
 /// Test-only synchronization at a verified authority boundary. Production
 /// callers leave this nil; it neither changes storage names nor product state.
 final class FinalizationIntentStoreAuthorityBarrier: @unchecked Sendable {

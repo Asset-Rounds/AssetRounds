@@ -489,3 +489,11 @@ extension S1PackTokenTests {
         XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
     }
 }
+
+extension S1PackTokenTests {
+    func testC23FieldReferencePackAnchor() throws {
+        XCTAssertEqual(FieldReferenceKindV1.allCases.count, 4)
+        XCTAssertEqual(FieldReferenceProvenanceKindV1.allCases.count, 2)
+        XCTAssertFalse(FieldReferencePackLifecycleV1.runtimeFetchingAllowed)
+    }
+}

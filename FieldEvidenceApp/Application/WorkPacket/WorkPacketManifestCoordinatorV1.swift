@@ -87,4 +87,54 @@ import Foundation
             at: instant
         )
     }
+
+    /// Validates the C23 binding/readiness inputs before returning the normal
+    /// work-packet projection. The binding remains owned by the field-
+    /// reference writer; this application seam performs no second write.
+    func projectionWithFieldReferences(
+        workspaceID: WorkspaceID,
+        manifestID: UUID,
+        fieldReferenceBindings: [FieldReferenceBindingV1],
+        fieldReferenceReleases: [FieldReferenceReleaseV1],
+        fieldReferenceReadiness: [FieldReferenceOfflineReadinessV1],
+        subjectState: FieldReferenceSubjectStateV1 = .active,
+        at instant: Date
+    ) throws -> WorkPacketFieldReferenceProjectionV1 {
+        try lifecycle.projectionWithFieldReferences(
+            workspaceID: workspaceID,
+            manifestID: manifestID,
+            fieldReferenceBindings: fieldReferenceBindings,
+            fieldReferenceReleases: fieldReferenceReleases,
+            fieldReferenceReadiness: fieldReferenceReadiness,
+            subjectState: subjectState,
+            at: instant
+        )
+    }
+
+    /// Appends a manifest only after proving that each supplied binding is
+    /// for the exact packet generation. Binding writes themselves use the
+    /// dedicated field-reference coordinator.
+    func append(
+        manifest: WorkPacketManifestV1,
+        fieldReferenceBindings: [FieldReferenceBindingV1],
+        fieldReferenceReleases: [FieldReferenceReleaseV1],
+        fieldReferenceReadiness: [FieldReferenceOfflineReadinessV1],
+        subjectState: FieldReferenceSubjectStateV1 = .active
+    ) throws -> MutationReceiptV1 {
+        try manifest.validate()
+        let projection = try WorkPacketFieldReferenceProjectionV1(
+            projection: try WorkPacketProjectionBuilderV1.rebuild(
+                workspaceID: manifest.workspaceID,
+                manifest: manifest,
+                claims: [], leases: [], releases: [], handoffs: [], at: manifest.createdAt
+            ),
+            manifest: manifest,
+            bindings: fieldReferenceBindings,
+            releases: fieldReferenceReleases,
+            readiness: fieldReferenceReadiness,
+            subjectState: subjectState
+        )
+        try projection.validate()
+        return try writer.append(manifest: manifest)
+    }
 }

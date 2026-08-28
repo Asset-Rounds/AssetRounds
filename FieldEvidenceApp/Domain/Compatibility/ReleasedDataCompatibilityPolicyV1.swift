@@ -971,3 +971,19 @@ struct ClientCapabilityCompatibilityPolicyV1: Codable, Equatable, Sendable {
 extension ReleasedDataCompatibilityPolicyV1 {
     static let clientCapabilityCompatibility = ClientCapabilityCompatibilityPolicyV1.current
 }
+
+struct FieldReferencePackCompatibilityPolicyV1:Codable,Equatable,Sendable{
+    static let persistentSchemaVersion=22,recordsSchemaVersion=21
+    static let persistentContractSchema=PersistentSchemaReleaseV1.v22.compatibilityID
+    static let currentPersistentWriterVersion="22.0.0"
+    static let currentBackupWriterVersion="archive1-backup4-persistent22-records21"
+    static let readablePersistentWriterVersions=(1...22).map{"\($0).0.0"}
+    static let readableBackupWriterVersions=ClientCapabilityCompatibilityPolicyV1.readableBackupWriterVersions+["archive1-backup4-persistent21-records20",currentBackupWriterVersion]
+    static let downgradeDisposition="PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_FIRST_V22_WRITE"
+    let persistentSchemaVersion:Int;let recordsSchemaVersion:Int;let persistentContractSchema:String;let currentPersistentWriterVersion:String;let currentBackupWriterVersion:String;let readablePersistentWriterVersions:[String];let readableBackupWriterVersions:[String];let downgradeDisposition:String;let stagingIsNonpersistent:Bool
+    init(){persistentSchemaVersion=Self.persistentSchemaVersion;recordsSchemaVersion=Self.recordsSchemaVersion;persistentContractSchema=Self.persistentContractSchema;currentPersistentWriterVersion=Self.currentPersistentWriterVersion;currentBackupWriterVersion=Self.currentBackupWriterVersion;readablePersistentWriterVersions=Self.readablePersistentWriterVersions;readableBackupWriterVersions=Self.readableBackupWriterVersions;downgradeDisposition=Self.downgradeDisposition;stagingIsNonpersistent=true}
+    static let current=Self()
+    func validate()throws{guard persistentSchemaVersion==22,recordsSchemaVersion==21,persistentContractSchema==PersistentSchemaReleaseV1.v22.compatibilityID,currentPersistentWriterVersion==readablePersistentWriterVersions.last,currentBackupWriterVersion==readableBackupWriterVersions.last,Set(readablePersistentWriterVersions).count==readablePersistentWriterVersions.count,Set(readableBackupWriterVersions).count==readableBackupWriterVersions.count,downgradeDisposition==Self.downgradeDisposition,stagingIsNonpersistent else{throw CompatibilityContractErrorV1.invalidSupportTable}}
+}
+
+extension ReleasedDataCompatibilityPolicyV1{static let fieldReferencePackCompatibility=FieldReferencePackCompatibilityPolicyV1.current}

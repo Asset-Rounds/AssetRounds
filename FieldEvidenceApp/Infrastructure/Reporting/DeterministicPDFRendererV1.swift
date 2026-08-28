@@ -377,3 +377,51 @@ extension DeterministicPDFRendererV1 {
         return lines
     }
 }
+
+// MARK: - C23 version-bound field-reference metadata
+
+extension DeterministicPDFRendererV1 {
+    /// PDF receives the same bounded release/binding projection as Open JSON;
+    /// no reference bytes, private locators, or license notices are copied.
+    static func fieldReferenceMetadataData(
+        _ projection: FieldReferenceReportProjectionV1
+    ) throws -> Data {
+        try FieldReferenceReportProjectionPolicyV1.validate(projection, format: .pdf)
+        let envelope = try FieldReferenceOpenJSONEnvelopeV1(projection: projection)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let data = try encoder.encode(envelope)
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        return data
+    }
+
+    static func reopenFieldReferenceMetadata(
+        _ data: Data
+    ) throws -> FieldReferenceReportProjectionV1 {
+        try DeterministicOpenJSONRendererV1.reopenFieldReference(data)
+    }
+
+    static func fieldReferenceTextLines(
+        _ projection: FieldReferenceReportProjectionV1
+    ) throws -> [String] {
+        try FieldReferenceReportProjectionPolicyV1.validate(projection, format: .pdf)
+        let labels = FieldReferenceOpenJSONLabelsV1(projection: projection)
+        try labels.validate()
+        return [
+            labels.heading,
+            "\(labels.kind): \(labels.kindValue)",
+            "\(labels.semanticVersion): \(projection.semanticVersion)",
+            "\(labels.provenance): \(labels.provenanceValue)",
+            "\(labels.licenseScope): \(labels.licenseScopeValue)",
+            "\(labels.release): \(labels.releaseValue)",
+            "\(labels.binding): \(labels.subjectValue)",
+            "\(labels.availability): \(labels.availabilityValue)",
+            "\(labels.requiredContent): \(projection.requiredContentCount)",
+            "\(labels.missingContent): \(projection.missingContentCount)",
+            labels.nextStep,
+        ]
+    }
+}

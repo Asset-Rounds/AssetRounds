@@ -90,3 +90,39 @@ enum PackageEvolutionDraftPersistenceBoundaryV1 {
         )
     }
 }
+
+/// C23 deliberately keeps reference bindings out of the draft row family.
+/// This boundary makes that decision inspectable while requiring every draft
+/// read to prove the exact release/binding/readiness tuple.
+enum FieldDraftReferencePersistenceBoundaryV1 {
+    static let persistentBindingFamilies = FieldReferencePackLifecycleV1.persistentFamilies
+    static let draftReferenceProjectionPersistence = "DERIVED_ONLY"
+    static let acceptsUnboundDraftBytes = false
+
+    static func validate(
+        checkpoint: FieldDraftCheckpointV1,
+        binding: FieldReferenceBindingV1,
+        release: FieldReferenceReleaseV1,
+        readiness: FieldReferenceOfflineReadinessV1
+    ) throws -> FieldDraftReferenceProjectionV1 {
+        try checkpoint.c23ReferenceProjection(
+            binding: binding, release: release, readiness: readiness
+        )
+    }
+}
+
+extension FieldDraftCheckpointRow {
+    func c23ReferenceProjection(
+        binding: FieldReferenceBindingV1,
+        release: FieldReferenceReleaseV1,
+        readiness: FieldReferenceOfflineReadinessV1
+    ) throws -> FieldDraftReferenceProjectionV1 {
+        let checkpoint = try value()
+        return try FieldDraftReferencePersistenceBoundaryV1.validate(
+            checkpoint: checkpoint,
+            binding: binding,
+            release: release,
+            readiness: readiness
+        )
+    }
+}

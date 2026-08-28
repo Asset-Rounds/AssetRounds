@@ -910,3 +910,10 @@ extension S6_1DeletionGraphTests {
         XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
     }
 }
+
+extension S6_1DeletionGraphTests {
+    func testC23FieldReferencePackAnchor() throws {
+        XCTAssertNoThrow(try V22FieldReferenceImportBoundaryV1.validate(persistent: 22, records: 21))
+        XCTAssertEqual(PersistentSchemaV22.models.count, PersistentSchemaV21.models.count + 2)
+    }
+}

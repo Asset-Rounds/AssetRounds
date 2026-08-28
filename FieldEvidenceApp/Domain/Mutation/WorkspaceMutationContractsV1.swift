@@ -83,6 +83,8 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case clientCapabilityAdmissionDecision
     case packageLifecyclePolicy
     case packageLifecycleDisposition
+    case fieldReferenceRelease
+    case fieldReferenceBinding
     case workflowRecord
     case evidenceFile
     case issue
@@ -1354,6 +1356,19 @@ enum ClientCapabilityMutationV1:Codable,Equatable,Sendable{
     func canonicalSHA256()throws->String{try validate();return try WorkspaceMutationCanonicalV1.sha256(self)}
 }
 
+enum FieldReferenceMutationV1:Codable,Equatable,Sendable{
+    case importRelease(FieldReferenceReleaseV1)
+    case bind(value:FieldReferenceBindingV1,release:FieldReferenceReleaseV1)
+    var workspaceID:WorkspaceID{switch self{case let .importRelease(v):v.workspaceID;case let .bind(v,_):v.workspaceID}}
+    var mutationID:MutationIDV1{switch self{case let .importRelease(v):v.mutationID;case let .bind(v,_):v.mutationID}}
+    var revision:UInt64{switch self{case let .importRelease(v):v.revision;case let .bind(v,_):v.revision}}
+    var expectedRevision:UInt64{revision-1}
+    var affectedIdentity:WorkspaceEntityIdentityV1{get throws{switch self{case let .importRelease(v):return try .init(kind:.fieldReferenceRelease,id:v.releaseID);case let .bind(v,_):return try .init(kind:.fieldReferenceBinding,id:v.bindingID)}}}
+    var concurrencyIdentity:WorkspaceEntityIdentityV1{get throws{switch self{case let .importRelease(v):return try .init(kind:.fieldReferenceRelease,id:v.supersedesReleaseID ?? v.releaseID);case let .bind(v,_):return try .init(kind:.fieldReferenceBinding,id:v.supersedesBindingID ?? v.bindingID)}}}
+    func validate()throws{switch self{case let .importRelease(v):try v.validate();case let .bind(v,r):try v.validate(release:r)}}
+    func canonicalSHA256()throws->String{try validate();return try WorkspaceMutationCanonicalV1.sha256(self)}
+}
+
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
     case createCheckDraft(CheckDraftMutationV1)
@@ -1384,6 +1399,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyMeasurementIntegrity(MeasurementIntegrityMutationV1)
     case applyPrivacyTransform(PrivacyTransformMutationV1)
     case applyClientCapability(ClientCapabilityMutationV1)
+    case applyFieldReference(FieldReferenceMutationV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -1416,6 +1432,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyMeasurementIntegrity:.applyMeasurementIntegrity
         case .applyPrivacyTransform:.applyPrivacyTransform
         case .applyClientCapability:.applyClientCapability
+        case .applyFieldReference:.applyFieldReference
         }
     }
 }
@@ -1450,6 +1467,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyMeasurementIntegrity="apply_measurement_integrity"
     case applyPrivacyTransform="apply_privacy_transform"
     case applyClientCapability="apply_client_capability"
+    case applyFieldReference="apply_field_reference"
 }
 
 extension WorkspaceCommandV1 {
@@ -2196,6 +2214,7 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind:.applyMeasurementIntegrity,disposition:.compensatable,stableReason:"append_measurement_integrity_successor_only"),
         .init(commandKind:.applyPrivacyTransform,disposition:.irreversible,stableReason:"append_privacy_transform_forward_fix_only"),
         .init(commandKind:.applyClientCapability,disposition:.irreversible,stableReason:"append_client_capability_forward_fix_only"),
+        .init(commandKind:.applyFieldReference,disposition:.irreversible,stableReason:"append_field_reference_forward_fix_only"),
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {

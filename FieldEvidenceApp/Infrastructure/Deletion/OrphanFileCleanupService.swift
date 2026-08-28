@@ -19,6 +19,8 @@ enum OrphanFileCleanupServiceError: Error, Equatable, Sendable {
     case nonterminalDraftContent
 }
 
+enum FieldReferenceOrphanCleanupPolicyV1{static func removableReleaseIDs(releases:[FieldReferenceReleaseV1],bindings:[FieldReferenceBindingV1])->Set<UUID>{Set(releases.map(\.releaseID)).subtracting(Set(bindings.map(\.releaseID)))}static func protectedContentIDs(releases:[FieldReferenceReleaseV1],bindings:[FieldReferenceBindingV1])->Set<String>{let retained=Set(bindings.map(\.releaseID));return Set(releases.filter{retained.contains($0.releaseID)}.flatMap{$0.manifest.entries.map(\.contentID)})}}
+
 struct FieldDraftOrphanCleanupProofV1: Equatable, Sendable {
     let removableStageIDs: [UUID]
     let removableReservationIDs: [UUID]

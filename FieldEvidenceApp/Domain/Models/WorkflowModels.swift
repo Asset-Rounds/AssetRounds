@@ -273,6 +273,83 @@ extension WorkflowRecord {
     }
 }
 
+// MARK: - C23 field-reference binding
+
+extension WorkflowRecord {
+    /// Workflow records are historical consumers of a packet binding. The
+    /// record never stores a second release identity; callers must provide the
+    /// exact canonical release and readiness tuple for this read-only check.
+    func c23ValidateFieldReferenceBinding(
+        workspaceID: WorkspaceID,
+        binding: FieldReferenceBindingV1,
+        release: FieldReferenceReleaseV1,
+        readiness: FieldReferenceOfflineReadinessV1,
+        subjectRevision: UInt64,
+        subjectState: FieldReferenceSubjectStateV1? = nil
+    ) throws -> WorkSessionFieldReferenceProjectionV1 {
+        guard let packetID,
+              binding.subjectKind == .workPacket,
+              binding.subjectID == packetID,
+              binding.subjectRevision == subjectRevision,
+              binding.workspaceID == workspaceID else {
+            throw WorkSessionFieldReferenceFailureV1.wrongSubject
+        }
+        guard let workflowState = WorkflowState(rawValue: state) else {
+            throw WorkSessionFieldReferenceFailureV1.invalidValue
+        }
+        let expectedState: FieldReferenceSubjectStateV1 =
+            workflowState == .completed ? .finalized : .active
+        guard binding.subjectState == (subjectState ?? expectedState),
+              binding.subjectState == expectedState else {
+            throw WorkSessionFieldReferenceFailureV1.finalizedWorkImmutable
+        }
+        let projection = try WorkSessionFieldReferenceProjectionV1(
+            binding: binding, release: release, readiness: readiness
+        )
+        try projection.validate(
+            expectedWorkspaceID: workspaceID,
+            expectedSubjectKind: .workPacket,
+            expectedSubjectID: packetID,
+            expectedSubjectRevision: subjectRevision,
+            expectedSubjectState: expectedState
+        )
+        return projection
+    }
+}
+
+extension Packet {
+    /// Packet-level consumers use the same immutable binding proof as the
+    /// record path. The packet model remains unchanged and owns no reference
+    /// bytes or locators.
+    func c23ValidateFieldReferenceBinding(
+        workspaceID: WorkspaceID,
+        binding: FieldReferenceBindingV1,
+        release: FieldReferenceReleaseV1,
+        readiness: FieldReferenceOfflineReadinessV1,
+        subjectRevision: UInt64,
+        subjectState: FieldReferenceSubjectStateV1 = .active
+    ) throws -> WorkSessionFieldReferenceProjectionV1 {
+        guard binding.subjectKind == .workPacket,
+              binding.subjectID == id,
+              binding.subjectRevision == subjectRevision,
+              binding.subjectState == subjectState,
+              binding.workspaceID == workspaceID else {
+            throw WorkSessionFieldReferenceFailureV1.wrongSubject
+        }
+        let projection = try WorkSessionFieldReferenceProjectionV1(
+            binding: binding, release: release, readiness: readiness
+        )
+        try projection.validate(
+            expectedWorkspaceID: workspaceID,
+            expectedSubjectKind: .workPacket,
+            expectedSubjectID: id,
+            expectedSubjectRevision: subjectRevision,
+            expectedSubjectState: subjectState
+        )
+        return projection
+    }
+}
+
 @Model
 final class Issue {
     @Attribute(.unique) var id: UUID
