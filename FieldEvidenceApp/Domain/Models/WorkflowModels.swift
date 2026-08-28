@@ -203,6 +203,33 @@ extension WorkflowRecord {
             throw MeasurementIntegrityFailureV1.staleReference
         }
     }
+
+    /// Validates a reviewed C20 derivative at the existing workflow boundary.
+    /// The workflow row remains frozen: this is a read-only projection check
+    /// and never changes outcome, completion, or original-content identity.
+    func c20ValidateReviewedDerivative(
+        manifest: PrivacyTransformManifestV1,
+        review: PrivacyReviewReceiptV1?,
+        policy: PrivacyTransformPolicyV1,
+        requestedAudience: EvidenceAudienceV1,
+        currentSourceRevision: UInt64,
+        currentSourceSHA256: String,
+        at now: Date
+    ) throws -> ContentReferenceV1 {
+        guard id != PartyAccountabilityValidationV1.zero,
+              assetID != PartyAccountabilityValidationV1.zero else {
+            throw PrivacyTransformFailureV1.invalidValue
+        }
+        return try C20PrivacyProjectionBridgeV1.requireAllowed(
+            manifest: manifest,
+            review: review,
+            policy: policy,
+            requestedAudience: requestedAudience,
+            currentSourceRevision: currentSourceRevision,
+            currentSourceSHA256: currentSourceSHA256,
+            at: now
+        )
+    }
 }
 
 @Model

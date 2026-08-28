@@ -1557,4 +1557,30 @@ extension SnapshotValidatorV1 {
         try EvidenceDetailMeasurementIntegrityProjectionGuardV1.validate(projection)
         return projection
     }
+
+    /// C20 is validated as a frozen, audience-safe derivative binding. The
+    /// validator never resolves original content or a newer policy/review.
+    func validatePrivacyTransformProjection(
+        _ projection: PrivacyTransformReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> PrivacyTransformReportProjectionV1 {
+        try projection.validate()
+        try PrivacyTransformReportConsumerPolicyV1.validate(projection, format: format)
+        return projection
+    }
+
+    static func validatePrivacyTransformProjection(
+        _ projection: PrivacyTransformReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> PrivacyTransformReportProjectionV1 {
+        try projection.validate()
+        try PrivacyTransformReportConsumerPolicyV1.validate(projection, format: format)
+        return projection
+    }
+
+    static func validatePrivacyTransformOpenJSON(
+        _ data: Data
+    ) throws -> PrivacyTransformReportProjectionV1 {
+        try DeterministicOpenJSONRendererV1.reopenPrivacyTransform(data)
+    }
 }

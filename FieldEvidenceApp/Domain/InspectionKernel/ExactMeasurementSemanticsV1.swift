@@ -550,3 +550,98 @@ extension ExactMeasurementV1 {
         try c.encode(roundingReceipt, forKey: .roundingReceipt)
     }
 }
+
+// MARK: - C20 exact normalized-region bridge
+
+/// The C20 renderer consumes the canonical integer rectangle directly. This
+/// bridge keeps coordinate validation in the exact-semantics module while
+/// leaving measurement values, units, conversion, and rounding untouched.
+enum ExactMeasurementPrivacyRegionBridgeV1 {
+    static let normalizedCoordinateScale: Int32 =
+        PrivacyTransformValidationV1.coordinateScale
+    static let supportedCoordinateSpaces: [PrivacyCoordinateSpaceV1] = [
+        .normalizedImage, .pixelImage,
+    ]
+
+    /// Validates one region's workspace/source binding and returns its
+    /// canonical integer bounds. Coordinate conversion is delegated to the
+    /// C20 integer projection so normalized and pixel-image inputs, all
+    /// declared orientations, source bounds, and rational scales share one
+    /// deterministic representation.
+    static func normalizedBounds(
+        for region: PrivacyRegionV1,
+        workspaceID: WorkspaceID,
+        sourceContentID: String,
+        sourceRevision: UInt64,
+        sourceSHA256: String
+    ) throws -> PrivacyNormalizedRectV1 {
+        try region.validate()
+        guard PrivacyTransformValidationV1.workspace(
+                region.workspaceID,
+                matches: workspaceID.rawValue
+            ),
+            supportedCoordinateSpaces.contains(region.coordinateSpace),
+            region.sourceContentID == sourceContentID,
+            region.sourceRevision == sourceRevision,
+            region.sourceSHA256 == sourceSHA256 else {
+            throw PrivacyTransformFailureV1.invalidValue
+        }
+        let sourceBounds = try PrivacyIntegerRectV1(
+            x: region.sourceBounds.x,
+            y: region.sourceBounds.y,
+            width: region.sourceBounds.width,
+            height: region.sourceBounds.height
+        )
+        let coordinateScale = try PrivacyCoordinateScaleV1(
+            numerator: region.coordinateScale.numerator,
+            denominator: region.coordinateScale.denominator
+        )
+        guard sourceBounds == region.sourceBounds,
+              coordinateScale == region.coordinateScale else {
+            throw PrivacyTransformFailureV1.invalidCoordinates
+        }
+        let projected = try PrivacyCoordinateProjectionV1.normalized(
+            sourceBounds: sourceBounds,
+            space: region.coordinateSpace,
+            orientation: region.orientation,
+            pixelWidth: region.pixelWidth,
+            pixelHeight: region.pixelHeight,
+            scale: coordinateScale
+        )
+        guard projected == region.bounds else {
+            throw PrivacyTransformFailureV1.invalidCoordinates
+        }
+        try projected.validate()
+        return projected
+    }
+
+    /// Validates an ordered C20 region set and projects only the canonical
+    /// integer bounds. Input order and region identity are checked rather than
+    /// sorted, so a caller cannot hide a nondeterministic transform sequence.
+    static func normalizedBounds(
+        forRegions regions: [PrivacyRegionV1],
+        workspaceID: WorkspaceID,
+        sourceContentID: String,
+        sourceRevision: UInt64,
+        sourceSHA256: String
+    ) throws -> [PrivacyNormalizedRectV1] {
+        guard !regions.isEmpty,
+              regions.count <= PrivacyTransformValidationV1.maximumRegions,
+              sourceRevision > 0 else {
+            throw PrivacyTransformFailureV1.invalidValue
+        }
+        guard regions.map(\.order) == Array(0..<UInt32(regions.count)),
+              Set(regions.map(\.regionID)).count == regions.count else {
+            throw PrivacyTransformFailureV1.nondeterministicRegions
+        }
+        return try regions.map {
+            try normalizedBounds(
+                for: $0,
+                workspaceID: workspaceID,
+                sourceContentID: sourceContentID,
+                sourceRevision: sourceRevision,
+                sourceSHA256: sourceSHA256
+            )
+        }
+    }
+}

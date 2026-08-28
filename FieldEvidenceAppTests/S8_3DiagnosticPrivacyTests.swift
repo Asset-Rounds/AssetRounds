@@ -664,4 +664,14 @@ extension S8_3DiagnosticPrivacyTests {
         XCTAssertFalse(MeasurementIntegrityLifecycleCatalogV1.persistentKinds.contains("REMOTE_PROVIDER_V1"))
         XCTAssertTrue(MeasurementIntegrityEraseBoundaryV1.workspaceEraseClearsEntireClosure)
     }
+
+    func testC20PrivacyTransformDiagnosticsCarryNoProviderOrLegalClaim() throws {
+        let corpusURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("Fixtures/V21/PrivacyTransform/V21P03C20PrivacyTransformCorpusV1.json")
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: corpusURL)) as? [String: Any])
+        XCTAssertEqual(object["noCloudClaim"] as? Bool, true)
+        XCTAssertEqual(object["noLegalClaim"] as? Bool, true)
+        XCTAssertEqual(object["noRecognitionClaim"] as? Bool, true)
+    }
 }

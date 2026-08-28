@@ -56,6 +56,10 @@ final class BackupExportService {
     private static let checkpointBasisExportedAt = Date(timeIntervalSince1970: 0)
 
     private struct Rows {
+        let privacyTransformPolicies: [PrivacyTransformPolicyRow]
+        let privacyRegions: [PrivacyRegionRow]
+        let privacyTransformManifests: [PrivacyTransformManifestRow]
+        let privacyReviewReceipts: [PrivacyReviewReceiptRow]
         let instrumentReferences: [InstrumentReferenceRow]
         let calibrationStatusSnapshots: [CalibrationStatusSnapshotRow]
         let measurementCaptures: [MeasurementCaptureRow]
@@ -962,9 +966,9 @@ private extension BackupExportService {
             source: .init(
                 appBuild: appBuild(),
                 appVersion: appVersion(),
-                persistentSchemaVersion: 18,
+                persistentSchemaVersion: 19,
                 replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: 17,
+                recordsSchemaVersion: 18,
                 sourceGenerationID: generationID,
                 workspaceID: sourceIdentity.workspaceID.rawValue
             )
@@ -1492,6 +1496,10 @@ private extension BackupExportService {
     private func fetchRows() throws -> Rows {
         do {
             return Rows(
+                privacyTransformPolicies: try modelContext.fetch(FetchDescriptor<PrivacyTransformPolicyRow>()),
+                privacyRegions: try modelContext.fetch(FetchDescriptor<PrivacyRegionRow>()),
+                privacyTransformManifests: try modelContext.fetch(FetchDescriptor<PrivacyTransformManifestRow>()),
+                privacyReviewReceipts: try modelContext.fetch(FetchDescriptor<PrivacyReviewReceiptRow>()),
                 instrumentReferences: try modelContext.fetch(FetchDescriptor<InstrumentReferenceRow>()),
                 calibrationStatusSnapshots: try modelContext.fetch(FetchDescriptor<CalibrationStatusSnapshotRow>()),
                 measurementCaptures: try modelContext.fetch(FetchDescriptor<MeasurementCaptureRow>()),
@@ -2037,7 +2045,9 @@ private extension BackupExportService {
         let fieldDrafts = mutationHistory == nil ? [] : try fieldDraftRecords(rows)
         let packageEvolution = mutationHistory == nil ? [] : try packageEvolutionRecords(rows)
         let measurementIntegrity = mutationHistory == nil ? [] : try measurementIntegrityRecords(rows)
+        let privacyTransforms = mutationHistory == nil ? [] : try privacyTransformRecords(rows)
         return V4BackupRecordsV1(
+            privacyTransforms: privacyTransforms,
             measurementIntegrity: measurementIntegrity,
             packageEvolution: packageEvolution,
             fieldDrafts: fieldDrafts,
@@ -2189,6 +2199,25 @@ private extension BackupExportService {
         result += try rows.measurementSeries.map{let v=try $0.value();return .init(kind:.measurementSeries,id:v.snapshotID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try MeasurementIntegrityCanonicalCodecV1.encode(v))}
         result += try rows.measurementQualityAssessments.map{let v=try $0.value();return .init(kind:.qualityAssessment,id:v.assessmentID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try MeasurementIntegrityCanonicalCodecV1.encode(v))}
         return result.sorted{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"}
+    }
+
+    private func privacyTransformRecords(_ rows: Rows) throws -> [V19BackupPrivacyTransformRecordV1] {
+        var result: [V19BackupPrivacyTransformRecordV1] = []
+        let policies = try Dictionary(uniqueKeysWithValues: rows.privacyTransformPolicies.map { let v = try $0.value(); return (v.policyID, v) })
+        result += try rows.privacyTransformPolicies.map { let v = try $0.value(); return .init(kind: .policy, id: v.policyID, workspaceID: v.workspaceID.rawValue, revision: v.revision, canonicalData: try PrivacyTransformCanonicalCodecV1.encode(v)) }
+        result += try rows.privacyRegions.map { let v = try $0.value(); return .init(kind: .region, id: v.regionID, workspaceID: v.workspaceID.rawValue, revision: v.revision, canonicalData: try PrivacyTransformCanonicalCodecV1.encode(v)) }
+        let manifests = try Dictionary(uniqueKeysWithValues: rows.privacyTransformManifests.map { row in
+            guard let policy = policies[row.policyID] else { throw BackupExportServiceError.invalidAuthority }
+            let value = try row.value(policy: policy)
+            return (value.manifestID, value)
+        })
+        result += try manifests.values.map { v in .init(kind: .manifest, id: v.manifestID, workspaceID: v.workspaceID.rawValue, revision: v.revision, canonicalData: try PrivacyTransformCanonicalCodecV1.encode(v)) }
+        result += try rows.privacyReviewReceipts.map { row in
+            guard let manifest = manifests[row.manifestID], let policy = policies[row.policyID] else { throw BackupExportServiceError.invalidAuthority }
+            let v = try row.value(manifest: manifest, policy: policy)
+            return .init(kind: .reviewReceipt, id: v.receiptID, workspaceID: v.workspaceID.rawValue, revision: v.revision, canonicalData: try PrivacyTransformCanonicalCodecV1.encode(v))
+        }
+        return result.sorted { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)" }
     }
 
     private func functionalRelationshipRecords(

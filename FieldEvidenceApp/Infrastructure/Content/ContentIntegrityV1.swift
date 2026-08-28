@@ -186,6 +186,58 @@ protocol DraftImmutableContentWriterV1: Sendable {
     ) async throws -> DraftImmutableContentWriteReceiptV1
 }
 
+/// C20 reuses the canonical C05 byte writer under a distinct derivative
+/// content ID. The returned C05 receipt proves durable read-back; it does not
+/// claim the later SwiftData transaction was cross-store atomic.
+struct PrivacyDerivativeByteWriteReceiptV1: Equatable, Sendable {
+    let contentReceipt: DraftImmutableContentWriteReceiptV1
+    let derivativeReference: ContentReferenceV1
+
+    func validate(bytes: Data, mutationID: MutationIDV1) throws {
+        guard derivativeReference.byteRole == .derivative,
+              contentReceipt.contentID == derivativeReference.contentID,
+              contentReceipt.mutationID == mutationID,
+              contentReceipt.digest == derivativeReference.digests.digest(for: .sha256),
+              contentReceipt.byteLength == derivativeReference.byteLength,
+              contentReceipt.mediaType == derivativeReference.mediaType else {
+            throw ContentIntegrityFailureV1.digestMismatch
+        }
+        let request = try DraftImmutableContentWriteRequestV1(
+            workspaceID: contentReceipt.workspaceID,
+            contentID: contentReceipt.contentID,
+            digest: contentReceipt.digest,
+            byteLength: contentReceipt.byteLength,
+            mediaType: contentReceipt.mediaType,
+            mutationID: mutationID,
+            createdAt: contentReceipt.createdAt
+        )
+        try contentReceipt.validate(request: request, bytes: bytes)
+    }
+}
+
+struct ExistingContentStorePrivacyDerivativeWriterV1: Sendable {
+    private let writer: any DraftImmutableContentWriterV1
+    init(writer: any DraftImmutableContentWriterV1) { self.writer = writer }
+
+    func persist(bytes: Data, reference: ContentReferenceV1, workspaceID: WorkspaceID,
+                 mutationID: MutationIDV1) async throws -> PrivacyDerivativeByteWriteReceiptV1 {
+        guard reference.byteRole == .derivative,
+              PrivacyTransformValidationV1.workspace(workspaceID, matches: reference.workspaceID),
+              let digest = reference.digests.digest(for: .sha256) else {
+            throw ContentIntegrityFailureV1.immutableOriginal
+        }
+        let request = try DraftImmutableContentWriteRequestV1(
+            workspaceID: workspaceID, contentID: reference.contentID, digest: digest,
+            byteLength: reference.byteLength, mediaType: reference.mediaType,
+            mutationID: mutationID, createdAt: reference.createdAt
+        )
+        let stored = try await writer.persistImmutableOriginal(bytes: bytes, request: request)
+        let receipt = PrivacyDerivativeByteWriteReceiptV1(contentReceipt: stored, derivativeReference: reference)
+        try receipt.validate(bytes: bytes, mutationID: mutationID)
+        return receipt
+    }
+}
+
 struct ContentObservedBytesV1: Equatable, Sendable {
     let workspaceID: String
     let contentID: String
@@ -484,6 +536,21 @@ extension ContentIntegrityV1 {
               reservation.locator.contentDigest == reservation.contentDigest,
               reservation.locator.expectedByteLength == reference.byteLength,
               reference.byteRole == .immutableOriginal else {
+            throw ContentIntegrityFailureV1.digestMismatch
+        }
+    }
+}
+
+extension ContentIntegrityV1 {
+    static func verifyPrivacyDerivative(
+        closure: PrivacyTransformLifecycleClosureV1,
+        locator: ContentLocatorV1,
+        observed: ContentObservedBytesV1
+    ) throws {
+        try closure.validate()
+        try closure.manifest.original.validatePrivacyDerivative(closure.manifest.derivative)
+        try verify(reference: closure.manifest.derivative, locator: locator, observed: observed)
+        guard observed.digests.digest(for: .sha256)?.hexadecimalValue == closure.manifest.derivativeSHA256 else {
             throw ContentIntegrityFailureV1.digestMismatch
         }
     }

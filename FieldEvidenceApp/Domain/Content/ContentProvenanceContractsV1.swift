@@ -108,11 +108,29 @@ struct SequenceDerivativeV1: Codable, Equatable, Sendable {
     }
 }
 
+struct PrivacyDerivativeV1: Codable, Equatable, Sendable {
+    let privacyManifestID: UUID
+    let privacyManifestSHA256: String
+    let rendererID: String
+    let rendererVersion: String
+
+    init(privacyManifestID: UUID, privacyManifestSHA256: String, rendererID: String, rendererVersion: String) throws {
+        guard KernelCanonicalHashV1.validSHA256(privacyManifestSHA256),
+              ContentContractValidationV1.validID(rendererID),
+              ContentContractValidationV1.validVersion(rendererVersion) else {
+            throw ContentContractFailureV1.invalidProvenance
+        }
+        self.privacyManifestID = privacyManifestID; self.privacyManifestSHA256 = privacyManifestSHA256
+        self.rendererID = rendererID; self.rendererVersion = rendererVersion
+    }
+}
+
 enum ContentDerivativeTransformV1: Codable, Equatable, Sendable {
     case sanitized(SanitizedDerivativeV1)
     case thumbnail(ThumbnailDerivativeV1)
     case annotation(AnnotationDerivativeV1)
     case sequence(SequenceDerivativeV1)
+    case privacy(PrivacyDerivativeV1)
 
     var kind: String {
         switch self {
@@ -120,6 +138,7 @@ enum ContentDerivativeTransformV1: Codable, Equatable, Sendable {
         case .thumbnail: return "THUMBNAIL"
         case .annotation: return "ANNOTATION"
         case .sequence: return "SEQUENCE"
+        case .privacy: return "PRIVACY"
         }
     }
 }
@@ -162,6 +181,8 @@ struct ContentDerivativeProvenanceV1: Codable, Equatable, Identifiable, Sendable
         switch transform {
         case .sequence(let sequence):
             guard sequence.orderedSourceCount == sources.count else { throw ContentContractFailureV1.invalidProvenance }
+        case .privacy:
+            guard sources.count == 1 else { throw ContentContractFailureV1.invalidProvenance }
         default:
             guard sources.count == 1 else { throw ContentContractFailureV1.invalidProvenance }
         }
@@ -255,7 +276,7 @@ enum ContentProvenanceGraphV1 {
 
 // Strict tagged coding prevents an unknown derivative kind from being treated as an original.
 extension ContentDerivativeTransformV1 {
-    private enum CodingKeys: String, CodingKey, CaseIterable { case kind, sanitized, thumbnail, annotation, sequence }
+    private enum CodingKeys: String, CodingKey, CaseIterable { case kind, sanitized, thumbnail, annotation, sequence, privacy }
     init(from decoder: any Decoder) throws {
         let raw = try decoder.container(keyedBy: CodingKeys.self).decode(String.self, forKey: .kind)
         switch raw {
@@ -275,6 +296,10 @@ extension ContentDerivativeTransformV1 {
             try ContentClosedCodingV1.requireExact(decoder, keys: ["kind", "sequence"])
             let c = try decoder.container(keyedBy: CodingKeys.self)
             self = .sequence(try c.decode(SequenceDerivativeV1.self, forKey: .sequence))
+        case "PRIVACY":
+            try ContentClosedCodingV1.requireExact(decoder, keys: ["kind", "privacy"])
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            self = .privacy(try c.decode(PrivacyDerivativeV1.self, forKey: .privacy))
         default: throw ContentContractFailureV1.invalidProvenance
         }
     }
@@ -287,6 +312,7 @@ extension ContentDerivativeTransformV1 {
         case .thumbnail(let value): try c.encode(value, forKey: .thumbnail)
         case .annotation(let value): try c.encode(value, forKey: .annotation)
         case .sequence(let value): try c.encode(value, forKey: .sequence)
+        case .privacy(let value): try c.encode(value, forKey: .privacy)
         }
     }
 }
@@ -337,6 +363,14 @@ extension SequenceDerivativeV1 {
     init(from decoder: any Decoder) throws {
         try ContentClosedCodingV1.requireExact(decoder, keys: CodingKeys.allCases.map(\.rawValue)); let c = try decoder.container(keyedBy: CodingKeys.self)
         try self.init(assemblerID: c.decode(String.self, forKey: .assemblerID), assemblerVersion: c.decode(String.self, forKey: .assemblerVersion), orderedSourceCount: c.decode(Int.self, forKey: .orderedSourceCount))
+    }
+}
+
+extension PrivacyDerivativeV1 {
+    private enum CodingKeys: String, CodingKey, CaseIterable { case privacyManifestID, privacyManifestSHA256, rendererID, rendererVersion }
+    init(from decoder: any Decoder) throws {
+        try ContentClosedCodingV1.requireExact(decoder, keys: CodingKeys.allCases.map(\.rawValue)); let c = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(privacyManifestID: c.decode(UUID.self, forKey: .privacyManifestID), privacyManifestSHA256: c.decode(String.self, forKey: .privacyManifestSHA256), rendererID: c.decode(String.self, forKey: .rendererID), rendererVersion: c.decode(String.self, forKey: .rendererVersion))
     }
 }
 

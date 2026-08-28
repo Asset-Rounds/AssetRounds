@@ -218,6 +218,55 @@ extension PackageReleaseBindingV1 {
     }
 }
 
+// MARK: - C20 reviewed-derivative release binding
+
+extension PackageReleaseBindingV1 {
+    /// Validates the existing immutable package publication before a C20
+    /// derivative is projected. The binding remains a release identity and
+    /// never becomes a privacy/compliance decision or a second writer.
+    func c20ValidateReviewedDerivative(
+        package: InspectionPackageV2,
+        release: InspectionPackageReleaseV1,
+        manifest: PrivacyTransformManifestV1,
+        review: PrivacyReviewReceiptV1?,
+        policy: PrivacyTransformPolicyV1,
+        requestedAudience: EvidenceAudienceV1,
+        currentSourceRevision: UInt64,
+        currentSourceSHA256: String,
+        at now: Date
+    ) throws -> ContentReferenceV1 {
+        try validate()
+        try package.validate()
+        try release.validate()
+        let packageBytes = try InspectionPackageCanonicalCodecV2.encode(package)
+        guard packageReleaseID == release.packageReleaseID,
+              release.state == .published,
+              packageID == package.packageID,
+              packageContentVersion == package.contentVersion,
+              packageID == release.packageID,
+              packageContentVersion == release.packageContentVersion,
+              packageSHA256 == release.packageSHA256,
+              canonicalPackageBytes == packageBytes,
+              canonicalPackageBytes == release.canonicalPackageBytes,
+              workflowSHA256 == release.workflowSHA256,
+              canonicalWorkflowBytes == release.canonicalWorkflowBytes else {
+            throw InspectionKernelFailureV1.hashMismatch
+        }
+        guard manifest.workspaceID == policy.workspaceID else {
+            throw PrivacyTransformFailureV1.wrongWorkspace
+        }
+        return try C20PrivacyProjectionBridgeV1.requireAllowed(
+            manifest: manifest,
+            review: review,
+            policy: policy,
+            requestedAudience: requestedAudience,
+            currentSourceRevision: currentSourceRevision,
+            currentSourceSHA256: currentSourceSHA256,
+            at: now
+        )
+    }
+}
+
 enum InspectionKernelLifecycleV1 {
     static let mode = "DECLARATION_ONLY"
     static let schema = "KERNEL_CONTRACT_V1"

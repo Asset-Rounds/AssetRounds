@@ -21,6 +21,22 @@ struct MeasurementIntegrityDeletionInventoryV1: Equatable, Sendable {
     let qualityAssessments: Int
 }
 
+struct PrivacyTransformDeletionInventoryV1: Equatable, Sendable {
+    let policies: Int; let regions: Int; let manifests: Int; let reviewReceipts: Int
+    static let empty = Self(policies: 0, regions: 0, manifests: 0, reviewReceipts: 0)
+}
+
+enum PrivacyTransformDeletionAuthorityV1: Sendable { case ordinaryDelete, workspaceErase }
+
+extension WholeSignDeletionRule {
+    static func validatePrivacyTransformLifecycle(authority: PrivacyTransformDeletionAuthorityV1, before: PrivacyTransformDeletionInventoryV1, after: PrivacyTransformDeletionInventoryV1) throws {
+        switch authority {
+        case .ordinaryDelete: guard before == after else { throw WholeSignDeletionRuleError.invalidGraph }
+        case .workspaceErase: guard after == .empty else { throw WholeSignDeletionRuleError.invalidGraph }
+        }
+    }
+}
+
 enum MeasurementIntegrityDeletionAuthorityV1: Sendable { case ordinaryAssetOrSiteDelete, workspaceErase }
 
 extension WholeSignDeletionRule {

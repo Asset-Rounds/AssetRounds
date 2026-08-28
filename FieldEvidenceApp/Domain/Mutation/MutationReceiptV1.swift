@@ -110,6 +110,10 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
     case measurementCapture(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case measurementSeries(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case measurementQualityAssessment(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case privacyTransformPolicy(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case privacyRegion(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case privacyTransformManifest(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case privacyReviewReceipt(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case workflowRecord(id: UUID, revision: UInt64, semanticSHA256: String)
     case evidenceFile(id: UUID, revision: UInt64, semanticSHA256: String)
     case issue(id: UUID, revision: UInt64, semanticSHA256: String)
@@ -173,6 +177,10 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
             case let .measurementCapture(id,_,_,_):return try .init(kind:.measurementCapture,id:id)
             case let .measurementSeries(id,_,_,_):return try .init(kind:.measurementSeries,id:id)
             case let .measurementQualityAssessment(id,_,_,_):return try .init(kind:.measurementQualityAssessment,id:id)
+            case let .privacyTransformPolicy(id,_,_,_):return try .init(kind:.privacyTransformPolicy,id:id)
+            case let .privacyRegion(id,_,_,_):return try .init(kind:.privacyRegion,id:id)
+            case let .privacyTransformManifest(id,_,_,_):return try .init(kind:.privacyTransformManifest,id:id)
+            case let .privacyReviewReceipt(id,_,_,_):return try .init(kind:.privacyReviewReceipt,id:id)
             case let .workflowRecord(id, _, _): return try .init(kind: .workflowRecord, id: id)
             case let .evidenceFile(id, _, _): return try .init(kind: .evidenceFile, id: id)
             case let .issue(id, _, _): return try .init(kind: .issue, id: id)
@@ -203,7 +211,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
              let .assuranceManifest(_,_,_,value),let .attestation(_,_,_,value),
              let .inspectionReviewTransition(_,_,_,value),let .reviewDisposition(_,_,_,value),let .changeRequest(_,_,_,value),let .correctiveActionPolicy(_,_,_,value),let .correctiveActionEvent(_,_,_,value),
              let .workPacketManifest(_,_,_,value),let .workItemClaim(_,_,_,value),let .workLease(_,_,_,value),let .workRelease(_,_,_,value),let .workHandoff(_,_,_,value),
-             let .fieldDraftCheckpoint(_,_,_,value),let .attachmentStagingItem(_,_,_,value),let .draftCommitSaga(_,_,_,value),let .draftContentReservation(_,_,_,value),let .draftCommitReceipt(_,_,_,value),let .draftDiscardReceipt(_,_,_,value),let .promotedPackageRelease(_,_,_,value),let .packageSandboxRun(_,_,_,value),let .packagePromotionReceipt(_,_,_,value),let .activePackageRegistryPointer(_,_,_,value),let .instrumentReference(_,_,_,value),let .calibrationStatusSnapshot(_,_,_,value),let .measurementCapture(_,_,_,value),let .measurementSeries(_,_,_,value),let .measurementQualityAssessment(_,_,_,value),
+             let .fieldDraftCheckpoint(_,_,_,value),let .attachmentStagingItem(_,_,_,value),let .draftCommitSaga(_,_,_,value),let .draftContentReservation(_,_,_,value),let .draftCommitReceipt(_,_,_,value),let .draftDiscardReceipt(_,_,_,value),let .promotedPackageRelease(_,_,_,value),let .packageSandboxRun(_,_,_,value),let .packagePromotionReceipt(_,_,_,value),let .activePackageRegistryPointer(_,_,_,value),let .instrumentReference(_,_,_,value),let .calibrationStatusSnapshot(_,_,_,value),let .measurementCapture(_,_,_,value),let .measurementSeries(_,_,_,value),let .measurementQualityAssessment(_,_,_,value),let .privacyTransformPolicy(_,_,_,value),let .privacyRegion(_,_,_,value),let .privacyTransformManifest(_,_,_,value),let .privacyReviewReceipt(_,_,_,value),
              let .workflowRecord(_, _, value),
              let .evidenceFile(_, _, value), let .issue(_, _, value), let .packet(_, _, value),
              let .report(_, _, value), let .deletionLedgerEntry(_, _, value),
@@ -265,6 +273,10 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
             case let .measurementCapture(_,v,_,_):guard v.kind == .measurementCapture else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             case let .measurementSeries(_,v,_,_):guard v.kind == .measurementSeries else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             case let .measurementQualityAssessment(_,v,_,_):guard v.kind == .measurementQualityAssessment else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+            case let .privacyTransformPolicy(_,v,_,_):guard v.kind == .privacyTransformPolicy else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+            case let .privacyRegion(_,v,_,_):guard v.kind == .privacyRegion else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+            case let .privacyTransformManifest(_,v,_,_):guard v.kind == .privacyTransformManifest else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+            case let .privacyReviewReceipt(_,v,_,_):guard v.kind == .privacyReviewReceipt else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             default:
                 return try identity
             }
@@ -291,7 +303,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
              let .assuranceManifest(_,_,value,_),let .attestation(_,_,value,_),
              let .inspectionReviewTransition(_,_,value,_),let .reviewDisposition(_,_,value,_),let .changeRequest(_,_,value,_),let .correctiveActionPolicy(_,_,value,_),let .correctiveActionEvent(_,_,value,_),
              let .workPacketManifest(_,_,value,_),let .workItemClaim(_,_,value,_),let .workLease(_,_,value,_),let .workRelease(_,_,value,_),let .workHandoff(_,_,value,_),
-             let .fieldDraftCheckpoint(_,_,value,_),let .attachmentStagingItem(_,_,value,_),let .draftCommitSaga(_,_,value,_),let .draftContentReservation(_,_,value,_),let .draftCommitReceipt(_,_,value,_),let .draftDiscardReceipt(_,_,value,_),let .promotedPackageRelease(_,_,value,_),let .packageSandboxRun(_,_,value,_),let .packagePromotionReceipt(_,_,value,_),let .activePackageRegistryPointer(_,_,value,_),let .instrumentReference(_,_,value,_),let .calibrationStatusSnapshot(_,_,value,_),let .measurementCapture(_,_,value,_),let .measurementSeries(_,_,value,_),let .measurementQualityAssessment(_,_,value,_),
+             let .fieldDraftCheckpoint(_,_,value,_),let .attachmentStagingItem(_,_,value,_),let .draftCommitSaga(_,_,value,_),let .draftContentReservation(_,_,value,_),let .draftCommitReceipt(_,_,value,_),let .draftDiscardReceipt(_,_,value,_),let .promotedPackageRelease(_,_,value,_),let .packageSandboxRun(_,_,value,_),let .packagePromotionReceipt(_,_,value,_),let .activePackageRegistryPointer(_,_,value,_),let .instrumentReference(_,_,value,_),let .calibrationStatusSnapshot(_,_,value,_),let .measurementCapture(_,_,value,_),let .measurementSeries(_,_,value,_),let .measurementQualityAssessment(_,_,value,_),let .privacyTransformPolicy(_,_,value,_),let .privacyRegion(_,_,value,_),let .privacyTransformManifest(_,_,value,_),let .privacyReviewReceipt(_,_,value,_),
              let .workflowRecord(_, value, _), let .evidenceFile(_, value, _),
              let .issue(_, value, _), let .packet(_, value, _),
              let .report(_, value, _), let .deletionLedgerEntry(_, value, _),
@@ -652,6 +664,7 @@ extension FieldDraftMutationPayloadV1{var mutationPostImages:[MutationPostImageV
 extension PackagePromotionMutationV1{var mutationPostImages:[MutationPostImageV1]{get throws{let identities=try affectedIdentities,concurrency=try concurrencyIdentities;func c(_ kind:WorkspaceEntityKindV1)throws->WorkspaceEntityIdentityV1{guard let value=concurrency.first(where:{$0.kind==kind})else{throw WorkspaceMutationFailureV1.invalidCommand};return value};let values:[MutationPostImageV1]=[.promotedPackageRelease(id:promotedRelease.releaseRecordID,concurrencyIdentity:try c(.promotedPackageRelease),revision:promotedRelease.revision,semanticSHA256:promotedRelease.releaseRecordSHA256),.packageSandboxRun(id:sandboxRun.runID,concurrencyIdentity:try c(.packageSandboxRun),revision:sandboxRun.revision,semanticSHA256:sandboxRun.runSHA256),.packagePromotionReceipt(id:receipt.receiptID,concurrencyIdentity:try c(.packagePromotionReceipt),revision:receipt.revision,semanticSHA256:receipt.receiptSHA256),.activePackageRegistryPointer(id:resultingPointer.pointerID,concurrencyIdentity:try c(.activePackageRegistryPointer),revision:resultingPointer.revision,semanticSHA256:resultingPointer.pointerSHA256)];guard try values.map({try $0.identity})==identities else{throw WorkspaceMutationFailureV1.invalidCommand};return values}}}
 extension MeasurementIntegrityMutationPayloadV1{var mutationPostImage:MutationPostImageV1{get throws{let c=try predecessorIdentity ?? identity;switch self{case let .instrument(v):return .instrumentReference(id:v.referenceID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.referenceSHA256);case let .calibration(v):return .calibrationStatusSnapshot(id:v.snapshotID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.snapshotSHA256);case let .capture(v):return .measurementCapture(id:v.captureID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.captureSHA256);case let .series(v):return .measurementSeries(id:v.snapshotID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.seriesSHA256);case let .quality(v):return .measurementQualityAssessment(id:v.assessmentID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.assessmentSHA256)}}}}
 extension MeasurementIntegrityMutationV1{var mutationPostImages:[MutationPostImageV1]{get throws{try bundle.mutationPayloads.map{try $0.mutationPostImage}.sorted{try $0.identity.stableKey<$1.identity.stableKey}}}}
+extension PrivacyTransformMutationV1{var mutationPostImages:[MutationPostImageV1]{get throws{let values:[MutationPostImageV1];switch self{case let .policy(value):values=[try .privacyTransformPolicy(id:value.policyID,concurrencyIdentity:.init(kind:.privacyTransformPolicy,id:value.supersedesPolicyID ?? value.policyID),revision:value.revision,semanticSHA256:value.policySHA256)];case let .publish(_,regions,manifest):values=try [.privacyTransformManifest(id:manifest.manifestID,concurrencyIdentity:.init(kind:.privacyTransformManifest,id:manifest.supersedesManifestID ?? manifest.manifestID),revision:manifest.revision,semanticSHA256:manifest.manifestSHA256)]+regions.map{try .privacyRegion(id:$0.regionID,concurrencyIdentity:.init(kind:.privacyRegion,id:$0.regionID),revision:$0.revision,semanticSHA256:$0.regionSHA256)};case let .review(value,_,_):values=[try .privacyReviewReceipt(id:value.receiptID,concurrencyIdentity:.init(kind:.privacyReviewReceipt,id:value.supersedesReceiptID ?? value.receiptID),revision:value.revision,semanticSHA256:value.receiptSHA256)]};return try values.sorted{try $0.identity.stableKey<$1.identity.stableKey}}}}
 
 /// Typed C40 receipt binding the journal-owned receipt to the exact canonical
 /// authority/criterion post-image. It does not introduce a second receipt
@@ -862,8 +875,12 @@ struct InspectionReviewMutationReceiptV1:Codable,Equatable,Sendable{
         let affected=try mutation.affectedIdentities
         let images=try mutation.postImage.mutationPostImages
         let concurrency=try images.map{$0.concurrencyIdentity}.sorted{$0.stableKey<$1.stableKey}
-        let expected=Dictionary(uniqueKeysWithValues:mutationReceipt.expectedRevision.entityRevisions.map{($0.identity,$0.revision)})
-        let resulting=Dictionary(uniqueKeysWithValues:mutationReceipt.resultingRevision.entityRevisions.map{($0.identity,$0.revision)})
+        let expectedRevisions=mutationReceipt.expectedRevision.entityRevisions
+        let resultingRevisions=mutationReceipt.resultingRevision.entityRevisions
+        guard Set(expectedRevisions.map(\.identity)).count==expectedRevisions.count,
+              Set(resultingRevisions.map(\.identity)).count==resultingRevisions.count else{throw WorkspaceMutationFailureV1.invalidReceipt}
+        let expected=Dictionary(uniqueKeysWithValues:expectedRevisions.map{($0.identity,$0.revision)})
+        let resulting=Dictionary(uniqueKeysWithValues:resultingRevisions.map{($0.identity,$0.revision)})
         guard concurrency==(try mutation.concurrencyIdentities),Set(concurrency).count==concurrency.count,
               mutationReceipt.mutationID==mutation.mutationID,mutationReceipt.identity.workspaceID==mutation.workspaceID,
               mutationReceipt.commandBodySHA256==(try WorkspaceMutationCanonicalV1.sha256(WorkspaceCommandV1.applyInspectionReview(mutation))),
@@ -887,6 +904,37 @@ struct WorkPacketMutationReceiptV1:Codable,Equatable,Sendable{let mutationSHA256
 struct FieldDraftMutationReceiptV1:Codable,Equatable,Sendable{let mutationSHA256:String;let mutationReceipt:MutationReceiptV1;let affectedIdentities:[WorkspaceEntityIdentityV1];let concurrencyIdentities:[WorkspaceEntityIdentityV1];init(mutation:FieldDraftMutationV1,mutationReceipt:MutationReceiptV1)throws{try mutation.validate();try mutationReceipt.validate();let affected=try mutation.affectedIdentities,concurrency=try mutation.concurrencyIdentities,images=try mutation.postImage.mutationPostImages;guard mutationReceipt.mutationID==mutation.mutationID,mutationReceipt.identity.workspaceID==mutation.workspaceID,mutationReceipt.commandBodySHA256==(try WorkspaceMutationCanonicalV1.sha256(WorkspaceCommandV1.applyFieldDraft(mutation))),mutationReceipt.postImages==images,try concurrency.allSatisfy({identity in mutationReceipt.expectedRevision.entityRevisions.first(where:{$0.identity==identity})?.revision == (try mutation.expectedRevision(for:identity))}),try images.allSatisfy({image in mutationReceipt.resultingRevision.entityRevisions.first(where:{$0.identity==(try image.identity)})?.revision==image.revision})else{throw WorkspaceMutationFailureV1.invalidReceipt};mutationSHA256=try mutation.canonicalSHA256();self.mutationReceipt=mutationReceipt;affectedIdentities=affected;concurrencyIdentities=concurrency}}
 struct PackagePromotionMutationReceiptV1:Codable,Equatable,Sendable{let mutationSHA256:String;let mutationReceipt:MutationReceiptV1;let affectedIdentities:[WorkspaceEntityIdentityV1];let concurrencyIdentities:[WorkspaceEntityIdentityV1];init(mutation:PackagePromotionMutationV1,mutationReceipt:MutationReceiptV1)throws{try mutation.validate();try mutationReceipt.validate();let affected=try mutation.affectedIdentities,concurrency=try mutation.concurrencyIdentities,images=try mutation.mutationPostImages;guard mutationReceipt.mutationID==mutation.mutationID,mutationReceipt.identity.workspaceID==mutation.workspaceID,mutationReceipt.commandBodySHA256==(try WorkspaceMutationCanonicalV1.sha256(WorkspaceCommandV1.applyPackagePromotion(mutation))),mutationReceipt.postImages==images,try concurrency.allSatisfy({identity in mutationReceipt.expectedRevision.entityRevisions.first(where:{$0.identity==identity})?.revision == (try mutation.expectedRevision(for:identity))}),try images.allSatisfy({image in mutationReceipt.resultingRevision.entityRevisions.first(where:{$0.identity==(try image.identity)})?.revision==image.revision})else{throw WorkspaceMutationFailureV1.invalidReceipt};mutationSHA256=try mutation.canonicalSHA256();self.mutationReceipt=mutationReceipt;affectedIdentities=affected;concurrencyIdentities=concurrency}}
 struct MeasurementIntegrityMutationReceiptV1:Codable,Equatable,Sendable{let mutationSHA256:String;let mutationReceipt:MutationReceiptV1;let affectedIdentities:[WorkspaceEntityIdentityV1];let concurrencyIdentities:[WorkspaceEntityIdentityV1];init(mutation:MeasurementIntegrityMutationV1,mutationReceipt:MutationReceiptV1)throws{try mutation.validate();try mutationReceipt.validate();let affected=try mutation.affectedIdentities,concurrency=try mutation.concurrencyIdentities,images=try mutation.mutationPostImages;guard mutationReceipt.mutationID==mutation.mutationID,mutationReceipt.identity.workspaceID==mutation.workspaceID,mutationReceipt.commandBodySHA256==(try WorkspaceMutationCanonicalV1.sha256(WorkspaceCommandV1.applyMeasurementIntegrity(mutation))),mutationReceipt.postImages==images,try concurrency.allSatisfy({identity in mutationReceipt.expectedRevision.entityRevisions.first(where:{$0.identity==identity})?.revision == (try mutation.expectedRevision(for:identity))}),try images.allSatisfy({image in mutationReceipt.resultingRevision.entityRevisions.first(where:{$0.identity==(try image.identity)})?.revision==image.revision})else{throw WorkspaceMutationFailureV1.invalidReceipt};mutationSHA256=try mutation.canonicalSHA256();self.mutationReceipt=mutationReceipt;affectedIdentities=affected;concurrencyIdentities=concurrency}}
+struct PrivacyTransformMutationReceiptV1:Codable,Equatable,Sendable{
+    let mutationSHA256:String
+    let mutationReceipt:MutationReceiptV1
+    let affectedIdentities:[WorkspaceEntityIdentityV1]
+    let concurrencyIdentities:[WorkspaceEntityIdentityV1]
+    init(mutation:PrivacyTransformMutationV1,mutationReceipt:MutationReceiptV1)throws{
+        try mutation.validate();try mutationReceipt.validate()
+        let images=try mutation.mutationPostImages
+        let affected=try images.map{$0.identity}.sorted{$0.stableKey<$1.stableKey}
+        let concurrency=try images.map{$0.concurrencyIdentity}.sorted{$0.stableKey<$1.stableKey}
+        let expected=Dictionary(uniqueKeysWithValues:mutationReceipt.expectedRevision.entityRevisions.map{($0.identity,$0.revision)})
+        let resulting=Dictionary(uniqueKeysWithValues:mutationReceipt.resultingRevision.entityRevisions.map{($0.identity,$0.revision)})
+        guard affected==(try mutation.affectedIdentities),concurrency==(try mutation.concurrencyIdentities),
+              Set(affected).count==affected.count,Set(concurrency).count==concurrency.count,
+              Set(expected.keys)==Set(concurrency),
+              mutationReceipt.mutationID==mutation.mutationID,mutationReceipt.identity.workspaceID==mutation.workspaceID,
+              mutationReceipt.commandBodySHA256==(try WorkspaceMutationCanonicalV1.sha256(WorkspaceCommandV1.applyPrivacyTransform(mutation))),
+              try concurrency.allSatisfy{expected[$0]==(try mutation.expectedRevision(for:$0))},
+              try images.allSatisfy{resulting[try $0.identity]==$0.revision},mutationReceipt.postImages==images else{throw WorkspaceMutationFailureV1.invalidReceipt}
+        mutationSHA256=try mutation.canonicalSHA256();self.mutationReceipt=mutationReceipt
+        affectedIdentities=affected;concurrencyIdentities=concurrency;try validate()
+    }
+    func validate()throws{
+        try mutationReceipt.validate()
+        let imageAffected=try mutationReceipt.postImages.map{$0.identity}.sorted{$0.stableKey<$1.stableKey}
+        let imageConcurrency=try mutationReceipt.postImages.map{$0.concurrencyIdentity}.sorted{$0.stableKey<$1.stableKey}
+        guard MutationEnvelopeV1.isSHA256(mutationSHA256),affectedIdentities==imageAffected,
+              concurrencyIdentities==imageConcurrency,Set(affectedIdentities).count==affectedIdentities.count,
+              Set(concurrencyIdentities).count==concurrencyIdentities.count else{throw WorkspaceMutationFailureV1.invalidReceipt}
+    }
+}
 
 struct MutationHistoryReceiptRecordV1: Codable, Equatable, Sendable {
     let envelopeData: Data

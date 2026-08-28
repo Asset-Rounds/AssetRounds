@@ -353,3 +353,60 @@ extension FindingV1 {
         }
     }
 }
+
+// MARK: - C20 reviewed-derivative finding binding
+
+extension FindingSourceV1 {
+    /// A finding may carry a reviewed derivative as evidence, but never the
+    /// immutable original in its audience-safe evidence set. The privacy
+    /// helper performs the exact policy/audience/source/review/staleness
+    /// checks; this method only binds the resulting derivative identity.
+    func c20ValidateReviewedDerivative(
+        manifest: PrivacyTransformManifestV1,
+        review: PrivacyReviewReceiptV1?,
+        policy: PrivacyTransformPolicyV1,
+        requestedAudience: EvidenceAudienceV1,
+        currentSourceRevision: UInt64,
+        currentSourceSHA256: String,
+        at now: Date
+    ) throws -> ContentReferenceV1 {
+        let derivative = try C20PrivacyProjectionBridgeV1.requireAllowed(
+            manifest: manifest,
+            review: review,
+            policy: policy,
+            requestedAudience: requestedAudience,
+            currentSourceRevision: currentSourceRevision,
+            currentSourceSHA256: currentSourceSHA256,
+            at: now
+        )
+        guard evidenceRevisionIDs.contains(derivative.contentID),
+              !evidenceRevisionIDs.contains(manifest.original.contentID) else {
+            throw PrivacyTransformFailureV1.invalidValue
+        }
+        return derivative
+    }
+}
+
+extension FindingV1 {
+    /// Validates only the evidence reference used by a finding. It does not
+    /// infer severity, compliance, identity, or any other finding conclusion.
+    func c20ValidateReviewedDerivative(
+        manifest: PrivacyTransformManifestV1,
+        review: PrivacyReviewReceiptV1?,
+        policy: PrivacyTransformPolicyV1,
+        requestedAudience: EvidenceAudienceV1,
+        currentSourceRevision: UInt64,
+        currentSourceSHA256: String,
+        at now: Date
+    ) throws -> ContentReferenceV1 {
+        return try source.c20ValidateReviewedDerivative(
+            manifest: manifest,
+            review: review,
+            policy: policy,
+            requestedAudience: requestedAudience,
+            currentSourceRevision: currentSourceRevision,
+            currentSourceSHA256: currentSourceSHA256,
+            at: now
+        )
+    }
+}

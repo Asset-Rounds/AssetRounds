@@ -1078,4 +1078,12 @@ extension V9_ChangeJournalCheckpointReplayTests {
         XCTAssertEqual(replayed.bundleSHA256, fixture.bundle.bundleSHA256)
         try replayed.validate()
     }
+
+    func testC20PrivacyTransformReplayUsesCanonicalManifestBytes() throws {
+        let fixture = try C20PrivacyTransformTestSupport.makeFixture()
+        let first = try PrivacyTransformCanonicalCodecV1.encode(fixture.manifest)
+        let second = try PrivacyTransformCanonicalCodecV1.encode(fixture.manifest)
+        XCTAssertEqual(first, second)
+        XCTAssertEqual(try PrivacyTransformCanonicalCodecV1.decode(PrivacyTransformManifestV1.self, from: first), fixture.manifest)
+    }
 }

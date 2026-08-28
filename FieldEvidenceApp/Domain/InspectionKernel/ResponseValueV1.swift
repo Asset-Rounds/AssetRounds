@@ -339,6 +339,109 @@ extension ResponseValueV1 {
     }
 }
 
+// MARK: - C20 reviewed-derivative projection boundary
+
+/// C20's privacy decision is a projection gate, not a compliance or
+/// classification decision.  Keeping the common validation here gives every
+/// response/evidence consumer the same fail-closed source, policy, audience,
+/// review, and derivative-digest checks.
+enum C20PrivacyProjectionBridgeV1 {
+    static func decision(
+        manifest: PrivacyTransformManifestV1,
+        review: PrivacyReviewReceiptV1?,
+        policy: PrivacyTransformPolicyV1,
+        requestedAudience: EvidenceAudienceV1,
+        currentSourceRevision: UInt64,
+        currentSourceSHA256: String,
+        at now: Date
+    ) throws -> PrivacyProjectionDecisionV1 {
+        try PrivacyTransformLifecycleClosureV1(
+            policy: policy,
+            regions: manifest.orderedRegions,
+            manifest: manifest,
+            review: review
+        ).validate()
+        return try PrivacyProjectionV1.decide(
+            manifest: manifest,
+            review: review,
+            policy: policy,
+            requestedAudience: requestedAudience,
+            currentSourceRevision: currentSourceRevision,
+            currentSourceSHA256: currentSourceSHA256,
+            at: now
+        )
+    }
+
+    static func requireAllowed(
+        manifest: PrivacyTransformManifestV1,
+        review: PrivacyReviewReceiptV1?,
+        policy: PrivacyTransformPolicyV1,
+        requestedAudience: EvidenceAudienceV1,
+        currentSourceRevision: UInt64,
+        currentSourceSHA256: String,
+        at now: Date
+    ) throws -> ContentReferenceV1 {
+        let result = try decision(
+            manifest: manifest,
+            review: review,
+            policy: policy,
+            requestedAudience: requestedAudience,
+            currentSourceRevision: currentSourceRevision,
+            currentSourceSHA256: currentSourceSHA256,
+            at: now
+        )
+        guard let derivative = result.derivative, result.denial == nil else {
+            switch result.denial {
+            case .some(.missingReview): throw PrivacyTransformFailureV1.reviewRequired
+            case .some(.rejected): throw PrivacyTransformFailureV1.rejected
+            case .some(.stale), .some(.sourceChanged): throw PrivacyTransformFailureV1.staleDerivative
+            case .some(.wrongAudience): throw PrivacyTransformFailureV1.wrongAudience
+            case .some(.wrongPolicy): throw PrivacyTransformFailureV1.wrongPolicy
+            case .some(.digestMismatch): throw PrivacyTransformFailureV1.digestMismatch
+            case .some(.metadataNotSanitized): throw PrivacyTransformFailureV1.metadataNotSanitized
+            case .none: throw PrivacyTransformFailureV1.invalidValue
+            }
+        }
+        guard derivative == manifest.derivative,
+              derivative.byteRole == .derivative,
+              derivative.digests.digest(for: .sha256)?.hexadecimalValue
+                  == manifest.derivativeSHA256 else {
+            throw PrivacyTransformFailureV1.digestMismatch
+        }
+        return derivative
+    }
+}
+
+extension ResponseValueV1 {
+    /// Validates that this response names exactly the reviewed, current C20
+    /// derivative. Original references and unreviewed/stale derivatives never
+    /// become audience-safe response evidence.
+    func c20ValidateReviewedDerivative(
+        manifest: PrivacyTransformManifestV1,
+        review: PrivacyReviewReceiptV1?,
+        policy: PrivacyTransformPolicyV1,
+        requestedAudience: EvidenceAudienceV1,
+        currentSourceRevision: UInt64,
+        currentSourceSHA256: String,
+        at now: Date
+    ) throws -> ContentReferenceV1 {
+        try validate()
+        guard case let .contentReference(reference) = self,
+              reference.rawValue == manifest.derivative.contentID else {
+            throw PrivacyTransformFailureV1.invalidValue
+        }
+        return try C20PrivacyProjectionBridgeV1.requireAllowed(
+            manifest: manifest,
+            review: review,
+            policy: policy,
+            requestedAudience: requestedAudience,
+            currentSourceRevision: currentSourceRevision,
+            currentSourceSHA256: currentSourceSHA256,
+            at: now
+        )
+    }
+}
+
 enum ResponseClosedCodingV1 {
     static func requireExact(_ decoder: any Decoder, keys: [String]) throws {
         let c = try decoder.container(keyedBy: ResponseDynamicCodingKeyV1.self)

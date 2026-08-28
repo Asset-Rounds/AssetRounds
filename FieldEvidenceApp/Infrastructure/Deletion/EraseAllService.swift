@@ -90,6 +90,17 @@ enum MeasurementIntegrityEraseAllPolicyV1 {
     }
 }
 
+enum PrivacyTransformEraseAllPolicyV1 {
+    static func validatePublishedEmptyGeneration(_ context: ModelContext) throws {
+        guard try context.fetchCount(FetchDescriptor<PrivacyTransformPolicyRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<PrivacyRegionRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<PrivacyTransformManifestRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<PrivacyReviewReceiptRow>()) == 0 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+}
+
 enum EraseAllServiceError: Error, Equatable {
     case contextHasChanges
     case invalidAuthority
@@ -1259,6 +1270,7 @@ private extension EraseAllService {
         try WorkPacketEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try FieldDraftEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try PackageEvolutionEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
+        try PrivacyTransformEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try MeasurementIntegrityEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         if let identity {
             let history = try MutationJournalStoreV1(

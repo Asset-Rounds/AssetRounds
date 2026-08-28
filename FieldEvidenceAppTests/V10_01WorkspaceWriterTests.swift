@@ -810,4 +810,11 @@ extension V10_01WorkspaceWriterTests {
         XCTAssertEqual(bundle.instruments.count + bundle.calibrations.count + bundle.captures.count + bundle.series.count + bundle.assessments.count, 5)
         try bundle.validate()
     }
+
+    func testC20PrivacyTransformWriterReceivesValidatedPublicationBundle() throws {
+        let fixture = try C20PrivacyTransformTestSupport.makeFixture()
+        try fixture.bundle.validate()
+        XCTAssertEqual(fixture.bundle.manifest.manifestID, fixture.manifest.manifestID)
+        XCTAssertEqual(fixture.bundle.derivativeLocator.contentID, fixture.derivative.contentID)
+    }
 }

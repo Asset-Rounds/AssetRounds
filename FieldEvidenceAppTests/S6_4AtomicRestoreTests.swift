@@ -924,4 +924,19 @@ extension S6_4AtomicRestoreTests {
         XCTAssertEqual(captureRow.mutationID, calibrationRow.mutationID)
         XCTAssertEqual(captureRow.workspaceID, calibrationRow.workspaceID)
     }
+
+    func testC20PrivacyTransformRestoreAcceptsOnlyCompletePublicationReceipt() throws {
+        let fixture = try C20PrivacyTransformTestSupport.makeFixture()
+        let receipt = try PrivacyTransformPublicationReceiptV1(
+            bundle: fixture.bundle,
+            canonicalMutationReceiptSHA256: C20PrivacyTransformTestSupport.canonicalMutationReceiptSHA256
+        )
+        try receipt.validate(
+            bundle: fixture.bundle,
+            expectedCanonicalMutationReceiptSHA256:
+                C20PrivacyTransformTestSupport.canonicalMutationReceiptSHA256
+        )
+        XCTAssertEqual(receipt.manifestID, fixture.manifest.manifestID)
+        XCTAssertThrowsError(try fixture.original.validatePrivacyDerivative(fixture.original))
+    }
 }

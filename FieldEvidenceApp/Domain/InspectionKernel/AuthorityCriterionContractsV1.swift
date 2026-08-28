@@ -1297,6 +1297,36 @@ enum AuthorityCriterionRegistryV1 {
         for value in aggregate.evaluatorDescriptors { try value.validate(); guard value.workspaceID == workspaceID else { throw AuthorityCriterionFailureV1.wrongWorkspace } }
         for value in aggregate.derivedFacts { try value.validate(); guard value.workspaceID == workspaceID else { throw AuthorityCriterionFailureV1.wrongWorkspace } }
     }
+
+    /// Validates the C20 privacy authority at the same workspace boundary as
+    /// the other criterion releases. This is an explicit projection check;
+    /// it does not create a criterion, classify content, or infer compliance.
+    static func c20ValidateReviewedDerivative(
+        policy: PrivacyTransformPolicyV1,
+        manifest: PrivacyTransformManifestV1,
+        review: PrivacyReviewReceiptV1?,
+        requestedAudience: EvidenceAudienceV1,
+        currentSourceRevision: UInt64,
+        currentSourceSHA256: String,
+        at now: Date,
+        workspaceID: WorkspaceID
+    ) throws -> ContentReferenceV1 {
+        try AuthorityCriterionValidationV1.requireWorkspace(workspaceID)
+        try policy.validate()
+        guard policy.workspaceID == workspaceID,
+              manifest.workspaceID == workspaceID else {
+            throw PrivacyTransformFailureV1.wrongWorkspace
+        }
+        return try C20PrivacyProjectionBridgeV1.requireAllowed(
+            manifest: manifest,
+            review: review,
+            policy: policy,
+            requestedAudience: requestedAudience,
+            currentSourceRevision: currentSourceRevision,
+            currentSourceSHA256: currentSourceSHA256,
+            at: now
+        )
+    }
 }
 
 extension RequirementBasisBindingV1 {

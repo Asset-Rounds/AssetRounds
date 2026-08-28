@@ -272,3 +272,42 @@ extension AuthorityCriterionPackageCompatibilityRegistryV1 {
         try binding.c19ValidateMeasurementProtocol(protocolRelease)
     }
 }
+
+// MARK: - C20 reviewed-derivative package admission
+
+extension InspectionPackageRegistryV2 {
+    /// Resolves one immutable declaration and validates a reviewed derivative
+    /// against it. Registry admission remains declaration-only; this method
+    /// cannot publish, persist, classify, or infer privacy/compliance state.
+    func c20ValidateReviewedDerivative(
+        packageID: String,
+        binding: InspectionPackageAuthorityCriterionBindingV1,
+        release: InspectionPackageReleaseV1,
+        manifest: PrivacyTransformManifestV1,
+        review: PrivacyReviewReceiptV1?,
+        policy: PrivacyTransformPolicyV1,
+        requestedAudience: EvidenceAudienceV1,
+        currentSourceRevision: UInt64,
+        currentSourceSHA256: String,
+        at now: Date
+    ) throws -> ContentReferenceV1 {
+        let declaration = try self.package(id: packageID)
+        try AuthorityCriterionPackageCompatibilityRegistryV1.validate(binding, package: declaration)
+        try release.validate()
+        guard release.packageID == declaration.packageID,
+              release.packageContentVersion == declaration.contentVersion else {
+            throw InspectionPackageFailureV2.incompatiblePackage
+        }
+        return try binding.c20ValidateReviewedDerivative(
+            manifest: manifest,
+            review: review,
+            policy: policy,
+            requestedAudience: requestedAudience,
+            currentSourceRevision: currentSourceRevision,
+            currentSourceSHA256: currentSourceSHA256,
+            at: now,
+            release: release,
+            package: declaration
+        )
+    }
+}

@@ -247,6 +247,7 @@ enum KernelBackupRestoreRegistryV4 {
     static let fieldDraftArchiveKinds = V16BackupFieldDraftRecordV1.Kind.allCases
     static let packageEvolutionArchiveKinds = V17BackupPackageEvolutionRecordV1.Kind.allCases
     static let measurementIntegrityArchiveKinds = V18BackupMeasurementIntegrityRecordV1.Kind.allCases
+    static let privacyTransformArchiveKinds = V19BackupPrivacyTransformRecordV1.Kind.allCases
 
     static func validateFunctionalRelationshipLifecycle() throws {
         guard functionalRelationshipArchiveKinds.count == 2,
@@ -283,6 +284,12 @@ enum KernelBackupRestoreRegistryV4 {
     static func validateMeasurementIntegrityLifecycle() throws {
         guard measurementIntegrityArchiveKinds.count == 5,
               Set(measurementIntegrityArchiveKinds.map(\.rawValue)).count == 5 else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+    static func validatePrivacyTransformLifecycle() throws {
+        guard privacyTransformArchiveKinds.count == 4,
+              Set(privacyTransformArchiveKinds.map(\.rawValue)).count == 4 else {
             throw KernelPersistenceV4Failure.incompleteCoverage
         }
     }
@@ -323,6 +330,7 @@ enum KernelBackupRestoreRegistryV4 {
     }
 
     static func validate() throws {
+        try validatePrivacyTransformLifecycle()
         try validateMeasurementIntegrityLifecycle()
         try validatePackageEvolutionLifecycle()
         try validateFunctionalRelationshipLifecycle()

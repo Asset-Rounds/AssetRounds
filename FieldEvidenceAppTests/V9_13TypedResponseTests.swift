@@ -305,4 +305,13 @@ extension V9_13TypedResponseTests {
         XCTAssertEqual(fixture.capture.measurement.canonicalUnitID, "lx")
         XCTAssertEqual(fixture.capture.measurement.precisionScale, 0)
     }
+
+    func testC20PrivacyTransformMetadataSanitationIsExplicit() throws {
+        let fixture = try C20PrivacyTransformTestSupport.makeFixture()
+        XCTAssertEqual(fixture.manifest.metadataSanitation.result, .complete)
+        XCTAssertTrue(fixture.manifest.metadataSanitation.retainedSourceMetadataKeys.isEmpty)
+        XCTAssertThrowsError(try PrivacyMetadataSanitationEvidenceV1(
+            sanitizerID: "c20-sanitizer", sanitizerVersion: "1", result: .failed
+        ))
+    }
 }

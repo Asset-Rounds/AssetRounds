@@ -411,6 +411,71 @@ extension RequirementEvidenceReferenceV1 {
     }
 }
 
+// MARK: - C20 reviewed-derivative evidence binding
+
+extension RequirementEvidenceReferenceV1 {
+    /// Binds requirement evidence to the reviewed C20 derivative without
+    /// allowing the requirement engine to infer privacy approval or
+    /// compliance. The manifest revision is the evidence revision authority.
+    func c20ValidateReviewedDerivative(
+        manifest: PrivacyTransformManifestV1,
+        review: PrivacyReviewReceiptV1?,
+        policy: PrivacyTransformPolicyV1,
+        requestedAudience: EvidenceAudienceV1,
+        currentSourceRevision: UInt64,
+        currentSourceSHA256: String,
+        at now: Date
+    ) throws -> ContentReferenceV1 {
+        let derivative = try C20PrivacyProjectionBridgeV1.requireAllowed(
+            manifest: manifest,
+            review: review,
+            policy: policy,
+            requestedAudience: requestedAudience,
+            currentSourceRevision: currentSourceRevision,
+            currentSourceSHA256: currentSourceSHA256,
+            at: now
+        )
+        guard state == .valid,
+              referenceID == derivative.contentID,
+              evidenceRevision == manifest.revision else {
+            throw PrivacyTransformFailureV1.invalidValue
+        }
+        return derivative
+    }
+}
+
+extension RequirementEvaluationInputV1 {
+    /// Validates the one explicit C20 derivative evidence reference, while
+    /// leaving result selection to the existing requirement rule/evaluator.
+    func c20ValidateReviewedDerivative(
+        manifest: PrivacyTransformManifestV1,
+        review: PrivacyReviewReceiptV1?,
+        policy: PrivacyTransformPolicyV1,
+        requestedAudience: EvidenceAudienceV1,
+        currentSourceRevision: UInt64,
+        currentSourceSHA256: String,
+        at now: Date
+    ) throws -> ContentReferenceV1 {
+        try validate()
+        let matches = evidenceReferences.filter { $0.referenceID == manifest.derivative.contentID }
+        guard matches.count == 1,
+              !evidenceReferences.contains(where: {
+                  $0.referenceID == manifest.original.contentID
+              }) else {
+            throw PrivacyTransformFailureV1.invalidValue
+        }
+        return try matches[0].c20ValidateReviewedDerivative(
+            manifest: manifest,
+            review: review,
+            policy: policy,
+            requestedAudience: requestedAudience,
+            currentSourceRevision: currentSourceRevision,
+            currentSourceSHA256: currentSourceSHA256,
+            at: now
+        )
+    }
+}
+
 enum CompletionDispositionV1: String, Codable, CaseIterable, Hashable, Sendable {
     case permitted = "PERMITTED"
     case blocked = "BLOCKED"

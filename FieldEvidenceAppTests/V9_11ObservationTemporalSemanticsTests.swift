@@ -1064,4 +1064,11 @@ extension V9_11ObservationTemporalSemanticsTests {
         XCTAssertEqual(fixture.qualityReview.result, .reviewRequired)
         XCTAssertEqual(fixture.qualityReview.subjectID, fixture.reviewCapture.captureID)
     }
+
+    func testC20PrivacyTransformRegionAuthorSnapshotIsTemporalAndLocal() throws {
+        let fixture = try C20PrivacyTransformTestSupport.makeFixture()
+        XCTAssertEqual(fixture.regions.first?.author.workspaceID, fixture.workspace)
+        XCTAssertEqual(fixture.regions.first?.authoredAt, fixture.capturedAt)
+        XCTAssertEqual(fixture.regions.map(\.order), [0, 1, 2])
+    }
 }

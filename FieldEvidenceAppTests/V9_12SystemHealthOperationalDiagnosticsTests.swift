@@ -1293,4 +1293,15 @@ extension V9_12SystemHealthOperationalDiagnosticsTests {
         XCTAssertTrue(MeasurementIntegrityEraseBoundaryV1.ordinaryDeletionPreservesFrozenHistory)
         XCTAssertTrue(MeasurementIntegrityEraseBoundaryV1.workspaceEraseClearsEntireClosure)
     }
+
+    func testC20PrivacyTransformOperationalProjectionDeniesUnapprovedAudience() throws {
+        let fixture = try C20PrivacyTransformTestSupport.makeFixture()
+        let decision = try PrivacyProjectionV1.decide(
+            manifest: fixture.manifest, review: fixture.approvedReview, policy: fixture.policy,
+            requestedAudience: .internalReview, currentSourceRevision: 1,
+            currentSourceSHA256: fixture.manifest.sourceSHA256, at: fixture.capturedAt
+        )
+        XCTAssertEqual(decision.denial, .wrongAudience)
+        XCTAssertNil(decision.derivative)
+    }
 }

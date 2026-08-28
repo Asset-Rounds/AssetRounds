@@ -1672,4 +1672,23 @@ extension V10_02MutationEnvelopeReceiptTests {
             journalReceiptSHA256: C19MeasurementIntegrityTestSupport.digest("j")
         ))
     }
+
+    func testC20PrivacyTransformReceiptBindsManifestAndDerivativeDigest() throws {
+        let fixture = try C20PrivacyTransformTestSupport.makeFixture()
+        let receipt = try PrivacyTransformPublicationReceiptV1(
+            bundle: fixture.bundle,
+            canonicalMutationReceiptSHA256: C20PrivacyTransformTestSupport.canonicalMutationReceiptSHA256
+        )
+        try receipt.validate(
+            bundle: fixture.bundle,
+            expectedCanonicalMutationReceiptSHA256:
+                C20PrivacyTransformTestSupport.canonicalMutationReceiptSHA256
+        )
+        XCTAssertEqual(receipt.mutationID, fixture.mutationID)
+        XCTAssertEqual(receipt.derivativeSHA256, fixture.manifest.derivativeSHA256)
+        XCTAssertEqual(
+            receipt.canonicalMutationReceiptSHA256,
+            C20PrivacyTransformTestSupport.canonicalMutationReceiptSHA256
+        )
+    }
 }

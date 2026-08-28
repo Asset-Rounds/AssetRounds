@@ -2262,3 +2262,26 @@ extension CheckRunnerCoordinator {
         }
     }
 }
+
+// MARK: - C20 reviewed-derivative check boundary
+
+@MainActor
+extension CheckRunnerCoordinator {
+    /// Evaluates the canonical C20 projection at the existing check boundary.
+    /// This is deliberately read-only: a projection decision cannot complete
+    /// a check, change a workflow outcome, or imply privacy/compliance.
+    func validatePrivacyProjection(
+        _ context: CheckRunnerPrivacyTransformContextV1
+    ) throws -> PrivacyProjectionDecisionV1 {
+        try context.projectionDecision()
+    }
+
+    /// Resolves the exact derivative only after the shared C20 gate has
+    /// admitted policy, audience, source revision/digest, review, freshness,
+    /// and metadata sanitation.
+    func reviewedDerivativeReference(
+        _ context: CheckRunnerPrivacyTransformContextV1
+    ) throws -> ContentReferenceV1 {
+        try context.reviewedDerivative()
+    }
+}

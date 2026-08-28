@@ -2,6 +2,15 @@ import Darwin
 import Foundation
 import SwiftData
 
+private struct PrivacyTransformRestoreManifestEnvelopeV1: Decodable {
+    let policyID: UUID; let policyRevision: UInt64; let policySHA256: String
+}
+
+private struct PrivacyTransformRestoreReviewEnvelopeV1: Decodable {
+    let manifestID: UUID; let manifestRevision: UInt64; let manifestSHA256: String
+    let policyID: UUID; let policyRevision: UInt64; let policySHA256: String
+}
+
 enum IntegrationProjectionBackupRestoreExclusionV1 {
     static func validate() throws {
         let coverage = IntegrationEventJournalCoverageV1()
@@ -1625,6 +1634,7 @@ private extension BackupRestoreService {
         with packets: [V4BackupPacketDTO]
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            privacyTransforms: records.privacyTransforms,
             measurementIntegrity: records.measurementIntegrity,
             packageEvolution: records.packageEvolution,
             fieldDrafts: records.fieldDrafts, workPackets:records.workPackets, inspectionReview: records.inspectionReview,
@@ -1676,6 +1686,7 @@ private extension BackupRestoreService {
         with history: MutationHistorySnapshotV1
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            privacyTransforms: records.privacyTransforms,
             measurementIntegrity: records.measurementIntegrity,
             packageEvolution: records.packageEvolution,
             fieldDrafts: records.fieldDrafts, workPackets:records.workPackets, inspectionReview: records.inspectionReview,
@@ -1792,6 +1803,7 @@ private extension BackupRestoreService {
             return try V8BackupRequirementAssuranceRecordV1(row)
         }.sorted { canonical($0.workflowRecordID) < canonical($1.workflowRecordID) }
         return V4BackupRecordsV1(
+            privacyTransforms: records.privacyTransforms,
             measurementIntegrity: records.measurementIntegrity,
             packageEvolution: records.packageEvolution,
             fieldDrafts: records.fieldDrafts, workPackets:records.workPackets, inspectionReview: records.inspectionReview,
@@ -2036,8 +2048,12 @@ private extension BackupRestoreService {
             records.measurementIntegrity, workspaceID: workspaceID,
             authorityCriterion: authorityCriterion
         )
+        let privacyTransforms = try rebindingPrivacyTransforms(
+            records.privacyTransforms, workspaceID: workspaceID
+        )
         guard let archived = records.locationMigrationReceipts.first else {
             return V4BackupRecordsV1(
+                privacyTransforms: privacyTransforms,
                 measurementIntegrity: measurementIntegrity,
                 packageEvolution: packageEvolution,
                 fieldDrafts: fieldDrafts, workPackets:workPackets,
@@ -2077,6 +2093,7 @@ private extension BackupRestoreService {
            functionalRelationships == records.functionalRelationships,
            evidenceAssurance == records.evidenceAssurance,
            inspectionReview == records.inspectionReview,
+           privacyTransforms == records.privacyTransforms,
            workPackets == records.workPackets,
            reports == records.reports {
             return records
@@ -2090,6 +2107,7 @@ private extension BackupRestoreService {
             bindings: receipt.bindings
         )
         return V4BackupRecordsV1(
+            privacyTransforms: privacyTransforms,
             measurementIntegrity: measurementIntegrity,
             packageEvolution: packageEvolution,
             fieldDrafts: fieldDrafts, workPackets:workPackets,
@@ -2799,6 +2817,55 @@ private extension BackupRestoreService {
         return output.sorted{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"}
     }
 
+    func rebindingPrivacyTransforms(
+        _ records: [V19BackupPrivacyTransformRecordV1], workspaceID: WorkspaceID
+    ) throws -> [V19BackupPrivacyTransformRecordV1] {
+        let sourcePolicies = try records.filter { $0.kind == .policy }.map { try PrivacyTransformCanonicalCodecV1.decodePolicy(from: $0.canonicalData) }
+        let sourceRegions = try records.filter { $0.kind == .region }.map { try PrivacyTransformCanonicalCodecV1.decodeRegion(from: $0.canonicalData) }
+        let sourcePolicyIndex = Dictionary(uniqueKeysWithValues: sourcePolicies.map { ($0.policyID, $0) })
+        let sourceManifests = try records.filter { $0.kind == .manifest }.map { record -> PrivacyTransformManifestV1 in
+            let reference = try JSONDecoder().decode(PrivacyTransformRestoreManifestEnvelopeV1.self, from: record.canonicalData)
+            guard let policy = sourcePolicyIndex[reference.policyID], policy.revision == reference.policyRevision, policy.policySHA256 == reference.policySHA256 else { throw BackupRestoreServiceError.invalidPackage }
+            let provisional = try PrivacyTransformCanonicalCodecV1.decodeManifest(from: record.canonicalData, policy: policy)
+            return try PrivacyTransformManifestRow(provisional).value(policy: policy)
+        }
+        let sourceManifestIndex = Dictionary(uniqueKeysWithValues: sourceManifests.map { ($0.manifestID, $0) })
+        let sourceReviews = try records.filter { $0.kind == .reviewReceipt }.map { record -> PrivacyReviewReceiptV1 in
+            let reference = try JSONDecoder().decode(PrivacyTransformRestoreReviewEnvelopeV1.self, from: record.canonicalData)
+            guard let manifest = sourceManifestIndex[reference.manifestID], manifest.revision == reference.manifestRevision, manifest.manifestSHA256 == reference.manifestSHA256,
+                  let policy = sourcePolicyIndex[reference.policyID], policy.revision == reference.policyRevision, policy.policySHA256 == reference.policySHA256 else { throw BackupRestoreServiceError.invalidPackage }
+            let provisional = try PrivacyTransformCanonicalCodecV1.decodeReview(from: record.canonicalData, manifest: manifest, policy: policy)
+            return try PrivacyReviewReceiptRow(provisional).value(manifest: manifest, policy: policy)
+        }
+        var policies: [UUID: PrivacyTransformPolicyV1] = [:]
+        for source in sourcePolicies { let value = try source.rebound(to: workspaceID); guard policies.updateValue(value, forKey: value.policyID) == nil else { throw BackupRestoreServiceError.invalidPackage } }
+        var regions: [UUID: PrivacyRegionV1] = [:]
+        for source in sourceRegions { let value = try source.rebound(to: workspaceID); guard regions.updateValue(value, forKey: value.regionID) == nil else { throw BackupRestoreServiceError.invalidPackage } }
+        var manifests: [UUID: PrivacyTransformManifestV1] = [:]
+        for source in sourceManifests {
+            let matches = sourcePolicies.filter { $0.policyID == source.policyID && $0.revision == source.policyRevision && $0.policySHA256 == source.policySHA256 }
+            guard matches.count == 1, let policy = policies[matches[0].policyID] else { throw BackupRestoreServiceError.invalidPackage }
+            let value = try source.rebound(to: workspaceID, policy: policy)
+            guard value.orderedRegions.allSatisfy { regions[$0.regionID] == $0 }, manifests.updateValue(value, forKey: value.manifestID) == nil else { throw BackupRestoreServiceError.invalidPackage }
+        }
+        var reviews: [UUID: PrivacyReviewReceiptV1] = [:]
+        for source in sourceReviews {
+            let sourceManifestMatches = sourceManifests.filter { $0.manifestID == source.manifestID && $0.revision == source.manifestRevision && $0.manifestSHA256 == source.manifestSHA256 }
+            let sourcePolicyMatches = sourcePolicies.filter { $0.policyID == source.policyID && $0.revision == source.policyRevision && $0.policySHA256 == source.policySHA256 }
+            guard sourceManifestMatches.count == 1, sourcePolicyMatches.count == 1,
+                  let manifest = manifests[sourceManifestMatches[0].manifestID],
+                  let policy = policies[sourcePolicyMatches[0].policyID] else { throw BackupRestoreServiceError.invalidPackage }
+            let value = try source.rebound(to: workspaceID, manifest: manifest, policy: policy)
+            guard reviews.updateValue(value, forKey: value.receiptID) == nil else { throw BackupRestoreServiceError.invalidPackage }
+        }
+        var output: [V19BackupPrivacyTransformRecordV1] = []
+        output += try policies.values.map { .init(kind: .policy, id: $0.policyID, workspaceID: workspaceID.rawValue, revision: $0.revision, canonicalData: try PrivacyTransformCanonicalCodecV1.encode($0)) }
+        output += try regions.values.map { .init(kind: .region, id: $0.regionID, workspaceID: workspaceID.rawValue, revision: $0.revision, canonicalData: try PrivacyTransformCanonicalCodecV1.encode($0)) }
+        output += try manifests.values.map { .init(kind: .manifest, id: $0.manifestID, workspaceID: workspaceID.rawValue, revision: $0.revision, canonicalData: try PrivacyTransformCanonicalCodecV1.encode($0)) }
+        output += try reviews.values.map { .init(kind: .reviewReceipt, id: $0.receiptID, workspaceID: workspaceID.rawValue, revision: $0.revision, canonicalData: try PrivacyTransformCanonicalCodecV1.encode($0)) }
+        return output.sorted { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)" }
+    }
+
     func rebindingInspectionReview(
         _ records: [V14BackupInspectionReviewRecordV1], workspaceID: WorkspaceID,
         sourceEvidenceAssurance: [V13BackupEvidenceAssuranceRecordV1],
@@ -3446,7 +3513,8 @@ private extension BackupRestoreService {
                 || records.recordsSchemaVersion == 14
                 || records.recordsSchemaVersion == 15
                 || records.recordsSchemaVersion == 16
-                || records.recordsSchemaVersion == 17)
+                || records.recordsSchemaVersion == 17
+                || records.recordsSchemaVersion == 18)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -3704,7 +3772,8 @@ private extension BackupRestoreService {
             || records.recordsSchemaVersion == 13 || records.recordsSchemaVersion == 14
             || records.recordsSchemaVersion == 15
             || records.recordsSchemaVersion == 16
-            || records.recordsSchemaVersion == 17 {
+            || records.recordsSchemaVersion == 17
+            || records.recordsSchemaVersion == 18 {
             do {
                 for record in records.savedSmartViews {
                     let descriptor = try record.descriptor()
@@ -3932,6 +4001,34 @@ private extension BackupRestoreService {
                 }
             } catch { throw BackupRestoreServiceError.invalidPackage }
         }
+        if records.recordsSchemaVersion >= 18 {
+            do {
+                let policies = try Dictionary(uniqueKeysWithValues: records.privacyTransforms.filter { $0.kind == .policy }.map { record in
+                    let value = try PrivacyTransformCanonicalCodecV1.decodePolicy(from: record.canonicalData)
+                    context.insert(try PrivacyTransformPolicyRow(value)); return (value.policyID, value)
+                })
+                for record in records.privacyTransforms where record.kind == .region {
+                    context.insert(try PrivacyRegionRow(PrivacyTransformCanonicalCodecV1.decodeRegion(from: record.canonicalData)))
+                }
+                let manifests = try Dictionary(uniqueKeysWithValues: records.privacyTransforms.filter { $0.kind == .manifest }.map { record in
+                    let reference = try JSONDecoder().decode(PrivacyTransformRestoreManifestEnvelopeV1.self, from: record.canonicalData)
+                    guard let policy = policies[reference.policyID], policy.revision == reference.policyRevision, policy.policySHA256 == reference.policySHA256 else { throw BackupRestoreServiceError.invalidPackage }
+                    let provisional = try PrivacyTransformCanonicalCodecV1.decodeManifest(from: record.canonicalData, policy: policy)
+                    let row = try PrivacyTransformManifestRow(provisional)
+                    let value = try row.value(policy: policy)
+                    context.insert(row); return (value.manifestID, value)
+                })
+                for record in records.privacyTransforms where record.kind == .reviewReceipt {
+                    let reference = try JSONDecoder().decode(PrivacyTransformRestoreReviewEnvelopeV1.self, from: record.canonicalData)
+                    guard let manifest = manifests[reference.manifestID], manifest.revision == reference.manifestRevision, manifest.manifestSHA256 == reference.manifestSHA256,
+                          let policy = policies[reference.policyID], policy.revision == reference.policyRevision, policy.policySHA256 == reference.policySHA256 else { throw BackupRestoreServiceError.invalidPackage }
+                    let provisional = try PrivacyTransformCanonicalCodecV1.decodeReview(from: record.canonicalData, manifest: manifest, policy: policy)
+                    let row = try PrivacyReviewReceiptRow(provisional)
+                    _ = try row.value(manifest: manifest, policy: policy)
+                    context.insert(row)
+                }
+            } catch { throw BackupRestoreServiceError.invalidPackage }
+        }
         if let mutationHistory = records.mutationHistory {
             guard records.recordsSchemaVersion == 3
                     || records.recordsSchemaVersion == 4
@@ -3947,7 +4044,8 @@ private extension BackupRestoreService {
                     || records.recordsSchemaVersion == 14
                     || records.recordsSchemaVersion == 15
                     || records.recordsSchemaVersion == 16
-                    || records.recordsSchemaVersion == 17 else {
+                    || records.recordsSchemaVersion == 17
+                    || records.recordsSchemaVersion == 18 else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {
@@ -5032,7 +5130,8 @@ private extension BackupRestoreService {
                 || actual.recordsSchemaVersion == 14
                 || actual.recordsSchemaVersion == 15
                 || actual.recordsSchemaVersion == 16
-                || actual.recordsSchemaVersion == 17) else {
+                || actual.recordsSchemaVersion == 17
+                || actual.recordsSchemaVersion == 18) else {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
         if expected.recordsSchemaVersion == 5 || expected.recordsSchemaVersion == 6 {
@@ -5051,6 +5150,7 @@ private extension BackupRestoreService {
         schemaVersion: Int
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            privacyTransforms: schemaVersion >= 18 ? records.privacyTransforms : [],
             measurementIntegrity: schemaVersion >= 17 ? records.measurementIntegrity : [],
             packageEvolution: schemaVersion >= 16 ? records.packageEvolution : [],
             fieldDrafts: schemaVersion >= 15 ? records.fieldDrafts : [],
@@ -5087,6 +5187,7 @@ private extension BackupRestoreService {
         expected: V4BackupRecordsV1
     ) throws -> Bool {
         let predecessor = V4BackupRecordsV1(
+            privacyTransforms: expected.recordsSchemaVersion >= 18 ? expected.privacyTransforms : [],
             measurementIntegrity: expected.recordsSchemaVersion >= 17 ? expected.measurementIntegrity : [],
             packageEvolution: expected.recordsSchemaVersion >= 16 ? expected.packageEvolution : [],
             fieldDrafts: expected.recordsSchemaVersion >= 15 ? expected.fieldDrafts : [],
@@ -5278,6 +5379,7 @@ private extension BackupRestoreService {
         let packageSandboxRuns = try context.fetch(FetchDescriptor<PackageSandboxRunRow>())
         let packagePromotionReceipts = try context.fetch(FetchDescriptor<PackagePromotionReceiptRow>())
         let activePackageRegistryPointers = try context.fetch(FetchDescriptor<ActivePackageRegistryPointerRow>())
+        let privacyTransformPolicies=try context.fetch(FetchDescriptor<PrivacyTransformPolicyRow>()),privacyRegions=try context.fetch(FetchDescriptor<PrivacyRegionRow>()),privacyTransformManifests=try context.fetch(FetchDescriptor<PrivacyTransformManifestRow>()),privacyReviewReceipts=try context.fetch(FetchDescriptor<PrivacyReviewReceiptRow>())
         let instrumentReferences=try context.fetch(FetchDescriptor<InstrumentReferenceRow>()),calibrationStatusSnapshots=try context.fetch(FetchDescriptor<CalibrationStatusSnapshotRow>()),measurementCaptures=try context.fetch(FetchDescriptor<MeasurementCaptureRow>()),measurementSeries=try context.fetch(FetchDescriptor<MeasurementSeriesRow>()),measurementQualityAssessments=try context.fetch(FetchDescriptor<MeasurementQualityAssessmentRow>())
         let workPacketManifests=try context.fetch(FetchDescriptor<WorkPacketManifestRow>()),workItemClaims=try context.fetch(FetchDescriptor<WorkItemClaimRow>()),workLeases=try context.fetch(FetchDescriptor<WorkLeaseRow>()),workReleases=try context.fetch(FetchDescriptor<WorkReleaseRow>()),workHandoffs=try context.fetch(FetchDescriptor<WorkHandoffRow>())
         let evidenceVisibilities = try context.fetch(FetchDescriptor<EvidenceVisibilityRow>())
@@ -5307,7 +5409,23 @@ private extension BackupRestoreService {
             deletionLedger = nil
             mutationHistory = nil
         }
+        let privacyPolicies = try Dictionary(uniqueKeysWithValues: privacyTransformPolicies.map { let value = try $0.value(); return (value.policyID, value) })
+        let privacyManifests = try Dictionary(uniqueKeysWithValues: privacyTransformManifests.map { row in
+            guard let policy = privacyPolicies[row.policyID] else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+            let value = try row.value(policy: policy); return (value.manifestID, value)
+        })
+        let privacyTransformRecords: [V19BackupPrivacyTransformRecordV1] = mutationHistory == nil ? [] : try (
+            privacyPolicies.values.map { v in .init(kind:.policy,id:v.policyID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try PrivacyTransformCanonicalCodecV1.encode(v)) }
+            + privacyRegions.map { let v=try $0.value(); return .init(kind:.region,id:v.regionID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData) }
+            + privacyManifests.values.map { v in .init(kind:.manifest,id:v.manifestID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try PrivacyTransformCanonicalCodecV1.encode(v)) }
+            + privacyReviewReceipts.map { row in
+                guard let manifest = privacyManifests[row.manifestID], let policy = privacyPolicies[row.policyID] else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+                let v = try row.value(manifest: manifest, policy: policy)
+                return .init(kind:.reviewReceipt,id:v.receiptID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try PrivacyTransformCanonicalCodecV1.encode(v))
+            }
+        ).sorted { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)" }
         return V4BackupRecordsV1(
+            privacyTransforms: privacyTransformRecords,
             measurementIntegrity: try (
                 instrumentReferences.map{let v=try $0.value();return V18BackupMeasurementIntegrityRecordV1(kind:.instrumentReference,id:v.referenceID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData)}
                 + calibrationStatusSnapshots.map{let v=try $0.value();return V18BackupMeasurementIntegrityRecordV1(kind:.calibrationSnapshot,id:v.snapshotID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData)}
@@ -5502,7 +5620,13 @@ private extension BackupRestoreService {
                 "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
                     < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
             },
-            recordsSchemaVersion: !(promotedPackageReleases.isEmpty && packageSandboxRuns.isEmpty
+            recordsSchemaVersion: mutationHistory != nil ? 18
+                : !(privacyTransformPolicies.isEmpty && privacyRegions.isEmpty
+                && privacyTransformManifests.isEmpty && privacyReviewReceipts.isEmpty) ? 18
+                : !(instrumentReferences.isEmpty && calibrationStatusSnapshots.isEmpty
+                    && measurementCaptures.isEmpty && measurementSeries.isEmpty
+                    && measurementQualityAssessments.isEmpty) ? 17
+                : !(promotedPackageReleases.isEmpty && packageSandboxRuns.isEmpty
                 && packagePromotionReceipts.isEmpty && activePackageRegistryPointers.isEmpty) ? 16
                 : !(fieldDraftCheckpoints.isEmpty && attachmentStagingItems.isEmpty
                     && draftCommitSagas.isEmpty && draftContentReservations.isEmpty

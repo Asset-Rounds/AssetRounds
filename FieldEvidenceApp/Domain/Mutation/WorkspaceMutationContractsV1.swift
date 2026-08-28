@@ -75,6 +75,10 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case measurementCapture
     case measurementSeries
     case measurementQualityAssessment
+    case privacyTransformPolicy
+    case privacyRegion
+    case privacyTransformManifest
+    case privacyReviewReceipt
     case workflowRecord
     case evidenceFile
     case issue
@@ -1318,6 +1322,18 @@ struct MeasurementIntegrityMutationV1:Codable,Equatable,Sendable{
     }
     func canonicalSHA256()throws->String{try validate();return try WorkspaceMutationCanonicalV1.sha256(self)}
 }
+enum PrivacyTransformMutationV1:Codable,Equatable,Sendable{
+    case policy(PrivacyTransformPolicyV1)
+    case publish(policy:PrivacyTransformPolicyV1,regions:[PrivacyRegionV1],manifest:PrivacyTransformManifestV1)
+    case review(value:PrivacyReviewReceiptV1,manifest:PrivacyTransformManifestV1,policy:PrivacyTransformPolicyV1)
+    var workspaceID:WorkspaceID{switch self{case let .policy(v):v.workspaceID;case let .publish(_,_,v):v.workspaceID;case let .review(v,_,_):v.workspaceID}}
+    var mutationID:MutationIDV1{switch self{case let .policy(v):v.mutationID;case let .publish(_,_,v):v.mutationID;case let .review(v,_,_):v.mutationID}}
+    func validate()throws{switch self{case let .policy(value):try value.validate();guard value.supersedesPolicyID != nil || value.revision==1 else{throw WorkspaceMutationContractFailureV1.invalidPlan};case let .publish(policy,regions,manifest):try PrivacyTransformLifecycleClosureV1(policy:policy,regions:regions,manifest:manifest,review:nil).validate();guard (manifest.supersedesManifestID != nil || manifest.revision==1),regions==manifest.orderedRegions,regions.allSatisfy({$0.mutationID==mutationID})else{throw WorkspaceMutationContractFailureV1.invalidPlan};case let .review(value,manifest,policy):try value.validate(manifest:manifest,policy:policy);guard value.supersedesReceiptID != nil || value.revision==1 else{throw WorkspaceMutationContractFailureV1.invalidPlan}}}
+    var affectedIdentities:[WorkspaceEntityIdentityV1]{get throws{switch self{case let .policy(v):return[try .init(kind:.privacyTransformPolicy,id:v.policyID)];case let .publish(_,regions,manifest):return try ([.init(kind:.privacyTransformManifest,id:manifest.manifestID)]+regions.map{try .init(kind:.privacyRegion,id:$0.regionID)}).sorted{$0.stableKey<$1.stableKey};case let .review(value,_,_):return[try .init(kind:.privacyReviewReceipt,id:value.receiptID)]}}}
+    var concurrencyIdentities:[WorkspaceEntityIdentityV1]{get throws{switch self{case let .policy(v):return[try .init(kind:.privacyTransformPolicy,id:v.supersedesPolicyID ?? v.policyID)];case let .publish(_,regions,manifest):return try ([.init(kind:.privacyTransformManifest,id:manifest.supersedesManifestID ?? manifest.manifestID)]+regions.map{try .init(kind:.privacyRegion,id:$0.regionID)}).sorted{$0.stableKey<$1.stableKey};case let .review(value,_,_):return[try .init(kind:.privacyReviewReceipt,id:value.supersedesReceiptID ?? value.receiptID)]}}}
+    func expectedRevision(for identity:WorkspaceEntityIdentityV1)throws->UInt64{switch self{case let .policy(value):if identity.kind == .privacyTransformPolicy{return value.supersedesPolicyID==nil ? 0:value.revision-1};case let .publish(_,_,manifest):switch identity.kind{case .privacyRegion:return 0;case .privacyTransformManifest:return manifest.supersedesManifestID==nil ? 0:manifest.revision-1;default:break};case let .review(value,_,_):if identity.kind == .privacyReviewReceipt{return value.supersedesReceiptID==nil ? 0:value.revision-1}};throw WorkspaceMutationContractFailureV1.invalidPlan}
+    func canonicalSHA256()throws->String{try validate();return try WorkspaceMutationCanonicalV1.sha256(self)}
+}
 
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
@@ -1347,6 +1363,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyFieldDraft(FieldDraftMutationV1)
     case applyPackagePromotion(PackagePromotionMutationV1)
     case applyMeasurementIntegrity(MeasurementIntegrityMutationV1)
+    case applyPrivacyTransform(PrivacyTransformMutationV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -1377,6 +1394,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyFieldDraft:.applyFieldDraft
         case .applyPackagePromotion:.applyPackagePromotion
         case .applyMeasurementIntegrity:.applyMeasurementIntegrity
+        case .applyPrivacyTransform:.applyPrivacyTransform
         }
     }
 }
@@ -1409,6 +1427,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyFieldDraft="apply_field_draft"
     case applyPackagePromotion="apply_package_promotion"
     case applyMeasurementIntegrity="apply_measurement_integrity"
+    case applyPrivacyTransform="apply_privacy_transform"
 }
 
 extension WorkspaceCommandV1 {
@@ -2153,6 +2172,7 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind:.applyFieldDraft,disposition:.compensatable,stableReason:"append_field_draft_successor_only"),
         .init(commandKind:.applyPackagePromotion,disposition:.compensatable,stableReason:"append_package_promotion_successor_only"),
         .init(commandKind:.applyMeasurementIntegrity,disposition:.compensatable,stableReason:"append_measurement_integrity_successor_only"),
+        .init(commandKind:.applyPrivacyTransform,disposition:.irreversible,stableReason:"append_privacy_transform_forward_fix_only"),
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {

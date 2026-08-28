@@ -1635,3 +1635,131 @@ enum MeasurementIntegritySearchProjectionPolicyV1 {
         fieldIDs.contains(field.rawValue)
     }
 }
+
+// MARK: - C20 approved-derivative search projection
+
+/// Search metadata for C20 is deliberately narrower than the report
+/// projection: it can identify an approved derivative and its policy/review
+/// binding, but never indexes bytes, original references, reviewer identity,
+/// or review rationale.
+enum PrivacyTransformSearchFieldV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case manifestIdentifier = "privacy_transform_manifest_identifier"
+    case derivativeContentIdentifier = "privacy_transform_derivative_content_identifier"
+    case derivativeDigest = "privacy_transform_derivative_digest"
+    case policyIdentifier = "privacy_transform_policy_identifier"
+    case policyRevision = "privacy_transform_policy_revision"
+    case reviewReceiptIdentifier = "privacy_transform_review_receipt_identifier"
+    case reviewState = "privacy_transform_review_state"
+    case audience = "privacy_transform_audience"
+    case regionCount = "privacy_transform_region_count"
+    case redactionDeclaration = "privacy_transform_redaction_declaration"
+    case thumbnailEligibility = "privacy_transform_thumbnail_eligibility"
+}
+
+struct PrivacyTransformSearchRecordV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let workspaceID: UUID
+    let manifestID: UUID
+    let derivativeContentID: String
+    let derivativeSHA256: String
+    let policyID: UUID
+    let policyRevision: UInt64
+    let reviewReceiptID: UUID
+    let sourceRevision: UInt64
+    let boundedFieldValues: [PrivacyTransformSearchFieldV1: String]
+    let thumbnailEligible: Bool
+
+    init(
+        projection: PrivacyTransformReportProjectionV1
+    ) throws {
+        try projection.validate()
+        schemaVersion = Self.schemaVersion
+        workspaceID = projection.workspaceID.rawValue
+        manifestID = projection.manifestID
+        derivativeContentID = projection.derivativeContentID
+        derivativeSHA256 = projection.derivativeSHA256
+        policyID = projection.policyID
+        policyRevision = projection.policyRevision
+        reviewReceiptID = projection.reviewReceiptID
+        sourceRevision = projection.sourceRevision
+        thumbnailEligible = projection.isAudienceSafe
+        boundedFieldValues = [
+            .manifestIdentifier: projection.manifestID.uuidString.lowercased(),
+            .derivativeContentIdentifier: projection.derivativeContentID,
+            .derivativeDigest: projection.derivativeSHA256,
+            .policyIdentifier: projection.policyID.uuidString.lowercased(),
+            .policyRevision: String(projection.policyRevision),
+            .reviewReceiptIdentifier: projection.reviewReceiptID.uuidString.lowercased(),
+            .reviewState: projection.reviewDecision.rawValue,
+            .audience: projection.audience.rawValue,
+            .regionCount: String(projection.regionCount),
+            .redactionDeclaration: projection.redactionDeclared ? "RECORDED" : "NOT_RECORDED",
+            .thumbnailEligibility: projection.isAudienceSafe ? "ELIGIBLE" : "DENIED",
+        ]
+        try validate()
+    }
+
+    var displayIdentity: String {
+        "privacy-transform:\(manifestID.uuidString.lowercased())"
+    }
+
+    func normalizedTokens(
+        for field: PrivacyTransformSearchFieldV1
+    ) -> [String] {
+        guard let value = boundedFieldValues[field] else { return [] }
+        return SearchContractValidationV1.normalizeSearchText(value)
+            .unicodeScalars
+            .split { !CharacterSet.alphanumerics.contains($0) }
+            .map(String.init)
+    }
+
+    func validate() throws {
+        let required = Set(PrivacyTransformSearchFieldV1.allCases)
+        guard schemaVersion == Self.schemaVersion,
+              workspaceID != SearchContractValidationV1.zeroUUID,
+              manifestID != SearchContractValidationV1.zeroUUID,
+              SearchContractValidationV1.validID(derivativeContentID),
+              KernelCanonicalHashV1.validSHA256(derivativeSHA256),
+              policyID != SearchContractValidationV1.zeroUUID,
+              policyRevision > 0,
+              reviewReceiptID != SearchContractValidationV1.zeroUUID,
+              sourceRevision > 0,
+              thumbnailEligible,
+              Set(boundedFieldValues.keys) == required,
+              boundedFieldValues.values.allSatisfy {
+                  SearchContractValidationV1.validID($0)
+              },
+              !PrivacyTransformLocalizationPolicyV1.containsProhibitedClaim(
+                  in: Array(boundedFieldValues.values)
+              ),
+              !PrivacyTransformLocalizationPolicyV1.containsCustomerOrWorkDataLeakage(
+                  in: Array(boundedFieldValues.values)
+              ) else {
+            throw SearchContractFailureV1.forbiddenField
+        }
+    }
+}
+
+enum PrivacyTransformSearchProjectionPolicyV1 {
+    static let sourceKind = "PRIVACY_TRANSFORM"
+    static let semanticLabel = "PRIVACY_TRANSFORM_APPROVED_DERIVATIVE_METADATA_V1"
+    static let fieldIDs = PrivacyTransformSearchFieldV1.allCases.map(\.rawValue)
+    static let derivedOnly = true
+    static let metadataOnly = true
+    static let approvedNonStaleOnly = true
+    static let requiresMatchingSourceAndDerivativeDigest = true
+    static let requiresExplicitRedactionDeclaration = true
+    static let dropAndRebuildAfterRestore = true
+    static let dropAndRebuildOnReplay = true
+    static let excludesOriginalReferences = true
+    static let excludesOriginalBytes = true
+    static let excludesDerivativeBytes = true
+    static let excludesReviewerIdentity = true
+    static let excludesReviewRationale = true
+
+    static func accepts(_ field: PrivacyTransformSearchFieldV1) -> Bool {
+        fieldIDs.contains(field.rawValue)
+    }
+}

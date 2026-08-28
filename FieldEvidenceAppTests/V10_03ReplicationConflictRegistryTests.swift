@@ -872,4 +872,11 @@ extension V10_03ReplicationConflictRegistryTests {
         XCTAssertEqual(replayed.bundleSHA256, fixture.bundle.bundleSHA256)
         XCTAssertEqual(replayed.captures.map(\.captureID), fixture.bundle.captures.map(\.captureID))
     }
+
+    func testC20PrivacyTransformBackupKindsHaveDistinctTypedIdentity() throws {
+        let fixture = try C20PrivacyTransformTestSupport.makeFixture()
+        XCTAssertEqual(V19BackupPrivacyTransformRecordV1.Kind.allCases.count, 4)
+        let keys = fixture.backupRecords.map { "\($0.kind.rawValue)|\($0.id.uuidString)" }
+        XCTAssertEqual(Set(keys).count, keys.count)
+    }
 }

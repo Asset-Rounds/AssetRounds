@@ -2126,4 +2126,12 @@ extension S6_3BackupValidationTests {
         row.seriesSHA256 = C19MeasurementIntegrityTestSupport.digest("z")
         XCTAssertThrowsError(try row.value())
     }
+
+    func testC20PrivacyTransformBackupValidationRejectsDuplicateIdentity() throws {
+        let fixture = try C20PrivacyTransformTestSupport.makeFixture()
+        let duplicate = fixture.backupRecords + [fixture.backupRecords[0]]
+        let keys = duplicate.map { "\($0.kind.rawValue)|\($0.id.uuidString)" }
+        XCTAssertNotEqual(Set(keys).count, keys.count)
+        XCTAssertThrowsError(try V19PrivacyTransformImportBoundaryV1.validate(persistent: 19, records: 17))
+    }
 }

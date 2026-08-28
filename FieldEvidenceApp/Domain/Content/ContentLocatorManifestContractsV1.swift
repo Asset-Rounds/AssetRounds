@@ -244,3 +244,19 @@ extension ContentManifestV1 {
         try self.init(manifestID: c.decode(String.self, forKey: .manifestID), workspaceID: c.decode(String.self, forKey: .workspaceID), manifestRevision: c.decode(Int.self, forKey: .manifestRevision), entries: c.decode([ContentManifestEntryV1].self, forKey: .entries))
     }
 }
+
+extension ContentManifestV1 {
+    func validatePrivacyTransformClosure(
+        _ closure: PrivacyTransformLifecycleClosureV1,
+        references: [ContentReferenceV1],
+        locators: [ContentLocatorV1]
+    ) throws {
+        try closure.validate()
+        try validate(references: references, locators: locators)
+        let ids = Set(entries.map(\.contentID))
+        guard ids.contains(closure.manifest.original.contentID),
+              ids.contains(closure.manifest.derivative.contentID) else {
+            throw ContentContractFailureV1.missingContent
+        }
+    }
+}

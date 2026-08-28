@@ -102,10 +102,11 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
     static let v16PersistentModelNames=["AttachmentStagingItemRow","DraftCommitReceiptRow","DraftCommitSagaRow","DraftContentReservationRow","DraftDiscardReceiptRow","FieldDraftCheckpointRow"]
     static let v17PersistentModelNames=["ActivePackageRegistryPointerRow","PackagePromotionReceiptRow","PackageSandboxRunRow","PromotedPackageReleaseRow"]
     static let v18PersistentModelNames=["CalibrationStatusSnapshotRow","InstrumentReferenceRow","MeasurementCaptureRow","MeasurementQualityAssessmentRow","MeasurementSeriesRow"]
+    static let v19PersistentModelNames=["PrivacyRegionRow","PrivacyReviewReceiptRow","PrivacyTransformManifestRow","PrivacyTransformPolicyRow"]
     static let activePersistentModelNames =
         (persistentModelNames + v6PersistentModelNames + v7PersistentModelNames
             + v8PersistentModelNames + v9PersistentModelNames + v10PersistentModelNames
-            + v11PersistentModelNames + v12PersistentModelNames + v13PersistentModelNames + v14PersistentModelNames + v15PersistentModelNames + v16PersistentModelNames + v17PersistentModelNames + v18PersistentModelNames).sorted()
+            + v11PersistentModelNames + v12PersistentModelNames + v13PersistentModelNames + v14PersistentModelNames + v15PersistentModelNames + v16PersistentModelNames + v17PersistentModelNames + v18PersistentModelNames + v19PersistentModelNames).sorted()
 
     static let ownedFileClassNames = [
         "cache", "commerceEntitlementCache", "database", "databaseSHM", "databaseWAL",
@@ -168,6 +169,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "FieldDraftCheckpointV1","AttachmentStagingItemV1","DraftCommitSagaV1","DraftContentReservationV1","DraftCommitReceiptV1","DraftDiscardReceiptV1","DraftRecoveryProjectionV1",
         "PromotedPackageReleaseV1","PackageSandboxRunV1","PackagePromotionReceiptV1","ActivePackageRegistryPointerV1","PackageEvolutionLifecycleClosureV1","PackageSemanticDiffV1","DraftUpgradePlanV1",
         "InstrumentReferenceV1","CalibrationStatusSnapshotV1","MeasurementCaptureV1","MeasurementSeriesV1","MeasurementQualityAssessmentV1",
+        "PrivacyTransformPolicyV1","PrivacyRegionV1","PrivacyTransformManifestV1","PrivacyReviewReceiptV1","PrivacyProjectionV1","PrivacyTransformLifecycleClosureV1",
     ]
 
     static let derivedIndexNames = [
@@ -211,6 +213,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "StoreSemanticEnvelopeV16",
         "StoreSemanticEnvelopeV17",
         "StoreSemanticEnvelopeV18",
+        "StoreSemanticEnvelopeV19",
         "WorkspaceMutationStateSemanticV1",
         "entityMutationRevision",
         "workspaceMutationState",
@@ -709,6 +712,7 @@ private extension CurrentSyncClassificationCatalogV1 {
         for name in v16PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[]))}
         for name in v17PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[]))}
         for name in v18PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[]))}
+        for name in v19PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[]))}
 
         for name in portableContentProjectionNames {
             let profile: AdditionalProfile = name == "ReportSnapshotV1"
@@ -1092,6 +1096,12 @@ private extension CurrentSyncClassificationCatalogV1 {
         case "MeasurementCaptureV1":return[try subject(category:.persistentModel,name:"MeasurementCaptureRow")]
         case "MeasurementSeriesV1":return[try subject(category:.persistentModel,name:"MeasurementSeriesRow")]
         case "MeasurementQualityAssessmentV1":return[try subject(category:.persistentModel,name:"MeasurementQualityAssessmentRow")]
+        case "PrivacyTransformPolicyV1":return[try subject(category:.persistentModel,name:"PrivacyTransformPolicyRow")]
+        case "PrivacyRegionV1":return[try subject(category:.persistentModel,name:"PrivacyRegionRow")]
+        case "PrivacyTransformManifestV1":return[try subject(category:.persistentModel,name:"PrivacyTransformManifestRow")]
+        case "PrivacyReviewReceiptV1":return[try subject(category:.persistentModel,name:"PrivacyReviewReceiptRow")]
+        case "PrivacyProjectionV1":return try subjects(category:.persistentModel,names:v19PersistentModelNames)
+        case "PrivacyTransformLifecycleClosureV1":return try subjects(category:.persistentModel,names:v19PersistentModelNames)
         case "PackageSemanticDiffV1","DraftUpgradePlanV1":return []
         default:
             throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
@@ -1150,7 +1160,8 @@ private extension CurrentSyncClassificationCatalogV1 {
         case "StoreSemanticEnvelopeV15":return try subjects(category:.persistentModel,names:persistentModelNames+v6PersistentModelNames+v7PersistentModelNames+v8PersistentModelNames+v9PersistentModelNames+v10PersistentModelNames+v11PersistentModelNames+v12PersistentModelNames+v13PersistentModelNames+v14PersistentModelNames+v15PersistentModelNames)
         case "StoreSemanticEnvelopeV16":return try subjects(category:.persistentModel,names:persistentModelNames+v6PersistentModelNames+v7PersistentModelNames+v8PersistentModelNames+v9PersistentModelNames+v10PersistentModelNames+v11PersistentModelNames+v12PersistentModelNames+v13PersistentModelNames+v14PersistentModelNames+v15PersistentModelNames+v16PersistentModelNames)
         case "StoreSemanticEnvelopeV17":return try subjects(category:.persistentModel,names:persistentModelNames+v6PersistentModelNames+v7PersistentModelNames+v8PersistentModelNames+v9PersistentModelNames+v10PersistentModelNames+v11PersistentModelNames+v12PersistentModelNames+v13PersistentModelNames+v14PersistentModelNames+v15PersistentModelNames+v16PersistentModelNames+v17PersistentModelNames)
-        case "StoreSemanticEnvelopeV18":return try subjects(category:.persistentModel,names:activePersistentModelNames)
+        case "StoreSemanticEnvelopeV18":return try subjects(category:.persistentModel,names:persistentModelNames+v6PersistentModelNames+v7PersistentModelNames+v8PersistentModelNames+v9PersistentModelNames+v10PersistentModelNames+v11PersistentModelNames+v12PersistentModelNames+v13PersistentModelNames+v14PersistentModelNames+v15PersistentModelNames+v16PersistentModelNames+v17PersistentModelNames+v18PersistentModelNames)
+        case "StoreSemanticEnvelopeV19":return try subjects(category:.persistentModel,names:activePersistentModelNames)
         case "IntegrationConformanceConsumerV1", "IntegrationContractRegistryV1",
              "IntegrationEventProjectionV1", "IntegrationEventV1",
              "IntegrationProjectionCheckpointStoreV1", "ProjectionCheckpointV1":
@@ -1304,6 +1315,7 @@ private extension CurrentSyncClassificationCatalogV1 {
             FieldDraftCheckpointRow.self,AttachmentStagingItemRow.self,DraftCommitSagaRow.self,DraftContentReservationRow.self,DraftCommitReceiptRow.self,DraftDiscardReceiptRow.self,
             PromotedPackageReleaseRow.self,PackageSandboxRunRow.self,PackagePromotionReceiptRow.self,ActivePackageRegistryPointerRow.self,
             InstrumentReferenceRow.self,CalibrationStatusSnapshotRow.self,MeasurementCaptureRow.self,MeasurementSeriesRow.self,MeasurementQualityAssessmentRow.self,
+            PrivacyTransformPolicyRow.self,PrivacyRegionRow.self,PrivacyTransformManifestRow.self,PrivacyReviewReceiptRow.self,
         ]
         let runtimeNames = PersistentSchemaV18.models.map { modelType in
             String(describing: modelType)

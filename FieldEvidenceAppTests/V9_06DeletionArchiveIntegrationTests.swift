@@ -470,4 +470,16 @@ extension V9_06DeletionArchiveIntegrationTests {
         XCTAssertEqual(try row.value(), fixture.series)
         XCTAssertEqual(MeasurementIntegrityLifecycleCatalogV1.disposition(for: "MEASUREMENT_SERIES_V1"), .canonicalPersistent)
     }
+
+    func testC20PrivacyTransformDeleteOnlyRegenerableDerivative() throws {
+        let adapter = PrivacyTransformLifecycleAdapterV1(authority: C20PrivacyPublicationAuthorityForAnchors())
+        XCTAssertEqual(
+            adapter.disposition(hasDerivativeBytes: true, hasManifest: false, hasReview: false, receiptValid: false),
+            .deleteRegenerableDerivative
+        )
+        XCTAssertEqual(
+            adapter.disposition(hasDerivativeBytes: true, hasManifest: true, hasReview: false, receiptValid: false),
+            .quarantinePartialEffect
+        )
+    }
 }

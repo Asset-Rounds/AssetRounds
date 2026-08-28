@@ -1811,4 +1811,11 @@ extension V9_22LocalizationAccessibilityTests {
         XCTAssertEqual(fixture.measurement.dimension, .illuminance)
         XCTAssertFalse(fixture.measurement.canonicalUnitID.contains("localized"))
     }
+
+    func testC20PrivacyTransformCoordinateNormalizationIsLocaleIndependent() throws {
+        let fixture = try C20PrivacyTransformTestSupport.makeFixture()
+        XCTAssertEqual(PrivacyTransformValidationV1.coordinateScale, 1_000_000)
+        XCTAssertEqual(fixture.regions.map(\.order), [0, 1, 2])
+        XCTAssertTrue(fixture.regions.allSatisfy { $0.coordinateSpaceVersion == PrivacyCoordinateSpaceV1.normalizedImage.rawValue })
+    }
 }

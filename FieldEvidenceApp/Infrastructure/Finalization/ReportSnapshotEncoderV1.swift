@@ -449,6 +449,14 @@ struct ReportSnapshotEncoderV1: Sendable {
                 return false
             }
         }
+        if let privacyTransform = snapshot.privacyTransform {
+            guard (try? privacyTransform.validate()) != nil,
+                  PrivacyTransformReportProjectionPolicyV1.supportedFormats.allSatisfy({
+                      PrivacyTransformReportProjectionPolicyV1.supports($0)
+                  }) else {
+                return false
+            }
+        }
 
         guard validObservationAndTime(
             basis: snapshot.observationBasis,
@@ -587,7 +595,44 @@ extension CanonicalJSONV1 {
         if let measurementIntegrity = value.measurementIntegrity {
             object["measurementIntegrity"] = Self.measurementIntegrity(measurementIntegrity)
         }
+        if let privacyTransform = value.privacyTransform {
+            object["privacyTransform"] = Self.privacyTransform(privacyTransform)
+        }
         return .object(object)
+    }
+
+    /// C20 exposes only the approved derivative's bounded binding. In
+    /// particular, this object has no original/derivative locator, bytes,
+    /// reviewer identity, or rationale.
+    private static func privacyTransform(
+        _ value: PrivacyTransformReportProjectionV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "schemaVersion": .integer(value.schemaVersion),
+            "projectionVersion": .string(value.projectionVersion),
+            "workspaceID": .object(["rawValue": uuid(value.workspaceID.rawValue)]),
+            "manifestID": uuid(value.manifestID),
+            "reviewReceiptID": uuid(value.reviewReceiptID),
+            "policyID": uuid(value.policyID),
+            "audience": .string(value.audience.rawValue),
+            "derivativeContentID": .string(value.derivativeContentID),
+            "derivativeSHA256": .string(value.derivativeSHA256),
+            "sourceRevision": .integer(Int(value.sourceRevision)),
+            "sourceSHA256": .string(value.sourceSHA256),
+            "policyRevision": .integer(Int(value.policyRevision)),
+            "policySHA256": .string(value.policySHA256),
+            "reviewRevision": .integer(Int(value.reviewRevision)),
+            "reviewSHA256": .string(value.reviewSHA256),
+            "reviewDecision": .string(value.reviewDecision.rawValue),
+            "staleState": .string(value.staleState.rawValue),
+            "metadataSanitized": .bool(value.metadataSanitized),
+            "redactionDeclared": .bool(value.redactionDeclared),
+            "derivativeOnly": .bool(value.derivativeOnly),
+            "originalReferenceExcluded": .bool(value.originalReferenceExcluded),
+            "transformKinds": .array(value.transformKinds.map { .string($0.rawValue) }),
+            "regionCount": .integer(value.regionCount),
+            "projectionSHA256": .string(value.projectionSHA256),
+        ])
     }
 
     /// C19 is deliberately an additive, privacy-safe report object. Exact
@@ -1143,5 +1188,36 @@ extension ReportSnapshotEncoderV1 {
         } catch {
             throw ReportSnapshotEncodingErrorV1.noncanonicalData
         }
+    }
+
+    /// Encodes the standalone C20 projection with the same sorted, local
+    /// canonical rules used by the report companion renderers.
+    func encode(
+        _ projection: PrivacyTransformReportProjectionV1
+    ) throws -> EncodedReportSnapshotV1 {
+        try projection.validate()
+        let data = try PrivacyTransformCanonicalCodecV1.encode(projection)
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        return EncodedReportSnapshotV1(
+            data: data,
+            sha256: KernelCanonicalHashV1.sha256(data)
+        )
+    }
+
+    func decodePrivacyTransformProjection(
+        _ data: Data
+    ) throws -> PrivacyTransformReportProjectionV1 {
+        let projection = try PrivacyTransformCanonicalCodecV1.decode(
+            PrivacyTransformReportProjectionV1.self,
+            from: data
+        )
+        try projection.validate()
+        guard try encode(projection).data == data else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return projection
     }
 }

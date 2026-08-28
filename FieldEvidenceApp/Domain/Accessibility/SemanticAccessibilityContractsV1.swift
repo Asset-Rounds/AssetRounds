@@ -1072,3 +1072,93 @@ enum MeasurementIntegrityAccessibilityPolicyV1 {
         indeterminateSemanticIDs.contains(semanticID)
     }
 }
+
+/// C20 semantic identifiers for the manual redaction-review projection.  The
+/// IDs are stable meaning identifiers; they are never the original content
+/// locator, reviewer identity, or a claim about anonymization.
+enum PrivacyTransformAccessibilityIDV1: String, Codable, CaseIterable, Sendable {
+    case screen = "privacy.transform.screen"
+    case heading = "privacy.transform.heading"
+    case redactionDeclaration = "privacy.transform.redaction.declaration"
+    case derivative = "privacy.transform.derivative"
+    case derivativeOnly = "privacy.transform.derivative.only"
+    case review = "privacy.transform.review"
+    case reviewApproved = "privacy.transform.review.approved"
+    case reviewRejected = "privacy.transform.review.rejected"
+    case freshness = "privacy.transform.freshness"
+    case freshnessCurrent = "privacy.transform.freshness.current"
+    case projection = "privacy.transform.projection"
+    case projectionAllowed = "privacy.transform.projection.allowed"
+    case projectionDenied = "privacy.transform.projection.denied"
+    case denialMissingReview = "privacy.transform.projection.denial.missing_review"
+    case denialRejected = "privacy.transform.projection.denial.rejected"
+    case denialStale = "privacy.transform.projection.denial.stale"
+    case denialWrongAudience = "privacy.transform.projection.denial.wrong_audience"
+    case denialWrongPolicy = "privacy.transform.projection.denial.wrong_policy"
+    case denialSourceChanged = "privacy.transform.projection.denial.source_changed"
+    case denialDigestMismatch = "privacy.transform.projection.denial.digest_mismatch"
+    case denialMetadataNotSanitized = "privacy.transform.projection.denial.metadata_not_sanitized"
+    case originalAccessSeparate = "privacy.transform.original.access.separate"
+    case nextStep = "privacy.transform.next_step"
+
+    var localizationKey: LocalizationKeyV1 {
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+}
+
+enum PrivacyTransformAccessibilityPolicyV1 {
+    static let semanticIDs = PrivacyTransformAccessibilityIDV1.allCases.map(\.rawValue)
+    static let stateSemanticIDs: Set<String> = [
+        PrivacyTransformAccessibilityIDV1.reviewApproved.rawValue,
+        PrivacyTransformAccessibilityIDV1.reviewRejected.rawValue,
+        PrivacyTransformAccessibilityIDV1.freshnessCurrent.rawValue,
+        PrivacyTransformAccessibilityIDV1.projectionAllowed.rawValue,
+        PrivacyTransformAccessibilityIDV1.projectionDenied.rawValue,
+        PrivacyTransformAccessibilityIDV1.denialMissingReview.rawValue,
+        PrivacyTransformAccessibilityIDV1.denialRejected.rawValue,
+        PrivacyTransformAccessibilityIDV1.denialStale.rawValue,
+        PrivacyTransformAccessibilityIDV1.denialWrongAudience.rawValue,
+        PrivacyTransformAccessibilityIDV1.denialWrongPolicy.rawValue,
+        PrivacyTransformAccessibilityIDV1.denialSourceChanged.rawValue,
+        PrivacyTransformAccessibilityIDV1.denialDigestMismatch.rawValue,
+        PrivacyTransformAccessibilityIDV1.denialMetadataNotSanitized.rawValue,
+    ]
+    static let indeterminateSemanticIDs: Set<String> = [
+        PrivacyTransformAccessibilityIDV1.projectionDenied.rawValue,
+        PrivacyTransformAccessibilityIDV1.denialMissingReview.rawValue,
+        PrivacyTransformAccessibilityIDV1.denialRejected.rawValue,
+        PrivacyTransformAccessibilityIDV1.denialStale.rawValue,
+        PrivacyTransformAccessibilityIDV1.denialWrongAudience.rawValue,
+        PrivacyTransformAccessibilityIDV1.denialWrongPolicy.rawValue,
+        PrivacyTransformAccessibilityIDV1.denialSourceChanged.rawValue,
+        PrivacyTransformAccessibilityIDV1.denialDigestMismatch.rawValue,
+        PrivacyTransformAccessibilityIDV1.denialMetadataNotSanitized.rawValue,
+    ]
+    static let statusSemanticIDs = stateSemanticIDs
+    static let denyByDefault = true
+    static let nonColorStateTextRequired = true
+    static let textAlternativeRequired = true
+    static let textAndIconRequiredForIndeterminateStates = true
+    static let actionableNextStepRequiredForIndeterminateStates = true
+    static let colorOnlyStateAllowed = false
+    static let iconOnlyStateAllowed = false
+    static let motionOnlyStateAllowed = false
+    static let excludesOriginalBytes = true
+    static let excludesOriginalReferences = true
+    static let excludesReviewerIdentity = true
+    static let excludesReviewRationale = true
+    static let rtlRequired = true
+    static let dynamicTypeRequired = true
+    static let voiceOverRequired = true
+    static let voiceControlRequired = true
+    static let switchControlRequired = true
+
+    static func requiresTextAndIcon(for semanticID: String) -> Bool {
+        indeterminateSemanticIDs.contains(semanticID)
+    }
+
+    static func requiresActionableNextStep(for semanticID: String) -> Bool {
+        indeterminateSemanticIDs.contains(semanticID)
+    }
+}

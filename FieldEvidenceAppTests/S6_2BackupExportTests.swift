@@ -634,4 +634,11 @@ extension S6_2BackupExportTests {
         let row = try MeasurementCaptureRow(fixture.capture)
         XCTAssertEqual(try row.value(), fixture.capture)
     }
+
+    func testC20PrivacyTransformBackupExportUsesV19RecordBoundary() throws {
+        let fixture = try C20PrivacyTransformTestSupport.makeFixture()
+        try V19PrivacyTransformImportBoundaryV1.validate(persistent: 19, records: 18)
+        XCTAssertEqual(fixture.backupRecords.count, V19BackupPrivacyTransformRecordV1.Kind.allCases.count)
+        XCTAssertTrue(fixture.backupRecords.allSatisfy { !$0.canonicalData.isEmpty })
+    }
 }

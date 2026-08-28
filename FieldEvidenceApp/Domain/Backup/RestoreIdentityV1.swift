@@ -15,6 +15,10 @@ extension RestoreIdentityV1 {
     func destinationMeasurementIntegrityWorkspaceID() -> WorkspaceID {
         WorkspaceID(rawValue: targetPointer.workspaceID)
     }
+
+    func destinationPrivacyTransformWorkspaceID() -> WorkspaceID {
+        WorkspaceID(rawValue: targetPointer.workspaceID)
+    }
     static let packageEvolutionIdentityRule = "PRESERVE_RELEASE_RUN_RECEIPT_POINTER_IDS_REBIND_WORKSPACE_AND_DIGESTS"
 }
 

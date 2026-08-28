@@ -716,4 +716,14 @@ extension V9_16SnapshotProjectionTests {
         XCTAssertEqual(candidate.subject.subjectRevision, 1)
         XCTAssertEqual(candidate.subject.subjectSHA256, fixture.subject.subjectSHA256)
     }
+
+    func testC20PrivacyTransformClosureBindsOrderedRegionsAndReview() throws {
+        let fixture = try C20PrivacyTransformTestSupport.makeFixture()
+        let closure = PrivacyTransformLifecycleClosureV1(
+            policy: fixture.policy, regions: fixture.regions,
+            manifest: fixture.manifest, review: fixture.approvedReview
+        )
+        try closure.validate()
+        XCTAssertEqual(closure.regions.map(\.regionID), fixture.manifest.orderedRegions.map(\.regionID))
+    }
 }

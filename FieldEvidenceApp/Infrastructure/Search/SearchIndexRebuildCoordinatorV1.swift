@@ -1723,4 +1723,25 @@ extension SearchIndexRebuildCoordinatorV1 {
 
     static let measurementIntegrityReplayDisposition =
         "DROP_AND_REBUILD_FROM_FROZEN_MEASUREMENT_PROJECTION"
+
+    /// C20 replay reconstructs disposable rows from the approved derivative
+    /// projection, never from original/derivative bytes or review payloads.
+    static func privacyTransformSearchRecords(
+        from projections: [PrivacyTransformReportProjectionV1]
+    ) throws -> [PrivacyTransformSearchRecordV1] {
+        try PrivacyTransformSearchPersistencePolicyV1().validate()
+        let records = try projections.map {
+            try PrivacyTransformSearchRecordV1(projection: $0)
+        }.sorted {
+            $0.manifestID.uuidString.lowercased() < $1.manifestID.uuidString.lowercased()
+        }
+        guard Set(records.map(\.manifestID)).count == records.count else {
+            throw SearchContractFailureV1.duplicateProjection
+        }
+        try records.forEach { try $0.validate() }
+        return records
+    }
+
+    static let privacyTransformReplayDisposition =
+        "DROP_AND_REBUILD_FROM_APPROVED_PRIVACY_DERIVATIVE_PROJECTION"
 }

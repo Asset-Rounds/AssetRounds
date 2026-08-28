@@ -513,4 +513,15 @@ extension V9_06DeletionRightsTests {
         XCTAssertTrue(MeasurementIntegrityEraseBoundaryV1.ordinaryDeletionPreservesFrozenHistory)
         XCTAssertEqual(fixture.qualityOverride.supersedesAssessmentID, fixture.qualityReview.assessmentID)
     }
+
+    func testC20PrivacyTransformDeletionProjectionDeniesWrongAudience() throws {
+        let fixture = try C20PrivacyTransformTestSupport.makeFixture()
+        let decision = try PrivacyProjectionV1.decide(
+            manifest: fixture.manifest, review: fixture.approvedReview, policy: fixture.policy,
+            requestedAudience: .externalCollaborator, currentSourceRevision: 1,
+            currentSourceSHA256: fixture.manifest.sourceSHA256, at: fixture.capturedAt
+        )
+        XCTAssertEqual(decision.denial, .wrongAudience)
+        XCTAssertFalse(decision.isAllowed)
+    }
 }

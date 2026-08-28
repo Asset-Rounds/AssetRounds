@@ -1040,4 +1040,16 @@ extension S6_6EraseRecoveryTests {
         XCTAssertTrue(MeasurementIntegrityEraseBoundaryV1.workspaceEraseClearsEntireClosure)
         XCTAssertEqual(fixture.unknownCalibration.status, .unknown)
     }
+
+    func testC20PrivacyTransformEraseQuarantinesPartialEffect() throws {
+        let adapter = PrivacyTransformLifecycleAdapterV1(authority: C20PrivacyPublicationAuthorityForAnchors())
+        XCTAssertEqual(
+            adapter.disposition(hasDerivativeBytes: true, hasManifest: true, hasReview: true, receiptValid: false),
+            .quarantinePartialEffect
+        )
+        XCTAssertEqual(
+            adapter.disposition(hasDerivativeBytes: false, hasManifest: false, hasReview: false, receiptValid: false),
+            .retain
+        )
+    }
 }

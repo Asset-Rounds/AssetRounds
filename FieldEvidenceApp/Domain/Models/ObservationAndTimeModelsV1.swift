@@ -451,6 +451,46 @@ extension TemporalContextV1 {
     }
 }
 
+// MARK: - C20 reviewed-derivative observation boundary
+
+extension ObservationBasisV1 {
+    /// Observation basis remains descriptive evidence. This seam validates a
+    /// separately reviewed C20 derivative without turning the observation into
+    /// an identity, safety, or compliance claim.
+    func c20ValidateReviewedDerivative(
+        manifest: PrivacyTransformManifestV1,
+        review: PrivacyReviewReceiptV1?,
+        policy: PrivacyTransformPolicyV1,
+        requestedAudience: EvidenceAudienceV1,
+        currentSourceRevision: UInt64,
+        currentSourceSHA256: String,
+        at now: Date
+    ) throws -> ContentReferenceV1 {
+        try validate()
+        return try C20PrivacyProjectionBridgeV1.requireAllowed(
+            manifest: manifest,
+            review: review,
+            policy: policy,
+            requestedAudience: requestedAudience,
+            currentSourceRevision: currentSourceRevision,
+            currentSourceSHA256: currentSourceSHA256,
+            at: now
+        )
+    }
+}
+
+extension TemporalContextV1 {
+    /// A review/render timestamp is a recorded fact and cannot precede the
+    /// observation record that supplies its source context.
+    func c20ValidatePrivacyReviewTime(_ reviewedAt: Date) throws {
+        try validate()
+        guard reviewedAt.timeIntervalSinceReferenceDate.isFinite,
+              reviewedAt >= recordedAtUTC else {
+            throw PrivacyTransformFailureV1.invalidValue
+        }
+    }
+}
+
 enum ObservationAndTimeLegacyMigrationV1 {
     /// Existing CNV bytes stay in their legacy columns. This adds only the
     /// defensible basis kind and never manufactures direct observation.

@@ -275,4 +275,49 @@ extension DeterministicPDFRendererV1 {
         lines.append(labels.nextStep)
         return lines
     }
+
+    /// C20 PDF companions are canonical metadata. They identify only the
+    /// approved derivative binding and localized state; bytes and original
+    /// content references remain outside this renderer.
+    static func privacyTransformMetadataData(
+        _ projection: PrivacyTransformReportProjectionV1
+    ) throws -> Data {
+        try projection.validate()
+        try PrivacyTransformReportConsumerPolicyV1.validate(projection, format: .pdf)
+        let envelope = try PrivacyTransformOpenJSONEnvelopeV1(projection: projection)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let data = try encoder.encode(envelope)
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        return data
+    }
+
+    static func reopenPrivacyTransformMetadata(
+        _ data: Data
+    ) throws -> PrivacyTransformReportProjectionV1 {
+        try DeterministicOpenJSONRendererV1.reopenPrivacyTransform(data)
+    }
+
+    static func privacyTransformTextLines(
+        _ projection: PrivacyTransformReportProjectionV1
+    ) throws -> [String] {
+        try projection.validate()
+        try PrivacyTransformReportConsumerPolicyV1.validate(projection, format: .pdf)
+        let labels = PrivacyTransformOpenJSONLabelsV1(projection: projection)
+        try labels.validate()
+        return [
+            labels.heading,
+            "(labels.redactionDeclaration): (projection.redactionDeclared ? "Recorded" : "Not recorded")",
+            "(labels.derivative): (projection.derivativeContentID)",
+            "(labels.derivativeOnly): (projection.derivativeOnly ? "Yes" : "No")",
+            "(labels.review): (labels.reviewState)",
+            "(labels.freshness): (labels.freshness)",
+            "(labels.projection): (labels.projectionState)",
+            "(labels.originalAccess): (labels.originalAccess)",
+            labels.nextStep,
+        ]
+    }
 }

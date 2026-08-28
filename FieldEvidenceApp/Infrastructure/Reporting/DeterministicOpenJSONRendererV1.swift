@@ -1548,3 +1548,132 @@ extension DeterministicOpenJSONRendererV1 {
         return encoder
     }
 }
+
+// MARK: - C20 audience-safe privacy-transform open JSON
+
+struct PrivacyTransformOpenJSONLabelsV1: Codable, Equatable, Sendable {
+    let heading: String
+    let redactionDeclaration: String
+    let derivative: String
+    let derivativeOnly: String
+    let review: String
+    let reviewState: String
+    let freshness: String
+    let projection: String
+    let projectionState: String
+    let originalAccess: String
+    let nextStep: String
+
+    init(projection: PrivacyTransformReportProjectionV1) {
+        _ = projection
+        heading = BundledLocalizationCatalogV1.localized(.privacyTransformHeading)
+        redactionDeclaration = BundledLocalizationCatalogV1.localized(.privacyTransformRedactionDeclaration)
+        derivative = BundledLocalizationCatalogV1.localized(.privacyTransformDerivative)
+        derivativeOnly = BundledLocalizationCatalogV1.localized(.privacyTransformDerivativeOnly)
+        review = BundledLocalizationCatalogV1.localized(.privacyTransformReview)
+        reviewState = BundledLocalizationCatalogV1.localized(.privacyTransformReviewApproved)
+        freshness = BundledLocalizationCatalogV1.localized(.privacyTransformFreshnessCurrent)
+        projection = BundledLocalizationCatalogV1.localized(.privacyTransformProjection)
+        projectionState = BundledLocalizationCatalogV1.localized(.privacyTransformProjectionAllowed)
+        originalAccess = BundledLocalizationCatalogV1.localized(.privacyTransformOriginalAccessSeparate)
+        nextStep = BundledLocalizationCatalogV1.localized(.privacyTransformNextStep)
+    }
+
+    func validate() throws {
+        let values = [
+            heading, redactionDeclaration, derivative, derivativeOnly, review,
+            reviewState, freshness, projection, projectionState, originalAccess,
+            nextStep,
+        ]
+        guard values.allSatisfy({ !$0.isEmpty }),
+              !PrivacyTransformLocalizationPolicyV1.containsProhibitedClaim(in: values),
+              !PrivacyTransformLocalizationPolicyV1.containsCustomerOrWorkDataLeakage(in: values) else {
+            throw SnapshotProjectionFailureV1.hostileText
+        }
+    }
+}
+
+struct PrivacyTransformOpenJSONEnvelopeV1: Codable, Equatable, Sendable {
+    static let schema = "PRIVACY_TRANSFORM_REPORT_OPEN_JSON_V1"
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let schema: String
+    let locale: String
+    let projection: PrivacyTransformReportProjectionV1
+    let labels: PrivacyTransformOpenJSONLabelsV1
+
+    init(
+        projection: PrivacyTransformReportProjectionV1,
+        locale: String = BundledLocalizationCatalogV1.runtimeLanguage
+    ) throws {
+        try projection.validate()
+        guard locale == "en" else { throw SnapshotProjectionFailureV1.incompatibleVersion }
+        schemaVersion = Self.schemaVersion
+        schema = Self.schema
+        self.locale = locale
+        self.projection = projection
+        labels = PrivacyTransformOpenJSONLabelsV1(projection: projection)
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion, schema == Self.schema,
+              locale == "en" else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try projection.validate()
+        try labels.validate()
+        guard labels == PrivacyTransformOpenJSONLabelsV1(projection: projection) else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+    }
+}
+
+extension DeterministicOpenJSONRendererV1 {
+    static func renderPrivacyTransform(
+        _ projection: PrivacyTransformReportProjectionV1
+    ) throws -> ReportProjectionOutputV1 {
+        let envelope = try PrivacyTransformOpenJSONEnvelopeV1(projection: projection)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let data = try encoder.encode(envelope)
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes,
+              try reopenPrivacyTransform(data) == projection else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return ReportProjectionOutputV1(
+            format: .openJSON,
+            data: data,
+            sha256: KernelCanonicalHashV1.sha256(data),
+            semanticSHA256: projection.projectionSHA256,
+            orderedSemanticIDs: [
+                PrivacyTransformAccessibilityIDV1.heading.rawValue,
+                PrivacyTransformAccessibilityIDV1.derivativeOnly.rawValue,
+                PrivacyTransformAccessibilityIDV1.review.rawValue,
+                PrivacyTransformAccessibilityIDV1.projectionAllowed.rawValue,
+                PrivacyTransformAccessibilityIDV1.nextStep.rawValue,
+            ],
+            taggedPDFAccessibilityEvidence: false
+        )
+    }
+
+    static func reopenPrivacyTransform(
+        _ data: Data
+    ) throws -> PrivacyTransformReportProjectionV1 {
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        let decoder = JSONDecoder()
+        let envelope = try decoder.decode(PrivacyTransformOpenJSONEnvelopeV1.self, from: data)
+        try envelope.validate()
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        guard try encoder.encode(envelope) == data else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return envelope.projection
+    }
+}

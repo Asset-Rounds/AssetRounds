@@ -2516,3 +2516,159 @@ enum MeasurementIntegrityLocalizationPolicyV1 {
 }
 
 typealias MeasurementIntegrityClaimVocabularyV1 = MeasurementIntegrityLocalizationPolicyV1
+
+/// C20's report-facing labels describe a recorded manual redaction review and
+/// its bounded projection state.  They never describe the original bytes,
+/// reviewer identity, or a legal/anonymization outcome.
+enum PrivacyTransformLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
+    case heading = "privacy.transform.heading"
+    case redactionDeclaration = "privacy.transform.redaction.declaration"
+    case derivative = "privacy.transform.derivative"
+    case derivativeOnly = "privacy.transform.derivative.only"
+    case review = "privacy.transform.review"
+    case reviewApproved = "privacy.transform.review.approved"
+    case reviewRejected = "privacy.transform.review.rejected"
+    case freshness = "privacy.transform.freshness"
+    case freshnessCurrent = "privacy.transform.freshness.current"
+    case projection = "privacy.transform.projection"
+    case projectionAllowed = "privacy.transform.projection.allowed"
+    case projectionDenied = "privacy.transform.projection.denied"
+    case denialMissingReview = "privacy.transform.projection.denial.missing_review"
+    case denialRejected = "privacy.transform.projection.denial.rejected"
+    case denialStale = "privacy.transform.projection.denial.stale"
+    case denialWrongAudience = "privacy.transform.projection.denial.wrong_audience"
+    case denialWrongPolicy = "privacy.transform.projection.denial.wrong_policy"
+    case denialSourceChanged = "privacy.transform.projection.denial.source_changed"
+    case denialDigestMismatch = "privacy.transform.projection.denial.digest_mismatch"
+    case denialMetadataNotSanitized = "privacy.transform.projection.denial.metadata_not_sanitized"
+    case originalAccessSeparate = "privacy.transform.original.access.separate"
+    case nextStep = "privacy.transform.next_step"
+
+    var localizationKey: LocalizationKeyV1 {
+        // The enum is closed and every raw value is checked by the bundled
+        // registry before publication.
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+
+    var englishDefaultValue: String {
+        switch self {
+        case .heading: return "Redaction review"
+        case .redactionDeclaration: return "Manual redaction declaration"
+        case .derivative: return "Reviewed derivative"
+        case .derivativeOnly: return "Derivative only"
+        case .review: return "Review state"
+        case .reviewApproved: return "Approved review recorded"
+        case .reviewRejected: return "Rejected review recorded"
+        case .freshness: return "Derivative freshness"
+        case .freshnessCurrent: return "Current for the recorded source"
+        case .projection: return "Audience projection"
+        case .projectionAllowed: return "Derivative available for this audience"
+        case .projectionDenied: return "Derivative not available"
+        case .denialMissingReview: return "Review is required"
+        case .denialRejected: return "Review was rejected"
+        case .denialStale: return "Derivative is stale"
+        case .denialWrongAudience: return "Audience does not match"
+        case .denialWrongPolicy: return "Policy does not match"
+        case .denialSourceChanged: return "Source changed; review again"
+        case .denialDigestMismatch: return "Digest does not match"
+        case .denialMetadataNotSanitized: return "Metadata sanitation is incomplete"
+        case .originalAccessSeparate: return "Original access is separate"
+        case .nextStep: return "Next recorded step"
+        }
+    }
+
+    var translatorComment: String {
+        "English label for a recorded manual privacy-transform review state; do not claim legal compliance, guaranteed anonymization, or an automatic privacy decision."
+    }
+}
+
+extension PrivacyTransformLocalizationKeyV1 {
+    static func reviewKey(_ decision: PrivacyReviewDecisionV1) -> Self {
+        switch decision {
+        case .approved: return .reviewApproved
+        case .rejected: return .reviewRejected
+        }
+    }
+
+    static func freshnessKey(_ state: PrivacyTransformStaleStateV1) -> Self {
+        switch state {
+        case .current: return .freshnessCurrent
+        case .sourceChanged: return .denialSourceChanged
+        case .policyChanged: return .denialWrongPolicy
+        case .expired: return .denialStale
+        }
+    }
+
+    static func denialKey(_ denial: PrivacyProjectionDenialV1) -> Self {
+        switch denial {
+        case .missingReview: return .denialMissingReview
+        case .rejected: return .denialRejected
+        case .stale: return .denialStale
+        case .wrongAudience: return .denialWrongAudience
+        case .wrongPolicy: return .denialWrongPolicy
+        case .sourceChanged: return .denialSourceChanged
+        case .digestMismatch: return .denialDigestMismatch
+        case .metadataNotSanitized: return .denialMetadataNotSanitized
+        }
+    }
+}
+
+enum PrivacyTransformLocalizationPolicyV1 {
+    static let semanticNamespace = "privacy.transform"
+    static let sourceLocale = "en"
+    static let shippingLocale = "en"
+    static let metadataLocale = "en-US"
+    static let testOnlyLocales = TestOnlyPseudoLocaleV1.allCases.map(\.rawValue).sorted()
+    static let keys = PrivacyTransformLocalizationKeyV1.allCases.map(\.rawValue)
+    static let stateKeys = PrivacyTransformLocalizationKeyV1.allCases
+        .filter { $0.rawValue.contains(".review.") || $0.rawValue.contains(".freshness.") || $0.rawValue.contains(".denial.") || $0 == .projectionAllowed || $0 == .projectionDenied }
+        .map(\.rawValue)
+    static let denyByDefault = true
+    static let requiresExplicitRedactionDeclaration = true
+    static let requiresApprovedNonStaleDerivative = true
+    static let requiresNonColorStateText = true
+    static let requiresTextAndIconForIndeterminateStates = true
+    static let requiresActionableNextStep = true
+    static let allowsColorOnlyState = false
+    static let allowsIconOnlyState = false
+    static let allowsMotionOnlyState = false
+    static let excludesOriginalBytes = true
+    static let excludesOriginalReferences = true
+    static let excludesDerivativeBytes = true
+    static let excludesReviewerIdentity = true
+    static let excludesReviewRationale = true
+    static let excludesUnsupportedClaims = true
+
+    static let prohibitedClaimPhrases: Set<String> = [
+        "guaranteed anonymization", "guaranteed anonymous", "anonymized", "anonymous",
+        "legal compliance", "compliant", "certified", "tamperproof", "nonrepudiation",
+        "verified identity", "secure", "sent", "delivered", "automatic privacy decision",
+    ]
+
+    private static func normalized(_ value: String) -> String {
+        value.folding(
+            options: [.caseInsensitive, .diacriticInsensitive],
+            locale: Locale(identifier: "en_US_POSIX")
+        )
+        .split { !$0.isLetter && !$0.isNumber }
+        .joined(separator: " ")
+    }
+
+    static func containsProhibitedClaim(in values: [String]) -> Bool {
+        values.contains { value in
+            let bounded = " \(normalized(value)) "
+            prohibitedClaimPhrases.contains { bounded.contains(" \($0) ") }
+        }
+    }
+
+    static func containsCustomerOrWorkDataLeakage(in values: [String]) -> Bool {
+        values.contains { value in
+            let bounded = " \(normalized(value)) "
+            [" customer data ", " customer information ", " work data ", " private data ", " credentials ", " password ", " token "]
+                .contains { bounded.contains($0) }
+        }
+    }
+}
+
+typealias PrivacyTransformClaimVocabularyV1 = PrivacyTransformLocalizationPolicyV1

@@ -61,6 +61,22 @@ struct ReportSnapshotV1: Codable, Equatable, Sendable {
     /// and bounded quality status without carrying operator or opaque serial
     /// detail into a report.
     var measurementIntegrity: MeasurementIntegrityReportProjectionV1? = nil
+    /// Optional C20 audience-safe privacy-transform projection. It contains
+    /// only the approved, current derivative binding; original access remains
+    /// a separately authorized content operation.
+    var privacyTransform: PrivacyTransformReportProjectionV1? = nil
+
+    var audienceSafeDerivativeProjection: PrivacyTransformReportProjectionV1? {
+        privacyTransform
+    }
+
+    var privacyDerivativeProjection: PrivacyTransformReportProjectionV1? {
+        privacyTransform
+    }
+
+    var privacyTransformProjection: PrivacyTransformReportProjectionV1? {
+        privacyTransform
+    }
 
     var reviewHistory: [InspectionReviewTransitionV1] {
         inspectionReviewHistory?.reviewHistory ?? []

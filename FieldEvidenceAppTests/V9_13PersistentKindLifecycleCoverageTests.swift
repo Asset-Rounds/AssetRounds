@@ -1401,4 +1401,17 @@ extension V9_13PersistentKindLifecycleCoverageTests {
         )
         try fixture.series.validate()
     }
+
+    func testC20PrivacyTransformRowsRoundTripWithoutOrphans() throws {
+        let fixture = try C20PrivacyTransformTestSupport.makeFixture()
+        XCTAssertEqual(try fixture.policyRow.value(), fixture.policy)
+        XCTAssertEqual(try fixture.regionRows.map { try $0.value() }, fixture.regions)
+        XCTAssertThrowsError(try fixture.manifestRow.value())
+        XCTAssertThrowsError(try fixture.reviewRow.value())
+        XCTAssertEqual(try fixture.manifestRow.value(policy: fixture.policy), fixture.manifest)
+        XCTAssertEqual(
+            try fixture.reviewRow.value(manifest: fixture.manifest, policy: fixture.policy),
+            fixture.approvedReview
+        )
+    }
 }

@@ -1544,4 +1544,11 @@ extension V9_03MigrationRecoveryTests {
         XCTAssertEqual(fixture.bundle.workspaceID, fixture.workspace)
         try fixture.bundle.validate()
     }
+
+    func testC20PrivacyTransformMigrationBoundaryIsTyped() throws {
+        XCTAssertEqual(PersistentSchemaMigrationPlanV18.schemas.count, 2)
+        XCTAssertEqual(PersistentSchemaMigrationPlanV18.stages.count, 1)
+        try V19PrivacyTransformImportBoundaryV1.validate(persistent: 19, records: 18)
+        XCTAssertThrowsError(try V19PrivacyTransformImportBoundaryV1.validate(persistent: 18, records: 18))
+    }
 }

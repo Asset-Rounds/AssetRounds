@@ -729,3 +729,51 @@ extension InspectionPackageAuthorityCriterionBindingV1 {
         }
     }
 }
+
+// MARK: - C20 reviewed-derivative package binding
+
+extension InspectionPackageAuthorityCriterionBindingV1 {
+    /// Validates a reviewed derivative at the package boundary without
+    /// changing the immutable package/release declaration or making a
+    /// privacy decision on behalf of the package. The projection helper is
+    /// the sole owner of audience, policy, source, review, and freshness
+    /// admission.
+    func c20ValidateReviewedDerivative(
+        manifest: PrivacyTransformManifestV1,
+        review: PrivacyReviewReceiptV1?,
+        policy: PrivacyTransformPolicyV1,
+        requestedAudience: EvidenceAudienceV1,
+        currentSourceRevision: UInt64,
+        currentSourceSHA256: String,
+        at now: Date,
+        release: InspectionPackageReleaseV1,
+        package: InspectionPackageV2
+    ) throws -> ContentReferenceV1 {
+        try validate()
+        try package.validate()
+        try release.validate()
+        let packageBytes = try InspectionPackageCanonicalCodecV2.encode(package)
+        guard packageRelease.packageID == package.packageID,
+              packageRelease.schemaVersion == package.schemaVersion,
+              packageRelease.contentVersion == package.contentVersion,
+              release.packageID == package.packageID,
+              release.packageContentVersion == package.contentVersion,
+              release.canonicalPackageBytes == packageBytes,
+              release.packageSHA256 == KernelCanonicalHashV1.sha256(packageBytes) else {
+            throw InspectionPackageFailureV2.incompatiblePackage
+        }
+        guard workspaceID == policy.workspaceID,
+              manifest.workspaceID == policy.workspaceID else {
+            throw PrivacyTransformFailureV1.wrongWorkspace
+        }
+        return try C20PrivacyProjectionBridgeV1.requireAllowed(
+            manifest: manifest,
+            review: review,
+            policy: policy,
+            requestedAudience: requestedAudience,
+            currentSourceRevision: currentSourceRevision,
+            currentSourceSHA256: currentSourceSHA256,
+            at: now
+        )
+    }
+}

@@ -2001,6 +2001,94 @@
     "measurement.integrity.next_step" : {
       "comment" : "English label for a recorded local measurement-integrity fact; do not infer compliance, safety, certification, or automatic pass/fail.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Next recorded step" } } }
+    },
+    "privacy.transform.heading" : {
+      "comment" : "English label for a recorded manual privacy-transform review state; do not claim legal compliance, guaranteed anonymization, or an automatic privacy decision.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Redaction review" } } }
+    },
+    "privacy.transform.redaction.declaration" : {
+      "comment" : "English label for a recorded manual privacy-transform review state; do not claim legal compliance, guaranteed anonymization, or an automatic privacy decision.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Manual redaction declaration" } } }
+    },
+    "privacy.transform.derivative" : {
+      "comment" : "English label for a recorded manual privacy-transform review state; do not claim legal compliance, guaranteed anonymization, or an automatic privacy decision.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reviewed derivative" } } }
+    },
+    "privacy.transform.derivative.only" : {
+      "comment" : "English label for a recorded manual privacy-transform review state; do not claim legal compliance, guaranteed anonymization, or an automatic privacy decision.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Derivative only" } } }
+    },
+    "privacy.transform.review" : {
+      "comment" : "English label for a recorded manual privacy-transform review state; do not claim legal compliance, guaranteed anonymization, or an automatic privacy decision.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review state" } } }
+    },
+    "privacy.transform.review.approved" : {
+      "comment" : "English label for a recorded manual privacy-transform review state; do not claim legal compliance, guaranteed anonymization, or an automatic privacy decision.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Approved review recorded" } } }
+    },
+    "privacy.transform.review.rejected" : {
+      "comment" : "English label for a recorded manual privacy-transform review state; do not claim legal compliance, guaranteed anonymization, or an automatic privacy decision.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Rejected review recorded" } } }
+    },
+    "privacy.transform.freshness" : {
+      "comment" : "English label for a recorded manual privacy-transform review state; do not claim legal compliance, guaranteed anonymization, or an automatic privacy decision.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Derivative freshness" } } }
+    },
+    "privacy.transform.freshness.current" : {
+      "comment" : "English label for a recorded manual privacy-transform review state; do not claim legal compliance, guaranteed anonymization, or an automatic privacy decision.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Current for the recorded source" } } }
+    },
+    "privacy.transform.projection" : {
+      "comment" : "English label for a recorded manual privacy-transform review state; do not claim legal compliance, guaranteed anonymization, or an automatic privacy decision.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Audience projection" } } }
+    },
+    "privacy.transform.projection.allowed" : {
+      "comment" : "English label for a recorded manual privacy-transform review state; do not claim legal compliance, guaranteed anonymization, or an automatic privacy decision.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Derivative available for this audience" } } }
+    },
+    "privacy.transform.projection.denied" : {
+      "comment" : "English label for a recorded manual privacy-transform review state; do not claim legal compliance, guaranteed anonymization, or an automatic privacy decision.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Derivative not available" } } }
+    },
+    "privacy.transform.projection.denial.missing_review" : {
+      "comment" : "English label for a recorded manual privacy-transform review state; do not claim legal compliance, guaranteed anonymization, or an automatic privacy decision.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review is required" } } }
+    },
+    "privacy.transform.projection.denial.rejected" : {
+      "comment" : "English label for a recorded manual privacy-transform review state; do not claim legal compliance, guaranteed anonymization, or an automatic privacy decision.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review was rejected" } } }
+    },
+    "privacy.transform.projection.denial.stale" : {
+      "comment" : "English label for a recorded manual privacy-transform review state; do not claim legal compliance, guaranteed anonymization, or an automatic privacy decision.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Derivative is stale" } } }
+    },
+    "privacy.transform.projection.denial.wrong_audience" : {
+      "comment" : "English label for a recorded manual privacy-transform review state; do not claim legal compliance, guaranteed anonymization, or an automatic privacy decision.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Audience does not match" } } }
+    },
+    "privacy.transform.projection.denial.wrong_policy" : {
+      "comment" : "English label for a recorded manual privacy-transform review state; do not claim legal compliance, guaranteed anonymization, or an automatic privacy decision.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Policy does not match" } } }
+    },
+    "privacy.transform.projection.denial.source_changed" : {
+      "comment" : "English label for a recorded manual privacy-transform review state; do not claim legal compliance, guaranteed anonymization, or an automatic privacy decision.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Source changed; review again" } } }
+    },
+    "privacy.transform.projection.denial.digest_mismatch" : {
+      "comment" : "English label for a recorded manual privacy-transform review state; do not claim legal compliance, guaranteed anonymization, or an automatic privacy decision.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Digest does not match" } } }
+    },
+    "privacy.transform.projection.denial.metadata_not_sanitized" : {
+      "comment" : "English label for a recorded manual privacy-transform review state; do not claim legal compliance, guaranteed anonymization, or an automatic privacy decision.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Metadata sanitation is incomplete" } } }
+    },
+    "privacy.transform.original.access.separate" : {
+      "comment" : "English label for a recorded manual privacy-transform review state; do not claim legal compliance, guaranteed anonymization, or an automatic privacy decision.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Original access is separate" } } }
+    },
+    "privacy.transform.next_step" : {
+      "comment" : "English label for a recorded manual privacy-transform review state; do not claim legal compliance, guaranteed anonymization, or an automatic privacy decision.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Next recorded step" } } }
     }
   },
   "version" : "1.0"

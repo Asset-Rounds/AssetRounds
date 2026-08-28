@@ -760,3 +760,104 @@ struct MeasurementIntegrityCompatibilityPolicyV1: Codable, Equatable, Sendable {
 extension ReleasedDataCompatibilityPolicyV1 {
     static let measurementIntegrityCompatibility = MeasurementIntegrityCompatibilityPolicyV1.current
 }
+
+/// C20 adds the V19 privacy-transform rows while keeping report readers and
+/// pre-V23 history compatible. Privacy-transform search remains disposable and
+/// is rebuilt from approved projections after restore/replay/downgrade.
+struct PrivacyTransformCompatibilityPolicyV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let persistentSchemaVersion = 19
+    static let recordsSchemaVersion = 18
+    static let persistentContractSchema = PersistentSchemaReleaseV1.v19.compatibilityID
+    static let currentPersistentWriterVersion = "19.0.0"
+    static let currentBackupWriterVersion = "archive1-backup4-persistent19-records18"
+    static let readablePersistentWriterVersions = [
+        "1.0.0", "2.0.0", "3.0.0", "4.0.0", "5.0.0", "6.0.0", "7.0.0",
+        "8.0.0", "9.0.0", "10.0.0", "11.0.0", "12.0.0", "13.0.0",
+        "14.0.0", "15.0.0", "16.0.0", "17.0.0", "18.0.0", "19.0.0",
+    ]
+    static let readableBackupWriterVersions = [
+        "archive1-backup2-persistent1-records1",
+        "archive1-backup2-persistent3-records2",
+        "archive1-backup4-persistent5-records4",
+        "archive1-backup4-persistent6-records5",
+        "archive1-backup4-persistent7-records6",
+        "archive1-backup4-persistent9-records8",
+        "archive1-backup4-persistent10-records9",
+        "archive1-backup4-persistent11-records10",
+        "archive1-backup4-persistent12-records11",
+        "archive1-backup4-persistent13-records12",
+        "archive1-backup4-persistent14-records13",
+        "archive1-backup4-persistent15-records14",
+        "archive1-backup4-persistent16-records15",
+        "archive1-backup4-persistent17-records16",
+        "archive1-backup4-persistent18-records17",
+        "archive1-backup4-persistent19-records18",
+        "directory-v4-backup1-persistent1-records1",
+    ]
+    static let downgradeDisposition =
+        "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_ACTIVATION"
+
+    let schemaVersion: Int
+    let persistentSchemaVersion: Int
+    let recordsSchemaVersion: Int
+    let persistentContractSchema: String
+    let currentPersistentWriterVersion: String
+    let currentBackupWriterVersion: String
+    let readablePersistentWriterVersions: [String]
+    let readableBackupWriterVersions: [String]
+    let downgradeDisposition: String
+    let historicalReportsRemainFrozen: Bool
+    let derivedSearchDropsAndRebuilds: Bool
+    let unknownVersionsFailClosed: Bool
+
+    init() {
+        schemaVersion = Self.schemaVersion
+        persistentSchemaVersion = Self.persistentSchemaVersion
+        recordsSchemaVersion = Self.recordsSchemaVersion
+        persistentContractSchema = Self.persistentContractSchema
+        currentPersistentWriterVersion = Self.currentPersistentWriterVersion
+        currentBackupWriterVersion = Self.currentBackupWriterVersion
+        readablePersistentWriterVersions = Self.readablePersistentWriterVersions
+        readableBackupWriterVersions = Self.readableBackupWriterVersions
+        downgradeDisposition = Self.downgradeDisposition
+        historicalReportsRemainFrozen = true
+        derivedSearchDropsAndRebuilds = true
+        unknownVersionsFailClosed = true
+    }
+
+    static let current = Self()
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              persistentSchemaVersion == Self.persistentSchemaVersion,
+              recordsSchemaVersion == Self.recordsSchemaVersion,
+              persistentContractSchema == Self.persistentContractSchema,
+              currentPersistentWriterVersion == Self.currentPersistentWriterVersion,
+              currentBackupWriterVersion == Self.currentBackupWriterVersion,
+              readablePersistentWriterVersions == Self.readablePersistentWriterVersions,
+              readableBackupWriterVersions == Self.readableBackupWriterVersions,
+              readablePersistentWriterVersions.contains(currentPersistentWriterVersion),
+              readableBackupWriterVersions.contains(currentBackupWriterVersion),
+              downgradeDisposition == Self.downgradeDisposition,
+              historicalReportsRemainFrozen,
+              derivedSearchDropsAndRebuilds,
+              unknownVersionsFailClosed else {
+            throw CompatibilityContractErrorV1.invalidSupportTable
+        }
+    }
+
+    static func acceptsPersistentWriterVersion(_ version: String) -> Bool {
+        (try? current.validate()) != nil
+            && current.readablePersistentWriterVersions.contains(version)
+    }
+
+    static func acceptsBackupWriterVersion(_ version: String) -> Bool {
+        (try? current.validate()) != nil
+            && current.readableBackupWriterVersions.contains(version)
+    }
+}
+
+extension ReleasedDataCompatibilityPolicyV1 {
+    static let privacyTransformCompatibility = PrivacyTransformCompatibilityPolicyV1.current
+}

@@ -1634,3 +1634,60 @@ enum EvidenceDetailMeasurementIntegrityProjectionGuardV1 {
         return values
     }
 }
+
+// MARK: - C20 audience-safe derivative guard
+
+enum EvidenceDetailPrivacyTransformProjectionGuardV1 {
+    static let requiresApprovedReview = true
+    static let requiresCurrentDerivative = true
+    static let requiresExplicitRedactionDeclaration = true
+    static let derivativeOnly = true
+    static let excludesOriginalReferences = true
+    static let excludesOriginalBytes = true
+    static let excludesReviewerIdentity = true
+    static let excludesReviewRationale = true
+
+    static func validate(
+        _ projection: PrivacyTransformReportProjectionV1,
+        audience: ReportAudienceV1 = .customerSafe
+    ) throws {
+        try projection.validate()
+        guard projection.reportAudience == audience,
+              projection.isAudienceSafe,
+              requiresApprovedReview,
+              requiresCurrentDerivative,
+              requiresExplicitRedactionDeclaration,
+              derivativeOnly,
+              excludesOriginalReferences,
+              excludesOriginalBytes,
+              excludesReviewerIdentity,
+              excludesReviewRationale,
+              !PrivacyTransformLocalizationPolicyV1.containsProhibitedClaim(
+                  in: [PrivacyTransformLocalizationKeyV1.heading.englishDefaultValue,
+                       PrivacyTransformLocalizationKeyV1.nextStep.englishDefaultValue]
+              ),
+              !PrivacyTransformLocalizationPolicyV1.containsCustomerOrWorkDataLeakage(
+                  in: [PrivacyTransformLocalizationKeyV1.heading.englishDefaultValue]
+              ) else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+    }
+}
+
+extension EvidenceDetailCardV1 {
+    /// Ensures an evidence card references only the approved derivative. A
+    /// separate original-content authorization is intentionally not inferred.
+    func c20ValidatePrivacyTransformProjection(
+        _ projection: PrivacyTransformReportProjectionV1
+    ) throws -> PrivacyTransformReportProjectionV1 {
+        try EvidenceDetailPrivacyTransformProjectionGuardV1.validate(
+            projection,
+            audience: audience
+        )
+        guard privacyTransformedSHA256 == projection.derivativeSHA256,
+              outputReferences.allSatisfy({ $0.byteRole == .derivative }) else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+        return projection
+    }
+}

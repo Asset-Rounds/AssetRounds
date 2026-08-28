@@ -520,3 +520,70 @@ struct CheckRunnerMeasurementCaptureContextV1: Equatable, Sendable {
         }
     }
 }
+
+// MARK: - C20 reviewed-derivative check boundary
+
+/// Read-only privacy projection input for a check runner. The context keeps
+/// source revision/digest and the requested audience explicit so callers
+/// cannot accidentally reuse a stale or differently scoped derivative. A
+/// successful projection is evidence for the check only; it never completes
+/// a workflow or makes a privacy/compliance decision on its own.
+struct CheckRunnerPrivacyTransformContextV1: Equatable, Sendable {
+    let manifest: PrivacyTransformManifestV1
+    let review: PrivacyReviewReceiptV1?
+    let policy: PrivacyTransformPolicyV1
+    let requestedAudience: EvidenceAudienceV1
+    let currentSourceRevision: UInt64
+    let currentSourceSHA256: String
+    let evaluatedAt: Date
+
+    init(
+        manifest: PrivacyTransformManifestV1,
+        review: PrivacyReviewReceiptV1?,
+        policy: PrivacyTransformPolicyV1,
+        requestedAudience: EvidenceAudienceV1,
+        currentSourceRevision: UInt64,
+        currentSourceSHA256: String,
+        at evaluatedAt: Date
+    ) throws {
+        self.manifest = manifest
+        self.review = review
+        self.policy = policy
+        self.requestedAudience = requestedAudience
+        self.currentSourceRevision = currentSourceRevision
+        self.currentSourceSHA256 = currentSourceSHA256
+        self.evaluatedAt = evaluatedAt
+        try validate()
+    }
+
+    func projectionDecision() throws -> PrivacyProjectionDecisionV1 {
+        try C20PrivacyProjectionBridgeV1.decision(
+            manifest: manifest,
+            review: review,
+            policy: policy,
+            requestedAudience: requestedAudience,
+            currentSourceRevision: currentSourceRevision,
+            currentSourceSHA256: currentSourceSHA256,
+            at: evaluatedAt
+        )
+    }
+
+    func validate() throws {
+        _ = try projectionDecision()
+    }
+
+    /// Returns a derivative only when the canonical projection gate allows
+    /// it. Denials are preserved as typed C20 failures and never downgraded
+    /// to an empty or original-content reference.
+    func reviewedDerivative() throws -> ContentReferenceV1 {
+        try C20PrivacyProjectionBridgeV1.requireAllowed(
+            manifest: manifest,
+            review: review,
+            policy: policy,
+            requestedAudience: requestedAudience,
+            currentSourceRevision: currentSourceRevision,
+            currentSourceSHA256: currentSourceSHA256,
+            at: evaluatedAt
+        )
+    }
+}

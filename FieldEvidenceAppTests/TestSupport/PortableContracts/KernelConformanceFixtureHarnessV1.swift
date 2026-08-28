@@ -6012,4 +6012,15 @@ extension KernelConformanceFixtureHarnessV1 {
         }
         return fixture.bundle.bundleSHA256
     }
+
+    static func c20PrivacyTransformAnchor() throws -> String {
+        let fixture = try C20PrivacyTransformTestSupport.makeFixture()
+        try fixture.bundle.validate()
+        let closure = PrivacyTransformLifecycleClosureV1(
+            policy: fixture.policy, regions: fixture.regions,
+            manifest: fixture.manifest, review: fixture.approvedReview
+        )
+        try closure.validate()
+        return fixture.manifest.manifestSHA256
+    }
 }

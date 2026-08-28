@@ -1858,3 +1858,86 @@ extension ReportProjectionRegistryV1 {
         try Self().validateMeasurementIntegrityConsumer(projection, format: format)
     }
 }
+
+// MARK: - C20 privacy-transform consumer enrollment
+
+enum PrivacyTransformReportConsumerPolicyV1 {
+    static let sectionID = PrivacyTransformReportProjectionPolicyV1.sectionID
+    static let projectionVersion = PrivacyTransformReportProjectionPolicyV1.projectionVersion
+    static let approvedDerivativeOnly = true
+    static let denyOriginalAccessByProjection = true
+    static let requiresExplicitRedactionDeclaration = true
+    static let historicalReportsUseFrozenBinding = true
+    static let correctionsAreAmendOnly = true
+    static let excludesOriginalReferences = true
+    static let excludesOriginalBytes = true
+    static let excludesDerivativeBytes = true
+    static let excludesReviewerIdentity = true
+    static let excludesReviewRationale = true
+
+    static func validate(
+        _ projection: PrivacyTransformReportProjectionV1,
+        format: ReportProjectionFormatV1
+    ) throws {
+        try projection.validate()
+        guard PrivacyTransformReportProjectionPolicyV1.supports(format),
+              approvedDerivativeOnly,
+              denyOriginalAccessByProjection,
+              requiresExplicitRedactionDeclaration,
+              historicalReportsUseFrozenBinding,
+              correctionsAreAmendOnly,
+              excludesOriginalReferences,
+              excludesOriginalBytes,
+              excludesDerivativeBytes,
+              excludesReviewerIdentity,
+              excludesReviewRationale,
+              projection.isAudienceSafe else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+        try EvidenceDetailPrivacyTransformProjectionGuardV1.validate(
+            projection,
+            audience: projection.reportAudience ?? .customerSafe
+        )
+    }
+}
+
+extension ReportProjectionRegistryV1 {
+    func validatePrivacyTransformConsumer(
+        _ projection: PrivacyTransformReportProjectionV1,
+        format: ReportProjectionFormatV1
+    ) throws {
+        try validate()
+        try PrivacyTransformReportConsumerPolicyV1.validate(projection, format: format)
+    }
+
+    static func validatePrivacyTransformConsumer(
+        _ projection: PrivacyTransformReportProjectionV1,
+        format: ReportProjectionFormatV1
+    ) throws {
+        try Self().validatePrivacyTransformConsumer(projection, format: format)
+    }
+
+    static func privacyTransformProjection(
+        manifest: PrivacyTransformManifestV1,
+        review: PrivacyReviewReceiptV1?,
+        policy: PrivacyTransformPolicyV1,
+        audience: ReportAudienceV1,
+        currentSourceRevision: UInt64,
+        currentSourceSHA256: String,
+        redactionDeclared: Bool,
+        now: Date = Date()
+    ) throws -> PrivacyTransformReportProjectionV1 {
+        let projection = try PrivacyTransformReportProjectionV1(
+            manifest: manifest,
+            review: review,
+            policy: policy,
+            audience: audience,
+            currentSourceRevision: currentSourceRevision,
+            currentSourceSHA256: currentSourceSHA256,
+            redactionDeclared: redactionDeclared,
+            now: now
+        )
+        try validatePrivacyTransformConsumer(projection, format: .openJSON)
+        return projection
+    }
+}

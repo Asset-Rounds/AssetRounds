@@ -102,6 +102,19 @@ struct LocalContentStoreV1: Sendable {
         entries.removeValue(forKey: contentID)
     }
 
+    mutating func storePrivacyDerivative(
+        closure: PrivacyTransformLifecycleClosureV1,
+        locator: ContentLocatorV1,
+        observed: ContentObservedBytesV1,
+        availability: LocalContentStoreAvailabilityV1
+    ) throws {
+        try closure.validate()
+        guard entries[closure.manifest.original.contentID]?.reference == closure.manifest.original else {
+            throw ContentContractFailureV1.immutableOriginal
+        }
+        try store(reference: closure.manifest.derivative, locator: locator, observed: observed, availability: availability)
+    }
+
     func immutableOriginals() -> [ContentReferenceV1] {
         entries.values.map(\.reference)
             .filter { $0.byteRole == .immutableOriginal }

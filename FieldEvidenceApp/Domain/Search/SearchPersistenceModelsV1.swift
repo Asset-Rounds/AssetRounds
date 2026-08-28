@@ -549,3 +549,65 @@ struct MeasurementIntegritySearchPersistencePolicyV1: Codable, Equatable, Sendab
 extension SearchPersistenceReleaseV1 {
     static let measurementIntegrityPolicy = MeasurementIntegritySearchPersistencePolicyV1()
 }
+
+/// C20 search rows are disposable, metadata-only projections of approved
+/// derivatives. They are never migrated, backed up, exported, or replayed as
+/// canonical privacy-transform content.
+struct PrivacyTransformSearchPersistencePolicyV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let sourceSchema: String
+    let searchPersistenceRelease: SearchPersistenceReleaseV1
+    let fieldIDs: [String]
+    let lifecycleDispositions: [SearchIndexLifecycleDispositionV1]
+    let metadataOnly: Bool
+    let approvedNonStaleOnly: Bool
+    let requiresMatchingSourceAndDerivativeDigest: Bool
+    let requiresExplicitRedactionDeclaration: Bool
+    let excludesOriginalReferences: Bool
+    let excludesOriginalBytes: Bool
+    let excludesDerivativeBytes: Bool
+    let excludesReviewerIdentity: Bool
+    let excludesReviewRationale: Bool
+
+    init() {
+        schemaVersion = Self.schemaVersion
+        sourceSchema = PrivacyTransformSearchProjectionPolicyV1.semanticLabel
+        searchPersistenceRelease = .v7
+        fieldIDs = PrivacyTransformSearchProjectionPolicyV1.fieldIDs.sorted()
+        lifecycleDispositions = SearchIndexLifecycleDispositionV1.allCases
+        metadataOnly = true
+        approvedNonStaleOnly = true
+        requiresMatchingSourceAndDerivativeDigest = true
+        requiresExplicitRedactionDeclaration = true
+        excludesOriginalReferences = true
+        excludesOriginalBytes = true
+        excludesDerivativeBytes = true
+        excludesReviewerIdentity = true
+        excludesReviewRationale = true
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              sourceSchema == PrivacyTransformSearchProjectionPolicyV1.semanticLabel,
+              searchPersistenceRelease == .v7,
+              fieldIDs == PrivacyTransformSearchProjectionPolicyV1.fieldIDs.sorted(),
+              lifecycleDispositions == SearchIndexLifecycleDispositionV1.allCases,
+              metadataOnly,
+              approvedNonStaleOnly,
+              requiresMatchingSourceAndDerivativeDigest,
+              requiresExplicitRedactionDeclaration,
+              excludesOriginalReferences,
+              excludesOriginalBytes,
+              excludesDerivativeBytes,
+              excludesReviewerIdentity,
+              excludesReviewRationale else {
+            throw SearchContractFailureV1.invalidField
+        }
+    }
+}
+
+extension SearchPersistenceReleaseV1 {
+    static let privacyTransformPolicy = PrivacyTransformSearchPersistencePolicyV1()
+}

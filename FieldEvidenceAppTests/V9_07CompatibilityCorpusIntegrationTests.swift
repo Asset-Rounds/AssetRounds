@@ -709,4 +709,13 @@ extension V9_07CompatibilityCorpusIntegrationTests {
         XCTAssertEqual(PersistentSchemaV18.models.count, 73)
         XCTAssertTrue(MeasurementIntegrityLifecycleCatalogV1.persistentKinds.contains("MEASUREMENT_CAPTURE_V1"))
     }
+
+    func testC20PrivacyTransformCodecRoundTripsCanonicalManifest() throws {
+        let fixture = try C20PrivacyTransformTestSupport.makeFixture()
+        let bytes = try PrivacyTransformCanonicalCodecV1.encode(fixture.manifest)
+        XCTAssertEqual(
+            try PrivacyTransformCanonicalCodecV1.decode(PrivacyTransformManifestV1.self, from: bytes),
+            fixture.manifest
+        )
+    }
 }

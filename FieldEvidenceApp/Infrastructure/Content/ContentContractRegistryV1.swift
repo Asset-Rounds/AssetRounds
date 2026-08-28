@@ -148,6 +148,30 @@ extension ContentContractRegistryV1 {
     }
 }
 
+
+// C20 is additive. Keeping this separate preserves the immutable C05 registry
+// receipt while publishing the privacy-transform contract family explicitly.
+extension ContentContractRegistryV1 {
+    static let c20PrivacyTransformContracts: [String] = [
+        "PrivacyTransformPolicyV1",
+        "PrivacyCoordinateSpaceV1",
+        "PrivacyImageOrientationV1",
+        "PrivacyCoordinateScaleV1",
+        "PrivacyIntegerRectV1",
+        "PrivacyRegionV1",
+        "PrivacyTransformManifestV1",
+        "PrivacyReviewReceiptV1",
+        "PrivacyTransformPublicationAuthorityV1",
+        "ExistingContentStorePrivacyDerivativeWriterV1",
+        "WorkspacePrivacyTransformPublicationAuthorityV1",
+    ]
+
+    static func c20BoundaryContracts() throws -> [String] {
+        let registry = try canonical()
+        return registry.declaredContracts + c20PrivacyTransformContracts
+    }
+}
+
 extension ContentContractRegistryReceiptV1 {
     private enum CodingKeys: String, CodingKey, CaseIterable {
         case schemaVersion, registrySHA256, publicationState, nativeCompileRan, hostedDispatchRan

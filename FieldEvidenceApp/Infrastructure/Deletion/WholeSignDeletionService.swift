@@ -88,6 +88,7 @@ enum WholeSignDeletionServiceError: Error, Equatable {
     case injectedFailure
     case retainedInspectionReviewReferences([String])
     case retainedWorkPacketReferences([String])
+    case retainedPrivacyTransformReferences([String])
 }
 
 enum WholeSignDeletionFailurePoint: Equatable, Sendable {
@@ -1308,6 +1309,8 @@ private extension WholeSignDeletionService {
         let instrumentReferences:[InstrumentReferenceRow];let calibrationStatusSnapshots:[CalibrationStatusSnapshotRow]
         let measurementCaptures:[MeasurementCaptureRow];let measurementSeries:[MeasurementSeriesRow]
         let measurementQualityAssessments:[MeasurementQualityAssessmentRow]
+        let privacyTransformPolicies:[PrivacyTransformPolicyRow];let privacyRegions:[PrivacyRegionRow]
+        let privacyTransformManifests:[PrivacyTransformManifestRow];let privacyReviewReceipts:[PrivacyReviewReceiptRow]
         let observationAndTime: [UUID: ObservationAndTimeRow]
         let recordPayloads: [WorkflowRecordPayloadV1]
         let evidence: [EvidenceFile]
@@ -1362,6 +1365,7 @@ private extension WholeSignDeletionService {
                 fieldDraftCheckpoints:try boundedFetch(FieldDraftCheckpointRow.self),attachmentStagingItems:try boundedFetch(AttachmentStagingItemRow.self),draftCommitSagas:try boundedFetch(DraftCommitSagaRow.self),draftContentReservations:try boundedFetch(DraftContentReservationRow.self),draftCommitReceipts:try boundedFetch(DraftCommitReceiptRow.self),draftDiscardReceipts:try boundedFetch(DraftDiscardReceiptRow.self),
                 promotedPackageReleases:try boundedFetch(PromotedPackageReleaseRow.self),packageSandboxRuns:try boundedFetch(PackageSandboxRunRow.self),packagePromotionReceipts:try boundedFetch(PackagePromotionReceiptRow.self),activePackageRegistryPointers:try boundedFetch(ActivePackageRegistryPointerRow.self),
                 instrumentReferences:try boundedFetch(InstrumentReferenceRow.self),calibrationStatusSnapshots:try boundedFetch(CalibrationStatusSnapshotRow.self),measurementCaptures:try boundedFetch(MeasurementCaptureRow.self),measurementSeries:try boundedFetch(MeasurementSeriesRow.self),measurementQualityAssessments:try boundedFetch(MeasurementQualityAssessmentRow.self),
+                privacyTransformPolicies:try boundedFetch(PrivacyTransformPolicyRow.self),privacyRegions:try boundedFetch(PrivacyRegionRow.self),privacyTransformManifests:try boundedFetch(PrivacyTransformManifestRow.self),privacyReviewReceipts:try boundedFetch(PrivacyReviewReceiptRow.self),
                 observationAndTime: observationAndTime,
                 recordPayloads: recordPayloads,
                 evidence: try boundedFetch(EvidenceFile.self),
@@ -1404,6 +1408,34 @@ private extension WholeSignDeletionService {
         )
         let measurementInventory=MeasurementIntegrityDeletionInventoryV1(instrumentReferences:rows.instrumentReferences.count,calibrationSnapshots:rows.calibrationStatusSnapshots.count,measurementCaptures:rows.measurementCaptures.count,measurementSeries:rows.measurementSeries.count,qualityAssessments:rows.measurementQualityAssessments.count)
         try WholeSignDeletionRule.validateMeasurementIntegrityLifecycle(authority:.ordinaryAssetOrSiteDelete,before:measurementInventory,after:measurementInventory)
+        let privacyInventory=PrivacyTransformDeletionInventoryV1(policies:rows.privacyTransformPolicies.count,regions:rows.privacyRegions.count,manifests:rows.privacyTransformManifests.count,reviewReceipts:rows.privacyReviewReceipts.count)
+        try WholeSignDeletionRule.validatePrivacyTransformLifecycle(authority:.ordinaryDelete,before:privacyInventory,after:privacyInventory)
+        do {
+            var assetIDs = Set<UUID>()
+            if let deletingAssetID { assetIDs.insert(deletingAssetID) }
+            if let deletingSiteID { assetIDs.formUnion(rows.assets.filter { $0.siteID == deletingSiteID }.map(\.id)) }
+            let recordIDs = Set(rows.records.filter { assetIDs.contains($0.assetID) }.map(\.id))
+            let evidenceIDs = Set(rows.evidence.filter { recordIDs.contains($0.recordID) }.map(\.id))
+            let affectedContentIDs = Set(evidenceIDs.flatMap { [$0.uuidString, $0.uuidString.lowercased()] })
+            let policies = try Dictionary(uniqueKeysWithValues: rows.privacyTransformPolicies.map { let value = try $0.value(); return (value.policyID, value) })
+            let manifests = try rows.privacyTransformManifests.map { row -> PrivacyTransformManifestV1 in
+                guard let policy = policies[row.policyID] else { throw WholeSignDeletionServiceError.graphInvalid }
+                return try row.value(policy: policy)
+            }
+            var diagnostics = Set<String>()
+            for value in manifests {
+                if affectedContentIDs.contains(value.original.contentID) {
+                    diagnostics.insert("ORIGINAL:\(value.original.contentID):\(value.sourceRevision):\(value.sourceSHA256)")
+                }
+                if affectedContentIDs.contains(value.derivative.contentID) {
+                    diagnostics.insert("DERIVATIVE:\(value.derivative.contentID):\(value.revision):\(value.derivativeSHA256)")
+                }
+            }
+            guard diagnostics.isEmpty else {
+                throw WholeSignDeletionServiceError.retainedPrivacyTransformReferences(diagnostics.sorted())
+            }
+        } catch let error as WholeSignDeletionServiceError { throw error }
+        catch { throw WholeSignDeletionServiceError.graphInvalid }
         do {
             let descriptors = try rows.functionalRelationshipDescriptors.map { try $0.value() }
             let events = try rows.functionalRelationshipEvents.map { try $0.value() }

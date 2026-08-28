@@ -31,6 +31,7 @@ enum WorkPacketEraseIntentStorePolicyV1{static func validate()throws{guard WorkP
 enum FieldDraftEraseIntentStorePolicyV1{static func validate()throws{guard FieldDraftEraseBoundaryV1.operationalStateClearedOnlyByWorkspaceErase,FieldDraftEraseBoundaryV1.ordinaryDeletionPreservesLiveAndRecoveryRequiredDrafts,FieldDraftEraseBoundaryV1.byteCleanupRequiresTerminalDiscardOrOrphanQuarantine else{throw EraseIntentStoreError.invalidAuthority}}}
 enum PackageEvolutionEraseIntentStorePolicyV1{static func validate()throws{guard PackageEvolutionEraseBoundaryV1.atomicFamilyCount==4,PackageEvolutionEraseBoundaryV1.ordinaryDeletionPreservesPromotedHistory,PackageEvolutionEraseBoundaryV1.workspaceEraseClearsEntireClosure else{throw EraseIntentStoreError.invalidAuthority}}}
 enum MeasurementIntegrityEraseIntentStorePolicyV1{static func validate()throws{guard MeasurementIntegrityEraseBoundaryV1.atomicFamilyCount==5,MeasurementIntegrityEraseBoundaryV1.ordinaryDeletionPreservesFrozenHistory,MeasurementIntegrityEraseBoundaryV1.workspaceEraseClearsEntireClosure else{throw EraseIntentStoreError.invalidAuthority}}}
+enum PrivacyTransformEraseIntentStorePolicyV1{static func validate()throws{guard PrivacyTransformEraseBoundaryV1.atomicFamilyCount==4,PrivacyTransformEraseBoundaryV1.ordinaryDeletionPreservesOriginalsDerivativesAndImmutableHistory,PrivacyTransformEraseBoundaryV1.workspaceEraseClearsEntireClosure,PrivacyTransformEraseBoundaryV1.escapedFilesCannotBeRecalled else{throw EraseIntentStoreError.invalidAuthority}}}
 
 enum EraseIntentStoreError: Error, Equatable {
     case invalidAuthority
@@ -351,6 +352,7 @@ final class EraseIntentStore {
         try WorkPacketEraseIntentStorePolicyV1.validate()
         try FieldDraftEraseIntentStorePolicyV1.validate()
         try PackageEvolutionEraseIntentStorePolicyV1.validate()
+        try PrivacyTransformEraseIntentStorePolicyV1.validate()
         try MeasurementIntegrityEraseIntentStorePolicyV1.validate()
         let root = applicationSupportURL.standardizedFileURL
         guard root.isFileURL else { throw EraseIntentStoreError.invalidAuthority }

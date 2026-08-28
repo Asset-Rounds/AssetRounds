@@ -402,6 +402,65 @@ extension ResponseFieldDefinitionV1 {
     }
 }
 
+// MARK: - C20 reviewed-derivative response binding
+
+extension ResponseFieldValidatorV1 {
+    /// Content responses are admitted through the existing field validator,
+    /// then require the exact C20 reviewed derivative before they can be used
+    /// by an audience projection. This does not alter response persistence or
+    /// make a privacy/compliance decision.
+    static func c20ValidateReviewedDerivative(
+        _ response: BoundResponseValueV1,
+        against definition: ResponseFieldDefinitionV1,
+        manifest: PrivacyTransformManifestV1,
+        review: PrivacyReviewReceiptV1?,
+        policy: PrivacyTransformPolicyV1,
+        requestedAudience: EvidenceAudienceV1,
+        currentSourceRevision: UInt64,
+        currentSourceSHA256: String,
+        at now: Date
+    ) throws -> ContentReferenceV1 {
+        try validate(response, against: definition)
+        guard definition.valueKind == .contentReference else {
+            throw PrivacyTransformFailureV1.invalidValue
+        }
+        return try response.value.c20ValidateReviewedDerivative(
+            manifest: manifest,
+            review: review,
+            policy: policy,
+            requestedAudience: requestedAudience,
+            currentSourceRevision: currentSourceRevision,
+            currentSourceSHA256: currentSourceSHA256,
+            at: now
+        )
+    }
+}
+
+extension ResponseFieldDefinitionV1 {
+    func c20ValidateReviewedDerivative(
+        _ response: BoundResponseValueV1,
+        manifest: PrivacyTransformManifestV1,
+        review: PrivacyReviewReceiptV1?,
+        policy: PrivacyTransformPolicyV1,
+        requestedAudience: EvidenceAudienceV1,
+        currentSourceRevision: UInt64,
+        currentSourceSHA256: String,
+        at now: Date
+    ) throws -> ContentReferenceV1 {
+        try ResponseFieldValidatorV1.c20ValidateReviewedDerivative(
+            response,
+            against: self,
+            manifest: manifest,
+            review: review,
+            policy: policy,
+            requestedAudience: requestedAudience,
+            currentSourceRevision: currentSourceRevision,
+            currentSourceSHA256: currentSourceSHA256,
+            at: now
+        )
+    }
+}
+
 struct KernelResponseRegistryV1: Codable, Equatable, Sendable {
     static let schemaVersion = 1
     let schemaVersion: Int

@@ -144,6 +144,31 @@ struct MeasurementIntegrityReportProjectionV1: Codable, Equatable, Sendable {
     }
 
     func validate() throws {
+        guard let expectedDigest = try? Self.digest(
+            workspaceID: workspaceID,
+            manifestID: manifestID,
+            reviewReceiptID: reviewReceiptID,
+            policyID: policyID,
+            audience: audience,
+            derivativeContentID: derivativeContentID,
+            derivativeSHA256: derivativeSHA256,
+            sourceRevision: sourceRevision,
+            sourceSHA256: sourceSHA256,
+            policyRevision: policyRevision,
+            policySHA256: policySHA256,
+            reviewRevision: reviewRevision,
+            reviewSHA256: reviewSHA256,
+            reviewDecision: reviewDecision,
+            staleState: staleState,
+            metadataSanitized: metadataSanitized,
+            redactionDeclared: redactionDeclared,
+            derivativeOnly: derivativeOnly,
+            originalReferenceExcluded: originalReferenceExcluded,
+            transformKinds: transformKinds,
+            regionCount: regionCount
+        ) else {
+            throw PrivacyTransformReportProjectionFailureV1.invalidValue
+        }
         guard schemaVersion == Self.schemaVersion,
               captureID != SearchContractValidationV1.zeroUUID,
               KernelCanonicalHashV1.validSHA256(packageReleaseID),
@@ -440,6 +465,337 @@ enum ReportFunctionalRelationshipsProjectionPolicyV1 {
 
 typealias ReportFunctionalRelationshipProjectionPolicyV1 =
     ReportFunctionalRelationshipsProjectionPolicyV1
+
+// MARK: - C20 audience-safe privacy-transform projection
+
+enum PrivacyTransformReportProjectionFailureV1: Error, Equatable, Sendable {
+    case invalidValue
+    case redactionNotDeclared
+    case projectionDenied(PrivacyProjectionDenialV1)
+    case wrongAudience
+    case wrongPolicy
+    case staleDerivative
+    case digestMismatch
+    case originalReferenceIncluded
+}
+
+/// Metadata-only report binding for an approved privacy derivative.  The
+/// original reference, derivative bytes, region coordinates, reviewer actor,
+/// and review rationale are intentionally absent from this value.  They stay
+/// behind the separately authorized original/content boundary.
+struct PrivacyTransformReportProjectionV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let projectionVersion = "privacy-transform-report-v1"
+
+    let schemaVersion: Int
+    let projectionVersion: String
+    let workspaceID: WorkspaceID
+    let manifestID: UUID
+    let reviewReceiptID: UUID
+    let policyID: UUID
+    let audience: EvidenceAudienceV1
+    let derivativeContentID: String
+    let derivativeSHA256: String
+    let sourceRevision: UInt64
+    let sourceSHA256: String
+    let policyRevision: UInt64
+    let policySHA256: String
+    let reviewRevision: UInt64
+    let reviewSHA256: String
+    let reviewDecision: PrivacyReviewDecisionV1
+    let staleState: PrivacyTransformStaleStateV1
+    let metadataSanitized: Bool
+    let redactionDeclared: Bool
+    let derivativeOnly: Bool
+    let originalReferenceExcluded: Bool
+    let transformKinds: [PrivacyTransformKindV1]
+    let regionCount: Int
+    let projectionSHA256: String
+
+    init(
+        manifest: PrivacyTransformManifestV1,
+        review: PrivacyReviewReceiptV1?,
+        policy: PrivacyTransformPolicyV1,
+        audience: ReportAudienceV1,
+        currentSourceRevision: UInt64,
+        currentSourceSHA256: String,
+        redactionDeclared: Bool = false,
+        now: Date = Date()
+    ) throws {
+        guard let requestedAudience =
+            ReportEvidenceAssuranceProjectionPolicyV1.evidenceAudience(for: audience)
+        else {
+            throw PrivacyTransformReportProjectionFailureV1.wrongAudience
+        }
+        try self.init(
+            manifest: manifest,
+            review: review,
+            policy: policy,
+            requestedAudience: requestedAudience,
+            currentSourceRevision: currentSourceRevision,
+            currentSourceSHA256: currentSourceSHA256,
+            redactionDeclared: redactionDeclared,
+            now: now
+        )
+    }
+
+    init(
+        manifest: PrivacyTransformManifestV1,
+        review: PrivacyReviewReceiptV1?,
+        policy: PrivacyTransformPolicyV1,
+        requestedAudience: EvidenceAudienceV1,
+        currentSourceRevision: UInt64,
+        currentSourceSHA256: String,
+        redactionDeclared: Bool = false,
+        now: Date = Date()
+    ) throws {
+        try policy.validate()
+        try manifest.validate(policy: policy)
+        guard redactionDeclared else {
+            throw PrivacyTransformReportProjectionFailureV1.redactionNotDeclared
+        }
+        let decision = try PrivacyProjectionV1.decide(
+            manifest: manifest,
+            review: review,
+            policy: policy,
+            requestedAudience: requestedAudience,
+            currentSourceRevision: currentSourceRevision,
+            currentSourceSHA256: currentSourceSHA256,
+            at: now
+        )
+        guard decision.isAllowed, let derivative = decision.derivative,
+              let review,
+              review.decision == .approved,
+              manifest.staleState == .current,
+              manifest.workspaceID == policy.workspaceID,
+              manifest.derivative.contentID == derivative.contentID,
+              manifest.derivativeSHA256 == derivative.digests.digest(for: .sha256)?.hexadecimalValue,
+              manifest.derivativeSHA256 != manifest.sourceSHA256 else {
+            throw PrivacyTransformReportProjectionFailureV1.projectionDenied(
+                decision.denial ?? .digestMismatch
+            )
+        }
+
+        let kinds = Array(Set(manifest.orderedRegions.map(\.transformKind)))
+            .sorted { $0.rawValue < $1.rawValue }
+        schemaVersion = Self.schemaVersion
+        projectionVersion = Self.projectionVersion
+        workspaceID = manifest.workspaceID
+        manifestID = manifest.manifestID
+        reviewReceiptID = review.receiptID
+        policyID = policy.policyID
+        audience = requestedAudience
+        derivativeContentID = derivative.contentID
+        derivativeSHA256 = manifest.derivativeSHA256
+        sourceRevision = manifest.sourceRevision
+        sourceSHA256 = manifest.sourceSHA256
+        policyRevision = policy.revision
+        policySHA256 = policy.policySHA256
+        reviewRevision = review.revision
+        reviewSHA256 = review.receiptSHA256
+        reviewDecision = review.decision
+        staleState = manifest.staleState
+        metadataSanitized = manifest.metadataSanitation.result == .complete
+            && manifest.metadataSanitation.retainedSourceMetadataKeys.isEmpty
+        self.redactionDeclared = redactionDeclared
+        derivativeOnly = true
+        originalReferenceExcluded = true
+        transformKinds = kinds
+        regionCount = manifest.orderedRegions.count
+        projectionSHA256 = try Self.digest(
+            workspaceID: workspaceID,
+            manifestID: manifestID,
+            reviewReceiptID: reviewReceiptID,
+            policyID: policyID,
+            audience: audience,
+            derivativeContentID: derivativeContentID,
+            derivativeSHA256: derivativeSHA256,
+            sourceRevision: sourceRevision,
+            sourceSHA256: sourceSHA256,
+            policyRevision: policyRevision,
+            policySHA256: policySHA256,
+            reviewRevision: reviewRevision,
+            reviewSHA256: reviewSHA256,
+            reviewDecision: reviewDecision,
+            staleState: staleState,
+            metadataSanitized: metadataSanitized,
+            redactionDeclared: redactionDeclared,
+            derivativeOnly: derivativeOnly,
+            originalReferenceExcluded: originalReferenceExcluded,
+            transformKinds: kinds,
+            regionCount: regionCount
+        )
+        try validate()
+    }
+
+    var reportAudience: ReportAudienceV1? {
+        switch audience {
+        case .internalReview: return .internalUse
+        case .customerReport: return .customerSafe
+        case .externalCollaborator: return nil
+        }
+    }
+
+    var isAudienceSafe: Bool {
+        derivativeOnly && originalReferenceExcluded && redactionDeclared
+            && reviewDecision == .approved && staleState == .current
+            && metadataSanitized
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              projectionVersion == Self.projectionVersion,
+              workspaceID.rawValue != SearchContractValidationV1.zeroUUID,
+              manifestID != SearchContractValidationV1.zeroUUID,
+              reviewReceiptID != SearchContractValidationV1.zeroUUID,
+              policyID != SearchContractValidationV1.zeroUUID,
+              SnapshotProjectionValidationV1.validID(derivativeContentID),
+              KernelCanonicalHashV1.validSHA256(derivativeSHA256),
+              sourceRevision > 0, sourceRevision <= UInt64(Int.max),
+              KernelCanonicalHashV1.validSHA256(sourceSHA256),
+              policyRevision > 0, policyRevision <= UInt64(Int.max),
+              KernelCanonicalHashV1.validSHA256(policySHA256),
+              reviewRevision > 0, reviewRevision <= UInt64(Int.max),
+              KernelCanonicalHashV1.validSHA256(reviewSHA256),
+              reviewDecision == .approved,
+              staleState == .current,
+              metadataSanitized,
+              redactionDeclared,
+              derivativeOnly,
+              originalReferenceExcluded,
+              !transformKinds.isEmpty,
+              transformKinds == transformKinds.sorted(by: { $0.rawValue < $1.rawValue }),
+              Set(transformKinds).count == transformKinds.count,
+              (1...PrivacyTransformValidationV1.maximumRegions).contains(regionCount),
+              projectionSHA256 == expectedDigest else {
+            throw PrivacyTransformReportProjectionFailureV1.invalidValue
+        }
+    }
+
+    static func decide(
+        manifest: PrivacyTransformManifestV1?,
+        review: PrivacyReviewReceiptV1?,
+        policy: PrivacyTransformPolicyV1,
+        requestedAudience: EvidenceAudienceV1,
+        currentSourceRevision: UInt64,
+        currentSourceSHA256: String,
+        now: Date
+    ) throws -> PrivacyProjectionDecisionV1 {
+        try PrivacyProjectionV1.decide(
+            manifest: manifest,
+            review: review,
+            policy: policy,
+            requestedAudience: requestedAudience,
+            currentSourceRevision: currentSourceRevision,
+            currentSourceSHA256: currentSourceSHA256,
+            at: now
+        )
+    }
+
+    private static func digest(
+        workspaceID: WorkspaceID,
+        manifestID: UUID,
+        reviewReceiptID: UUID,
+        policyID: UUID,
+        audience: EvidenceAudienceV1,
+        derivativeContentID: String,
+        derivativeSHA256: String,
+        sourceRevision: UInt64,
+        sourceSHA256: String,
+        policyRevision: UInt64,
+        policySHA256: String,
+        reviewRevision: UInt64,
+        reviewSHA256: String,
+        reviewDecision: PrivacyReviewDecisionV1,
+        staleState: PrivacyTransformStaleStateV1,
+        metadataSanitized: Bool,
+        redactionDeclared: Bool,
+        derivativeOnly: Bool,
+        originalReferenceExcluded: Bool,
+        transformKinds: [PrivacyTransformKindV1],
+        regionCount: Int
+    ) throws -> String {
+        try WorkspaceMutationCanonicalV1.sha256(Basis(
+            schemaVersion: Self.schemaVersion,
+            projectionVersion: Self.projectionVersion,
+            workspaceID: workspaceID,
+            manifestID: manifestID,
+            reviewReceiptID: reviewReceiptID,
+            policyID: policyID,
+            audience: audience,
+            derivativeContentID: derivativeContentID,
+            derivativeSHA256: derivativeSHA256,
+            sourceRevision: sourceRevision,
+            sourceSHA256: sourceSHA256,
+            policyRevision: policyRevision,
+            policySHA256: policySHA256,
+            reviewRevision: reviewRevision,
+            reviewSHA256: reviewSHA256,
+            reviewDecision: reviewDecision,
+            staleState: staleState,
+            metadataSanitized: metadataSanitized,
+            redactionDeclared: redactionDeclared,
+            derivativeOnly: derivativeOnly,
+            originalReferenceExcluded: originalReferenceExcluded,
+            transformKinds: transformKinds,
+            regionCount: regionCount
+        ))
+    }
+
+    private struct Basis: Codable {
+        let schemaVersion: Int
+        let projectionVersion: String
+        let workspaceID: WorkspaceID
+        let manifestID: UUID
+        let reviewReceiptID: UUID
+        let policyID: UUID
+        let audience: EvidenceAudienceV1
+        let derivativeContentID: String
+        let derivativeSHA256: String
+        let sourceRevision: UInt64
+        let sourceSHA256: String
+        let policyRevision: UInt64
+        let policySHA256: String
+        let reviewRevision: UInt64
+        let reviewSHA256: String
+        let reviewDecision: PrivacyReviewDecisionV1
+        let staleState: PrivacyTransformStaleStateV1
+        let metadataSanitized: Bool
+        let redactionDeclared: Bool
+        let derivativeOnly: Bool
+        let originalReferenceExcluded: Bool
+        let transformKinds: [PrivacyTransformKindV1]
+        let regionCount: Int
+    }
+}
+
+typealias AudienceSafeDerivativeProjectionV1 = PrivacyTransformReportProjectionV1
+typealias PrivacyTransformAudienceSafeDerivativeProjectionV1 = PrivacyTransformReportProjectionV1
+
+enum PrivacyTransformReportProjectionPolicyV1 {
+    static let sectionID = "privacy-transform"
+    static let sectionVersion = 1
+    static let projectionVersion = PrivacyTransformReportProjectionV1.projectionVersion
+    static let privacyClass = ReportPrivacyClassV1.audienceSafe
+    static let requiresApprovedReview = true
+    static let requiresCurrentDerivative = true
+    static let requiresExplicitRedactionDeclaration = true
+    static let originalAccessRemainsSeparate = true
+    static let historicArtifactsImmutable = true
+    static let correctionsAreAmendOnly = true
+    static let excludesOriginalReferences = true
+    static let excludesOriginalBytes = true
+    static let excludesDerivativeBytes = true
+    static let excludesReviewerIdentity = true
+    static let excludesReviewRationale = true
+    static let supportedFormats: [ReportProjectionFormatV1] = [
+        .openJSON, .pdf, .structuredText, .media,
+    ]
+
+    static func supports(_ format: ReportProjectionFormatV1) -> Bool {
+        supportedFormats.contains(format)
+    }
+}
 
 /// C13's report-facing assurance envelope.  The envelope is deliberately a
 /// projection value rather than a writer or finalization service: a preview

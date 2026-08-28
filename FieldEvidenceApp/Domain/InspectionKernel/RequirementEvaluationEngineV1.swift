@@ -278,6 +278,31 @@ extension RequirementEvaluationEngineV1 {
     ) throws -> RequirementEvaluationResultV1 {
         try MeasurementIntegrityRequirementProjectionV1.result(for: assessment)
     }
+
+    /// Checks an explicit C20 derivative evidence reference before ordinary
+    /// requirement evaluation. This is intentionally a validation-only seam:
+    /// it never converts privacy review state into an automatic requirement or
+    /// compliance result.
+    static func c20ValidateReviewedDerivativeEvidence(
+        _ input: RequirementEvaluationInputV1,
+        manifest: PrivacyTransformManifestV1,
+        review: PrivacyReviewReceiptV1?,
+        policy: PrivacyTransformPolicyV1,
+        requestedAudience: EvidenceAudienceV1,
+        currentSourceRevision: UInt64,
+        currentSourceSHA256: String,
+        at now: Date
+    ) throws -> ContentReferenceV1 {
+        try input.c20ValidateReviewedDerivative(
+            manifest: manifest,
+            review: review,
+            policy: policy,
+            requestedAudience: requestedAudience,
+            currentSourceRevision: currentSourceRevision,
+            currentSourceSHA256: currentSourceSHA256,
+            at: now
+        )
+    }
 }
 
 /// The closed, app-bundled evaluator registry for C40. Package declarations may

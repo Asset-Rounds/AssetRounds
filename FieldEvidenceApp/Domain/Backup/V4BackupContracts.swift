@@ -390,7 +390,19 @@ struct V18BackupMeasurementIntegrityRecordV1: Codable, Equatable, Sendable {
     let canonicalData: Data
 }
 
+struct V19BackupPrivacyTransformRecordV1: Codable, Equatable, Sendable {
+    enum Kind: String, Codable, CaseIterable, Sendable {
+        case policy, region, manifest, reviewReceipt
+    }
+    let kind: Kind
+    let id: UUID
+    let workspaceID: UUID
+    let revision: UInt64
+    let canonicalData: Data
+}
+
 struct V4BackupRecordsV1: Codable, Equatable, Sendable {
+    let privacyTransforms: [V19BackupPrivacyTransformRecordV1]
     let measurementIntegrity: [V18BackupMeasurementIntegrityRecordV1]
     let packageEvolution: [V17BackupPackageEvolutionRecordV1]
     let fieldDrafts: [V16BackupFieldDraftRecordV1]
@@ -421,6 +433,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     let workflowRecords: [V4BackupWorkflowRecordDTO]
 
     init(
+        privacyTransforms: [V19BackupPrivacyTransformRecordV1] = [],
         measurementIntegrity: [V18BackupMeasurementIntegrityRecordV1] = [],
         packageEvolution: [V17BackupPackageEvolutionRecordV1] = [],
         fieldDrafts: [V16BackupFieldDraftRecordV1] = [],
@@ -450,6 +463,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         sites: [V4BackupSiteDTO],
         workflowRecords: [V4BackupWorkflowRecordDTO]
     ) {
+        self.privacyTransforms = privacyTransforms
         self.measurementIntegrity = measurementIntegrity
         self.packageEvolution = packageEvolution
         self.fieldDrafts = fieldDrafts
@@ -481,7 +495,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case measurementIntegrity, packageEvolution, fieldDrafts, workPackets, inspectionReview, evidenceAssurance, functionalRelationships, authorityCriterion, assetSemantics, assetCompositionEdges, assetCompositionEvents, assetPlacementEvents, assets
+        case privacyTransforms, measurementIntegrity, packageEvolution, fieldDrafts, workPackets, inspectionReview, evidenceAssurance, functionalRelationships, authorityCriterion, assetSemantics, assetCompositionEdges, assetCompositionEvents, assetPlacementEvents, assets
         case deletionLedger, evidenceFiles, issues, locationHierarchyEvents
         case locationMigrationReceipts, locationNodes, mutationHistory, packets, partyAccountability
         case recordsSchemaVersion, reports, requirementAssurance, savedSmartViews, sites
@@ -492,6 +506,9 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         let version = try values.decode(Int.self, forKey: .recordsSchemaVersion)
         self.init(
+            privacyTransforms: try values.decodeIfPresent(
+                [V19BackupPrivacyTransformRecordV1].self, forKey: .privacyTransforms
+            ) ?? [],
             measurementIntegrity: try values.decodeIfPresent(
                 [V18BackupMeasurementIntegrityRecordV1].self, forKey: .measurementIntegrity
             ) ?? [],

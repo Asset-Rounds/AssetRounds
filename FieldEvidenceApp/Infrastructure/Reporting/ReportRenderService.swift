@@ -1349,4 +1349,27 @@ extension ReportRenderService {
         )
         return projection
     }
+
+    /// C20 render/share consumers accept only the already-approved derivative
+    /// projection. Original-content access is deliberately a separate caller
+    /// authorization and is never implied by rendering or sharing.
+    static func validatePrivacyTransformRenderInputs(
+        projection: PrivacyTransformReportProjectionV1,
+        format: ReportProjectionFormatV1
+    ) throws -> PrivacyTransformReportProjectionV1 {
+        try PrivacyTransformReportConsumerPolicyV1.validate(projection, format: format)
+        return projection
+    }
+
+    static func validatePrivacyTransformShareInputs(
+        projection: PrivacyTransformReportProjectionV1
+    ) throws -> PrivacyTransformReportProjectionV1 {
+        try PrivacyTransformReportConsumerPolicyV1.validate(projection, format: .media)
+        guard projection.derivativeOnly,
+              projection.originalReferenceExcluded,
+              projection.redactionDeclared else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+        return projection
+    }
 }

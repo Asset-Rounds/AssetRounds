@@ -1,5 +1,13 @@
 import Foundation
 
+private struct PrivacyTransformCanonicalManifestEnvelopeV1: Decodable {
+    let policyID: UUID; let policyRevision: UInt64; let policySHA256: String
+}
+private struct PrivacyTransformCanonicalReviewEnvelopeV1: Decodable {
+    let manifestID: UUID; let manifestRevision: UInt64; let manifestSHA256: String
+    let policyID: UUID; let policyRevision: UInt64; let policySHA256: String
+}
+
 struct BackupCanonicalDecoderV1: Sendable {
     func decodeManifestOffMain(
         _ data: Data,
@@ -55,6 +63,7 @@ struct BackupCanonicalDecoderV1: Sendable {
             try Self.validateFieldDrafts(value)
             try Self.validatePackageEvolution(value)
             try Self.validateMeasurementIntegrity(value)
+            try Self.validatePrivacyTransforms(value)
             let canonical = try BackupCanonicalEncoderV1().encodeRecords(value).data
             guard canonical == data else {
                 throw BackupCanonicalDecodingErrorV1.invalidRecords
@@ -67,6 +76,43 @@ struct BackupCanonicalDecoderV1: Sendable {
 }
 
 private extension BackupCanonicalDecoderV1 {
+    static func validatePrivacyTransforms(_ records: V4BackupRecordsV1) throws {
+        guard records.recordsSchemaVersion >= 18 else {
+            guard records.privacyTransforms.isEmpty else { throw BackupCanonicalDecodingErrorV1.invalidRecords }
+            return
+        }
+        var keys = Set<String>()
+        func accept(_ record: V19BackupPrivacyTransformRecordV1, _ id: UUID, _ workspaceID: WorkspaceID, _ revision: UInt64) throws {
+            guard id == record.id, workspaceID.rawValue == record.workspaceID, revision == record.revision,
+                  keys.insert("\(record.kind.rawValue)|\(record.id.uuidString)").inserted else { throw BackupCanonicalDecodingErrorV1.invalidRecords }
+        }
+        let policyPairs = try records.privacyTransforms.filter { $0.kind == .policy }.map { record -> (UUID, PrivacyTransformPolicyV1) in
+            let value = try PrivacyTransformPolicyRow(PrivacyTransformCanonicalCodecV1.decodePolicy(from: record.canonicalData)).value()
+            try accept(record, value.policyID, value.workspaceID, value.revision); return (value.policyID, value)
+        }
+        let policies = Dictionary(uniqueKeysWithValues: policyPairs)
+        for record in records.privacyTransforms where record.kind == .region {
+            let value = try PrivacyRegionRow(PrivacyTransformCanonicalCodecV1.decodeRegion(from: record.canonicalData)).value()
+            try accept(record, value.regionID, value.workspaceID, value.revision)
+        }
+        let manifestPairs = try records.privacyTransforms.filter { $0.kind == .manifest }.map { record -> (UUID, PrivacyTransformManifestV1) in
+            let reference = try JSONDecoder().decode(PrivacyTransformCanonicalManifestEnvelopeV1.self, from: record.canonicalData)
+            guard let policy = policies[reference.policyID], policy.revision == reference.policyRevision, policy.policySHA256 == reference.policySHA256 else { throw BackupCanonicalDecodingErrorV1.invalidRecords }
+            let provisional = try PrivacyTransformCanonicalCodecV1.decodeManifest(from: record.canonicalData, policy: policy)
+            let value = try PrivacyTransformManifestRow(provisional).value(policy: policy)
+            try accept(record, value.manifestID, value.workspaceID, value.revision); return (value.manifestID, value)
+        }
+        let manifests = Dictionary(uniqueKeysWithValues: manifestPairs)
+        for record in records.privacyTransforms where record.kind == .reviewReceipt {
+            let reference = try JSONDecoder().decode(PrivacyTransformCanonicalReviewEnvelopeV1.self, from: record.canonicalData)
+            guard let manifest = manifests[reference.manifestID], manifest.revision == reference.manifestRevision, manifest.manifestSHA256 == reference.manifestSHA256,
+                  let policy = policies[reference.policyID], policy.revision == reference.policyRevision, policy.policySHA256 == reference.policySHA256 else { throw BackupCanonicalDecodingErrorV1.invalidRecords }
+            let provisional = try PrivacyTransformCanonicalCodecV1.decodeReview(from: record.canonicalData, manifest: manifest, policy: policy)
+            let value = try PrivacyReviewReceiptRow(provisional).value(manifest: manifest, policy: policy)
+            try accept(record, value.receiptID, value.workspaceID, value.revision)
+        }
+    }
+
     static func validateMeasurementIntegrity(_ records: V4BackupRecordsV1) throws {
         guard records.recordsSchemaVersion >= 17 else {
             guard records.measurementIntegrity.isEmpty else { throw BackupCanonicalDecodingErrorV1.invalidRecords }

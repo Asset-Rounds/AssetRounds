@@ -36,6 +36,7 @@ struct IntegrationEventProjectionV1: Sendable {
             try receipt.validate()
             try Self.validatePackagePromotionReceiptShape(receipt)
             try Self.validateMeasurementIntegrityReceiptShape(receipt)
+            try Self.validatePrivacyTransformReceiptShape(receipt)
             guard receipt.identity.workspaceID == workspaceID,
                   receipt.resultingRevision.workspaceID == workspaceID else {
                 throw IntegrationEventFailureV1.wrongWorkspace
@@ -112,6 +113,9 @@ struct IntegrationEventProjectionV1: Sendable {
     static let measurementIntegrityKinds:Set<WorkspaceEntityKindV1>=[.instrumentReference,.calibrationStatusSnapshot,.measurementCapture,.measurementSeries,.measurementQualityAssessment]
     static func validateMeasurementIntegrityReceiptShape(_ receipt:MutationReceiptV1)throws{let identities=try receipt.postImages.map{$0.identity};let present=Set(identities.map(\.kind)).intersection(measurementIntegrityKinds);guard !present.isEmpty else{return};guard receipt.postImages.count<=128,Set(identities).count==identities.count,identities.allSatisfy({measurementIntegrityKinds.contains($0.kind)})else{throw IntegrationEventFailureV1.divergentEvent};for image in receipt.postImages{let identity=try image.identity,concurrency=try image.concurrencyIdentity;guard let expected=receipt.expectedRevision.entityRevisions.first(where:{$0.identity==concurrency})?.revision,expected<UInt64.max,image.revision==expected+1,(expected==0)==(identity==concurrency)else{throw IntegrationEventFailureV1.divergentEvent}}}
     func validateMeasurementIntegrityReplay(_ receipts:[MutationReceiptV1])throws{var hasMeasurement=false;for receipt in receipts{for image in receipt.postImages where Self.measurementIntegrityKinds.contains(try image.identity.kind){hasMeasurement=true}};if hasMeasurement{try MeasurementIntegrityIntegrationContractV1.validate(registry:registry)};try receipts.forEach{try Self.validateMeasurementIntegrityReceiptShape($0)}}
+    static let privacyTransformKinds:Set<WorkspaceEntityKindV1>=[.privacyTransformPolicy,.privacyRegion,.privacyTransformManifest,.privacyReviewReceipt]
+    static func validatePrivacyTransformReceiptShape(_ receipt:MutationReceiptV1)throws{let identities=try receipt.postImages.map{$0.identity};let present=Set(identities.map(\.kind)).intersection(privacyTransformKinds);guard !present.isEmpty else{return};guard Set(identities).count==identities.count,identities.allSatisfy({privacyTransformKinds.contains($0.kind)})else{throw IntegrationEventFailureV1.divergentEvent};for image in receipt.postImages{let identity=try image.identity,concurrency=try image.concurrencyIdentity;guard let expected=receipt.expectedRevision.entityRevisions.first(where:{$0.identity==concurrency})?.revision,expected<UInt64.max,image.revision==expected+1,(expected==0)==(identity==concurrency)else{throw IntegrationEventFailureV1.divergentEvent}}}
+    func validatePrivacyTransformReplay(_ receipts:[MutationReceiptV1])throws{var found=false;for receipt in receipts{for image in receipt.postImages where Self.privacyTransformKinds.contains(try image.identity.kind){found=true}};if found{try PrivacyTransformIntegrationContractV1.validate(registry:registry)};try receipts.forEach{try Self.validatePrivacyTransformReceiptShape($0)}}
 
     func validateProjectedStream(_ events: [IntegrationEventV1], workspaceID: WorkspaceID) throws -> [IntegrationEventV1] {
         let ordered = events.sorted { $0.order < $1.order }

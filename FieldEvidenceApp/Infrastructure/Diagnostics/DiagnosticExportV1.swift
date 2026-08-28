@@ -95,6 +95,10 @@ struct DiagnosticExportV1: Codable, Equatable, Sendable {
     /// snapshots, opaque serials, and evidence references are never diagnostic
     /// payload and therefore do not appear here.
     var measurementIntegrity: MeasurementIntegrityDiagnosticMetadataV1? = nil
+    /// Optional C20 metadata-only privacy-transform health summary. It carries
+    /// counts and denial states, never content bytes, content identifiers,
+    /// review rationale, or reviewer identity.
+    var privacyTransform: PrivacyTransformDiagnosticMetadataV1? = nil
 
     /// Integration event payloads, subjects, cursors, and checkpoint bytes are
     /// never diagnostic material. Diagnostics may describe only the static
@@ -119,6 +123,7 @@ struct DiagnosticExportV1: Codable, Equatable, Sendable {
             } ?? true)
             && (workPacket?.isValid ?? true)
             && (measurementIntegrity?.isValid ?? true)
+            && (privacyTransform?.isValid ?? true)
             && integrationProjectionPayloadExcluded
     }
 
@@ -269,6 +274,9 @@ enum DiagnosticExportCanonicalEncoderV1 {
         if let measurementIntegrity = value.measurementIntegrity {
             object["measurementIntegrity"] = measurementIntegrityValue(measurementIntegrity)
         }
+        if let privacyTransform = value.privacyTransform {
+            object["privacyTransform"] = privacyTransformValue(privacyTransform)
+        }
         let data = try CanonicalJSONV1.encode(.object(object))
         try IntegrationProjectionDiagnosticExclusionV1.validate(data)
         return data
@@ -305,6 +313,26 @@ enum DiagnosticExportCanonicalEncoderV1 {
             "excludesOpaqueSerials": .bool(value.excludesOpaqueSerials),
             "excludesOperatorIdentity": .bool(value.excludesOperatorIdentity),
             "excludesEvidenceLocators": .bool(value.excludesEvidenceLocators),
+        ])
+    }
+
+    private static func privacyTransformValue(
+        _ value: PrivacyTransformDiagnosticMetadataV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "schemaVersion": .integer(value.schemaVersion),
+            "manifestCount": .integer(value.manifestCount),
+            "approvedDerivativeCount": .integer(value.approvedDerivativeCount),
+            "deniedProjectionCount": .integer(value.deniedProjectionCount),
+            "denialStates": .array(value.denialStates.map { .string($0.rawValue) }),
+            "redactionDeclarationsCount": .integer(value.redactionDeclarationsCount),
+            "policyVersion": .string(value.policyVersion),
+            "metadataOnly": .bool(value.metadataOnly),
+            "excludesDerivativeBytes": .bool(value.excludesDerivativeBytes),
+            "excludesOriginalBytes": .bool(value.excludesOriginalBytes),
+            "excludesReviewRationale": .bool(value.excludesReviewRationale),
+            "excludesReviewerIdentity": .bool(value.excludesReviewerIdentity),
+            "excludesSourceContentIdentifiers": .bool(value.excludesSourceContentIdentifiers),
         ])
     }
 
@@ -744,6 +772,81 @@ struct MeasurementIntegrityDiagnosticMetadataV1: Codable, Equatable, Sendable {
               policyVersion == Self.policyVersion,
               metadataOnly, excludesCanonicalValues, excludesOpaqueSerials,
               excludesOperatorIdentity, excludesEvidenceLocators else {
+            throw DiagnosticExportError.invalidValue
+        }
+    }
+}
+
+/// C20 diagnostics contain only bounded projection health facts. No content
+/// identifier, digest, byte payload, actor identity, or review rationale is
+/// retained in this type.
+struct PrivacyTransformDiagnosticMetadataV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let policyVersion = "PRIVACY_TRANSFORM_DIAGNOSTIC_V1"
+
+    let schemaVersion: Int
+    let manifestCount: Int
+    let approvedDerivativeCount: Int
+    let deniedProjectionCount: Int
+    let denialStates: [PrivacyProjectionDenialV1]
+    let redactionDeclarationsCount: Int
+    let policyVersion: String
+    let metadataOnly: Bool
+    let excludesDerivativeBytes: Bool
+    let excludesOriginalBytes: Bool
+    let excludesReviewRationale: Bool
+    let excludesReviewerIdentity: Bool
+    let excludesSourceContentIdentifiers: Bool
+
+    init(
+        approvedProjections: [PrivacyTransformReportProjectionV1] = [],
+        deniedProjectionStates: [PrivacyProjectionDenialV1] = [],
+        manifestCount: Int? = nil
+    ) throws {
+        for projection in approvedProjections {
+            try projection.validate()
+        }
+        let orderedDenials = deniedProjectionStates.sorted { $0.rawValue < $1.rawValue }
+        guard Set(orderedDenials).count == orderedDenials.count,
+              orderedDenials == Array(Set(orderedDenials)).sorted(by: { $0.rawValue < $1.rawValue }),
+              approvedProjections.count <= SnapshotProjectionLimitsV1.maximumHistoryFacts,
+              deniedProjectionStates.count <= SnapshotProjectionLimitsV1.maximumHistoryFacts,
+              (manifestCount ?? approvedProjections.count) >= approvedProjections.count else {
+            throw DiagnosticExportError.invalidValue
+        }
+        schemaVersion = Self.schemaVersion
+        self.manifestCount = manifestCount ?? approvedProjections.count
+        approvedDerivativeCount = approvedProjections.count
+        deniedProjectionCount = deniedProjectionStates.count
+        denialStates = orderedDenials
+        redactionDeclarationsCount = approvedProjections.count
+        policyVersion = Self.policyVersion
+        metadataOnly = true
+        excludesDerivativeBytes = true
+        excludesOriginalBytes = true
+        excludesReviewRationale = true
+        excludesReviewerIdentity = true
+        excludesSourceContentIdentifiers = true
+        try validate()
+    }
+
+    var isValid: Bool { (try? validate()) != nil }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              manifestCount >= approvedDerivativeCount,
+              approvedDerivativeCount >= 0,
+              deniedProjectionCount >= 0,
+              redactionDeclarationsCount == approvedDerivativeCount,
+              denialStates == denialStates.sorted(by: { $0.rawValue < $1.rawValue }),
+              Set(denialStates).count == denialStates.count,
+              policyVersion == Self.policyVersion,
+              metadataOnly,
+              excludesDerivativeBytes,
+              excludesOriginalBytes,
+              excludesReviewRationale,
+              excludesReviewerIdentity,
+              excludesSourceContentIdentifiers else {
             throw DiagnosticExportError.invalidValue
         }
     }

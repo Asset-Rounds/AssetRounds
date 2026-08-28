@@ -215,6 +215,23 @@ struct ActorSnapshotV1: Codable, Equatable, Hashable, Sendable {
     private struct Basis: Codable { let schemaVersion: Int; let snapshotID: UUID; let workspaceID: WorkspaceID; let actor: LocalActorReferenceV1; let responsibility: ResponsibilityKindV1; let displayNameAtTime: String; let capturedAt: Date }
 }
 
+// MARK: - C20 reviewed-derivative reviewer boundary
+
+extension ActorSnapshotV1 {
+    /// C20 review requires an explicit reviewed-by actor snapshot in the same
+    /// workspace. The snapshot remains a bounded recorded responsibility and
+    /// is never promoted to a verified-person or privacy/compliance claim.
+    func c20ValidatePrivacyReviewer(in workspaceID: WorkspaceID) throws {
+        try validate()
+        guard self.workspaceID == workspaceID else {
+            throw PrivacyTransformFailureV1.wrongWorkspace
+        }
+        guard responsibility == .reviewedBy else {
+            throw PrivacyTransformFailureV1.reviewRequired
+        }
+    }
+}
+
 enum QualificationProvenanceV1: String, Codable, CaseIterable, Hashable, Sendable {
     case selfDeclared = "SELF_DECLARED"
     case importedExternalEvidence = "IMPORTED_EXTERNAL_EVIDENCE"

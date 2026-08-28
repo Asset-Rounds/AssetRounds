@@ -413,3 +413,43 @@ extension InspectionPackageReleaseV1 {
         }
     }
 }
+
+// MARK: - C20 reviewed-derivative release binding
+
+extension InspectionPackageReleaseV1 {
+    /// Checks the immutable package bytes/release identity before allowing a
+    /// C20 derivative projection. This is a read-only validation seam: it
+    /// neither changes release state nor makes a privacy/compliance claim.
+    func c20ValidateReviewedDerivative(
+        package: InspectionPackageV2,
+        manifest: PrivacyTransformManifestV1,
+        review: PrivacyReviewReceiptV1?,
+        policy: PrivacyTransformPolicyV1,
+        requestedAudience: EvidenceAudienceV1,
+        currentSourceRevision: UInt64,
+        currentSourceSHA256: String,
+        at now: Date
+    ) throws -> ContentReferenceV1 {
+        try validate()
+        try package.validate()
+        let encodedPackage = try InspectionPackageCanonicalCodecV2.encode(package)
+        guard packageID == package.packageID,
+              packageContentVersion == package.contentVersion,
+              canonicalPackageBytes == encodedPackage,
+              KernelCanonicalHashV1.sha256(encodedPackage) == packageSHA256 else {
+            throw InspectionKernelFailureV1.hashMismatch
+        }
+        guard manifest.workspaceID == policy.workspaceID else {
+            throw PrivacyTransformFailureV1.wrongWorkspace
+        }
+        return try C20PrivacyProjectionBridgeV1.requireAllowed(
+            manifest: manifest,
+            review: review,
+            policy: policy,
+            requestedAudience: requestedAudience,
+            currentSourceRevision: currentSourceRevision,
+            currentSourceSHA256: currentSourceSHA256,
+            at: now
+        )
+    }
+}

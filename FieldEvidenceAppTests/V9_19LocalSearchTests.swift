@@ -995,4 +995,15 @@ extension V9_19LocalSearchTests {
         XCTAssertEqual(fixture.changeRequest.item.kind, .finding)
         XCTAssertEqual(fixture.subject.kind, .completedActivitySnapshot)
     }
+
+    func testC20PrivacyTransformSearchProjectionNeverExposesUnreviewedAudience() throws {
+        let fixture = try C20PrivacyTransformTestSupport.makeFixture()
+        let decision = try PrivacyProjectionV1.decide(
+            manifest: fixture.manifest, review: nil, policy: fixture.policy,
+            requestedAudience: .customerReport, currentSourceRevision: 1,
+            currentSourceSHA256: fixture.manifest.sourceSHA256, at: fixture.capturedAt
+        )
+        XCTAssertEqual(decision.denial, .missingReview)
+        XCTAssertNil(decision.derivative)
+    }
 }

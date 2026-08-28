@@ -1103,4 +1103,11 @@ extension V9_25AuthorityCriterionDerivationTests {
         XCTAssertEqual(fixture.series.aggregationPolicy, .mean)
         XCTAssertNotNil(fixture.series.derivedFact)
     }
+
+    func testC20PrivacyTransformOriginalRoleIsAuthorityBound() throws {
+        let fixture = try C20PrivacyTransformTestSupport.makeFixture()
+        XCTAssertEqual(fixture.original.byteRole, .immutableOriginal)
+        XCTAssertEqual(fixture.derivative.byteRole, .derivative)
+        try fixture.original.validatePrivacyDerivative(fixture.derivative)
+    }
 }

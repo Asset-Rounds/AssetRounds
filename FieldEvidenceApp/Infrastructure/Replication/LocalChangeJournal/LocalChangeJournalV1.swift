@@ -153,6 +153,7 @@ final class LocalChangeJournalV1 {
         }
         try receipts.forEach { try IntegrationEventProjectionV1.validatePackagePromotionReceiptShape($0) }
         try receipts.forEach { try IntegrationEventProjectionV1.validateMeasurementIntegrityReceiptShape($0) }
+        try receipts.forEach { try IntegrationEventProjectionV1.validatePrivacyTransformReceiptShape($0) }
         return receipts
     }
 

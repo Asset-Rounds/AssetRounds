@@ -586,4 +586,9 @@ extension V9_20KernelConformanceTests {
         })
         try C19MeasurementIntegrityTestSupport.assertAllCanonicalRoundTrips(fixture)
     }
+
+    func testC20PrivacyTransformPortableAnchorUsesCanonicalLifecycleClosure() throws {
+        let manifestSHA256 = try KernelConformanceFixtureHarnessV1.c20PrivacyTransformAnchor()
+        XCTAssertEqual(manifestSHA256.count, 64)
+    }
 }

@@ -3524,3 +3524,60 @@ extension CompletedActivitySnapshotV9 {
         }
     }
 }
+
+// MARK: - C20 audience-safe privacy-transform binding
+
+enum CompletedPrivacyTransformProjectionPolicyV1 {
+    static let projectionVersion = PrivacyTransformReportProjectionV1.projectionVersion
+    static let derivativeOnly = true
+    static let requiresApprovedReview = true
+    static let requiresCurrentSource = true
+    static let requiresExplicitRedactionDeclaration = true
+    static let historicArtifactsImmutable = true
+    static let correctionsAreAmendOnly = true
+    static let excludesOriginalReferences = true
+    static let excludesOriginalBytes = true
+    static let excludesDerivativeBytes = true
+}
+
+extension CompletedActivitySnapshotV9 {
+    /// Binds a C20 metadata projection to the immutable completed-snapshot
+    /// workspace without importing content bytes or changing the snapshot.
+    func c20ValidatePrivacyTransformProjection(
+        _ projection: PrivacyTransformReportProjectionV1,
+        expectedWorkspaceID: WorkspaceID? = nil
+    ) throws -> PrivacyTransformReportProjectionV1 {
+        try validate()
+        try projection.validate()
+
+        let v7 = payload.activity.payload.activity
+        let v6 = v7.payload.activity
+        let v5 = v6.payload.activity
+        let v4 = v5.activity
+        let v3 = v4.activity
+        let base = v3.activity.activity
+        guard let rawWorkspaceID = UUID(uuidString: base.workspaceID) else {
+            throw SnapshotProjectionFailureV1.wrongWorkspace
+        }
+        let snapshotWorkspaceID = WorkspaceID(rawValue: rawWorkspaceID)
+        guard projection.workspaceID == snapshotWorkspaceID,
+              expectedWorkspaceID.map({ $0 == projection.workspaceID }) ?? true,
+              projection.isAudienceSafe,
+              projection.originalReferenceExcluded,
+              projection.derivativeOnly else {
+            throw SnapshotProjectionFailureV1.wrongWorkspace
+        }
+        return projection
+    }
+
+    static func c20ValidatePrivacyTransformProjection(
+        _ projection: PrivacyTransformReportProjectionV1,
+        expectedWorkspaceID: WorkspaceID? = nil
+    ) throws -> PrivacyTransformReportProjectionV1 {
+        try projection.validate()
+        guard expectedWorkspaceID.map({ $0 == projection.workspaceID }) ?? true else {
+            throw SnapshotProjectionFailureV1.wrongWorkspace
+        }
+        return projection
+    }
+}

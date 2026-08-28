@@ -230,6 +230,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
         let c53=TemporalOriginV1(card:"V23_P03_C36",ordinal:53)
         let c55=TemporalOriginV1(card:"V23_P04_C18",ordinal:55)
         let c56=TemporalOriginV1(card:"V23_P03_C19",ordinal:56)
+        let c57=TemporalOriginV1(card:"V23_P03_C20",ordinal:57)
         let groups: [(TemporalOriginV1, [String])] = [
             (c16, [
                 "JOURNAL:CurrentGenerationPointerV2",
@@ -383,6 +384,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
             (c53,["PERSISTENT_MODEL:FieldDraftCheckpointRow","PERSISTENT_MODEL:AttachmentStagingItemRow","PERSISTENT_MODEL:DraftCommitSagaRow","PERSISTENT_MODEL:DraftContentReservationRow","PERSISTENT_MODEL:DraftCommitReceiptRow","PERSISTENT_MODEL:DraftDiscardReceiptRow","PROJECTION:FieldDraftCheckpointV1","PROJECTION:AttachmentStagingItemV1","PROJECTION:DraftCommitSagaV1","PROJECTION:DraftContentReservationV1","PROJECTION:DraftCommitReceiptV1","PROJECTION:DraftDiscardReceiptV1","PROJECTION:DraftRecoveryProjectionV1","PROJECTION:StoreSemanticEnvelopeV16"]),
             (c55,["PERSISTENT_MODEL:PromotedPackageReleaseRow","PERSISTENT_MODEL:PackageSandboxRunRow","PERSISTENT_MODEL:PackagePromotionReceiptRow","PERSISTENT_MODEL:ActivePackageRegistryPointerRow","PROJECTION:PromotedPackageReleaseV1","PROJECTION:PackageSandboxRunV1","PROJECTION:PackagePromotionReceiptV1","PROJECTION:ActivePackageRegistryPointerV1","PROJECTION:PackageEvolutionLifecycleClosureV1","PROJECTION:PackageSemanticDiffV1","PROJECTION:DraftUpgradePlanV1","PROJECTION:StoreSemanticEnvelopeV17"]),
             (c56,["PERSISTENT_MODEL:InstrumentReferenceRow","PERSISTENT_MODEL:CalibrationStatusSnapshotRow","PERSISTENT_MODEL:MeasurementCaptureRow","PERSISTENT_MODEL:MeasurementSeriesRow","PERSISTENT_MODEL:MeasurementQualityAssessmentRow","PROJECTION:InstrumentReferenceV1","PROJECTION:CalibrationStatusSnapshotV1","PROJECTION:MeasurementCaptureV1","PROJECTION:MeasurementSeriesV1","PROJECTION:MeasurementQualityAssessmentV1","PROJECTION:StoreSemanticEnvelopeV18"]),
+            (c57,["PERSISTENT_MODEL:PrivacyTransformPolicyRow","PERSISTENT_MODEL:PrivacyRegionRow","PERSISTENT_MODEL:PrivacyTransformManifestRow","PERSISTENT_MODEL:PrivacyReviewReceiptRow","PROJECTION:PrivacyTransformPolicyV1","PROJECTION:PrivacyRegionV1","PROJECTION:PrivacyTransformManifestV1","PROJECTION:PrivacyReviewReceiptV1","PROJECTION:PrivacyProjectionV1","PROJECTION:PrivacyTransformLifecycleClosureV1","PROJECTION:StoreSemanticEnvelopeV19"]),
         ]
         return groups.reduce(into: [:]) { result, group in
             for kindID in group.1 {
@@ -463,6 +465,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
         let c36KindIDs=Set(["PERSISTENT_MODEL:FieldDraftCheckpointRow","PERSISTENT_MODEL:AttachmentStagingItemRow","PERSISTENT_MODEL:DraftCommitSagaRow","PERSISTENT_MODEL:DraftContentReservationRow","PERSISTENT_MODEL:DraftCommitReceiptRow","PERSISTENT_MODEL:DraftDiscardReceiptRow","PROJECTION:FieldDraftCheckpointV1","PROJECTION:AttachmentStagingItemV1","PROJECTION:DraftCommitSagaV1","PROJECTION:DraftContentReservationV1","PROJECTION:DraftCommitReceiptV1","PROJECTION:DraftDiscardReceiptV1","PROJECTION:DraftRecoveryProjectionV1","PROJECTION:StoreSemanticEnvelopeV16"])
         let c18KindIDs=Set(["PERSISTENT_MODEL:PromotedPackageReleaseRow","PERSISTENT_MODEL:PackageSandboxRunRow","PERSISTENT_MODEL:PackagePromotionReceiptRow","PERSISTENT_MODEL:ActivePackageRegistryPointerRow","PROJECTION:PromotedPackageReleaseV1","PROJECTION:PackageSandboxRunV1","PROJECTION:PackagePromotionReceiptV1","PROJECTION:ActivePackageRegistryPointerV1","PROJECTION:PackageEvolutionLifecycleClosureV1","PROJECTION:PackageSemanticDiffV1","PROJECTION:DraftUpgradePlanV1","PROJECTION:StoreSemanticEnvelopeV17"])
         let c19KindIDs=Set(["PERSISTENT_MODEL:InstrumentReferenceRow","PERSISTENT_MODEL:CalibrationStatusSnapshotRow","PERSISTENT_MODEL:MeasurementCaptureRow","PERSISTENT_MODEL:MeasurementSeriesRow","PERSISTENT_MODEL:MeasurementQualityAssessmentRow","PROJECTION:InstrumentReferenceV1","PROJECTION:CalibrationStatusSnapshotV1","PROJECTION:MeasurementCaptureV1","PROJECTION:MeasurementSeriesV1","PROJECTION:MeasurementQualityAssessmentV1","PROJECTION:StoreSemanticEnvelopeV18"])
+        let c20KindIDs=Set(["PERSISTENT_MODEL:PrivacyTransformPolicyRow","PERSISTENT_MODEL:PrivacyRegionRow","PERSISTENT_MODEL:PrivacyTransformManifestRow","PERSISTENT_MODEL:PrivacyReviewReceiptRow","PROJECTION:PrivacyTransformPolicyV1","PROJECTION:PrivacyRegionV1","PROJECTION:PrivacyTransformManifestV1","PROJECTION:PrivacyReviewReceiptV1","PROJECTION:PrivacyProjectionV1","PROJECTION:PrivacyTransformLifecycleClosureV1","PROJECTION:StoreSemanticEnvelopeV19"])
         let c17KindIDs = Set([
             "PROJECTION:IntegrationConformanceConsumerV1",
             "PROJECTION:IntegrationContractRegistryV1",
@@ -471,9 +474,9 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
             "PROJECTION:IntegrationProjectionCheckpointStoreV1",
             "PROJECTION:ProjectionCheckpointV1",
         ])
-        guard kindIDs.count == 250,
+        guard kindIDs.count == 261,
               Set(kindIDs).count == kindIDs.count,
-              laterTemporalOrigins.count == 188,
+              laterTemporalOrigins.count == 199,
               c09KindIDs.isSubset(of: Set(kindIDs)),
               c12KindIDs.isSubset(of: Set(kindIDs)),
               c38KindIDs.isSubset(of: Set(kindIDs)),
@@ -487,6 +490,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
               c17KindIDs.isSubset(of: Set(kindIDs)),
               c18KindIDs.isSubset(of: Set(kindIDs)),
               c19KindIDs.isSubset(of: Set(kindIDs)),
+              c20KindIDs.isSubset(of:Set(kindIDs)),
               Set(laterTemporalOrigins.keys).isSubset(of: Set(kindIDs)) else {
             throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage
         }
@@ -495,7 +499,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
                 registration.subject
             ) ? registration.subject.canonicalKey : nil
         })
-        guard durableKindIDs.count == 130 else {
+        guard durableKindIDs.count == 134 else {
             throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage
         }
         let universeBytes = try CompatibilityCanonicalV1.encode(
@@ -511,6 +515,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
                     && !c17KindIDs.contains($0)
                     && !c18KindIDs.contains($0)
                     && !c19KindIDs.contains($0)
+                    && !c20KindIDs.contains($0)
             }
         )
         guard CompatibilityCanonicalV1.sha256(universeBytes)

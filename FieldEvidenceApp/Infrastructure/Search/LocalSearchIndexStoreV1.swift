@@ -1127,4 +1127,23 @@ extension LocalSearchIndexStoreV1 {
         try record.validate()
         return record
     }
+
+    /// Creates the disposable C20 search row from a validated projection.
+    /// This adapter stores only bounded metadata; it never reads or writes
+    /// either original or derivative bytes.
+    static func privacyTransformSearchRecord(
+        from projection: PrivacyTransformReportProjectionV1
+    ) throws -> PrivacyTransformSearchRecordV1 {
+        let record = try PrivacyTransformSearchRecordV1(projection: projection)
+        try record.validate()
+        return record
+    }
+
+    static func validatePrivacyTransformSearchRecord(
+        _ record: PrivacyTransformSearchRecordV1
+    ) throws -> PrivacyTransformSearchRecordV1 {
+        try record.validate()
+        try PrivacyTransformSearchPersistencePolicyV1().validate()
+        return record
+    }
 }

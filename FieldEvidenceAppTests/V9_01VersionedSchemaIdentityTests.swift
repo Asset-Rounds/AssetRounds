@@ -1019,4 +1019,12 @@ extension V9_01VersionedSchemaIdentityTests {
         XCTAssertEqual(MeasurementIntegrityLifecycleCatalogV1.persistentKinds.count, 5)
         try fixture.instrument.validate()
     }
+
+    func testC20PrivacyTransformSchemaRegistersV19Rows() throws {
+        let fixture = try C20PrivacyTransformTestSupport.makeFixture()
+        XCTAssertEqual(PersistentSchemaV19.versionIdentifier, Schema.Version(19, 0, 0))
+        XCTAssertEqual(PersistentSchemaV19.models.count, 77)
+        XCTAssertTrue(PersistentSchemaV19.models.contains { ObjectIdentifier($0) == ObjectIdentifier(PrivacyTransformPolicyRow.self) })
+        XCTAssertEqual(fixture.policy.schemaVersion, PrivacyTransformPolicyV1.schemaVersion)
+    }
 }

@@ -206,6 +206,20 @@ extension ContentReferenceV1 {
 }
 
 extension ContentReferenceV1 {
+    /// Privacy processing never changes the original identity. A rendered
+    /// result is required to be a distinct derivative with its own digest.
+    func validatePrivacyDerivative(_ derivative: ContentReferenceV1) throws {
+        guard byteRole == .immutableOriginal,
+              derivative.byteRole == .derivative,
+              workspaceID == derivative.workspaceID,
+              contentID != derivative.contentID,
+              digests.digest(for: .sha256) != derivative.digests.digest(for: .sha256) else {
+            throw ContentContractFailureV1.immutableOriginal
+        }
+    }
+}
+
+extension ContentReferenceV1 {
     func validateAuthoritySourceBinding(_ release: AuthoritySourceReleaseV1) throws {
         try release.validate()
         guard release.licenseStorageDisposition == .lawfulContentReference,

@@ -950,4 +950,12 @@ extension V9_05RestoreIdentityTests {
         XCTAssertEqual(rebound.mutationID, fixture.capture.mutationID)
         try rebound.validate()
     }
+
+    func testC20PrivacyTransformRestoreKeepsImmutableOriginalAndDerivativeDistinct() throws {
+        let fixture = try C20PrivacyTransformTestSupport.makeFixture()
+        try fixture.original.validatePrivacyDerivative(fixture.derivative)
+        XCTAssertEqual(fixture.original.byteRole, .immutableOriginal)
+        XCTAssertEqual(fixture.derivative.byteRole, .derivative)
+        XCTAssertNotEqual(fixture.original.contentID, fixture.derivative.contentID)
+    }
 }

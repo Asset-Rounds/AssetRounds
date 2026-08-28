@@ -350,4 +350,13 @@ extension V9_07CompatibilityPolicyTests {
         ))
         try fixture.currentCalibration.validate()
     }
+
+    func testC20PrivacyTransformPolicyUsesClosedKindsAndReasons() throws {
+        let fixture = try C20PrivacyTransformTestSupport.makeFixture()
+        try fixture.policy.validate()
+        XCTAssertEqual(fixture.policy.allowedTransformKinds, PrivacyTransformKindV1.allCases.sorted { $0.rawValue < $1.rawValue })
+        XCTAssertEqual(fixture.policy.allowedReasons, PrivacyTransformReasonV1.allCases.sorted { $0.rawValue < $1.rawValue })
+        XCTAssertTrue(fixture.policy.reviewRequired)
+        XCTAssertTrue(fixture.policy.denyByDefault)
+    }
 }

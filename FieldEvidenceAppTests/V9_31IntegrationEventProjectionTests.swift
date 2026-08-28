@@ -747,4 +747,13 @@ extension V9_31IntegrationEventProjectionTests {
         XCTAssertEqual(rebuilt.bundleSHA256, fixture.bundle.bundleSHA256)
         XCTAssertEqual(rebuilt.assessments.map(\.assessmentID), fixture.bundle.assessments.map(\.assessmentID))
     }
+
+    func testC20PrivacyTransformProjectionRetainsPrivacyProvenance() throws {
+        let fixture = try C20PrivacyTransformTestSupport.makeFixture()
+        guard case .privacy(let privacy) = fixture.provenance.transform else {
+            return XCTFail("privacy transform provenance is required")
+        }
+        XCTAssertEqual(privacy.privacyManifestID, fixture.manifest.manifestID)
+        XCTAssertEqual(privacy.privacyManifestSHA256, fixture.manifest.manifestSHA256)
+    }
 }

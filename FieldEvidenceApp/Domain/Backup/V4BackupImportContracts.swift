@@ -83,3 +83,14 @@ enum V18MeasurementIntegrityImportBoundaryV1 {
         }
     }
 }
+
+enum V19PrivacyTransformImportBoundaryV1 {
+    static let persistentSchemaVersion = 19
+    static let recordsSchemaVersion = 18
+    static func validate(persistent: Int, records: Int) throws {
+        guard persistent == persistentSchemaVersion, records == recordsSchemaVersion,
+              V19BackupPrivacyTransformRecordV1.Kind.allCases.count == 4 else {
+            throw BackupImportServiceError.unsupportedSchemaVersion
+        }
+    }
+}
