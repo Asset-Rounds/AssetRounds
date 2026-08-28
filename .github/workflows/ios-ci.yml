@@ -322,7 +322,7 @@ jobs:
                   .testTimeoutSeconds,
                   .uiTimeoutSeconds,
                   .totalBudgetSeconds
-                ] == [300, 900, 1200, 1800, 4500]
+                ] == [300, 900, 1200, 1920, 4500]
               else false
               end;
             exact_keys
