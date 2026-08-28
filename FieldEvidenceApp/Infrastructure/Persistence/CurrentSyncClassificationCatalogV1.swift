@@ -96,10 +96,11 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
     static let v12PersistentModelNames = [
         "AssetFunctionalRelationshipEventRow", "FunctionalRelationshipTypeDescriptorRow",
     ]
+    static let v13PersistentModelNames=["AssuranceManifestRow","AttestationRow","ClaimEvidenceLinkRow","EvidenceVisibilityRow"]
     static let activePersistentModelNames =
         (persistentModelNames + v6PersistentModelNames + v7PersistentModelNames
             + v8PersistentModelNames + v9PersistentModelNames + v10PersistentModelNames
-            + v11PersistentModelNames + v12PersistentModelNames).sorted()
+            + v11PersistentModelNames + v12PersistentModelNames + v13PersistentModelNames).sorted()
 
     static let ownedFileClassNames = [
         "cache", "commerceEntitlementCache", "database", "databaseSHM", "databaseWAL",
@@ -156,6 +157,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "CurrentFunctionalRelationshipProjectionV1",
         "FunctionalRelationshipDispositionPreviewV1",
         "CompletedFunctionalRelationshipSnapshotV1",
+        "EvidenceVisibilityV1","ClaimEvidenceLinkV1","AssuranceProjectionPreviewV1","AssuranceManifestV1","AttestationV1",
     ]
 
     static let derivedIndexNames = [
@@ -180,6 +182,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "StoreSemanticEnvelopeV10",
         "StoreSemanticEnvelopeV11",
         "StoreSemanticEnvelopeV12",
+        "StoreSemanticEnvelopeV13",
         "WorkspaceMutationStateSemanticV1",
         "entityMutationRevision",
         "workspaceMutationState",
@@ -672,6 +675,7 @@ private extension CurrentSyncClassificationCatalogV1 {
                 dependencies: try functionalRelationshipPersistentDependencies(for: name)
             ))
         }
+        for name in v13PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:try evidenceAssurancePersistentDependencies(for:name)))}
 
         for name in portableContentProjectionNames {
             let profile: AdditionalProfile = name == "ReportSnapshotV1"
@@ -1020,6 +1024,11 @@ private extension CurrentSyncClassificationCatalogV1 {
             return try subjects(category: .persistentModel, names: ["FunctionalRelationshipTypeDescriptorRow", "AssetFunctionalRelationshipEventRow"])
         case "CompletedFunctionalRelationshipSnapshotV1":
             return try subjects(category: .persistentModel, names: ["FunctionalRelationshipTypeDescriptorRow", "AssetFunctionalRelationshipEventRow"])
+        case "EvidenceVisibilityV1":return[try subject(category:.persistentModel,name:"EvidenceVisibilityRow")]
+        case "ClaimEvidenceLinkV1":return[try subject(category:.persistentModel,name:"ClaimEvidenceLinkRow")]
+        case "AssuranceManifestV1":return[try subject(category:.persistentModel,name:"AssuranceManifestRow")]
+        case "AttestationV1":return[try subject(category:.persistentModel,name:"AttestationRow")]
+        case "AssuranceProjectionPreviewV1":return try subjects(category:.persistentModel,names:["ClaimEvidenceLinkRow","EvidenceVisibilityRow"])
         default:
             throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
         }
@@ -1071,7 +1080,8 @@ private extension CurrentSyncClassificationCatalogV1 {
                     + v8PersistentModelNames + v9PersistentModelNames + v10PersistentModelNames
                     + v11PersistentModelNames)
         case "StoreSemanticEnvelopeV12":
-            return try subjects(category: .persistentModel, names: activePersistentModelNames)
+            return try subjects(category:.persistentModel,names:persistentModelNames+v6PersistentModelNames+v7PersistentModelNames+v8PersistentModelNames+v9PersistentModelNames+v10PersistentModelNames+v11PersistentModelNames+v12PersistentModelNames)
+        case "StoreSemanticEnvelopeV13":return try subjects(category:.persistentModel,names:activePersistentModelNames)
         default:
             throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
         }
@@ -1165,6 +1175,7 @@ private extension CurrentSyncClassificationCatalogV1 {
         default: throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
         }
     }
+    static func evidenceAssurancePersistentDependencies(for name:String)throws->[SyncSubjectIdentityV1]{switch name{case "EvidenceVisibilityRow":return[];case "ClaimEvidenceLinkRow":return[try subject(category:.persistentModel,name:"EvidenceVisibilityRow")];case "AssuranceManifestRow":return try subjects(category:.persistentModel,names:["ClaimEvidenceLinkRow","EvidenceVisibilityRow"]);case "AttestationRow":return[try subject(category:.persistentModel,name:"AssuranceManifestRow")];default:throw CurrentSyncClassificationCatalogFailureV1.invalidInventory}}
 
     static func validatePersistentModels() throws {
         let frozenV5: [any PersistentModel.Type] = [
@@ -1214,8 +1225,9 @@ private extension CurrentSyncClassificationCatalogV1 {
             DerivedFactProvenanceRow.self,
             FunctionalRelationshipTypeDescriptorRow.self,
             AssetFunctionalRelationshipEventRow.self,
+            EvidenceVisibilityRow.self,ClaimEvidenceLinkRow.self,AssuranceManifestRow.self,AttestationRow.self,
         ]
-        let runtimeNames = PersistentSchemaV12.models.map { modelType in
+        let runtimeNames = PersistentSchemaV13.models.map { modelType in
             String(describing: modelType)
                 .split(separator: ".")
                 .last
@@ -1228,8 +1240,8 @@ private extension CurrentSyncClassificationCatalogV1 {
               Set(PersistentSchemaV5.models.map { ObjectIdentifier($0) })
                 == Set(frozenV5.map { ObjectIdentifier($0) }),
               frozenNames == persistentModelNames,
-              PersistentSchemaV12.models.count == expected.count,
-              Set(PersistentSchemaV12.models.map { ObjectIdentifier($0) })
+              PersistentSchemaV13.models.count == expected.count,
+              Set(PersistentSchemaV13.models.map { ObjectIdentifier($0) })
                 == Set(expected.map { ObjectIdentifier($0) }),
               runtimeNames.count == Set(runtimeNames).count,
               runtimeNames.allSatisfy(ReplicationContractValidationV1.validToken),

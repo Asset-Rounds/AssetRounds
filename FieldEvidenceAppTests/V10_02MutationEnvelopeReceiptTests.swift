@@ -1549,3 +1549,29 @@ extension V10_02MutationEnvelopeReceiptTests {
         try replayed.validate()
     }
 }
+
+extension V10_02MutationEnvelopeReceiptTests {
+    func testV23P03C13MutationEnvelopeHasCanonicalManifestAndAttestationBytes() throws {
+        let fixture = try C13EvidenceAssuranceTestSupportV1.makeFixture(seed: 51_020)
+        let mutation = try EvidenceAssuranceMutationV1(
+            workspaceID: fixture.workspaceID,
+            expectedRevision: 0,
+            mutationID: fixture.customerManifest.mutationID,
+            postImage: .appendManifest(manifest: fixture.customerManifest, preview: fixture.customerPreview)
+        )
+        let manifestBytes = try EvidenceAssuranceCanonicalCodecV1.encode(fixture.customerManifest)
+        let attestationBytes = try EvidenceAssuranceCanonicalCodecV1.encode(fixture.customerAttestation)
+
+        try mutation.validate()
+        XCTAssertEqual(try mutation.canonicalData(), try mutation.canonicalData())
+        XCTAssertEqual(
+            try EvidenceAssuranceCanonicalCodecV1.decode(AssuranceManifestV1.self, from: manifestBytes),
+            fixture.customerManifest
+        )
+        XCTAssertEqual(
+            try EvidenceAssuranceCanonicalCodecV1.decode(AttestationV1.self, from: attestationBytes),
+            fixture.customerAttestation
+        )
+        XCTAssertEqual(fixture.customerAttestation.manifestSHA256, fixture.customerManifest.manifestSHA256)
+    }
+}

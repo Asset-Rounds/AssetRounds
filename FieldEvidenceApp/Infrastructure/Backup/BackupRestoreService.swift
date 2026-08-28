@@ -228,6 +228,10 @@ final class BackupRestoreService {
                 && modelContext.fetchCount(
                     FetchDescriptor<AssetFunctionalRelationshipEventRow>()
                 ) == 0
+                && modelContext.fetchCount(FetchDescriptor<EvidenceVisibilityRow>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<ClaimEvidenceLinkRow>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<AssuranceManifestRow>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<AttestationRow>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<WorkflowRecord>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<EvidenceFile>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<Issue>()) == 0
@@ -482,6 +486,7 @@ final class BackupRestoreService {
             )
             expectedRecords = try recordsForMaterialization(
                 expectedRecords,
+                members: validatedPackage.members,
                 identityDecision: preliminaryIdentityDecision,
                 legacyWorkspaceID: frozenCurrentIdentity.workspaceID.rawValue
             )
@@ -1509,6 +1514,7 @@ private extension BackupRestoreService {
         with packets: [V4BackupPacketDTO]
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            evidenceAssurance: records.evidenceAssurance,
             functionalRelationships: records.functionalRelationships,
             authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
             assetCompositionEdges: records.assetCompositionEdges,
@@ -1556,6 +1562,7 @@ private extension BackupRestoreService {
         with history: MutationHistorySnapshotV1
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            evidenceAssurance: records.evidenceAssurance,
             functionalRelationships: records.functionalRelationships,
             authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
             assetCompositionEdges: records.assetCompositionEdges,
@@ -1582,6 +1589,7 @@ private extension BackupRestoreService {
 
     func recordsForMaterialization(
         _ records: V4BackupRecordsV1,
+        members: ValidatedV4BackupMembersV1,
         identityDecision: RestoreIdentityV1?,
         legacyWorkspaceID: UUID
     ) throws -> V4BackupRecordsV1 {
@@ -1593,12 +1601,17 @@ private extension BackupRestoreService {
         )
         if normalized.recordsSchemaVersion >= 5,
            let identityDecision {
+            let sourcePreviews = try sourceAssurancePreviews(
+                records: normalized, members: members
+            )
             normalized = try rebindingLocationMigrationReceipt(
                 in: normalized,
                 workspaceID: WorkspaceID(
                     rawValue: identityDecision.targetPointer.workspaceID
                 ),
-                generationID: identityDecision.targetPointer.generationID
+                generationID: identityDecision.targetPointer.generationID,
+                sourceAssurancePreviews: sourcePreviews,
+                members: members
             )
         }
         guard let history = normalized.mutationHistory else {
@@ -1661,6 +1674,7 @@ private extension BackupRestoreService {
             return try V8BackupRequirementAssuranceRecordV1(row)
         }.sorted { canonical($0.workflowRecordID) < canonical($1.workflowRecordID) }
         return V4BackupRecordsV1(
+            evidenceAssurance: records.evidenceAssurance,
             functionalRelationships: records.functionalRelationships,
             authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
             assetCompositionEdges: records.assetCompositionEdges,
@@ -1682,7 +1696,9 @@ private extension BackupRestoreService {
     func rebindingLocationMigrationReceipt(
         in records: V4BackupRecordsV1,
         workspaceID: WorkspaceID,
-        generationID: UUID
+        generationID: UUID,
+        sourceAssurancePreviews: [UUID: AssuranceProjectionPreviewV1],
+        members: ValidatedV4BackupMembersV1
     ) throws -> V4BackupRecordsV1 {
         guard records.locationMigrationReceipts.count <= 1 else {
             throw BackupRestoreServiceError.invalidPackage
@@ -1866,9 +1882,20 @@ private extension BackupRestoreService {
         let authorityCriterion = try rebindingAuthorityCriterion(
             records.authorityCriterion, workspaceID: workspaceID
         )
+        let functionalRelationships = try rebindingFunctionalRelationships(
+            records.functionalRelationships, workspaceID: workspaceID
+        )
+        let evidenceAssurance = try rebindingEvidenceAssurance(
+            records.evidenceAssurance, workspaceID: workspaceID,
+            sourcePreviews: sourceAssurancePreviews
+        )
+        let reports = try rebindingReportDTOs(
+            records.reports, members: members, workspaceID: workspaceID
+        )
         guard let archived = records.locationMigrationReceipts.first else {
             return V4BackupRecordsV1(
-                functionalRelationships: try rebindingFunctionalRelationships(records.functionalRelationships, workspaceID: workspaceID),
+                evidenceAssurance: evidenceAssurance,
+                functionalRelationships: functionalRelationships,
                 authorityCriterion: authorityCriterion, assetSemantics: assetSemantics,
                 assetCompositionEdges: reboundEdges.map(\.0),
                 assetCompositionEvents: compositionEvents,
@@ -1880,7 +1907,7 @@ private extension BackupRestoreService {
                 mutationHistory: records.mutationHistory, packets: records.packets,
                 partyAccountability: partyAccountability,
                 recordsSchemaVersion: records.recordsSchemaVersion,
-                reports: records.reports, sites: records.sites,
+                reports: reports, sites: records.sites,
                 requirementAssurance: requirementAssurance,
                 savedSmartViews: savedSmartViews,
                 workflowRecords: records.workflowRecords
@@ -1898,7 +1925,10 @@ private extension BackupRestoreService {
            savedSmartViews == records.savedSmartViews,
            partyAccountability == records.partyAccountability,
            assetSemantics == records.assetSemantics,
-           authorityCriterion == records.authorityCriterion {
+           authorityCriterion == records.authorityCriterion,
+           functionalRelationships == records.functionalRelationships,
+           evidenceAssurance == records.evidenceAssurance,
+           reports == records.reports {
             return records
         }
         let rebound = try LocationMigrationReceiptV1(
@@ -1910,7 +1940,8 @@ private extension BackupRestoreService {
             bindings: receipt.bindings
         )
         return V4BackupRecordsV1(
-            functionalRelationships: try rebindingFunctionalRelationships(records.functionalRelationships, workspaceID: workspaceID),
+            evidenceAssurance: evidenceAssurance,
+            functionalRelationships: functionalRelationships,
             authorityCriterion: authorityCriterion, assetSemantics: assetSemantics,
             assetCompositionEdges: reboundEdges.map(\.0),
             assetCompositionEvents: compositionEvents,
@@ -1929,7 +1960,7 @@ private extension BackupRestoreService {
             packets: records.packets,
             partyAccountability: partyAccountability,
             recordsSchemaVersion: records.recordsSchemaVersion,
-            reports: records.reports,
+            reports: reports,
             requirementAssurance: requirementAssurance,
             savedSmartViews: savedSmartViews,
             sites: records.sites,
@@ -2291,6 +2322,130 @@ private extension BackupRestoreService {
         } catch { throw BackupRestoreServiceError.invalidPackage }
     }
 
+    func sourceAssurancePreviews(
+        records: V4BackupRecordsV1,
+        members: ValidatedV4BackupMembersV1
+    ) throws -> [UUID: AssuranceProjectionPreviewV1] {
+        guard !records.evidenceAssurance.isEmpty else { return [:] }
+        var result: [UUID: AssuranceProjectionPreviewV1] = [:]
+        for report in records.reports {
+            guard let data = members[report.snapshotRelativePath] else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            let snapshot = try ReportSnapshotEncoderV1().decode(data)
+            guard let preview = snapshot.assurance?.preview else { continue }
+            if let existing = result[preview.previewID], existing != preview {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            result[preview.previewID] = preview
+        }
+        return result
+    }
+
+    func reboundReportSnapshotData(
+        _ data: Data, workspaceID: WorkspaceID
+    ) throws -> Data {
+        var snapshot = try ReportSnapshotEncoderV1().decode(data)
+        guard let source = snapshot.assurance else { return data }
+        let visibilities = try source.visibilities.map { visibility in
+            visibility.workspaceID == workspaceID ? visibility : try visibility.rebound(to: workspaceID)
+        }
+        let visibilityByID = Dictionary(uniqueKeysWithValues: visibilities.map { ($0.visibilityID, $0) })
+        let sourceLinks = source.preview.includedLinks + source.preview.excludedLinks
+        let links = try sourceLinks.map { link -> ClaimEvidenceLinkV1 in
+            guard let visibility = visibilityByID[link.visibilityID] else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            return link.workspaceID == workspaceID ? link : try link.rebound(to: workspaceID, visibility: visibility)
+        }
+        let preview = try source.preview.rebound(to: workspaceID, links: links)
+        let manifest = try source.manifest.map {
+            $0.workspaceID == workspaceID ? $0 : try $0.rebound(to: workspaceID, preview: preview)
+        }
+        let attestations = try source.attestations.map { value -> AttestationV1 in
+            guard let manifest else { throw BackupRestoreServiceError.invalidPackage }
+            return value.workspaceID == workspaceID ? value : try value.rebound(to: workspaceID, manifest: manifest)
+        }
+        snapshot.assurance = try ReportEvidenceAssuranceProjectionV1(
+            preview: preview, manifest: manifest,
+            visibilities: visibilities, attestations: attestations
+        )
+        return try ReportSnapshotEncoderV1().encode(snapshot).data
+    }
+
+    func rebindingReportDTOs(
+        _ reports: [V4BackupReportDTO], members: ValidatedV4BackupMembersV1,
+        workspaceID: WorkspaceID
+    ) throws -> [V4BackupReportDTO] {
+        try reports.map { report in
+            guard let source = members[report.snapshotRelativePath] else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            let data = try reboundReportSnapshotData(source, workspaceID: workspaceID)
+            return .init(
+                id: report.id, schemaVersion: report.schemaVersion, packetID: report.packetID,
+                sourceRecordID: report.sourceRecordID,
+                snapshotSchemaVersion: report.snapshotSchemaVersion,
+                snapshotRelativePath: report.snapshotRelativePath,
+                snapshotSHA256: CanonicalJSONV1.sha256(data), pdfState: report.pdfState,
+                pdfRelativePath: report.pdfRelativePath, pdfSHA256: report.pdfSHA256,
+                createdAt: report.createdAt, replacesReportID: report.replacesReportID
+            )
+        }
+    }
+
+    func rebindingEvidenceAssurance(
+        _ records: [V13BackupEvidenceAssuranceRecordV1], workspaceID: WorkspaceID,
+        sourcePreviews: [UUID: AssuranceProjectionPreviewV1]
+    ) throws -> [V13BackupEvidenceAssuranceRecordV1] {
+        do {
+            var visibilities: [UUID: EvidenceVisibilityV1] = [:]
+            for record in records where record.kind == .visibility {
+                let source = try EvidenceAssuranceCanonicalCodecV1.decode(EvidenceVisibilityV1.self, from: record.canonicalData)
+                visibilities[source.visibilityID] = source.workspaceID == workspaceID ? source : try source.rebound(to: workspaceID)
+            }
+            var links: [UUID: ClaimEvidenceLinkV1] = [:]
+            for record in records where record.kind == .evidenceLink {
+                let source = try EvidenceAssuranceCanonicalCodecV1.decode(ClaimEvidenceLinkV1.self, from: record.canonicalData)
+                guard let visibility = visibilities[source.visibilityID] else { throw BackupRestoreServiceError.invalidPackage }
+                links[source.linkID] = source.workspaceID == workspaceID ? source : try source.rebound(to: workspaceID, visibility: visibility)
+            }
+            var manifests: [UUID: AssuranceManifestV1] = [:]
+            for record in records where record.kind == .manifest {
+                let source = try EvidenceAssuranceCanonicalCodecV1.decode(AssuranceManifestV1.self, from: record.canonicalData)
+                if source.workspaceID == workspaceID { manifests[source.manifestID] = source; continue }
+                let sourceLinks = source.includedLinks + source.excludedLinks
+                let reboundLinks = try sourceLinks.map { link -> ClaimEvidenceLinkV1 in
+                    guard let value = links[link.linkID] else { throw BackupRestoreServiceError.invalidPackage }
+                    return value
+                }
+                guard let frozenPreview = sourcePreviews[source.sourcePreviewID] else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                try source.validateFresh(preview: frozenPreview)
+                let preview = try frozenPreview.rebound(to: workspaceID, links: reboundLinks)
+                manifests[source.manifestID] = try source.rebound(to: workspaceID, preview: preview)
+            }
+            var attestations: [UUID: AttestationV1] = [:]
+            for record in records where record.kind == .attestation {
+                let source = try EvidenceAssuranceCanonicalCodecV1.decode(AttestationV1.self, from: record.canonicalData)
+                guard let manifest = manifests[source.manifestID] else { throw BackupRestoreServiceError.invalidPackage }
+                attestations[source.attestationID] = source.workspaceID == workspaceID ? source : try source.rebound(to: workspaceID, manifest: manifest)
+            }
+            return try records.map { record in
+                let valueData: Data
+                switch record.kind {
+                case .visibility: valueData = try EvidenceAssuranceCanonicalCodecV1.encode(visibilities[record.id]!)
+                case .evidenceLink: valueData = try EvidenceAssuranceCanonicalCodecV1.encode(links[record.id]!)
+                case .manifest: valueData = try EvidenceAssuranceCanonicalCodecV1.encode(manifests[record.id]!)
+                case .attestation: valueData = try EvidenceAssuranceCanonicalCodecV1.encode(attestations[record.id]!)
+                }
+                return .init(kind: record.kind, id: record.id, workspaceID: workspaceID.rawValue,
+                             revision: record.revision, canonicalData: valueData)
+            }
+        } catch { throw BackupRestoreServiceError.invalidPackage }
+    }
+
     func recordsWithObservationAndTime(
         _ records: V4BackupRecordsV1
     ) throws -> V4BackupRecordsV1 {
@@ -2306,7 +2461,7 @@ private extension BackupRestoreService {
             )
         }
         return V4BackupRecordsV1(
-            functionalRelationships: [], authorityCriterion: [], assetSemantics: [],
+            evidenceAssurance: [], functionalRelationships: [], authorityCriterion: [], assetSemantics: [],
             assetCompositionEdges: records.assetCompositionEdges,
             assetCompositionEvents: records.assetCompositionEvents,
             assetPlacementEvents: records.assetPlacementEvents,
@@ -2477,7 +2632,8 @@ private extension BackupRestoreService {
                 || records.recordsSchemaVersion == 8
                 || records.recordsSchemaVersion == 9
                 || records.recordsSchemaVersion == 10
-                || records.recordsSchemaVersion == 11)
+                || records.recordsSchemaVersion == 11
+                || records.recordsSchemaVersion == 12)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -2491,7 +2647,8 @@ private extension BackupRestoreService {
         case (2, let ledger?, nil), (3, let ledger?, _), (4, let ledger?, _),
              (5, let ledger?, _), (6, let ledger?, _),
              (7, let ledger?, _), (8, let ledger?, _),
-             (9, let ledger?, _), (10, let ledger?, _), (11, let ledger?, _):
+             (9, let ledger?, _), (10, let ledger?, _), (11, let ledger?, _),
+             (12, let ledger?, _):
             do {
                 try ledger.validate()
                 try DeletionLedgerStore(context: context).stageUnion(ledger.entries)
@@ -2729,7 +2886,8 @@ private extension BackupRestoreService {
         if records.recordsSchemaVersion == 6 || records.recordsSchemaVersion == 7
             || records.recordsSchemaVersion == 8 || records.recordsSchemaVersion == 9
             || records.recordsSchemaVersion == 10
-            || records.recordsSchemaVersion == 11 {
+            || records.recordsSchemaVersion == 11
+            || records.recordsSchemaVersion == 12 {
             do {
                 for record in records.savedSmartViews {
                     let descriptor = try record.descriptor()
@@ -2884,6 +3042,18 @@ private extension BackupRestoreService {
                 }
             } catch { throw BackupRestoreServiceError.invalidPackage }
         }
+        if records.recordsSchemaVersion >= 12 {
+            do {
+                for record in records.evidenceAssurance {
+                    switch record.kind {
+                    case .visibility: context.insert(try EvidenceVisibilityRow(EvidenceAssuranceCanonicalCodecV1.decode(EvidenceVisibilityV1.self, from: record.canonicalData)))
+                    case .evidenceLink: context.insert(try ClaimEvidenceLinkRow(EvidenceAssuranceCanonicalCodecV1.decode(ClaimEvidenceLinkV1.self, from: record.canonicalData)))
+                    case .manifest: context.insert(try AssuranceManifestRow(EvidenceAssuranceCanonicalCodecV1.decode(AssuranceManifestV1.self, from: record.canonicalData)))
+                    case .attestation: context.insert(try AttestationRow(EvidenceAssuranceCanonicalCodecV1.decode(AttestationV1.self, from: record.canonicalData)))
+                    }
+                }
+            } catch { throw BackupRestoreServiceError.invalidPackage }
+        }
         if let mutationHistory = records.mutationHistory {
             guard records.recordsSchemaVersion == 3
                     || records.recordsSchemaVersion == 4
@@ -2893,7 +3063,8 @@ private extension BackupRestoreService {
                     || records.recordsSchemaVersion == 8
                     || records.recordsSchemaVersion == 9
                     || records.recordsSchemaVersion == 10
-                    || records.recordsSchemaVersion == 11 else {
+                    || records.recordsSchemaVersion == 11
+                    || records.recordsSchemaVersion == 12 else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {
@@ -2970,8 +3141,17 @@ private extension BackupRestoreService {
             )
         }
         for report in records.reports {
+            var snapshotData = value.members[report.snapshotRelativePath]
+            if let source = snapshotData,
+               CanonicalJSONV1.sha256(source) != report.snapshotSHA256,
+               let rawWorkspaceID = records.evidenceAssurance.first?.workspaceID {
+                snapshotData = try reboundReportSnapshotData(
+                    source,
+                    workspaceID: WorkspaceID(rawValue: rawWorkspaceID)
+                )
+            }
             try writeExact(
-                value.members[report.snapshotRelativePath],
+                snapshotData,
                 to: root.appendingPathComponent(report.snapshotRelativePath),
                 expectedHash: report.snapshotSHA256,
                 generationID: generationID
@@ -3963,7 +4143,8 @@ private extension BackupRestoreService {
         if actual == expected { return }
         guard expected.recordsSchemaVersion < 9,
               (actual.recordsSchemaVersion == 9 || actual.recordsSchemaVersion == 10
-                || actual.recordsSchemaVersion == 11) else {
+                || actual.recordsSchemaVersion == 11
+                || actual.recordsSchemaVersion == 12) else {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
         if expected.recordsSchemaVersion == 5 || expected.recordsSchemaVersion == 6 {
@@ -3982,6 +4163,7 @@ private extension BackupRestoreService {
         schemaVersion: Int
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            evidenceAssurance: schemaVersion >= 12 ? records.evidenceAssurance : [],
             functionalRelationships: schemaVersion >= 11 ? records.functionalRelationships : [],
             authorityCriterion: schemaVersion >= 10 ? records.authorityCriterion : [],
             assetSemantics: schemaVersion >= 9 ? records.assetSemantics : [],
@@ -4012,6 +4194,7 @@ private extension BackupRestoreService {
         expected: V4BackupRecordsV1
     ) throws -> Bool {
         let predecessor = V4BackupRecordsV1(
+            evidenceAssurance: expected.recordsSchemaVersion >= 12 ? expected.evidenceAssurance : [],
             functionalRelationships: expected.recordsSchemaVersion >= 11 ? expected.functionalRelationships : [],
             authorityCriterion: expected.recordsSchemaVersion >= 10 ? expected.authorityCriterion : [],
             assetSemantics: expected.recordsSchemaVersion >= 9 ? expected.assetSemantics : [],
@@ -4182,6 +4365,10 @@ private extension BackupRestoreService {
         let measurementProtocols = try context.fetch(FetchDescriptor<MeasurementProtocolReleaseRow>())
         let evaluators = try context.fetch(FetchDescriptor<DerivedFactEvaluatorDescriptorRow>())
         let derivedFacts = try context.fetch(FetchDescriptor<DerivedFactProvenanceRow>())
+        let evidenceVisibilities = try context.fetch(FetchDescriptor<EvidenceVisibilityRow>())
+        let claimEvidenceLinks = try context.fetch(FetchDescriptor<ClaimEvidenceLinkRow>())
+        let assuranceManifests = try context.fetch(FetchDescriptor<AssuranceManifestRow>())
+        let attestations = try context.fetch(FetchDescriptor<AttestationRow>())
         let functionalRelationshipDescriptors = try context.fetch(
             FetchDescriptor<FunctionalRelationshipTypeDescriptorRow>()
         )
@@ -4206,6 +4393,12 @@ private extension BackupRestoreService {
             mutationHistory = nil
         }
         return V4BackupRecordsV1(
+            evidenceAssurance: try (
+                evidenceVisibilities.map { let v=try $0.value(); return .init(kind:.visibility,id:v.visibilityID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData) }
+                + claimEvidenceLinks.map { let v=try $0.value(); return .init(kind:.evidenceLink,id:v.linkID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData) }
+                + assuranceManifests.map { let v=try $0.value(); return .init(kind:.manifest,id:v.manifestID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData) }
+                + attestations.map { let v=try $0.value(); return .init(kind:.attestation,id:v.attestationID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:$0.canonicalData) }
+            ).sorted { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)" },
             functionalRelationships: try (
                 functionalRelationshipDescriptors.map {
                     let value = try $0.value()
@@ -4365,7 +4558,9 @@ private extension BackupRestoreService {
                 "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
                     < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
             },
-            recordsSchemaVersion: functionalRelationshipDescriptors.isEmpty
+            recordsSchemaVersion: evidenceVisibilities.isEmpty && claimEvidenceLinks.isEmpty
+                    && assuranceManifests.isEmpty && attestations.isEmpty
+                ? (functionalRelationshipDescriptors.isEmpty
                     && functionalRelationshipEvents.isEmpty
                 ? (authoritySourceReleases.isEmpty
                     && requirementBasisBindings.isEmpty
@@ -4378,7 +4573,8 @@ private extension BackupRestoreService {
                     && derivedFacts.isEmpty
                     ? (mutationHistory == nil ? (includingDeletionLedger ? 2 : 1) : 9)
                     : 10)
-                : 11,
+                    : 11)
+                : 12,
             reports: reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,

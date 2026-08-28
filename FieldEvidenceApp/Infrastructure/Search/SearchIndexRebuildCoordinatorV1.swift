@@ -172,6 +172,12 @@ final class SwiftDataSearchCanonicalProjectionSourceV1: SearchCanonicalProjectio
         let functionalRelationshipDirectionSummary: String = ""
         let functionalRelationshipStateSummary: String = ""
         let functionalRelationshipEndpointSummary: String = ""
+        /// C13 search values are intentionally limited to audience,
+        /// disposition, limitation, and projection-version metadata.
+        let assuranceAudienceSummary: String = ""
+        let assuranceDispositionSummary: String = ""
+        let assuranceLimitationSummary: String = ""
+        let assuranceProjectionVersionSummary: String = ""
     }
 
     let registry: SearchableFieldRegistryV1
@@ -184,6 +190,7 @@ final class SwiftDataSearchCanonicalProjectionSourceV1: SearchCanonicalProjectio
     private let includeAssetSemantics: Bool
     private let includeAuthorityCriterion: Bool
     private let includeFunctionalRelationships: Bool
+    private let includeAssurance: Bool
     private var snapshotRevision: SearchSourceRevisionV1?
     private var snapshotValues: [CanonicalValue]?
     private var snapshotBackupStaleIdentities: Set<SearchCanonicalRecordIdentityV1> = []
@@ -197,7 +204,8 @@ final class SwiftDataSearchCanonicalProjectionSourceV1: SearchCanonicalProjectio
         includeAccountability: Bool = false,
         includeAssetSemantics: Bool = false,
         includeAuthorityCriterion: Bool = false,
-        includeFunctionalRelationships: Bool = false
+        includeFunctionalRelationships: Bool = false,
+        includeAssurance: Bool = false
     ) throws {
         guard workspaceID != SearchContractValidationV1.zeroUUID,
               generationID != SearchContractValidationV1.zeroUUID else {
@@ -212,11 +220,13 @@ final class SwiftDataSearchCanonicalProjectionSourceV1: SearchCanonicalProjectio
         self.includeAssetSemantics = includeAssetSemantics
         self.includeAuthorityCriterion = includeAuthorityCriterion
         self.includeFunctionalRelationships = includeFunctionalRelationships
+        self.includeAssurance = includeAssurance
         registry = try Self.makeExtendedRegistry(
             includeAccountability: includeAccountability,
             includeAssetSemantics: includeAssetSemantics,
             includeAuthorityCriterion: includeAuthorityCriterion,
-            includeFunctionalRelationships: includeFunctionalRelationships
+            includeFunctionalRelationships: includeFunctionalRelationships,
+            includeAssurance: includeAssurance
         )
     }
 
@@ -300,6 +310,9 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         let functionalRelationshipValues = includeFunctionalRelationships
             ? try functionalRelationshipSearchValues()
             : []
+        let assuranceValues = includeAssurance
+            ? try assuranceSearchValues()
+            : []
         values += try modelContext.fetch(FetchDescriptor<Asset>()).map {
             let semantic = semanticByAsset[$0.id]
             return CanonicalValue(kind: .asset, stableID: try stableKey(kind: .asset, id: $0.id),
@@ -348,6 +361,7 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
                 dueAt: nil, timestamp: $0.createdAt)
         }
         values += functionalRelationshipValues
+        values += assuranceValues
         if includeAccountability {
             var rolesByParty: [UUID: Set<String>] = [:]
             let roleRows = try modelContext.fetch(FetchDescriptor<SitePartyRoleEventRow>())
@@ -586,6 +600,55 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         return values
     }
 
+    /// Reads only current assurance-manifest heads. The index contains typed
+    /// audience/disposition/limitation/version metadata; it never contains
+    /// claim text, evidence identifiers/digests, media/content, or actor data.
+    func assuranceSearchValues() throws -> [CanonicalValue] {
+        let expectedWorkspace = WorkspaceID(rawValue: workspaceID)
+        let manifests = try modelContext.fetch(FetchDescriptor<AssuranceManifestRow>())
+            .filter { $0.workspaceID == workspaceID }
+            .map { try $0.value() }
+        let heads = try authorityCriterionUniqueHeadsV1(
+            values: manifests,
+            expectedWorkspace: expectedWorkspace,
+            id: { $0.manifestID },
+            workspace: { $0.workspaceID },
+            predecessor: { $0.supersedesManifestID },
+            group: { "\($0.snapshotSHA256):\($0.audience.rawValue):\($0.projectionVersion)" }
+        )
+        return try heads.sorted {
+            $0.manifestID.uuidString.lowercased() < $1.manifestID.uuidString.lowercased()
+        }.map { manifest in
+            try manifest.validate()
+            for link in manifest.includedLinks + manifest.excludedLinks {
+                try link.validate(visibility: link.visibility)
+            }
+            let limitationValues = Set(manifest.excludedLinks.map { $0.decision.limitation.rawValue })
+            let limitationSummary = limitationValues.isEmpty
+                ? EvidenceLimitationV1.none.rawValue
+                : limitationValues.sorted().joined(separator: " ")
+            let dispositionValues = Set((manifest.includedLinks.map {
+                EvidenceInclusionDispositionV1.included.rawValue
+            } + manifest.excludedLinks.map {
+                EvidenceInclusionDispositionV1.excluded.rawValue
+            }))
+            return CanonicalValue(
+                kind: .report,
+                stableID: "assurance-\(manifest.manifestID.uuidString.lowercased())",
+                display: "Evidence assurance",
+                summary: "Evidence assurance",
+                breadcrumb: [],
+                status: "provisional",
+                dueAt: nil,
+                timestamp: manifest.recordedAt,
+                assuranceAudienceSummary: manifest.audience.rawValue,
+                assuranceDispositionSummary: dispositionValues.sorted().joined(separator: " "),
+                assuranceLimitationSummary: limitationSummary,
+                assuranceProjectionVersionSummary: manifest.projectionVersion
+            )
+        }
+    }
+
     /// Builds only exact activity-bound summaries. Licensed content, clause/raw
     /// locators, external locator values, and derived facts without an explicit
     /// activity reference are intentionally excluded.
@@ -741,8 +804,17 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
                 ].filter { !$0.1.isEmpty }
             }
         case .report:
-            fields = [("report_identifier", value.stableID), ("report_summary", value.summary),
-                      ("status", value.status)]
+            if includeAssurance, value.stableID.hasPrefix("assurance-") {
+                fields = [
+                    ("assurance_audience", value.assuranceAudienceSummary),
+                    ("assurance_disposition", value.assuranceDispositionSummary),
+                    ("assurance_limitation", value.assuranceLimitationSummary),
+                    ("assurance_projection_version", value.assuranceProjectionVersionSummary),
+                ].filter { !$0.1.isEmpty }
+            } else {
+                fields = [("report_identifier", value.stableID), ("report_summary", value.summary),
+                          ("status", value.status)]
+            }
         case .party:
             fields = [("party_identifier", value.stableID), ("party_label", value.display),
                       ("party_role", value.roleSummary), ("status", value.status)]
@@ -846,16 +918,33 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         )
     }
 
-    static func makeFunctionalRelationshipsRegistry(
+    static func makeEvidenceAssuranceRegistry(
         includeAccountability: Bool = false,
         includeAssetSemantics: Bool = false,
-        includeAuthorityCriterion: Bool = false
+        includeAuthorityCriterion: Bool = false,
+        includeFunctionalRelationships: Bool = false
     ) throws -> SearchableFieldRegistryV1 {
         try makeExtendedRegistry(
             includeAccountability: includeAccountability,
             includeAssetSemantics: includeAssetSemantics,
             includeAuthorityCriterion: includeAuthorityCriterion,
-            includeFunctionalRelationships: true
+            includeFunctionalRelationships: includeFunctionalRelationships,
+            includeAssurance: true
+        )
+    }
+
+    static func makeFunctionalRelationshipsRegistry(
+        includeAccountability: Bool = false,
+        includeAssetSemantics: Bool = false,
+        includeAuthorityCriterion: Bool = false,
+        includeAssurance: Bool = false
+    ) throws -> SearchableFieldRegistryV1 {
+        try makeExtendedRegistry(
+            includeAccountability: includeAccountability,
+            includeAssetSemantics: includeAssetSemantics,
+            includeAuthorityCriterion: includeAuthorityCriterion,
+            includeFunctionalRelationships: true,
+            includeAssurance: includeAssurance
         )
     }
 
@@ -863,7 +952,8 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         includeAccountability: Bool,
         includeAssetSemantics: Bool,
         includeAuthorityCriterion: Bool,
-        includeFunctionalRelationships: Bool = false
+        includeFunctionalRelationships: Bool = false,
+        includeAssurance: Bool = false
     ) throws -> SearchableFieldRegistryV1 {
         var fields = try (includeAccountability ? makeAccountabilityRegistry() : makeRegistry()).fields
         func append(_ id: String, _ kind: SearchSourceKindV1) throws {
@@ -885,6 +975,11 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         if includeFunctionalRelationships {
             for id in SearchFunctionalRelationshipsPersistencePolicyV1.fieldIDs {
                 try append(id, .asset)
+            }
+        }
+        if includeAssurance {
+            for id in SearchEvidenceAssurancePersistencePolicyV1.fieldIDs {
+                try append(id, .report)
             }
         }
         return try SearchableFieldRegistryV1(fields: fields)
@@ -911,7 +1006,7 @@ actor SearchIndexRebuildCoordinatorV1 {
     static let pageSize = 250
     static let maximumCanonicalRecords = SearchContractLimitsV1.maximumCanonicalRecords
     static let maximumProjectionRowsPerPage = pageSize
-        * SearchContractLimitsV1.exactSearchableFieldCount
+        * SearchContractLimitsV1.maximumSearchableFieldCount
 
     private let store: LocalSearchIndexStoreV1
     private let source: any SearchCanonicalProjectionSourceV1
@@ -1031,7 +1126,7 @@ actor SearchIndexRebuildCoordinatorV1 {
                 throw SearchIndexRebuildFailureV1.invalidPage
             }
             let projectionRowCapacity = Self.maximumCanonicalRecords
-                * SearchContractLimitsV1.exactSearchableFieldCount
+                * registry.fields.count
             if records.count + page.records.count > projectionRowCapacity {
                 throw SearchIndexRebuildFailureV1.recordLimitExceeded
             }

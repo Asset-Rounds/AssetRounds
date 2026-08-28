@@ -81,6 +81,10 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
     case derivedFactProvenance(id: UUID, concurrencyIdentity: WorkspaceEntityIdentityV1, revision: UInt64, semanticSHA256: String)
     case functionalRelationshipTypeDescriptor(id: UUID, concurrencyIdentity: WorkspaceEntityIdentityV1, revision: UInt64, semanticSHA256: String)
     case assetFunctionalRelationshipEvent(id: UUID, relationshipID: UUID, concurrencyIdentity: WorkspaceEntityIdentityV1, revision: UInt64, semanticSHA256: String)
+    case evidenceVisibility(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case claimEvidenceLink(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case assuranceManifest(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case attestation(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case workflowRecord(id: UUID, revision: UInt64, semanticSHA256: String)
     case evidenceFile(id: UUID, revision: UInt64, semanticSHA256: String)
     case issue(id: UUID, revision: UInt64, semanticSHA256: String)
@@ -115,6 +119,10 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
             case let .derivedFactProvenance(id, _, _, _): return try .init(kind: .derivedFactProvenance, id: id)
             case let .functionalRelationshipTypeDescriptor(id, _, _, _): return try .init(kind: .functionalRelationshipTypeDescriptor, id: id)
             case let .assetFunctionalRelationshipEvent(id, _, _, _, _): return try .init(kind: .assetFunctionalRelationshipEvent, id: id)
+            case let .evidenceVisibility(id,_,_,_):return try .init(kind:.evidenceVisibility,id:id)
+            case let .claimEvidenceLink(id,_,_,_):return try .init(kind:.claimEvidenceLink,id:id)
+            case let .assuranceManifest(id,_,_,_):return try .init(kind:.assuranceManifest,id:id)
+            case let .attestation(id,_,_,_):return try .init(kind:.attestation,id:id)
             case let .workflowRecord(id, _, _): return try .init(kind: .workflowRecord, id: id)
             case let .evidenceFile(id, _, _): return try .init(kind: .evidenceFile, id: id)
             case let .issue(id, _, _): return try .init(kind: .issue, id: id)
@@ -141,6 +149,8 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
              let .derivedFactProvenance(_, _, _, value),
              let .functionalRelationshipTypeDescriptor(_, _, _, value),
              let .assetFunctionalRelationshipEvent(_, _, _, _, value),
+             let .evidenceVisibility(_,_,_,value),let .claimEvidenceLink(_,_,_,value),
+             let .assuranceManifest(_,_,_,value),let .attestation(_,_,_,value),
              let .workflowRecord(_, _, value),
              let .evidenceFile(_, _, value), let .issue(_, _, value), let .packet(_, _, value),
              let .report(_, _, value), let .deletionLedgerEntry(_, _, value),
@@ -173,6 +183,10 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
                 guard value.kind == .functionalRelationshipTypeDescriptor else { throw WorkspaceMutationFailureV1.invalidReceipt }; return value
             case let .assetFunctionalRelationshipEvent(_, _, value, _, _):
                 guard value.kind == .assetFunctionalRelationshipEvent else { throw WorkspaceMutationFailureV1.invalidReceipt }; return value
+            case let .evidenceVisibility(_,value,_,_):guard value.kind == .evidenceVisibility else{throw WorkspaceMutationFailureV1.invalidReceipt};return value
+            case let .claimEvidenceLink(_,value,_,_):guard value.kind == .claimEvidenceLink else{throw WorkspaceMutationFailureV1.invalidReceipt};return value
+            case let .assuranceManifest(_,value,_,_):guard value.kind == .assuranceManifest else{throw WorkspaceMutationFailureV1.invalidReceipt};return value
+            case let .attestation(_,value,_,_):guard value.kind == .attestation else{throw WorkspaceMutationFailureV1.invalidReceipt};return value
             default:
                 return try identity
             }
@@ -195,6 +209,8 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
              let .derivedFactProvenance(_, _, value, _),
              let .functionalRelationshipTypeDescriptor(_, _, value, _),
              let .assetFunctionalRelationshipEvent(_, _, _, value, _),
+             let .evidenceVisibility(_,_,value,_),let .claimEvidenceLink(_,_,value,_),
+             let .assuranceManifest(_,_,value,_),let .attestation(_,_,value,_),
              let .workflowRecord(_, value, _), let .evidenceFile(_, value, _),
              let .issue(_, value, _), let .packet(_, value, _),
              let .report(_, value, _), let .deletionLedgerEntry(_, value, _),
@@ -487,6 +503,10 @@ extension FunctionalRelationshipMutationPayloadV1 {
     }
 }
 
+extension EvidenceAssuranceMutationPayloadV1 {
+    var mutationPostImage:MutationPostImageV1 { get throws { let c=try predecessorIdentity ?? affectedIdentity;switch self{case let .appendVisibility(v),let .supersedeVisibility(v):.evidenceVisibility(id:v.visibilityID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.visibilitySHA256);case let .appendLink(v),let .supersedeLink(v):.claimEvidenceLink(id:v.linkID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.linkSHA256);case let .appendManifest(v,_),let .supersedeManifest(v,_):.assuranceManifest(id:v.manifestID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.manifestSHA256);case let .recordAttestation(v,_),let .supersedeAttestation(v,_),let .voidAttestation(v,_):.attestation(id:v.attestationID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.attestationSHA256)} } }
+}
+
 /// Typed C40 receipt binding the journal-owned receipt to the exact canonical
 /// authority/criterion post-image. It does not introduce a second receipt
 /// writer or infer authority meaning from the persisted scalar fields.
@@ -679,6 +699,12 @@ struct FunctionalRelationshipMutationReceiptV1: Codable, Equatable, Sendable {
         let affectedIdentity: WorkspaceEntityIdentityV1; let predecessorIdentity: WorkspaceEntityIdentityV1?
         let concurrencyIdentity: WorkspaceEntityIdentityV1; let postImageSHA256: String
     }
+}
+
+struct EvidenceAssuranceMutationReceiptV1:Codable,Equatable,Sendable{
+    let mutationSHA256:String;let mutationReceipt:MutationReceiptV1;let affectedIdentity:WorkspaceEntityIdentityV1;let predecessorIdentity:WorkspaceEntityIdentityV1?;let concurrencyIdentity:WorkspaceEntityIdentityV1;let postImageSHA256:String
+    init(mutation:EvidenceAssuranceMutationV1,mutationReceipt:MutationReceiptV1)throws{try mutation.validate();try mutationReceipt.validate();let a=try mutation.affectedIdentity;let p=try mutation.postImage.predecessorIdentity;let c=try mutation.concurrencyIdentity;let image=try mutation.postImage.mutationPostImage;guard mutationReceipt.mutationID==mutation.mutationID,mutationReceipt.identity.workspaceID==mutation.workspaceID,mutationReceipt.commandBodySHA256==(try WorkspaceMutationCanonicalV1.sha256(WorkspaceCommandV1.applyEvidenceAssurance(mutation))),mutationReceipt.expectedRevision.entityRevisions.first(where:{$0.identity==c})?.revision==mutation.expectedRevision,mutationReceipt.resultingRevision.entityRevisions.first(where:{$0.identity==a})?.revision==mutation.postImage.revision,mutationReceipt.postImages==[image]else{throw WorkspaceMutationFailureV1.invalidReceipt};mutationSHA256=try mutation.canonicalSHA256();self.mutationReceipt=mutationReceipt;affectedIdentity=a;predecessorIdentity=p;concurrencyIdentity=c;postImageSHA256=mutation.postImage.semanticSHA256}
+    func validate()throws{try mutationReceipt.validate();guard MutationEnvelopeV1.isSHA256(mutationSHA256),mutationReceipt.postImages.count==1,let image=mutationReceipt.postImages.first,(try image.identity)==affectedIdentity,(try image.concurrencyIdentity)==concurrencyIdentity,(predecessorIdentity ?? affectedIdentity)==concurrencyIdentity,image.semanticSHA256==postImageSHA256 else{throw WorkspaceMutationFailureV1.invalidReceipt}}
 }
 
 struct MutationHistoryReceiptRecordV1: Codable, Equatable, Sendable {

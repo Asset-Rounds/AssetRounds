@@ -842,3 +842,17 @@ extension S6_1DeletionGraphTests {
         try preview.validate()
     }
 }
+
+extension S6_1DeletionGraphTests {
+    func testV23P03C13DeletionPreviewKeepsAssuranceProjectionNonPersistent() throws {
+        let fixture = try C13EvidenceAssuranceTestSupportV1.makeFixture(seed: 51_610)
+        let preview = fixture.customerPreview
+
+        try preview.validate()
+        XCTAssertEqual(preview.includedLinks.count, 1)
+        XCTAssertEqual(preview.excludedLinks.count, 1)
+        XCTAssertTrue(preview.excludedLinks.allSatisfy { $0.decision.disposition == .excluded })
+        XCTAssertFalse(preview.includedLinks.contains { $0.evidenceID == "evidence.internal-canary" })
+        XCTAssertEqual(preview.snapshotSHA256, fixture.customerManifest.snapshotSHA256)
+    }
+}

@@ -13,6 +13,17 @@ enum FunctionalRelationshipEraseAllPolicyV1 {
     }
 }
 
+enum EvidenceAssuranceEraseAllPolicyV1 {
+    static func validatePublishedEmptyGeneration(_ context: ModelContext) throws {
+        guard try context.fetchCount(FetchDescriptor<EvidenceVisibilityRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<ClaimEvidenceLinkRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<AssuranceManifestRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<AttestationRow>()) == 0 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+}
+
 enum EraseAllServiceError: Error, Equatable {
     case contextHasChanges
     case invalidAuthority
@@ -1172,6 +1183,9 @@ private extension EraseAllService {
               tree.files.isSubset(of: allowedFiles) else {
             throw EraseAllServiceError.invalidAuthority
         }
+        try EvidenceAssuranceEraseAllPolicyV1.validatePublishedEmptyGeneration(
+            session.modelContext
+        )
         if let identity {
             let history = try MutationJournalStoreV1(
                 modelContext: session.modelContext,

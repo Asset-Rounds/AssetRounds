@@ -273,6 +273,7 @@ private extension ReplacementRestoreRule {
         }
 
         let result = V4BackupRecordsV1(
+            evidenceAssurance: records.evidenceAssurance,
             functionalRelationships: records.functionalRelationships,
             authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
             assetCompositionEdges: records.assetCompositionEdges,
@@ -309,6 +310,7 @@ private extension ReplacementRestoreRule {
         with packets: [V4BackupPacketDTO]
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            evidenceAssurance: records.evidenceAssurance,
             functionalRelationships: records.functionalRelationships,
             authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
             assetCompositionEdges: records.assetCompositionEdges,
@@ -338,6 +340,7 @@ private extension ReplacementRestoreRule {
         with mutationHistory: MutationHistorySnapshotV1?
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            evidenceAssurance: records.evidenceAssurance,
             functionalRelationships: records.functionalRelationships,
             authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
             assetCompositionEdges: records.assetCompositionEdges,
@@ -369,6 +372,7 @@ private extension ReplacementRestoreRule {
         with requirementAssurance: [V8BackupRequirementAssuranceRecordV1]
     ) throws -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            evidenceAssurance: records.evidenceAssurance,
             functionalRelationships: records.functionalRelationships,
             authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
             assetCompositionEdges: records.assetCompositionEdges,
@@ -554,7 +558,8 @@ private extension ReplacementRestoreRule {
                 || records.recordsSchemaVersion == 8
                 || records.recordsSchemaVersion == 9
                 || records.recordsSchemaVersion == 10
-                || records.recordsSchemaVersion == 11 else {
+                || records.recordsSchemaVersion == 11
+                || records.recordsSchemaVersion == 12 else {
             return records.locationNodes.isEmpty
                 && records.assetPlacementEvents.isEmpty
                 && records.assetCompositionEdges.isEmpty

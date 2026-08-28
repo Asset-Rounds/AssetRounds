@@ -1454,3 +1454,21 @@ extension V9_03MigrationRecoveryTests {
         XCTAssertEqual(try FunctionalRelationshipCanonicalCodecV1.encode(decoded), encoded)
     }
 }
+
+extension V9_03MigrationRecoveryTests {
+    func testV23P03C13V12ToV13CopyOnWriteRowsRemainCanonical() throws {
+        let fixture = try C13EvidenceAssuranceTestSupportV1.makeFixture(seed: 51_903)
+        let rows: [(Data, Data)] = [
+            (try EvidenceAssuranceCanonicalCodecV1.encode(fixture.routineVisibility), try EvidenceAssuranceCanonicalCodecV1.encode(try EvidenceVisibilityRow(fixture.routineVisibility).value())),
+            (try EvidenceAssuranceCanonicalCodecV1.encode(fixture.customerLink), try EvidenceAssuranceCanonicalCodecV1.encode(try ClaimEvidenceLinkRow(fixture.customerLink).value())),
+            (try EvidenceAssuranceCanonicalCodecV1.encode(fixture.customerManifest), try EvidenceAssuranceCanonicalCodecV1.encode(try AssuranceManifestRow(fixture.customerManifest).value())),
+            (try EvidenceAssuranceCanonicalCodecV1.encode(fixture.customerAttestation), try EvidenceAssuranceCanonicalCodecV1.encode(try AttestationRow(fixture.customerAttestation).value()))
+        ]
+
+        XCTAssertTrue(rows.allSatisfy { $0.0 == $0.1 })
+        XCTAssertEqual(PersistentSchemaV13.models.count, PersistentSchemaV12.models.count + 4)
+        XCTAssertEqual(PersistentSchemaReleaseV1.v13.predecessorVersionIdentifier, PersistentSchemaV12.versionIdentifier)
+        XCTAssertEqual(fixture.customerPreview.includedLinks.count, 1)
+        XCTAssertEqual(fixture.customerPreview.excludedLinks.count, 1)
+    }
+}

@@ -349,6 +349,43 @@ struct RequirementEvaluationV1: Codable, Equatable, Hashable, Comparable, Sendab
     static func < (lhs: Self, rhs: Self) -> Bool { lhs.requirementID < rhs.requirementID }
 }
 
+extension RequirementEvaluationV1 {
+    /// C13 binds the exact evaluated C40 claim without changing its result,
+    /// reasons, policy digest, or criterion semantics.
+    var assuranceClaimID: String {
+        "requirement:\(requirementID):\(requirementVersion):\(evaluatedRevision)"
+    }
+}
+
+extension RequirementEvidenceReferenceV1 {
+    func assuranceLink(
+        linkID: UUID,
+        workspaceID: WorkspaceID,
+        claimID: String,
+        criterionID: String,
+        evidenceSHA256: String,
+        visibility: EvidenceVisibilityV1,
+        audience: EvidenceAudienceV1,
+        revision: UInt64 = 1,
+        mutationID: MutationIDV1
+    ) throws -> ClaimEvidenceLinkV1 {
+        try ClaimEvidenceLinkV1(
+            linkID: linkID,
+            workspaceID: workspaceID,
+            claimID: claimID,
+            criterionID: criterionID,
+            evidenceID: referenceID,
+            evidenceRevision: evidenceRevision,
+            evidenceSHA256: evidenceSHA256,
+            visibility: visibility,
+            audience: audience,
+            limitation: state == .invalid ? .evidenceInvalid : nil,
+            revision: revision,
+            mutationID: mutationID
+        )
+    }
+}
+
 enum CompletionDispositionV1: String, Codable, CaseIterable, Hashable, Sendable {
     case permitted = "PERMITTED"
     case blocked = "BLOCKED"

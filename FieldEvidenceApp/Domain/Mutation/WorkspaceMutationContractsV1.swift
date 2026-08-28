@@ -46,6 +46,10 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case derivedFactProvenance
     case functionalRelationshipTypeDescriptor
     case assetFunctionalRelationshipEvent
+    case evidenceVisibility
+    case claimEvidenceLink
+    case assuranceManifest
+    case attestation
     case workflowRecord
     case evidenceFile
     case issue
@@ -1184,6 +1188,34 @@ struct FunctionalRelationshipMutationV1: Codable, Equatable, Sendable {
     }
 }
 
+enum EvidenceAssuranceMutationPayloadV1: Codable, Equatable, Sendable {
+    case appendVisibility(EvidenceVisibilityV1)
+    case supersedeVisibility(EvidenceVisibilityV1)
+    case appendLink(ClaimEvidenceLinkV1)
+    case supersedeLink(ClaimEvidenceLinkV1)
+    case appendManifest(manifest: AssuranceManifestV1, preview: AssuranceProjectionPreviewV1)
+    case supersedeManifest(manifest: AssuranceManifestV1, preview: AssuranceProjectionPreviewV1)
+    case recordAttestation(value: AttestationV1, manifest: AssuranceManifestV1)
+    case supersedeAttestation(value: AttestationV1, manifest: AssuranceManifestV1)
+    case voidAttestation(value: AttestationV1, manifest: AssuranceManifestV1)
+
+    var workspaceID: WorkspaceID { switch self { case let .appendVisibility(v),let .supersedeVisibility(v):v.workspaceID;case let .appendLink(v),let .supersedeLink(v):v.workspaceID;case let .appendManifest(v,_),let .supersedeManifest(v,_):v.workspaceID;case let .recordAttestation(v,_),let .supersedeAttestation(v,_),let .voidAttestation(v,_):v.workspaceID } }
+    var mutationID: MutationIDV1 { switch self { case let .appendVisibility(v),let .supersedeVisibility(v):v.mutationID;case let .appendLink(v),let .supersedeLink(v):v.mutationID;case let .appendManifest(v,_),let .supersedeManifest(v,_):v.mutationID;case let .recordAttestation(v,_),let .supersedeAttestation(v,_),let .voidAttestation(v,_):v.mutationID } }
+    var revision: UInt64 { switch self { case let .appendVisibility(v),let .supersedeVisibility(v):v.revision;case let .appendLink(v),let .supersedeLink(v):v.revision;case let .appendManifest(v,_),let .supersedeManifest(v,_):v.revision;case let .recordAttestation(v,_),let .supersedeAttestation(v,_),let .voidAttestation(v,_):v.revision } }
+    var semanticSHA256:String { switch self {case let .appendVisibility(v),let .supersedeVisibility(v):v.visibilitySHA256;case let .appendLink(v),let .supersedeLink(v):v.linkSHA256;case let .appendManifest(v,_),let .supersedeManifest(v,_):v.manifestSHA256;case let .recordAttestation(v,_),let .supersedeAttestation(v,_),let .voidAttestation(v,_):v.attestationSHA256} }
+    var affectedIdentity:WorkspaceEntityIdentityV1 { get throws { switch self {case let .appendVisibility(v),let .supersedeVisibility(v):try .init(kind:.evidenceVisibility,id:v.visibilityID);case let .appendLink(v),let .supersedeLink(v):try .init(kind:.claimEvidenceLink,id:v.linkID);case let .appendManifest(v,_),let .supersedeManifest(v,_):try .init(kind:.assuranceManifest,id:v.manifestID);case let .recordAttestation(v,_),let .supersedeAttestation(v,_),let .voidAttestation(v,_):try .init(kind:.attestation,id:v.attestationID)} } }
+    var predecessorIdentity:WorkspaceEntityIdentityV1? { get throws { switch self {case .appendVisibility,.appendLink,.appendManifest,.recordAttestation:nil;case let .supersedeVisibility(v):try v.supersedesVisibilityID.map{try .init(kind:.evidenceVisibility,id:$0)};case let .supersedeLink(v):try v.supersedesLinkID.map{try .init(kind:.claimEvidenceLink,id:$0)};case let .supersedeManifest(v,_):try v.supersedesManifestID.map{try .init(kind:.assuranceManifest,id:$0)};case let .supersedeAttestation(v,_),let .voidAttestation(v,_):try v.supersedesAttestationID.map{try .init(kind:.attestation,id:$0)}} } }
+    func validate() throws { switch self {case let .appendVisibility(v):try v.validate();guard v.supersedesVisibilityID==nil else{throw WorkspaceMutationContractFailureV1.invalidPlan};case let .supersedeVisibility(v):try v.validate();guard v.supersedesVisibilityID != nil else{throw WorkspaceMutationContractFailureV1.invalidPlan};case let .appendLink(v):try v.validate();guard v.supersedesLinkID==nil else{throw WorkspaceMutationContractFailureV1.invalidPlan};case let .supersedeLink(v):try v.validate();guard v.supersedesLinkID != nil else{throw WorkspaceMutationContractFailureV1.invalidPlan};case let .appendManifest(v,p):try v.validateFresh(preview:p);guard v.supersedesManifestID==nil else{throw WorkspaceMutationContractFailureV1.invalidPlan};case let .supersedeManifest(v,p):try v.validateFresh(preview:p);guard v.supersedesManifestID != nil else{throw WorkspaceMutationContractFailureV1.invalidPlan};case let .recordAttestation(v,m):try v.validate(manifest:m);guard v.action == .recorded else{throw WorkspaceMutationContractFailureV1.invalidPlan};case let .supersedeAttestation(v,m):try v.validate(manifest:m);guard v.action == .superseded else{throw WorkspaceMutationContractFailureV1.invalidPlan};case let .voidAttestation(v,m):try v.validate(manifest:m);guard v.action == .voided else{throw WorkspaceMutationContractFailureV1.invalidPlan}} }
+}
+
+struct EvidenceAssuranceMutationV1: Codable, Equatable, Sendable {
+    static let schemaVersion=1;let schemaVersion:Int;let workspaceID:WorkspaceID;let expectedRevision:UInt64;let mutationID:MutationIDV1;let postImage:EvidenceAssuranceMutationPayloadV1
+    init(workspaceID:WorkspaceID,expectedRevision:UInt64,mutationID:MutationIDV1,postImage:EvidenceAssuranceMutationPayloadV1)throws{schemaVersion=Self.schemaVersion;self.workspaceID=workspaceID;self.expectedRevision=expectedRevision;self.mutationID=mutationID;self.postImage=postImage;try validate()}
+    func validate()throws{try postImage.validate();let predecessor=try postImage.predecessorIdentity;guard schemaVersion==Self.schemaVersion,workspaceID==postImage.workspaceID,mutationID==postImage.mutationID,(predecessor == nil ? expectedRevision==0 && postImage.revision==1 : expectedRevision>0 && expectedRevision<UInt64.max && postImage.revision==expectedRevision+1),MutationEnvelopeV1.isSHA256(postImage.semanticSHA256)else{throw WorkspaceMutationContractFailureV1.invalidPlan}}
+    var affectedIdentity:WorkspaceEntityIdentityV1{get throws{try postImage.affectedIdentity}};var concurrencyIdentity:WorkspaceEntityIdentityV1{get throws{try postImage.predecessorIdentity ?? postImage.affectedIdentity}}
+    func canonicalData()throws->Data{try validate();return try WorkspaceMutationCanonicalV1.data(self)};func canonicalSHA256()throws->String{try validate();return try WorkspaceMutationCanonicalV1.sha256(self)}
+}
+
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
     case createCheckDraft(CheckDraftMutationV1)
@@ -1206,6 +1238,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyAssetSemantics(AssetSemanticsMutationV1)
     case applyAuthorityCriterion(AuthorityCriterionMutationV1)
     case applyFunctionalRelationship(FunctionalRelationshipMutationV1)
+    case applyEvidenceAssurance(EvidenceAssuranceMutationV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -1230,6 +1263,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyAssetSemantics: .applyAssetSemantics
         case .applyAuthorityCriterion: .applyAuthorityCriterion
         case .applyFunctionalRelationship: .applyFunctionalRelationship
+        case .applyEvidenceAssurance: .applyEvidenceAssurance
         }
     }
 }
@@ -1256,6 +1290,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyAssetSemantics = "apply_asset_semantics"
     case applyAuthorityCriterion = "apply_authority_criterion"
     case applyFunctionalRelationship = "apply_functional_relationship"
+    case applyEvidenceAssurance = "apply_evidence_assurance"
 }
 
 extension WorkspaceCommandV1 {
@@ -1994,6 +2029,7 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind: .applyAssetSemantics, disposition: .compensatable, stableReason: "append_asset_semantic_pair_only"),
         .init(commandKind: .applyAuthorityCriterion, disposition: .compensatable, stableReason: "append_authority_criterion_successor_only"),
         .init(commandKind: .applyFunctionalRelationship, disposition: .compensatable, stableReason: "append_functional_relationship_successor_only"),
+        .init(commandKind: .applyEvidenceAssurance, disposition: .compensatable, stableReason: "append_evidence_assurance_successor_only"),
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {

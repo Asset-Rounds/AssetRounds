@@ -324,7 +324,19 @@ struct V4BackupReportDTO: Codable, Equatable, Identifiable, Sendable {
     let replacesReportID: UUID?
 }
 
+struct V13BackupEvidenceAssuranceRecordV1: Codable, Equatable, Sendable {
+    enum Kind: String, CaseIterable, Codable, Sendable {
+        case visibility, evidenceLink, manifest, attestation
+    }
+    let kind: Kind
+    let id: UUID
+    let workspaceID: UUID
+    let revision: UInt64
+    let canonicalData: Data
+}
+
 struct V4BackupRecordsV1: Codable, Equatable, Sendable {
+    let evidenceAssurance: [V13BackupEvidenceAssuranceRecordV1]
     let functionalRelationships: [V12BackupFunctionalRelationshipRecordV1]
     let authorityCriterion: [V11BackupAuthorityCriterionRecordV1]
     let assetSemantics: [V10BackupAssetSemanticRecordV1]
@@ -349,6 +361,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     let workflowRecords: [V4BackupWorkflowRecordDTO]
 
     init(
+        evidenceAssurance: [V13BackupEvidenceAssuranceRecordV1] = [],
         functionalRelationships: [V12BackupFunctionalRelationshipRecordV1] = [],
         authorityCriterion: [V11BackupAuthorityCriterionRecordV1] = [],
         assetSemantics: [V10BackupAssetSemanticRecordV1] = [],
@@ -372,6 +385,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         sites: [V4BackupSiteDTO],
         workflowRecords: [V4BackupWorkflowRecordDTO]
     ) {
+        self.evidenceAssurance = evidenceAssurance
         self.functionalRelationships = functionalRelationships
         self.authorityCriterion = authorityCriterion
         self.assetSemantics = assetSemantics
@@ -397,7 +411,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case functionalRelationships, authorityCriterion, assetSemantics, assetCompositionEdges, assetCompositionEvents, assetPlacementEvents, assets
+        case evidenceAssurance, functionalRelationships, authorityCriterion, assetSemantics, assetCompositionEdges, assetCompositionEvents, assetPlacementEvents, assets
         case deletionLedger, evidenceFiles, issues, locationHierarchyEvents
         case locationMigrationReceipts, locationNodes, mutationHistory, packets, partyAccountability
         case recordsSchemaVersion, reports, requirementAssurance, savedSmartViews, sites
@@ -408,6 +422,9 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         let version = try values.decode(Int.self, forKey: .recordsSchemaVersion)
         self.init(
+            evidenceAssurance: try values.decodeIfPresent(
+                [V13BackupEvidenceAssuranceRecordV1].self, forKey: .evidenceAssurance
+            ) ?? [],
             functionalRelationships: try values.decodeIfPresent(
                 [V12BackupFunctionalRelationshipRecordV1].self, forKey: .functionalRelationships
             ) ?? [],

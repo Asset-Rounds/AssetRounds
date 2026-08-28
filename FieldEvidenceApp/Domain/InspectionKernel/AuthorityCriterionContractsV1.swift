@@ -1298,3 +1298,16 @@ enum AuthorityCriterionRegistryV1 {
         for value in aggregate.derivedFacts { try value.validate(); guard value.workspaceID == workspaceID else { throw AuthorityCriterionFailureV1.wrongWorkspace } }
     }
 }
+
+extension RequirementBasisBindingV1 {
+    /// Stable C40 criterion identity consumed by C13 assurance links. This is
+    /// a reference only and does not reinterpret the authority or criterion.
+    var assuranceCriterionID: String { criterionID }
+}
+
+extension FindingClassificationBindingV1 {
+    var assuranceCriterionID: String { criterionID }
+    var assuranceClaimID: String {
+        "finding:\(findingID.uuidString.lowercased()):classification:\(revision)"
+    }
+}

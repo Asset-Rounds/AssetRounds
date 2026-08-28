@@ -896,3 +896,33 @@ extension S6_6EraseRecoveryTests {
         try snapshot.validate()
     }
 }
+
+extension S6_6EraseRecoveryTests {
+    func testV23P03C13EraseRecoveryRetainsRecordedAndVoidedAttestationHistory() throws {
+        let fixture = try C13EvidenceAssuranceTestSupportV1.makeFixture(seed: 51_660)
+        let voided = try AttestationV1(
+            attestationID: C13EvidenceAssuranceTestSupportV1.id(51_661),
+            workspaceID: fixture.workspaceID,
+            purpose: fixture.customerAttestation.purpose,
+            scope: fixture.customerAttestation.scope,
+            manifest: fixture.customerManifest,
+            declaredActor: fixture.actor,
+            method: fixture.customerAttestation.method,
+            action: .voided,
+            occurredAt: C13EvidenceAssuranceTestSupportV1.fixedDate.addingTimeInterval(1),
+            recordedAt: C13EvidenceAssuranceTestSupportV1.fixedDate.addingTimeInterval(1),
+            supersedesAttestationID: fixture.customerAttestation.attestationID,
+            revision: 2,
+            mutationID: try C13EvidenceAssuranceTestSupportV1.mutation(51_662)
+        )
+        try voided.validateSuccessor(of: fixture.customerAttestation)
+        let row = try AttestationRow(voided)
+        let restored = try row.value()
+
+        XCTAssertEqual(fixture.customerAttestation.action, .recorded)
+        XCTAssertEqual(restored.action, .voided)
+        XCTAssertEqual(restored.supersedesAttestationID, fixture.customerAttestation.attestationID)
+        XCTAssertEqual(restored.revision, fixture.customerAttestation.revision + 1)
+        try restored.validate(manifest: fixture.customerManifest)
+    }
+}

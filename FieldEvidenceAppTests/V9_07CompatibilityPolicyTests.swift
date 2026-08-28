@@ -276,3 +276,22 @@ extension V9_07CompatibilityPolicyTests {
         try decoded.validate(sourceCatalog: fixture.sourceCatalog, targetCatalog: fixture.targetCatalog)
     }
 }
+
+extension V9_07CompatibilityPolicyTests {
+    func testV23P03C13CompatibilityCodecPreservesVisibilityAndFreshManifestBinding() throws {
+        let fixture = try C13EvidenceAssuranceTestSupportV1.makeFixture(seed: 51_907)
+        let visibilityBytes = try EvidenceAssuranceCanonicalCodecV1.encode(fixture.routineVisibility)
+        let decodedVisibility = try EvidenceAssuranceCanonicalCodecV1.decode(
+            EvidenceVisibilityV1.self, from: visibilityBytes
+        )
+        let manifestBytes = try EvidenceAssuranceCanonicalCodecV1.encode(fixture.customerManifest)
+        let decodedManifest = try EvidenceAssuranceCanonicalCodecV1.decode(
+            AssuranceManifestV1.self, from: manifestBytes
+        )
+
+        XCTAssertEqual(decodedVisibility, fixture.routineVisibility)
+        XCTAssertEqual(decodedManifest, fixture.customerManifest)
+        XCTAssertEqual(try EvidenceAssuranceCanonicalCodecV1.encode(decodedManifest), manifestBytes)
+        try decodedManifest.validateFresh(preview: fixture.customerPreview)
+    }
+}

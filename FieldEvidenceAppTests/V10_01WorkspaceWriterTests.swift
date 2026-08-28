@@ -664,3 +664,23 @@ extension V10_01WorkspaceWriterTests {
         try fixture.added.validate()
     }
 }
+
+extension V10_01WorkspaceWriterTests {
+    func testV23P03C13WriterCommandCarriesExpectedRevisionAndMutationIdentity() throws {
+        let fixture = try C13EvidenceAssuranceTestSupportV1.makeFixture(seed: 51_010)
+        let mutation = try EvidenceAssuranceMutationV1(
+            workspaceID: fixture.workspaceID,
+            expectedRevision: 0,
+            mutationID: fixture.customerLink.mutationID,
+            postImage: .appendLink(fixture.customerLink)
+        )
+
+        try mutation.validate()
+        XCTAssertEqual(mutation.workspaceID, fixture.workspaceID)
+        XCTAssertEqual(mutation.expectedRevision, 0)
+        XCTAssertEqual(mutation.mutationID, fixture.customerLink.mutationID)
+        XCTAssertEqual(try mutation.affectedIdentity.kind, .claimEvidenceLink)
+        XCTAssertEqual(try mutation.affectedIdentity.id, fixture.customerLink.linkID)
+        XCTAssertEqual(try mutation.concurrencyIdentity, try mutation.affectedIdentity)
+    }
+}

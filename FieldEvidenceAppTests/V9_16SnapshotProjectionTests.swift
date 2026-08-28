@@ -3,6 +3,92 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class V9_16SnapshotProjectionTests: XCTestCase {
+    func testV23P03C13PreviewManifestBindsVisibilityAndRejectsStaleInputs() throws {
+        let workspace = WorkspaceID(rawValue: UUID(uuidString: "00000000-0000-4000-8000-00000000c130")!)
+        let customerVisibility = try EvidenceVisibilityV1(
+            visibilityID: UUID(uuidString: "00000000-0000-4000-8000-00000000c131")!,
+            workspaceID: workspace,
+            sensitivity: .routine,
+            allowedAudiences: [.internalReview, .customerReport],
+            effectiveAt: Date(timeIntervalSince1970: 100),
+            mutationID: try MutationIDV1(
+                rawValue: UUID(uuidString: "00000000-0000-4000-8000-00000000c132")!
+            )
+        )
+        let internalVisibility = try EvidenceVisibilityV1(
+            visibilityID: UUID(uuidString: "00000000-0000-4000-8000-00000000c133")!,
+            workspaceID: workspace,
+            sensitivity: .routine,
+            allowedAudiences: [.internalReview],
+            effectiveAt: Date(timeIntervalSince1970: 100),
+            mutationID: try MutationIDV1(
+                rawValue: UUID(uuidString: "00000000-0000-4000-8000-00000000c134")!
+            )
+        )
+        let included = try ClaimEvidenceLinkV1(
+            linkID: UUID(uuidString: "00000000-0000-4000-8000-00000000c135")!,
+            workspaceID: workspace,
+            claimID: "claim-visible",
+            evidenceID: "evidence-visible",
+            evidenceRevision: 1,
+            evidenceSHA256: String(repeating: "a", count: 64),
+            visibility: customerVisibility,
+            audience: .customerReport,
+            mutationID: try MutationIDV1(
+                rawValue: UUID(uuidString: "00000000-0000-4000-8000-00000000c136")!
+            )
+        )
+        let excluded = try ClaimEvidenceLinkV1(
+            linkID: UUID(uuidString: "00000000-0000-4000-8000-00000000c137")!,
+            workspaceID: workspace,
+            claimID: "claim-internal",
+            evidenceID: "evidence-internal",
+            evidenceRevision: 1,
+            evidenceSHA256: String(repeating: "b", count: 64),
+            visibility: internalVisibility,
+            audience: .customerReport,
+            mutationID: try MutationIDV1(
+                rawValue: UUID(uuidString: "00000000-0000-4000-8000-00000000c138")!
+            )
+        )
+        let preview = try AssuranceProjectionPreviewV1(
+            previewID: UUID(uuidString: "00000000-0000-4000-8000-00000000c139")!,
+            workspaceID: workspace,
+            audience: .customerReport,
+            snapshotSHA256: String(repeating: "c", count: 64),
+            projectionVersion: "report-projection-v1",
+            links: [included, excluded],
+            createdAt: Date(timeIntervalSince1970: 101)
+        )
+        let manifest = try AssuranceManifestV1(
+            manifestID: UUID(uuidString: "00000000-0000-4000-8000-00000000c13a")!,
+            preview: preview,
+            recordedAt: Date(timeIntervalSince1970: 102),
+            mutationID: try MutationIDV1(
+                rawValue: UUID(uuidString: "00000000-0000-4000-8000-00000000c13b")!
+            )
+        )
+        let projection = try ReportEvidenceAssuranceProjectionV1(
+            preview: preview,
+            manifest: manifest,
+            visibilities: [internalVisibility, customerVisibility]
+        )
+        try projection.validate(
+            expectedSnapshotSHA256: String(repeating: "c", count: 64),
+            expectedProjectionVersion: "report-projection-v1",
+            expectedAudience: .customerReport
+        )
+        XCTAssertEqual(projection.omissionCount, 1)
+        XCTAssertEqual(projection.limitationCodes, [.audienceNotDeclared])
+        XCTAssertFalse(projection.publicationDisposition.isEmpty)
+
+        let bytes = try ReportEvidenceAssuranceCanonicalCodecV1.encode(projection)
+        XCTAssertEqual(try ReportEvidenceAssuranceCanonicalCodecV1.decode(bytes), projection)
+        XCTAssertThrowsError(
+            try projection.validate(expectedProjectionVersion: "stale-report-projection-v1")
+        )
+    }
+
     func testV23P03C41V6FunctionalRelationshipSnapshotIsRequiredAtTheTypeBoundary() {
         let keyPath: KeyPath<
             CompletedActivitySnapshotPayloadV6,

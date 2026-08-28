@@ -414,3 +414,20 @@ extension V9_06DeletionArchiveIntegrationTests {
         try snapshot.validate()
     }
 }
+
+extension V9_06DeletionArchiveIntegrationTests {
+    func testV23P03C13ArchiveRowsRetainManifestAndAttestationHistory() throws {
+        let fixture = try C13EvidenceAssuranceTestSupportV1.makeFixture(seed: 51_607)
+        let manifestRow = try AssuranceManifestRow(fixture.customerManifest)
+        let attestationRow = try AttestationRow(fixture.customerAttestation)
+        let restoredManifest = try manifestRow.value()
+        let restoredAttestation = try attestationRow.value()
+
+        XCTAssertEqual(restoredManifest.manifestID, fixture.customerManifest.manifestID)
+        XCTAssertEqual(restoredManifest.revision, 1)
+        XCTAssertEqual(restoredAttestation.action, .recorded)
+        XCTAssertEqual(restoredAttestation.supersedesAttestationID, nil)
+        XCTAssertEqual(restoredAttestation.manifestSHA256, restoredManifest.manifestSHA256)
+        try restoredAttestation.validate(manifest: restoredManifest)
+    }
+}

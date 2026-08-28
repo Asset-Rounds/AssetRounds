@@ -87,6 +87,77 @@ enum SearchFunctionalRelationshipsPersistencePolicyV1 {
     static func accepts(fieldID: String) -> Bool { fieldIDs.contains(fieldID) }
 }
 
+/// C13 search is an audience-safe status projection only. It may answer
+/// whether a report has included/omitted evidence and which typed limitation
+/// applies, but it never indexes claim text, evidence identifiers/digests,
+/// media/content, or actor/private detail.
+enum SearchEvidenceAssurancePersistencePolicyV1 {
+    static let semanticLabel = "EVIDENCE_ASSURANCE_SEARCH_PROJECTION_V1"
+    static let sourceKind = "REPORT"
+    static let fieldIDs = [
+        "assurance_audience",
+        "assurance_disposition",
+        "assurance_limitation",
+        "assurance_projection_version",
+    ]
+    static let indexesCurrentManifestHeadsOnly = true
+    static let excludesClaimAndEvidenceContent = true
+    static let excludesEvidenceIdentifiersAndDigests = true
+    static let excludesActorPrivateDetail = true
+    static let excludesInternalEvidence = true
+    static let acceptedProjectionVersionMarkers = [
+        "C13_EVIDENCE_ASSURANCE_V1",
+        "report-evidence-assurance-v1",
+    ]
+
+    static func accepts(fieldID: String) -> Bool { fieldIDs.contains(fieldID) }
+
+    static func acceptsMetadata(fieldID: String, tokens: [String], snippet: String?) -> Bool {
+        guard accepts(fieldID: fieldID), !tokens.isEmpty else { return false }
+        let allowed: Set<String>
+        switch fieldID {
+        case "assurance_audience":
+            allowed = Set(EvidenceAudienceV1.allCases.map { $0.rawValue.lowercased() })
+        case "assurance_disposition":
+            allowed = Set(EvidenceInclusionDispositionV1.allCases.map { $0.rawValue.lowercased() })
+        case "assurance_limitation":
+            allowed = Set(EvidenceLimitationV1.allCases.map { $0.rawValue.lowercased() })
+        case "assurance_projection_version":
+            guard tokens.allSatisfy(SearchContractValidationV1.isCanonicalSearchToken),
+                  tokens.count <= 8,
+                  let snippet,
+                  SearchContractValidationV1.validDisplayText(
+                      snippet, maximumBytes: SearchContractLimitsV1.maximumSnippetBytes
+                  ) else { return false }
+            let candidateTokens = normalizedMetadataTokens(snippet)
+            guard candidateTokens == tokens else { return false }
+            let candidateMarker = candidateTokens.joined(separator: " ")
+            return acceptedProjectionVersionMarkers.contains {
+                normalizedMetadataTokens($0).joined(separator: " ") == candidateMarker
+            }
+        default:
+            return false
+        }
+        let allowedTokens = Set(allowed.flatMap {
+            SearchContractValidationV1.normalizeSearchText($0)
+                .split { !CharacterSet.alphanumerics.contains($0) }
+                .map(String.init)
+        })
+        guard Set(tokens).isSubset(of: allowedTokens),
+              Set(tokens).count == tokens.count else { return false }
+        return snippet == nil || SearchContractValidationV1.validDisplayText(
+            snippet!, maximumBytes: SearchContractLimitsV1.maximumSnippetBytes
+        )
+    }
+
+    private static func normalizedMetadataTokens(_ value: String) -> [String] {
+        SearchContractValidationV1.normalizeSearchText(value)
+            .unicodeScalars
+            .split { !CharacterSet.alphanumerics.contains($0) }
+            .map(String.init)
+    }
+}
+
 typealias SearchFunctionalRelationshipPersistencePolicyV1 =
     SearchFunctionalRelationshipsPersistencePolicyV1
 

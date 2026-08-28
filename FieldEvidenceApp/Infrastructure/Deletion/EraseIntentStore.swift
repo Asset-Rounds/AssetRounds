@@ -9,6 +9,15 @@ enum FunctionalRelationshipEraseIntentStorePolicyV1 {
     }
 }
 
+enum EvidenceAssuranceEraseIntentStorePolicyV1 {
+    static func validate() throws {
+        guard EvidenceAssuranceEraseBoundaryV1.immutableHistoryClearedOnlyByWorkspaceErase,
+              EvidenceAssuranceEraseBoundaryV1.ordinaryDeletionIsZeroWrite else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+    }
+}
+
 enum EraseIntentStoreError: Error, Equatable {
     case invalidAuthority
     case invalidIntent

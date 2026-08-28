@@ -694,6 +694,270 @@
           }
         }
       }
+    },
+    "evidence.visibility.heading" : {
+      "comment" : "Heading for recorded evidence visibility facts.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Evidence visibility"
+          }
+        }
+      }
+    },
+    "evidence.visibility.audience" : {
+      "comment" : "Localized label for the declared evidence audience.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Audience"
+          }
+        }
+      }
+    },
+    "evidence.visibility.audience.internal_review" : {
+      "comment" : "Accessible text for the internal review audience.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Internal review"
+          }
+        }
+      }
+    },
+    "evidence.visibility.audience.customer_report" : {
+      "comment" : "Accessible text for the customer report audience.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Customer report"
+          }
+        }
+      }
+    },
+    "evidence.visibility.audience.external_collaborator" : {
+      "comment" : "Accessible text for the external collaborator audience.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "External collaborator"
+          }
+        }
+      }
+    },
+    "evidence.visibility.sensitivity" : {
+      "comment" : "Localized label for the recorded evidence sensitivity.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sensitivity"
+          }
+        }
+      }
+    },
+    "evidence.visibility.sensitivity.routine" : {
+      "comment" : "Accessible text for routine evidence sensitivity.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Routine"
+          }
+        }
+      }
+    },
+    "evidence.visibility.sensitivity.restricted" : {
+      "comment" : "Accessible text for restricted evidence sensitivity.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restricted"
+          }
+        }
+      }
+    },
+    "evidence.visibility.sensitivity.highly_restricted" : {
+      "comment" : "Accessible text for highly restricted evidence sensitivity.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Highly restricted"
+          }
+        }
+      }
+    },
+    "evidence.visibility.state.included" : {
+      "comment" : "Accessible text for evidence included in the audience projection.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Included"
+          }
+        }
+      }
+    },
+    "evidence.visibility.state.excluded" : {
+      "comment" : "Accessible text for evidence excluded from the audience projection.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Excluded"
+          }
+        }
+      }
+    },
+    "evidence.visibility.state.omitted" : {
+      "comment" : "Accessible text for evidence omitted from the audience projection.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Omitted"
+          }
+        }
+      }
+    },
+    "evidence.visibility.state.limitation" : {
+      "comment" : "Accessible text for a recorded visibility limitation.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limitation"
+          }
+        }
+      }
+    },
+    "evidence.visibility.state.unknown" : {
+      "comment" : "Accessible text for an unknown visibility value.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unknown"
+          }
+        }
+      }
+    },
+    "evidence.visibility.preview" : {
+      "comment" : "Localized label for the mutable evidence projection preview.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preview"
+          }
+        }
+      }
+    },
+    "evidence.visibility.preview.ready" : {
+      "comment" : "Accessible text for a preview matching its recorded source.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ready"
+          }
+        }
+      }
+    },
+    "evidence.visibility.preview.stale" : {
+      "comment" : "Accessible text for a preview that no longer matches its recorded source.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stale preview"
+          }
+        }
+      }
+    },
+    "evidence.visibility.manifest" : {
+      "comment" : "Localized label for the recorded claim and evidence manifest.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Assurance manifest"
+          }
+        }
+      }
+    },
+    "evidence.visibility.attestation" : {
+      "comment" : "Localized label for a purpose-bound local attestation record.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Attestation"
+          }
+        }
+      }
+    },
+    "evidence.visibility.attestation.purpose" : {
+      "comment" : "Accessible text for the recorded attestation purpose.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purpose"
+          }
+        }
+      }
+    },
+    "evidence.visibility.attestation.recorded" : {
+      "comment" : "Accessible text for an attestation record that is current.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recorded"
+          }
+        }
+      }
+    },
+    "evidence.visibility.attestation.superseded" : {
+      "comment" : "Accessible text for an attestation replaced by a later record.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Superseded"
+          }
+        }
+      }
+    },
+    "evidence.visibility.attestation.void" : {
+      "comment" : "Accessible text for an attestation marked void in the local record.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Void"
+          }
+        }
+      }
+    },
+    "evidence.visibility.next_step" : {
+      "comment" : "Actionable label for the next step accompanying a limited projection.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next step"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

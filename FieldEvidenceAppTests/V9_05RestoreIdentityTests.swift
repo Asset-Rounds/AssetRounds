@@ -886,3 +886,24 @@ extension V9_05RestoreIdentityTests {
         try restored.validate()
     }
 }
+
+extension V9_05RestoreIdentityTests {
+    func testV23P03C13RestoreRebindPreservesVisibilityManifestAndAttestationBytes() throws {
+        let fixture = try C13EvidenceAssuranceTestSupportV1.makeFixture(seed: 51_905)
+        let destination = C13EvidenceAssuranceTestSupportV1.workspace(51_906)
+        let visibility = try fixture.routineVisibility.rebound(to: destination)
+        let internalVisibility = try fixture.internalOnlyVisibility.rebound(to: destination)
+        let customerLink = try fixture.customerLink.rebound(to: destination, visibility: visibility)
+        let internalLink = try fixture.internalOnlyCustomerLink.rebound(to: destination, visibility: internalVisibility)
+        let preview = try fixture.customerPreview.rebound(to: destination, links: [customerLink, internalLink])
+        let manifest = try fixture.customerManifest.rebound(to: destination, preview: preview)
+        let attestation = try fixture.customerAttestation.rebound(to: destination, manifest: manifest)
+
+        XCTAssertEqual(visibility.workspaceID, destination)
+        XCTAssertEqual(preview.workspaceID, destination)
+        XCTAssertEqual(manifest.sourcePreviewID, preview.previewID)
+        XCTAssertEqual(attestation.manifestSHA256, manifest.manifestSHA256)
+        XCTAssertNotEqual(manifest.manifestSHA256, fixture.customerManifest.manifestSHA256)
+        try attestation.validate(manifest: manifest)
+    }
+}

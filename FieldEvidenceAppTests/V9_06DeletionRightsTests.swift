@@ -451,3 +451,18 @@ extension V9_06DeletionRightsTests {
         try preview.validate()
     }
 }
+
+extension V9_06DeletionRightsTests {
+    func testV23P03C13DeletionRightsDenyRestrictedAudiencesAndKeepPreviewZeroWrite() throws {
+        let fixture = try C13EvidenceAssuranceTestSupportV1.makeFixture(seed: 51_906)
+        XCTAssertEqual(try fixture.routineVisibility.decision(for: .customerReport).disposition, .included)
+        XCTAssertEqual(try fixture.internalOnlyVisibility.decision(for: .customerReport).limitation, .audienceNotDeclared)
+        XCTAssertEqual(try fixture.restrictedVisibility.decision(for: .externalCollaborator).limitation, .sensitivityRestricted)
+        XCTAssertEqual(try fixture.highlyRestrictedVisibility.decision(for: .customerReport).limitation, .sensitivityRestricted)
+
+        try fixture.customerPreview.validate()
+        XCTAssertEqual(fixture.customerPreview.includedLinks.count, 1)
+        XCTAssertEqual(fixture.customerPreview.excludedLinks.count, 1)
+        XCTAssertFalse(fixture.customerPreview.includedLinks.contains { $0.evidenceID == "evidence.internal-canary" })
+    }
+}

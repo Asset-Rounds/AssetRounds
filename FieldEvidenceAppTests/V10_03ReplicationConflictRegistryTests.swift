@@ -757,3 +757,28 @@ extension V10_03ReplicationConflictRegistryTests {
         XCTAssertEqual(fixture.superseded.workspaceID, fixture.added.workspaceID)
     }
 }
+
+extension V10_03ReplicationConflictRegistryTests {
+    func testV23P03C13ReplicationSuccessorsRetainPredecessorAndConcurrencyIdentity() throws {
+        let fixture = try C13EvidenceAssuranceTestSupportV1.makeFixture(seed: 51_030)
+        let successorVisibility = try EvidenceVisibilityV1(
+            visibilityID: C13EvidenceAssuranceTestSupportV1.id(51_031),
+            workspaceID: fixture.workspaceID,
+            sensitivity: .routine,
+            allowedAudiences: [.internalReview, .customerReport],
+            effectiveAt: C13EvidenceAssuranceTestSupportV1.fixedDate.addingTimeInterval(1),
+            supersedesVisibilityID: fixture.routineVisibility.visibilityID,
+            revision: 2,
+            mutationID: try C13EvidenceAssuranceTestSupportV1.mutation(51_032)
+        )
+        try successorVisibility.validateSuccessor(of: fixture.routineVisibility)
+        let identity = try WorkspaceEntityIdentityV1(kind: .evidenceVisibility, id: successorVisibility.visibilityID)
+        let predecessor = try WorkspaceEntityIdentityV1(kind: .evidenceVisibility, id: fixture.routineVisibility.visibilityID)
+
+        XCTAssertEqual(identity.kind, .evidenceVisibility)
+        XCTAssertEqual(identity.id, successorVisibility.visibilityID)
+        XCTAssertNotEqual(identity, predecessor)
+        XCTAssertEqual(successorVisibility.revision, fixture.routineVisibility.revision + 1)
+        XCTAssertEqual(successorVisibility.workspaceID, fixture.routineVisibility.workspaceID)
+    }
+}

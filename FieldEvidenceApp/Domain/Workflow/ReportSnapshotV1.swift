@@ -43,6 +43,10 @@ struct ReportSnapshotV1: Codable, Equatable, Sendable {
     /// Optional C41 frozen functional-relationship descriptor/history snapshot.
     /// It is a typed report fact only; later events never mutate this value.
     var functionalRelationships: CompletedFunctionalRelationshipSnapshotV1? = nil
+    /// Optional C13 preview-first evidence assurance binding. It is a
+    /// read-only projection and never grants publication, delivery, approval,
+    /// or release authority.
+    var assurance: ReportEvidenceAssuranceProjectionV1? = nil
 }
 
 struct AcknowledgementSnapshotV1: Codable, Equatable, Sendable {

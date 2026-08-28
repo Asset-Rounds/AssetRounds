@@ -690,6 +690,26 @@ final class S6_4AtomicRestoreTests: XCTestCase {
     }
 }
 
+extension S6_4AtomicRestoreTests {
+    func testV23P03C13AtomicRestoreRebindsCompleteAssuranceBundle() throws {
+        let fixture = try C13EvidenceAssuranceTestSupportV1.makeFixture(seed: 51_640)
+        let destination = C13EvidenceAssuranceTestSupportV1.workspace(51_641)
+        let visibility = try fixture.routineVisibility.rebound(to: destination)
+        let link = try fixture.customerLink.rebound(to: destination, visibility: visibility)
+        let preview = try fixture.customerPreview.rebound(to: destination, links: [link])
+        let manifest = try fixture.customerManifest.rebound(to: destination, preview: preview)
+        let attestation = try fixture.customerAttestation.rebound(to: destination, manifest: manifest)
+
+        XCTAssertEqual(visibility.workspaceID, destination)
+        XCTAssertEqual(link.workspaceID, destination)
+        XCTAssertEqual(preview.workspaceID, destination)
+        XCTAssertEqual(manifest.workspaceID, destination)
+        XCTAssertEqual(attestation.workspaceID, destination)
+        XCTAssertEqual(attestation.manifestID, manifest.manifestID)
+        try attestation.validate(manifest: manifest)
+    }
+}
+
 private extension S6_4AtomicRestoreTests {
     struct Harness {
         let root: URL

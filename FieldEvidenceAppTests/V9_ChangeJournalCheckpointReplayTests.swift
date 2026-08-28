@@ -925,3 +925,24 @@ extension V9_ChangeJournalCheckpointReplayTests {
         try fixture.superseded.validateSuccessor(of: fixture.added)
     }
 }
+
+extension V9_ChangeJournalCheckpointReplayTests {
+    func testV23P03C13JournalReplayPreservesManifestAttestationCanonicalHistory() throws {
+        let fixture = try C13EvidenceAssuranceTestSupportV1.makeFixture(seed: 51_090)
+        let manifestData = try EvidenceAssuranceCanonicalCodecV1.encode(fixture.customerManifest)
+        let attestationData = try EvidenceAssuranceCanonicalCodecV1.encode(fixture.customerAttestation)
+        let replayedManifest = try EvidenceAssuranceCanonicalCodecV1.decode(
+            AssuranceManifestV1.self, from: manifestData
+        )
+        let replayedAttestation = try EvidenceAssuranceCanonicalCodecV1.decode(
+            AttestationV1.self, from: attestationData
+        )
+
+        XCTAssertEqual(replayedManifest, fixture.customerManifest)
+        XCTAssertEqual(replayedAttestation, fixture.customerAttestation)
+        XCTAssertEqual(try EvidenceAssuranceCanonicalCodecV1.encode(replayedManifest), manifestData)
+        XCTAssertEqual(try EvidenceAssuranceCanonicalCodecV1.encode(replayedAttestation), attestationData)
+        XCTAssertEqual(replayedAttestation.manifestSHA256, replayedManifest.manifestSHA256)
+        try replayedAttestation.validate(manifest: replayedManifest)
+    }
+}

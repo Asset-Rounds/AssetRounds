@@ -262,6 +262,28 @@ enum ReportSemanticProjectorV1 {
         )
     }
 
+    /// C13's additive report boundary. The inner V6 digest is the immutable
+    /// source bound by the preview; the outer V7 digest remains the encoded
+    /// completed-snapshot identity exposed by the semantic projection.
+    static func project(
+        snapshot: CompletedActivitySnapshotV7,
+        manifest: ContractManifestV1
+    ) throws -> ReportSemanticProjectionV1 {
+        let activity = snapshot.payload.activity
+        return try project(
+            activity: activity.payload.activity.activity.activity.activity.activity,
+            snapshotSHA256: snapshot.snapshotSHA256,
+            locationComposition: activity.payload.activity.activity.activity.activity.locationComposition,
+            accountability: activity.payload.activity.activity.activity.accountability,
+            assetSemantics: activity.payload.activity.activity.assetSemantics,
+            authorityCriterion: activity.payload.activity.authorityCriterion,
+            functionalRelationships: activity.payload.functionalRelationships,
+            assurance: snapshot.payload.assurance,
+            assuranceSnapshotSHA256: activity.snapshotSHA256,
+            manifest: manifest
+        )
+    }
+
     private static func project(
         activity: CompletedActivitySnapshotPayloadV1,
         snapshotSHA256: String,
@@ -270,6 +292,8 @@ enum ReportSemanticProjectorV1 {
         assetSemantics: CompletedAssetSemanticsSnapshotV1? = nil,
         authorityCriterion: CompletedAuthorityCriterionSnapshotV1? = nil,
         functionalRelationships: CompletedFunctionalRelationshipSnapshotV1? = nil,
+        assurance: ReportEvidenceAssuranceProjectionV1? = nil,
+        assuranceSnapshotSHA256: String? = nil,
         manifest: ContractManifestV1
     ) throws -> ReportSemanticProjectionV1 {
         let encoder = JSONEncoder()
@@ -358,10 +382,50 @@ enum ReportSemanticProjectorV1 {
                 visibleDigest: visibleDigest
             )
         }
+        if let assurance {
+            try appendAssurance(
+                assurance,
+                binding: binding,
+                expectedSnapshotSHA256: assuranceSnapshotSHA256,
+                append: append,
+                visibleID: visibleID,
+                visibleDigest: visibleDigest
+            )
+        }
         for fact in activity.serviceFacts where binding.audience == .internalUse || fact.privacyClass != .internalOnly {
             try append("service", "fact", fact.label, fact.value)
         }
+        var assuranceLinksByEvidenceID: [String: ClaimEvidenceLinkV1] = [:]
+        if let assurance {
+            for link in assurance.preview.includedLinks + assurance.preview.excludedLinks {
+                guard let evidenceID = link.evidenceID else { continue }
+                guard assuranceLinksByEvidenceID[evidenceID] == nil else {
+                    throw SnapshotProjectionFailureV1.duplicateIdentity
+                }
+                assuranceLinksByEvidenceID[evidenceID] = link
+            }
+        }
         for card in activity.evidenceCards {
+            if let assurance {
+                guard let link = assuranceLinksByEvidenceID[card.evidenceID],
+                      link.decision.disposition == .included else {
+                    let limitation = assuranceLinksByEvidenceID[card.evidenceID]?
+                        .decision.limitation.rawValue ?? EvidenceLimitationV1.evidenceUnavailable.rawValue
+                    try append(
+                        "evidence", "omitted", "Evidence omitted",
+                        "Evidence omitted: \(limitation)"
+                    )
+                    try append(
+                        "limitations", "limitation", "Evidence limitation",
+                        "Evidence omitted: \(limitation)"
+                    )
+                    continue
+                }
+                try EvidenceDetailAssuranceProjectionGuardV1.validateIncludedCard(
+                    card, link: link,
+                    audience: assurance.audience
+                )
+            }
             try append("evidence", "heading", "Evidence", visibleID("evidence", card.cardID))
             for field in card.fields {
                 try append("evidence", "fact", field.label, field.value)
@@ -515,6 +579,95 @@ enum ReportSemanticProjectorV1 {
             return key.rawValue
         }
         return BundledLocalizationCatalogV1.localized(bundledKey)
+    }
+
+    private static func appendAssurance(
+        _ assurance: ReportEvidenceAssuranceProjectionV1,
+        binding: FinalizedReportProfileBindingV1,
+        expectedSnapshotSHA256: String?,
+        append: (
+            _ section: String,
+            _ role: String,
+            _ label: String,
+            _ value: String,
+            _ ref: String?
+        ) throws -> Void,
+        visibleID: (_ kind: String, _ value: String) -> String,
+        visibleDigest: (_ kind: String, _ value: String) -> String
+    ) throws {
+        let section = ReportEvidenceAssuranceProjectionPolicyV1.sectionID
+        guard binding.sectionIDs.contains(section),
+              let expectedAudience = ReportEvidenceAssuranceProjectionPolicyV1
+                .evidenceAudience(for: binding.audience) else {
+            throw SnapshotProjectionFailureV1.missingBinding
+        }
+        try assurance.validate(
+            expectedSnapshotSHA256: expectedSnapshotSHA256,
+            expectedProjectionVersion: binding.projectionVersion,
+            expectedAudience: expectedAudience
+        )
+
+        try append(section, "heading", "Evidence assurance", "Evidence assurance", nil)
+        try append(
+            section,
+            "status",
+            "Publication status",
+            ReportEvidenceAssuranceProjectionPolicyV1.publicationDisposition,
+            nil
+        )
+        try append(section, "fact", "Projection version", assurance.projectionVersion, nil)
+        try append(
+            section,
+            "fact",
+            "Included evidence",
+            String(assurance.preview.includedLinks.count),
+            nil
+        )
+        try append(
+            section,
+            "fact",
+            "Excluded evidence",
+            String(assurance.preview.excludedLinks.count),
+            nil
+        )
+        try append(
+            section,
+            "digest",
+            "Preview SHA-256",
+            visibleDigest("assurance-preview", assurance.preview.previewSHA256),
+            visibleID("assurance-preview", assurance.preview.previewID.uuidString.lowercased())
+        )
+        if let manifest = assurance.manifest {
+            try append(
+                section,
+                "digest",
+                "Manifest SHA-256",
+                visibleDigest("assurance-manifest", manifest.manifestSHA256),
+                visibleID("assurance-manifest", manifest.manifestID.uuidString.lowercased())
+            )
+            try append(section, "fact", "Attestations", String(assurance.attestations.count), nil)
+        }
+        for link in assurance.preview.includedLinks {
+            guard let evidenceID = link.evidenceID else {
+                throw SnapshotProjectionFailureV1.missingBinding
+            }
+            try append(
+                section,
+                "included",
+                "Included evidence",
+                visibleID("assurance-evidence", evidenceID),
+                visibleID("assurance-link", link.linkID.uuidString.lowercased())
+            )
+        }
+        for link in assurance.preview.excludedLinks {
+            try append(
+                section,
+                "omitted",
+                "Evidence omitted",
+                EvidenceDetailAssuranceProjectionGuardV1.omissionLabel(for: link),
+                nil
+            )
+        }
     }
 
     private static func appendFunctionalRelationships(

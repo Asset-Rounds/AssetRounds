@@ -44,6 +44,10 @@ final class BackupExportService {
     private static let checkpointBasisExportedAt = Date(timeIntervalSince1970: 0)
 
     private struct Rows {
+        let evidenceVisibilities: [EvidenceVisibilityRow]
+        let claimEvidenceLinks: [ClaimEvidenceLinkRow]
+        let assuranceManifests: [AssuranceManifestRow]
+        let attestations: [AttestationRow]
         let functionalRelationshipDescriptors: [FunctionalRelationshipTypeDescriptorRow]
         let functionalRelationshipEvents: [AssetFunctionalRelationshipEventRow]
         let authoritySourceReleases: [AuthoritySourceReleaseRow]
@@ -671,6 +675,7 @@ private extension BackupExportService {
         do {
             recordsData = try BackupCanonicalEncoderV1().encodeRecords(records).data
             let semanticRecords = V4BackupRecordsV1(
+                evidenceAssurance: records.evidenceAssurance,
                 functionalRelationships: records.functionalRelationships,
                 authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
                 assetCompositionEdges: records.assetCompositionEdges,
@@ -897,9 +902,9 @@ private extension BackupExportService {
             source: .init(
                 appBuild: appBuild(),
                 appVersion: appVersion(),
-                persistentSchemaVersion: 12,
+                persistentSchemaVersion: 13,
                 replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: 11,
+                recordsSchemaVersion: 12,
                 sourceGenerationID: generationID,
                 workspaceID: sourceIdentity.workspaceID.rawValue
             )
@@ -1414,6 +1419,10 @@ private extension BackupExportService {
     private func fetchRows() throws -> Rows {
         do {
             return Rows(
+                evidenceVisibilities: try modelContext.fetch(FetchDescriptor<EvidenceVisibilityRow>()),
+                claimEvidenceLinks: try modelContext.fetch(FetchDescriptor<ClaimEvidenceLinkRow>()),
+                assuranceManifests: try modelContext.fetch(FetchDescriptor<AssuranceManifestRow>()),
+                attestations: try modelContext.fetch(FetchDescriptor<AttestationRow>()),
                 functionalRelationshipDescriptors: try modelContext.fetch(FetchDescriptor<FunctionalRelationshipTypeDescriptorRow>()),
                 functionalRelationshipEvents: try modelContext.fetch(FetchDescriptor<AssetFunctionalRelationshipEventRow>()),
                 authoritySourceReleases: try modelContext.fetch(FetchDescriptor<AuthoritySourceReleaseRow>()),
@@ -1896,7 +1905,9 @@ private extension BackupExportService {
         let assetSemantics = mutationHistory == nil ? [] : try assetSemanticRecords(rows)
         let authorityCriterion = mutationHistory == nil ? [] : try authorityCriterionRecords(rows)
         let functionalRelationships = mutationHistory == nil ? [] : try functionalRelationshipRecords(rows)
+        let evidenceAssurance = mutationHistory == nil ? [] : try evidenceAssuranceRecords(rows)
         return V4BackupRecordsV1(
+            evidenceAssurance: evidenceAssurance,
             functionalRelationships: functionalRelationships,
             authorityCriterion: authorityCriterion,
             assetSemantics: assetSemantics,
@@ -1948,7 +1959,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : 11,
+                : 12,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -1998,6 +2009,25 @@ private extension BackupExportService {
                          workspaceID: value.workspaceID.rawValue, revision: value.revision,
                          canonicalData: try FunctionalRelationshipCanonicalCodecV1.encode(value))
         }
+        return result.sorted { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)" }
+    }
+
+    private func evidenceAssuranceRecords(
+        _ rows: Rows
+    ) throws -> [V13BackupEvidenceAssuranceRecordV1] {
+        var result: [V13BackupEvidenceAssuranceRecordV1] = []
+        result += try rows.evidenceVisibilities.map { let v = try $0.value(); return .init(
+            kind: .visibility, id: v.visibilityID, workspaceID: v.workspaceID.rawValue,
+            revision: v.revision, canonicalData: try EvidenceAssuranceCanonicalCodecV1.encode(v)) }
+        result += try rows.claimEvidenceLinks.map { let v = try $0.value(); return .init(
+            kind: .evidenceLink, id: v.linkID, workspaceID: v.workspaceID.rawValue,
+            revision: v.revision, canonicalData: try EvidenceAssuranceCanonicalCodecV1.encode(v)) }
+        result += try rows.assuranceManifests.map { let v = try $0.value(); return .init(
+            kind: .manifest, id: v.manifestID, workspaceID: v.workspaceID.rawValue,
+            revision: v.revision, canonicalData: try EvidenceAssuranceCanonicalCodecV1.encode(v)) }
+        result += try rows.attestations.map { let v = try $0.value(); return .init(
+            kind: .attestation, id: v.attestationID, workspaceID: v.workspaceID.rawValue,
+            revision: v.revision, canonicalData: try EvidenceAssuranceCanonicalCodecV1.encode(v)) }
         return result.sorted { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)" }
     }
 

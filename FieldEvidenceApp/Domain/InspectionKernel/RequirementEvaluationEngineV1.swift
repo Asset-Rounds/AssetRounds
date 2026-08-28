@@ -1,6 +1,37 @@
 import Foundation
 
 enum RequirementEvaluationEngineV1 {
+    static func assurancePreview(
+        previewID: UUID,
+        workspaceID: WorkspaceID,
+        audience: EvidenceAudienceV1,
+        snapshotSHA256: String,
+        projectionVersion: String,
+        evaluations: [RequirementEvaluationV1],
+        links: [ClaimEvidenceLinkV1],
+        createdAt: Date
+    ) throws -> AssuranceProjectionPreviewV1 {
+        try evaluations.forEach { try $0.validate() }
+        try links.forEach { try $0.validate() }
+        let claims = Set(evaluations.map(\.assuranceClaimID))
+        guard Set(evaluations.map(\.requirementID)).count == evaluations.count,
+              links.allSatisfy({ link in
+                  claims.contains(link.claimID)
+                      && evaluations.contains(where: { $0.requirementID == link.criterionID })
+              }) else {
+            throw EvidenceAssuranceFailureV1.invalidValue
+        }
+        return try AssuranceProjectionPreviewV1(
+            previewID: previewID,
+            workspaceID: workspaceID,
+            audience: audience,
+            snapshotSHA256: snapshotSHA256,
+            projectionVersion: projectionVersion,
+            links: links,
+            createdAt: createdAt
+        )
+    }
+
     static func evaluate(
         _ input: RequirementEvaluationInputV1,
         registry: RequirementEvaluatorRegistryV1

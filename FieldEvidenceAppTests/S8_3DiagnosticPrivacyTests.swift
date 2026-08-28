@@ -331,6 +331,71 @@ final class S8_3DiagnosticPrivacyTests: XCTestCase {
             )
         )
     }
+
+    func testC13EvidenceVisibilityLocalizationIsDenyByDefaultAndClaimBounded() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let catalogURL = root
+            .appendingPathComponent("FieldEvidenceApp/Resources/Localizable.xcstrings")
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: catalogURL)) as? [String: Any]
+        )
+        XCTAssertEqual(object["sourceLanguage"] as? String, "en")
+        XCTAssertEqual(object["version"] as? String, "1.0")
+        let strings = try XCTUnwrap(object["strings"] as? [String: Any])
+        let c13Text = try EvidenceVisibilityLocalizationKeyV1.allCases.flatMap { key in
+            let entry = try XCTUnwrap(strings[key.rawValue] as? [String: Any])
+            let comment = try XCTUnwrap(entry["comment"] as? String)
+            let localizations = try XCTUnwrap(entry["localizations"] as? [String: Any])
+            XCTAssertEqual(Set(localizations.keys), Set(["en"]))
+            let english = try XCTUnwrap(localizations["en"] as? [String: Any])
+            let unit = try XCTUnwrap(english["stringUnit"] as? [String: Any])
+            return [comment, try XCTUnwrap(unit["value"] as? String)]
+        }
+
+        XCTAssertFalse(
+            EvidenceVisibilityLocalizationPolicyV1.containsProhibitedClaim(in: c13Text)
+        )
+        XCTAssertFalse(
+            EvidenceVisibilityLocalizationPolicyV1.containsCustomerDataLeakage(in: c13Text)
+        )
+        XCTAssertTrue(EvidenceVisibilityLocalizationPolicyV1.denyByDefault)
+        XCTAssertTrue(EvidenceVisibilityLocalizationPolicyV1.requiresExplicitAudience)
+        XCTAssertTrue(EvidenceVisibilityLocalizationPolicyV1.requiresRecordedSensitivity)
+        XCTAssertTrue(EvidenceVisibilityLocalizationPolicyV1.excludesCustomerDataLeakage)
+        XCTAssertTrue(EvidenceVisibilityLocalizationPolicyV1.excludesPrivateLocators)
+        XCTAssertTrue(EvidenceVisibilityLocalizationPolicyV1.excludesUnsupportedClaims)
+        XCTAssertTrue(EvidenceVisibilityLocalizationPolicyV1.requiresNonColorStateText)
+        XCTAssertTrue(EvidenceVisibilityLocalizationPolicyV1.requiresActionableNextStep)
+        XCTAssertFalse(EvidenceVisibilityLocalizationPolicyV1.allowsColorOnlyState)
+        XCTAssertFalse(EvidenceVisibilityLocalizationPolicyV1.allowsIconOnlyState)
+
+        let hostileClaims = [
+            "approval granted", "authorship recorded", "legal signature",
+            "non-repudiation asserted", "tamper-proof archive", "verified identity",
+            "secure delivery", "sent successfully", "delivered successfully",
+            "compliance result", "professional service", "customer-data leakage",
+        ]
+        XCTAssertTrue(hostileClaims.allSatisfy {
+            EvidenceVisibilityClaimVocabularyV1.containsProhibitedClaim(in: [$0])
+        })
+        XCTAssertTrue(
+            EvidenceVisibilityClaimVocabularyV1.containsCustomerDataLeakage(
+                in: ["customer data", "private data", "personal data"]
+            )
+        )
+        XCTAssertFalse(
+            EvidenceVisibilityClaimVocabularyV1.containsProhibitedClaim(
+                in: ["Recorded audience scope", "Observed limitation"]
+            )
+        )
+        XCTAssertTrue(
+            AudiencePrivacyLexicalDetectorV1.containsProhibitedPattern(
+                in: ["https://visibility.example/evidence", "file:///Users/private/evidence"]
+            )
+        )
+    }
 }
 
 private final class DiagnosticsLogProbe: @unchecked Sendable {

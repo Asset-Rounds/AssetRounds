@@ -130,6 +130,19 @@ struct FunctionalRelationshipDeletionInventoryV1: Equatable, Sendable {
     var isEmpty: Bool { descriptorReleaseIDs.isEmpty && eventIDs.isEmpty }
 }
 
+struct EvidenceAssuranceDeletionInventoryV1: Equatable, Sendable {
+    let visibilityIDs: Set<UUID>; let linkIDs: Set<UUID>
+    let manifestIDs: Set<UUID>; let attestationIDs: Set<UUID>
+    var isEmpty: Bool { visibilityIDs.isEmpty && linkIDs.isEmpty && manifestIDs.isEmpty && attestationIDs.isEmpty }
+}
+
+struct EvidenceAssuranceOrdinaryDeletionPreviewV1: Equatable, Sendable {
+    let blockingManifestIDs: [UUID]
+    let blockingAttestationIDs: [UUID]
+    let persistentWriteOccurred = false
+    var isBlocked: Bool { !blockingManifestIDs.isEmpty || !blockingAttestationIDs.isEmpty }
+}
+
 enum WholeSignDeletionRule {
     static func validatePartyAccountabilityLifecycle(
         authority: PartyAccountabilityDeletionAuthorityV1,
@@ -185,6 +198,26 @@ enum WholeSignDeletionRule {
         case .workspaceErase:
             guard after.isEmpty else { throw WholeSignDeletionRuleError.invalidGraph }
         }
+    }
+
+    static func validateEvidenceAssuranceLifecycle(
+        authority: PartyAccountabilityDeletionAuthorityV1,
+        before: EvidenceAssuranceDeletionInventoryV1,
+        after: EvidenceAssuranceDeletionInventoryV1
+    ) throws {
+        switch authority {
+        case .ordinaryAssetOrSiteDelete:
+            guard after == before else { throw WholeSignDeletionRuleError.invalidGraph }
+        case .workspaceErase:
+            guard after.isEmpty else { throw WholeSignDeletionRuleError.invalidGraph }
+        }
+    }
+
+    static func evidenceAssuranceOrdinaryDeletionPreview(
+        manifests: [AssuranceManifestV1], attestations: [AttestationV1]
+    ) -> EvidenceAssuranceOrdinaryDeletionPreviewV1 {
+        .init(blockingManifestIDs: manifests.map(\.manifestID).sorted { $0.uuidString < $1.uuidString },
+              blockingAttestationIDs: attestations.map(\.attestationID).sorted { $0.uuidString < $1.uuidString })
     }
 
     static func functionalRelationshipEndpointDeletionPreviews(

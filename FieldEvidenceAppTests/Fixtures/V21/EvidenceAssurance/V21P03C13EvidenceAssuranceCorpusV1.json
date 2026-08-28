@@ -1,0 +1,381 @@
+{
+  "schema": "V21P03C13EvidenceAssuranceCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P03-C13",
+  "synthetic": true,
+  "containsCustomerData": false,
+  "containsSecrets": false,
+  "requiredContractNames": [
+    "EvidenceVisibilityV1",
+    "ClaimEvidenceLinkV1",
+    "AssuranceManifestV1",
+    "AttestationV1"
+  ],
+  "visibilityAudiences": [
+    "INTERNAL_REVIEW",
+    "CUSTOMER_REPORT",
+    "EXTERNAL_COLLABORATOR"
+  ],
+  "sensitivityClasses": [
+    "ROUTINE",
+    "RESTRICTED",
+    "HIGHLY_RESTRICTED"
+  ],
+  "inclusionDispositions": [
+    "INCLUDED",
+    "EXCLUDED"
+  ],
+  "attestationPurposes": [
+    "ACKNOWLEDGE_EVIDENCE",
+    "ACKNOWLEDGE_REPORT",
+    "CONFIRM_LOCAL_REVIEW"
+  ],
+  "attestationMethods": [
+    "EXPLICIT_LOCAL_CONFIRMATION",
+    "IMPORTED_EXTERNAL_EVIDENCE"
+  ],
+  "persistence": {
+    "schemaRelease": "PERSISTENT_SCHEMA_V13_EVIDENCE_ASSURANCE",
+    "recordSchemaVersion": 12,
+    "predecessorSchemaVersion": 12,
+    "predecessorRecordSchemaVersion": 11,
+    "migration": "EXACT_V12_TO_V13_COPY_ON_WRITE",
+    "canonicalWriter": "V23-P02-C01",
+    "lifecycleOwner": "V23-P03-C13",
+    "firstWriteEnrolled": true,
+    "compatibilityRequired": true,
+    "backupRestoreRequired": true,
+    "deleteEraseRequired": true,
+    "exportImportPreviewRequired": true,
+    "downgrade": "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_FIRST_V13_WRITE",
+    "persistedFamilies": [
+      "EvidenceVisibilityV1",
+      "ClaimEvidenceLinkV1",
+      "AssuranceManifestV1",
+      "AttestationV1"
+    ],
+    "currentProjectionRows": 0,
+    "currentProjectionRowCount": 0,
+    "recordsSchemaVersion": 12,
+    "secondStore": false,
+    "secondWriter": false,
+    "accountStore": false,
+    "cloudStore": false,
+    "deliveryOutbox": false,
+    "descriptorEventOnlyPersistence": false,
+    "nonPersistentFamilies": [
+      "AssuranceProjectionPreviewV1"
+    ],
+    "snapshotBinding": "REPORT_OR_COMPLETED_ACTIVITY_SNAPSHOT_DIGEST_REQUIRED",
+    "purposeBinding": "ATTESTATION_PURPOSE_AND_SCOPE_REQUIRED",
+    "supersessionAndVoid": "APPEND_ONLY_IMMUTABLE_HISTORY",
+    "legacyRowsCreated": 0
+  },
+  "visibilityRecords": [
+    {
+      "id": "visibility-routine-v1",
+      "workspaceID": "workspace-synthetic-1",
+      "sensitivity": "ROUTINE",
+      "allowedAudiences": [
+        "CUSTOMER_REPORT",
+        "EXTERNAL_COLLABORATOR",
+        "INTERNAL_REVIEW"
+      ],
+      "defaultDisposition": "DENY_UNLESS_EXPLICIT",
+      "revision": 1,
+      "immutable": true
+    },
+    {
+      "id": "visibility-restricted-v1",
+      "workspaceID": "workspace-synthetic-1",
+      "sensitivity": "RESTRICTED",
+      "allowedAudiences": [
+        "CUSTOMER_REPORT",
+        "INTERNAL_REVIEW"
+      ],
+      "defaultDisposition": "DENY_UNLESS_EXPLICIT",
+      "revision": 1,
+      "immutable": true
+    },
+    {
+      "id": "visibility-high-v1",
+      "workspaceID": "workspace-synthetic-1",
+      "sensitivity": "HIGHLY_RESTRICTED",
+      "allowedAudiences": [
+        "INTERNAL_REVIEW"
+      ],
+      "defaultDisposition": "DENY_UNLESS_EXPLICIT",
+      "revision": 1,
+      "immutable": true
+    }
+  ],
+  "claimEvidenceLinks": [
+    {
+      "id": "link-claim-1",
+      "workspaceID": "workspace-synthetic-1",
+      "claimID": "claim-visibility-1",
+      "evidenceID": "evidence-synthetic-1",
+      "evidenceRevision": 1,
+      "evidenceSHA256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "visibilityID": "visibility-routine-v1",
+      "visibilityRevision": 1,
+      "visibilitySHA256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "audience": "CUSTOMER_REPORT",
+      "disposition": "INCLUDED",
+      "snapshotSHA256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "projectionVersion": "report-projection-v1",
+      "frozen": true
+    },
+    {
+      "id": "link-claim-2",
+      "workspaceID": "workspace-synthetic-1",
+      "claimID": "claim-visibility-2",
+      "evidenceID": "evidence-sensitive-1",
+      "evidenceRevision": 1,
+      "evidenceSHA256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "visibilityID": "visibility-high-v1",
+      "visibilityRevision": 1,
+      "visibilitySHA256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "audience": "CUSTOMER_REPORT",
+      "disposition": "EXCLUDED",
+      "limitation": "SENSITIVITY_RESTRICTED",
+      "snapshotSHA256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "projectionVersion": "report-projection-v1",
+      "frozen": true
+    }
+  ],
+  "assuranceProjectionPreviews": [
+    {
+      "id": "preview-customer-report",
+      "workspaceID": "workspace-synthetic-1",
+      "audience": "CUSTOMER_REPORT",
+      "includedLinkIDs": [
+        "link-claim-1"
+      ],
+      "excludedLinkIDs": [
+        "link-claim-2"
+      ],
+      "purpose": "ACKNOWLEDGE_REPORT",
+      "snapshotSHA256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "projectionVersion": "report-projection-v1",
+      "writes": 0,
+      "disposition": "PREVIEW_ONLY",
+      "staleAfterSnapshotChange": true
+    }
+  ],
+  "assuranceManifests": [
+    {
+      "id": "manifest-customer-report-v1",
+      "workspaceID": "workspace-synthetic-1",
+      "audience": "CUSTOMER_REPORT",
+      "includedLinkIDs": [
+        "link-claim-1"
+      ],
+      "excludedLinkIDs": [
+        "link-claim-2"
+      ],
+      "purpose": "ACKNOWLEDGE_REPORT",
+      "snapshotSHA256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "projectionVersion": "report-projection-v1",
+      "sourcePreviewID": "preview-customer-report",
+      "revision": 1,
+      "supersedesManifestID": null,
+      "voided": false,
+      "immutable": true
+    }
+  ],
+  "attestations": [
+    {
+      "id": "attestation-recorded-1",
+      "workspaceID": "workspace-synthetic-1",
+      "purpose": "ACKNOWLEDGE_REPORT",
+      "scopeKind": "ASSURANCE_MANIFEST",
+      "scopeID": "manifest-customer-report-v1",
+      "scopeRevision": 1,
+      "manifestID": "manifest-customer-report-v1",
+      "manifestRevision": 1,
+      "method": "EXPLICIT_LOCAL_CONFIRMATION",
+      "action": "RECORDED",
+      "revision": 1,
+      "supersedesAttestationID": null,
+      "localOnly": true,
+      "legalOrNonrepudiationClaim": false
+    },
+    {
+      "id": "attestation-voided-1",
+      "workspaceID": "workspace-synthetic-1",
+      "purpose": "ACKNOWLEDGE_REPORT",
+      "scopeKind": "ASSURANCE_MANIFEST",
+      "scopeID": "manifest-customer-report-v1",
+      "scopeRevision": 1,
+      "manifestID": "manifest-customer-report-v1",
+      "manifestRevision": 1,
+      "method": "EXPLICIT_LOCAL_CONFIRMATION",
+      "action": "VOIDED",
+      "revision": 2,
+      "supersedesAttestationID": "attestation-recorded-1",
+      "localOnly": true,
+      "legalOrNonrepudiationClaim": false
+    }
+  ],
+  "currentProjectionRows": [],
+  "currentProjectionPersistence": "NONPERSISTENT_REBUILD_ONLY",
+  "purposeBindingRequired": true,
+  "snapshotBindingRequired": true,
+  "denyByDefault": true,
+  "supersessionImmutable": true,
+  "voidImmutable": true,
+  "previewPublication": {
+    "previewIsZeroWrite": true,
+    "publicationRequiresExactSnapshot": true,
+    "publicationRequiresPurpose": true,
+    "publicationCannotRewriteHistory": true,
+    "defaultDisposition": "DENIED"
+  },
+  "forbiddenCapabilities": {
+    "accounts": false,
+    "authentication": false,
+    "cloud": false,
+    "delivery": false,
+    "legalClaims": false,
+    "nonrepudiation": false,
+    "finalizationProducer": false,
+    "signing": false,
+    "upload": false,
+    "submission": false,
+    "secondStore": false,
+    "secondWriter": false
+  },
+  "lifecycleCoverage": [
+    {
+      "dimension": "SCHEMA_V13_VERSIONED_IDENTITY",
+      "enrolledBeforeFirstWrite": true,
+      "disposition": "EXPLICIT_STATIC_CONTRACT"
+    },
+    {
+      "dimension": "WRITER_COMMAND_QUERY_EXPECTED_REVISION_MUTATION_ID",
+      "enrolledBeforeFirstWrite": true,
+      "disposition": "EXPLICIT_STATIC_CONTRACT"
+    },
+    {
+      "dimension": "V12_TO_V13_COPY_ON_WRITE_MIGRATION",
+      "enrolledBeforeFirstWrite": true,
+      "disposition": "EXPLICIT_STATIC_CONTRACT"
+    },
+    {
+      "dimension": "BACKUP_REPLACE_RESTORE",
+      "enrolledBeforeFirstWrite": true,
+      "disposition": "EXPLICIT_STATIC_CONTRACT"
+    },
+    {
+      "dimension": "CLONE_FORK_GENERATION",
+      "enrolledBeforeFirstWrite": true,
+      "disposition": "EXPLICIT_STATIC_CONTRACT"
+    },
+    {
+      "dimension": "IMPORT_EXPORT_METADATA_ONLY_PREVIEW",
+      "enrolledBeforeFirstWrite": true,
+      "disposition": "EXPLICIT_STATIC_CONTRACT"
+    },
+    {
+      "dimension": "JOURNAL_REPLAY_CHECKPOINT",
+      "enrolledBeforeFirstWrite": true,
+      "disposition": "EXPLICIT_STATIC_CONTRACT"
+    },
+    {
+      "dimension": "DELETE_ERASE_RETENTION",
+      "enrolledBeforeFirstWrite": true,
+      "disposition": "EXPLICIT_STATIC_CONTRACT"
+    },
+    {
+      "dimension": "LOCAL_SEARCH_REBUILD",
+      "enrolledBeforeFirstWrite": true,
+      "disposition": "EXPLICIT_STATIC_CONTRACT"
+    },
+    {
+      "dimension": "REPORT_SNAPSHOT_OPEN_JSON",
+      "enrolledBeforeFirstWrite": true,
+      "disposition": "EXPLICIT_STATIC_CONTRACT"
+    },
+    {
+      "dimension": "LOCALIZATION_ACCESSIBILITY_PRIVACY",
+      "enrolledBeforeFirstWrite": true,
+      "disposition": "EXPLICIT_STATIC_CONTRACT"
+    },
+    {
+      "dimension": "INTERRUPTION_IDEMPOTENT_RECEIPTS",
+      "enrolledBeforeFirstWrite": true,
+      "disposition": "EXPLICIT_STATIC_CONTRACT"
+    },
+    {
+      "dimension": "DOWNGRADE_FORWARD_FIX_AFTER_FIRST_V13_WRITE",
+      "enrolledBeforeFirstWrite": true,
+      "disposition": "EXPLICIT_STATIC_CONTRACT"
+    }
+  ],
+  "hostileCases": [
+    { "id": "cross-workspace", "expectedDisposition": "FAIL_CLOSED" },
+    { "id": "undeclared-audience", "expectedDisposition": "FAIL_CLOSED" },
+    { "id": "sensitivity-widening", "expectedDisposition": "FAIL_CLOSED" },
+    { "id": "missing-purpose", "expectedDisposition": "FAIL_CLOSED" },
+    { "id": "missing-snapshot", "expectedDisposition": "FAIL_CLOSED" },
+    { "id": "snapshot-digest-mismatch", "expectedDisposition": "FAIL_CLOSED" },
+    { "id": "projection-version-mismatch", "expectedDisposition": "FAIL_CLOSED" },
+    { "id": "duplicate-link", "expectedDisposition": "FAIL_CLOSED" },
+    { "id": "duplicate-evidence", "expectedDisposition": "FAIL_CLOSED" },
+    { "id": "supersession-rewrite", "expectedDisposition": "FAIL_CLOSED" },
+    { "id": "void-rewrite", "expectedDisposition": "FAIL_CLOSED" },
+    { "id": "stale-preview-publication", "expectedDisposition": "FAIL_CLOSED" },
+    { "id": "account-producer", "expectedDisposition": "FAIL_CLOSED" },
+    { "id": "cloud-producer", "expectedDisposition": "FAIL_CLOSED" },
+    { "id": "delivery-outbox", "expectedDisposition": "FAIL_CLOSED" },
+    { "id": "legal-signature", "expectedDisposition": "FAIL_CLOSED" },
+    { "id": "nonrepudiation", "expectedDisposition": "FAIL_CLOSED" },
+    { "id": "finalization-producer", "expectedDisposition": "FAIL_CLOSED" },
+    { "id": "second-store", "expectedDisposition": "FAIL_CLOSED" },
+    { "id": "second-writer", "expectedDisposition": "FAIL_CLOSED" }
+  ],
+  "interruptionCases": [
+    { "id": "migration-boundary", "expectedDisposition": "PRIOR_ACCEPTED_REVISION_OR_NO_PARTIAL_AUTHORITY" },
+    { "id": "visibility-admission", "expectedDisposition": "PRIOR_ACCEPTED_REVISION_OR_NO_PARTIAL_AUTHORITY" },
+    { "id": "link-write", "expectedDisposition": "PRIOR_ACCEPTED_REVISION_OR_NO_PARTIAL_AUTHORITY" },
+    { "id": "preview-build", "expectedDisposition": "PRIOR_ACCEPTED_REVISION_OR_NO_PARTIAL_AUTHORITY" },
+    { "id": "manifest-write", "expectedDisposition": "PRIOR_ACCEPTED_REVISION_OR_NO_PARTIAL_AUTHORITY" },
+    { "id": "attestation-write", "expectedDisposition": "PRIOR_ACCEPTED_REVISION_OR_NO_PARTIAL_AUTHORITY" },
+    { "id": "snapshot-bind", "expectedDisposition": "PRIOR_ACCEPTED_REVISION_OR_NO_PARTIAL_AUTHORITY" },
+    { "id": "backup-export", "expectedDisposition": "PRIOR_ACCEPTED_REVISION_OR_NO_PARTIAL_AUTHORITY" },
+    { "id": "restore-replace", "expectedDisposition": "PRIOR_ACCEPTED_REVISION_OR_NO_PARTIAL_AUTHORITY" },
+    { "id": "journal-replay", "expectedDisposition": "PRIOR_ACCEPTED_REVISION_OR_NO_PARTIAL_AUTHORITY" },
+    { "id": "search-rebuild", "expectedDisposition": "PRIOR_ACCEPTED_REVISION_OR_NO_PARTIAL_AUTHORITY" },
+    { "id": "report-open-json", "expectedDisposition": "PRIOR_ACCEPTED_REVISION_OR_NO_PARTIAL_AUTHORITY" }
+  ],
+  "recoveryCases": [
+    { "id": "backup-restore", "expectedDisposition": "RECOVER_EFFECT_RECEIPT_AND_HISTORY" },
+    { "id": "clone-fork", "expectedDisposition": "RECOVER_EFFECT_RECEIPT_AND_HISTORY" },
+    { "id": "delete-erase", "expectedDisposition": "RECOVER_EFFECT_RECEIPT_AND_HISTORY" },
+    { "id": "compatibility-forward-fix", "expectedDisposition": "RECOVER_EFFECT_RECEIPT_AND_HISTORY" },
+    { "id": "journal-replay", "expectedDisposition": "RECOVER_EFFECT_RECEIPT_AND_HISTORY" },
+    { "id": "search-rebuild", "expectedDisposition": "RECOVER_EFFECT_RECEIPT_AND_HISTORY" },
+    { "id": "report-snapshot", "expectedDisposition": "RECOVER_EFFECT_RECEIPT_AND_HISTORY" },
+    { "id": "metadata-only-export", "expectedDisposition": "RECOVER_EFFECT_RECEIPT_AND_HISTORY" },
+    { "id": "released-v13", "expectedDisposition": "RECOVER_EFFECT_RECEIPT_AND_HISTORY" }
+  ],
+  "claims": {
+    "ACCOUNT_OR_AUTHENTICATED_IDENTITY": false,
+    "CLOUD_PROVIDER_OR_REMOTE_STORAGE": false,
+    "OUTBOX_DELIVERY_OR_TRANSMISSION": false,
+    "LEGAL_SIGNATURE_OR_NONREPUDIATION": false,
+    "SECURITY_CERTIFICATION_OR_VERIFIED_IDENTITY": false,
+    "FINALIZATION_OR_RELEASE_APPROVAL_PRODUCER": false,
+    "NATIVE_IPAD_OR_SECOND_UI_SURFACE": false,
+    "CUSTOMER_DATA_TELEMETRY_OR_MARKETING": false,
+    "SECOND_STORE_OR_SECOND_CANONICAL_WRITER": false,
+    "native": false,
+    "hosted": false,
+    "adoption": false,
+    "acceptance": false,
+    "release": false,
+    "acceptanceCredit": false,
+    "releaseCredit": false
+  }
+}

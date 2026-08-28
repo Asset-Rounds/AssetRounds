@@ -226,6 +226,7 @@ struct SnapshotValidatorV1 {
         }
         let snapshot = try ReportSnapshotEncoderV1().decode(snapshotData)
         try validateRequirementAssurance(snapshot)
+        try validateEvidenceAssurance(snapshot)
         try validateAuthorityCriterion(snapshot)
         try validateFunctionalRelationships(snapshot)
         guard try ReportSnapshotEncoderV1().encode(snapshot).data == snapshotData,
@@ -464,6 +465,33 @@ struct SnapshotValidatorV1 {
         guard let assurance = snapshot.requirementAssurance else { return }
         do {
             try assurance.validate()
+        } catch {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+    }
+
+    private func validateEvidenceAssurance(
+        _ snapshot: ReportSnapshotV1
+    ) throws {
+        guard let assurance = snapshot.assurance else { return }
+        do {
+            try assurance.validate()
+            if case .live(let dependencies, _) = lifecycleRoute {
+                guard assurance.preview.workspaceID == WorkspaceID(rawValue: dependencies.workspaceID) else {
+                    throw SnapshotValidationErrorV1.invalidAuthority
+                }
+            }
+            for attestation in assurance.attestations {
+                guard attestation.purpose == .acknowledgeReport else {
+                    throw SnapshotValidationErrorV1.invalidAuthority
+                }
+                guard let manifest = assurance.manifest,
+                      attestation.scope.kind == .assuranceManifest,
+                      attestation.scope.scopeID == manifest.manifestID,
+                      attestation.scope.scopeRevision == manifest.revision else {
+                    throw SnapshotValidationErrorV1.invalidAuthority
+                }
+            }
         } catch {
             throw SnapshotValidationErrorV1.invalidAuthority
         }

@@ -4,6 +4,52 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class V9_19LocalSearchTests: XCTestCase {
+    func testV23P03C13AssuranceSearchIsMetadataOnlyAndOptIn() throws {
+        let registry = try SearchIndexRebuildCoordinatorV1.makeEvidenceAssuranceRegistry()
+        XCTAssertEqual(
+            registry.fields.count,
+            SearchContractLimitsV1.maximumAssuranceFieldRegistrations
+        )
+        XCTAssertTrue(
+            SearchEvidenceAssurancePersistencePolicyV1.fieldIDs.allSatisfy { fieldID in
+                registry.fields.contains { $0.fieldID == fieldID && $0.sourceKind == .report }
+            }
+        )
+        XCTAssertTrue(SearchEvidenceAssurancePersistencePolicyV1.indexesCurrentManifestHeadsOnly)
+        XCTAssertTrue(SearchEvidenceAssurancePersistencePolicyV1.excludesClaimAndEvidenceContent)
+        XCTAssertTrue(SearchEvidenceAssurancePersistencePolicyV1.excludesEvidenceIdentifiersAndDigests)
+        XCTAssertTrue(SearchEvidenceAssurancePersistencePolicyV1.excludesActorPrivateDetail)
+        let safeTokens = SearchCoordinatorV1.normalizedTokens("CUSTOMER_REPORT")
+        XCTAssertTrue(
+            SearchEvidenceAssurancePersistencePolicyV1.acceptsMetadata(
+                fieldID: "assurance_audience", tokens: safeTokens, snippet: "CUSTOMER_REPORT"
+            )
+        )
+        XCTAssertFalse(
+            SearchEvidenceAssurancePersistencePolicyV1.acceptsMetadata(
+                fieldID: "assurance_audience",
+                tokens: SearchCoordinatorV1.normalizedTokens("private actor evidence"),
+                snippet: "private actor evidence"
+            )
+        )
+        for marker in SearchEvidenceAssurancePersistencePolicyV1.acceptedProjectionVersionMarkers {
+            XCTAssertTrue(
+                SearchEvidenceAssurancePersistencePolicyV1.acceptsMetadata(
+                    fieldID: "assurance_projection_version",
+                    tokens: SearchCoordinatorV1.normalizedTokens(marker),
+                    snippet: marker
+                )
+            )
+        }
+        XCTAssertFalse(
+            SearchEvidenceAssurancePersistencePolicyV1.acceptsMetadata(
+                fieldID: "assurance_projection_version",
+                tokens: SearchCoordinatorV1.normalizedTokens("report-evidence-assurance-v2"),
+                snippet: "report-evidence-assurance-v2"
+            )
+        )
+    }
+
     func testV23P03C41FunctionalRelationshipSearchRegistryIsOptInAndBounded() throws {
         let registry = try SearchIndexRebuildCoordinatorV1.makeExtendedRegistry(
             includeAccountability: false,

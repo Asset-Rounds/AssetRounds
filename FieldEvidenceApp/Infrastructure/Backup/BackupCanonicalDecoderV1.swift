@@ -49,6 +49,7 @@ struct BackupCanonicalDecoderV1: Sendable {
             try Self.validateAssetSemantics(value)
             try Self.validateAuthorityCriterion(value)
             try Self.validateFunctionalRelationships(value)
+            try Self.validateEvidenceAssurance(value)
             let canonical = try BackupCanonicalEncoderV1().encodeRecords(value).data
             guard canonical == data else {
                 throw BackupCanonicalDecodingErrorV1.invalidRecords
@@ -61,6 +62,32 @@ struct BackupCanonicalDecoderV1: Sendable {
 }
 
 private extension BackupCanonicalDecoderV1 {
+    static func validateEvidenceAssurance(_ records: V4BackupRecordsV1) throws {
+        guard records.recordsSchemaVersion >= 12 else {
+            guard records.evidenceAssurance.isEmpty else { throw BackupCanonicalDecodingErrorV1.invalidRecords }
+            return
+        }
+        for record in records.evidenceAssurance {
+            let identity: (UUID, WorkspaceID, UInt64)
+            switch record.kind {
+            case .visibility:
+                let value = try EvidenceAssuranceCanonicalCodecV1.decode(EvidenceVisibilityV1.self, from: record.canonicalData)
+                identity = (value.visibilityID, value.workspaceID, value.revision)
+            case .evidenceLink:
+                let value = try EvidenceAssuranceCanonicalCodecV1.decode(ClaimEvidenceLinkV1.self, from: record.canonicalData)
+                identity = (value.linkID, value.workspaceID, value.revision)
+            case .manifest:
+                let value = try EvidenceAssuranceCanonicalCodecV1.decode(AssuranceManifestV1.self, from: record.canonicalData)
+                identity = (value.manifestID, value.workspaceID, value.revision)
+            case .attestation:
+                let value = try EvidenceAssuranceCanonicalCodecV1.decode(AttestationV1.self, from: record.canonicalData)
+                identity = (value.attestationID, value.workspaceID, value.revision)
+            }
+            guard identity.0 == record.id, identity.1.rawValue == record.workspaceID,
+                  identity.2 == record.revision else { throw BackupCanonicalDecodingErrorV1.invalidRecords }
+        }
+    }
+
     static func validateFunctionalRelationships(_ records: V4BackupRecordsV1) throws {
         guard records.recordsSchemaVersion >= 11 else {
             guard records.functionalRelationships.isEmpty else { throw BackupCanonicalDecodingErrorV1.invalidRecords }

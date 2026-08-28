@@ -6,10 +6,73 @@ import Foundation
 final class AuthorityCriterionLifecycleAdapterV1 {
     private let workspaceID: WorkspaceID
     private let writer: WorkspaceWriterV1
+    private let assuranceReader: AuthorityCriterionAssuranceReaderV1?
 
-    init(workspaceID: WorkspaceID, writer: WorkspaceWriterV1) {
+    init(workspaceID: WorkspaceID, writer: WorkspaceWriterV1,
+         assuranceReader: AuthorityCriterionAssuranceReaderV1? = nil) {
         self.workspaceID = workspaceID
         self.writer = writer
+        self.assuranceReader = assuranceReader
+    }
+
+    func claimEvidenceLinkForCurrentRequirementBasis(
+        criterionID: String,
+        linkID: UUID,
+        visibility: EvidenceVisibilityV1,
+        audience: EvidenceAudienceV1,
+        limitation: EvidenceLimitationV1? = nil,
+        limitationNote: String? = nil,
+        supersedesLinkID: UUID? = nil,
+        revision: UInt64 = 1,
+        mutationID: MutationIDV1
+    ) throws -> ClaimEvidenceLinkV1 {
+        guard let assuranceReader else { throw AuthorityCriterionAssuranceReadFailureV1.missingRecord }
+        let source = try assuranceReader.currentRequirementBasisSource(criterionID: criterionID)
+        guard source.workspaceID == workspaceID else { throw AuthorityCriterionAssuranceReadFailureV1.wrongWorkspace }
+        return try AuthorityCriterionCoordinatorV1.claimEvidenceLink(
+            source: source, linkID: linkID, visibility: visibility, audience: audience,
+            limitation: limitation, limitationNote: limitationNote,
+            supersedesLinkID: supersedesLinkID, revision: revision, mutationID: mutationID
+        )
+    }
+
+    func claimEvidenceLinkForCurrentFindingClassification(
+        findingID: UUID,
+        criterionID: String,
+        linkID: UUID,
+        visibility: EvidenceVisibilityV1,
+        audience: EvidenceAudienceV1,
+        limitation: EvidenceLimitationV1? = nil,
+        limitationNote: String? = nil,
+        supersedesLinkID: UUID? = nil,
+        revision: UInt64 = 1,
+        mutationID: MutationIDV1
+    ) throws -> ClaimEvidenceLinkV1 {
+        guard let assuranceReader else { throw AuthorityCriterionAssuranceReadFailureV1.missingRecord }
+        let source = try assuranceReader.currentFindingClassificationSource(
+            findingID: findingID, criterionID: criterionID
+        )
+        guard source.workspaceID == workspaceID else { throw AuthorityCriterionAssuranceReadFailureV1.wrongWorkspace }
+        return try AuthorityCriterionCoordinatorV1.claimEvidenceLink(
+            source: source, linkID: linkID, visibility: visibility, audience: audience,
+            limitation: limitation, limitationNote: limitationNote,
+            supersedesLinkID: supersedesLinkID, revision: revision, mutationID: mutationID
+        )
+    }
+
+    func assurancePreview(
+        previewID: UUID,
+        audience: EvidenceAudienceV1,
+        snapshotSHA256: String,
+        projectionVersion: String,
+        links: [ClaimEvidenceLinkV1],
+        createdAt: Date
+    ) throws -> AssuranceProjectionPreviewV1 {
+        try AuthorityCriterionCoordinatorV1.assurancePreview(
+            previewID: previewID, workspaceID: workspaceID, audience: audience,
+            snapshotSHA256: snapshotSHA256, projectionVersion: projectionVersion,
+            links: links, createdAt: createdAt
+        )
     }
 
     func admit(_ value: AuthoritySourceReleaseV1, expectedRevision: UInt64) throws -> WorkspaceMutationOutcomeV1 { try commit(.appendAuthoritySource(value), expectedRevision) }

@@ -1440,3 +1440,43 @@ extension EvidenceDetailCardRenderReceiptV1 {
         }
     }
 }
+
+/// Boundary guard used by the C13 report projector.  A card is renderable
+/// only when its evidence identity is explicitly included by the assurance
+/// link for the requested audience; omitted links expose only their typed
+/// limitation and never their card content.
+enum EvidenceDetailAssuranceProjectionGuardV1 {
+    static func validateIncludedCard(
+        _ card: EvidenceDetailCardV1,
+        link: ClaimEvidenceLinkV1,
+        audience: EvidenceAudienceV1
+    ) throws {
+        try card.validate()
+        try link.validate(visibility: link.visibility)
+        guard audience == .internalReview || card.audience == .customerSafe,
+              link.decision.audience == audience,
+              link.decision.disposition == .included,
+              link.evidenceID == card.evidenceID,
+              UUID(uuidString: card.workspaceID) == link.workspaceID.rawValue else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+        if audience == .customerReport {
+            guard card.fields.allSatisfy({ $0.sensitivity == .audienceSafe }),
+                  card.outputReferences.allSatisfy({ $0.byteRole == .derivative }),
+                  !card.audiencePrivacyPolicy.containsProhibitedCanary(
+                    in: card.fields.flatMap { [$0.label, $0.value] }
+                        + card.annotations + card.referenceLabels + [card.limitationsText]
+                  ),
+                  !AudiencePrivacyLexicalDetectorV1.containsProhibitedPattern(
+                    in: card.fields.flatMap { [$0.label, $0.value] }
+                        + card.annotations + card.referenceLabels + [card.limitationsText]
+                  ) else {
+                throw SnapshotProjectionFailureV1.privacyViolation
+            }
+        }
+    }
+
+    static func omissionLabel(for link: ClaimEvidenceLinkV1) -> String {
+        "Evidence omitted: \(link.decision.limitation.rawValue)"
+    }
+}

@@ -68,6 +68,54 @@ enum RequirementAssuranceSnapshotCanonicalCodecV1 {
     }
 }
 
+/// C13's preview/manifest envelope is encoded for deterministic local
+/// inspection only.  It is intentionally not a finalization producer and the
+/// status remains provisional until a later release surface authorizes it.
+enum ReportEvidenceAssuranceCanonicalCodecV1 {
+    static let status = ReportEvidenceAssuranceProjectionPolicyV1.publicationDisposition
+
+    static func isValid(_ value: ReportEvidenceAssuranceProjectionV1) -> Bool {
+        (try? value.validate()) != nil
+    }
+
+    static func encode(_ value: ReportEvidenceAssuranceProjectionV1) throws -> Data {
+        guard isValid(value) else { throw ReportSnapshotEncodingErrorV1.invalidSnapshot }
+        do {
+            let data = try EvidenceAssuranceCanonicalCodecV1.encode(value)
+            guard !data.isEmpty,
+                  data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+                throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+            }
+            return data
+        } catch let error as ReportSnapshotEncodingErrorV1 {
+            throw error
+        } catch {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+    }
+
+    static func decode(_ data: Data) throws -> ReportEvidenceAssuranceProjectionV1 {
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        do {
+            let value = try EvidenceAssuranceCanonicalCodecV1.decode(
+                ReportEvidenceAssuranceProjectionV1.self, from: data
+            )
+            try value.validate()
+            guard try encode(value) == data else {
+                throw ReportSnapshotEncodingErrorV1.noncanonicalData
+            }
+            return value
+        } catch let error as ReportSnapshotEncodingErrorV1 {
+            throw error
+        } catch {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+    }
+}
+
 struct ReportSnapshotEncoderV1: Sendable {
     static let authorityCriterionWriterStatus = "PROVISIONAL_READ_ONLY_PRE_S10"
     static let requirementAssuranceCodecStatus =
@@ -151,6 +199,20 @@ struct ReportSnapshotEncoderV1: Sendable {
         catch { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
     }
 
+    /// C13's additive completed snapshot codec. V1--V6 encoding remains
+    /// unchanged and the assurance facts stay bound to the inner V6 digest.
+    func encode(_ snapshot: CompletedActivitySnapshotV7) throws -> EncodedReportSnapshotV1 {
+        do {
+            let data = try CompletedActivitySnapshotCanonicalCodecV7.encode(snapshot)
+            return EncodedReportSnapshotV1(data: data, sha256: KernelCanonicalHashV1.sha256(data))
+        } catch { throw ReportSnapshotEncodingErrorV1.invalidSnapshot }
+    }
+
+    func decodeCompletedActivityV7(_ data: Data) throws -> CompletedActivitySnapshotV7 {
+        do { return try CompletedActivitySnapshotCanonicalCodecV7.decode(data) }
+        catch { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
+    }
+
     func encode(
         _ snapshot: RequirementAssuranceSnapshotV1
     ) throws -> EncodedReportSnapshotV1 {
@@ -165,6 +227,19 @@ struct ReportSnapshotEncoderV1: Sendable {
         _ data: Data
     ) throws -> RequirementAssuranceSnapshotV1 {
         try RequirementAssuranceSnapshotCanonicalCodecV1.decode(data)
+    }
+
+    func encode(
+        _ assurance: ReportEvidenceAssuranceProjectionV1
+    ) throws -> EncodedReportSnapshotV1 {
+        let data = try ReportEvidenceAssuranceCanonicalCodecV1.encode(assurance)
+        return EncodedReportSnapshotV1(data: data, sha256: KernelCanonicalHashV1.sha256(data))
+    }
+
+    func decodeEvidenceAssurance(
+        _ data: Data
+    ) throws -> ReportEvidenceAssuranceProjectionV1 {
+        try ReportEvidenceAssuranceCanonicalCodecV1.decode(data)
     }
 
     func encode(_ snapshot: ReportSnapshotV1) throws -> EncodedReportSnapshotV1 {
@@ -278,6 +353,9 @@ struct ReportSnapshotEncoderV1: Sendable {
         }
         if let functionalRelationships = snapshot.functionalRelationships {
             guard (try? functionalRelationships.validate()) != nil else { return false }
+        }
+        if let assurance = snapshot.assurance {
+            guard ReportEvidenceAssuranceCanonicalCodecV1.isValid(assurance) else { return false }
         }
 
         guard validObservationAndTime(
@@ -403,6 +481,9 @@ extension CanonicalJSONV1 {
         if let functionalRelationships = value.functionalRelationships {
             object["functionalRelationships"] = Self.functionalRelationships(functionalRelationships)
         }
+        if let assurance = value.assurance {
+            object["assurance"] = Self.assurance(assurance)
+        }
         return .object(object)
     }
 
@@ -445,6 +526,19 @@ extension CanonicalJSONV1 {
         _ value: CompletedAssetSemanticsSnapshotV1
     ) -> CanonicalJSONValueV1 {
         guard let data = try? AssetSemanticCanonicalCodecV1.encode(value),
+              let object = try? JSONSerialization.jsonObject(with: data) else {
+            return .null
+        }
+        return canonicalValue(object)
+    }
+
+    /// The assurance domain codec owns the nested wire representation. Copying
+    /// that canonical object into the report tree keeps the preview, manifest,
+    /// visibility, and attestation facts byte-stable without duplicating them.
+    private static func assurance(
+        _ value: ReportEvidenceAssuranceProjectionV1
+    ) -> CanonicalJSONValueV1 {
+        guard let data = try? ReportEvidenceAssuranceCanonicalCodecV1.encode(value),
               let object = try? JSONSerialization.jsonObject(with: data) else {
             return .null
         }

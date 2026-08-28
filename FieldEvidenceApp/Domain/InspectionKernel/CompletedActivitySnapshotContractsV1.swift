@@ -1850,3 +1850,195 @@ enum CompletedActivitySnapshotCanonicalCodecV6 {
         return value
     }
 }
+
+/// Additive C13 boundary. The V6 activity snapshot remains the immutable
+/// source snapshot; this wrapper records the preview-first assurance facts
+/// that were derived from that exact V6 digest. Existing V1--V6 bytes are not
+/// rewritten when assurance policy is introduced.
+struct CompletedActivitySnapshotPayloadV7: Codable, Equatable, Sendable {
+    static let schemaVersion = 7
+    let schemaVersion: Int
+    let activity: CompletedActivitySnapshotV6
+    let assurance: ReportEvidenceAssuranceProjectionV1
+
+    init(
+        activity: CompletedActivitySnapshotV6,
+        assurance: ReportEvidenceAssuranceProjectionV1
+    ) throws {
+        schemaVersion = Self.schemaVersion
+        self.activity = activity
+        self.assurance = assurance
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try activity.validate()
+        let base = activity.payload.activity.activity.activity.activity.activity
+        guard let workspaceUUID = UUID(uuidString: base.workspaceID) else {
+            throw SnapshotProjectionFailureV1.wrongWorkspace
+        }
+        try assurance.validate(
+            expectedSnapshotSHA256: activity.snapshotSHA256,
+            expectedAudience: ReportEvidenceAssuranceProjectionPolicyV1
+                .evidenceAudience(for: base.profileBinding.audience)
+        )
+        guard assurance.preview.workspaceID == WorkspaceID(rawValue: workspaceUUID),
+              assurance.preview.projectionVersion == base.profileBinding.projectionVersion else {
+            throw SnapshotProjectionFailureV1.missingBinding
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, activity, assurance
+    }
+
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(
+            decoder, allowed: Set(CodingKeys.allCases.map(\.rawValue))
+        )
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        guard try values.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try self.init(
+            activity: values.decode(CompletedActivitySnapshotV6.self, forKey: .activity),
+            assurance: values.decode(ReportEvidenceAssuranceProjectionV1.self, forKey: .assurance)
+        )
+    }
+}
+
+struct CompletedActivitySnapshotV7: Codable, Equatable, Identifiable, Sendable {
+    static let schemaVersion = 7
+    let schemaVersion: Int
+    let payload: CompletedActivitySnapshotPayloadV7
+    let snapshotSHA256: String
+
+    var id: String {
+        payload.activity.id
+    }
+
+    private init(payload: CompletedActivitySnapshotPayloadV7, snapshotSHA256: String) throws {
+        schemaVersion = Self.schemaVersion
+        self.payload = payload
+        self.snapshotSHA256 = snapshotSHA256
+        try validate()
+    }
+
+    static func freezeOriginal(_ payload: CompletedActivitySnapshotPayloadV7) throws -> Self {
+        let base = payload.activity.payload.activity.activity.activity.activity.activity
+        guard base.snapshotRevision == 1,
+              base.supersedesSnapshotID == nil,
+              base.supersededSnapshotSHA256 == nil else {
+            throw SnapshotProjectionFailureV1.historyRewrite
+        }
+        return try Self(
+            payload: payload,
+            snapshotSHA256: KernelCanonicalHashV1.sha256(
+                try CompletedActivitySnapshotCanonicalCodecV7.encodePayload(payload)
+            )
+        )
+    }
+
+    static func freezeAmendment(
+        _ payload: CompletedActivitySnapshotPayloadV7,
+        superseding prior: Self
+    ) throws -> Self {
+        let value = try Self(
+            payload: payload,
+            snapshotSHA256: KernelCanonicalHashV1.sha256(
+                try CompletedActivitySnapshotCanonicalCodecV7.encodePayload(payload)
+            )
+        )
+        let current = payload.activity.payload.activity.activity.activity.activity.activity
+        let previous = prior.payload.activity.payload.activity.activity.activity.activity.activity
+        let (next, overflow) = previous.snapshotRevision.addingReportingOverflow(1)
+        guard !overflow,
+              current.workspaceID == previous.workspaceID,
+              current.snapshotRevision == next,
+              current.supersedesSnapshotID == previous.snapshotID,
+              current.supersededSnapshotSHA256 == prior.payload.activity.snapshotSHA256,
+              current.sourceActivityID == previous.sourceActivityID,
+              current.reportID == previous.reportID,
+              current.completedAt == previous.completedAt,
+              current.sourceRevision > previous.sourceRevision,
+              payload.assurance.preview.createdAt >= prior.payload.assurance.preview.createdAt else {
+            throw SnapshotProjectionFailureV1.historyRewrite
+        }
+        return value
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              KernelCanonicalHashV1.validSHA256(snapshotSHA256) else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try payload.validate()
+        guard snapshotSHA256 == KernelCanonicalHashV1.sha256(
+            try CompletedActivitySnapshotCanonicalCodecV7.encodePayload(payload)
+        ) else {
+            throw SnapshotProjectionFailureV1.digestMismatch
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, payload, snapshotSHA256
+    }
+
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(
+            decoder, allowed: Set(CodingKeys.allCases.map(\.rawValue))
+        )
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        guard try values.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try self.init(
+            payload: values.decode(CompletedActivitySnapshotPayloadV7.self, forKey: .payload),
+            snapshotSHA256: values.decode(String.self, forKey: .snapshotSHA256)
+        )
+    }
+}
+
+enum CompletedActivitySnapshotCanonicalCodecV7 {
+    private static func encoder() -> JSONEncoder {
+        let value = JSONEncoder()
+        value.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return value
+    }
+
+    static func encodePayload(_ payload: CompletedActivitySnapshotPayloadV7) throws -> Data {
+        try payload.validate()
+        let data = try encoder().encode(payload)
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        return data
+    }
+
+    static func encode(_ snapshot: CompletedActivitySnapshotV7) throws -> Data {
+        try snapshot.validate()
+        let data = try encoder().encode(snapshot)
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        return data
+    }
+
+    static func decode(_ data: Data) throws -> CompletedActivitySnapshotV7 {
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        let value = try JSONDecoder().decode(CompletedActivitySnapshotV7.self, from: data)
+        try value.validate()
+        guard try encode(value) == data else {
+            throw SnapshotProjectionFailureV1.digestMismatch
+        }
+        return value
+    }
+}

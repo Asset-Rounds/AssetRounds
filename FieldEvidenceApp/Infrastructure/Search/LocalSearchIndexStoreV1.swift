@@ -151,6 +151,16 @@ actor LocalSearchIndexStoreV1: SearchIndexSnapshotProvidingV1, SearchIndexLifecy
                               in: $0.normalizedTokens + [$0.permittedSnippet].compactMap { $0 }
                           )
                   },
+                  records.filter {
+                      $0.sourceKind == .report
+                          && SearchEvidenceAssurancePersistencePolicyV1.accepts(fieldID: $0.fieldID)
+                  }.allSatisfy {
+                      SearchEvidenceAssurancePersistencePolicyV1.acceptsMetadata(
+                          fieldID: $0.fieldID,
+                          tokens: $0.normalizedTokens,
+                          snippet: $0.permittedSnippet
+                      )
+                  },
                   records.allSatisfy({
                       $0.workspaceID == source.workspaceID
                           && $0.sourceRevision <= source.commitRevision
@@ -398,6 +408,35 @@ actor LocalSearchIndexStoreV1: SearchIndexSnapshotProvidingV1, SearchIndexLifecy
                 && !FunctionalRelationshipClaimVocabularyV1.containsProhibitedClaim(
                     in: $0.normalizedTokens + [$0.permittedSnippet].compactMap { $0 }
                 )
+        }) else {
+            throw LocalSearchIndexStoreFailureV1.corruptStore
+        }
+        return value
+    }
+
+    /// Reads the disposable C13 assurance projection through its explicit
+    /// metadata allowlist. No claim/evidence bytes, evidence identifiers or
+    /// actor/private fields are admitted to this consumer.
+    func evidenceAssuranceProjection(
+        for source: SearchSourceRevisionV1,
+        registry: SearchableFieldRegistryV1
+    ) throws -> SearchIndexProjectionV1 {
+        guard registry.fields.contains(where: {
+            $0.sourceKind == .report
+                && SearchEvidenceAssurancePersistencePolicyV1.accepts(fieldID: $0.fieldID)
+        }) else {
+            throw SearchContractFailureV1.forbiddenField
+        }
+        let value = try projection(for: source, registry: registry)
+        guard value.records.filter({
+            $0.sourceKind == .report
+                && SearchEvidenceAssurancePersistencePolicyV1.accepts(fieldID: $0.fieldID)
+        }).allSatisfy({
+            SearchEvidenceAssurancePersistencePolicyV1.acceptsMetadata(
+                fieldID: $0.fieldID,
+                tokens: $0.normalizedTokens,
+                snippet: $0.permittedSnippet
+            )
         }) else {
             throw LocalSearchIndexStoreFailureV1.corruptStore
         }

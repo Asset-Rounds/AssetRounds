@@ -224,6 +224,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
         let c47 = TemporalOriginV1(card: "V23_P03_C39", ordinal: 47)
         let c48 = TemporalOriginV1(card: "V23_P03_C40", ordinal: 48)
         let c49 = TemporalOriginV1(card: "V23_P03_C41", ordinal: 49)
+        let c50=TemporalOriginV1(card:"V23_P03_C13",ordinal:50)
         let groups: [(TemporalOriginV1, [String])] = [
             (c16, [
                 "JOURNAL:CurrentGenerationPointerV2",
@@ -371,6 +372,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
                 "PROJECTION:CompletedFunctionalRelationshipSnapshotV1",
                 "PROJECTION:StoreSemanticEnvelopeV12",
             ]),
+            (c50,["PERSISTENT_MODEL:EvidenceVisibilityRow","PERSISTENT_MODEL:ClaimEvidenceLinkRow","PERSISTENT_MODEL:AssuranceManifestRow","PERSISTENT_MODEL:AttestationRow","PROJECTION:EvidenceVisibilityV1","PROJECTION:ClaimEvidenceLinkV1","PROJECTION:AssuranceProjectionPreviewV1","PROJECTION:AssuranceManifestV1","PROJECTION:AttestationV1","PROJECTION:StoreSemanticEnvelopeV13"]),
         ]
         return groups.reduce(into: [:]) { result, group in
             for kindID in group.1 {
@@ -445,15 +447,17 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
             "PROJECTION:CompletedFunctionalRelationshipSnapshotV1",
             "PROJECTION:StoreSemanticEnvelopeV12",
         ])
-        guard kindIDs.count == 172,
+        let c13KindIDs=Set(["PERSISTENT_MODEL:EvidenceVisibilityRow","PERSISTENT_MODEL:ClaimEvidenceLinkRow","PERSISTENT_MODEL:AssuranceManifestRow","PERSISTENT_MODEL:AttestationRow","PROJECTION:EvidenceVisibilityV1","PROJECTION:ClaimEvidenceLinkV1","PROJECTION:AssuranceProjectionPreviewV1","PROJECTION:AssuranceManifestV1","PROJECTION:AttestationV1","PROJECTION:StoreSemanticEnvelopeV13"])
+        guard kindIDs.count == 182,
               Set(kindIDs).count == kindIDs.count,
-              laterTemporalOrigins.count == 116,
+              laterTemporalOrigins.count == 126,
               c09KindIDs.isSubset(of: Set(kindIDs)),
               c12KindIDs.isSubset(of: Set(kindIDs)),
               c38KindIDs.isSubset(of: Set(kindIDs)),
               c39KindIDs.isSubset(of: Set(kindIDs)),
               c40KindIDs.isSubset(of: Set(kindIDs)),
               c41KindIDs.isSubset(of: Set(kindIDs)),
+              c13KindIDs.isSubset(of:Set(kindIDs)),
               Set(laterTemporalOrigins.keys).isSubset(of: Set(kindIDs)) else {
             throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage
         }
@@ -462,7 +466,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
                 registration.subject
             ) ? registration.subject.canonicalKey : nil
         })
-        guard durableKindIDs.count == 101 else {
+        guard durableKindIDs.count == 105 else {
             throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage
         }
         let universeBytes = try CompatibilityCanonicalV1.encode(
@@ -471,6 +475,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
                     && !c38KindIDs.contains($0) && !c39KindIDs.contains($0)
                     && !c40KindIDs.contains($0)
                     && !c41KindIDs.contains($0)
+                    && !c13KindIDs.contains($0)
             }
         )
         guard CompatibilityCanonicalV1.sha256(universeBytes)

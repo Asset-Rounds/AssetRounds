@@ -203,6 +203,15 @@ extension FindingV1 {
     }
 }
 
+extension FindingV1 {
+    /// Stable immutable claim identity for a specific C03 finding revision.
+    var assuranceClaimID: String { "finding:\(findingID):\(revision)" }
+
+    func bindsAssuranceEvidenceID(_ evidenceID: String) -> Bool {
+        source.evidenceRevisionIDs.contains(evidenceID)
+    }
+}
+
 enum FindingClosedCodingV1 {
     static func requireExact(_ decoder: any Decoder, keys: [String]) throws {
         try KernelClosedCodingV1.require(decoder, keys: keys)

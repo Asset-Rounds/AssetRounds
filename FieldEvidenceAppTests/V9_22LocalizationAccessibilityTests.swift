@@ -877,6 +877,180 @@ final class V9_22LocalizationAccessibilityTests: XCTestCase {
         XCTAssertTrue(KernelCanonicalHashV1.validSHA256(receipt.release.releaseSHA256))
     }
 
+    func testV23P03C13EvidenceVisibilityLocalizationAndAccessibilityIsEnglishOnly() throws {
+        let registry = try BundledLocalizationCatalogV1.evidenceVisibilityRegistry()
+        try registry.validate()
+
+        let expectedKeys = Set(EvidenceVisibilityLocalizationKeyV1.allCases.map(\.rawValue))
+        XCTAssertEqual(Set(EvidenceVisibilityLocalizationPolicyV1.keys), expectedKeys)
+        XCTAssertEqual(Set(EvidenceVisibilityLocalizationPolicyV1.reportKeys), expectedKeys)
+        XCTAssertTrue(expectedKeys.isSubset(of: Set(registry.definitions.map { $0.key.rawValue })))
+        XCTAssertEqual(EvidenceVisibilityLocalizationPolicyV1.sourceLocale, "en")
+        XCTAssertEqual(EvidenceVisibilityLocalizationPolicyV1.shippingLocale, "en")
+        XCTAssertEqual(EvidenceVisibilityLocalizationPolicyV1.metadataLocale, "en-US")
+        XCTAssertEqual(
+            Set(EvidenceVisibilityLocalizationPolicyV1.testOnlyLocales),
+            Set(TestOnlyPseudoLocaleV1.allCases.map(\.rawValue))
+        )
+        XCTAssertTrue(EvidenceVisibilityLocalizationPolicyV1.denyByDefault)
+        XCTAssertTrue(EvidenceVisibilityLocalizationPolicyV1.requiresExplicitAudience)
+        XCTAssertTrue(EvidenceVisibilityLocalizationPolicyV1.requiresRecordedSensitivity)
+        XCTAssertTrue(EvidenceVisibilityLocalizationPolicyV1.requiresNonColorStateText)
+        XCTAssertTrue(EvidenceVisibilityLocalizationPolicyV1.requiresTextAndIconForIndeterminateStates)
+        XCTAssertTrue(EvidenceVisibilityLocalizationPolicyV1.requiresActionableNextStep)
+        XCTAssertFalse(EvidenceVisibilityLocalizationPolicyV1.allowsColorOnlyState)
+        XCTAssertFalse(EvidenceVisibilityLocalizationPolicyV1.allowsIconOnlyState)
+        XCTAssertTrue(EvidenceVisibilityLocalizationPolicyV1.excludesCustomerDataLeakage)
+        XCTAssertTrue(EvidenceVisibilityLocalizationPolicyV1.excludesPrivateLocators)
+
+        for audience in EvidenceAudienceV1.allCases {
+            XCTAssertTrue(expectedKeys.contains(EvidenceVisibilityLocalizationKeyV1.audienceKey(audience).rawValue))
+        }
+        for sensitivity in EvidenceSensitivityV1.allCases {
+            XCTAssertTrue(expectedKeys.contains(EvidenceVisibilityLocalizationKeyV1.sensitivityKey(sensitivity).rawValue))
+        }
+        XCTAssertEqual(
+            EvidenceVisibilityLocalizationKeyV1.inclusionKey(.included), .included
+        )
+        XCTAssertEqual(
+            EvidenceVisibilityLocalizationKeyV1.inclusionKey(.excluded), .excluded
+        )
+        XCTAssertEqual(
+            EvidenceVisibilityLocalizationKeyV1.limitationKey(.audienceNotDeclared), .unknown
+        )
+        XCTAssertEqual(
+            EvidenceVisibilityLocalizationKeyV1.limitationKey(.sensitivityRestricted), .limitation
+        )
+        XCTAssertEqual(
+            EvidenceVisibilityLocalizationKeyV1.limitationKey(.evidenceUnavailable), .omitted
+        )
+        XCTAssertEqual(
+            EvidenceVisibilityLocalizationKeyV1.previewStateKey(.ready), .previewReady
+        )
+        XCTAssertEqual(
+            EvidenceVisibilityLocalizationKeyV1.previewStateKey(.stale), .previewStale
+        )
+        for purpose in AttestationPurposeV1.allCases {
+            XCTAssertEqual(
+                EvidenceVisibilityLocalizationKeyV1.attestationPurposeKey(purpose),
+                .attestationPurpose
+            )
+        }
+        XCTAssertEqual(
+            EvidenceVisibilityLocalizationKeyV1.attestationActionKey(.recorded),
+            .attestationRecorded
+        )
+        XCTAssertEqual(
+            EvidenceVisibilityLocalizationKeyV1.attestationActionKey(.superseded),
+            .attestationSuperseded
+        )
+        XCTAssertEqual(
+            EvidenceVisibilityLocalizationKeyV1.attestationActionKey(.voided),
+            .attestationVoid
+        )
+
+        let accessibility = try BundledLocalizationCatalogV1
+            .evidenceVisibilityAccessibilityRegistry(localization: registry)
+        let expectedIDs = Set(EvidenceVisibilityAccessibilityIDV1.allCases.map(\.rawValue))
+        XCTAssertEqual(Set(EvidenceVisibilityAccessibilityPolicyV1.semanticIDs), expectedIDs)
+        XCTAssertTrue(expectedIDs.isSubset(of: Set(accessibility.entries.map(\.semanticID))))
+        XCTAssertTrue(EvidenceVisibilityAccessibilityPolicyV1.denyByDefault)
+        XCTAssertTrue(EvidenceVisibilityAccessibilityPolicyV1.nonColorStateTextRequired)
+        XCTAssertTrue(EvidenceVisibilityAccessibilityPolicyV1.textAndIconRequiredForIndeterminateStates)
+        XCTAssertTrue(EvidenceVisibilityAccessibilityPolicyV1.actionableNextStepRequired)
+        XCTAssertFalse(EvidenceVisibilityAccessibilityPolicyV1.colorOnlyStateAllowed)
+        XCTAssertFalse(EvidenceVisibilityAccessibilityPolicyV1.iconOnlyStateAllowed)
+        XCTAssertTrue(accessibility.entries.allSatisfy {
+            $0.dynamicSuffixPolicy == .none && $0.deprecatedAliases.isEmpty
+        })
+
+        let entriesByID = Dictionary(uniqueKeysWithValues: accessibility.entries.map {
+            ($0.semanticID, $0)
+        })
+        for semanticID in EvidenceVisibilityAccessibilityIDV1.allCases {
+            let entry = try XCTUnwrap(entriesByID[semanticID.rawValue])
+            XCTAssertEqual(
+                try accessibility.identifier(semanticID: semanticID.rawValue),
+                semanticID.rawValue
+            )
+            XCTAssertTrue(
+                registry.definitions.contains { $0.key == entry.labelKey },
+                "missing localized label for \(semanticID.rawValue)"
+            )
+        }
+        for semanticID in EvidenceVisibilityAccessibilityPolicyV1.stateSemanticIDs {
+            XCTAssertEqual(try XCTUnwrap(entriesByID[semanticID]).role, .status)
+        }
+        for semanticID in EvidenceVisibilityAccessibilityPolicyV1.indeterminateSemanticIDs {
+            let entry = try XCTUnwrap(entriesByID[semanticID])
+            XCTAssertNotNil(entry.hintKey, "\(semanticID) needs an actionable next step")
+            XCTAssertTrue(EvidenceVisibilityAccessibilityPolicyV1.requiresTextAndIcon(for: semanticID))
+            XCTAssertTrue(EvidenceVisibilityAccessibilityPolicyV1.requiresActionableNextStep(for: semanticID))
+        }
+
+        let source = try JSONSerialization.jsonObject(with: sourceCatalogData()) as? [String: Any]
+        let strings = try XCTUnwrap(source?["strings"] as? [String: Any])
+        var c13Text = [String]()
+        for key in EvidenceVisibilityLocalizationKeyV1.allCases {
+            let entry = try XCTUnwrap(strings[key.rawValue] as? [String: Any])
+            let comment = try XCTUnwrap(entry["comment"] as? String)
+            XCTAssertFalse(comment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            let localizations = try XCTUnwrap(entry["localizations"] as? [String: Any])
+            XCTAssertEqual(Set(localizations.keys), Set(["en"]))
+            let english = try XCTUnwrap(localizations["en"] as? [String: Any])
+            let unit = try XCTUnwrap(english["stringUnit"] as? [String: Any])
+            let value = try XCTUnwrap(unit["value"] as? String)
+            XCTAssertFalse(value.isEmpty)
+            c13Text.append(contentsOf: [comment, value])
+            let bundledKey = try XCTUnwrap(BundledLocalizationKeyV1(rawValue: key.rawValue))
+            XCTAssertEqual(BundledLocalizationCatalogV1.localized(bundledKey), value)
+        }
+        XCTAssertFalse(EvidenceVisibilityLocalizationPolicyV1.containsProhibitedClaim(in: c13Text))
+        XCTAssertFalse(EvidenceVisibilityLocalizationPolicyV1.containsCustomerDataLeakage(in: c13Text))
+
+        let hostileClaims = [
+            "approval granted", "authorship recorded", "legal signature",
+            "non-repudiation asserted", "tamper-proof archive", "verified identity",
+            "secure delivery", "sent successfully", "delivered successfully",
+            "compliance result", "professional service", "customer-data leakage",
+        ]
+        XCTAssertTrue(hostileClaims.allSatisfy {
+            EvidenceVisibilityClaimVocabularyV1.containsProhibitedClaim(in: [$0])
+        })
+        XCTAssertTrue(
+            EvidenceVisibilityClaimVocabularyV1.containsCustomerDataLeakage(
+                in: ["customer-data leakage", "private data included"]
+            )
+        )
+        XCTAssertFalse(
+            EvidenceVisibilityClaimVocabularyV1.containsProhibitedClaim(
+                in: ["Recorded audience scope", "Observed limitation"]
+            )
+        )
+        XCTAssertTrue(
+            AudiencePrivacyLexicalDetectorV1.containsProhibitedPattern(
+                in: ["https://evidence.example/source", "file:///Users/private/evidence"]
+            )
+        )
+
+        let publication = try BundledLocalizationCatalogV1.publish(
+            sourceCatalogBytes: sourceCatalogData(),
+            legacy: legacyAllowlist(),
+            includeEvidenceVisibility: true
+        )
+        guard case let .complete(
+            publishedRegistry, publishedAccessibility, _, _, receipt
+        ) = publication else {
+            return XCTFail("C13 requires one complete evidence-visibility catalog publication")
+        }
+        XCTAssertEqual(publishedRegistry, registry)
+        XCTAssertEqual(
+            Set(publishedAccessibility.entries.map(\.semanticID)),
+            Set(accessibility.entries.map(\.semanticID))
+        )
+        XCTAssertTrue(KernelCanonicalHashV1.validSHA256(receipt.release.releaseSHA256))
+    }
+
     private func corpus() throws -> Corpus {
         try JSONDecoder().decode(Corpus.self, from: Data(contentsOf: try fixtureURL()))
     }

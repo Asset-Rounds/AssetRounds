@@ -623,3 +623,27 @@ extension V9_07CompatibilityCorpusIntegrationTests {
         XCTAssertTrue(contracts.contains("FunctionalRelationshipDispositionPreviewV1"))
     }
 }
+
+extension V9_07CompatibilityCorpusIntegrationTests {
+    func testV23P03C13CorpusBindsClosedVisibilityAndForwardSchemaPolicy() throws {
+        let fixture = try C13EvidenceAssuranceTestSupportV1.makeFixture(seed: 51_908)
+        let root = try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: Data(contentsOf: C13EvidenceAssuranceTestSupportV1.corpusURL())
+            ) as? [String: Any]
+        )
+        XCTAssertEqual(root["schema"] as? String, "V21P03C13EvidenceAssuranceCorpusV1")
+        XCTAssertEqual(root["cardID"] as? String, "V23-P03-C13")
+        XCTAssertEqual(root["purposeBindingRequired"] as? Bool, true)
+        XCTAssertEqual(root["snapshotBindingRequired"] as? Bool, true)
+        XCTAssertEqual(root["denyByDefault"] as? Bool, true)
+        XCTAssertEqual((root["currentProjectionRows"] as? [Any])?.count, 0)
+
+        let persistence = try XCTUnwrap(root["persistence"] as? [String: Any])
+        XCTAssertEqual(persistence["schemaRelease"] as? String, "PERSISTENT_SCHEMA_V13_EVIDENCE_ASSURANCE")
+        XCTAssertEqual(persistence["migration"] as? String, "EXACT_V12_TO_V13_COPY_ON_WRITE")
+        XCTAssertEqual(persistence["secondWriter"] as? Bool, false)
+        XCTAssertEqual(persistence["cloudStore"] as? Bool, false)
+        XCTAssertEqual(fixture.customerPreview.excludedLinks.first?.decision.disposition, .excluded)
+    }
+}

@@ -217,6 +217,7 @@ struct KernelRemovalReceiptV4: Codable, Equatable, Sendable {
 enum KernelDeletionEraseRegistryV4 {
     static let functionalRelationshipDeleteKinds =
         V12BackupFunctionalRelationshipRecordV1.Kind.allCases
+    static let evidenceAssuranceDeleteKinds = V13BackupEvidenceAssuranceRecordV1.Kind.allCases
 
     static func validateFunctionalRelationshipLifecycle() throws {
         guard functionalRelationshipDeleteKinds.count == 2,
@@ -224,6 +225,12 @@ enum KernelDeletionEraseRegistryV4 {
                   FunctionalRelationshipDeletionLedgerPolicyV1.disposition(for: $0)
                     == .preserveImmutableHistoryUntilWorkspaceErase
               }) else { throw KernelPersistenceV4Failure.incompleteCoverage }
+    }
+
+    static func validateEvidenceAssuranceLifecycle() throws {
+        guard evidenceAssuranceDeleteKinds.count == 4 else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
     }
     /// Search V1 has one canonical workspace-owned record and one disposable
     /// local projection. Keeping these routes beside the kernel registry makes
@@ -273,6 +280,7 @@ enum KernelDeletionEraseRegistryV4 {
 
     static func validate() throws {
         try validateFunctionalRelationshipLifecycle()
+        try validateEvidenceAssuranceLifecycle()
         try validateSearchLifecycle()
         try validate(registrations)
     }

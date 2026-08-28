@@ -726,3 +726,222 @@ extension FunctionalRelationshipLocalizationKeyV1 {
         }
     }
 }
+
+/// C13's evidence-assurance labels are a closed English-only presentation
+/// surface.  The assurance contracts retain the durable audience, sensitivity,
+/// inclusion, preview, manifest, and attestation values; these keys describe
+/// only how those recorded values are presented to a local reader.
+enum EvidenceVisibilityLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
+    case heading = "evidence.visibility.heading"
+    case audience = "evidence.visibility.audience"
+    case audienceInternalReview = "evidence.visibility.audience.internal_review"
+    case audienceCustomerReport = "evidence.visibility.audience.customer_report"
+    case audienceExternalCollaborator = "evidence.visibility.audience.external_collaborator"
+    case sensitivity = "evidence.visibility.sensitivity"
+    case sensitivityRoutine = "evidence.visibility.sensitivity.routine"
+    case sensitivityRestricted = "evidence.visibility.sensitivity.restricted"
+    case sensitivityHighlyRestricted = "evidence.visibility.sensitivity.highly_restricted"
+    case included = "evidence.visibility.state.included"
+    case excluded = "evidence.visibility.state.excluded"
+    case omitted = "evidence.visibility.state.omitted"
+    case limitation = "evidence.visibility.state.limitation"
+    case unknown = "evidence.visibility.state.unknown"
+    case preview = "evidence.visibility.preview"
+    case previewReady = "evidence.visibility.preview.ready"
+    case previewStale = "evidence.visibility.preview.stale"
+    case manifest = "evidence.visibility.manifest"
+    case attestation = "evidence.visibility.attestation"
+    case attestationPurpose = "evidence.visibility.attestation.purpose"
+    case attestationRecorded = "evidence.visibility.attestation.recorded"
+    case attestationSuperseded = "evidence.visibility.attestation.superseded"
+    case attestationVoid = "evidence.visibility.attestation.void"
+    case nextStep = "evidence.visibility.next_step"
+
+    // Additive aliases keep the closed key set discoverable by the contract
+    // name used by callers without introducing another catalog entry.
+    static var visibilityHeading: Self { .heading }
+    static var audienceInternal: Self { .audienceInternalReview }
+    static var audienceCustomer: Self { .audienceCustomerReport }
+    static var audienceExternal: Self { .audienceExternalCollaborator }
+    static var routineSensitivity: Self { .sensitivityRoutine }
+    static var highlyRestrictedSensitivity: Self { .sensitivityHighlyRestricted }
+    static var includedState: Self { .included }
+    static var excludedState: Self { .excluded }
+    static var omittedState: Self { .omitted }
+    static var limitationState: Self { .limitation }
+    static var unknownState: Self { .unknown }
+    static var readyPreview: Self { .previewReady }
+    static var stalePreview: Self { .previewStale }
+    static var assuranceManifest: Self { .manifest }
+    static var attestationStateRecorded: Self { .attestationRecorded }
+    static var attestationStateSuperseded: Self { .attestationSuperseded }
+    static var attestationStateVoid: Self { .attestationVoid }
+    static var actionableNextStep: Self { .nextStep }
+
+    var localizationKey: LocalizationKeyV1 {
+        // The enum is repository-owned and closed; registry construction is
+        // still the validation boundary for serialized declarations.
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+}
+
+/// Compatibility names for callers that use the assurance or manifest
+/// vocabulary while retaining one canonical CaseIterable key surface.
+typealias EvidenceAssuranceLocalizationKeyV1 = EvidenceVisibilityLocalizationKeyV1
+typealias AssuranceManifestLocalizationKeyV1 = EvidenceVisibilityLocalizationKeyV1
+
+enum EvidencePreviewLocalizationStateV1: String, CaseIterable, Codable, Sendable {
+    case ready = "READY"
+    case stale = "STALE"
+}
+
+typealias EvidenceAssurancePreviewStateV1 = EvidencePreviewLocalizationStateV1
+
+enum EvidenceVisibilityLocalizationPolicyV1 {
+    static let semanticNamespace = "evidence.visibility"
+    static let sourceLocale = "en"
+    static let shippingLocale = "en"
+    static let metadataLocale = "en-US"
+    static let testOnlyLocales = TestOnlyPseudoLocaleV1.allCases.map(\.rawValue).sorted()
+    static let keys = EvidenceVisibilityLocalizationKeyV1.allCases.map(\.rawValue)
+    static let reportKeys = EvidenceVisibilityLocalizationKeyV1.allCases.map(\.rawValue)
+
+    static let denyByDefault = true
+    static let requiresExplicitAudience = true
+    static let requiresRecordedSensitivity = true
+    static let requiresNonColorStateText = true
+    static let requiresTextAndIconForIndeterminateStates = true
+    static let requiresActionableNextStep = true
+    static let allowsColorOnlyState = false
+    static let allowsIconOnlyState = false
+    static let excludesCustomerDataLeakage = true
+    static let excludesPrivateLocators = true
+    static let excludesUnsupportedClaims = true
+
+    /// The vocabulary is normalized to words so punctuation and hyphenation
+    /// cannot turn a prohibited claim into an accepted display string.
+    static let prohibitedClaimPhrases: Set<String> = [
+        "approval", "approved", "authorship", "author", "authored",
+        "legal", "signature", "legal signature", "nonrepudiation",
+        "non repudiation", "tamperproof", "tamper proof", "verified identity",
+        "secure", "secured", "sent", "delivered", "compliance", "compliant",
+        "professional", "customer data", "customer data leakage", "private data",
+        "data leakage",
+    ]
+
+    static func containsProhibitedClaim(in values: [String]) -> Bool {
+        values.contains { value in
+            let normalized = value
+                .folding(
+                    options: [.caseInsensitive, .diacriticInsensitive],
+                    locale: Locale(identifier: "en_US_POSIX")
+                )
+                .split { !$0.isLetter && !$0.isNumber }
+                .joined(separator: " ")
+            let bounded = " \(normalized) "
+            return prohibitedClaimPhrases.contains { bounded.contains(" \($0) ") }
+        }
+    }
+
+    static func containsCustomerDataLeakage(in values: [String]) -> Bool {
+        values.contains { value in
+            let normalized = value
+                .folding(
+                    options: [.caseInsensitive, .diacriticInsensitive],
+                    locale: Locale(identifier: "en_US_POSIX")
+                )
+                .split { !$0.isLetter && !$0.isNumber }
+                .joined(separator: " ")
+            let bounded = " \(normalized) "
+            return [
+                " customer data ", " customer data leakage ", " private data ",
+                " data leakage ", " personal data ",
+            ].contains { bounded.contains($0) }
+        }
+    }
+}
+
+typealias EvidenceAssuranceLocalizationPolicyV1 = EvidenceVisibilityLocalizationPolicyV1
+
+enum EvidenceVisibilityClaimVocabularyV1 {
+    static let prohibitedTokens = EvidenceVisibilityLocalizationPolicyV1.prohibitedClaimPhrases
+
+    static func containsProhibitedClaim(in values: [String]) -> Bool {
+        EvidenceVisibilityLocalizationPolicyV1.containsProhibitedClaim(in: values)
+    }
+
+    static func containsCustomerDataLeakage(in values: [String]) -> Bool {
+        EvidenceVisibilityLocalizationPolicyV1.containsCustomerDataLeakage(in: values)
+    }
+}
+
+typealias EvidenceAssuranceClaimVocabularyV1 = EvidenceVisibilityClaimVocabularyV1
+
+extension EvidenceVisibilityLocalizationKeyV1 {
+    static func audienceKey(_ audience: EvidenceAudienceV1) -> Self {
+        switch audience {
+        case .internalReview: return .audienceInternalReview
+        case .customerReport: return .audienceCustomerReport
+        case .externalCollaborator: return .audienceExternalCollaborator
+        }
+    }
+
+    static func sensitivityKey(_ sensitivity: EvidenceSensitivityV1) -> Self {
+        switch sensitivity {
+        case .routine: return .sensitivityRoutine
+        case .restricted: return .sensitivityRestricted
+        case .highlyRestricted: return .sensitivityHighlyRestricted
+        }
+    }
+
+    static func dispositionKey(_ disposition: EvidenceInclusionDispositionV1) -> Self {
+        switch disposition {
+        case .included: return .included
+        case .excluded: return .excluded
+        }
+    }
+
+    static func inclusionKey(_ disposition: EvidenceInclusionDispositionV1) -> Self {
+        dispositionKey(disposition)
+    }
+
+    static func limitationKey(_ limitation: EvidenceLimitationV1) -> Self {
+        switch limitation {
+        case .none: return .included
+        case .audienceNotDeclared: return .unknown
+        case .sensitivityRestricted: return .limitation
+        case .evidenceUnavailable, .evidenceInvalid: return .omitted
+        }
+    }
+
+    static func previewStateKey(_ state: EvidencePreviewLocalizationStateV1) -> Self {
+        switch state {
+        case .ready: return .previewReady
+        case .stale: return .previewStale
+        }
+    }
+
+    static func previewKey(_ state: EvidencePreviewLocalizationStateV1) -> Self {
+        previewStateKey(state)
+    }
+
+    static func attestationPurposeKey(_ purpose: AttestationPurposeV1) -> Self {
+        // The purpose remains a recorded machine value; one stable localized
+        // label identifies the purpose field without exposing that value.
+        _ = purpose
+        return .attestationPurpose
+    }
+
+    static func attestationActionKey(_ action: AttestationActionV1) -> Self {
+        switch action {
+        case .recorded: return .attestationRecorded
+        case .superseded: return .attestationSuperseded
+        case .voided: return .attestationVoid
+        }
+    }
+
+    static func attestationStateKey(_ action: AttestationActionV1) -> Self {
+        attestationActionKey(action)
+    }
+}

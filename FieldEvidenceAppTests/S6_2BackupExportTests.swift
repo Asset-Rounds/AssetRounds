@@ -541,3 +541,35 @@ extension S6_2BackupExportTests {
         try restored.validate()
     }
 }
+
+extension S6_2BackupExportTests {
+    func testV23P03C13BackupExportRoundTripsAllPersistedAssuranceRows() throws {
+        let fixture = try C13EvidenceAssuranceTestSupportV1.makeFixture(seed: 51_620)
+        let values: [(Data, Data)] = [
+            (
+                try EvidenceAssuranceCanonicalCodecV1.encode(fixture.routineVisibility),
+                try EvidenceAssuranceCanonicalCodecV1.encode(try EvidenceVisibilityRow(fixture.routineVisibility).value())
+            ),
+            (
+                try EvidenceAssuranceCanonicalCodecV1.encode(fixture.customerLink),
+                try EvidenceAssuranceCanonicalCodecV1.encode(try ClaimEvidenceLinkRow(fixture.customerLink).value())
+            ),
+            (
+                try EvidenceAssuranceCanonicalCodecV1.encode(fixture.customerManifest),
+                try EvidenceAssuranceCanonicalCodecV1.encode(try AssuranceManifestRow(fixture.customerManifest).value())
+            ),
+            (
+                try EvidenceAssuranceCanonicalCodecV1.encode(fixture.customerAttestation),
+                try EvidenceAssuranceCanonicalCodecV1.encode(try AttestationRow(fixture.customerAttestation).value())
+            )
+        ]
+
+        for (source, restored) in values {
+            XCTAssertFalse(source.isEmpty)
+            XCTAssertEqual(source, restored)
+        }
+        XCTAssertEqual(values.count, 4)
+        XCTAssertEqual(fixture.customerManifest.sourcePreviewID, fixture.customerPreview.previewID)
+        XCTAssertEqual(fixture.customerAttestation.action, .recorded)
+    }
+}

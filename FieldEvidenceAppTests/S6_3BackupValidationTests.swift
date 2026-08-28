@@ -323,6 +323,22 @@ final class S6_3BackupValidationTests: XCTestCase {
     }
 }
 
+extension S6_3BackupValidationTests {
+    func testV23P03C13BackupValidationRejectsNonCanonicalAssuranceBytes() throws {
+        let fixture = try C13EvidenceAssuranceTestSupportV1.makeFixture(seed: 51_630)
+        var bytes = try EvidenceAssuranceCanonicalCodecV1.encode(fixture.customerManifest)
+        bytes.append(0x0A)
+
+        XCTAssertThrowsError(
+            try EvidenceAssuranceCanonicalCodecV1.decode(AssuranceManifestV1.self, from: bytes)
+        ) { error in
+            XCTAssertEqual(error as? EvidenceAssuranceFailureV1, .nonCanonicalData)
+        }
+        XCTAssertEqual(fixture.customerManifest.manifestSHA256.count, 64)
+        XCTAssertEqual(fixture.customerManifest.revision, 1)
+    }
+}
+
 private extension S6_3BackupValidationTests {
     struct Harness {
         let supportURL: URL

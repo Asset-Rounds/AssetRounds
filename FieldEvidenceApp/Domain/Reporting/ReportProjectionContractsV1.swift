@@ -177,6 +177,165 @@ enum ReportFunctionalRelationshipsProjectionPolicyV1 {
 typealias ReportFunctionalRelationshipProjectionPolicyV1 =
     ReportFunctionalRelationshipsProjectionPolicyV1
 
+/// C13's report-facing assurance envelope.  The envelope is deliberately a
+/// projection value rather than a writer or finalization service: a preview
+/// is assembled first, an optional immutable manifest records the exact
+/// included/excluded links, and local attestations can bind only to that
+/// manifest.  No evidence bytes, actor private detail, or delivery state is
+/// represented here.
+enum ReportEvidenceAssuranceProjectionPolicyV1 {
+    static let sectionID = "evidence-assurance"
+    static let sectionVersion = 1
+    static let projectionVersion = "report-evidence-assurance-v1"
+    static let privacyClass = ReportPrivacyClassV1.audienceSafe
+    static let publicationDisposition = "PROVISIONAL_READ_ONLY_PRE_S10"
+    static let previewRequired = true
+    static let manifestRequiredBeforeAttestation = true
+    static let excludesEvidenceContent = true
+    static let excludesActorPrivateDetail = true
+    static let excludesDeliveryAndRelease = true
+    static let supportedFormats: [ReportProjectionFormatV1] = [.openJSON, .structuredText]
+
+    static func supports(_ format: ReportProjectionFormatV1) -> Bool {
+        supportedFormats.contains(format)
+    }
+
+    static func evidenceAudience(for audience: ReportAudienceV1) -> EvidenceAudienceV1? {
+        switch audience {
+        case .internalUse: return .internalReview
+        case .customerSafe: return .customerReport
+        }
+    }
+}
+
+/// Exact report binding for C13 preview-first evidence publication.  The
+/// visibility rows are carried alongside the links so a consumer cannot
+/// silently substitute a different audience decision.  Validation is
+/// intentionally explicit about stale snapshot/version/purpose/scope inputs.
+struct ReportEvidenceAssuranceProjectionV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let publicationDisposition = ReportEvidenceAssuranceProjectionPolicyV1.publicationDisposition
+
+    let schemaVersion: Int
+    let audience: EvidenceAudienceV1
+    let snapshotSHA256: String
+    let projectionVersion: String
+    let preview: AssuranceProjectionPreviewV1
+    let manifest: AssuranceManifestV1?
+    let visibilities: [EvidenceVisibilityV1]
+    let attestations: [AttestationV1]
+    let omissionCount: Int
+    let limitationCodes: [EvidenceLimitationV1]
+    let publicationDisposition: String
+
+    init(
+        preview: AssuranceProjectionPreviewV1,
+        manifest: AssuranceManifestV1? = nil,
+        visibilities: [EvidenceVisibilityV1],
+        attestations: [AttestationV1] = []
+    ) throws {
+        try preview.validate()
+        let orderedVisibilities = visibilities.sorted {
+            $0.visibilityID.uuidString.lowercased() < $1.visibilityID.uuidString.lowercased()
+        }
+        let orderedAttestations = attestations.sorted {
+            $0.attestationID.uuidString.lowercased() < $1.attestationID.uuidString.lowercased()
+        }
+        let excluded = preview.excludedLinks
+        let limitations = Array(Set(excluded.map { $0.decision.limitation }))
+            .sorted { $0.rawValue < $1.rawValue }
+        schemaVersion = Self.schemaVersion
+        audience = preview.audience
+        snapshotSHA256 = preview.snapshotSHA256
+        projectionVersion = preview.projectionVersion
+        self.preview = preview
+        self.manifest = manifest
+        self.visibilities = orderedVisibilities
+        self.attestations = orderedAttestations
+        omissionCount = excluded.count
+        limitationCodes = limitations
+        publicationDisposition = Self.publicationDisposition
+        try validate()
+    }
+
+    func validate(
+        expectedSnapshotSHA256: String? = nil,
+        expectedProjectionVersion: String? = nil,
+        expectedAudience: EvidenceAudienceV1? = nil,
+        expectedPurpose: AttestationPurposeV1? = nil,
+        expectedScope: AttestationScopeV1? = nil
+    ) throws {
+        guard schemaVersion == Self.schemaVersion,
+              publicationDisposition == Self.publicationDisposition,
+              KernelCanonicalHashV1.validSHA256(snapshotSHA256),
+              SnapshotProjectionValidationV1.validID(projectionVersion),
+              snapshotSHA256 == preview.snapshotSHA256,
+              projectionVersion == preview.projectionVersion,
+              audience == preview.audience,
+              omissionCount == preview.excludedLinks.count,
+              limitationCodes == Array(Set(preview.excludedLinks.map { $0.decision.limitation }))
+                    .sorted(by: { $0.rawValue < $1.rawValue }),
+              visibilities == visibilities.sorted(by: {
+                  $0.visibilityID.uuidString.lowercased() < $1.visibilityID.uuidString.lowercased()
+              }),
+              Set(visibilities.map(\.visibilityID)).count == visibilities.count,
+              attestations == attestations.sorted(by: {
+                  $0.attestationID.uuidString.lowercased() < $1.attestationID.uuidString.lowercased()
+              }),
+              Set(attestations.map(\.attestationID)).count == attestations.count else {
+            throw EvidenceAssuranceFailureV1.digestMismatch
+        }
+        try preview.validate()
+        var visibilityByID: [UUID: EvidenceVisibilityV1] = [:]
+        for visibility in visibilities {
+            try visibility.validate()
+            guard visibility.workspaceID == preview.workspaceID,
+                  visibilityByID.updateValue(visibility, forKey: visibility.visibilityID) == nil else {
+                throw EvidenceAssuranceFailureV1.duplicateIdentity
+            }
+        }
+        for link in preview.includedLinks + preview.excludedLinks {
+            guard let visibility = visibilityByID[link.visibilityID] else {
+                throw EvidenceAssuranceFailureV1.visibilityDenied
+            }
+            try link.validate(visibility: visibility)
+        }
+        if let manifest {
+            try manifest.validateFresh(preview: preview)
+            guard manifest.workspaceID == preview.workspaceID,
+                  manifest.audience == audience,
+                  manifest.snapshotSHA256 == snapshotSHA256,
+                  manifest.projectionVersion == projectionVersion else {
+                throw EvidenceAssuranceFailureV1.stalePreview
+            }
+            guard !attestations.isEmpty || ReportEvidenceAssuranceProjectionPolicyV1
+                .manifestRequiredBeforeAttestation else {
+                throw EvidenceAssuranceFailureV1.invalidValue
+            }
+            for attestation in attestations {
+                try attestation.validate(manifest: manifest)
+                if let expectedPurpose, attestation.purpose != expectedPurpose {
+                    throw EvidenceAssuranceFailureV1.invalidValue
+                }
+                if let expectedScope, attestation.scope != expectedScope {
+                    throw EvidenceAssuranceFailureV1.invalidValue
+                }
+            }
+        } else if !attestations.isEmpty {
+            throw EvidenceAssuranceFailureV1.invalidValue
+        }
+        if let expectedSnapshotSHA256, expectedSnapshotSHA256 != snapshotSHA256 {
+            throw EvidenceAssuranceFailureV1.stalePreview
+        }
+        if let expectedProjectionVersion, expectedProjectionVersion != projectionVersion {
+            throw EvidenceAssuranceFailureV1.stalePreview
+        }
+        if let expectedAudience, expectedAudience != audience {
+            throw EvidenceAssuranceFailureV1.visibilityDenied
+        }
+    }
+}
+
 struct ReportSectionDefinitionV1: Codable, Equatable, Hashable, Sendable {
     let sectionID: String
     let version: Int

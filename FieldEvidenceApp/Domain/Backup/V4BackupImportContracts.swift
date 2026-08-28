@@ -17,3 +17,14 @@ enum V12FunctionalRelationshipImportBoundaryV1 {
         }
     }
 }
+
+enum V13EvidenceAssuranceImportBoundaryV1 {
+    static let persistentSchemaVersion = 13
+    static let recordsSchemaVersion = 12
+    static func validate(persistent: Int, records: Int) throws {
+        guard persistent == persistentSchemaVersion, records == recordsSchemaVersion,
+              V13BackupEvidenceAssuranceRecordV1.Kind.allCases.count == 4 else {
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
+        }
+    }
+}

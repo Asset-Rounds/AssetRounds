@@ -1207,3 +1207,156 @@ struct ReportProjectionRegistryV6: Codable, Equatable, Sendable {
         return regenerated
     }
 }
+
+/// Additive C13 registry. It admits only the completed V7 assurance wrapper
+/// and exposes preview/open-JSON/structured-text projection helpers. There is
+/// deliberately no finalization, recovery producer, hosted, adoption,
+/// acceptance, or release path in this registry.
+struct ReportProjectionRegistryV7: Codable, Equatable, Sendable {
+    static let schemaVersion = 7
+    static let registryID = "report-projection-registry-v7"
+    static let persistentContractSchema = "KERNEL_SNAPSHOT_V7"
+    static let publicationDisposition = ReportEvidenceAssuranceProjectionPolicyV1.publicationDisposition
+    static let nativeCompileRan = false
+    static let hostedDispatchRan = false
+    static let adoptionEnabled = false
+    static let acceptanceCredit = false
+    static let releaseCredit = false
+
+    let schemaVersion: Int
+    let registryID: String
+    let persistentContractSchema: String
+    let supportedPersistentContractSchemas: [String]
+    let publicationDisposition: String
+    let nativeCompileRan: Bool
+    let hostedDispatchRan: Bool
+    let adoptionEnabled: Bool
+    let acceptanceCredit: Bool
+    let releaseCredit: Bool
+    let baseRendererRegistry: ReportProjectionRegistryV1
+
+    init() {
+        schemaVersion = Self.schemaVersion
+        registryID = Self.registryID
+        persistentContractSchema = Self.persistentContractSchema
+        supportedPersistentContractSchemas = [
+            "KERNEL_SNAPSHOT_V1", "KERNEL_SNAPSHOT_V2", "KERNEL_SNAPSHOT_V3",
+            "KERNEL_SNAPSHOT_V4", "KERNEL_SNAPSHOT_V5", "KERNEL_SNAPSHOT_V6",
+            "KERNEL_SNAPSHOT_V7",
+        ]
+        publicationDisposition = Self.publicationDisposition
+        nativeCompileRan = Self.nativeCompileRan
+        hostedDispatchRan = Self.hostedDispatchRan
+        adoptionEnabled = Self.adoptionEnabled
+        acceptanceCredit = Self.acceptanceCredit
+        releaseCredit = Self.releaseCredit
+        baseRendererRegistry = ReportProjectionRegistryV1()
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, registryID, persistentContractSchema
+        case supportedPersistentContractSchemas, publicationDisposition
+        case nativeCompileRan, hostedDispatchRan, adoptionEnabled
+        case acceptanceCredit, releaseCredit, baseRendererRegistry
+    }
+
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(
+            decoder, allowed: Set(CodingKeys.allCases.map(\.rawValue))
+        )
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        let expected = Self()
+        guard try values.decode(Int.self, forKey: .schemaVersion) == expected.schemaVersion,
+              try values.decode(String.self, forKey: .registryID) == expected.registryID,
+              try values.decode(String.self, forKey: .persistentContractSchema)
+                    == expected.persistentContractSchema,
+              try values.decode([String].self, forKey: .supportedPersistentContractSchemas)
+                    == expected.supportedPersistentContractSchemas,
+              try values.decode(String.self, forKey: .publicationDisposition)
+                    == expected.publicationDisposition,
+              try values.decode(Bool.self, forKey: .nativeCompileRan) == expected.nativeCompileRan,
+              try values.decode(Bool.self, forKey: .hostedDispatchRan) == expected.hostedDispatchRan,
+              try values.decode(Bool.self, forKey: .adoptionEnabled) == expected.adoptionEnabled,
+              try values.decode(Bool.self, forKey: .acceptanceCredit) == expected.acceptanceCredit,
+              try values.decode(Bool.self, forKey: .releaseCredit) == expected.releaseCredit,
+              try values.decode(ReportProjectionRegistryV1.self, forKey: .baseRendererRegistry)
+                    == expected.baseRendererRegistry else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        self = expected
+    }
+
+    func validate() throws {
+        guard self == Self(),
+              ReportEvidenceAssuranceProjectionPolicyV1.sectionID == "evidence-assurance",
+              ReportEvidenceAssuranceProjectionPolicyV1.sectionVersion == 1,
+              ReportEvidenceAssuranceProjectionPolicyV1.projectionVersion
+                    == "report-evidence-assurance-v1",
+              ReportEvidenceAssuranceProjectionPolicyV1.previewRequired,
+              ReportEvidenceAssuranceProjectionPolicyV1.manifestRequiredBeforeAttestation,
+              ReportEvidenceAssuranceProjectionPolicyV1.excludesEvidenceContent,
+              ReportEvidenceAssuranceProjectionPolicyV1.excludesActorPrivateDetail,
+              ReportEvidenceAssuranceProjectionPolicyV1.excludesDeliveryAndRelease,
+              ReportEvidenceAssuranceProjectionPolicyV1.supports(.openJSON),
+              ReportEvidenceAssuranceProjectionPolicyV1.supports(.structuredText) else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try baseRendererRegistry.validate()
+    }
+
+    func semanticProjection(
+        snapshot: CompletedActivitySnapshotV7,
+        manifest: ContractManifestV1
+    ) throws -> ReportSemanticProjectionV1 {
+        try validate()
+        try snapshot.validate()
+        try manifest.validate()
+        let activity = snapshot.payload.activity
+        let base = activity.payload.activity.activity.activity.activity.activity
+        let binding = base.profileBinding
+        guard binding.rendererVersion == baseRendererRegistry.soleRenderer,
+              binding.sectionIDs.contains(ReportEvidenceAssuranceProjectionPolicyV1.sectionID),
+              let section = manifest.reportSectionRegistry.sections.first(where: {
+                  $0.sectionID == ReportEvidenceAssuranceProjectionPolicyV1.sectionID
+              }),
+              section.version == ReportEvidenceAssuranceProjectionPolicyV1.sectionVersion,
+              section.privacyClass == ReportEvidenceAssuranceProjectionPolicyV1.privacyClass,
+              ReportEvidenceAssuranceProjectionPolicyV1.supportedFormats.allSatisfy({
+                  section.supportedFormats.contains($0)
+              }),
+              base.evidenceCards.allSatisfy({ $0.audience == binding.audience }) else {
+            throw SnapshotProjectionFailureV1.missingBinding
+        }
+        return try ReportSemanticProjectorV1.project(snapshot: snapshot, manifest: manifest)
+    }
+
+    /// Preview-only open JSON. The caller receives no publication bundle and
+    /// must explicitly revalidate the source preview/manifest before any
+    /// later release surface can act on it.
+    func renderOpenJSON(
+        snapshot: CompletedActivitySnapshotV7,
+        manifest: ContractManifestV1
+    ) throws -> ReportProjectionOutputV1 {
+        let semantic = try semanticProjection(snapshot: snapshot, manifest: manifest)
+        let output = try DeterministicOpenJSONRendererV1.render(semantic)
+        guard try DeterministicOpenJSONRendererV1.reopen(output.data) == semantic else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return output
+    }
+
+    /// Preview-only accessible structured text. It is intentionally separate
+    /// from any finalization producer and remains available as the textual
+    /// fallback for the pre-S10 boundary.
+    func renderStructuredText(
+        snapshot: CompletedActivitySnapshotV7,
+        manifest: ContractManifestV1
+    ) throws -> ReportProjectionOutputV1 {
+        let semantic = try semanticProjection(snapshot: snapshot, manifest: manifest)
+        let output = try DeterministicOpenJSONRendererV1.renderStructuredText(semantic)
+        guard try DeterministicOpenJSONRendererV1.reopenStructuredText(output.data) == semantic else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return output
+    }
+}

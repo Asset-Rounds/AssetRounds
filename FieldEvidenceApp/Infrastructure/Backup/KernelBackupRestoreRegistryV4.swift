@@ -241,10 +241,17 @@ struct KernelArchiveManifestV4: Codable, Equatable, Sendable {
 enum KernelBackupRestoreRegistryV4 {
     static let functionalRelationshipArchiveKinds =
         V12BackupFunctionalRelationshipRecordV1.Kind.allCases
+    static let evidenceAssuranceArchiveKinds = V13BackupEvidenceAssuranceRecordV1.Kind.allCases
 
     static func validateFunctionalRelationshipLifecycle() throws {
         guard functionalRelationshipArchiveKinds.count == 2,
               Set(functionalRelationshipArchiveKinds.map(\.rawValue)).count == 2 else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+
+    static func validateEvidenceAssuranceLifecycle() throws {
+        guard evidenceAssuranceArchiveKinds.count == 4 else {
             throw KernelPersistenceV4Failure.incompleteCoverage
         }
     }
@@ -286,6 +293,7 @@ enum KernelBackupRestoreRegistryV4 {
 
     static func validate() throws {
         try validateFunctionalRelationshipLifecycle()
+        try validateEvidenceAssuranceLifecycle()
         try validate(registrations)
     }
 

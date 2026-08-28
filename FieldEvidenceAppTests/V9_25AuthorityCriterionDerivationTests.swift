@@ -840,6 +840,25 @@ final class V9_25AuthorityCriterionDerivationTests: XCTestCase {
     }
 }
 
+extension V9_25AuthorityCriterionDerivationTests {
+    func testV23P03C13AuthorityLaneUsesTypedMutationAndCanonicalVisibility() throws {
+        let fixture = try C13EvidenceAssuranceTestSupportV1.makeFixture(seed: 51_925)
+        let mutation = try EvidenceAssuranceMutationV1(
+            workspaceID: fixture.workspaceID,
+            expectedRevision: 0,
+            mutationID: fixture.routineVisibility.mutationID,
+            postImage: .appendVisibility(fixture.routineVisibility)
+        )
+
+        try mutation.validate()
+        XCTAssertEqual(try mutation.affectedIdentity.kind, .evidenceVisibility)
+        XCTAssertEqual(try mutation.affectedIdentity.id, fixture.routineVisibility.visibilityID)
+        XCTAssertEqual(try mutation.concurrencyIdentity, try mutation.affectedIdentity)
+        XCTAssertEqual(try mutation.canonicalData(), try mutation.canonicalData())
+        XCTAssertEqual(fixture.routineVisibility.visibilitySHA256.count, 64)
+    }
+}
+
 private extension V9_25AuthorityCriterionDerivationTests {
     struct Fixture {
         let workspaceID: WorkspaceID

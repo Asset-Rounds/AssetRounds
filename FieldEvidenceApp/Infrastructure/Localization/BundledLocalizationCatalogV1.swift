@@ -63,6 +63,30 @@ enum BundledLocalizationKeyV1: String, CaseIterable, Sendable {
     case functionalRelationshipBounds = "functional.relationship.bounds"
     case functionalRelationshipSite = "functional.relationship.site"
     case functionalRelationshipCrossSiteState = "functional.relationship.site.cross_site"
+    case evidenceVisibilityHeading = "evidence.visibility.heading"
+    case evidenceVisibilityAudience = "evidence.visibility.audience"
+    case evidenceVisibilityAudienceInternalReview = "evidence.visibility.audience.internal_review"
+    case evidenceVisibilityAudienceCustomerReport = "evidence.visibility.audience.customer_report"
+    case evidenceVisibilityAudienceExternalCollaborator = "evidence.visibility.audience.external_collaborator"
+    case evidenceVisibilitySensitivity = "evidence.visibility.sensitivity"
+    case evidenceVisibilitySensitivityRoutine = "evidence.visibility.sensitivity.routine"
+    case evidenceVisibilitySensitivityRestricted = "evidence.visibility.sensitivity.restricted"
+    case evidenceVisibilitySensitivityHighlyRestricted = "evidence.visibility.sensitivity.highly_restricted"
+    case evidenceVisibilityIncluded = "evidence.visibility.state.included"
+    case evidenceVisibilityExcluded = "evidence.visibility.state.excluded"
+    case evidenceVisibilityOmitted = "evidence.visibility.state.omitted"
+    case evidenceVisibilityLimitation = "evidence.visibility.state.limitation"
+    case evidenceVisibilityUnknown = "evidence.visibility.state.unknown"
+    case evidenceVisibilityPreview = "evidence.visibility.preview"
+    case evidenceVisibilityPreviewReady = "evidence.visibility.preview.ready"
+    case evidenceVisibilityPreviewStale = "evidence.visibility.preview.stale"
+    case evidenceVisibilityManifest = "evidence.visibility.manifest"
+    case evidenceVisibilityAttestation = "evidence.visibility.attestation"
+    case evidenceVisibilityAttestationPurpose = "evidence.visibility.attestation.purpose"
+    case evidenceVisibilityAttestationRecorded = "evidence.visibility.attestation.recorded"
+    case evidenceVisibilityAttestationSuperseded = "evidence.visibility.attestation.superseded"
+    case evidenceVisibilityAttestationVoid = "evidence.visibility.attestation.void"
+    case evidenceVisibilityNextStep = "evidence.visibility.next_step"
 
     static var functionalRelationshipDirected: Self { .functionalRelationshipDirectedSourceToTarget }
     static var functionalRelationshipActive: Self { .functionalRelationshipActiveState }
@@ -76,6 +100,25 @@ enum BundledLocalizationKeyV1: String, CaseIterable, Sendable {
     static var functionalRelationshipCardinalityBounds: Self { .functionalRelationshipBounds }
     static var functionalRelationshipSitePolicy: Self { .functionalRelationshipSite }
     static var functionalRelationshipCrossSite: Self { .functionalRelationshipCrossSiteState }
+
+    static var evidenceAssuranceHeading: Self { .evidenceVisibilityHeading }
+    static var evidenceAssuranceAudience: Self { .evidenceVisibilityAudience }
+    static var evidenceAssuranceSensitivity: Self { .evidenceVisibilitySensitivity }
+    static var evidenceAssuranceIncluded: Self { .evidenceVisibilityIncluded }
+    static var evidenceAssuranceExcluded: Self { .evidenceVisibilityExcluded }
+    static var evidenceAssuranceOmitted: Self { .evidenceVisibilityOmitted }
+    static var evidenceAssuranceLimitation: Self { .evidenceVisibilityLimitation }
+    static var evidenceAssuranceUnknown: Self { .evidenceVisibilityUnknown }
+    static var evidenceAssurancePreview: Self { .evidenceVisibilityPreview }
+    static var evidenceAssurancePreviewReady: Self { .evidenceVisibilityPreviewReady }
+    static var evidenceAssurancePreviewStale: Self { .evidenceVisibilityPreviewStale }
+    static var evidenceAssuranceManifest: Self { .evidenceVisibilityManifest }
+    static var evidenceAssuranceAttestation: Self { .evidenceVisibilityAttestation }
+    static var evidenceAssuranceAttestationPurpose: Self { .evidenceVisibilityAttestationPurpose }
+    static var evidenceAssuranceAttestationRecorded: Self { .evidenceVisibilityAttestationRecorded }
+    static var evidenceAssuranceAttestationSuperseded: Self { .evidenceVisibilityAttestationSuperseded }
+    static var evidenceAssuranceAttestationVoid: Self { .evidenceVisibilityAttestationVoid }
+    static var evidenceAssuranceNextStep: Self { .evidenceVisibilityNextStep }
 }
 
 enum LocalizationCatalogPublicationBoundaryV1: String, CaseIterable, Sendable {
@@ -434,6 +477,127 @@ enum BundledLocalizationCatalogV1 {
 
     static func functionalRelationshipsRegistry() throws -> LocalizationKeyRegistryV1 {
         try functionalRelationshipRegistry()
+    }
+
+    /// C13's additive key surface.  The assurance contracts own audience,
+    /// sensitivity, inclusion, preview, manifest, and attestation facts; this
+    /// registry supplies their English display labels and deny-by-default
+    /// accessibility bindings.
+    static func evidenceVisibilityRegistry() throws -> LocalizationKeyRegistryV1 {
+        let base = try functionalRelationshipRegistry()
+        let additions = [
+            try definition(
+                .evidenceVisibilityHeading, "evidence.visibility.heading", "Evidence visibility",
+                "Heading for recorded evidence visibility facts."
+            ),
+            try definition(
+                .evidenceVisibilityAudience, "evidence.visibility.audience", "Audience",
+                "Localized label for the declared evidence audience."
+            ),
+            try definition(
+                .evidenceVisibilityAudienceInternalReview,
+                "evidence.visibility.audience.internal_review", "Internal review",
+                "Accessible text for the internal review audience."
+            ),
+            try definition(
+                .evidenceVisibilityAudienceCustomerReport,
+                "evidence.visibility.audience.customer_report", "Customer report",
+                "Accessible text for the customer report audience."
+            ),
+            try definition(
+                .evidenceVisibilityAudienceExternalCollaborator,
+                "evidence.visibility.audience.external_collaborator", "External collaborator",
+                "Accessible text for the external collaborator audience."
+            ),
+            try definition(
+                .evidenceVisibilitySensitivity, "evidence.visibility.sensitivity", "Sensitivity",
+                "Localized label for the recorded evidence sensitivity."
+            ),
+            try definition(
+                .evidenceVisibilitySensitivityRoutine,
+                "evidence.visibility.sensitivity.routine", "Routine",
+                "Accessible text for routine evidence sensitivity."
+            ),
+            try definition(
+                .evidenceVisibilitySensitivityRestricted,
+                "evidence.visibility.sensitivity.restricted", "Restricted",
+                "Accessible text for restricted evidence sensitivity."
+            ),
+            try definition(
+                .evidenceVisibilitySensitivityHighlyRestricted,
+                "evidence.visibility.sensitivity.highly_restricted", "Highly restricted",
+                "Accessible text for highly restricted evidence sensitivity."
+            ),
+            try definition(
+                .evidenceVisibilityIncluded, "evidence.visibility.state.included", "Included",
+                "Accessible text for evidence included in the audience projection."
+            ),
+            try definition(
+                .evidenceVisibilityExcluded, "evidence.visibility.state.excluded", "Excluded",
+                "Accessible text for evidence excluded from the audience projection."
+            ),
+            try definition(
+                .evidenceVisibilityOmitted, "evidence.visibility.state.omitted", "Omitted",
+                "Accessible text for evidence omitted from the audience projection."
+            ),
+            try definition(
+                .evidenceVisibilityLimitation, "evidence.visibility.state.limitation", "Limitation",
+                "Accessible text for a recorded visibility limitation."
+            ),
+            try definition(
+                .evidenceVisibilityUnknown, "evidence.visibility.state.unknown", "Unknown",
+                "Accessible text for an unknown visibility value."
+            ),
+            try definition(
+                .evidenceVisibilityPreview, "evidence.visibility.preview", "Preview",
+                "Localized label for the mutable evidence projection preview."
+            ),
+            try definition(
+                .evidenceVisibilityPreviewReady, "evidence.visibility.preview.ready", "Ready",
+                "Accessible text for a preview matching its recorded source."
+            ),
+            try definition(
+                .evidenceVisibilityPreviewStale, "evidence.visibility.preview.stale", "Stale preview",
+                "Accessible text for a preview that no longer matches its recorded source."
+            ),
+            try definition(
+                .evidenceVisibilityManifest, "evidence.visibility.manifest", "Assurance manifest",
+                "Localized label for the recorded claim and evidence manifest."
+            ),
+            try definition(
+                .evidenceVisibilityAttestation, "evidence.visibility.attestation", "Attestation",
+                "Localized label for a purpose-bound local attestation record."
+            ),
+            try definition(
+                .evidenceVisibilityAttestationPurpose,
+                "evidence.visibility.attestation.purpose", "Purpose",
+                "Accessible text for the recorded attestation purpose."
+            ),
+            try definition(
+                .evidenceVisibilityAttestationRecorded,
+                "evidence.visibility.attestation.recorded", "Recorded",
+                "Accessible text for an attestation record that is current."
+            ),
+            try definition(
+                .evidenceVisibilityAttestationSuperseded,
+                "evidence.visibility.attestation.superseded", "Superseded",
+                "Accessible text for an attestation replaced by a later record."
+            ),
+            try definition(
+                .evidenceVisibilityAttestationVoid,
+                "evidence.visibility.attestation.void", "Void",
+                "Accessible text for an attestation marked void in the local record."
+            ),
+            try definition(
+                .evidenceVisibilityNextStep, "evidence.visibility.next_step", "Next step",
+                "Actionable label for the next step accompanying a limited projection."
+            ),
+        ]
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+
+    static func evidenceAssuranceRegistry() throws -> LocalizationKeyRegistryV1 {
+        try evidenceVisibilityRegistry()
     }
 
     static func accessibilityRegistry(
@@ -917,6 +1081,226 @@ enum BundledLocalizationCatalogV1 {
         try functionalRelationshipAccessibilityRegistry(localization: localization)
     }
 
+    /// C13's semantic IDs inherit every earlier catalog binding and add the
+    /// evidence-assurance audience, sensitivity, preview, manifest, and
+    /// attestation states.  Limited states carry the localized next-step key
+    /// so text and action remain available without color or icon inference.
+    static func evidenceVisibilityAccessibilityRegistry(
+        localization: LocalizationKeyRegistryV1
+    ) throws -> SemanticAccessibilityIDRegistryV1 {
+        let base = try functionalRelationshipAccessibilityRegistry(localization: localization)
+        let nextStep = try LocalizationKeyV1(
+            BundledLocalizationKeyV1.evidenceVisibilityNextStep.rawValue
+        )
+        let entries: [AccessibilityContractV1] = [
+            AccessibilityContractV1(
+                semanticID: EvidenceVisibilityAccessibilityIDV1.screen.rawValue,
+                role: .screen, reachability: .always,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.evidenceVisibilityHeading.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: EvidenceVisibilityAccessibilityIDV1.heading.rawValue,
+                role: .heading, reachability: .always,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.evidenceVisibilityHeading.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: EvidenceVisibilityAccessibilityIDV1.audience.rawValue,
+                role: .group, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.evidenceVisibilityAudience.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: EvidenceVisibilityAccessibilityIDV1.audienceInternalReview.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.evidenceVisibilityAudienceInternalReview.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: EvidenceVisibilityAccessibilityIDV1.audienceCustomerReport.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.evidenceVisibilityAudienceCustomerReport.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: EvidenceVisibilityAccessibilityIDV1.audienceExternalCollaborator.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.evidenceVisibilityAudienceExternalCollaborator.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: EvidenceVisibilityAccessibilityIDV1.sensitivity.rawValue,
+                role: .group, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.evidenceVisibilitySensitivity.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: EvidenceVisibilityAccessibilityIDV1.sensitivityRoutine.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.evidenceVisibilitySensitivityRoutine.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: EvidenceVisibilityAccessibilityIDV1.sensitivityRestricted.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.evidenceVisibilitySensitivityRestricted.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: EvidenceVisibilityAccessibilityIDV1.sensitivityHighlyRestricted.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.evidenceVisibilitySensitivityHighlyRestricted.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: EvidenceVisibilityAccessibilityIDV1.included.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.evidenceVisibilityIncluded.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: EvidenceVisibilityAccessibilityIDV1.excluded.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.evidenceVisibilityExcluded.rawValue
+                ), hintKey: nextStep, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: EvidenceVisibilityAccessibilityIDV1.omitted.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.evidenceVisibilityOmitted.rawValue
+                ), hintKey: nextStep, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: EvidenceVisibilityAccessibilityIDV1.limitation.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.evidenceVisibilityLimitation.rawValue
+                ), hintKey: nextStep, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: EvidenceVisibilityAccessibilityIDV1.unknown.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.evidenceVisibilityUnknown.rawValue
+                ), hintKey: nextStep, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: EvidenceVisibilityAccessibilityIDV1.preview.rawValue,
+                role: .group, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.evidenceVisibilityPreview.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: EvidenceVisibilityAccessibilityIDV1.previewReady.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.evidenceVisibilityPreviewReady.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: EvidenceVisibilityAccessibilityIDV1.previewStale.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.evidenceVisibilityPreviewStale.rawValue
+                ), hintKey: nextStep, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: EvidenceVisibilityAccessibilityIDV1.manifest.rawValue,
+                role: .group, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.evidenceVisibilityManifest.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: EvidenceVisibilityAccessibilityIDV1.attestation.rawValue,
+                role: .group, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.evidenceVisibilityAttestation.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: EvidenceVisibilityAccessibilityIDV1.attestationPurpose.rawValue,
+                role: .group, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.evidenceVisibilityAttestationPurpose.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: EvidenceVisibilityAccessibilityIDV1.attestationRecorded.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.evidenceVisibilityAttestationRecorded.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: EvidenceVisibilityAccessibilityIDV1.attestationSuperseded.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.evidenceVisibilityAttestationSuperseded.rawValue
+                ), hintKey: nextStep, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: EvidenceVisibilityAccessibilityIDV1.attestationVoid.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.evidenceVisibilityAttestationVoid.rawValue
+                ), hintKey: nextStep, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: EvidenceVisibilityAccessibilityIDV1.nextStep.rawValue,
+                role: .button, reachability: .whenAvailable,
+                labelKey: nextStep, hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+        ]
+        return try base.appending(entries, localization: localization)
+    }
+
+    static func evidenceAssuranceAccessibilityRegistry(
+        localization: LocalizationKeyRegistryV1
+    ) throws -> SemanticAccessibilityIDRegistryV1 {
+        try evidenceVisibilityAccessibilityRegistry(localization: localization)
+    }
+
     static func publish(
         sourceCatalogBytes: Data,
         packagePublications: [InspectionPackagePublishedReleaseV1] = [],
@@ -927,6 +1311,8 @@ enum BundledLocalizationCatalogV1 {
         includeAssetSemantics: Bool = false,
         includeAuthorityCriteria: Bool = false,
         includeFunctionalRelationships: Bool = false,
+        includeEvidenceVisibility: Bool = false,
+        includeEvidenceAssurance: Bool = false,
         interruption: Interruption = { _ in }
     ) throws -> LocalizationCatalogPublicationV1 {
         try interruption(.beforeValidation)
@@ -934,7 +1320,9 @@ enum BundledLocalizationCatalogV1 {
         let locales = LocalizationLocaleManifestV1.shippingV1()
         try locales.validate()
         let keys: LocalizationKeyRegistryV1
-        if includeFunctionalRelationships {
+        if includeEvidenceVisibility || includeEvidenceAssurance {
+            keys = try evidenceVisibilityRegistry()
+        } else if includeFunctionalRelationships {
             keys = try functionalRelationshipRegistry()
         } else if includeAuthorityCriteria {
             keys = try authorityCriterionRegistry()
@@ -953,7 +1341,9 @@ enum BundledLocalizationCatalogV1 {
         }
         if let previousLegacy { try previousLegacy.validateObserved(legacy.entries) }
         let accessibility: SemanticAccessibilityIDRegistryV1
-        if includeFunctionalRelationships {
+        if includeEvidenceVisibility || includeEvidenceAssurance {
+            accessibility = try evidenceVisibilityAccessibilityRegistry(localization: keys)
+        } else if includeFunctionalRelationships {
             accessibility = try functionalRelationshipAccessibilityRegistry(localization: keys)
         } else if includeAuthorityCriteria {
             accessibility = try authorityCriterionAccessibilityRegistry(localization: keys)
@@ -1005,7 +1395,9 @@ enum BundledLocalizationCatalogV1 {
         includeAccountability: Bool = false,
         includeAssetSemantics: Bool = false,
         includeAuthorityCriteria: Bool = false,
-        includeFunctionalRelationships: Bool = false
+        includeFunctionalRelationships: Bool = false,
+        includeEvidenceVisibility: Bool = false,
+        includeEvidenceAssurance: Bool = false
     ) throws -> LocalizationCatalogPublicationV1 {
         switch (sourceCatalogBytes, receipt) {
         case (nil, nil): return .zero
@@ -1017,7 +1409,9 @@ enum BundledLocalizationCatalogV1 {
                 includeAccountability: includeAccountability,
                 includeAssetSemantics: includeAssetSemantics,
                 includeAuthorityCriteria: includeAuthorityCriteria,
-                includeFunctionalRelationships: includeFunctionalRelationships
+                includeFunctionalRelationships: includeFunctionalRelationships,
+                includeEvidenceVisibility: includeEvidenceVisibility,
+                includeEvidenceAssurance: includeEvidenceAssurance
             )
             guard case let .complete(_, _, _, _, actual) = publication,
                   actual == expected else { throw LocalizationContractFailureV1.digestMismatch }
@@ -1153,6 +1547,54 @@ enum BundledLocalizationCatalogV1 {
             return String(localized: "functional.relationship.site", defaultValue: "Same-site policy", bundle: bundle, locale: locale, comment: "Localized label for the descriptor's Site policy.")
         case .functionalRelationshipCrossSiteState:
             return String(localized: "functional.relationship.site.cross_site", defaultValue: "Cross-site local", bundle: bundle, locale: locale, comment: "Text label for a recorded cross-Site relationship state.")
+        case .evidenceVisibilityHeading:
+            return String(localized: "evidence.visibility.heading", defaultValue: "Evidence visibility", bundle: bundle, locale: locale, comment: "Heading for recorded evidence visibility facts.")
+        case .evidenceVisibilityAudience:
+            return String(localized: "evidence.visibility.audience", defaultValue: "Audience", bundle: bundle, locale: locale, comment: "Localized label for the declared evidence audience.")
+        case .evidenceVisibilityAudienceInternalReview:
+            return String(localized: "evidence.visibility.audience.internal_review", defaultValue: "Internal review", bundle: bundle, locale: locale, comment: "Accessible text for the internal review audience.")
+        case .evidenceVisibilityAudienceCustomerReport:
+            return String(localized: "evidence.visibility.audience.customer_report", defaultValue: "Customer report", bundle: bundle, locale: locale, comment: "Accessible text for the customer report audience.")
+        case .evidenceVisibilityAudienceExternalCollaborator:
+            return String(localized: "evidence.visibility.audience.external_collaborator", defaultValue: "External collaborator", bundle: bundle, locale: locale, comment: "Accessible text for the external collaborator audience.")
+        case .evidenceVisibilitySensitivity:
+            return String(localized: "evidence.visibility.sensitivity", defaultValue: "Sensitivity", bundle: bundle, locale: locale, comment: "Localized label for the recorded evidence sensitivity.")
+        case .evidenceVisibilitySensitivityRoutine:
+            return String(localized: "evidence.visibility.sensitivity.routine", defaultValue: "Routine", bundle: bundle, locale: locale, comment: "Accessible text for routine evidence sensitivity.")
+        case .evidenceVisibilitySensitivityRestricted:
+            return String(localized: "evidence.visibility.sensitivity.restricted", defaultValue: "Restricted", bundle: bundle, locale: locale, comment: "Accessible text for restricted evidence sensitivity.")
+        case .evidenceVisibilitySensitivityHighlyRestricted:
+            return String(localized: "evidence.visibility.sensitivity.highly_restricted", defaultValue: "Highly restricted", bundle: bundle, locale: locale, comment: "Accessible text for highly restricted evidence sensitivity.")
+        case .evidenceVisibilityIncluded:
+            return String(localized: "evidence.visibility.state.included", defaultValue: "Included", bundle: bundle, locale: locale, comment: "Accessible text for evidence included in the audience projection.")
+        case .evidenceVisibilityExcluded:
+            return String(localized: "evidence.visibility.state.excluded", defaultValue: "Excluded", bundle: bundle, locale: locale, comment: "Accessible text for evidence excluded from the audience projection.")
+        case .evidenceVisibilityOmitted:
+            return String(localized: "evidence.visibility.state.omitted", defaultValue: "Omitted", bundle: bundle, locale: locale, comment: "Accessible text for evidence omitted from the audience projection.")
+        case .evidenceVisibilityLimitation:
+            return String(localized: "evidence.visibility.state.limitation", defaultValue: "Limitation", bundle: bundle, locale: locale, comment: "Accessible text for a recorded visibility limitation.")
+        case .evidenceVisibilityUnknown:
+            return String(localized: "evidence.visibility.state.unknown", defaultValue: "Unknown", bundle: bundle, locale: locale, comment: "Accessible text for an unknown visibility value.")
+        case .evidenceVisibilityPreview:
+            return String(localized: "evidence.visibility.preview", defaultValue: "Preview", bundle: bundle, locale: locale, comment: "Localized label for the mutable evidence projection preview.")
+        case .evidenceVisibilityPreviewReady:
+            return String(localized: "evidence.visibility.preview.ready", defaultValue: "Ready", bundle: bundle, locale: locale, comment: "Accessible text for a preview matching its recorded source.")
+        case .evidenceVisibilityPreviewStale:
+            return String(localized: "evidence.visibility.preview.stale", defaultValue: "Stale preview", bundle: bundle, locale: locale, comment: "Accessible text for a preview that no longer matches its recorded source.")
+        case .evidenceVisibilityManifest:
+            return String(localized: "evidence.visibility.manifest", defaultValue: "Assurance manifest", bundle: bundle, locale: locale, comment: "Localized label for the recorded claim and evidence manifest.")
+        case .evidenceVisibilityAttestation:
+            return String(localized: "evidence.visibility.attestation", defaultValue: "Attestation", bundle: bundle, locale: locale, comment: "Localized label for a purpose-bound local attestation record.")
+        case .evidenceVisibilityAttestationPurpose:
+            return String(localized: "evidence.visibility.attestation.purpose", defaultValue: "Purpose", bundle: bundle, locale: locale, comment: "Accessible text for the recorded attestation purpose.")
+        case .evidenceVisibilityAttestationRecorded:
+            return String(localized: "evidence.visibility.attestation.recorded", defaultValue: "Recorded", bundle: bundle, locale: locale, comment: "Accessible text for an attestation record that is current.")
+        case .evidenceVisibilityAttestationSuperseded:
+            return String(localized: "evidence.visibility.attestation.superseded", defaultValue: "Superseded", bundle: bundle, locale: locale, comment: "Accessible text for an attestation replaced by a later record.")
+        case .evidenceVisibilityAttestationVoid:
+            return String(localized: "evidence.visibility.attestation.void", defaultValue: "Void", bundle: bundle, locale: locale, comment: "Accessible text for an attestation marked void in the local record.")
+        case .evidenceVisibilityNextStep:
+            return String(localized: "evidence.visibility.next_step", defaultValue: "Next step", bundle: bundle, locale: locale, comment: "Actionable label for the next step accompanying a limited projection.")
         }
     }
 
@@ -1205,7 +1647,7 @@ enum BundledLocalizationCatalogV1 {
         // additive projection, while the selected registry still controls the
         // required subset.  This keeps C16/C38 compatibility callers frozen
         // and lets each additive typed surface publish atomically.
-        let supportedKeys = Set((try? functionalRelationshipRegistry())?.definitions.map(\.key.rawValue) ?? [])
+        let supportedKeys = Set((try? evidenceVisibilityRegistry())?.definitions.map(\.key.rawValue) ?? [])
         guard registeredKeys.isSubset(of: Set(strings.keys)),
               Set(strings.keys).isSubset(of: supportedKeys) else {
             throw LocalizationContractFailureV1.invalidValue

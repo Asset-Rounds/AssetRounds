@@ -1221,3 +1221,29 @@ extension V9_13PersistentKindLifecycleCoverageTests {
         try fixture.added.validate()
     }
 }
+
+extension V9_13PersistentKindLifecycleCoverageTests {
+    func testV23P03C13PersistentLifecycleEnrollsAllAssuranceFamilies() throws {
+        let fixture = try C13EvidenceAssuranceTestSupportV1.makeFixture(seed: 51_913)
+
+        XCTAssertTrue(PersistentSchemaV13.models.contains {
+            ObjectIdentifier($0) == ObjectIdentifier(EvidenceVisibilityRow.self)
+        })
+        XCTAssertTrue(PersistentSchemaV13.models.contains {
+            ObjectIdentifier($0) == ObjectIdentifier(ClaimEvidenceLinkRow.self)
+        })
+        XCTAssertTrue(PersistentSchemaV13.models.contains {
+            ObjectIdentifier($0) == ObjectIdentifier(AssuranceManifestRow.self)
+        })
+        XCTAssertTrue(PersistentSchemaV13.models.contains {
+            ObjectIdentifier($0) == ObjectIdentifier(AttestationRow.self)
+        })
+        XCTAssertEqual(
+            PersistentSchemaReleaseV1.v13.compatibilityID,
+            "PERSISTENT_SCHEMA_V13_EVIDENCE_ASSURANCE_HISTORY"
+        )
+        XCTAssertEqual(fixture.customerPreview.includedLinks.count, 1)
+        XCTAssertEqual(fixture.customerPreview.excludedLinks.count, 1)
+        try fixture.customerManifest.validateFresh(preview: fixture.customerPreview)
+    }
+}

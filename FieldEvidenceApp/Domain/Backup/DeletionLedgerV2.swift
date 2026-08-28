@@ -121,6 +121,15 @@ enum FunctionalRelationshipDeletionLedgerPolicyV1 {
     }
 }
 
+enum EvidenceAssuranceDeletionLedgerPolicyV1 {
+    static func validate() throws {
+        let kinds = V13BackupEvidenceAssuranceRecordV1.Kind.allCases
+        guard kinds.count == 4, Set(kinds.map(\.rawValue)).count == kinds.count else {
+            throw DeletionLedgerFailureV2.invalidIdentity
+        }
+    }
+}
+
 struct DeletionIdentityV2: Codable, Comparable, Equatable, Hashable, Sendable {
     static let separator = ":"
 
@@ -176,6 +185,7 @@ struct DeletionLedgerEntryV2: Codable, Equatable, Hashable, Sendable {
         try AssetSemanticDeletionLedgerPolicyV1.validate()
         try AuthorityCriterionDeletionLedgerPolicyV1.validate()
         try FunctionalRelationshipDeletionLedgerPolicyV1.validate()
+        try EvidenceAssuranceDeletionLedgerPolicyV1.validate()
         guard schemaVersion == 2 else {
             throw DeletionLedgerFailureV2.invalidSchemaVersion
         }

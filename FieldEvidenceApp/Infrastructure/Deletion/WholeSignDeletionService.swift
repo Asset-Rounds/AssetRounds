@@ -1234,6 +1234,10 @@ private extension WholeSignDeletionService {
         let workSubjectScopeSnapshots: [WorkSubjectScopeSnapshotRow]
         let functionalRelationshipDescriptors: [FunctionalRelationshipTypeDescriptorRow]
         let functionalRelationshipEvents: [AssetFunctionalRelationshipEventRow]
+        let evidenceVisibilities: [EvidenceVisibilityRow]
+        let claimEvidenceLinks: [ClaimEvidenceLinkRow]
+        let assuranceManifests: [AssuranceManifestRow]
+        let attestations: [AttestationRow]
         let observationAndTime: [UUID: ObservationAndTimeRow]
         let recordPayloads: [WorkflowRecordPayloadV1]
         let evidence: [EvidenceFile]
@@ -1275,6 +1279,10 @@ private extension WholeSignDeletionService {
                 workSubjectScopeSnapshots: try boundedFetch(WorkSubjectScopeSnapshotRow.self),
                 functionalRelationshipDescriptors: try boundedFetch(FunctionalRelationshipTypeDescriptorRow.self),
                 functionalRelationshipEvents: try boundedFetch(AssetFunctionalRelationshipEventRow.self),
+                evidenceVisibilities: try boundedFetch(EvidenceVisibilityRow.self),
+                claimEvidenceLinks: try boundedFetch(ClaimEvidenceLinkRow.self),
+                assuranceManifests: try boundedFetch(AssuranceManifestRow.self),
+                attestations: try boundedFetch(AttestationRow.self),
                 observationAndTime: observationAndTime,
                 recordPayloads: recordPayloads,
                 evidence: try boundedFetch(EvidenceFile.self),
@@ -1750,6 +1758,10 @@ private extension WholeSignDeletionService {
               unique(rows.workSubjectScopeSnapshots.map(\.snapshotID)),
               unique(rows.functionalRelationshipDescriptors.map(\.descriptorReleaseID)),
               unique(rows.functionalRelationshipEvents.map(\.eventID)),
+              unique(rows.evidenceVisibilities.map(\.visibilityID)),
+              unique(rows.claimEvidenceLinks.map(\.linkID)),
+              unique(rows.assuranceManifests.map(\.manifestID)),
+              unique(rows.attestations.map(\.attestationID)),
               rows.serviceParties.allSatisfy({ (try? $0.value()) != nil }),
               rows.sitePartyRoles.allSatisfy({ (try? $0.value()) != nil }),
               rows.actorSnapshots.allSatisfy({ (try? $0.value()) != nil }),
@@ -1763,6 +1775,10 @@ private extension WholeSignDeletionService {
               rows.workSubjectScopeSnapshots.allSatisfy({ (try? $0.value()) != nil }),
               rows.functionalRelationshipDescriptors.allSatisfy({ (try? $0.value()) != nil }),
               rows.functionalRelationshipEvents.allSatisfy({ (try? $0.value()) != nil }),
+              rows.evidenceVisibilities.allSatisfy({ (try? $0.value()) != nil }),
+              rows.claimEvidenceLinks.allSatisfy({ (try? $0.value()) != nil }),
+              rows.assuranceManifests.allSatisfy({ (try? $0.value()) != nil }),
+              rows.attestations.allSatisfy({ (try? $0.value()) != nil }),
               rows.sites.allSatisfy({ $0.schemaVersion == 1 }),
               rows.assets.allSatisfy({ asset in
                   asset.schemaVersion == 1

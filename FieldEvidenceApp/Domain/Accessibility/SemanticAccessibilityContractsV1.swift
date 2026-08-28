@@ -195,6 +195,106 @@ enum AuthorityCriterionAccessibilityPolicyV1 {
     }
 }
 
+/// Closed C13 identifiers for the evidence-assurance projection.  They remain
+/// stable when English display text changes and identify recorded audience,
+/// sensitivity, inclusion, preview, manifest, and attestation facts only.
+enum EvidenceVisibilityAccessibilityIDV1: String, Codable, CaseIterable, Sendable {
+    case screen = "evidence.visibility.screen"
+    case heading = "evidence.visibility.heading"
+    case audience = "evidence.visibility.audience"
+    case audienceInternalReview = "evidence.visibility.audience.internal-review"
+    case audienceCustomerReport = "evidence.visibility.audience.customer-report"
+    case audienceExternalCollaborator = "evidence.visibility.audience.external-collaborator"
+    case sensitivity = "evidence.visibility.sensitivity"
+    case sensitivityRoutine = "evidence.visibility.sensitivity.routine"
+    case sensitivityRestricted = "evidence.visibility.sensitivity.restricted"
+    case sensitivityHighlyRestricted = "evidence.visibility.sensitivity.highly-restricted"
+    case included = "evidence.visibility.state.included"
+    case excluded = "evidence.visibility.state.excluded"
+    case omitted = "evidence.visibility.state.omitted"
+    case limitation = "evidence.visibility.state.limitation"
+    case unknown = "evidence.visibility.state.unknown"
+    case preview = "evidence.visibility.preview"
+    case previewReady = "evidence.visibility.preview.ready"
+    case previewStale = "evidence.visibility.preview.stale"
+    case manifest = "evidence.visibility.manifest"
+    case attestation = "evidence.visibility.attestation"
+    case attestationPurpose = "evidence.visibility.attestation.purpose"
+    case attestationRecorded = "evidence.visibility.attestation.recorded"
+    case attestationSuperseded = "evidence.visibility.attestation.superseded"
+    case attestationVoid = "evidence.visibility.attestation.void"
+    case nextStep = "evidence.visibility.next-step"
+
+    static var visibilityHeading: Self { .heading }
+    static var includedState: Self { .included }
+    static var excludedState: Self { .excluded }
+    static var omittedState: Self { .omitted }
+    static var limitationState: Self { .limitation }
+    static var unknownState: Self { .unknown }
+    static var readyPreview: Self { .previewReady }
+    static var stalePreview: Self { .previewStale }
+    static var assuranceManifest: Self { .manifest }
+    static var attestationStateRecorded: Self { .attestationRecorded }
+    static var attestationStateSuperseded: Self { .attestationSuperseded }
+    static var attestationStateVoid: Self { .attestationVoid }
+    static var actionableNextStep: Self { .nextStep }
+}
+
+typealias EvidenceAssuranceAccessibilityIDV1 = EvidenceVisibilityAccessibilityIDV1
+
+/// C13 status requirements make omission and indeterminate presentation
+/// understandable without relying on color or an icon alone.  An explicit
+/// next-step binding is required for every state that can deny or limit a
+/// projection.
+enum EvidenceVisibilityAccessibilityPolicyV1 {
+    static let semanticIDs = EvidenceVisibilityAccessibilityIDV1.allCases.map(\.rawValue)
+    static let stateSemanticIDs: Set<String> = [
+        EvidenceVisibilityAccessibilityIDV1.included.rawValue,
+        EvidenceVisibilityAccessibilityIDV1.excluded.rawValue,
+        EvidenceVisibilityAccessibilityIDV1.omitted.rawValue,
+        EvidenceVisibilityAccessibilityIDV1.limitation.rawValue,
+        EvidenceVisibilityAccessibilityIDV1.unknown.rawValue,
+        EvidenceVisibilityAccessibilityIDV1.previewReady.rawValue,
+        EvidenceVisibilityAccessibilityIDV1.previewStale.rawValue,
+        EvidenceVisibilityAccessibilityIDV1.attestationRecorded.rawValue,
+        EvidenceVisibilityAccessibilityIDV1.attestationSuperseded.rawValue,
+        EvidenceVisibilityAccessibilityIDV1.attestationVoid.rawValue,
+    ]
+    static let indeterminateSemanticIDs: Set<String> = [
+        EvidenceVisibilityAccessibilityIDV1.excluded.rawValue,
+        EvidenceVisibilityAccessibilityIDV1.omitted.rawValue,
+        EvidenceVisibilityAccessibilityIDV1.limitation.rawValue,
+        EvidenceVisibilityAccessibilityIDV1.unknown.rawValue,
+        EvidenceVisibilityAccessibilityIDV1.previewStale.rawValue,
+        EvidenceVisibilityAccessibilityIDV1.attestationSuperseded.rawValue,
+        EvidenceVisibilityAccessibilityIDV1.attestationVoid.rawValue,
+    ]
+    static let statusSemanticIDs: Set<String> = stateSemanticIDs
+    static let denyByDefault = true
+    static let nonColorStateTextRequired = true
+    static let textAndIconRequiredForIndeterminateStates = true
+    static let actionableNextStepRequiredForIndeterminateStates = true
+    static let colorOnlyStateAllowed = false
+    static let iconOnlyStateAllowed = false
+    static let rtlRequired = true
+    static let dynamicTypeRequired = true
+    static let voiceOverRequired = true
+    static let voiceControlRequired = true
+    static let switchControlRequired = true
+    static let actionableNextStepRequired = true
+    static let textIconActionableNextStepRequired = true
+
+    static func requiresTextAndIcon(for semanticID: String) -> Bool {
+        indeterminateSemanticIDs.contains(semanticID)
+    }
+
+    static func requiresActionableNextStep(for semanticID: String) -> Bool {
+        indeterminateSemanticIDs.contains(semanticID)
+    }
+}
+
+typealias EvidenceAssuranceAccessibilityPolicyV1 = EvidenceVisibilityAccessibilityPolicyV1
+
 struct AccessibilityContractV1: Codable, Equatable, Sendable {
     let semanticID: String
     let role: SemanticAccessibilityRoleV1

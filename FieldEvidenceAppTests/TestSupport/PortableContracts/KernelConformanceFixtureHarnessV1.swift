@@ -4660,3 +4660,175 @@ enum C41FunctionalRelationshipTestSupportV1 {
         return [fixture.added, second, third]
     }
 }
+
+/// Deterministic C13 objects shared by legacy lifecycle tests.  The fixture
+/// deliberately keeps all evidence synthetic and exercises both included and
+/// excluded audience decisions without introducing a second writer or store.
+enum C13EvidenceAssuranceTestSupportV1 {
+    struct Fixture {
+        let workspaceID: WorkspaceID
+        let actor: LocalActorReferenceV1
+        let routineVisibility: EvidenceVisibilityV1
+        let internalOnlyVisibility: EvidenceVisibilityV1
+        let restrictedVisibility: EvidenceVisibilityV1
+        let highlyRestrictedVisibility: EvidenceVisibilityV1
+        let customerLink: ClaimEvidenceLinkV1
+        let internalOnlyCustomerLink: ClaimEvidenceLinkV1
+        let restrictedExternalLink: ClaimEvidenceLinkV1
+        let internalLink: ClaimEvidenceLinkV1
+        let customerPreview: AssuranceProjectionPreviewV1
+        let customerManifest: AssuranceManifestV1
+        let customerAttestation: AttestationV1
+    }
+
+    static let fixedDate = Date(timeIntervalSince1970: 1_735_690_600.125)
+    static let evidenceSHA256 = String(repeating: "a", count: 64)
+    static let projectionVersion = "C13_EVIDENCE_ASSURANCE_V1"
+
+    static func id(_ seed: Int) -> UUID {
+        UUID(uuidString: String(format: "00000000-0000-0000-0000-%012x", seed))!
+    }
+
+    static func workspace(_ seed: Int = 51_000) -> WorkspaceID {
+        WorkspaceID(rawValue: id(seed))
+    }
+
+    static func mutation(_ seed: Int) throws -> MutationIDV1 {
+        try MutationIDV1(rawValue: id(seed))
+    }
+
+    static func makeVisibility(
+        seed: Int,
+        workspaceID: WorkspaceID,
+        sensitivity: EvidenceSensitivityV1,
+        allowedAudiences: [EvidenceAudienceV1],
+        supersedesVisibilityID: UUID? = nil,
+        revision: UInt64 = 1
+    ) throws -> EvidenceVisibilityV1 {
+        try EvidenceVisibilityV1(
+            visibilityID: id(seed),
+            workspaceID: workspaceID,
+            sensitivity: sensitivity,
+            allowedAudiences: allowedAudiences,
+            effectiveAt: fixedDate,
+            supersedesVisibilityID: supersedesVisibilityID,
+            revision: revision,
+            mutationID: try mutation(seed + 100)
+        )
+    }
+
+    static func makeLink(
+        seed: Int,
+        workspaceID: WorkspaceID,
+        visibility: EvidenceVisibilityV1,
+        audience: EvidenceAudienceV1,
+        evidenceID: String,
+        claimID: String = "claim.visible-condition",
+        limitation: EvidenceLimitationV1? = nil,
+        limitationNote: String? = nil,
+        supersedesLinkID: UUID? = nil,
+        revision: UInt64 = 1
+    ) throws -> ClaimEvidenceLinkV1 {
+        try ClaimEvidenceLinkV1(
+            linkID: id(seed),
+            workspaceID: workspaceID,
+            claimID: claimID,
+            criterionID: "criterion.visible-condition",
+            evidenceID: evidenceID,
+            evidenceRevision: 1,
+            evidenceSHA256: evidenceSHA256,
+            visibility: visibility,
+            audience: audience,
+            limitation: limitation,
+            limitationNote: limitationNote,
+            supersedesLinkID: supersedesLinkID,
+            revision: revision,
+            mutationID: try mutation(seed + 100)
+        )
+    }
+
+    static func makeFixture(seed: Int = 51_000) throws -> Fixture {
+        let workspaceID = workspace(seed)
+        let actor = try LocalActorReferenceV1(
+            actorReferenceID: id(seed + 1), workspaceID: workspaceID,
+            displayName: "C13 local reviewer"
+        )
+        let routineVisibility = try makeVisibility(
+            seed: seed + 10, workspaceID: workspaceID, sensitivity: .routine,
+            allowedAudiences: [.internalReview, .customerReport, .externalCollaborator]
+        )
+        let internalOnlyVisibility = try makeVisibility(
+            seed: seed + 20, workspaceID: workspaceID, sensitivity: .routine,
+            allowedAudiences: [.internalReview]
+        )
+        let restrictedVisibility = try makeVisibility(
+            seed: seed + 30, workspaceID: workspaceID, sensitivity: .restricted,
+            allowedAudiences: [.internalReview, .customerReport]
+        )
+        let highlyRestrictedVisibility = try makeVisibility(
+            seed: seed + 40, workspaceID: workspaceID, sensitivity: .highlyRestricted,
+            allowedAudiences: [.internalReview]
+        )
+        let customerLink = try makeLink(
+            seed: seed + 50, workspaceID: workspaceID, visibility: routineVisibility,
+            audience: .customerReport, evidenceID: "evidence.customer-safe"
+        )
+        let internalOnlyCustomerLink = try makeLink(
+            seed: seed + 51, workspaceID: workspaceID, visibility: internalOnlyVisibility,
+            audience: .customerReport, evidenceID: "evidence.internal-canary",
+            limitationNote: "Internal-only evidence omitted from this customer projection."
+        )
+        let restrictedExternalLink = try makeLink(
+            seed: seed + 52, workspaceID: workspaceID, visibility: restrictedVisibility,
+            audience: .externalCollaborator, evidenceID: "evidence.restricted-canary",
+            limitationNote: "Restricted evidence omitted from this collaborator projection."
+        )
+        let internalLink = try makeLink(
+            seed: seed + 53, workspaceID: workspaceID, visibility: highlyRestrictedVisibility,
+            audience: .internalReview, evidenceID: "evidence.internal-review"
+        )
+        let customerPreview = try AssuranceProjectionPreviewV1(
+            previewID: id(seed + 60), workspaceID: workspaceID,
+            audience: .customerReport, snapshotSHA256: evidenceSHA256,
+            projectionVersion: projectionVersion,
+            links: [customerLink, internalOnlyCustomerLink],
+            createdAt: fixedDate.addingTimeInterval(1)
+        )
+        let customerManifest = try AssuranceManifestV1(
+            manifestID: id(seed + 61), preview: customerPreview,
+            recordedAt: fixedDate.addingTimeInterval(2), mutationID: try mutation(seed + 62)
+        )
+        let scope = try AttestationScopeV1(
+            kind: .assuranceManifest, scopeID: customerManifest.manifestID,
+            scopeRevision: customerManifest.revision
+        )
+        let customerAttestation = try AttestationV1(
+            attestationID: id(seed + 70), workspaceID: workspaceID,
+            purpose: .acknowledgeReport, scope: scope, manifest: customerManifest,
+            declaredActor: actor, method: .explicitLocalConfirmation,
+            occurredAt: fixedDate.addingTimeInterval(3),
+            recordedAt: fixedDate.addingTimeInterval(3),
+            mutationID: try mutation(seed + 71)
+        )
+        return Fixture(
+            workspaceID: workspaceID, actor: actor,
+            routineVisibility: routineVisibility,
+            internalOnlyVisibility: internalOnlyVisibility,
+            restrictedVisibility: restrictedVisibility,
+            highlyRestrictedVisibility: highlyRestrictedVisibility,
+            customerLink: customerLink,
+            internalOnlyCustomerLink: internalOnlyCustomerLink,
+            restrictedExternalLink: restrictedExternalLink,
+            internalLink: internalLink,
+            customerPreview: customerPreview,
+            customerManifest: customerManifest,
+            customerAttestation: customerAttestation
+        )
+    }
+
+    static func corpusURL() -> URL {
+        KernelConformanceFixtureHarnessV1.sourceRoot().appendingPathComponent(
+            "FieldEvidenceAppTests/Fixtures/V21/EvidenceAssurance/V21P03C13EvidenceAssuranceCorpusV1.json"
+        )
+    }
+}

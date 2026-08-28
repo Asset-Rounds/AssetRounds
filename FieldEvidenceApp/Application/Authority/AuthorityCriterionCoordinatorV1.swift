@@ -31,6 +31,62 @@ struct PreparedAuthorityCriterionMutationV1: Equatable, Sendable {
 }
 
 enum AuthorityCriterionCoordinatorV1 {
+    static func claimEvidenceLink(
+        source: AuthorityCriterionAssuranceSourceV1,
+        linkID: UUID,
+        visibility: EvidenceVisibilityV1,
+        audience: EvidenceAudienceV1,
+        limitation: EvidenceLimitationV1? = nil,
+        limitationNote: String? = nil,
+        supersedesLinkID: UUID? = nil,
+        revision: UInt64 = 1,
+        mutationID: MutationIDV1
+    ) throws -> ClaimEvidenceLinkV1 {
+        try source.validate(); try visibility.validate()
+        guard source.workspaceID == visibility.workspaceID else {
+            throw AuthorityCriterionCoordinatorFailureV1.wrongWorkspace
+        }
+        return try ClaimEvidenceLinkV1(
+            linkID: linkID,
+            workspaceID: source.workspaceID,
+            claimID: source.claimID,
+            criterionID: source.criterionID,
+            evidenceID: source.evidenceID,
+            evidenceRevision: source.evidenceRevision,
+            evidenceSHA256: source.evidenceSHA256,
+            visibility: visibility,
+            audience: audience,
+            limitation: limitation,
+            limitationNote: limitationNote,
+            supersedesLinkID: supersedesLinkID,
+            revision: revision,
+            mutationID: mutationID
+        )
+    }
+
+    static func assurancePreview(
+        previewID: UUID,
+        workspaceID: WorkspaceID,
+        audience: EvidenceAudienceV1,
+        snapshotSHA256: String,
+        projectionVersion: String,
+        links: [ClaimEvidenceLinkV1],
+        createdAt: Date
+    ) throws -> AssuranceProjectionPreviewV1 {
+        guard links.allSatisfy({ $0.workspaceID == workspaceID }) else {
+            throw AuthorityCriterionCoordinatorFailureV1.wrongWorkspace
+        }
+        return try AssuranceProjectionPreviewV1(
+            previewID: previewID,
+            workspaceID: workspaceID,
+            audience: audience,
+            snapshotSHA256: snapshotSHA256,
+            projectionVersion: projectionVersion,
+            links: links,
+            createdAt: createdAt
+        )
+    }
+
     static func prepare(
         workspaceID: WorkspaceID,
         expectedRevision: UInt64,

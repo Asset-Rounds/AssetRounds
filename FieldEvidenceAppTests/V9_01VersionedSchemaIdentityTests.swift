@@ -920,3 +920,26 @@ extension V9_01VersionedSchemaIdentityTests {
         try fixture.added.validate()
     }
 }
+
+extension V9_01VersionedSchemaIdentityTests {
+    func testV23P03C13SchemaIdentityRegistersEvidenceAssuranceRows() throws {
+        let fixture = try C13EvidenceAssuranceTestSupportV1.makeFixture(seed: 51_901)
+
+        XCTAssertEqual(PersistentSchemaV13.versionIdentifier, Schema.Version(13, 0, 0))
+        XCTAssertEqual(
+            PersistentSchemaReleaseV1.v13.compatibilityID,
+            "PERSISTENT_SCHEMA_V13_EVIDENCE_ASSURANCE_HISTORY"
+        )
+        for rowType in [
+            ObjectIdentifier(EvidenceVisibilityRow.self),
+            ObjectIdentifier(ClaimEvidenceLinkRow.self),
+            ObjectIdentifier(AssuranceManifestRow.self),
+            ObjectIdentifier(AttestationRow.self)
+        ] {
+            XCTAssertTrue(PersistentSchemaV13.models.contains { ObjectIdentifier($0) == rowType })
+        }
+        XCTAssertEqual(fixture.routineVisibility.schemaVersion, EvidenceVisibilityV1.schemaVersion)
+        XCTAssertEqual(fixture.customerManifest.schemaVersion, AssuranceManifestV1.schemaVersion)
+        try fixture.customerAttestation.validate(manifest: fixture.customerManifest)
+    }
+}
