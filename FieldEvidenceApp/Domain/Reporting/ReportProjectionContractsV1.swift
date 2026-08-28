@@ -1977,3 +1977,383 @@ struct ReportWorkPacketProjectionV1: Codable, Equatable, Sendable {
         try validate()
     }
 }
+
+// MARK: - C21 client capability and package lifecycle projection
+
+enum ClientCapabilityReportProjectionFailureV1: Error, Equatable, Sendable {
+    case invalidValue
+    case admissionDenied
+    case operationMismatch
+    case wrongWorkspace
+    case digestMismatch
+    case unknownLifecycleValue
+    case identityLeak
+}
+
+/// Metadata-only report binding for local capability admission and package
+/// lifecycle disposition.  The canonical profile, policy, disposition, and
+/// decision remain the source of truth; this value carries only bounded IDs,
+/// digests, closed values, and deterministic operation permissions.
+struct ClientCapabilityReportProjectionV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let projectionVersion = "client-capability-report-v1"
+
+    let schemaVersion: Int
+    let projectionVersion: String
+    let workspaceID: WorkspaceID
+    let decisionID: UUID
+    let profileID: UUID
+    let policyID: UUID
+    let dispositionID: UUID
+    let packageReleaseID: String
+    let packageSHA256: String
+    let workflowSHA256: String
+    let profileRevision: UInt64
+    let policyRevision: UInt64
+    let dispositionRevision: UInt64
+    let decisionRevision: UInt64
+    let profileSHA256: String
+    let policySHA256: String
+    let dispositionSHA256: String
+    let decisionSHA256: String
+    let operation: PackageLifecycleOperationV1
+    let admission: ClientAdmissionV1
+    let lifecycleState: PackageLifecycleStateV1
+    let reasons: [ClientCapabilityReasonV1]
+    let readAllowed: Bool
+    let writeAllowed: Bool
+    let operationAllowed: Bool
+    let historicArtifact: Bool
+    let historicExportAllowed: Bool
+    let immutableHistoric: Bool
+    let projectionSHA256: String
+
+    init(
+        decision: ClientCapabilityAdmissionDecisionV1,
+        profile: ClientCapabilityProfileV1,
+        policy: PackageLifecyclePolicyV1,
+        disposition: PackageLifecycleDispositionV1,
+        release: InspectionPackageReleaseV1
+    ) throws {
+        try decision.validate(
+            profile: profile,
+            policy: policy,
+            disposition: disposition,
+            release: release
+        )
+        let expected = ClientCapabilityAdmissionEvaluatorV1.evaluate(
+            profile: profile,
+            policy: policy,
+            disposition: disposition,
+            release: release,
+            operation: decision.operation
+        )
+        guard decision.admission == expected.0,
+              decision.reasons == expected.1.sorted(by: { $0.rawValue < $1.rawValue }),
+              decision.workspaceID == profile.workspaceID,
+              profile.workspaceID == policy.workspaceID,
+              policy.workspaceID == disposition.workspaceID,
+              decision.packageReleaseID == release.packageReleaseID,
+              decision.packageSHA256 == release.packageSHA256,
+              decision.workflowSHA256 == release.workflowSHA256 else {
+            throw ClientCapabilityReportProjectionFailureV1.admissionDenied
+        }
+
+        let readAllowed = decision.admission == .readWrite
+            || decision.admission == .readOnly
+        let operationAllowed = Self.readOperations.contains(decision.operation)
+            ? readAllowed
+            : Self.writeOperations.contains(decision.operation)
+                && decision.admission == .readWrite
+        let writeAllowed = decision.admission == .readWrite
+            && Self.writeOperations.contains(decision.operation)
+        let historicArtifact = disposition.state == .withdrawn
+        let historicExportAllowed = historicArtifact
+            && readAllowed
+            && decision.operation == .export
+            && Self.readOperations.contains(decision.operation)
+
+        schemaVersion = Self.schemaVersion
+        projectionVersion = Self.projectionVersion
+        workspaceID = decision.workspaceID
+        decisionID = decision.decisionID
+        profileID = profile.profileID
+        policyID = policy.policyID
+        dispositionID = disposition.dispositionID
+        packageReleaseID = release.packageReleaseID
+        packageSHA256 = release.packageSHA256
+        workflowSHA256 = release.workflowSHA256
+        profileRevision = profile.revision
+        policyRevision = policy.revision
+        dispositionRevision = disposition.revision
+        decisionRevision = decision.revision
+        profileSHA256 = profile.profileSHA256
+        policySHA256 = policy.policySHA256
+        dispositionSHA256 = disposition.dispositionSHA256
+        decisionSHA256 = decision.decisionSHA256
+        operation = decision.operation
+        admission = decision.admission
+        lifecycleState = disposition.state
+        reasons = decision.reasons
+        self.readAllowed = readAllowed
+        self.writeAllowed = writeAllowed
+        self.operationAllowed = operationAllowed
+        self.historicArtifact = historicArtifact
+        self.historicExportAllowed = historicExportAllowed
+        immutableHistoric = true
+        projectionSHA256 = try Self.digest(
+            workspaceID: workspaceID,
+            decisionID: decisionID,
+            profileID: profileID,
+            policyID: policyID,
+            dispositionID: dispositionID,
+            packageReleaseID: packageReleaseID,
+            packageSHA256: packageSHA256,
+            workflowSHA256: workflowSHA256,
+            profileRevision: profileRevision,
+            policyRevision: policyRevision,
+            dispositionRevision: dispositionRevision,
+            decisionRevision: decisionRevision,
+            profileSHA256: profileSHA256,
+            policySHA256: policySHA256,
+            dispositionSHA256: dispositionSHA256,
+            decisionSHA256: decisionSHA256,
+            operation: operation,
+            admission: admission,
+            lifecycleState: lifecycleState,
+            reasons: reasons,
+            readAllowed: readAllowed,
+            writeAllowed: writeAllowed,
+            operationAllowed: operationAllowed,
+            historicArtifact: historicArtifact,
+            historicExportAllowed: historicExportAllowed,
+            immutableHistoric: immutableHistoric
+        )
+        try validate()
+    }
+
+    var startsNewWorkAllowed: Bool {
+        writeAllowed && operation == .start
+    }
+
+    var isReadOnly: Bool {
+        admission == .readOnly
+    }
+
+    var isDenied: Bool {
+        admission == .migrationRequired
+            || admission == .quarantine
+            || admission == .reject
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              projectionVersion == Self.projectionVersion,
+              workspaceID.rawValue != SearchContractValidationV1.zeroUUID,
+              decisionID != SearchContractValidationV1.zeroUUID,
+              profileID != SearchContractValidationV1.zeroUUID,
+              policyID != SearchContractValidationV1.zeroUUID,
+              dispositionID != SearchContractValidationV1.zeroUUID,
+              SnapshotProjectionValidationV1.validID(packageReleaseID),
+              KernelCanonicalHashV1.validSHA256(packageSHA256),
+              KernelCanonicalHashV1.validSHA256(workflowSHA256),
+              profileRevision > 0, profileRevision <= UInt64(Int.max),
+              policyRevision > 0, policyRevision <= UInt64(Int.max),
+              dispositionRevision > 0, dispositionRevision <= UInt64(Int.max),
+              decisionRevision > 0, decisionRevision <= UInt64(Int.max),
+              KernelCanonicalHashV1.validSHA256(profileSHA256),
+              KernelCanonicalHashV1.validSHA256(policySHA256),
+              KernelCanonicalHashV1.validSHA256(dispositionSHA256),
+              KernelCanonicalHashV1.validSHA256(decisionSHA256),
+              reasons == reasons.sorted(by: { $0.rawValue < $1.rawValue }),
+              !reasons.isEmpty,
+              Set(reasons).count == reasons.count,
+              immutableHistoric,
+              readAllowed == (admission == .readWrite || admission == .readOnly),
+              writeAllowed == (admission == .readWrite
+                               && Self.writeOperations.contains(operation)),
+              operationAllowed == (
+                  Self.readOperations.contains(operation)
+                      ? readAllowed
+                      : Self.writeOperations.contains(operation) && writeAllowed
+              ),
+              historicArtifact == (lifecycleState == .withdrawn),
+              historicExportAllowed == (historicArtifact
+                                         && readAllowed
+                                         && operation == .export),
+              projectionSHA256 == expectedDigest else {
+            throw ClientCapabilityReportProjectionFailureV1.invalidValue
+        }
+    }
+
+    static let writeOperations: Set<PackageLifecycleOperationV1> = [
+        .start, .resume, .finalize, .amend, .upgradeDraft,
+    ]
+    static let readOperations: Set<PackageLifecycleOperationV1> = [
+        .view, .export, .restore, .replay,
+    ]
+
+    static func digest(
+        workspaceID: WorkspaceID,
+        decisionID: UUID,
+        profileID: UUID,
+        policyID: UUID,
+        dispositionID: UUID,
+        packageReleaseID: String,
+        packageSHA256: String,
+        workflowSHA256: String,
+        profileRevision: UInt64,
+        policyRevision: UInt64,
+        dispositionRevision: UInt64,
+        decisionRevision: UInt64,
+        profileSHA256: String,
+        policySHA256: String,
+        dispositionSHA256: String,
+        decisionSHA256: String,
+        operation: PackageLifecycleOperationV1,
+        admission: ClientAdmissionV1,
+        lifecycleState: PackageLifecycleStateV1,
+        reasons: [ClientCapabilityReasonV1],
+        readAllowed: Bool,
+        writeAllowed: Bool,
+        operationAllowed: Bool,
+        historicArtifact: Bool,
+        historicExportAllowed: Bool,
+        immutableHistoric: Bool
+    ) throws -> String {
+        try WorkspaceMutationCanonicalV1.sha256(Basis(
+            schemaVersion: Self.schemaVersion,
+            projectionVersion: Self.projectionVersion,
+            workspaceID: workspaceID,
+            decisionID: decisionID,
+            profileID: profileID,
+            policyID: policyID,
+            dispositionID: dispositionID,
+            packageReleaseID: packageReleaseID,
+            packageSHA256: packageSHA256,
+            workflowSHA256: workflowSHA256,
+            profileRevision: profileRevision,
+            policyRevision: policyRevision,
+            dispositionRevision: dispositionRevision,
+            decisionRevision: decisionRevision,
+            profileSHA256: profileSHA256,
+            policySHA256: policySHA256,
+            dispositionSHA256: dispositionSHA256,
+            decisionSHA256: decisionSHA256,
+            operation: operation,
+            admission: admission,
+            lifecycleState: lifecycleState,
+            reasons: reasons,
+            readAllowed: readAllowed,
+            writeAllowed: writeAllowed,
+            operationAllowed: operationAllowed,
+            historicArtifact: historicArtifact,
+            historicExportAllowed: historicExportAllowed,
+            immutableHistoric: immutableHistoric
+        ))
+    }
+
+    private var expectedDigest: String {
+        // swiftlint:disable:next force_try
+        try! Self.digest(
+            workspaceID: workspaceID,
+            decisionID: decisionID,
+            profileID: profileID,
+            policyID: policyID,
+            dispositionID: dispositionID,
+            packageReleaseID: packageReleaseID,
+            packageSHA256: packageSHA256,
+            workflowSHA256: workflowSHA256,
+            profileRevision: profileRevision,
+            policyRevision: policyRevision,
+            dispositionRevision: dispositionRevision,
+            decisionRevision: decisionRevision,
+            profileSHA256: profileSHA256,
+            policySHA256: policySHA256,
+            dispositionSHA256: dispositionSHA256,
+            decisionSHA256: decisionSHA256,
+            operation: operation,
+            admission: admission,
+            lifecycleState: lifecycleState,
+            reasons: reasons,
+            readAllowed: readAllowed,
+            writeAllowed: writeAllowed,
+            operationAllowed: operationAllowed,
+            historicArtifact: historicArtifact,
+            historicExportAllowed: historicExportAllowed,
+            immutableHistoric: immutableHistoric
+        )
+    }
+
+    private struct Basis: Codable {
+        let schemaVersion: Int
+        let projectionVersion: String
+        let workspaceID: WorkspaceID
+        let decisionID: UUID
+        let profileID: UUID
+        let policyID: UUID
+        let dispositionID: UUID
+        let packageReleaseID: String
+        let packageSHA256: String
+        let workflowSHA256: String
+        let profileRevision: UInt64
+        let policyRevision: UInt64
+        let dispositionRevision: UInt64
+        let decisionRevision: UInt64
+        let profileSHA256: String
+        let policySHA256: String
+        let dispositionSHA256: String
+        let decisionSHA256: String
+        let operation: PackageLifecycleOperationV1
+        let admission: ClientAdmissionV1
+        let lifecycleState: PackageLifecycleStateV1
+        let reasons: [ClientCapabilityReasonV1]
+        let readAllowed: Bool
+        let writeAllowed: Bool
+        let operationAllowed: Bool
+        let historicArtifact: Bool
+        let historicExportAllowed: Bool
+        let immutableHistoric: Bool
+    }
+}
+
+enum ClientCapabilityReportProjectionPolicyV1 {
+    static let sectionID = "client-capability-admission"
+    static let sectionVersion = 1
+    static let projectionVersion = ClientCapabilityReportProjectionV1.projectionVersion
+    static let privacyClass = ReportPrivacyClassV1.audienceSafe
+    static let metadataOnly = true
+    static let requiresCanonicalDecisionBinding = true
+    static let allowsHistoricExportAfterWithdrawal = true
+    static let withdrawalBlocksNewWork = true
+    static let denyWriteUnlessReadWrite = true
+    static let denyMigrationQuarantineRejectOperations = true
+    static let immutableHistoricDisplay = true
+    static let correctionsAreAmendOnly = true
+    static let excludesDeviceIdentity = true
+    static let excludesUserIdentity = true
+    static let excludesEndpointProviderAccount = true
+    static let excludesRemoteDeliveryAcknowledgement = true
+    static let excludesOriginalPayload = true
+    static let excludesUnsupportedClaims = true
+    static let supportedFormats: [ReportProjectionFormatV1] = [
+        .openJSON, .pdf, .structuredText, .media,
+    ]
+
+    static func supports(_ format: ReportProjectionFormatV1) -> Bool {
+        supportedFormats.contains(format)
+    }
+
+    static func validate(
+        _ projection: ClientCapabilityReportProjectionV1,
+        format: ReportProjectionFormatV1
+    ) throws -> ClientCapabilityReportProjectionV1 {
+        guard supports(format) else {
+            throw ClientCapabilityReportProjectionFailureV1.invalidValue
+        }
+        try projection.validate()
+        return projection
+    }
+}
+
+typealias ClientCapabilityAdmissionReportProjectionV1 = ClientCapabilityReportProjectionV1

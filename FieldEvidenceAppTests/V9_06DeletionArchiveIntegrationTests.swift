@@ -483,3 +483,13 @@ extension V9_06DeletionArchiveIntegrationTests {
         )
     }
 }
+
+extension V9_06DeletionArchiveIntegrationTests {
+    func testC21ClientCapabilityLifecycleAnchor() throws {
+        XCTAssertEqual(ClientCapabilityProfileV1.schemaVersion, 1)
+        XCTAssertEqual(ClientAdmissionV1.allCases.count, 5)
+        XCTAssertEqual(PackageLifecycleOperationV1.allCases.count, 9)
+        XCTAssertEqual(PersistentSchemaV20.models.count, 81)
+        XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
+    }
+}

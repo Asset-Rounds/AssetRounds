@@ -1313,6 +1313,67 @@ extension EvidenceDetailCardV1 {
     }
 }
 
+// MARK: - C21 capability admission card guard
+
+enum EvidenceDetailClientCapabilityProjectionGuardV1 {
+    static let metadataOnly = true
+    static let closedAdmissionValuesOnly = true
+    static let immutableHistoricDisplay = true
+    static let excludesDeviceIdentity = true
+    static let excludesUserIdentity = true
+    static let excludesEndpointProviderAccount = true
+    static let excludesRemoteDeliveryAcknowledgement = true
+    static let excludesPackagePayload = true
+
+    static func validate(
+        _ projection: ClientCapabilityReportProjectionV1,
+        audience: ReportAudienceV1 = .customerSafe
+    ) throws {
+        try projection.validate()
+        guard metadataOnly,
+              closedAdmissionValuesOnly,
+              immutableHistoricDisplay,
+              excludesDeviceIdentity,
+              excludesUserIdentity,
+              excludesEndpointProviderAccount,
+              excludesRemoteDeliveryAcknowledgement,
+              excludesPackagePayload,
+              !ClientCapabilityLocalizationPolicyV1.containsProhibitedClaim(
+                  in: [
+                      ClientCapabilityLocalizationKeyV1.heading.englishDefaultValue,
+                      ClientCapabilityLocalizationKeyV1.nextStep.englishDefaultValue,
+                  ]
+              ),
+              !ClientCapabilityLocalizationPolicyV1.containsCustomerOrWorkDataLeakage(
+                  in: [ClientCapabilityLocalizationKeyV1.heading.englishDefaultValue]
+              ) else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+        guard audience == .customerSafe || audience == .internalUse else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+    }
+}
+
+extension EvidenceDetailCardV1 {
+    func c21ValidateClientCapabilityProjection(
+        _ projection: ClientCapabilityReportProjectionV1,
+        operation: PackageLifecycleOperationV1 = .view,
+        allowsWrite: Bool = false
+    ) throws -> ClientCapabilityReportProjectionV1 {
+        try EvidenceDetailClientCapabilityProjectionGuardV1.validate(
+            projection,
+            audience: audience
+        )
+        try ClientCapabilityReportConsumerPolicyV1.require(
+            projection,
+            operation: operation,
+            allowsWrite: allowsWrite
+        )
+        return projection
+    }
+}
+
 extension PostMarkupAudiencePrivacyDetectionV1 {
     func validate() throws {
         let composedText = String(decoding: composedOutput, as: UTF8.self)

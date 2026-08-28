@@ -9,6 +9,22 @@ enum BundledInspectionPackageRegistryLoadResultV2: Equatable, Sendable {
     case unavailable(InspectionPackageFailureV2)
 }
 
+extension BundledInspectionPackageRegistryV2 {
+    static func admittedShippingPackage(
+        decision: ClientCapabilityAdmissionDecisionV1,
+        closure: ClientCapabilityLifecycleClosureV1,
+        bundle: Bundle = .main,
+        forWrite: Bool
+    ) throws -> InspectionPackageV2 {
+        switch load(bundle: bundle) {
+        case .available(let registry, _, _):
+            return try registry.package(admittedBy: decision, closure: closure, forWrite: forWrite)
+        case .unavailable:
+            throw InspectionPackageFailureV2.bundledPackageUnavailable
+        }
+    }
+}
+
 enum BundledInspectionPackageRegistryV2 {
     static let source = "BUNDLED_ONLY"
     static let runtimeDownloadsAllowed = false

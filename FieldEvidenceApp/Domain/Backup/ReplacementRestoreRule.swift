@@ -273,6 +273,7 @@ private extension ReplacementRestoreRule {
         }
 
         let result = V4BackupRecordsV1(
+            clientCapabilities: records.clientCapabilities,
             privacyTransforms: records.privacyTransforms,
             measurementIntegrity: records.measurementIntegrity,
             packageEvolution: records.packageEvolution,
@@ -314,6 +315,7 @@ private extension ReplacementRestoreRule {
         with packets: [V4BackupPacketDTO]
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            clientCapabilities: records.clientCapabilities,
             privacyTransforms: records.privacyTransforms,
             measurementIntegrity: records.measurementIntegrity,
             packageEvolution: records.packageEvolution,
@@ -348,6 +350,7 @@ private extension ReplacementRestoreRule {
         with mutationHistory: MutationHistorySnapshotV1?
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            clientCapabilities: records.clientCapabilities,
             privacyTransforms: records.privacyTransforms,
             measurementIntegrity: records.measurementIntegrity,
             packageEvolution: records.packageEvolution,
@@ -384,6 +387,7 @@ private extension ReplacementRestoreRule {
         with requirementAssurance: [V8BackupRequirementAssuranceRecordV1]
     ) throws -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            clientCapabilities: records.clientCapabilities,
             privacyTransforms: records.privacyTransforms,
             measurementIntegrity: records.measurementIntegrity,
             packageEvolution: records.packageEvolution,

@@ -1162,3 +1162,117 @@ enum PrivacyTransformAccessibilityPolicyV1 {
         indeterminateSemanticIDs.contains(semanticID)
     }
 }
+
+// MARK: - C21 client admission and package lifecycle semantics
+
+/// Stable meaning identifiers for the closed C21 admission and lifecycle
+/// states.  These are document/report semantics, not device or user identity.
+enum ClientCapabilityAccessibilityIDV1: String, Codable, CaseIterable, Sendable {
+    case screen = "client.capability.screen"
+    case heading = "client.capability.heading"
+    case admission = "client.capability.admission"
+    case admissionReadWrite = "client.capability.admission.read_write"
+    case admissionReadOnly = "client.capability.admission.read_only"
+    case admissionMigrationRequired = "client.capability.admission.migration_required"
+    case admissionQuarantine = "client.capability.admission.quarantine"
+    case admissionReject = "client.capability.admission.reject"
+    case reason = "client.capability.reason"
+    case reasonExactMatch = "client.capability.reason.exact_match"
+    case reasonReadOnlyCompatibility = "client.capability.reason.read_only_compatibility"
+    case reasonMigrationAvailable = "client.capability.reason.migration_available"
+    case reasonUnsupportedRequiredRange = "client.capability.reason.unsupported_required_range"
+    case reasonUnknownCapability = "client.capability.reason.unknown_capability"
+    case reasonPackageWithdrawn = "client.capability.reason.package_withdrawn"
+    case reasonPackageQuarantined = "client.capability.reason.package_quarantined"
+    case reasonPackageSuperseded = "client.capability.reason.package_superseded"
+    case reasonDigestMismatch = "client.capability.reason.digest_mismatch"
+    case reasonStalePolicy = "client.capability.reason.stale_policy"
+    case reasonOperationBlocked = "client.capability.reason.operation_blocked"
+    case lifecycleHeading = "package.lifecycle.heading"
+    case lifecycleState = "package.lifecycle.state"
+    case stateActive = "package.lifecycle.state.active"
+    case stateDeprecated = "package.lifecycle.state.deprecated"
+    case stateWithdrawn = "package.lifecycle.state.withdrawn"
+    case stateQuarantined = "package.lifecycle.state.quarantined"
+    case stateSuperseded = "package.lifecycle.state.superseded"
+    case lifecycleOperation = "package.lifecycle.operation"
+    case operationStart = "package.lifecycle.operation.start"
+    case operationResume = "package.lifecycle.operation.resume"
+    case operationFinalize = "package.lifecycle.operation.finalize"
+    case operationAmend = "package.lifecycle.operation.amend"
+    case operationView = "package.lifecycle.operation.view"
+    case operationExport = "package.lifecycle.operation.export"
+    case operationRestore = "package.lifecycle.operation.restore"
+    case operationReplay = "package.lifecycle.operation.replay"
+    case operationUpgradeDraft = "package.lifecycle.operation.upgrade_draft"
+    case historicExport = "package.lifecycle.historic.export"
+    case withdrawal = "package.lifecycle.withdrawal"
+    case blocked = "package.lifecycle.blocked"
+    case nextStep = "client.capability.next_step"
+
+    var localizationKey: LocalizationKeyV1 {
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+}
+
+enum ClientCapabilityAccessibilityPolicyV1 {
+    static let semanticIDs = ClientCapabilityAccessibilityIDV1.allCases.map(\.rawValue)
+    static let stateSemanticIDs: Set<String> = Set(
+        ClientCapabilityAccessibilityIDV1.allCases.filter {
+            $0.rawValue.contains(".admission.")
+                || $0.rawValue.contains(".reason.")
+                || $0.rawValue.contains(".state.")
+                || $0.rawValue.contains(".operation.")
+                || $0 == .historicExport
+                || $0 == .withdrawal
+                || $0 == .blocked
+        }.map(\.rawValue)
+    )
+    static let indeterminateSemanticIDs: Set<String> = [
+        ClientCapabilityAccessibilityIDV1.admissionMigrationRequired.rawValue,
+        ClientCapabilityAccessibilityIDV1.admissionQuarantine.rawValue,
+        ClientCapabilityAccessibilityIDV1.admissionReject.rawValue,
+        ClientCapabilityAccessibilityIDV1.reasonMigrationAvailable.rawValue,
+        ClientCapabilityAccessibilityIDV1.reasonUnknownCapability.rawValue,
+        ClientCapabilityAccessibilityIDV1.reasonUnsupportedRequiredRange.rawValue,
+        ClientCapabilityAccessibilityIDV1.reasonPackageWithdrawn.rawValue,
+        ClientCapabilityAccessibilityIDV1.reasonPackageQuarantined.rawValue,
+        ClientCapabilityAccessibilityIDV1.reasonPackageSuperseded.rawValue,
+        ClientCapabilityAccessibilityIDV1.reasonDigestMismatch.rawValue,
+        ClientCapabilityAccessibilityIDV1.reasonStalePolicy.rawValue,
+        ClientCapabilityAccessibilityIDV1.reasonOperationBlocked.rawValue,
+        ClientCapabilityAccessibilityIDV1.stateDeprecated.rawValue,
+        ClientCapabilityAccessibilityIDV1.stateWithdrawn.rawValue,
+        ClientCapabilityAccessibilityIDV1.stateQuarantined.rawValue,
+        ClientCapabilityAccessibilityIDV1.stateSuperseded.rawValue,
+        ClientCapabilityAccessibilityIDV1.withdrawal.rawValue,
+        ClientCapabilityAccessibilityIDV1.blocked.rawValue,
+    ]
+    static let statusSemanticIDs = stateSemanticIDs
+    static let denyByDefault = true
+    static let nonColorStateTextRequired = true
+    static let textAlternativeRequired = true
+    static let textAndIconRequiredForIndeterminateStates = true
+    static let actionableNextStepRequiredForIndeterminateStates = true
+    static let colorOnlyStateAllowed = false
+    static let iconOnlyStateAllowed = false
+    static let motionOnlyStateAllowed = false
+    static let excludesDeviceIdentity = true
+    static let excludesUserIdentity = true
+    static let excludesEndpointProviderAccount = true
+    static let excludesRemoteDeliveryAcknowledgement = true
+    static let rtlRequired = true
+    static let dynamicTypeRequired = true
+    static let voiceOverRequired = true
+    static let voiceControlRequired = true
+    static let switchControlRequired = true
+
+    static func requiresTextAndIcon(for semanticID: String) -> Bool {
+        indeterminateSemanticIDs.contains(semanticID)
+    }
+
+    static func requiresActionableNextStep(for semanticID: String) -> Bool {
+        indeterminateSemanticIDs.contains(semanticID)
+    }
+}

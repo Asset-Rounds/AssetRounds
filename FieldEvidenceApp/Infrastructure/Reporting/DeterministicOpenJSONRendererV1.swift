@@ -1397,6 +1397,164 @@ extension DeterministicOpenJSONRendererV1 {
     }
 }
 
+// MARK: - C21 client capability and package lifecycle open JSON
+
+struct ClientCapabilityOpenJSONLabelsV1: Codable, Equatable, Sendable {
+    let heading: String
+    let admission: String
+    let admissionState: String
+    let lifecycle: String
+    let lifecycleState: String
+    let operation: String
+    let reason: String
+    let historicExport: String?
+    let withdrawal: String?
+    let blocked: String?
+    let nextStep: String
+
+    init(projection: ClientCapabilityReportProjectionV1) {
+        func localized(_ key: ClientCapabilityLocalizationKeyV1) -> String {
+            guard let bundled = BundledLocalizationKeyV1(rawValue: key.rawValue) else {
+                return key.englishDefaultValue
+            }
+            return BundledLocalizationCatalogV1.localized(bundled)
+        }
+        heading = localized(.heading)
+        admission = localized(.admission)
+        admissionState = localized(
+            ClientCapabilityLocalizationKeyV1.admissionKey(projection.admission)
+        )
+        lifecycle = localized(.lifecycleHeading)
+        lifecycleState = localized(
+            ClientCapabilityLocalizationKeyV1.stateKey(projection.lifecycleState)
+        )
+        operation = localized(
+            ClientCapabilityLocalizationKeyV1.operationKey(projection.operation)
+        )
+        reason = localized(
+            ClientCapabilityLocalizationKeyV1.reasonKey(
+                projection.reasons.first ?? .operationBlocked
+            )
+        )
+        historicExport = projection.historicExportAllowed
+            ? localized(.historicExport) : nil
+        withdrawal = projection.lifecycleState == .withdrawn
+            ? localized(.withdrawal) : nil
+        blocked = projection.operationAllowed ? nil : localized(.blocked)
+        nextStep = localized(.nextStep)
+    }
+
+    func validate() throws {
+        let values = [
+            heading, admission, admissionState, lifecycle, lifecycleState,
+            operation, reason, historicExport, withdrawal, blocked, nextStep,
+        ].compactMap { $0 }
+        guard values.allSatisfy({ !$0.isEmpty }),
+              !ClientCapabilityLocalizationPolicyV1.containsProhibitedClaim(
+                  in: values
+              ),
+              !ClientCapabilityLocalizationPolicyV1.containsCustomerOrWorkDataLeakage(
+                  in: values
+              ) else {
+            throw SnapshotProjectionFailureV1.hostileText
+        }
+    }
+}
+
+struct ClientCapabilityOpenJSONEnvelopeV1: Codable, Equatable, Sendable {
+    static let schema = "CLIENT_CAPABILITY_PACKAGE_LIFECYCLE_OPEN_JSON_V1"
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let schema: String
+    let locale: String
+    let projection: ClientCapabilityReportProjectionV1
+    let labels: ClientCapabilityOpenJSONLabelsV1
+
+    init(
+        projection: ClientCapabilityReportProjectionV1,
+        locale: String = BundledLocalizationCatalogV1.runtimeLanguage
+    ) throws {
+        try projection.validate()
+        guard locale == "en" else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        schemaVersion = Self.schemaVersion
+        schema = Self.schema
+        self.locale = locale
+        self.projection = projection
+        labels = ClientCapabilityOpenJSONLabelsV1(projection: projection)
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              schema == Self.schema,
+              locale == "en" else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try projection.validate()
+        try labels.validate()
+        guard labels == ClientCapabilityOpenJSONLabelsV1(projection: projection) else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+    }
+}
+
+extension DeterministicOpenJSONRendererV1 {
+    static func renderClientCapability(
+        _ projection: ClientCapabilityReportProjectionV1
+    ) throws -> ReportProjectionOutputV1 {
+        try ClientCapabilityReportConsumerPolicyV1.validate(
+            projection,
+            format: .openJSON
+        )
+        let envelope = try ClientCapabilityOpenJSONEnvelopeV1(projection: projection)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let data = try encoder.encode(envelope)
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes,
+              try reopenClientCapability(data) == projection else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return ReportProjectionOutputV1(
+            format: .openJSON,
+            data: data,
+            sha256: KernelCanonicalHashV1.sha256(data),
+            semanticSHA256: projection.projectionSHA256,
+            orderedSemanticIDs: [
+                ClientCapabilityAccessibilityIDV1.heading.rawValue,
+                ClientCapabilityAccessibilityIDV1.admission.rawValue,
+                ClientCapabilityAccessibilityIDV1.admissionReadOnly.rawValue,
+                ClientCapabilityAccessibilityIDV1.lifecycleState.rawValue,
+                ClientCapabilityAccessibilityIDV1.lifecycleOperation.rawValue,
+                ClientCapabilityAccessibilityIDV1.reason.rawValue,
+                ClientCapabilityAccessibilityIDV1.nextStep.rawValue,
+            ],
+            taggedPDFAccessibilityEvidence: false
+        )
+    }
+
+    static func reopenClientCapability(
+        _ data: Data
+    ) throws -> ClientCapabilityReportProjectionV1 {
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        let decoder = JSONDecoder()
+        let envelope = try decoder.decode(ClientCapabilityOpenJSONEnvelopeV1.self, from: data)
+        try envelope.validate()
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        guard try encoder.encode(envelope) == data else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return envelope.projection
+    }
+}
+
 /// C19's Open JSON companion keeps the exact recorded projection alongside
 /// typed English labels. Labels are presentation only: they never replace a
 /// unit identifier or turn a quality disposition into a compliance claim.

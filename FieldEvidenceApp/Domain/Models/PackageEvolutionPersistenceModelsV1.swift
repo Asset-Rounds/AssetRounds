@@ -41,3 +41,46 @@ private func packageEvolutionDomainRevision(_ value: Int64) throws -> UInt64 {
     init(_ value: ActivePackageRegistryPointerV1) throws { try value.validate(); pointerID=value.pointerID; workspaceID=value.workspaceID.rawValue; packageID=value.packageID; promotionReceiptID=value.promotionReceiptID; supersedesPointerID=value.supersedesPointerID; revision=try packageEvolutionStoredRevision(value.revision); mutationID=value.mutationID.rawValue; canonicalSHA256=value.pointerSHA256; canonicalData=try PackageEvolutionCanonicalCodecV1.encode(value) }
     func value() throws -> ActivePackageRegistryPointerV1 { let value=try PackageEvolutionCanonicalCodecV1.decode(ActivePackageRegistryPointerV1.self,from:canonicalData); try value.validate(); guard value.pointerID==pointerID,value.workspaceID.rawValue==workspaceID,value.packageID==packageID,value.promotionReceiptID==promotionReceiptID,value.supersedesPointerID==supersedesPointerID,value.revision==(try packageEvolutionDomainRevision(revision)),value.mutationID.rawValue==mutationID,value.pointerSHA256==canonicalSHA256 else{throw PackageEvolutionFailureV1.invalidDigest};return value }
 }
+
+/// C21 capability records are owned by the package-lifecycle persistence
+/// models.  Package evolution consumes them as a validated, nonpersistent
+/// admission input; no capability columns are added to the C18 rows above.
+enum PackageEvolutionC21PersistenceBoundaryV1 {
+    static let capabilityInputStore = "ClientCapabilityPersistenceModelsV1"
+    static let draftUpgradePlanPersistence = "NONPERSISTENT"
+    static let requiredOperation = PackageLifecycleOperationV1.upgradeDraft
+
+    static func validateCapabilityBinding(
+        _ packageClosure: PackageEvolutionLifecycleClosureV1,
+        admittedBy capability: ClientCapabilityLifecycleClosureV1
+    ) throws {
+        try packageClosure.validate()
+        try C21CapabilityAdmissionBoundaryV1.validate(
+            capability,
+            for: requiredOperation,
+            historic: false
+        )
+        guard capability.decision.admission == .readWrite
+                || capability.decision.admission == .migrationRequired,
+              packageClosure.promotedReleases.contains(where: {
+                  $0.packageRelease.packageReleaseID == capability.release.packageReleaseID
+                    && $0.packageRelease.packageSHA256 == capability.release.packageSHA256
+                    && $0.packageRelease.workflowSHA256 == capability.release.workflowSHA256
+              }) else {
+            throw ClientCapabilityFailureV1.staleReference
+        }
+    }
+}
+
+extension PackageEvolutionLifecycleClosureV1 {
+    /// Validates the exact package release bound by a C21 admission before a
+    /// package-evolution consumer uses its durable closure.
+    func c21ValidateCapabilityBinding(
+        admittedBy capability: ClientCapabilityLifecycleClosureV1
+    ) throws {
+        try PackageEvolutionC21PersistenceBoundaryV1.validateCapabilityBinding(
+            self,
+            admittedBy: capability
+        )
+    }
+}

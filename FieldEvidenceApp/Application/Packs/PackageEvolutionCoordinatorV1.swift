@@ -10,6 +10,14 @@ protocol PackageEvolutionWritingV1: AnyObject {
     func applyPromotion(_ bundle: PackagePromotionAtomicBundleV1) throws -> PackagePromotionReceiptV1
 }
 
+extension PackageEvolutionCoordinatorV1 {
+    func promote(_ bundle: PackagePromotionAtomicBundleV1,
+                 admittedBy closure: ClientCapabilityLifecycleClosureV1) throws -> PackagePromotionReceiptV1 {
+        try bundle.validateClientCapabilityAdmission(closure)
+        return try promoteAdmitted(bundle)
+    }
+}
+
 /// Typed C36 payload codec bridge. The package release is read from the
 /// purpose-owned payload schema; C18 never interprets generic JSON/EAV bytes.
 protocol DraftPackageReleaseInspectingV1: Sendable {
@@ -86,16 +94,24 @@ final class PackageEvolutionCoordinatorV1 {
         source: FieldDraftCheckpointV1,
         diff: PackageSemanticDiffV1,
         mutationID: MutationIDV1,
-        updatedAt: Date
+        updatedAt: Date,
+        admittedBy closure: ClientCapabilityLifecycleClosureV1
     ) throws -> MutationReceiptV1 {
+        try closure.validate()
         try plan.validate(source: source, diff: diff)
+        guard closure.profile.workspaceID == source.workspaceID,
+              closure.release.packageReleaseID == plan.targetPackageReleaseID,
+              closure.decision.operation == .upgradeDraft,
+              closure.decision.admission == .readWrite else {
+            throw PackageEvolutionFailureV1.ineligibleDraft
+        }
         return try draftCoordinator.applyPackageUpgrade(
             plan: plan, source: source, diff: diff,
             mutationID: mutationID, updatedAt: updatedAt
         )
     }
 
-    func promote(_ bundle: PackagePromotionAtomicBundleV1) throws -> PackagePromotionReceiptV1 {
+    private func promoteAdmitted(_ bundle: PackagePromotionAtomicBundleV1) throws -> PackagePromotionReceiptV1 {
         switch bundle.receipt.operation {
         case .initialActivation:
             return try activateInitial(bundle)
@@ -104,7 +120,7 @@ final class PackageEvolutionCoordinatorV1 {
         }
     }
 
-    func activateInitial(_ bundle: PackagePromotionAtomicBundleV1) throws -> PackagePromotionReceiptV1 {
+    private func activateInitial(_ bundle: PackagePromotionAtomicBundleV1) throws -> PackagePromotionReceiptV1 {
         guard bundle.receipt.operation == .initialActivation,
               bundle.receipt.postActivationPolicy == .forwardFixOnly,
               bundle.predecessorPointer == nil,
@@ -117,7 +133,7 @@ final class PackageEvolutionCoordinatorV1 {
     /// The only operation admitted after an active pointer exists. There is
     /// intentionally no rollback operation: correction publishes a new
     /// immutable release and a successor pointer.
-    func applyPostActivationForwardFix(_ bundle: PackagePromotionAtomicBundleV1) throws -> PackagePromotionReceiptV1 {
+    private func applyPostActivationForwardFix(_ bundle: PackagePromotionAtomicBundleV1) throws -> PackagePromotionReceiptV1 {
         guard bundle.receipt.operation == .postActivationForwardFix,
               bundle.receipt.postActivationPolicy == .forwardFixOnly,
               let predecessor = bundle.predecessorPointer else {

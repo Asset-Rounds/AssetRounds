@@ -1552,3 +1552,13 @@ extension V9_03MigrationRecoveryTests {
         XCTAssertThrowsError(try V19PrivacyTransformImportBoundaryV1.validate(persistent: 18, records: 18))
     }
 }
+
+extension V9_03MigrationRecoveryTests {
+    func testC21ClientCapabilityLifecycleAnchor() throws {
+        XCTAssertEqual(ClientCapabilityProfileV1.schemaVersion, 1)
+        XCTAssertEqual(ClientAdmissionV1.allCases.count, 5)
+        XCTAssertEqual(PackageLifecycleOperationV1.allCases.count, 9)
+        XCTAssertEqual(PersistentSchemaV20.models.count, 81)
+        XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
+    }
+}

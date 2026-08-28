@@ -6023,4 +6023,15 @@ extension KernelConformanceFixtureHarnessV1 {
         try closure.validate()
         return fixture.manifest.manifestSHA256
     }
+
+    static func c21ClientCapabilityLifecycleAnchor() throws -> Int {
+        try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19)
+        guard ClientCapabilityProfileV1.schemaVersion == 1,
+              ClientAdmissionV1.allCases.count == 5,
+              PackageLifecycleOperationV1.allCases.count == 9,
+              PersistentSchemaV20.models.count == 81 else {
+            throw ClientCapabilityFailureV1.invalidValue
+        }
+        return PersistentSchemaV20.models.count
+    }
 }

@@ -64,6 +64,7 @@ struct BackupCanonicalDecoderV1: Sendable {
             try Self.validatePackageEvolution(value)
             try Self.validateMeasurementIntegrity(value)
             try Self.validatePrivacyTransforms(value)
+            try Self.validateClientCapabilities(value)
             let canonical = try BackupCanonicalEncoderV1().encodeRecords(value).data
             guard canonical == data else {
                 throw BackupCanonicalDecodingErrorV1.invalidRecords
@@ -76,6 +77,17 @@ struct BackupCanonicalDecoderV1: Sendable {
 }
 
 private extension BackupCanonicalDecoderV1 {
+    static func validateClientCapabilities(_ records:V4BackupRecordsV1)throws{
+        guard records.recordsSchemaVersion>=19 else{guard records.clientCapabilities.isEmpty else{throw BackupCanonicalDecodingErrorV1.invalidRecords};return}
+        let releases=try records.packageEvolution.filter{$0.kind == .promotedRelease}.map{try PackageEvolutionCanonicalCodecV1.decode(PromotedPackageReleaseV1.self,from:$0.canonicalData).packageRelease}
+        let releaseIndex=Dictionary(uniqueKeysWithValues:releases.map{($0.packageReleaseID,$0)});var keys=Set<String>()
+        func accept(_ row:V20BackupClientCapabilityRecordV1,_ id:UUID,_ workspaceID:WorkspaceID,_ revision:UInt64)throws{guard row.id==id,row.workspaceID==workspaceID.rawValue,row.revision==revision,keys.insert("\(row.kind.rawValue)|\(row.id.uuidString)").inserted else{throw BackupCanonicalDecodingErrorV1.invalidRecords}}
+        let profiles=try Dictionary(uniqueKeysWithValues:records.clientCapabilities.filter{$0.kind == .profile}.map{row in let v=try ClientCapabilityProfileRow(ClientCapabilityCanonicalCodecV1.decode(ClientCapabilityProfileV1.self,from:row.canonicalData)).value();try accept(row,v.profileID,v.workspaceID,v.revision);return(v.profileID,v)})
+        let policies=try Dictionary(uniqueKeysWithValues:records.clientCapabilities.filter{$0.kind == .policy}.map{row in let seed=try ClientCapabilityCanonicalCodecV1.decode(PackageLifecyclePolicyV1.self,from:row.canonicalData);guard let release=releaseIndex[seed.packageReleaseID]else{throw BackupCanonicalDecodingErrorV1.invalidRecords};let v=try PackageLifecyclePolicyRow(seed,release:release).value(release:release);try accept(row,v.policyID,v.workspaceID,v.revision);return(v.policyID,v)})
+        let dispositions=try Dictionary(uniqueKeysWithValues:records.clientCapabilities.filter{$0.kind == .disposition}.map{row in let seed=try ClientCapabilityCanonicalCodecV1.decode(PackageLifecycleDispositionV1.self,from:row.canonicalData);guard let release=releaseIndex[seed.packageReleaseID]else{throw BackupCanonicalDecodingErrorV1.invalidRecords};let v=try PackageLifecycleDispositionRow(seed,release:release).value(release:release);try accept(row,v.dispositionID,v.workspaceID,v.revision);return(v.dispositionID,v)})
+        for row in records.clientCapabilities where row.kind == .admissionDecision{let seed=try ClientCapabilityCanonicalCodecV1.decode(ClientCapabilityAdmissionDecisionV1.self,from:row.canonicalData);guard let profile=profiles[seed.profileID],let policy=policies[seed.policyID],let disposition=dispositions[seed.dispositionID],let release=releaseIndex[seed.packageReleaseID]else{throw BackupCanonicalDecodingErrorV1.invalidRecords};let v=try ClientCapabilityAdmissionDecisionRow(seed,profile:profile,policy:policy,disposition:disposition,release:release).value(profile:profile,policy:policy,disposition:disposition,release:release);try accept(row,v.decisionID,v.workspaceID,v.revision)}
+    }
+
     static func validatePrivacyTransforms(_ records: V4BackupRecordsV1) throws {
         guard records.recordsSchemaVersion >= 18 else {
             guard records.privacyTransforms.isEmpty else { throw BackupCanonicalDecodingErrorV1.invalidRecords }

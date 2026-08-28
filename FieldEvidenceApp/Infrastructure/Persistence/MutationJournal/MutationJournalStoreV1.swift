@@ -340,6 +340,7 @@ final class MutationJournalStoreV1 {
         if case let .applyPackagePromotion(value)=envelope.command{try value.validate();guard affectedEntities==(try value.affectedIdentities)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyMeasurementIntegrity(value)=envelope.command{try value.validate();guard affectedEntities==(try value.affectedIdentities)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyPrivacyTransform(value)=envelope.command{try value.validate();guard affectedEntities==(try value.affectedIdentities)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyClientCapability(value)=envelope.command{try value.validate();guard affectedEntities==[try value.affectedIdentity]else{throw WorkspaceMutationFailureV1.invalidCommand}}
         let state = try requireState()
         let current = try currentRevision(writerInstanceID: writerInstanceID)
         let expected = envelope.expectedRevision
@@ -365,6 +366,7 @@ final class MutationJournalStoreV1 {
             }else if case let .applyPackagePromotion(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
             }else if case let .applyMeasurementIntegrity(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
             }else if case let .applyPrivacyTransform(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
+            }else if case let .applyClientCapability(mutation)=envelope.command{concurrencyIdentity=try mutation.concurrencyIdentity
             } else {
                 concurrencyIdentity = identity
             }
@@ -410,6 +412,7 @@ final class MutationJournalStoreV1 {
                 }else if case let .applyPackagePromotion(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
                 }else if case let .applyMeasurementIntegrity(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
                 }else if case let .applyPrivacyTransform(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
+                }else if case let .applyClientCapability(mutation)=envelope.command{initialRevision=mutation.revision
                 } else {
                     initialRevision = 1
                 }
@@ -441,6 +444,7 @@ final class MutationJournalStoreV1 {
         if case let .applyPackagePromotion(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyMeasurementIntegrity(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyPrivacyTransform(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyClientCapability(mutation)=envelope.command{guard postImages==[try mutation.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
         let after = try currentRevision(writerInstanceID: writerInstanceID)
         let receiptIdentity = MutationReceiptIdentityV1(
             workspaceID: identity.workspaceID,
@@ -1344,6 +1348,10 @@ final class MutationJournalStoreV1 {
         case .privacyRegion:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<PrivacyRegionRow>(predicate:#Predicate{$0.regionID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .privacyRegion(id:id,concurrencyIdentity:identity,revision:revision,semanticSHA256:v.regionSHA256)
         case .privacyTransformManifest:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<PrivacyTransformManifestRow>(predicate:#Predicate{$0.manifestID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try privacyManifestValue(row);guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .privacyTransformManifest(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesManifestID),revision:revision,semanticSHA256:v.manifestSHA256)
         case .privacyReviewReceipt:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<PrivacyReviewReceiptRow>(predicate:#Predicate{$0.receiptID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try privacyReviewValue(row);guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .privacyReviewReceipt(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesReceiptID),revision:revision,semanticSHA256:v.receiptSHA256)
+        case .clientCapabilityProfile:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<ClientCapabilityProfileRow>(predicate:#Predicate{$0.profileID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .clientCapabilityProfile(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesProfileID),revision:revision,semanticSHA256:v.profileSHA256)
+        case .packageLifecyclePolicy:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<PackageLifecyclePolicyRow>(predicate:#Predicate{$0.policyID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let release=try clientCapabilityRelease(row.packageReleaseID),v=try row.value(release:release);guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .packageLifecyclePolicy(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesPolicyID),revision:revision,semanticSHA256:v.policySHA256)
+        case .packageLifecycleDisposition:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<PackageLifecycleDispositionRow>(predicate:#Predicate{$0.dispositionID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let release=try clientCapabilityRelease(row.packageReleaseID),v=try row.value(release:release);guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .packageLifecycleDisposition(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesDispositionID),revision:revision,semanticSHA256:v.dispositionSHA256)
+        case .clientCapabilityAdmissionDecision:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<ClientCapabilityAdmissionDecisionRow>(predicate:#Predicate{$0.decisionID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try clientCapabilityDecision(row);guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .clientCapabilityAdmissionDecision(id:id,concurrencyIdentity:identity,revision:revision,semanticSHA256:v.decisionSHA256)
         case .workflowRecord:
             let id = identity.id
             let rows = try modelContext.fetch(FetchDescriptor<WorkflowRecord>(predicate: #Predicate { $0.id == id }))
@@ -1519,6 +1527,10 @@ final class MutationJournalStoreV1 {
         identities += try boundedFetch(FetchDescriptor<PrivacyRegionRow>()).map{try .init(kind:.privacyRegion,id:$0.regionID)}
         identities += try boundedFetch(FetchDescriptor<PrivacyTransformManifestRow>()).map{try .init(kind:.privacyTransformManifest,id:$0.manifestID)}
         identities += try boundedFetch(FetchDescriptor<PrivacyReviewReceiptRow>()).map{try .init(kind:.privacyReviewReceipt,id:$0.receiptID)}
+        identities += try boundedFetch(FetchDescriptor<ClientCapabilityProfileRow>()).map{try .init(kind:.clientCapabilityProfile,id:$0.profileID)}
+        identities += try boundedFetch(FetchDescriptor<ClientCapabilityAdmissionDecisionRow>()).map{try .init(kind:.clientCapabilityAdmissionDecision,id:$0.decisionID)}
+        identities += try boundedFetch(FetchDescriptor<PackageLifecyclePolicyRow>()).map{try .init(kind:.packageLifecyclePolicy,id:$0.policyID)}
+        identities += try boundedFetch(FetchDescriptor<PackageLifecycleDispositionRow>()).map{try .init(kind:.packageLifecycleDisposition,id:$0.dispositionID)}
         guard identities.count <= Self.maximumMutableContentValidationCount,
               Set(identities).count == identities.count else {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
@@ -1568,6 +1580,8 @@ final class MutationJournalStoreV1 {
         let manifest=try manifestRow.value(policy:policy)
         return try row.value(manifest:manifest,policy:policy)
     }
+    private func clientCapabilityRelease(_ packageReleaseID:String)throws->InspectionPackageReleaseV1{let rows=try modelContext.fetch(FetchDescriptor<PromotedPackageReleaseRow>());let matches=try rows.map{try $0.value().packageRelease}.filter{$0.packageReleaseID==packageReleaseID};guard matches.count==1,let value=matches.first else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return value}
+    private func clientCapabilityDecision(_ row:ClientCapabilityAdmissionDecisionRow)throws->ClientCapabilityAdmissionDecisionV1{let release=try clientCapabilityRelease(row.packageReleaseID),profileID=row.profileID,policyID=row.policyID,dispositionID=row.dispositionID;let profiles=try modelContext.fetch(FetchDescriptor<ClientCapabilityProfileRow>(predicate:#Predicate{$0.profileID==profileID})),policies=try modelContext.fetch(FetchDescriptor<PackageLifecyclePolicyRow>(predicate:#Predicate{$0.policyID==policyID})),dispositions=try modelContext.fetch(FetchDescriptor<PackageLifecycleDispositionRow>(predicate:#Predicate{$0.dispositionID==dispositionID}));guard profiles.count==1,policies.count==1,dispositions.count==1,let profile=try profiles.first?.value(),let policyRow=policies.first,let dispositionRow=dispositions.first else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return try row.value(profile:profile,policy:policyRow.value(release:release),disposition:dispositionRow.value(release:release),release:release)}
 
     private func semanticPostImage<Value: Codable>(
         _ identity: WorkspaceEntityIdentityV1,
@@ -1658,6 +1672,10 @@ final class MutationJournalStoreV1 {
         case .privacyRegion:return .privacyRegion(id:identity.id,concurrencyIdentity:identity,revision:revision,semanticSHA256:digest)
         case .privacyTransformManifest:return .privacyTransformManifest(id:identity.id,concurrencyIdentity:identity,revision:revision,semanticSHA256:digest)
         case .privacyReviewReceipt:return .privacyReviewReceipt(id:identity.id,concurrencyIdentity:identity,revision:revision,semanticSHA256:digest)
+        case .clientCapabilityProfile:return .clientCapabilityProfile(id:identity.id,concurrencyIdentity:identity,revision:revision,semanticSHA256:digest)
+        case .clientCapabilityAdmissionDecision:return .clientCapabilityAdmissionDecision(id:identity.id,concurrencyIdentity:identity,revision:revision,semanticSHA256:digest)
+        case .packageLifecyclePolicy:return .packageLifecyclePolicy(id:identity.id,concurrencyIdentity:identity,revision:revision,semanticSHA256:digest)
+        case .packageLifecycleDisposition:return .packageLifecycleDisposition(id:identity.id,concurrencyIdentity:identity,revision:revision,semanticSHA256:digest)
         case .workflowRecord: return .workflowRecord(id: identity.id, revision: revision, semanticSHA256: digest)
         case .evidenceFile: return .evidenceFile(id: identity.id, revision: revision, semanticSHA256: digest)
         case .issue: return .issue(id: identity.id, revision: revision, semanticSHA256: digest)

@@ -48,6 +48,41 @@ protocol DraftContentPromotionPortV1: Sendable {
     ) throws -> MutationReceiptV1 {
         try source.validate(registry: registry)
         try plan.validate(source: source, diff: diff)
+        return try applyPackageUpgradeSuccessor(
+            plan: plan, source: source, mutationID: mutationID, updatedAt: updatedAt
+        )
+    }
+
+    /// Applies a package upgrade only after the immutable C21 capability
+    /// closure has admitted the safe migration operation.  The capability
+    /// values remain nonpersistent preview inputs; this method still uses the
+    /// existing compare-and-swap checkpoint writer for the sole durable effect.
+    func applyPackageUpgrade(
+        plan: DraftUpgradePlanV1,
+        source: FieldDraftCheckpointV1,
+        diff: PackageSemanticDiffV1,
+        admittedBy capability: ClientCapabilityLifecycleClosureV1,
+        mutationID: MutationIDV1,
+        updatedAt: Date
+    ) throws -> MutationReceiptV1 {
+        try PackageEvolutionDraftPersistenceBoundaryV1.validateUpgradeInputs(
+            plan: plan,
+            source: source,
+            diff: diff,
+            admittedBy: capability
+        )
+        try source.validate(registry: registry)
+        return try applyPackageUpgradeSuccessor(
+            plan: plan, source: source, mutationID: mutationID, updatedAt: updatedAt
+        )
+    }
+
+    private func applyPackageUpgradeSuccessor(
+        plan: DraftUpgradePlanV1,
+        source: FieldDraftCheckpointV1,
+        mutationID: MutationIDV1,
+        updatedAt: Date
+    ) throws -> MutationReceiptV1 {
         guard source.draftRevision < UInt64.max else {
             throw PackageEvolutionFailureV1.staleSource
         }

@@ -1387,3 +1387,13 @@ private struct C18PromotionFileAuthorityV1: ApplicationFileAuthorityV1 {
 private func c18AtomicID(_ value: Int) -> UUID {
     UUID(uuidString: String(format: "c1800000-0000-4000-8000-%012d", value))!
 }
+
+extension V9_32PackageEvolutionTests {
+    func testC21ClientCapabilityLifecycleAnchor() throws {
+        XCTAssertEqual(ClientCapabilityProfileV1.schemaVersion, 1)
+        XCTAssertEqual(ClientAdmissionV1.allCases.count, 5)
+        XCTAssertEqual(PackageLifecycleOperationV1.allCases.count, 9)
+        XCTAssertEqual(PersistentSchemaV20.models.count, 81)
+        XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
+    }
+}

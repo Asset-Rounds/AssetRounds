@@ -3581,3 +3581,47 @@ extension CompletedActivitySnapshotV9 {
         return projection
     }
 }
+
+// MARK: - C21 client capability and package lifecycle binding
+
+extension CompletedActivitySnapshotV9 {
+    /// Binds the metadata-only C21 projection to the completed snapshot's
+    /// workspace and package release. The projection does not alter the
+    /// completed bytes; withdrawal may block new work while finalized history
+    /// remains viewable/exportable through its recorded decision.
+    func c21ValidateClientCapabilityProjection(
+        _ projection: ClientCapabilityReportProjectionV1,
+        expectedWorkspaceID: WorkspaceID? = nil
+    ) throws -> ClientCapabilityReportProjectionV1 {
+        try validate()
+        try projection.validate()
+
+        let v7 = payload.activity.payload.activity
+        let v6 = v7.payload.activity
+        let v5 = v6.payload.activity
+        let v4 = v5.activity
+        let v3 = v4.activity
+        let base = v3.activity.activity
+        guard let rawWorkspaceID = UUID(uuidString: base.workspaceID) else {
+            throw SnapshotProjectionFailureV1.wrongWorkspace
+        }
+        let snapshotWorkspaceID = WorkspaceID(rawValue: rawWorkspaceID)
+        guard projection.workspaceID == snapshotWorkspaceID,
+              expectedWorkspaceID.map({ $0 == projection.workspaceID }) ?? true,
+              projection.packageReleaseID == base.packageReleaseID else {
+            throw SnapshotProjectionFailureV1.wrongWorkspace
+        }
+        return projection
+    }
+
+    static func c21ValidateClientCapabilityProjection(
+        _ projection: ClientCapabilityReportProjectionV1,
+        expectedWorkspaceID: WorkspaceID? = nil
+    ) throws -> ClientCapabilityReportProjectionV1 {
+        try projection.validate()
+        guard expectedWorkspaceID.map({ $0 == projection.workspaceID }) ?? true else {
+            throw SnapshotProjectionFailureV1.wrongWorkspace
+        }
+        return projection
+    }
+}

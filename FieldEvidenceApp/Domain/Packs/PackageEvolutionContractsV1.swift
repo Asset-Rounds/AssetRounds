@@ -456,3 +456,17 @@ enum PackageEvolutionCanonicalCodecV1{static func encode<T:Codable>(_ value:T)th
 enum PackageEvolutionLifecycleV1{static let schema="PACKAGE_EVOLUTION_V1";static let persistent=true;static let migrationRequired=true;static let backupRestoreRequired=true;static let deleteEraseRequired=true;static let exportReportRequired=true;static let searchRebuildReplayRequired=true;static let postActivationPolicy=PackagePostActivationPolicyV1.forwardFixOnly;static let rollbackOperationAvailable=false;static let downgradePolicy="PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_ACTIVATION";static let interruption="OLD_COMPLETE_OR_NEW_COMPLETE_NEVER_HYBRID";static let writer="SOLE_CANONICAL_WORKSPACE_WRITER"}
 
 private extension UUID { static let zero=UUID(uuid:(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0)) }
+
+extension PackagePromotionAtomicBundleV1 {
+    func validateClientCapabilityAdmission(_ closure: ClientCapabilityLifecycleClosureV1) throws {
+        try validate(); try closure.validate()
+        guard closure.profile.workspaceID == promotedRelease.workspaceID,
+              closure.release.packageReleaseID == promotedRelease.packageRelease.packageReleaseID,
+              closure.release.packageSHA256 == promotedRelease.packageRelease.packageSHA256,
+              closure.release.workflowSHA256 == promotedRelease.packageRelease.workflowSHA256,
+              closure.decision.operation == .upgradeDraft,
+              closure.decision.admission == .readWrite else {
+            throw PackageEvolutionFailureV1.incompatiblePromotion
+        }
+    }
+}

@@ -113,3 +113,13 @@ final class PackageEvolutionLifecycleAdapterV1: PackageEvolutionWritingV1 {
         [receipt.receiptID.uuidString.lowercased(), receipt.promotedReleaseRecordID.uuidString.lowercased(), receipt.semanticDiffSHA256, receipt.exactHead].sorted()
     }
 }
+
+extension PackageEvolutionLifecycleAdapterV1 {
+    static func validateClientCapabilityClosure(_ closure: ClientCapabilityLifecycleClosureV1) throws {
+        try closure.validate()
+        guard closure.decision.operation == .upgradeDraft,
+              closure.decision.admission == .readWrite else {
+            throw ClientCapabilityFailureV1.admissionDenied
+        }
+    }
+}

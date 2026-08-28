@@ -99,6 +99,10 @@ struct DiagnosticExportV1: Codable, Equatable, Sendable {
     /// counts and denial states, never content bytes, content identifiers,
     /// review rationale, or reviewer identity.
     var privacyTransform: PrivacyTransformDiagnosticMetadataV1? = nil
+    /// Optional C21 metadata-only local admission/lifecycle summary. It
+    /// carries closed state values and permissions only; no device/user,
+    /// endpoint/provider/account, payload, or delivery acknowledgement data.
+    var clientCapability: ClientCapabilityDiagnosticMetadataV1? = nil
 
     /// Integration event payloads, subjects, cursors, and checkpoint bytes are
     /// never diagnostic material. Diagnostics may describe only the static
@@ -124,6 +128,7 @@ struct DiagnosticExportV1: Codable, Equatable, Sendable {
             && (workPacket?.isValid ?? true)
             && (measurementIntegrity?.isValid ?? true)
             && (privacyTransform?.isValid ?? true)
+            && (clientCapability?.isValid ?? true)
             && integrationProjectionPayloadExcluded
     }
 
@@ -164,6 +169,7 @@ struct DiagnosticExportService {
     typealias MetricKitProvider = () -> MetricKitSummaryV1?
     typealias RequirementAssuranceProvider = () -> RequirementAssuranceSnapshotV1?
     typealias WorkPacketProvider = () -> WorkPacketDiagnosticSummaryV1?
+    typealias ClientCapabilityProvider = () -> ClientCapabilityDiagnosticMetadataV1?
     typealias ContextProvider<Value> = () -> Value
     typealias Clock = () -> Date
 
@@ -171,6 +177,7 @@ struct DiagnosticExportService {
     private let metricKitProvider: MetricKitProvider
     private let requirementAssuranceProvider: RequirementAssuranceProvider
     private let workPacketProvider: WorkPacketProvider
+    private let clientCapabilityProvider: ClientCapabilityProvider
     private let appProvider: ContextProvider<DiagnosticAppContextV1>
     private let deviceProvider: ContextProvider<DiagnosticDeviceContextV1>
     private let clock: Clock
@@ -182,12 +189,14 @@ struct DiagnosticExportService {
         device: @escaping ContextProvider<DiagnosticDeviceContextV1>,
         clock: @escaping Clock,
         requirementAssurance: @escaping RequirementAssuranceProvider = { nil },
-        workPacket: @escaping WorkPacketProvider = { nil }
+        workPacket: @escaping WorkPacketProvider = { nil },
+        clientCapability: @escaping ClientCapabilityProvider = { nil }
     ) {
         countersProvider = counters
         metricKitProvider = metricKit
         requirementAssuranceProvider = requirementAssurance
         workPacketProvider = workPacket
+        clientCapabilityProvider = clientCapability
         appProvider = app
         deviceProvider = device
         self.clock = clock
@@ -199,6 +208,7 @@ struct DiagnosticExportService {
         metricKitAdapter: MetricKitDiagnosticsAdapter,
         requirementAssurance: @escaping RequirementAssuranceProvider = { nil },
         workPacket: @escaping WorkPacketProvider = { nil },
+        clientCapability: @escaping ClientCapabilityProvider = { nil },
         bundle: Bundle = .main,
         device: UIDevice = .current,
         clock: @escaping Clock = Date.init
@@ -222,7 +232,8 @@ struct DiagnosticExportService {
             device: { device },
             clock: clock,
             requirementAssurance: requirementAssurance,
-            workPacket: workPacket
+            workPacket: workPacket,
+            clientCapability: clientCapability
         )
     }
 
@@ -235,7 +246,8 @@ struct DiagnosticExportService {
             generatedAt: clock(),
             metricKit: metricKitProvider(),
             requirementAssurance: requirementAssuranceProvider(),
-            workPacket: workPacketProvider()
+            workPacket: workPacketProvider(),
+            clientCapability: clientCapabilityProvider()
         )
         guard value.isValid else {
             throw DiagnosticExportError.invalidValue
@@ -276,6 +288,9 @@ enum DiagnosticExportCanonicalEncoderV1 {
         }
         if let privacyTransform = value.privacyTransform {
             object["privacyTransform"] = privacyTransformValue(privacyTransform)
+        }
+        if let clientCapability = value.clientCapability {
+            object["clientCapability"] = clientCapabilityValue(clientCapability)
         }
         let data = try CanonicalJSONV1.encode(.object(object))
         try IntegrationProjectionDiagnosticExclusionV1.validate(data)
@@ -333,6 +348,29 @@ enum DiagnosticExportCanonicalEncoderV1 {
             "excludesReviewRationale": .bool(value.excludesReviewRationale),
             "excludesReviewerIdentity": .bool(value.excludesReviewerIdentity),
             "excludesSourceContentIdentifiers": .bool(value.excludesSourceContentIdentifiers),
+        ])
+    }
+
+    private static func clientCapabilityValue(
+        _ value: ClientCapabilityDiagnosticMetadataV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "schemaVersion": .integer(value.schemaVersion),
+            "admission": .string(value.admission.rawValue),
+            "lifecycleState": .string(value.lifecycleState.rawValue),
+            "operation": .string(value.operation.rawValue),
+            "reasonCodes": .array(value.reasonCodes.map { .string($0.rawValue) }),
+            "readAllowed": .bool(value.readAllowed),
+            "writeAllowed": .bool(value.writeAllowed),
+            "historicExportAllowed": .bool(value.historicExportAllowed),
+            "withdrawalBlocksNewWork": .bool(value.withdrawalBlocksNewWork),
+            "metadataOnly": .bool(value.metadataOnly),
+            "immutableHistoric": .bool(value.immutableHistoric),
+            "excludesDeviceAndUserIdentity": .bool(value.excludesDeviceAndUserIdentity),
+            "excludesEndpointProviderAccount": .bool(value.excludesEndpointProviderAccount),
+            "excludesRemoteDeliveryAcknowledgement": .bool(
+                value.excludesRemoteDeliveryAcknowledgement
+            ),
         ])
     }
 
@@ -847,6 +885,81 @@ struct PrivacyTransformDiagnosticMetadataV1: Codable, Equatable, Sendable {
               excludesReviewRationale,
               excludesReviewerIdentity,
               excludesSourceContentIdentifiers else {
+            throw DiagnosticExportError.invalidValue
+        }
+    }
+}
+
+/// C21 diagnostics expose only closed local admission/lifecycle facts. They
+/// intentionally omit all IDs, digests, package payloads, user/device
+/// identity, and any delivery or acknowledgement state.
+struct ClientCapabilityDiagnosticMetadataV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let policyVersion = "CLIENT_CAPABILITY_PACKAGE_LIFECYCLE_DIAGNOSTIC_V1"
+
+    let schemaVersion: Int
+    let admission: ClientAdmissionV1
+    let lifecycleState: PackageLifecycleStateV1
+    let operation: PackageLifecycleOperationV1
+    let reasonCodes: [ClientCapabilityReasonV1]
+    let readAllowed: Bool
+    let writeAllowed: Bool
+    let historicExportAllowed: Bool
+    let withdrawalBlocksNewWork: Bool
+    let metadataOnly: Bool
+    let immutableHistoric: Bool
+    let excludesDeviceAndUserIdentity: Bool
+    let excludesEndpointProviderAccount: Bool
+    let excludesRemoteDeliveryAcknowledgement: Bool
+
+    init(projection: ClientCapabilityReportProjectionV1) throws {
+        try projection.validate()
+        schemaVersion = Self.schemaVersion
+        admission = projection.admission
+        lifecycleState = projection.lifecycleState
+        operation = projection.operation
+        reasonCodes = projection.reasons
+        readAllowed = projection.readAllowed
+        writeAllowed = projection.writeAllowed
+        historicExportAllowed = projection.historicExportAllowed
+        withdrawalBlocksNewWork = true
+        metadataOnly = true
+        immutableHistoric = projection.immutableHistoric
+        excludesDeviceAndUserIdentity = true
+        excludesEndpointProviderAccount = true
+        excludesRemoteDeliveryAcknowledgement = true
+        try validate()
+    }
+
+    var isValid: Bool { (try? validate()) != nil }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              reasonCodes == reasonCodes.sorted(by: { $0.rawValue < $1.rawValue }),
+              !reasonCodes.isEmpty,
+              Set(reasonCodes).count == reasonCodes.count,
+              metadataOnly,
+              immutableHistoric,
+              withdrawalBlocksNewWork,
+              excludesDeviceAndUserIdentity,
+              excludesEndpointProviderAccount,
+              excludesRemoteDeliveryAcknowledgement else {
+            throw DiagnosticExportError.invalidValue
+        }
+        guard historicExportAllowed == (
+            lifecycleState == .withdrawn
+                && (admission == .readWrite || admission == .readOnly)
+                && operation == .export
+        ) else {
+            throw DiagnosticExportError.invalidValue
+        }
+        guard writeAllowed == (
+            admission == .readWrite
+                && ClientCapabilityReportProjectionV1.writeOperations.contains(operation)
+        ) else {
+            throw DiagnosticExportError.invalidValue
+        }
+        guard readAllowed == (admission == .readWrite || admission == .readOnly) else {
             throw DiagnosticExportError.invalidValue
         }
     }

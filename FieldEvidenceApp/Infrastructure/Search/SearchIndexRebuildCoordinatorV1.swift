@@ -1744,4 +1744,26 @@ extension SearchIndexRebuildCoordinatorV1 {
 
     static let privacyTransformReplayDisposition =
         "DROP_AND_REBUILD_FROM_APPROVED_PRIVACY_DERIVATIVE_PROJECTION"
+
+    /// C21 search replay consumes canonical admission decisions and emits
+    /// disposable metadata rows. It never replays package payloads or tries
+    /// to infer a missing client/device identity.
+    static func clientCapabilitySearchRecords(
+        from projections: [ClientCapabilityReportProjectionV1]
+    ) throws -> [ClientCapabilitySearchRecordV1] {
+        try ClientCapabilitySearchPersistencePolicyV1().validate()
+        let records = try projections.map {
+            try ClientCapabilitySearchRecordV1(projection: $0)
+        }.sorted {
+            $0.decisionID.uuidString.lowercased() < $1.decisionID.uuidString.lowercased()
+        }
+        guard Set(records.map(\.decisionID)).count == records.count else {
+            throw SearchContractFailureV1.duplicateProjection
+        }
+        try records.forEach { try $0.validate() }
+        return records
+    }
+
+    static let clientCapabilityReplayDisposition =
+        "DROP_AND_REBUILD_FROM_CANONICAL_CLIENT_CAPABILITY_DECISION"
 }

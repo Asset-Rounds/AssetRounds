@@ -1311,6 +1311,7 @@ private extension WholeSignDeletionService {
         let measurementQualityAssessments:[MeasurementQualityAssessmentRow]
         let privacyTransformPolicies:[PrivacyTransformPolicyRow];let privacyRegions:[PrivacyRegionRow]
         let privacyTransformManifests:[PrivacyTransformManifestRow];let privacyReviewReceipts:[PrivacyReviewReceiptRow]
+        let clientCapabilityProfiles:[ClientCapabilityProfileRow];let packageLifecyclePolicies:[PackageLifecyclePolicyRow];let packageLifecycleDispositions:[PackageLifecycleDispositionRow];let clientCapabilityAdmissionDecisions:[ClientCapabilityAdmissionDecisionRow]
         let observationAndTime: [UUID: ObservationAndTimeRow]
         let recordPayloads: [WorkflowRecordPayloadV1]
         let evidence: [EvidenceFile]
@@ -1366,6 +1367,7 @@ private extension WholeSignDeletionService {
                 promotedPackageReleases:try boundedFetch(PromotedPackageReleaseRow.self),packageSandboxRuns:try boundedFetch(PackageSandboxRunRow.self),packagePromotionReceipts:try boundedFetch(PackagePromotionReceiptRow.self),activePackageRegistryPointers:try boundedFetch(ActivePackageRegistryPointerRow.self),
                 instrumentReferences:try boundedFetch(InstrumentReferenceRow.self),calibrationStatusSnapshots:try boundedFetch(CalibrationStatusSnapshotRow.self),measurementCaptures:try boundedFetch(MeasurementCaptureRow.self),measurementSeries:try boundedFetch(MeasurementSeriesRow.self),measurementQualityAssessments:try boundedFetch(MeasurementQualityAssessmentRow.self),
                 privacyTransformPolicies:try boundedFetch(PrivacyTransformPolicyRow.self),privacyRegions:try boundedFetch(PrivacyRegionRow.self),privacyTransformManifests:try boundedFetch(PrivacyTransformManifestRow.self),privacyReviewReceipts:try boundedFetch(PrivacyReviewReceiptRow.self),
+                clientCapabilityProfiles:try boundedFetch(ClientCapabilityProfileRow.self),packageLifecyclePolicies:try boundedFetch(PackageLifecyclePolicyRow.self),packageLifecycleDispositions:try boundedFetch(PackageLifecycleDispositionRow.self),clientCapabilityAdmissionDecisions:try boundedFetch(ClientCapabilityAdmissionDecisionRow.self),
                 observationAndTime: observationAndTime,
                 recordPayloads: recordPayloads,
                 evidence: try boundedFetch(EvidenceFile.self),
@@ -1410,6 +1412,8 @@ private extension WholeSignDeletionService {
         try WholeSignDeletionRule.validateMeasurementIntegrityLifecycle(authority:.ordinaryAssetOrSiteDelete,before:measurementInventory,after:measurementInventory)
         let privacyInventory=PrivacyTransformDeletionInventoryV1(policies:rows.privacyTransformPolicies.count,regions:rows.privacyRegions.count,manifests:rows.privacyTransformManifests.count,reviewReceipts:rows.privacyReviewReceipts.count)
         try WholeSignDeletionRule.validatePrivacyTransformLifecycle(authority:.ordinaryDelete,before:privacyInventory,after:privacyInventory)
+        let capabilityInventory=ClientCapabilityDeletionInventoryV1(profiles:rows.clientCapabilityProfiles.count,policies:rows.packageLifecyclePolicies.count,dispositions:rows.packageLifecycleDispositions.count,decisions:rows.clientCapabilityAdmissionDecisions.count)
+        try WholeSignDeletionRule.validateClientCapabilityLifecycle(before:capabilityInventory,after:capabilityInventory,workspaceErase:false)
         do {
             var assetIDs = Set<UUID>()
             if let deletingAssetID { assetIDs.insert(deletingAssetID) }

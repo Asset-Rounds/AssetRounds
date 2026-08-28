@@ -1,0 +1,44 @@
+{
+  "artifact": "V23P03C21ClientCapabilityPackageLifecycleBrandImpactManifestV1",
+  "artifactDigest": "3640a13476406338fd4cca77e2d040125089dd43c51885a64a7e0c9dea9f38dc",
+  "authorityContextDigest": "033924c121880600a986352b8da1360c058a1e546c4efd987c0aaf85b0123a89",
+  "authorityFenceDigest": "a961c346c2aa4a68fb18ed9af92497ded130e37e22bded16a99bf2bedf5e8a73",
+  "brandSurfaceDelta": true,
+  "cardID": "V23-P03-C21",
+  "contractDigest": "11f43e2f1cd25811a91a91d1e24963258ed6a6793730d6390319d39a19d436a6",
+  "deferred": [
+    "native-build",
+    "hosted-CI",
+    "adoption",
+    "acceptance",
+    "release",
+    "Phase10"
+  ],
+  "impact": "PACKAGE_ADMISSION_AND_WITHDRAWAL_STATE_REMAINS_LOCAL_MANUAL_AND_ACCESSIBLE_WITH_NO_NEW_S10_UI_SURFACE",
+  "pathFenceCount": 121,
+  "preserved": [
+    "immutable-finalized-history",
+    "existing-design-tokens",
+    "existing-accessibility-contracts",
+    "S10-reserved-brand-assets"
+  ],
+  "requiresAcceptedS10_6Reconciliation": true,
+  "s10FenceOverlapPaths": [],
+  "schemaVersion": 1,
+  "status": "PASS_STATIC_PROVISIONAL",
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "uiSurfaceDelta": false,
+  "verificationMode": "STATIC_ONLY"
+}

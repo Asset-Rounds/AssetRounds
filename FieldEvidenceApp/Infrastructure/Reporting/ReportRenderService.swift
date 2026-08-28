@@ -1372,4 +1372,44 @@ extension ReportRenderService {
         }
         return projection
     }
+
+    /// C21 rendering consumes the frozen local admission/lifecycle projection
+    /// only. A blocked admission may still be displayed as a recorded state,
+    /// while the operation gate below prevents unsafe or write execution.
+    static func validateClientCapabilityRenderInputs(
+        projection: ClientCapabilityReportProjectionV1,
+        format: ReportProjectionFormatV1
+    ) throws -> ClientCapabilityReportProjectionV1 {
+        try ClientCapabilityReportConsumerPolicyV1.validate(projection, format: format)
+        return projection
+    }
+
+    static func validateClientCapabilityOperationInputs(
+        projection: ClientCapabilityReportProjectionV1,
+        operation: PackageLifecycleOperationV1,
+        allowsWrite: Bool
+    ) throws -> ClientCapabilityReportProjectionV1 {
+        try ClientCapabilityReportConsumerPolicyV1.validate(projection, format: .structuredText)
+        try ClientCapabilityReportConsumerPolicyV1.require(
+            projection,
+            operation: operation,
+            allowsWrite: allowsWrite
+        )
+        return projection
+    }
+
+    static func validateClientCapabilityHistoricExportInputs(
+        projection: ClientCapabilityReportProjectionV1
+    ) throws -> ClientCapabilityReportProjectionV1 {
+        try ClientCapabilityReportConsumerPolicyV1.validate(projection, format: .openJSON)
+        guard ClientCapabilityReportConsumerPolicyV1.allowsHistoricExport(projection) else {
+            throw ClientCapabilityReportProjectionFailureV1.admissionDenied
+        }
+        try ClientCapabilityReportConsumerPolicyV1.require(
+            projection,
+            operation: .export,
+            allowsWrite: false
+        )
+        return projection
+    }
 }

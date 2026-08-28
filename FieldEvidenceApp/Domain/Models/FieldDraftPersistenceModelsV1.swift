@@ -67,4 +67,26 @@ private func fieldDraftDomainRevision(_ value: Int64) throws -> UInt64 {
 enum PackageEvolutionDraftPersistenceBoundaryV1 {
     static let addsPersistentModel = false
     static let storedResultType = "FieldDraftCheckpointRow"
+
+    /// C21 capability/profile/policy/disposition/decision values are
+    /// authoritative inputs to a draft-upgrade preview, not draft columns.
+    /// The four capability rows live in their own package-lifecycle model
+    /// file; this boundary deliberately keeps the C36 draft schema unchanged.
+    static let capabilityInputsPersistent = false
+    static let capabilityInputStore = "ClientCapabilityPersistenceModelsV1"
+    static let capabilityDecisionOperation = PackageLifecycleOperationV1.upgradeDraft
+
+    static func validateUpgradeInputs(
+        plan: DraftUpgradePlanV1,
+        source: FieldDraftCheckpointV1,
+        diff: PackageSemanticDiffV1,
+        admittedBy capability: ClientCapabilityLifecycleClosureV1
+    ) throws {
+        try PackageEvolutionDraftBoundaryV1.validateUpgradePreview(
+            plan: plan,
+            source: source,
+            diff: diff,
+            admittedBy: capability
+        )
+    }
 }

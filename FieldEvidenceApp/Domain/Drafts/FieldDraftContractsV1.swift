@@ -224,4 +224,113 @@ enum PackageEvolutionDraftBoundaryV1 {
             throw PackageEvolutionFailureV1.ineligibleDraft
         }
     }
+
+    /// C21 capability admission is a preview input.  It authorizes the one
+    /// safe draft migration operation, while the only durable result remains
+    /// the existing checkpoint CAS successor.
+    static func validateUpgradeAdmission(
+        source: FieldDraftCheckpointV1,
+        admittedBy capability: ClientCapabilityLifecycleClosureV1
+    ) throws {
+        try validateSource(source)
+        try C21CapabilityAdmissionBoundaryV1.validate(
+            capability,
+            for: .upgradeDraft,
+            historic: false
+        )
+        guard capability.policy.workspaceID == source.workspaceID,
+              capability.decision.workspaceID == source.workspaceID,
+              capability.decision.admission == .readWrite
+                || capability.decision.admission == .migrationRequired else {
+            throw ClientCapabilityFailureV1.admissionDenied
+        }
+    }
+
+    static func validateUpgradePreview(
+        plan: DraftUpgradePlanV1,
+        source: FieldDraftCheckpointV1,
+        diff: PackageSemanticDiffV1,
+        admittedBy capability: ClientCapabilityLifecycleClosureV1
+    ) throws {
+        try validateUpgradeAdmission(source: source, admittedBy: capability)
+        try plan.validate(source: source, diff: diff)
+        guard plan.workspaceID == source.workspaceID,
+              plan.targetPackageReleaseID == capability.release.packageReleaseID,
+              capability.decision.packageReleaseID == capability.release.packageReleaseID,
+              capability.decision.packageSHA256 == capability.release.packageSHA256,
+              capability.decision.workflowSHA256 == capability.release.workflowSHA256 else {
+            throw PackageEvolutionFailureV1.staleSource
+        }
+    }
+}
+
+/// Shared C21 operation matrix for draft, workflow, and package-evolution
+/// consumers.  The evaluator remains the sole source of an admission; this
+/// boundary only proves that a persisted decision is current and safe for the
+/// requested operation.
+enum C21CapabilityAdmissionBoundaryV1 {
+    static func validate(
+        _ capability: ClientCapabilityLifecycleClosureV1,
+        for operation: PackageLifecycleOperationV1? = nil,
+        historic: Bool = false
+    ) throws {
+        try capability.validate()
+        let requestedOperation = operation ?? capability.decision.operation
+        guard capability.decision.operation == requestedOperation else {
+            throw ClientCapabilityFailureV1.staleReference
+        }
+
+        let expected = ClientCapabilityAdmissionEvaluatorV1.evaluate(
+            profile: capability.profile,
+            policy: capability.policy,
+            disposition: capability.disposition,
+            release: capability.release,
+            operation: requestedOperation
+        )
+        guard capability.decision.admission == expected.0,
+              capability.decision.reasons == expected.1.sorted(by: {
+                  $0.rawValue < $1.rawValue
+              }) else {
+            throw ClientCapabilityFailureV1.admissionDenied
+        }
+        guard permits(
+            capability.decision.admission,
+            operation: requestedOperation,
+            state: capability.disposition.state,
+            historic: historic
+        ) else {
+            throw ClientCapabilityFailureV1.admissionDenied
+        }
+    }
+
+    static func permits(
+        _ admission: ClientAdmissionV1,
+        operation: PackageLifecycleOperationV1,
+        state: PackageLifecycleStateV1,
+        historic: Bool = false
+    ) -> Bool {
+        switch state {
+        case .quarantined, .superseded:
+            return false
+        case .withdrawn:
+            guard historic,
+                  [.view, .export, .restore, .replay].contains(operation) else {
+                return false
+            }
+            // Withdrawn releases retain only their historic, non-mutating
+            // read path; restore/replay are allowed solely for that history.
+            return admission == .readOnly
+        case .active, .deprecated:
+            switch admission {
+            case .readWrite:
+                return true
+            case .readOnly:
+                return [.view, .export].contains(operation)
+            case .migrationRequired:
+                return operation == .upgradeDraft
+            case .quarantine, .reject:
+                return false
+            }
+        }
+    }
 }

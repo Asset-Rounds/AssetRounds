@@ -56,6 +56,7 @@ final class BackupExportService {
     private static let checkpointBasisExportedAt = Date(timeIntervalSince1970: 0)
 
     private struct Rows {
+        let clientCapabilityProfiles:[ClientCapabilityProfileRow];let packageLifecyclePolicies:[PackageLifecyclePolicyRow];let packageLifecycleDispositions:[PackageLifecycleDispositionRow];let clientCapabilityAdmissionDecisions:[ClientCapabilityAdmissionDecisionRow]
         let privacyTransformPolicies: [PrivacyTransformPolicyRow]
         let privacyRegions: [PrivacyRegionRow]
         let privacyTransformManifests: [PrivacyTransformManifestRow]
@@ -966,9 +967,9 @@ private extension BackupExportService {
             source: .init(
                 appBuild: appBuild(),
                 appVersion: appVersion(),
-                persistentSchemaVersion: 19,
+                persistentSchemaVersion: 20,
                 replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: 18,
+                recordsSchemaVersion: 19,
                 sourceGenerationID: generationID,
                 workspaceID: sourceIdentity.workspaceID.rawValue
             )
@@ -1496,6 +1497,7 @@ private extension BackupExportService {
     private func fetchRows() throws -> Rows {
         do {
             return Rows(
+                clientCapabilityProfiles:try modelContext.fetch(FetchDescriptor<ClientCapabilityProfileRow>()),packageLifecyclePolicies:try modelContext.fetch(FetchDescriptor<PackageLifecyclePolicyRow>()),packageLifecycleDispositions:try modelContext.fetch(FetchDescriptor<PackageLifecycleDispositionRow>()),clientCapabilityAdmissionDecisions:try modelContext.fetch(FetchDescriptor<ClientCapabilityAdmissionDecisionRow>()),
                 privacyTransformPolicies: try modelContext.fetch(FetchDescriptor<PrivacyTransformPolicyRow>()),
                 privacyRegions: try modelContext.fetch(FetchDescriptor<PrivacyRegionRow>()),
                 privacyTransformManifests: try modelContext.fetch(FetchDescriptor<PrivacyTransformManifestRow>()),
@@ -2046,7 +2048,9 @@ private extension BackupExportService {
         let packageEvolution = mutationHistory == nil ? [] : try packageEvolutionRecords(rows)
         let measurementIntegrity = mutationHistory == nil ? [] : try measurementIntegrityRecords(rows)
         let privacyTransforms = mutationHistory == nil ? [] : try privacyTransformRecords(rows)
+        let clientCapabilities = mutationHistory == nil ? [] : try clientCapabilityRecords(rows)
         return V4BackupRecordsV1(
+            clientCapabilities: clientCapabilities,
             privacyTransforms: privacyTransforms,
             measurementIntegrity: measurementIntegrity,
             packageEvolution: packageEvolution,
@@ -2105,7 +2109,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : 17,
+                : 19,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -2218,6 +2222,15 @@ private extension BackupExportService {
             return .init(kind: .reviewReceipt, id: v.receiptID, workspaceID: v.workspaceID.rawValue, revision: v.revision, canonicalData: try PrivacyTransformCanonicalCodecV1.encode(v))
         }
         return result.sorted { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)" }
+    }
+
+    private func clientCapabilityRecords(_ rows:Rows)throws->[V20BackupClientCapabilityRecordV1]{
+        let releases=try Dictionary(uniqueKeysWithValues:rows.promotedPackageReleases.map{let v=try $0.value();return(v.packageRelease.packageReleaseID,v.packageRelease)})
+        let profiles=try Dictionary(uniqueKeysWithValues:rows.clientCapabilityProfiles.map{let v=try $0.value();return(v.profileID,v)})
+        let policies=try Dictionary(uniqueKeysWithValues:rows.packageLifecyclePolicies.map{row in guard let release=releases[row.packageReleaseID]else{throw BackupExportServiceError.invalidAuthority};let v=try row.value(release:release);return(v.policyID,v)})
+        let dispositions=try Dictionary(uniqueKeysWithValues:rows.packageLifecycleDispositions.map{row in guard let release=releases[row.packageReleaseID]else{throw BackupExportServiceError.invalidAuthority};let v=try row.value(release:release);return(v.dispositionID,v)})
+        var result:[V20BackupClientCapabilityRecordV1]=try profiles.values.map{.init(kind:.profile,id:$0.profileID,workspaceID:$0.workspaceID.rawValue,revision:$0.revision,canonicalData:try ClientCapabilityCanonicalCodecV1.encode($0))}+policies.values.map{.init(kind:.policy,id:$0.policyID,workspaceID:$0.workspaceID.rawValue,revision:$0.revision,canonicalData:try ClientCapabilityCanonicalCodecV1.encode($0))}+dispositions.values.map{.init(kind:.disposition,id:$0.dispositionID,workspaceID:$0.workspaceID.rawValue,revision:$0.revision,canonicalData:try ClientCapabilityCanonicalCodecV1.encode($0))}
+        result += try rows.clientCapabilityAdmissionDecisions.map{row in guard let profile=profiles[row.profileID],let policy=policies[row.policyID],let disposition=dispositions[row.dispositionID],let release=releases[row.packageReleaseID]else{throw BackupExportServiceError.invalidAuthority};let v=try row.value(profile:profile,policy:policy,disposition:disposition,release:release);return .init(kind:.admissionDecision,id:v.decisionID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try ClientCapabilityCanonicalCodecV1.encode(v))};return result.sorted{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"}
     }
 
     private func functionalRelationshipRecords(

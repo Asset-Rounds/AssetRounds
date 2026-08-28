@@ -66,6 +66,12 @@ struct ReportSnapshotV1: Codable, Equatable, Sendable {
     /// a separately authorized content operation.
     var privacyTransform: PrivacyTransformReportProjectionV1? = nil
 
+    /// Optional C21 local client-capability and package-lifecycle projection.
+    /// It contains only closed admission/operation/state values and digest
+    /// bindings. Historic finalized snapshots remain readable after withdrawal
+    /// and are never rewritten in place.
+    var clientCapability: ClientCapabilityReportProjectionV1? = nil
+
     var audienceSafeDerivativeProjection: PrivacyTransformReportProjectionV1? {
         privacyTransform
     }
@@ -76,6 +82,14 @@ struct ReportSnapshotV1: Codable, Equatable, Sendable {
 
     var privacyTransformProjection: PrivacyTransformReportProjectionV1? {
         privacyTransform
+    }
+
+    var clientCapabilityAdmission: ClientCapabilityReportProjectionV1? {
+        clientCapability
+    }
+
+    var packageLifecycleProjection: ClientCapabilityReportProjectionV1? {
+        clientCapability
     }
 
     var reviewHistory: [InspectionReviewTransitionV1] {

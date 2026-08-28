@@ -316,6 +316,47 @@ enum BundledLocalizationKeyV1: String, CaseIterable, Sendable {
     case privacyTransformOriginalAccessSeparate = "privacy.transform.original.access.separate"
     case privacyTransformNextStep = "privacy.transform.next_step"
 
+    case clientCapabilityHeading = "client.capability.heading"
+    case clientCapabilityAdmission = "client.capability.admission"
+    case clientCapabilityAdmissionReadWrite = "client.capability.admission.read_write"
+    case clientCapabilityAdmissionReadOnly = "client.capability.admission.read_only"
+    case clientCapabilityAdmissionMigrationRequired = "client.capability.admission.migration_required"
+    case clientCapabilityAdmissionQuarantine = "client.capability.admission.quarantine"
+    case clientCapabilityAdmissionReject = "client.capability.admission.reject"
+    case clientCapabilityReason = "client.capability.reason"
+    case clientCapabilityReasonExactMatch = "client.capability.reason.exact_match"
+    case clientCapabilityReasonReadOnlyCompatibility = "client.capability.reason.read_only_compatibility"
+    case clientCapabilityReasonMigrationAvailable = "client.capability.reason.migration_available"
+    case clientCapabilityReasonUnsupportedRequiredRange = "client.capability.reason.unsupported_required_range"
+    case clientCapabilityReasonUnknownCapability = "client.capability.reason.unknown_capability"
+    case clientCapabilityReasonPackageWithdrawn = "client.capability.reason.package_withdrawn"
+    case clientCapabilityReasonPackageQuarantined = "client.capability.reason.package_quarantined"
+    case clientCapabilityReasonPackageSuperseded = "client.capability.reason.package_superseded"
+    case clientCapabilityReasonDigestMismatch = "client.capability.reason.digest_mismatch"
+    case clientCapabilityReasonStalePolicy = "client.capability.reason.stale_policy"
+    case clientCapabilityReasonOperationBlocked = "client.capability.reason.operation_blocked"
+    case packageLifecycleHeading = "package.lifecycle.heading"
+    case packageLifecycleState = "package.lifecycle.state"
+    case packageLifecycleStateActive = "package.lifecycle.state.active"
+    case packageLifecycleStateDeprecated = "package.lifecycle.state.deprecated"
+    case packageLifecycleStateWithdrawn = "package.lifecycle.state.withdrawn"
+    case packageLifecycleStateQuarantined = "package.lifecycle.state.quarantined"
+    case packageLifecycleStateSuperseded = "package.lifecycle.state.superseded"
+    case packageLifecycleOperation = "package.lifecycle.operation"
+    case packageLifecycleOperationStart = "package.lifecycle.operation.start"
+    case packageLifecycleOperationResume = "package.lifecycle.operation.resume"
+    case packageLifecycleOperationFinalize = "package.lifecycle.operation.finalize"
+    case packageLifecycleOperationAmend = "package.lifecycle.operation.amend"
+    case packageLifecycleOperationView = "package.lifecycle.operation.view"
+    case packageLifecycleOperationExport = "package.lifecycle.operation.export"
+    case packageLifecycleOperationRestore = "package.lifecycle.operation.restore"
+    case packageLifecycleOperationReplay = "package.lifecycle.operation.replay"
+    case packageLifecycleOperationUpgradeDraft = "package.lifecycle.operation.upgrade_draft"
+    case packageLifecycleHistoricExport = "package.lifecycle.historic.export"
+    case packageLifecycleWithdrawal = "package.lifecycle.withdrawal"
+    case packageLifecycleBlocked = "package.lifecycle.blocked"
+    case clientCapabilityNextStep = "client.capability.next_step"
+
     static var functionalRelationshipDirected: Self { .functionalRelationshipDirectedSourceToTarget }
     static var functionalRelationshipActive: Self { .functionalRelationshipActiveState }
     static var functionalRelationshipEnded: Self { .functionalRelationshipEndedState }
@@ -2306,6 +2347,7 @@ enum BundledLocalizationCatalogV1 {
         includeFieldDraft: Bool = false,
         includeMeasurementIntegrity: Bool = false,
         includePrivacyTransform: Bool = false,
+        includeClientCapability: Bool = false,
         interruption: Interruption = { _ in }
     ) throws -> LocalizationCatalogPublicationV1 {
         try interruption(.beforeValidation)
@@ -2313,7 +2355,9 @@ enum BundledLocalizationCatalogV1 {
         let locales = LocalizationLocaleManifestV1.shippingV1()
         try locales.validate()
         let keys: LocalizationKeyRegistryV1
-        if includePrivacyTransform {
+        if includeClientCapability {
+            keys = try clientCapabilityRegistry()
+        } else if includePrivacyTransform {
             keys = try privacyTransformRegistry()
         } else if includeMeasurementIntegrity {
             keys = try measurementIntegrityRegistry()
@@ -2344,7 +2388,9 @@ enum BundledLocalizationCatalogV1 {
         }
         if let previousLegacy { try previousLegacy.validateObserved(legacy.entries) }
         let accessibility: SemanticAccessibilityIDRegistryV1
-        if includePrivacyTransform {
+        if includeClientCapability {
+            accessibility = try clientCapabilityAccessibilityRegistry(localization: keys)
+        } else if includePrivacyTransform {
             accessibility = try privacyTransformAccessibilityRegistry(localization: keys)
         } else if includeMeasurementIntegrity {
             accessibility = try measurementIntegrityAccessibilityRegistry(localization: keys)
@@ -2419,7 +2465,8 @@ enum BundledLocalizationCatalogV1 {
         includePacketCoordination: Bool = false,
         includeFieldDraft: Bool = false,
         includeMeasurementIntegrity: Bool = false,
-        includePrivacyTransform: Bool = false
+        includePrivacyTransform: Bool = false,
+        includeClientCapability: Bool = false
     ) throws -> LocalizationCatalogPublicationV1 {
         switch (sourceCatalogBytes, receipt) {
         case (nil, nil): return .zero
@@ -2442,7 +2489,8 @@ enum BundledLocalizationCatalogV1 {
                 includePacketCoordination: includePacketCoordination,
                 includeFieldDraft: includeFieldDraft,
                 includeMeasurementIntegrity: includeMeasurementIntegrity,
-                includePrivacyTransform: includePrivacyTransform
+                includePrivacyTransform: includePrivacyTransform,
+                includeClientCapability: includeClientCapability
             )
             guard case let .complete(_, _, _, _, actual) = publication,
                   actual == expected else { throw LocalizationContractFailureV1.digestMismatch }
@@ -2929,6 +2977,47 @@ enum BundledLocalizationCatalogV1 {
              .privacyTransformOriginalAccessSeparate,
              .privacyTransformNextStep:
             return PrivacyTransformLocalizationKeyV1(rawValue: key.rawValue)?.englishDefaultValue ?? key.rawValue
+        case .clientCapabilityHeading,
+             .clientCapabilityAdmission,
+             .clientCapabilityAdmissionReadWrite,
+             .clientCapabilityAdmissionReadOnly,
+             .clientCapabilityAdmissionMigrationRequired,
+             .clientCapabilityAdmissionQuarantine,
+             .clientCapabilityAdmissionReject,
+             .clientCapabilityReason,
+             .clientCapabilityReasonExactMatch,
+             .clientCapabilityReasonReadOnlyCompatibility,
+             .clientCapabilityReasonMigrationAvailable,
+             .clientCapabilityReasonUnsupportedRequiredRange,
+             .clientCapabilityReasonUnknownCapability,
+             .clientCapabilityReasonPackageWithdrawn,
+             .clientCapabilityReasonPackageQuarantined,
+             .clientCapabilityReasonPackageSuperseded,
+             .clientCapabilityReasonDigestMismatch,
+             .clientCapabilityReasonStalePolicy,
+             .clientCapabilityReasonOperationBlocked,
+             .packageLifecycleHeading,
+             .packageLifecycleState,
+             .packageLifecycleStateActive,
+             .packageLifecycleStateDeprecated,
+             .packageLifecycleStateWithdrawn,
+             .packageLifecycleStateQuarantined,
+             .packageLifecycleStateSuperseded,
+             .packageLifecycleOperation,
+             .packageLifecycleOperationStart,
+             .packageLifecycleOperationResume,
+             .packageLifecycleOperationFinalize,
+             .packageLifecycleOperationAmend,
+             .packageLifecycleOperationView,
+             .packageLifecycleOperationExport,
+             .packageLifecycleOperationRestore,
+             .packageLifecycleOperationReplay,
+             .packageLifecycleOperationUpgradeDraft,
+             .packageLifecycleHistoricExport,
+             .packageLifecycleWithdrawal,
+             .packageLifecycleBlocked,
+             .clientCapabilityNextStep:
+            return ClientCapabilityLocalizationKeyV1(rawValue: key.rawValue)?.englishDefaultValue ?? key.rawValue
         }
     }
 
@@ -2981,7 +3070,7 @@ enum BundledLocalizationCatalogV1 {
         // additive projection, while the selected registry still controls the
         // required subset.  This keeps C16/C38 compatibility callers frozen
         // and lets each additive typed surface publish atomically.
-        let supportedKeys = Set((try? privacyTransformRegistry())?.definitions.map(\.key.rawValue) ?? [])
+        let supportedKeys = Set((try? clientCapabilityRegistry())?.definitions.map(\.key.rawValue) ?? [])
         guard registeredKeys.isSubset(of: Set(strings.keys)),
               Set(strings.keys).isSubset(of: supportedKeys) else {
             throw LocalizationContractFailureV1.invalidValue
@@ -3108,6 +3197,75 @@ extension BundledLocalizationCatalogV1 {
     static func packageEvolutionAccessibilityContracts()
         -> [PackageEvolutionAccessibilityContractV1] {
         PackageEvolutionAccessibilityPolicyV1.contracts
+    }
+}
+
+// MARK: - C21 client capability and package lifecycle labels
+
+extension BundledLocalizationCatalogV1 {
+    /// C21 extends the already published English-only registry with the
+    /// closed admission, lifecycle-state, and lifecycle-operation vocabulary.
+    /// No device, user, account, endpoint, provider, or delivery value is
+    /// accepted as a localized label.
+    static func clientCapabilityRegistry() throws -> LocalizationKeyRegistryV1 {
+        let base = try privacyTransformRegistry()
+        let additions = try ClientCapabilityLocalizationKeyV1.allCases.map { key in
+            guard let bundledKey = BundledLocalizationKeyV1(rawValue: key.rawValue) else {
+                throw LocalizationContractFailureV1.missingKey
+            }
+            return try definition(
+                bundledKey,
+                key.rawValue,
+                key.englishDefaultValue,
+                key.translatorComment
+            )
+        }
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+
+    static func clientCapabilityAccessibilityRegistry(
+        localization: LocalizationKeyRegistryV1
+    ) throws -> SemanticAccessibilityIDRegistryV1 {
+        let base = try privacyTransformAccessibilityRegistry(localization: localization)
+        let entries = try ClientCapabilityAccessibilityIDV1.allCases.map {
+            id -> AccessibilityContractV1 in
+            let labelKey: LocalizationKeyV1
+            if id == .screen {
+                labelKey = try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.clientCapabilityHeading.rawValue
+                )
+            } else {
+                labelKey = try LocalizationKeyV1(id.rawValue)
+            }
+            let role: SemanticAccessibilityRoleV1
+            switch id {
+            case .screen: role = .screen
+            case .heading, .lifecycleHeading: role = .heading
+            case .nextStep: role = .button
+            default:
+                role = ClientCapabilityAccessibilityPolicyV1.statusSemanticIDs
+                    .contains(id.rawValue) ? .status : .group
+            }
+            let hintKey: LocalizationKeyV1? =
+                ClientCapabilityAccessibilityPolicyV1.requiresActionableNextStep(
+                    for: id.rawValue
+                )
+                ? try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.clientCapabilityNextStep.rawValue
+                )
+                : nil
+            return AccessibilityContractV1(
+                semanticID: id.rawValue,
+                role: role,
+                reachability: .whenAvailable,
+                labelKey: labelKey,
+                hintKey: hintKey,
+                valueKey: nil,
+                dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            )
+        }
+        return try base.appending(entries, localization: localization)
     }
 }
 

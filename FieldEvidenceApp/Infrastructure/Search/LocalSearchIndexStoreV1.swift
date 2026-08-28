@@ -1146,4 +1146,24 @@ extension LocalSearchIndexStoreV1 {
         try PrivacyTransformSearchPersistencePolicyV1().validate()
         return record
     }
+
+    /// Creates a disposable C21 row from the canonical local admission
+    /// projection. The index receives closed values and digests only; package
+    /// payloads and client/device identity never cross this boundary.
+    static func clientCapabilitySearchRecord(
+        from projection: ClientCapabilityReportProjectionV1
+    ) throws -> ClientCapabilitySearchRecordV1 {
+        let record = try ClientCapabilitySearchRecordV1(projection: projection)
+        try record.validate()
+        try ClientCapabilitySearchPersistencePolicyV1().validate()
+        return record
+    }
+
+    static func validateClientCapabilitySearchRecord(
+        _ record: ClientCapabilitySearchRecordV1
+    ) throws -> ClientCapabilitySearchRecordV1 {
+        try record.validate()
+        try ClientCapabilitySearchPersistencePolicyV1().validate()
+        return record
+    }
 }

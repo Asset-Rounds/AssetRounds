@@ -2089,6 +2089,166 @@
     "privacy.transform.next_step" : {
       "comment" : "English label for a recorded manual privacy-transform review state; do not claim legal compliance, guaranteed anonymization, or an automatic privacy decision.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Next recorded step" } } }
+    },
+    "client.capability.heading" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Client capability admission" } } }
+    },
+    "client.capability.admission" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Admission" } } }
+    },
+    "client.capability.admission.read_write" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Read and write admitted" } } }
+    },
+    "client.capability.admission.read_only" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Read-only admitted" } } }
+    },
+    "client.capability.admission.migration_required" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Migration required" } } }
+    },
+    "client.capability.admission.quarantine" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Quarantine required" } } }
+    },
+    "client.capability.admission.reject" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Rejected" } } }
+    },
+    "client.capability.reason" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recorded reason" } } }
+    },
+    "client.capability.reason.exact_match" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Exact capability match" } } }
+    },
+    "client.capability.reason.read_only_compatibility" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Read-only compatibility" } } }
+    },
+    "client.capability.reason.migration_available" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Migration is available" } } }
+    },
+    "client.capability.reason.unsupported_required_range" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Required capability range is unsupported" } } }
+    },
+    "client.capability.reason.unknown_capability" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Capability is unknown" } } }
+    },
+    "client.capability.reason.package_withdrawn" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Package release is withdrawn" } } }
+    },
+    "client.capability.reason.package_quarantined" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Package release is quarantined" } } }
+    },
+    "client.capability.reason.package_superseded" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Package release is superseded" } } }
+    },
+    "client.capability.reason.digest_mismatch" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recorded digest does not match" } } }
+    },
+    "client.capability.reason.stale_policy" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Capability policy is stale" } } }
+    },
+    "client.capability.reason.operation_blocked" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Operation is blocked" } } }
+    },
+    "package.lifecycle.heading" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Package lifecycle" } } }
+    },
+    "package.lifecycle.state" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Lifecycle state" } } }
+    },
+    "package.lifecycle.state.active" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Active" } } }
+    },
+    "package.lifecycle.state.deprecated" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Deprecated" } } }
+    },
+    "package.lifecycle.state.withdrawn" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Withdrawn" } } }
+    },
+    "package.lifecycle.state.quarantined" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Quarantined" } } }
+    },
+    "package.lifecycle.state.superseded" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Superseded" } } }
+    },
+    "package.lifecycle.operation" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Lifecycle operation" } } }
+    },
+    "package.lifecycle.operation.start" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Start" } } }
+    },
+    "package.lifecycle.operation.resume" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Resume" } } }
+    },
+    "package.lifecycle.operation.finalize" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Finalize" } } }
+    },
+    "package.lifecycle.operation.amend" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Amend" } } }
+    },
+    "package.lifecycle.operation.view" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "View" } } }
+    },
+    "package.lifecycle.operation.export" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Export" } } }
+    },
+    "package.lifecycle.operation.restore" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Restore" } } }
+    },
+    "package.lifecycle.operation.replay" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Replay" } } }
+    },
+    "package.lifecycle.operation.upgrade_draft" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Upgrade draft" } } }
+    },
+    "package.lifecycle.historic.export" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Historic export remains available" } } }
+    },
+    "package.lifecycle.withdrawal" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Withdrawal blocks new work" } } }
+    },
+    "package.lifecycle.blocked" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Operation blocked by admission" } } }
+    },
+    "client.capability.next_step" : {
+      "comment" : "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Next recorded step" } } }
     }
   },
   "version" : "1.0"

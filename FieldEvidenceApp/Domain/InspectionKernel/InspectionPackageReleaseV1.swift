@@ -7,6 +7,18 @@ enum InspectionPackageReleaseStateV1: String, CaseIterable, Codable, Sendable {
     case published = "PUBLISHED"
 }
 
+extension InspectionPackageReleaseV1 {
+    func validateClientCapability(policy: PackageLifecyclePolicyV1,
+                                  disposition: PackageLifecycleDispositionV1) throws {
+        try validate(); try policy.validate(release: self); try disposition.validate(release: self)
+        guard policy.workspaceID == disposition.workspaceID,
+              policy.packageReleaseID == packageReleaseID,
+              disposition.packageReleaseID == packageReleaseID else {
+            throw InspectionKernelFailureV1.hashMismatch
+        }
+    }
+}
+
 // Deliberately non-Codable and privately constructible: canonical release bytes
 // remain readable history, but changing their state member cannot manufacture
 // ordered transition authority.

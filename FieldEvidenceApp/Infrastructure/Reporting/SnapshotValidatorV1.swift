@@ -1583,4 +1583,31 @@ extension SnapshotValidatorV1 {
     ) throws -> PrivacyTransformReportProjectionV1 {
         try DeterministicOpenJSONRendererV1.reopenPrivacyTransform(data)
     }
+
+    /// C21 validates the frozen local admission/lifecycle projection without
+    /// consulting a current pointer. Withdrawal therefore cannot rewrite a
+    /// historic report, and the stored closed state remains the display truth.
+    func validateClientCapabilityProjection(
+        _ projection: ClientCapabilityReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> ClientCapabilityReportProjectionV1 {
+        try projection.validate()
+        try ClientCapabilityReportConsumerPolicyV1.validate(projection, format: format)
+        return projection
+    }
+
+    static func validateClientCapabilityProjection(
+        _ projection: ClientCapabilityReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> ClientCapabilityReportProjectionV1 {
+        try projection.validate()
+        try ClientCapabilityReportConsumerPolicyV1.validate(projection, format: format)
+        return projection
+    }
+
+    static func validateClientCapabilityOpenJSON(
+        _ data: Data
+    ) throws -> ClientCapabilityReportProjectionV1 {
+        try DeterministicOpenJSONRendererV1.reopenClientCapability(data)
+    }
 }

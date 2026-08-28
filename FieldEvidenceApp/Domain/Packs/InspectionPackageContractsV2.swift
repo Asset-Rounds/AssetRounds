@@ -14,6 +14,18 @@ enum InspectionPackageFailureV2: Error, Equatable, Sendable {
     case bundledPackageUnavailable
 }
 
+extension InspectionPackageV2 {
+    func validateClientCapabilityBinding(policy: PackageLifecyclePolicyV1,
+                                         release: InspectionPackageReleaseV1) throws {
+        try validate(); try policy.validate(release: release)
+        guard packageID == release.packageID,
+              contentVersion == release.packageContentVersion,
+              policy.packageID == packageID else {
+            throw InspectionPackageFailureV2.incompatiblePackage
+        }
+    }
+}
+
 enum InspectionPackageCapabilityV2: String, CaseIterable, Codable, Hashable, Sendable {
     case photoCapture = "PHOTO_CAPTURE"
     case photoImport = "PHOTO_IMPORT"

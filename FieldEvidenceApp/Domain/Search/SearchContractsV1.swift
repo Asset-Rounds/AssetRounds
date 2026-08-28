@@ -1763,3 +1763,154 @@ enum PrivacyTransformSearchProjectionPolicyV1 {
         fieldIDs.contains(field.rawValue)
     }
 }
+
+// MARK: - C21 client capability and package lifecycle search projection
+
+/// Search values are bounded local metadata. Closed enum values are indexed
+/// for diagnostics and filtering, while package payloads and client identity
+/// remain outside the disposable index.
+enum ClientCapabilitySearchFieldV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case decisionIdentifier = "client_capability_decision_identifier"
+    case profileIdentifier = "client_capability_profile_identifier"
+    case policyIdentifier = "client_capability_policy_identifier"
+    case dispositionIdentifier = "client_capability_disposition_identifier"
+    case packageReleaseIdentifier = "client_capability_package_release_identifier"
+    case packageDigest = "client_capability_package_digest"
+    case workflowDigest = "client_capability_workflow_digest"
+    case admission = "client_capability_admission"
+    case lifecycleState = "client_capability_lifecycle_state"
+    case operation = "client_capability_operation"
+    case reasonCodes = "client_capability_reason_codes"
+    case readAllowed = "client_capability_read_allowed"
+    case writeAllowed = "client_capability_write_allowed"
+    case historicExportAllowed = "client_capability_historic_export_allowed"
+}
+
+struct ClientCapabilitySearchRecordV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let workspaceID: UUID
+    let decisionID: UUID
+    let profileID: UUID
+    let policyID: UUID
+    let dispositionID: UUID
+    let packageReleaseID: String
+    let packageSHA256: String
+    let workflowSHA256: String
+    let admission: ClientAdmissionV1
+    let lifecycleState: PackageLifecycleStateV1
+    let operation: PackageLifecycleOperationV1
+    let reasonCodes: [ClientCapabilityReasonV1]
+    let readAllowed: Bool
+    let writeAllowed: Bool
+    let historicExportAllowed: Bool
+    let boundedFieldValues: [ClientCapabilitySearchFieldV1: String]
+
+    init(projection: ClientCapabilityReportProjectionV1) throws {
+        try projection.validate()
+        schemaVersion = Self.schemaVersion
+        workspaceID = projection.workspaceID.rawValue
+        decisionID = projection.decisionID
+        profileID = projection.profileID
+        policyID = projection.policyID
+        dispositionID = projection.dispositionID
+        packageReleaseID = projection.packageReleaseID
+        packageSHA256 = projection.packageSHA256
+        workflowSHA256 = projection.workflowSHA256
+        admission = projection.admission
+        lifecycleState = projection.lifecycleState
+        operation = projection.operation
+        reasonCodes = projection.reasons
+        readAllowed = projection.readAllowed
+        writeAllowed = projection.writeAllowed
+        historicExportAllowed = projection.historicExportAllowed
+        boundedFieldValues = [
+            .decisionIdentifier: projection.decisionID.uuidString.lowercased(),
+            .profileIdentifier: projection.profileID.uuidString.lowercased(),
+            .policyIdentifier: projection.policyID.uuidString.lowercased(),
+            .dispositionIdentifier: projection.dispositionID.uuidString.lowercased(),
+            .packageReleaseIdentifier: projection.packageReleaseID,
+            .packageDigest: projection.packageSHA256,
+            .workflowDigest: projection.workflowSHA256,
+            .admission: projection.admission.rawValue,
+            .lifecycleState: projection.lifecycleState.rawValue,
+            .operation: projection.operation.rawValue,
+            .reasonCodes: projection.reasons.map(\.rawValue).joined(separator: ","),
+            .readAllowed: projection.readAllowed ? "ALLOWED" : "DENIED",
+            .writeAllowed: projection.writeAllowed ? "ALLOWED" : "DENIED",
+            .historicExportAllowed: projection.historicExportAllowed ? "ALLOWED" : "DENIED",
+        ]
+        try validate()
+    }
+
+    var displayIdentity: String {
+        "client-capability:\(decisionID.uuidString.lowercased())"
+    }
+
+    func normalizedTokens(for field: ClientCapabilitySearchFieldV1) -> [String] {
+        guard let value = boundedFieldValues[field] else { return [] }
+        return SearchContractValidationV1.normalizeSearchText(value)
+            .unicodeScalars
+            .split { !CharacterSet.alphanumerics.contains($0) }
+            .map(String.init)
+    }
+
+    func validate() throws {
+        let required = Set(ClientCapabilitySearchFieldV1.allCases)
+        guard schemaVersion == Self.schemaVersion,
+              workspaceID != SearchContractValidationV1.zeroUUID,
+              decisionID != SearchContractValidationV1.zeroUUID,
+              profileID != SearchContractValidationV1.zeroUUID,
+              policyID != SearchContractValidationV1.zeroUUID,
+              dispositionID != SearchContractValidationV1.zeroUUID,
+              SearchContractValidationV1.validID(packageReleaseID),
+              KernelCanonicalHashV1.validSHA256(packageSHA256),
+              KernelCanonicalHashV1.validSHA256(workflowSHA256),
+              !reasonCodes.isEmpty,
+              reasonCodes == reasonCodes.sorted(by: { $0.rawValue < $1.rawValue }),
+              Set(reasonCodes).count == reasonCodes.count,
+              Set(boundedFieldValues.keys) == required,
+              boundedFieldValues.values.allSatisfy({
+                  SearchContractValidationV1.validID($0)
+              }),
+              !ClientCapabilityLocalizationPolicyV1.containsProhibitedClaim(
+                  in: Array(boundedFieldValues.values)
+              ),
+              !ClientCapabilityLocalizationPolicyV1.containsCustomerOrWorkDataLeakage(
+                  in: Array(boundedFieldValues.values)
+              ) else {
+            throw SearchContractFailureV1.forbiddenField
+        }
+        guard boundedFieldValues.allSatisfy({ _, value in
+            let tokens = SearchContractValidationV1.normalizeSearchText(value)
+                .unicodeScalars
+                .split { !CharacterSet.alphanumerics.contains($0) }
+                .map(String.init)
+            return !tokens.isEmpty
+                && tokens.allSatisfy(SearchContractValidationV1.isCanonicalSearchToken)
+        }) else {
+            throw SearchContractFailureV1.invalidField
+        }
+    }
+}
+
+enum ClientCapabilitySearchProjectionPolicyV1 {
+    static let sourceKind = "CLIENT_CAPABILITY_PACKAGE_LIFECYCLE"
+    static let semanticLabel = "CLIENT_CAPABILITY_PACKAGE_LIFECYCLE_METADATA_V1"
+    static let fieldIDs = ClientCapabilitySearchFieldV1.allCases.map(\.rawValue)
+    static let derivedOnly = true
+    static let metadataOnly = true
+    static let closedValuesOnly = true
+    static let dropAndRebuildAfterRestore = true
+    static let dropAndRebuildOnReplay = true
+    static let excludesDeviceIdentity = true
+    static let excludesUserIdentity = true
+    static let excludesEndpointProviderAccount = true
+    static let excludesRemoteDeliveryAcknowledgement = true
+    static let excludesPackagePayload = true
+
+    static func accepts(_ field: ClientCapabilitySearchFieldV1) -> Bool {
+        fieldIDs.contains(field.rawValue)
+    }
+}

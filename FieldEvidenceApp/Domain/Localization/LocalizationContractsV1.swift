@@ -2672,3 +2672,229 @@ enum PrivacyTransformLocalizationPolicyV1 {
 }
 
 typealias PrivacyTransformClaimVocabularyV1 = PrivacyTransformLocalizationPolicyV1
+
+// MARK: - C21 client admission and package lifecycle labels
+
+/// English-only labels for the closed C21 admission and package lifecycle
+/// values.  These describe recorded local capability facts only; they never
+/// imply a device, user, account, endpoint, provider, or remote delivery.
+enum ClientCapabilityLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
+    case heading = "client.capability.heading"
+    case admission = "client.capability.admission"
+    case admissionReadWrite = "client.capability.admission.read_write"
+    case admissionReadOnly = "client.capability.admission.read_only"
+    case admissionMigrationRequired = "client.capability.admission.migration_required"
+    case admissionQuarantine = "client.capability.admission.quarantine"
+    case admissionReject = "client.capability.admission.reject"
+    case reason = "client.capability.reason"
+    case reasonExactMatch = "client.capability.reason.exact_match"
+    case reasonReadOnlyCompatibility = "client.capability.reason.read_only_compatibility"
+    case reasonMigrationAvailable = "client.capability.reason.migration_available"
+    case reasonUnsupportedRequiredRange = "client.capability.reason.unsupported_required_range"
+    case reasonUnknownCapability = "client.capability.reason.unknown_capability"
+    case reasonPackageWithdrawn = "client.capability.reason.package_withdrawn"
+    case reasonPackageQuarantined = "client.capability.reason.package_quarantined"
+    case reasonPackageSuperseded = "client.capability.reason.package_superseded"
+    case reasonDigestMismatch = "client.capability.reason.digest_mismatch"
+    case reasonStalePolicy = "client.capability.reason.stale_policy"
+    case reasonOperationBlocked = "client.capability.reason.operation_blocked"
+    case lifecycleHeading = "package.lifecycle.heading"
+    case lifecycleState = "package.lifecycle.state"
+    case stateActive = "package.lifecycle.state.active"
+    case stateDeprecated = "package.lifecycle.state.deprecated"
+    case stateWithdrawn = "package.lifecycle.state.withdrawn"
+    case stateQuarantined = "package.lifecycle.state.quarantined"
+    case stateSuperseded = "package.lifecycle.state.superseded"
+    case lifecycleOperation = "package.lifecycle.operation"
+    case operationStart = "package.lifecycle.operation.start"
+    case operationResume = "package.lifecycle.operation.resume"
+    case operationFinalize = "package.lifecycle.operation.finalize"
+    case operationAmend = "package.lifecycle.operation.amend"
+    case operationView = "package.lifecycle.operation.view"
+    case operationExport = "package.lifecycle.operation.export"
+    case operationRestore = "package.lifecycle.operation.restore"
+    case operationReplay = "package.lifecycle.operation.replay"
+    case operationUpgradeDraft = "package.lifecycle.operation.upgrade_draft"
+    case historicExport = "package.lifecycle.historic.export"
+    case withdrawal = "package.lifecycle.withdrawal"
+    case blocked = "package.lifecycle.blocked"
+    case nextStep = "client.capability.next_step"
+
+    var localizationKey: LocalizationKeyV1 {
+        // The closed enum is checked against the bundled catalog before use.
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+
+    var englishDefaultValue: String {
+        switch self {
+        case .heading: return "Client capability admission"
+        case .admission: return "Admission"
+        case .admissionReadWrite: return "Read and write admitted"
+        case .admissionReadOnly: return "Read-only admitted"
+        case .admissionMigrationRequired: return "Migration required"
+        case .admissionQuarantine: return "Quarantine required"
+        case .admissionReject: return "Rejected"
+        case .reason: return "Recorded reason"
+        case .reasonExactMatch: return "Exact capability match"
+        case .reasonReadOnlyCompatibility: return "Read-only compatibility"
+        case .reasonMigrationAvailable: return "Migration is available"
+        case .reasonUnsupportedRequiredRange: return "Required capability range is unsupported"
+        case .reasonUnknownCapability: return "Capability is unknown"
+        case .reasonPackageWithdrawn: return "Package release is withdrawn"
+        case .reasonPackageQuarantined: return "Package release is quarantined"
+        case .reasonPackageSuperseded: return "Package release is superseded"
+        case .reasonDigestMismatch: return "Recorded digest does not match"
+        case .reasonStalePolicy: return "Capability policy is stale"
+        case .reasonOperationBlocked: return "Operation is blocked"
+        case .lifecycleHeading: return "Package lifecycle"
+        case .lifecycleState: return "Lifecycle state"
+        case .stateActive: return "Active"
+        case .stateDeprecated: return "Deprecated"
+        case .stateWithdrawn: return "Withdrawn"
+        case .stateQuarantined: return "Quarantined"
+        case .stateSuperseded: return "Superseded"
+        case .lifecycleOperation: return "Lifecycle operation"
+        case .operationStart: return "Start"
+        case .operationResume: return "Resume"
+        case .operationFinalize: return "Finalize"
+        case .operationAmend: return "Amend"
+        case .operationView: return "View"
+        case .operationExport: return "Export"
+        case .operationRestore: return "Restore"
+        case .operationReplay: return "Replay"
+        case .operationUpgradeDraft: return "Upgrade draft"
+        case .historicExport: return "Historic export remains available"
+        case .withdrawal: return "Withdrawal blocks new work"
+        case .blocked: return "Operation blocked by admission"
+        case .nextStep: return "Next recorded step"
+        }
+    }
+
+    var translatorComment: String {
+        "English label for a recorded local client capability or package lifecycle state; do not imply device, user, account, endpoint, provider, remote delivery, acknowledgement, legal, compliance, or security claims."
+    }
+}
+
+extension ClientCapabilityLocalizationKeyV1 {
+    static func admissionKey(_ value: ClientAdmissionV1) -> Self {
+        switch value {
+        case .readWrite: return .admissionReadWrite
+        case .readOnly: return .admissionReadOnly
+        case .migrationRequired: return .admissionMigrationRequired
+        case .quarantine: return .admissionQuarantine
+        case .reject: return .admissionReject
+        }
+    }
+
+    static func reasonKey(_ value: ClientCapabilityReasonV1) -> Self {
+        switch value {
+        case .exactMatch: return .reasonExactMatch
+        case .readOnlyCompatibility: return .reasonReadOnlyCompatibility
+        case .migrationAvailable: return .reasonMigrationAvailable
+        case .unsupportedRequiredRange: return .reasonUnsupportedRequiredRange
+        case .unknownCapability: return .reasonUnknownCapability
+        case .packageWithdrawn: return .reasonPackageWithdrawn
+        case .packageQuarantined: return .reasonPackageQuarantined
+        case .packageSuperseded: return .reasonPackageSuperseded
+        case .digestMismatch: return .reasonDigestMismatch
+        case .stalePolicy: return .reasonStalePolicy
+        case .operationBlocked: return .reasonOperationBlocked
+        }
+    }
+
+    static func stateKey(_ value: PackageLifecycleStateV1) -> Self {
+        switch value {
+        case .active: return .stateActive
+        case .deprecated: return .stateDeprecated
+        case .withdrawn: return .stateWithdrawn
+        case .quarantined: return .stateQuarantined
+        case .superseded: return .stateSuperseded
+        }
+    }
+
+    static func operationKey(_ value: PackageLifecycleOperationV1) -> Self {
+        switch value {
+        case .start: return .operationStart
+        case .resume: return .operationResume
+        case .finalize: return .operationFinalize
+        case .amend: return .operationAmend
+        case .view: return .operationView
+        case .export: return .operationExport
+        case .restore: return .operationRestore
+        case .replay: return .operationReplay
+        case .upgradeDraft: return .operationUpgradeDraft
+        }
+    }
+}
+
+enum ClientCapabilityLocalizationPolicyV1 {
+    static let semanticNamespace = "client.capability"
+    static let sourceLocale = "en"
+    static let shippingLocale = "en"
+    static let metadataLocale = "en-US"
+    static let testOnlyLocales = TestOnlyPseudoLocaleV1.allCases.map(\.rawValue).sorted()
+    static let keys = ClientCapabilityLocalizationKeyV1.allCases.map(\.rawValue)
+    static let stateKeys = ClientCapabilityLocalizationKeyV1.allCases
+        .filter {
+            $0.rawValue.contains(".admission.")
+                || $0.rawValue.contains(".reason.")
+                || $0.rawValue.contains(".state.")
+                || $0.rawValue.contains(".operation.")
+                || $0 == .historicExport
+                || $0 == .withdrawal
+                || $0 == .blocked
+        }
+        .map(\.rawValue)
+    static let denyByDefault = true
+    static let requiresTruthfulClosedValues = true
+    static let requiresHistoricExportAfterWithdrawal = true
+    static let requiresNonColorStateText = true
+    static let requiresTextAndIconForIndeterminateStates = true
+    static let requiresActionableNextStep = true
+    static let allowsColorOnlyState = false
+    static let allowsIconOnlyState = false
+    static let allowsMotionOnlyState = false
+    static let excludesDeviceIdentity = true
+    static let excludesUserIdentity = true
+    static let excludesEndpointProviderAccount = true
+    static let excludesRemoteDeliveryAcknowledgement = true
+    static let excludesUnsupportedClaims = true
+
+    static let prohibitedClaimPhrases: Set<String> = [
+        "device identity", "user identity", "endpoint", "provider", "account",
+        "remote delivery", "remote acknowledgment", "remote acknowledgement",
+        "heartbeat", "upload", "sent", "delivered", "acknowledgment",
+        "acknowledgement", "credential", "password", "legal compliance",
+        "compliant", "certified", "tamperproof", "nonrepudiation", "secure",
+        "verified identity", "guaranteed", "automatic decision",
+    ]
+
+    private static func normalized(_ value: String) -> String {
+        value.folding(
+            options: [.caseInsensitive, .diacriticInsensitive],
+            locale: Locale(identifier: "en_US_POSIX")
+        )
+        .split { !$0.isLetter && !$0.isNumber }
+        .joined(separator: " ")
+    }
+
+    static func containsProhibitedClaim(in values: [String]) -> Bool {
+        values.contains { value in
+            let bounded = " \(normalized(value)) "
+            prohibitedClaimPhrases.contains { bounded.contains(" \($0) ") }
+        }
+    }
+
+    static func containsCustomerOrWorkDataLeakage(in values: [String]) -> Bool {
+        values.contains { value in
+            let bounded = " \(normalized(value)) "
+            [
+                " customer data ", " customer information ", " work data ",
+                " private data ", " credentials ", " token ", " tenant ",
+            ].contains { bounded.contains($0) }
+        }
+    }
+}
+
+typealias ClientCapabilityClaimVocabularyV1 = ClientCapabilityLocalizationPolicyV1

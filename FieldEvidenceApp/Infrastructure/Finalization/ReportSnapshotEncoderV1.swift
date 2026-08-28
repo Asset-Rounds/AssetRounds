@@ -457,6 +457,14 @@ struct ReportSnapshotEncoderV1: Sendable {
                 return false
             }
         }
+        if let clientCapability = snapshot.clientCapability {
+            guard (try? clientCapability.validate()) != nil,
+                  ClientCapabilityReportProjectionPolicyV1.supportedFormats.allSatisfy({
+                      ClientCapabilityReportProjectionPolicyV1.supports($0)
+                  }) else {
+                return false
+            }
+        }
 
         guard validObservationAndTime(
             basis: snapshot.observationBasis,
@@ -598,6 +606,9 @@ extension CanonicalJSONV1 {
         if let privacyTransform = value.privacyTransform {
             object["privacyTransform"] = Self.privacyTransform(privacyTransform)
         }
+        if let clientCapability = value.clientCapability {
+            object["clientCapability"] = Self.clientCapability(clientCapability)
+        }
         return .object(object)
     }
 
@@ -631,6 +642,45 @@ extension CanonicalJSONV1 {
             "originalReferenceExcluded": .bool(value.originalReferenceExcluded),
             "transformKinds": .array(value.transformKinds.map { .string($0.rawValue) }),
             "regionCount": .integer(value.regionCount),
+            "projectionSHA256": .string(value.projectionSHA256),
+        ])
+    }
+
+    /// C21 carries only deterministic local admission/lifecycle metadata.
+    /// Package bytes, client/device identity, users, endpoints, providers,
+    /// and remote delivery or acknowledgement details are intentionally absent.
+    private static func clientCapability(
+        _ value: ClientCapabilityReportProjectionV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "schemaVersion": .integer(value.schemaVersion),
+            "projectionVersion": .string(value.projectionVersion),
+            "workspaceID": .object(["rawValue": uuid(value.workspaceID.rawValue)]),
+            "decisionID": uuid(value.decisionID),
+            "profileID": uuid(value.profileID),
+            "policyID": uuid(value.policyID),
+            "dispositionID": uuid(value.dispositionID),
+            "packageReleaseID": .string(value.packageReleaseID),
+            "packageSHA256": .string(value.packageSHA256),
+            "workflowSHA256": .string(value.workflowSHA256),
+            "profileRevision": .integer(Int(value.profileRevision)),
+            "policyRevision": .integer(Int(value.policyRevision)),
+            "dispositionRevision": .integer(Int(value.dispositionRevision)),
+            "decisionRevision": .integer(Int(value.decisionRevision)),
+            "profileSHA256": .string(value.profileSHA256),
+            "policySHA256": .string(value.policySHA256),
+            "dispositionSHA256": .string(value.dispositionSHA256),
+            "decisionSHA256": .string(value.decisionSHA256),
+            "operation": .string(value.operation.rawValue),
+            "admission": .string(value.admission.rawValue),
+            "lifecycleState": .string(value.lifecycleState.rawValue),
+            "reasons": .array(value.reasons.map { .string($0.rawValue) }),
+            "readAllowed": .bool(value.readAllowed),
+            "writeAllowed": .bool(value.writeAllowed),
+            "operationAllowed": .bool(value.operationAllowed),
+            "historicArtifact": .bool(value.historicArtifact),
+            "historicExportAllowed": .bool(value.historicExportAllowed),
+            "immutableHistoric": .bool(value.immutableHistoric),
             "projectionSHA256": .string(value.projectionSHA256),
         ])
     }
@@ -1212,6 +1262,38 @@ extension ReportSnapshotEncoderV1 {
     ) throws -> PrivacyTransformReportProjectionV1 {
         let projection = try PrivacyTransformCanonicalCodecV1.decode(
             PrivacyTransformReportProjectionV1.self,
+            from: data
+        )
+        try projection.validate()
+        guard try encode(projection).data == data else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return projection
+    }
+
+    /// Encodes the standalone C21 admission/lifecycle projection using the
+    /// canonical client-capability codec. This is metadata only; package bytes
+    /// and client identity are not part of the projection.
+    func encode(
+        _ projection: ClientCapabilityReportProjectionV1
+    ) throws -> EncodedReportSnapshotV1 {
+        try projection.validate()
+        let data = try ClientCapabilityCanonicalCodecV1.encode(projection)
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        return EncodedReportSnapshotV1(
+            data: data,
+            sha256: KernelCanonicalHashV1.sha256(data)
+        )
+    }
+
+    func decodeClientCapabilityProjection(
+        _ data: Data
+    ) throws -> ClientCapabilityReportProjectionV1 {
+        let projection = try ClientCapabilityCanonicalCodecV1.decode(
+            ClientCapabilityReportProjectionV1.self,
             from: data
         )
         try projection.validate()

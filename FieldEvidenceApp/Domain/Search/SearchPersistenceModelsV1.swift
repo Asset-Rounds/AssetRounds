@@ -611,3 +611,65 @@ struct PrivacyTransformSearchPersistencePolicyV1: Codable, Equatable, Sendable {
 extension SearchPersistenceReleaseV1 {
     static let privacyTransformPolicy = PrivacyTransformSearchPersistencePolicyV1()
 }
+
+/// C21 search rows remain disposable metadata projections. They are rebuilt
+/// from canonical admission decisions after restore/replay and never become
+/// backup, export, or package-lifecycle source records.
+struct ClientCapabilitySearchPersistencePolicyV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let sourceSchema: String
+    let searchPersistenceRelease: SearchPersistenceReleaseV1
+    let fieldIDs: [String]
+    let lifecycleDispositions: [SearchIndexLifecycleDispositionV1]
+    let metadataOnly: Bool
+    let closedValuesOnly: Bool
+    let dropAndRebuildAfterRestore: Bool
+    let dropAndRebuildOnReplay: Bool
+    let excludesDeviceIdentity: Bool
+    let excludesUserIdentity: Bool
+    let excludesEndpointProviderAccount: Bool
+    let excludesRemoteDeliveryAcknowledgement: Bool
+    let excludesPackagePayload: Bool
+
+    init() {
+        schemaVersion = Self.schemaVersion
+        sourceSchema = ClientCapabilitySearchProjectionPolicyV1.semanticLabel
+        searchPersistenceRelease = .v7
+        fieldIDs = ClientCapabilitySearchProjectionPolicyV1.fieldIDs.sorted()
+        lifecycleDispositions = SearchIndexLifecycleDispositionV1.allCases
+        metadataOnly = true
+        closedValuesOnly = true
+        dropAndRebuildAfterRestore = true
+        dropAndRebuildOnReplay = true
+        excludesDeviceIdentity = true
+        excludesUserIdentity = true
+        excludesEndpointProviderAccount = true
+        excludesRemoteDeliveryAcknowledgement = true
+        excludesPackagePayload = true
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              sourceSchema == ClientCapabilitySearchProjectionPolicyV1.semanticLabel,
+              searchPersistenceRelease == .v7,
+              fieldIDs == ClientCapabilitySearchProjectionPolicyV1.fieldIDs.sorted(),
+              lifecycleDispositions == SearchIndexLifecycleDispositionV1.allCases,
+              metadataOnly,
+              closedValuesOnly,
+              dropAndRebuildAfterRestore,
+              dropAndRebuildOnReplay,
+              excludesDeviceIdentity,
+              excludesUserIdentity,
+              excludesEndpointProviderAccount,
+              excludesRemoteDeliveryAcknowledgement,
+              excludesPackagePayload else {
+            throw SearchContractFailureV1.invalidField
+        }
+    }
+}
+
+extension SearchPersistenceReleaseV1 {
+    static let clientCapabilityPolicy = ClientCapabilitySearchPersistencePolicyV1()
+}

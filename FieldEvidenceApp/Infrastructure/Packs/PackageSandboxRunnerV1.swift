@@ -10,6 +10,32 @@ protocol PackageSandboxCheckExecutingV1: Sendable {
     ) async throws -> PackageSandboxExecutionOutcomeV1
 }
 
+extension PackageSandboxRunnerV1 {
+    func run(
+        runID: UUID,
+        workspaceID: WorkspaceID,
+        release: InspectionPackageReleaseV1,
+        semanticDiff: PackageSemanticDiffV1,
+        exactHead: String,
+        fixtures: PackageSandboxFixtureMatrixV1,
+        mutationID: MutationIDV1,
+        admittedBy closure: ClientCapabilityLifecycleClosureV1
+    ) async throws -> PackageSandboxRunV1 {
+        try closure.validate()
+        guard closure.profile.workspaceID == workspaceID,
+              closure.release.packageReleaseID == release.packageReleaseID,
+              closure.release.packageSHA256 == release.packageSHA256,
+              closure.release.workflowSHA256 == release.workflowSHA256,
+              closure.decision.operation == .upgradeDraft,
+              closure.decision.admission == .readWrite else {
+            throw PackageEvolutionFailureV1.incompatiblePromotion
+        }
+        return try await run(runID: runID, workspaceID: workspaceID, release: release,
+                             semanticDiff: semanticDiff, exactHead: exactHead,
+                             fixtures: fixtures, mutationID: mutationID)
+    }
+}
+
 protocol PackageSandboxShapeCheckExecutingV1: PackageSandboxCheckExecutingV1 {
     func execute(
         kind: PackageSandboxCheckKindV1,

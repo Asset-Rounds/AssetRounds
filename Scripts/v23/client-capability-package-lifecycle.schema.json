@@ -1,0 +1,576 @@
+{
+  "$id": "https://assetrounds.invalid/v23/client-capability-package-lifecycle.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "admissions": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "alternateCases": {
+      "items": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "admission": {
+                "type": "string"
+              },
+              "historyReadable": {
+                "type": "boolean"
+              },
+              "id": {
+                "type": "string"
+              },
+              "operation": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "admission",
+              "historyReadable",
+              "id",
+              "operation",
+              "state"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "admission": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "newVersion": {
+                "type": "boolean"
+              },
+              "operation": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "admission",
+              "id",
+              "newVersion",
+              "operation",
+              "state"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "admission": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "newWork": {
+                "type": "boolean"
+              },
+              "operation": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "admission",
+              "id",
+              "newWork",
+              "operation",
+              "state"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+    },
+    "capabilityRanges": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 6,
+      "minItems": 6,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "cardID": {
+      "type": "string"
+    },
+    "claims": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance": {
+          "type": "boolean"
+        },
+        "acceptanceCredit": {
+          "type": "boolean"
+        },
+        "accountOrCloudState": {
+          "type": "boolean"
+        },
+        "adoption": {
+          "type": "boolean"
+        },
+        "android": {
+          "type": "boolean"
+        },
+        "backend": {
+          "type": "boolean"
+        },
+        "hosted": {
+          "type": "boolean"
+        },
+        "mutableRelease": {
+          "type": "boolean"
+        },
+        "native": {
+          "type": "boolean"
+        },
+        "network": {
+          "type": "boolean"
+        },
+        "phase10PollingDuringParallelExecution": {
+          "type": "boolean"
+        },
+        "providerState": {
+          "type": "boolean"
+        },
+        "release": {
+          "type": "boolean"
+        },
+        "releaseCredit": {
+          "type": "boolean"
+        },
+        "remoteClientRegistry": {
+          "type": "boolean"
+        },
+        "secondStore": {
+          "type": "boolean"
+        },
+        "secondWriter": {
+          "type": "boolean"
+        },
+        "unknownClientOptimisticWrite": {
+          "type": "boolean"
+        },
+        "web": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "acceptance",
+        "acceptanceCredit",
+        "accountOrCloudState",
+        "adoption",
+        "android",
+        "backend",
+        "hosted",
+        "mutableRelease",
+        "native",
+        "network",
+        "phase10PollingDuringParallelExecution",
+        "providerState",
+        "release",
+        "releaseCredit",
+        "remoteClientRegistry",
+        "secondStore",
+        "secondWriter",
+        "unknownClientOptimisticWrite",
+        "web"
+      ],
+      "type": "object"
+    },
+    "containsCustomerData": {
+      "type": "boolean"
+    },
+    "containsSecrets": {
+      "type": "boolean"
+    },
+    "dispositions": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "durableFamilyCount": {
+      "type": "integer"
+    },
+    "evidenceCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "assertion": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "assertion",
+          "id",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "maxItems": 11,
+      "minItems": 11,
+      "type": "array"
+    },
+    "forbiddenClaims": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 9,
+      "minItems": 9,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "goldenCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "admission": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "immutableRelease": {
+            "type": "boolean"
+          },
+          "operation": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "admission",
+          "id",
+          "immutableRelease",
+          "operation",
+          "state"
+        ],
+        "type": "object"
+      },
+      "maxItems": 1,
+      "minItems": 1,
+      "type": "array"
+    },
+    "hostileCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedDisposition": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedDisposition",
+          "id"
+        ],
+        "type": "object"
+      },
+      "maxItems": 16,
+      "minItems": 16,
+      "type": "array"
+    },
+    "interruptionCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedDisposition": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedDisposition",
+          "id"
+        ],
+        "type": "object"
+      },
+      "maxItems": 11,
+      "minItems": 11,
+      "type": "array"
+    },
+    "lifecycleStates": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "migrationInventedClientCapabilityCount": {
+      "type": "integer"
+    },
+    "operations": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 9,
+      "minItems": 9,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "persistence": {
+      "additionalProperties": false,
+      "properties": {
+        "backupRestoreRequired": {
+          "type": "boolean"
+        },
+        "canonicalSourceOfTruth": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "canonicalWriter": {
+          "type": "string"
+        },
+        "classificationRequired": {
+          "type": "boolean"
+        },
+        "currentProjectionRowCount": {
+          "type": "integer"
+        },
+        "deleteEraseRequired": {
+          "type": "boolean"
+        },
+        "downgrade": {
+          "type": "string"
+        },
+        "exportReportRequired": {
+          "type": "boolean"
+        },
+        "forwardFix": {
+          "type": "string"
+        },
+        "interruptionRecoveryRequired": {
+          "type": "boolean"
+        },
+        "migrationRequired": {
+          "type": "boolean"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "nonPersistentFamilies": {
+          "maxItems": 0,
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "persistedFamilies": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "providerRows": {
+          "type": "integer"
+        },
+        "recordsSchemaVersion": {
+          "type": "integer"
+        },
+        "replayRequired": {
+          "type": "boolean"
+        },
+        "schemaRelease": {
+          "type": "string"
+        },
+        "schemaVersion": {
+          "type": "integer"
+        },
+        "searchRebuildRequired": {
+          "type": "boolean"
+        },
+        "secondStore": {
+          "type": "boolean"
+        },
+        "secondWriter": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "backupRestoreRequired",
+        "canonicalSourceOfTruth",
+        "canonicalWriter",
+        "classificationRequired",
+        "currentProjectionRowCount",
+        "deleteEraseRequired",
+        "downgrade",
+        "exportReportRequired",
+        "forwardFix",
+        "interruptionRecoveryRequired",
+        "migrationRequired",
+        "mode",
+        "nonPersistentFamilies",
+        "persistedFamilies",
+        "providerRows",
+        "recordsSchemaVersion",
+        "replayRequired",
+        "schemaRelease",
+        "schemaVersion",
+        "searchRebuildRequired",
+        "secondStore",
+        "secondWriter"
+      ],
+      "type": "object"
+    },
+    "persistentClientCapabilityKindCount": {
+      "type": "integer"
+    },
+    "persistentKindLifecycleModelCount": {
+      "type": "integer"
+    },
+    "persistentSchemaVersion": {
+      "type": "integer"
+    },
+    "recordsSchemaVersion": {
+      "type": "integer"
+    },
+    "recoveryCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedDisposition": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedDisposition",
+          "id"
+        ],
+        "type": "object"
+      },
+      "maxItems": 9,
+      "minItems": 9,
+      "type": "array"
+    },
+    "requiredBehaviors": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "contract": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "requirement": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "contract",
+          "evidence",
+          "id",
+          "requirement"
+        ],
+        "type": "object"
+      },
+      "maxItems": 8,
+      "minItems": 8,
+      "type": "array"
+    },
+    "requiredContractNames": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 4,
+      "minItems": 4,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "integer"
+    },
+    "synthetic": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "admissions",
+    "alternateCases",
+    "capabilityRanges",
+    "cardID",
+    "claims",
+    "containsCustomerData",
+    "containsSecrets",
+    "dispositions",
+    "durableFamilyCount",
+    "evidenceCases",
+    "forbiddenClaims",
+    "goldenCases",
+    "hostileCases",
+    "interruptionCases",
+    "lifecycleStates",
+    "migrationInventedClientCapabilityCount",
+    "operations",
+    "persistence",
+    "persistentClientCapabilityKindCount",
+    "persistentKindLifecycleModelCount",
+    "persistentSchemaVersion",
+    "recordsSchemaVersion",
+    "recoveryCases",
+    "requiredBehaviors",
+    "requiredContractNames",
+    "schema",
+    "schemaVersion",
+    "synthetic"
+  ],
+  "title": "V23 P03 C21 Client Capability and Package Lifecycle Corpus",
+  "type": "object"
+}

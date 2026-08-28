@@ -29,6 +29,7 @@ enum PrivacyTransformEraseBoundaryV1 {
     static let workspaceEraseClearsEntireClosure = true
     static let escapedFilesCannotBeRecalled = true
 }
+enum ClientCapabilityEraseBoundaryV1{static let atomicFamilyCount=4;static let ordinaryDeletionPreservesReadableHistory=true;static let workspaceEraseClearsEntireClosure=true;static let escapedArchivesCannotBeRecalled=true}
 
 enum EvidenceAssuranceEraseBoundaryV1 {
     static let immutableHistoryClearedOnlyByWorkspaceErase = true

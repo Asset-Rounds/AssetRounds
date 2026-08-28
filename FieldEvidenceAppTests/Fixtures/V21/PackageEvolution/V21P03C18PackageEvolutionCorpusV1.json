@@ -15,7 +15,7 @@
     { "id": "V23-P03-C18-A01", "selector": "A", "focus": "only an explicit non-final draft opts in and two structurally distinct packages pass the sandbox" },
     { "id": "V23-P03-C18-H01", "selector": "H", "focus": "stale active or finalized sources partial sandboxes and divergent generations fail closed" },
     { "id": "V23-P03-C18-I01", "selector": "I", "focus": "every package bytes receipt and active pointer interruption is old-complete or new-complete" },
-    { "id": "V23-P03-C18-R01", "selector": "R", "focus": "retry backup restore delete Erase report open JSON search replay classification and brand exclusions recover exactly" }
+    { "id": "V23-P03-C18-R01", "selector": "R", "focus": "retry backup restore delete Erase report open JSON search replay classification and brand exclusions recover exactly; successor V23-P03-C21 rebinds V20/records19/81 without invention" }
   ],
   "coverage": ["GOLDEN", "ALTERNATE", "HOSTILE", "INTERRUPTION", "RECOVERY"],
   "evidenceIDs": ["G01", "A01", "H01", "I01", "R01"],

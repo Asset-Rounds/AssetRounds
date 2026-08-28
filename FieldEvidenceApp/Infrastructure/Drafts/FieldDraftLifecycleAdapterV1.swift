@@ -25,4 +25,22 @@ extension FieldDraftLifecycleAdapterV1 {
             throw PackageEvolutionFailureV1.staleSource
         }
     }
+
+    /// Read-back seam for C21-aware package upgrades.  Capability decisions
+    /// are checked against the durable source before the coordinator performs
+    /// its compare-and-swap; no optimistic draft write is permitted.
+    func validatePackageUpgradeAdmission(
+        plan: DraftUpgradePlanV1,
+        source: FieldDraftCheckpointV1,
+        diff: PackageSemanticDiffV1,
+        admittedBy capability: ClientCapabilityLifecycleClosureV1
+    ) throws {
+        try validatePackageUpgradeSource(source)
+        try PackageEvolutionDraftPersistenceBoundaryV1.validateUpgradeInputs(
+            plan: plan,
+            source: source,
+            diff: diff,
+            admittedBy: capability
+        )
+    }
 }

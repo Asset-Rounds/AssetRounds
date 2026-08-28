@@ -1819,3 +1819,13 @@ extension V9_22LocalizationAccessibilityTests {
         XCTAssertTrue(fixture.regions.allSatisfy { $0.coordinateSpaceVersion == PrivacyCoordinateSpaceV1.normalizedImage.rawValue })
     }
 }
+
+extension V9_22LocalizationAccessibilityTests {
+    func testC21ClientCapabilityLifecycleAnchor() throws {
+        XCTAssertEqual(ClientCapabilityProfileV1.schemaVersion, 1)
+        XCTAssertEqual(ClientAdmissionV1.allCases.count, 5)
+        XCTAssertEqual(PackageLifecycleOperationV1.allCases.count, 9)
+        XCTAssertEqual(PersistentSchemaV20.models.count, 81)
+        XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
+    }
+}

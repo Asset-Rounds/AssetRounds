@@ -8,6 +8,31 @@ enum PackageReleaseBindingKindV1: String, CaseIterable, Codable, Sendable {
     case export = "EXPORT"
 }
 
+extension PackageReleaseBindingV1 {
+    func validateClientAdmission(_ closure: ClientCapabilityLifecycleClosureV1,
+                                 operation: PackageLifecycleOperationV1,
+                                 forWrite: Bool) throws {
+        try validate()
+        try closure.validate()
+        let decision = closure.decision
+        let release = closure.release
+        guard decision.packageReleaseID == packageReleaseID,
+              decision.packageSHA256 == packageSHA256,
+              decision.workflowSHA256 == workflowSHA256,
+              release.packageReleaseID == packageReleaseID,
+              release.packageID == packageID,
+              release.packageContentVersion == packageContentVersion,
+              release.packageSHA256 == packageSHA256,
+              release.canonicalPackageBytes == canonicalPackageBytes,
+              release.workflowSHA256 == workflowSHA256,
+              release.canonicalWorkflowBytes == canonicalWorkflowBytes,
+              decision.operation == operation,
+              decision.admission == .readWrite || (!forWrite && decision.admission == .readOnly) else {
+            throw InspectionKernelFailureV1.invalidTransition
+        }
+    }
+}
+
 struct PackageReleaseBindingV1: Codable, Equatable, Sendable {
     static let schemaVersion = 1
     let schemaVersion: Int

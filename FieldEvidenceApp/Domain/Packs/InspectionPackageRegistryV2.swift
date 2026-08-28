@@ -41,6 +41,21 @@ struct InspectionPackageRegistryPublicationReceiptV2: Equatable, Sendable {
     }
 }
 
+extension InspectionPackageRegistryV2 {
+    func package(admittedBy decision: ClientCapabilityAdmissionDecisionV1,
+                 closure: ClientCapabilityLifecycleClosureV1,
+                 forWrite: Bool) throws -> InspectionPackageV2 {
+        try closure.validate()
+        guard decision == closure.decision,
+              decision.admission == .readWrite || (!forWrite && decision.admission == .readOnly) else {
+            throw InspectionPackageFailureV2.incompatiblePackage
+        }
+        let value = try package(id: closure.release.packageID)
+        try value.validateClientCapabilityBinding(policy: closure.policy, release: closure.release)
+        return value
+    }
+}
+
 struct InspectionPackageRegistryV2: Equatable, Sendable {
     let orderedPackages: [InspectionPackageV2]
     private let packagesByID: [String: InspectionPackageV2]

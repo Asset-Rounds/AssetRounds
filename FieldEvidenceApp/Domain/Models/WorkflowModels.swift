@@ -230,6 +230,47 @@ extension WorkflowRecord {
             at: now
         )
     }
+
+    /// Binds the frozen workflow row to the C21 capability/lifecycle
+    /// decision.  Admission is evaluated against the exact profile, policy,
+    /// disposition, and package release; the workflow row remains a stored
+    /// history record and never becomes a second lifecycle authority.
+    func c21ValidatePackageLifecycle(
+        admittedBy capability: ClientCapabilityLifecycleClosureV1,
+        operation: PackageLifecycleOperationV1? = nil,
+        historic: Bool = false
+    ) throws {
+        guard let workflowState = WorkflowState(rawValue: state) else {
+            throw ClientCapabilityFailureV1.invalidValue
+        }
+        guard packID == capability.release.packageID,
+              packContentVersion == capability.release.packageContentVersion else {
+            throw ClientCapabilityFailureV1.staleReference
+        }
+
+        let requestedOperation = operation ?? capability.decision.operation
+        let isHistoric = historic || workflowState == .completed
+        let historicOperations: Set<PackageLifecycleOperationV1> = [
+            .view, .export, .restore, .replay
+        ]
+
+        // A finalized row can still be viewed, exported, restored, or
+        // replayed as history, but cannot be used for a new mutation.
+        guard !isHistoric || historicOperations.contains(requestedOperation) else {
+            throw ClientCapabilityFailureV1.admissionDenied
+        }
+        if [.start, .resume, .upgradeDraft].contains(requestedOperation) {
+            guard !isHistoric, workflowState == .draft else {
+                throw ClientCapabilityFailureV1.admissionDenied
+            }
+        }
+
+        try C21CapabilityAdmissionBoundaryV1.validate(
+            capability,
+            for: requestedOperation,
+            historic: isHistoric
+        )
+    }
 }
 
 @Model

@@ -1810,6 +1810,111 @@ extension ReportProjectionRegistryV1 {
     }
 }
 
+// MARK: - C21 client capability and package lifecycle consumer enrollment
+
+enum ClientCapabilityReportConsumerPolicyV1 {
+    static let sectionID = ClientCapabilityReportProjectionPolicyV1.sectionID
+    static let projectionVersion = ClientCapabilityReportProjectionPolicyV1.projectionVersion
+    static let metadataOnly = true
+    static let canonicalDecisionRequired = true
+    static let withdrawalBlocksNewWork = true
+    static let historicFinalizedArtifactsRemainExportable = true
+    static let denyWriteUnlessReadWrite = true
+    static let denyMigrationQuarantineRejectOperations = true
+    static let immutableHistoricDisplay = true
+    static let correctionsAreAmendOnly = true
+    static let excludesDeviceIdentity = true
+    static let excludesUserIdentity = true
+    static let excludesEndpointProviderAccount = true
+    static let excludesRemoteDeliveryAcknowledgement = true
+    static let excludesPackagePayload = true
+    static let readOperations: Set<PackageLifecycleOperationV1> = [
+        .view, .export, .restore, .replay,
+    ]
+    static let writeOperations: Set<PackageLifecycleOperationV1> = [
+        .start, .resume, .finalize, .amend, .upgradeDraft,
+    ]
+
+    static func validate(
+        _ projection: ClientCapabilityReportProjectionV1,
+        format: ReportProjectionFormatV1
+    ) throws {
+        try projection.validate()
+        guard ClientCapabilityReportProjectionPolicyV1.supports(format),
+              metadataOnly,
+              canonicalDecisionRequired,
+              withdrawalBlocksNewWork,
+              historicFinalizedArtifactsRemainExportable,
+              denyWriteUnlessReadWrite,
+              denyMigrationQuarantineRejectOperations,
+              immutableHistoricDisplay,
+              correctionsAreAmendOnly,
+              excludesDeviceIdentity,
+              excludesUserIdentity,
+              excludesEndpointProviderAccount,
+              excludesRemoteDeliveryAcknowledgement,
+              excludesPackagePayload else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+    }
+
+    static func require(
+        _ projection: ClientCapabilityReportProjectionV1,
+        operation: PackageLifecycleOperationV1,
+        allowsWrite: Bool
+    ) throws {
+        let operationSet = allowsWrite ? writeOperations : readOperations
+        guard projection.operation == operation,
+              operationSet.contains(operation),
+              projection.operationAllowed,
+              (!allowsWrite || projection.writeAllowed),
+              (allowsWrite || projection.readAllowed) else {
+            throw ClientCapabilityReportProjectionFailureV1.admissionDenied
+        }
+    }
+
+    static func allowsHistoricExport(
+        _ projection: ClientCapabilityReportProjectionV1
+    ) -> Bool {
+        projection.historicExportAllowed
+    }
+}
+
+extension ReportProjectionRegistryV1 {
+    func validateClientCapabilityConsumer(
+        _ projection: ClientCapabilityReportProjectionV1,
+        format: ReportProjectionFormatV1
+    ) throws {
+        try validate()
+        try ClientCapabilityReportConsumerPolicyV1.validate(projection, format: format)
+    }
+
+    static func validateClientCapabilityConsumer(
+        _ projection: ClientCapabilityReportProjectionV1,
+        format: ReportProjectionFormatV1
+    ) throws {
+        try Self().validateClientCapabilityConsumer(projection, format: format)
+    }
+
+    static func clientCapabilityProjection(
+        decision: ClientCapabilityAdmissionDecisionV1,
+        profile: ClientCapabilityProfileV1,
+        policy: PackageLifecyclePolicyV1,
+        disposition: PackageLifecycleDispositionV1,
+        release: InspectionPackageReleaseV1
+    ) throws -> ClientCapabilityReportProjectionV1 {
+        let projection = try ClientCapabilityReportProjectionV1(
+            decision: decision,
+            profile: profile,
+            policy: policy,
+            disposition: disposition,
+            release: release
+        )
+        try validateClientCapabilityConsumer(projection, format: .openJSON)
+        return projection
+    }
+}
+
 /// C19 report consumers use one frozen measurement projection for every
 /// supported output. This policy is intentionally a projection gate rather
 /// than a second measurement writer.

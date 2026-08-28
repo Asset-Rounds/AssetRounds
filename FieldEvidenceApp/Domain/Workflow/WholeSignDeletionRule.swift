@@ -25,6 +25,8 @@ struct PrivacyTransformDeletionInventoryV1: Equatable, Sendable {
     let policies: Int; let regions: Int; let manifests: Int; let reviewReceipts: Int
     static let empty = Self(policies: 0, regions: 0, manifests: 0, reviewReceipts: 0)
 }
+struct ClientCapabilityDeletionInventoryV1:Equatable,Sendable{let profiles:Int;let policies:Int;let dispositions:Int;let decisions:Int;static let empty=Self(profiles:0,policies:0,dispositions:0,decisions:0)}
+extension WholeSignDeletionRule{static func validateClientCapabilityLifecycle(before:ClientCapabilityDeletionInventoryV1,after:ClientCapabilityDeletionInventoryV1,workspaceErase:Bool)throws{guard workspaceErase ? after == .empty:before == after else{throw WholeSignDeletionRuleError.invalidGraph}}}
 
 enum PrivacyTransformDeletionAuthorityV1: Sendable { case ordinaryDelete, workspaceErase }
 

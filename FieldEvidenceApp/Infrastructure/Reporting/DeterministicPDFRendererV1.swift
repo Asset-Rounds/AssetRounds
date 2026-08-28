@@ -310,14 +310,70 @@ extension DeterministicPDFRendererV1 {
         try labels.validate()
         return [
             labels.heading,
-            "(labels.redactionDeclaration): (projection.redactionDeclared ? "Recorded" : "Not recorded")",
-            "(labels.derivative): (projection.derivativeContentID)",
-            "(labels.derivativeOnly): (projection.derivativeOnly ? "Yes" : "No")",
-            "(labels.review): (labels.reviewState)",
-            "(labels.freshness): (labels.freshness)",
-            "(labels.projection): (labels.projectionState)",
-            "(labels.originalAccess): (labels.originalAccess)",
+            "\(labels.redactionDeclaration): \(projection.redactionDeclared ? "Recorded" : "Not recorded")",
+            "\(labels.derivative): \(projection.derivativeContentID)",
+            "\(labels.derivativeOnly): \(projection.derivativeOnly ? "Yes" : "No")",
+            "\(labels.review): \(labels.reviewState)",
+            "\(labels.freshness): \(labels.freshness)",
+            "\(labels.projection): \(labels.projectionState)",
+            "\(labels.originalAccess): \(labels.originalAccess)",
             labels.nextStep,
         ]
+    }
+}
+
+// MARK: - C21 client capability and package lifecycle metadata
+
+extension DeterministicPDFRendererV1 {
+    /// The C21 PDF companion is metadata-only. It preserves the recorded
+    /// admission/lifecycle facts and historic-export disposition without
+    /// embedding package payloads or client/device identity.
+    static func clientCapabilityMetadataData(
+        _ projection: ClientCapabilityReportProjectionV1
+    ) throws -> Data {
+        try projection.validate()
+        try ClientCapabilityReportConsumerPolicyV1.validate(projection, format: .pdf)
+        let envelope = try ClientCapabilityOpenJSONEnvelopeV1(projection: projection)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let data = try encoder.encode(envelope)
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        return data
+    }
+
+    static func reopenClientCapabilityMetadata(
+        _ data: Data
+    ) throws -> ClientCapabilityReportProjectionV1 {
+        try DeterministicOpenJSONRendererV1.reopenClientCapability(data)
+    }
+
+    static func clientCapabilityTextLines(
+        _ projection: ClientCapabilityReportProjectionV1
+    ) throws -> [String] {
+        try projection.validate()
+        try ClientCapabilityReportConsumerPolicyV1.validate(projection, format: .pdf)
+        let labels = ClientCapabilityOpenJSONLabelsV1(projection: projection)
+        try labels.validate()
+        var lines = [
+            labels.heading,
+            "\(labels.admission): \(labels.admissionState)",
+            "\(labels.lifecycle): \(labels.lifecycleState)",
+            "\(labels.operation): \(labels.operation)",
+            "\(labels.reason): \(labels.reason)",
+        ]
+        if let historicExport = labels.historicExport {
+            lines.append(historicExport)
+        }
+        if let withdrawal = labels.withdrawal {
+            lines.append(withdrawal)
+        }
+        if let blocked = labels.blocked {
+            lines.append(blocked)
+        }
+        lines.append(labels.nextStep)
+        return lines
     }
 }
