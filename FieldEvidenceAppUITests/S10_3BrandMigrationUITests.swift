@@ -15241,7 +15241,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        XCTAssertTrue(control.waitForExistence(timeout: 20), file: file, line: line)
         assertLocalizedLabel(control, equals: label, file: file, line: line)
         XCTAssertEqual(control.elementType, .button, file: file, line: line)
         XCTAssertTrue(control.isEnabled, file: file, line: line)

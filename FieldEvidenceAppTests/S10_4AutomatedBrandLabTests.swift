@@ -20260,6 +20260,74 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
+        XCTAssertEqual(uiSource.utf8.count, 748_272)
+        XCTAssertEqual(
+            Data(uiSource.utf8).sha256,
+            "853553FE7B5A2DE4E684F0F1AF442E84E7A8D48A7EEAD5F4589A2297A37CC3CF"
+        )
+        let assertControlSource = try boundedSource(
+            uiSource,
+            from: "    @MainActor\n    private func assertControl(",
+            before: "\n\n    @MainActor\n    private func assertMinimumGeometry("
+        )
+        XCTAssertEqual(assertControlSource.utf8.count, 530)
+        XCTAssertEqual(
+            Data(assertControlSource.utf8).sha256,
+            "D1AB8BBDA8C87B55B5DA3228E332C853F24FDF713E377E79A468CF55CBDABB36"
+        )
+        XCTAssertEqual(
+            assertControlSource.components(
+                separatedBy: "control.waitForExistence"
+            ).count - 1,
+            0
+        )
+        XCTAssertEqual(
+            assertControlSource.components(
+                separatedBy: "assertLocalizedLabel(control, equals: label, file: file, line: line)"
+            ).count - 1,
+            1
+        )
+        var assertControlSearchStart = assertControlSource.startIndex
+        for exact in [
+            "assertLocalizedLabel(control, equals: label, file: file, line: line)",
+            "XCTAssertEqual(control.elementType, .button, file: file, line: line)",
+            "XCTAssertTrue(control.isEnabled, file: file, line: line)",
+            "XCTAssertTrue(control.isHittable, file: file, line: line)",
+            "assertMinimumGeometry(control, file: file, line: line)",
+        ] {
+            let range = try XCTUnwrap(
+                assertControlSource.range(
+                    of: exact,
+                    range: assertControlSearchStart..<assertControlSource.endIndex
+                ),
+                exact
+            )
+            assertControlSearchStart = range.upperBound
+        }
+        let assertLocalizedLabelSource = try boundedSource(
+            uiSource,
+            from: "    @MainActor\n    private func assertLocalizedLabel(",
+            before: "\n\n    @MainActor\n    private func assertLocalizedLabelContains("
+        )
+        XCTAssertEqual(assertLocalizedLabelSource.utf8.count, 752)
+        XCTAssertEqual(
+            Data(assertLocalizedLabelSource.utf8).sha256,
+            "5AAC1354D28E78A4DEEC78024130D9633EBAC50C2E2965DB7431843CB78F6AAF"
+        )
+        XCTAssertEqual(
+            assertLocalizedLabelSource.components(
+                separatedBy: "XCTAssertTrue(value.waitForExistence(timeout: 20), file: file, line: line)"
+            ).count - 1,
+            1
+        )
+        let localizedLabelBodyStart = try XCTUnwrap(
+            assertLocalizedLabelSource.range(of: ") {\n")
+        ).upperBound
+        XCTAssertTrue(
+            assertLocalizedLabelSource[localizedLabelBodyStart...].hasPrefix(
+                "        XCTAssertTrue(value.waitForExistence(timeout: 20), file: file, line: line)\n"
+            )
+        )
         let segmentEnum = try boundedSource(
             uiSource,
             from: "    private enum AutomationSegment: String {",
