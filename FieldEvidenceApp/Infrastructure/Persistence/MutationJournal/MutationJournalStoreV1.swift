@@ -324,6 +324,15 @@ final class MutationJournalStoreV1 {
             } catch let failure as WorkspaceMutationFailureV1 { throw failure }
             catch { throw WorkspaceMutationFailureV1.invalidCommand }
         }
+        if case let .applyFunctionalRelationship(value) = envelope.command {
+            do {
+                try value.validate()
+                guard affectedEntities == [try value.affectedIdentity] else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            } catch let failure as WorkspaceMutationFailureV1 { throw failure }
+            catch { throw WorkspaceMutationFailureV1.invalidCommand }
+        }
         let state = try requireState()
         let current = try currentRevision(writerInstanceID: writerInstanceID)
         let expected = envelope.expectedRevision
@@ -338,6 +347,9 @@ final class MutationJournalStoreV1 {
             let concurrencyIdentity: WorkspaceEntityIdentityV1
             if case let .applyAuthorityCriterion(mutation) = envelope.command,
                identity == (try mutation.affectedIdentity) {
+                concurrencyIdentity = try mutation.concurrencyIdentity
+            } else if case let .applyFunctionalRelationship(mutation) = envelope.command,
+                      identity == (try mutation.affectedIdentity) {
                 concurrencyIdentity = try mutation.concurrencyIdentity
             } else {
                 concurrencyIdentity = identity
@@ -374,6 +386,9 @@ final class MutationJournalStoreV1 {
                 if case let .applyAuthorityCriterion(mutation) = envelope.command,
                    entity == (try mutation.affectedIdentity) {
                     initialRevision = mutation.postImage.revision
+                } else if case let .applyFunctionalRelationship(mutation) = envelope.command,
+                          entity == (try mutation.affectedIdentity) {
+                    initialRevision = mutation.postImage.revision
                 } else {
                     initialRevision = 1
                 }
@@ -389,6 +404,11 @@ final class MutationJournalStoreV1 {
             ))
         }
         if case let .applyAuthorityCriterion(mutation) = envelope.command {
+            guard postImages == [try mutation.postImage.mutationPostImage] else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+        }
+        if case let .applyFunctionalRelationship(mutation) = envelope.command {
             guard postImages == [try mutation.postImage.mutationPostImage] else {
                 throw WorkspaceMutationFailureV1.invalidCommand
             }
@@ -1232,6 +1252,18 @@ final class MutationJournalStoreV1 {
             let id=identity.id; let rows=try modelContext.fetch(FetchDescriptor<DerivedFactEvaluatorDescriptorRow>(predicate:#Predicate{$0.descriptorID == id})); guard let row=try exactlyOneOrAbsent(rows) else{return try tombstone(identity,revision)}; let v=try row.value(); guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt}; return .derivedFactEvaluatorDescriptor(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesDescriptorID),revision:revision,semanticSHA256:v.descriptorSHA256)
         case .derivedFactProvenance:
             let id=identity.id; let rows=try modelContext.fetch(FetchDescriptor<DerivedFactProvenanceRow>(predicate:#Predicate{$0.provenanceID == id})); guard let row=try exactlyOneOrAbsent(rows) else{return try tombstone(identity,revision)}; let v=try row.value(); guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt}; return .derivedFactProvenance(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.predecessorProvenanceID),revision:revision,semanticSHA256:v.provenanceSHA256)
+        case .functionalRelationshipTypeDescriptor:
+            let id = identity.id
+            let rows = try modelContext.fetch(FetchDescriptor<FunctionalRelationshipTypeDescriptorRow>(predicate: #Predicate { $0.descriptorReleaseID == id }))
+            guard let row = try exactlyOneOrAbsent(rows) else { return try tombstone(identity, revision) }
+            let value = try row.value(); guard value.revision == revision else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+            return .functionalRelationshipTypeDescriptor(id: id, concurrencyIdentity: try authorityConcurrency(identity, value.supersedesDescriptorReleaseID), revision: revision, semanticSHA256: value.descriptorSHA256)
+        case .assetFunctionalRelationshipEvent:
+            let id = identity.id
+            let rows = try modelContext.fetch(FetchDescriptor<AssetFunctionalRelationshipEventRow>(predicate: #Predicate { $0.eventID == id }))
+            guard let row = try exactlyOneOrAbsent(rows) else { return try tombstone(identity, revision) }
+            let value = try row.value(); guard value.revision == revision else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+            return .assetFunctionalRelationshipEvent(id: id, relationshipID: value.relationshipID, concurrencyIdentity: try authorityConcurrency(identity, value.predecessorEventID), revision: revision, semanticSHA256: value.eventSHA256)
         case .workflowRecord:
             let id = identity.id
             let rows = try modelContext.fetch(FetchDescriptor<WorkflowRecord>(predicate: #Predicate { $0.id == id }))
@@ -1372,6 +1404,8 @@ final class MutationJournalStoreV1 {
         identities += try boundedFetch(FetchDescriptor<MeasurementProtocolReleaseRow>()).map { try .init(kind: .measurementProtocolRelease, id: $0.releaseID) }
         identities += try boundedFetch(FetchDescriptor<DerivedFactEvaluatorDescriptorRow>()).map { try .init(kind: .derivedFactEvaluatorDescriptor, id: $0.descriptorID) }
         identities += try boundedFetch(FetchDescriptor<DerivedFactProvenanceRow>()).map { try .init(kind: .derivedFactProvenance, id: $0.provenanceID) }
+        identities += try boundedFetch(FetchDescriptor<FunctionalRelationshipTypeDescriptorRow>()).map { try .init(kind: .functionalRelationshipTypeDescriptor, id: $0.descriptorReleaseID) }
+        identities += try boundedFetch(FetchDescriptor<AssetFunctionalRelationshipEventRow>()).map { try .init(kind: .assetFunctionalRelationshipEvent, id: $0.eventID) }
         guard identities.count <= Self.maximumMutableContentValidationCount,
               Set(identities).count == identities.count else {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
@@ -1460,6 +1494,8 @@ final class MutationJournalStoreV1 {
         case .measurementProtocolRelease: return .measurementProtocolRelease(id: identity.id, concurrencyIdentity: identity, revision: revision, semanticSHA256: digest)
         case .derivedFactEvaluatorDescriptor: return .derivedFactEvaluatorDescriptor(id: identity.id, concurrencyIdentity: identity, revision: revision, semanticSHA256: digest)
         case .derivedFactProvenance: return .derivedFactProvenance(id: identity.id, concurrencyIdentity: identity, revision: revision, semanticSHA256: digest)
+        case .functionalRelationshipTypeDescriptor: return .functionalRelationshipTypeDescriptor(id: identity.id, concurrencyIdentity: identity, revision: revision, semanticSHA256: digest)
+        case .assetFunctionalRelationshipEvent: return .assetFunctionalRelationshipEvent(id: identity.id, relationshipID: identity.id, concurrencyIdentity: identity, revision: revision, semanticSHA256: digest)
         case .workflowRecord: return .workflowRecord(id: identity.id, revision: revision, semanticSHA256: digest)
         case .evidenceFile: return .evidenceFile(id: identity.id, revision: revision, semanticSHA256: digest)
         case .issue: return .issue(id: identity.id, revision: revision, semanticSHA256: digest)

@@ -12,6 +12,19 @@ enum AssetSemanticsCoordinatorFailureV1: Error, Equatable, Sendable {
 @MainActor
 protocol AssetSemanticLifecyclePortV1: AnyObject {
     func validate(_ mutation: AssetSemanticsMutationV1) throws
+    func functionalRelationshipProjection(
+        boundary: FunctionalRelationshipReadinessBoundaryV1?
+    ) throws -> CurrentFunctionalRelationshipProjectionV1
+    func functionalRelationshipPreview(
+        change: FunctionalRelationshipEndpointChangeV1,
+        relationshipID: UUID,
+        currentSiteID: UUID,
+        proposedSiteID: UUID?
+    ) throws -> FunctionalRelationshipDispositionPreviewV1
+    func validate(
+        _ scope: WorkSubjectScopeSnapshotV1,
+        against snapshot: CompletedFunctionalRelationshipSnapshotV1
+    ) throws
 }
 
 struct AssetSemanticsPreviewBasisV1: Codable, Equatable, Sendable {
@@ -212,6 +225,44 @@ final class AssetSemanticsCoordinatorV1 {
         } catch {
             throw AssetSemanticsCoordinatorFailureV1.receiptMismatch
         }
+    }
+
+    /// Read-only C39/C41 bridge. The current graph remains event-derived in the
+    /// lifecycle adapter and this coordinator never writes a projection.
+    func functionalRelationshipProjection(
+        boundary: FunctionalRelationshipReadinessBoundaryV1? = nil
+    ) throws -> CurrentFunctionalRelationshipProjectionV1 {
+        guard let lifecycle else {
+            throw AssetSemanticsCoordinatorFailureV1.invalidPlan
+        }
+        return try lifecycle.functionalRelationshipProjection(boundary: boundary)
+    }
+
+    func functionalRelationshipPreview(
+        change: FunctionalRelationshipEndpointChangeV1,
+        relationshipID: UUID,
+        currentSiteID: UUID,
+        proposedSiteID: UUID? = nil
+    ) throws -> FunctionalRelationshipDispositionPreviewV1 {
+        guard let lifecycle else {
+            throw AssetSemanticsCoordinatorFailureV1.invalidPlan
+        }
+        return try lifecycle.functionalRelationshipPreview(
+            change: change,
+            relationshipID: relationshipID,
+            currentSiteID: currentSiteID,
+            proposedSiteID: proposedSiteID
+        )
+    }
+
+    func validateFrozenWorkSubjectScope(
+        _ scope: WorkSubjectScopeSnapshotV1,
+        against snapshot: CompletedFunctionalRelationshipSnapshotV1
+    ) throws {
+        guard let lifecycle else {
+            throw AssetSemanticsCoordinatorFailureV1.invalidPlan
+        }
+        try lifecycle.validate(scope, against: snapshot)
     }
 
     func commit(

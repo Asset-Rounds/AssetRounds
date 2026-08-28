@@ -42,6 +42,24 @@ enum AudiencePrivacyLexicalDetectorV1 {
             return prohibitedFragments.contains(where: folded.contains)
         }
     }
+
+    /// C41 relationship facts have a narrower customer-safe claim boundary
+    /// than ordinary evidence text. Keep it opt-in by field ID so existing
+    /// cards retain their established wording while relationship cards cannot
+    /// turn an association into an ownership, authorization, compliance,
+    /// safety, telemetry, or remote claim.
+    static func isFunctionalRelationshipFieldID(_ fieldID: String) -> Bool {
+        let normalized = fieldID
+            .lowercased()
+            .replacingOccurrences(of: "-", with: "_")
+            .replacingOccurrences(of: ".", with: "_")
+        return normalized == "functional_relationship"
+            || normalized.hasPrefix("functional_relationship_")
+    }
+
+    static func containsProhibitedFunctionalRelationshipClaim(in values: [String]) -> Bool {
+        FunctionalRelationshipClaimVocabularyV1.containsProhibitedClaim(in: values)
+    }
 }
 
 enum AuthorityCriterionClaimVocabularyV1 {
@@ -634,23 +652,35 @@ struct PostMarkupAudiencePrivacyDetectionV1: Codable, Equatable, Sendable {
         if card.audience == .customerSafe {
             let fieldText = card.fields.flatMap { [$0.label, $0.value] }
             let composedText = String(decoding: composedOutput, as: UTF8.self)
+            let hasFunctionalRelationshipFields = card.fields.contains {
+                AudiencePrivacyLexicalDetectorV1.isFunctionalRelationshipFieldID($0.fieldID)
+            }
+            let relationshipClaimIn = { (values: [String]) in
+                hasFunctionalRelationshipFields
+                    && AudiencePrivacyLexicalDetectorV1
+                        .containsProhibitedFunctionalRelationshipClaim(in: values)
+            }
             if card.fields.contains(where: { $0.sensitivity != .audienceSafe }) {
                 findings.insert(.prohibitedField)
             }
             if policy.containsProhibitedCanary(in: fieldText)
-                || AudiencePrivacyLexicalDetectorV1.containsProhibitedPattern(in: fieldText) {
+                || AudiencePrivacyLexicalDetectorV1.containsProhibitedPattern(in: fieldText)
+                || relationshipClaimIn(fieldText) {
                 findings.insert(.prohibitedField)
             }
             if policy.containsProhibitedCanary(in: card.annotations)
-                || AudiencePrivacyLexicalDetectorV1.containsProhibitedPattern(in: card.annotations) {
+                || AudiencePrivacyLexicalDetectorV1.containsProhibitedPattern(in: card.annotations)
+                || relationshipClaimIn(card.annotations) {
                 findings.insert(.prohibitedAnnotation)
             }
             if policy.containsProhibitedCanary(in: card.referenceLabels)
-                || AudiencePrivacyLexicalDetectorV1.containsProhibitedPattern(in: card.referenceLabels) {
+                || AudiencePrivacyLexicalDetectorV1.containsProhibitedPattern(in: card.referenceLabels)
+                || relationshipClaimIn(card.referenceLabels) {
                 findings.insert(.prohibitedReferenceLabel)
             }
             if policy.containsProhibitedCanary(in: [semanticText, composedText])
-                || AudiencePrivacyLexicalDetectorV1.containsProhibitedPattern(in: [semanticText, composedText]) {
+                || AudiencePrivacyLexicalDetectorV1.containsProhibitedPattern(in: [semanticText, composedText])
+                || relationshipClaimIn([semanticText, composedText]) {
                 findings.insert(.prohibitedSemanticText)
             }
         }
@@ -1267,6 +1297,17 @@ extension EvidenceDetailCardV1 {
             || AudiencePrivacyLexicalDetectorV1.containsProhibitedPattern(
                 in: fields.flatMap { [$0.label, $0.value] } + annotations + referenceLabels + [limitationsText]
             )) {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+
+        let functionalRelationshipText = fields
+            .filter { AudiencePrivacyLexicalDetectorV1.isFunctionalRelationshipFieldID($0.fieldID) }
+            .flatMap { [$0.label, $0.value] }
+        if audience == .customerSafe,
+           !functionalRelationshipText.isEmpty,
+           AudiencePrivacyLexicalDetectorV1.containsProhibitedFunctionalRelationshipClaim(
+               in: functionalRelationshipText + annotations + referenceLabels + [limitationsText]
+           ) {
             throw SnapshotProjectionFailureV1.privacyViolation
         }
     }

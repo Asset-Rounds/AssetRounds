@@ -824,3 +824,21 @@ private extension S6_1DeletionGraphTests {
         }
     }
 }
+
+extension S6_1DeletionGraphTests {
+    func testV23P03C41DeletionGraphPreviewIsExplicitAndZeroWrite() throws {
+        let fixture = try C41FunctionalRelationshipTestSupportV1.makeFixture(seed: 41_610)
+        let preview = try FunctionalRelationshipDispositionPreviewEngineV1.preview(
+            change: .deleted,
+            relationship: fixture.added,
+            descriptor: fixture.descriptor,
+            currentSiteID: C41FunctionalRelationshipTestSupportV1.id(41_611)
+        )
+
+        XCTAssertEqual(preview.disposition, .end)
+        XCTAssertEqual(preview.reasonCode, "endpoint_or_package_no_longer_current_review_end")
+        XCTAssertFalse(preview.persistentWriteOccurred)
+        XCTAssertEqual(preview.relationshipID, fixture.relationshipID)
+        try preview.validate()
+    }
+}

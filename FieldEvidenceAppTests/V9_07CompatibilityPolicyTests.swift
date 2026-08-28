@@ -259,3 +259,20 @@ final class V9_07CompatibilityPolicyTests: XCTestCase {
         )
     }
 }
+
+extension V9_07CompatibilityPolicyTests {
+    func testV23P03C41CompatibilityRoundTripRetainsPackageAndDescriptorIdentity() throws {
+        let fixture = try C41FunctionalRelationshipTestSupportV1.makeFixture(seed: 41_070)
+        let encoded = try FunctionalRelationshipCanonicalCodecV1.encode(fixture.descriptor)
+        let decoded = try FunctionalRelationshipCanonicalCodecV1.decode(
+            FunctionalRelationshipTypeDescriptorV1.self, from: encoded
+        )
+
+        XCTAssertEqual(decoded, fixture.descriptor)
+        XCTAssertEqual(decoded.packageRelease, fixture.packageRelease)
+        XCTAssertEqual(decoded.sourceCatalogRelease.packageRelease, fixture.packageRelease)
+        XCTAssertEqual(decoded.targetCatalogRelease.packageRelease, fixture.packageRelease)
+        XCTAssertEqual(decoded.descriptorSHA256, fixture.descriptor.descriptorSHA256)
+        try decoded.validate(sourceCatalog: fixture.sourceCatalog, targetCatalog: fixture.targetCatalog)
+    }
+}

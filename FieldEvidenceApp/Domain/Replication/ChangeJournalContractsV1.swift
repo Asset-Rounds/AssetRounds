@@ -550,6 +550,9 @@ struct JournalChangeV1: Codable, Equatable, Sendable {
     }
     func validate() throws {
         try envelope.validate(); try receipt.validate(); try reversalBasis?.validate(); try semanticReversalReceipt?.validate()
+        try FunctionalRelationshipJournalContractV1.validate(
+            envelope: envelope, receipt: receipt, entityChanges: entityChanges
+        )
         let receiptIdentities = try receipt.postImages.map { try $0.identity }
         let locationIdentities = try envelope.command.canonicalLocationAffectedIdentities()
         guard schemaVersion == Self.schemaVersion, envelope.workspaceID == receipt.identity.workspaceID, envelope.replicaID == receipt.identity.replicaID, envelope.mutationID == receipt.mutationID, receipt.envelopeSHA256 == (try envelope.canonicalSHA256()),
@@ -578,6 +581,41 @@ struct JournalChangeV1: Codable, Equatable, Sendable {
         try c.encode(envelope, forKey: .envelope); try c.encode(receipt, forKey: .receipt); try c.encode(entityChanges, forKey: .entityChanges)
         try c.encode(reversalBasis, forKey: .reversalBasis); try c.encode(portableReversalPlan, forKey: .portableReversalPlan)
         try c.encode(semanticReversalReceipt, forKey: .semanticReversalReceipt); try c.encode(contentReferences, forKey: .contentReferences)
+    }
+}
+
+/// Closed C41 journal binding. Revision authority and post-image construction
+/// remain owned by the canonical mutation and receipt contracts.
+enum FunctionalRelationshipJournalContractV1 {
+    static func validate(
+        envelope: MutationEnvelopeV1,
+        receipt: MutationReceiptV1,
+        entityChanges: [EntityChangeV1]
+    ) throws {
+        guard case let .applyFunctionalRelationship(mutation) = envelope.command else { return }
+        try mutation.validate()
+        let affected = try mutation.affectedIdentity
+        let expectedPostImage = try mutation.postImage.mutationPostImage
+        switch mutation.postImage {
+        case .appendDescriptor, .supersedeDescriptor:
+            guard affected.kind == .functionalRelationshipTypeDescriptor,
+                  case .functionalRelationshipTypeDescriptor = expectedPostImage else {
+                throw ChangeJournalFailureV1.tamperedBatch
+            }
+        case .addRelationship, .endRelationship, .supersedeRelationship:
+            guard affected.kind == .assetFunctionalRelationshipEvent,
+                  case .assetFunctionalRelationshipEvent = expectedPostImage else {
+                throw ChangeJournalFailureV1.tamperedBatch
+            }
+        }
+        guard envelope.commandKind == .applyFunctionalRelationship,
+              envelope.mutationID == mutation.mutationID,
+              receipt.mutationID == mutation.mutationID,
+              receipt.postImages == [expectedPostImage],
+              entityChanges.map(\.identity) == [affected],
+              entityChanges.map(\.postImage) == [expectedPostImage] else {
+            throw ChangeJournalFailureV1.tamperedBatch
+        }
     }
 }
 

@@ -638,3 +638,22 @@ final class V9_24AssetSemanticLifecycleTests: XCTestCase {
         )
     }
 }
+
+extension V9_24AssetSemanticLifecycleTests {
+    func testV23P03C41AssetSemanticEndpointsBindRequiredCapabilities() throws {
+        let fixture = try C41FunctionalRelationshipTestSupportV1.makeFixture(seed: 41_240)
+        try fixture.sourceCatalog.validate()
+        try fixture.targetCatalog.validate()
+        try fixture.descriptor.validate(
+            sourceCatalog: fixture.sourceCatalog, targetCatalog: fixture.targetCatalog
+        )
+
+        let source = try fixture.sourceCatalog.definition(semanticID: "asset.controller")
+        let target = try fixture.targetCatalog.definition(semanticID: "asset.zone")
+        XCTAssertTrue(source.capabilityIDs.contains(try AssetSemanticCapabilityIDV1("capability.control")))
+        XCTAssertTrue(target.capabilityIDs.contains(try AssetSemanticCapabilityIDV1("capability.inspect")))
+        XCTAssertEqual(fixture.descriptor.sourceSemanticIDs, ["asset.controller"])
+        XCTAssertEqual(fixture.descriptor.targetSemanticIDs, ["asset.zone"])
+        XCTAssertEqual(fixture.added.descriptor.semanticID, fixture.descriptor.semanticID)
+    }
+}

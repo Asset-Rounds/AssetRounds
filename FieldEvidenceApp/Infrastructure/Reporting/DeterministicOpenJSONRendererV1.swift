@@ -246,6 +246,22 @@ enum ReportSemanticProjectorV1 {
         )
     }
 
+    static func project(
+        snapshot: CompletedActivitySnapshotV6,
+        manifest: ContractManifestV1
+    ) throws -> ReportSemanticProjectionV1 {
+        try project(
+            activity: snapshot.payload.activity.activity.activity.activity.activity,
+            snapshotSHA256: snapshot.snapshotSHA256,
+            locationComposition: snapshot.payload.activity.activity.activity.activity.locationComposition,
+            accountability: snapshot.payload.activity.activity.activity.accountability,
+            assetSemantics: snapshot.payload.activity.activity.assetSemantics,
+            authorityCriterion: snapshot.payload.activity.authorityCriterion,
+            functionalRelationships: snapshot.payload.functionalRelationships,
+            manifest: manifest
+        )
+    }
+
     private static func project(
         activity: CompletedActivitySnapshotPayloadV1,
         snapshotSHA256: String,
@@ -253,6 +269,7 @@ enum ReportSemanticProjectorV1 {
         accountability: CompletedAccountabilitySnapshotV1? = nil,
         assetSemantics: CompletedAssetSemanticsSnapshotV1? = nil,
         authorityCriterion: CompletedAuthorityCriterionSnapshotV1? = nil,
+        functionalRelationships: CompletedFunctionalRelationshipSnapshotV1? = nil,
         manifest: ContractManifestV1
     ) throws -> ReportSemanticProjectionV1 {
         let encoder = JSONEncoder()
@@ -327,6 +344,15 @@ enum ReportSemanticProjectorV1 {
         if let authorityCriterion {
             try appendAuthorityCriterion(
                 authorityCriterion,
+                append: append,
+                visibleID: visibleID,
+                visibleDigest: visibleDigest
+            )
+        }
+        if let functionalRelationships {
+            try appendFunctionalRelationships(
+                functionalRelationships,
+                binding: binding,
                 append: append,
                 visibleID: visibleID,
                 visibleDigest: visibleDigest
@@ -476,6 +502,125 @@ enum ReportSemanticProjectorV1 {
             throw SnapshotProjectionFailureV1.missingBinding
         }
         return BundledLocalizationCatalogV1.localized(bundledKey)
+    }
+
+    /// Resolve through the typed C41 key enum and the repository's bundled
+    /// catalog. The raw-value fallback is unreachable for the closed catalog
+    /// but keeps this pre-S10 renderer fail-closed and deterministic if a
+    /// future catalog omits a key.
+    private static func localizedFunctionalRelationship(
+        _ key: FunctionalRelationshipLocalizationKeyV1
+    ) -> String {
+        guard let bundledKey = BundledLocalizationKeyV1(rawValue: key.rawValue) else {
+            return key.rawValue
+        }
+        return BundledLocalizationCatalogV1.localized(bundledKey)
+    }
+
+    private static func appendFunctionalRelationships(
+        _ snapshot: CompletedFunctionalRelationshipSnapshotV1,
+        binding: FinalizedReportProfileBindingV1,
+        append: (
+            _ section: String,
+            _ role: String,
+            _ label: String,
+            _ value: String,
+            _ ref: String?
+        ) throws -> Void,
+        visibleID: (_ kind: String, _ value: String) -> String,
+        visibleDigest: (_ kind: String, _ value: String) -> String
+    ) throws {
+        try snapshot.validate()
+        let sectionID = ReportFunctionalRelationshipsProjectionPolicyV1.sectionID
+        let heading = localizedFunctionalRelationship(.heading)
+        let descriptorLabel = localizedFunctionalRelationship(.descriptor)
+        let typeLabel = localizedFunctionalRelationship(.type)
+        let boundsLabel = localizedFunctionalRelationship(.bounds)
+        let siteLabel = localizedFunctionalRelationship(.site)
+        let stateLabel = localizedFunctionalRelationship(.activeState)
+        let projectedValues = snapshot.descriptorReleases.flatMap { descriptor in
+            [descriptor.semanticID, descriptor.displayNameLocalizationKey,
+             descriptor.sourceRoleLocalizationKey, descriptor.targetRoleLocalizationKey]
+        } + snapshot.relationships.flatMap { event in
+            [event.action.rawValue, event.provenance]
+        }
+        guard !FunctionalRelationshipClaimVocabularyV1.containsProhibitedClaim(in: projectedValues),
+              !AudiencePrivacyLexicalDetectorV1.containsProhibitedPattern(in: projectedValues) else {
+            throw SnapshotProjectionFailureV1.hostileText
+        }
+
+        try append(sectionID, "heading", heading, heading, nil)
+        try append(
+            sectionID,
+            "digest",
+            descriptorLabel,
+            visibleDigest("functional-relationship-snapshot", snapshot.snapshotSHA256),
+            nil
+        )
+        let descriptors = Dictionary(uniqueKeysWithValues: snapshot.descriptorReleases.map {
+            ($0.descriptorReleaseID, $0)
+        })
+        for descriptor in snapshot.descriptorReleases.sorted(by: {
+            ($0.semanticID, $0.descriptorReleaseID.uuidString)
+                < ($1.semanticID, $1.descriptorReleaseID.uuidString)
+        }) {
+            let releaseID = visibleID("functional-descriptor", descriptor.descriptorReleaseID.uuidString.lowercased())
+            let directionKey = ReportFunctionalRelationshipsProjectionPolicyV1.directionLocalizationKey(
+                descriptor.direction
+            )
+            let symmetryKey = ReportFunctionalRelationshipsProjectionPolicyV1.symmetryLocalizationKey(
+                descriptor.symmetry
+            )
+            let siteKey = ReportFunctionalRelationshipsProjectionPolicyV1.siteLocalizationKey(
+                descriptor.sitePolicy
+            )
+            try append(sectionID, "heading", typeLabel, descriptor.semanticID, releaseID)
+            try append(sectionID, "fact", typeLabel, localizedFunctionalRelationship(directionKey), nil)
+            if descriptor.symmetry == .symmetric {
+                try append(sectionID, "fact", typeLabel, localizedFunctionalRelationship(symmetryKey), nil)
+            }
+            try append(
+                sectionID,
+                "fact",
+                boundsLabel,
+                "source \(descriptor.sourceCardinality.minimum)…\(descriptor.sourceCardinality.maximum); target \(descriptor.targetCardinality.minimum)…\(descriptor.targetCardinality.maximum)",
+                nil
+            )
+            try append(sectionID, "fact", siteLabel, localizedFunctionalRelationship(siteKey), nil)
+            try append(
+                sectionID,
+                "digest",
+                descriptorLabel,
+                visibleDigest("functional-descriptor", descriptor.descriptorSHA256),
+                releaseID
+            )
+        }
+        for event in snapshot.relationships.sorted(by: {
+            ($0.relationshipID.uuidString, $0.revision) < ($1.relationshipID.uuidString, $1.revision)
+        }) {
+            guard let descriptor = descriptors[event.descriptor.descriptorReleaseID],
+                  descriptor.descriptorSHA256 == event.descriptor.descriptorSHA256 else {
+                throw SnapshotProjectionFailureV1.digestMismatch
+            }
+            let relationshipID = visibleID("functional-relationship", event.relationshipID.uuidString.lowercased())
+            let state = localizedFunctionalRelationship(
+                ReportFunctionalRelationshipsProjectionPolicyV1.eventStateLocalizationKey(event.action)
+            )
+            let direction = localizedFunctionalRelationship(
+                ReportFunctionalRelationshipsProjectionPolicyV1.directionLocalizationKey(descriptor.direction)
+            )
+            let endpoints = "\(visibleID("asset", event.sourceAssetID.uuidString.lowercased())) → \(visibleID("asset", event.targetAssetID.uuidString.lowercased()))"
+            try append(sectionID, "fact", descriptorLabel, descriptor.semanticID, relationshipID)
+            try append(sectionID, "status", stateLabel, "\(state) · \(direction)", nil)
+            try append(sectionID, "fact", typeLabel, endpoints, nil)
+            try append(
+                sectionID,
+                "digest",
+                descriptorLabel,
+                visibleDigest("functional-event", event.eventSHA256),
+                relationshipID
+            )
+        }
     }
 
     private static func appendAssetSemantics(

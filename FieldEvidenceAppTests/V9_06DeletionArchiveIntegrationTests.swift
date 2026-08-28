@@ -389,3 +389,28 @@ final class V9_06DeletionArchiveIntegrationTests: XCTestCase {
         XCTAssertEqual(try relaunched.modelContext.fetchCount(FetchDescriptor<Asset>()), 0)
     }
 }
+
+extension V9_06DeletionArchiveIntegrationTests {
+    func testV23P03C41ArchiveReplayLeavesNoCurrentRelationship() throws {
+        let fixture = try C41FunctionalRelationshipTestSupportV1.makeFixture(seed: 41_062)
+        let projection = try FunctionalRelationshipProjectionBuilderV1.rebuild(
+            workspaceID: fixture.workspaceID,
+            events: [fixture.added, fixture.ended],
+            descriptors: [fixture.descriptor]
+        )
+
+        XCTAssertTrue(projection.currentRelationships.isEmpty)
+        XCTAssertEqual(projection.sourceEventsSHA256.count, 64)
+        try fixture.ended.validateSuccessor(of: fixture.added)
+
+        let snapshot = try CompletedFunctionalRelationshipSnapshotV1(
+            snapshotID: C41FunctionalRelationshipTestSupportV1.id(41_063),
+            workspaceID: fixture.workspaceID,
+            capturedAt: C41FunctionalRelationshipTestSupportV1.fixedDate,
+            descriptorReleases: [fixture.descriptor],
+            relationships: [fixture.added]
+        )
+        XCTAssertEqual(snapshot.relationships.first?.relationshipID, fixture.relationshipID)
+        try snapshot.validate()
+    }
+}

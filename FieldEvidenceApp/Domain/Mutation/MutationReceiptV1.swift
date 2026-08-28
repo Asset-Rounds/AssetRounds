@@ -79,6 +79,8 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
     case measurementProtocolRelease(id: UUID, concurrencyIdentity: WorkspaceEntityIdentityV1, revision: UInt64, semanticSHA256: String)
     case derivedFactEvaluatorDescriptor(id: UUID, concurrencyIdentity: WorkspaceEntityIdentityV1, revision: UInt64, semanticSHA256: String)
     case derivedFactProvenance(id: UUID, concurrencyIdentity: WorkspaceEntityIdentityV1, revision: UInt64, semanticSHA256: String)
+    case functionalRelationshipTypeDescriptor(id: UUID, concurrencyIdentity: WorkspaceEntityIdentityV1, revision: UInt64, semanticSHA256: String)
+    case assetFunctionalRelationshipEvent(id: UUID, relationshipID: UUID, concurrencyIdentity: WorkspaceEntityIdentityV1, revision: UInt64, semanticSHA256: String)
     case workflowRecord(id: UUID, revision: UInt64, semanticSHA256: String)
     case evidenceFile(id: UUID, revision: UInt64, semanticSHA256: String)
     case issue(id: UUID, revision: UInt64, semanticSHA256: String)
@@ -111,6 +113,8 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
             case let .measurementProtocolRelease(id, _, _, _): return try .init(kind: .measurementProtocolRelease, id: id)
             case let .derivedFactEvaluatorDescriptor(id, _, _, _): return try .init(kind: .derivedFactEvaluatorDescriptor, id: id)
             case let .derivedFactProvenance(id, _, _, _): return try .init(kind: .derivedFactProvenance, id: id)
+            case let .functionalRelationshipTypeDescriptor(id, _, _, _): return try .init(kind: .functionalRelationshipTypeDescriptor, id: id)
+            case let .assetFunctionalRelationshipEvent(id, _, _, _, _): return try .init(kind: .assetFunctionalRelationshipEvent, id: id)
             case let .workflowRecord(id, _, _): return try .init(kind: .workflowRecord, id: id)
             case let .evidenceFile(id, _, _): return try .init(kind: .evidenceFile, id: id)
             case let .issue(id, _, _): return try .init(kind: .issue, id: id)
@@ -135,6 +139,8 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
              let .severityScaleRelease(_, _, _, value), let .findingClassificationBinding(_, _, _, value),
              let .measurementProtocolRelease(_, _, _, value), let .derivedFactEvaluatorDescriptor(_, _, _, value),
              let .derivedFactProvenance(_, _, _, value),
+             let .functionalRelationshipTypeDescriptor(_, _, _, value),
+             let .assetFunctionalRelationshipEvent(_, _, _, _, value),
              let .workflowRecord(_, _, value),
              let .evidenceFile(_, _, value), let .issue(_, _, value), let .packet(_, _, value),
              let .report(_, _, value), let .deletionLedgerEntry(_, _, value),
@@ -163,6 +169,10 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
                 guard value.kind == .derivedFactEvaluatorDescriptor else { throw WorkspaceMutationFailureV1.invalidReceipt }; return value
             case let .derivedFactProvenance(_, value, _, _):
                 guard value.kind == .derivedFactProvenance else { throw WorkspaceMutationFailureV1.invalidReceipt }; return value
+            case let .functionalRelationshipTypeDescriptor(_, value, _, _):
+                guard value.kind == .functionalRelationshipTypeDescriptor else { throw WorkspaceMutationFailureV1.invalidReceipt }; return value
+            case let .assetFunctionalRelationshipEvent(_, _, value, _, _):
+                guard value.kind == .assetFunctionalRelationshipEvent else { throw WorkspaceMutationFailureV1.invalidReceipt }; return value
             default:
                 return try identity
             }
@@ -183,6 +193,8 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
              let .severityScaleRelease(_, _, value, _), let .findingClassificationBinding(_, _, value, _),
              let .measurementProtocolRelease(_, _, value, _), let .derivedFactEvaluatorDescriptor(_, _, value, _),
              let .derivedFactProvenance(_, _, value, _),
+             let .functionalRelationshipTypeDescriptor(_, _, value, _),
+             let .assetFunctionalRelationshipEvent(_, _, _, value, _),
              let .workflowRecord(_, value, _), let .evidenceFile(_, value, _),
              let .issue(_, value, _), let .packet(_, value, _),
              let .report(_, value, _), let .deletionLedgerEntry(_, value, _),
@@ -450,6 +462,31 @@ extension AuthorityCriterionMutationPayloadV1 {
     }
 }
 
+extension FunctionalRelationshipMutationPayloadV1 {
+    var mutationPostImage: MutationPostImageV1 {
+        get throws {
+            let concurrencyIdentity = try predecessorIdentity ?? affectedIdentity
+            switch self {
+            case let .appendDescriptor(v), let .supersedeDescriptor(v):
+                .functionalRelationshipTypeDescriptor(
+                    id: v.descriptorReleaseID,
+                    concurrencyIdentity: concurrencyIdentity,
+                    revision: v.revision,
+                    semanticSHA256: v.descriptorSHA256
+                )
+            case let .addRelationship(v), let .endRelationship(v), let .supersedeRelationship(v):
+                .assetFunctionalRelationshipEvent(
+                    id: v.eventID,
+                    relationshipID: v.relationshipID,
+                    concurrencyIdentity: concurrencyIdentity,
+                    revision: v.revision,
+                    semanticSHA256: v.eventSHA256
+                )
+            }
+        }
+    }
+}
+
 /// Typed C40 receipt binding the journal-owned receipt to the exact canonical
 /// authority/criterion post-image. It does not introduce a second receipt
 /// writer or infer authority meaning from the persisted scalar fields.
@@ -580,6 +617,67 @@ struct AuthorityCriterionMutationReceiptV1: Codable, Equatable, Sendable {
         let concurrencyIdentity: WorkspaceEntityIdentityV1
         let postImageSHA256: String
         let committedAt: Date
+    }
+}
+
+struct FunctionalRelationshipMutationReceiptV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let mutationSHA256: String
+    let mutationReceipt: MutationReceiptV1
+    let affectedIdentity: WorkspaceEntityIdentityV1
+    let predecessorIdentity: WorkspaceEntityIdentityV1?
+    let concurrencyIdentity: WorkspaceEntityIdentityV1
+    let postImageSHA256: String
+    let receiptSHA256: String
+
+    init(mutation: FunctionalRelationshipMutationV1, mutationReceipt: MutationReceiptV1) throws {
+        try mutation.validate(); try mutationReceipt.validate()
+        let affected = try mutation.affectedIdentity
+        let predecessor = try mutation.postImage.predecessorIdentity
+        let concurrency = try mutation.concurrencyIdentity
+        let postImage = try mutation.postImage.mutationPostImage
+        guard mutationReceipt.mutationID == mutation.mutationID,
+              mutationReceipt.identity.workspaceID == mutation.workspaceID,
+              mutationReceipt.commandBodySHA256 == (try WorkspaceMutationCanonicalV1.sha256(WorkspaceCommandV1.applyFunctionalRelationship(mutation))),
+              mutationReceipt.expectedRevision.entityRevisions.first(where: { $0.identity == concurrency })?.revision == mutation.expectedRevision,
+              mutationReceipt.resultingRevision.entityRevisions.first(where: { $0.identity == affected })?.revision == mutation.postImage.revision,
+              mutationReceipt.postImages == [postImage] else { throw WorkspaceMutationFailureV1.invalidReceipt }
+        schemaVersion = Self.schemaVersion
+        mutationSHA256 = try mutation.canonicalSHA256()
+        self.mutationReceipt = mutationReceipt
+        affectedIdentity = affected; predecessorIdentity = predecessor; concurrencyIdentity = concurrency
+        postImageSHA256 = mutation.postImage.semanticSHA256
+        receiptSHA256 = try WorkspaceMutationCanonicalV1.sha256(DigestBasis(
+            schemaVersion: Self.schemaVersion, mutationSHA256: mutationSHA256,
+            mutationReceiptSHA256: mutationReceipt.canonicalSHA256(), affectedIdentity: affected,
+            predecessorIdentity: predecessor, concurrencyIdentity: concurrency,
+            postImageSHA256: postImageSHA256
+        ))
+    }
+
+    func validate() throws {
+        try mutationReceipt.validate()
+        guard schemaVersion == Self.schemaVersion,
+              MutationEnvelopeV1.isSHA256(mutationSHA256),
+              mutationReceipt.postImages.count == 1,
+              let postImage = mutationReceipt.postImages.first,
+              (try postImage.identity) == affectedIdentity,
+              (try postImage.concurrencyIdentity) == concurrencyIdentity,
+              (predecessorIdentity ?? affectedIdentity) == concurrencyIdentity,
+              postImage.semanticSHA256 == postImageSHA256,
+              receiptSHA256 == (try WorkspaceMutationCanonicalV1.sha256(DigestBasis(
+                schemaVersion: schemaVersion, mutationSHA256: mutationSHA256,
+                mutationReceiptSHA256: mutationReceipt.canonicalSHA256(), affectedIdentity: affectedIdentity,
+                predecessorIdentity: predecessorIdentity, concurrencyIdentity: concurrencyIdentity,
+                postImageSHA256: postImageSHA256
+              ))) else { throw WorkspaceMutationFailureV1.invalidReceipt }
+    }
+
+    private struct DigestBasis: Codable {
+        let schemaVersion: Int; let mutationSHA256: String; let mutationReceiptSHA256: String
+        let affectedIdentity: WorkspaceEntityIdentityV1; let predecessorIdentity: WorkspaceEntityIdentityV1?
+        let concurrencyIdentity: WorkspaceEntityIdentityV1; let postImageSHA256: String
     }
 }
 

@@ -44,6 +44,8 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case measurementProtocolRelease
     case derivedFactEvaluatorDescriptor
     case derivedFactProvenance
+    case functionalRelationshipTypeDescriptor
+    case assetFunctionalRelationshipEvent
     case workflowRecord
     case evidenceFile
     case issue
@@ -1071,6 +1073,117 @@ struct AuthorityCriterionMutationV1: Codable, Equatable, Sendable {
     }
 }
 
+enum FunctionalRelationshipMutationPayloadV1: Codable, Equatable, Sendable {
+    case appendDescriptor(FunctionalRelationshipTypeDescriptorV1)
+    case supersedeDescriptor(FunctionalRelationshipTypeDescriptorV1)
+    case addRelationship(AssetFunctionalRelationshipEventV1)
+    case endRelationship(AssetFunctionalRelationshipEventV1)
+    case supersedeRelationship(AssetFunctionalRelationshipEventV1)
+
+    var workspaceID: WorkspaceID {
+        switch self {
+        case let .appendDescriptor(v), let .supersedeDescriptor(v): v.workspaceID
+        case let .addRelationship(v), let .endRelationship(v), let .supersedeRelationship(v): v.workspaceID
+        }
+    }
+    var mutationID: MutationIDV1 {
+        switch self {
+        case let .appendDescriptor(v), let .supersedeDescriptor(v): v.mutationID
+        case let .addRelationship(v), let .endRelationship(v), let .supersedeRelationship(v): v.mutationID
+        }
+    }
+    var revision: UInt64 {
+        switch self {
+        case let .appendDescriptor(v), let .supersedeDescriptor(v): v.revision
+        case let .addRelationship(v), let .endRelationship(v), let .supersedeRelationship(v): v.revision
+        }
+    }
+    var semanticSHA256: String {
+        switch self {
+        case let .appendDescriptor(v), let .supersedeDescriptor(v): v.descriptorSHA256
+        case let .addRelationship(v), let .endRelationship(v), let .supersedeRelationship(v): v.eventSHA256
+        }
+    }
+    var affectedIdentity: WorkspaceEntityIdentityV1 {
+        get throws {
+            switch self {
+            case let .appendDescriptor(v), let .supersedeDescriptor(v):
+                try .init(kind: .functionalRelationshipTypeDescriptor, id: v.descriptorReleaseID)
+            case let .addRelationship(v), let .endRelationship(v), let .supersedeRelationship(v):
+                try .init(kind: .assetFunctionalRelationshipEvent, id: v.eventID)
+            }
+        }
+    }
+    var predecessorIdentity: WorkspaceEntityIdentityV1? {
+        get throws {
+            switch self {
+            case .appendDescriptor, .addRelationship: nil
+            case let .supersedeDescriptor(v):
+                try v.supersedesDescriptorReleaseID.map {
+                    try .init(kind: .functionalRelationshipTypeDescriptor, id: $0)
+                }
+            case let .endRelationship(v), let .supersedeRelationship(v):
+                try v.predecessorEventID.map {
+                    try .init(kind: .assetFunctionalRelationshipEvent, id: $0)
+                }
+            }
+        }
+    }
+    func validate() throws {
+        switch self {
+        case let .appendDescriptor(v): try v.validate(); guard v.supersedesDescriptorReleaseID == nil else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+        case let .supersedeDescriptor(v): try v.validate(); guard v.supersedesDescriptorReleaseID != nil else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+        case let .addRelationship(v): try v.validate(); guard v.action == .added else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+        case let .endRelationship(v): try v.validate(); guard v.action == .ended else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+        case let .supersedeRelationship(v): try v.validate(); guard v.action == .superseded else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+        }
+    }
+}
+
+struct FunctionalRelationshipMutationV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let workspaceID: WorkspaceID
+    let expectedRevision: UInt64
+    let mutationID: MutationIDV1
+    let postImage: FunctionalRelationshipMutationPayloadV1
+
+    init(workspaceID: WorkspaceID, expectedRevision: UInt64, mutationID: MutationIDV1,
+         postImage: FunctionalRelationshipMutationPayloadV1) throws {
+        schemaVersion = Self.schemaVersion; self.workspaceID = workspaceID
+        self.expectedRevision = expectedRevision; self.mutationID = mutationID; self.postImage = postImage
+        try validate()
+    }
+    func validate() throws {
+        try postImage.validate()
+        let predecessor = try postImage.predecessorIdentity
+        guard schemaVersion == Self.schemaVersion, workspaceID == postImage.workspaceID,
+              mutationID == postImage.mutationID,
+              (predecessor == nil ? (expectedRevision == 0 && postImage.revision == 1)
+                : (expectedRevision > 0 && expectedRevision < UInt64.max && postImage.revision == expectedRevision + 1)),
+              MutationEnvelopeV1.isSHA256(postImage.semanticSHA256) else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+        switch postImage {
+        case let .addRelationship(v), let .endRelationship(v), let .supersedeRelationship(v):
+            guard v.expectedRelationshipRevision == expectedRevision else {
+                throw WorkspaceMutationContractFailureV1.invalidPlan
+            }
+        default: break
+        }
+    }
+    var affectedIdentity: WorkspaceEntityIdentityV1 { get throws { try postImage.affectedIdentity } }
+    var concurrencyIdentity: WorkspaceEntityIdentityV1 { get throws { try postImage.predecessorIdentity ?? postImage.affectedIdentity } }
+    func canonicalData() throws -> Data { try validate(); return try WorkspaceMutationCanonicalV1.data(self) }
+    func canonicalSHA256() throws -> String { try validate(); return try WorkspaceMutationCanonicalV1.sha256(self) }
+    static func decodeCanonical(from data: Data) throws -> Self {
+        let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .millisecondsSince1970
+        let value = try decoder.decode(Self.self, from: data); try value.validate()
+        guard try value.canonicalData() == data else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+        return value
+    }
+}
+
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
     case createCheckDraft(CheckDraftMutationV1)
@@ -1092,6 +1205,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyPartyAccountability(PartyAccountabilityMutationV1)
     case applyAssetSemantics(AssetSemanticsMutationV1)
     case applyAuthorityCriterion(AuthorityCriterionMutationV1)
+    case applyFunctionalRelationship(FunctionalRelationshipMutationV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -1115,6 +1229,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyPartyAccountability: .applyPartyAccountability
         case .applyAssetSemantics: .applyAssetSemantics
         case .applyAuthorityCriterion: .applyAuthorityCriterion
+        case .applyFunctionalRelationship: .applyFunctionalRelationship
         }
     }
 }
@@ -1140,6 +1255,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyPartyAccountability = "apply_party_accountability"
     case applyAssetSemantics = "apply_asset_semantics"
     case applyAuthorityCriterion = "apply_authority_criterion"
+    case applyFunctionalRelationship = "apply_functional_relationship"
 }
 
 extension WorkspaceCommandV1 {
@@ -1877,6 +1993,7 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind: .applyPartyAccountability, disposition: .compensatable, stableReason: "append_accountability_successor_only"),
         .init(commandKind: .applyAssetSemantics, disposition: .compensatable, stableReason: "append_asset_semantic_pair_only"),
         .init(commandKind: .applyAuthorityCriterion, disposition: .compensatable, stableReason: "append_authority_criterion_successor_only"),
+        .init(commandKind: .applyFunctionalRelationship, disposition: .compensatable, stableReason: "append_functional_relationship_successor_only"),
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {

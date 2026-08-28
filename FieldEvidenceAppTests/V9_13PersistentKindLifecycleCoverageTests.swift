@@ -1199,3 +1199,25 @@ private struct V913Corpus: Decodable {
         let unknownCount: Int
     }
 }
+
+extension V9_13PersistentKindLifecycleCoverageTests {
+    func testV23P03C41PersistentLifecycleExposesImmutableRelationshipRows() throws {
+        let fixture = try C41FunctionalRelationshipTestSupportV1.makeFixture(seed: 41_130)
+
+        XCTAssertTrue(
+            PersistentSchemaV12.models.contains {
+                ObjectIdentifier($0) == ObjectIdentifier(FunctionalRelationshipTypeDescriptorRow.self)
+            }
+        )
+        XCTAssertTrue(
+            PersistentSchemaV12.models.contains {
+                ObjectIdentifier($0) == ObjectIdentifier(AssetFunctionalRelationshipEventRow.self)
+            }
+        )
+        XCTAssertEqual(PersistentSchemaReleaseV1.v12.compatibilityID, "PERSISTENT_SCHEMA_V12_FUNCTIONAL_RELATIONSHIP_HISTORY")
+        XCTAssertEqual(fixture.descriptor.revision, 1)
+        XCTAssertEqual(fixture.added.action, .added)
+        XCTAssertEqual(fixture.added.expectedRelationshipRevision, 0)
+        try fixture.added.validate()
+    }
+}

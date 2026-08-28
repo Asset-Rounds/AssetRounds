@@ -72,6 +72,81 @@ enum AuthorityCriterionAccessibilityIDV1: String, Codable, CaseIterable, Sendabl
     static var unsupported: Self { .unsupportedApplicability }
 }
 
+/// Closed C41 identifiers for functional-relationship type, direction, and
+/// lifecycle/readiness presentation.  These IDs are stable semantic
+/// identifiers, independent of localized display text or recorded UUIDs.
+enum FunctionalRelationshipAccessibilityIDV1: String, Codable, CaseIterable, Sendable {
+    case screen = "functional.relationship.screen"
+    case heading = "functional.relationship.heading"
+    case type = "functional.relationship.type"
+    case directedSourceToTarget = "functional.relationship.direction.source-to-target"
+    case symmetric = "functional.relationship.direction.symmetric"
+    case activeState = "functional.relationship.state.active"
+    case endedState = "functional.relationship.state.ended"
+    case supersededState = "functional.relationship.state.superseded"
+    case incompleteState = "functional.relationship.state.incomplete"
+    case blockedState = "functional.relationship.state.blocked"
+    case minimumNextRequirement = "functional.relationship.next-step.minimum-requirement"
+    case descriptor = "functional.relationship.descriptor"
+    case bounds = "functional.relationship.bounds"
+    case site = "functional.relationship.site"
+    case crossSiteState = "functional.relationship.site.cross-site"
+
+    static var relationshipHeading: Self { .heading }
+    static var relationshipType: Self { .type }
+    static var directed: Self { .directedSourceToTarget }
+    static var active: Self { .activeState }
+    static var ended: Self { .endedState }
+    static var superseded: Self { .supersededState }
+    static var incomplete: Self { .incompleteState }
+    static var blocked: Self { .blockedState }
+    static var minimumNextStepRequirement: Self { .minimumNextRequirement }
+    static var cardinalityBounds: Self { .bounds }
+    static var sitePolicy: Self { .site }
+    static var crossSite: Self { .crossSiteState }
+}
+
+/// C41 state presentation requires text in addition to any icon or color.
+/// Incomplete and blocked records additionally expose an actionable minimum
+/// requirement so a reader can recover without inferring an operation.
+enum FunctionalRelationshipAccessibilityPolicyV1 {
+    static let semanticIDs = FunctionalRelationshipAccessibilityIDV1.allCases.map(\.rawValue)
+    static let stateSemanticIDs: Set<String> = [
+        FunctionalRelationshipAccessibilityIDV1.activeState.rawValue,
+        FunctionalRelationshipAccessibilityIDV1.endedState.rawValue,
+        FunctionalRelationshipAccessibilityIDV1.supersededState.rawValue,
+        FunctionalRelationshipAccessibilityIDV1.incompleteState.rawValue,
+        FunctionalRelationshipAccessibilityIDV1.blockedState.rawValue,
+    ]
+    static let indeterminateSemanticIDs: Set<String> = [
+        FunctionalRelationshipAccessibilityIDV1.incompleteState.rawValue,
+        FunctionalRelationshipAccessibilityIDV1.blockedState.rawValue,
+    ]
+    static let statusSemanticIDs: Set<String> = stateSemanticIDs
+    static let directionTextRequired = true
+    static let stateTextRequired = true
+    static let nonColorStateTextRequired = true
+    static let textAndIconRequiredForIndeterminateStates = true
+    static let actionableNextStepRequiredForIndeterminateStates = true
+    static let colorOnlyStateAllowed = false
+    static let iconOnlyStateAllowed = false
+    static let rtlRequired = true
+    static let dynamicTypeRequired = true
+    static let voiceOverRequired = true
+    static let voiceControlRequired = true
+    static let switchControlRequired = true
+    static let actionableNextStepRequired = true
+    static let textIconActionableNextStepRequired = true
+
+    static func requiresTextAndIcon(for semanticID: String) -> Bool {
+        indeterminateSemanticIDs.contains(semanticID)
+    }
+
+    static func requiresActionableNextStep(for semanticID: String) -> Bool {
+        indeterminateSemanticIDs.contains(semanticID)
+    }
+}
+
 /// C40 accessibility requirements are represented as contract policy because
 /// the existing accessibility record intentionally carries semantic identity,
 /// role, and localized bindings—not rendering colors or icon assets.

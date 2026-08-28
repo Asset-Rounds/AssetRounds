@@ -519,3 +519,25 @@ private enum FixtureError: Error { case invalid }
 private extension Data {
     var sha256: String { SHA256.hash(data: self).map { String(format: "%02x", $0) }.joined() }
 }
+
+extension S6_2BackupExportTests {
+    func testV23P03C41BackupPayloadRoundTripsDescriptorAndRelationshipHistory() throws {
+        let fixture = try C41FunctionalRelationshipTestSupportV1.makeFixture(seed: 41_620)
+        let snapshot = try CompletedFunctionalRelationshipSnapshotV1(
+            snapshotID: C41FunctionalRelationshipTestSupportV1.id(41_621),
+            workspaceID: fixture.workspaceID,
+            capturedAt: C41FunctionalRelationshipTestSupportV1.fixedDate,
+            descriptorReleases: [fixture.descriptor],
+            relationships: [fixture.added]
+        )
+        let bytes = try FunctionalRelationshipCanonicalCodecV1.encode(snapshot)
+        let restored = try FunctionalRelationshipCanonicalCodecV1.decode(
+            CompletedFunctionalRelationshipSnapshotV1.self, from: bytes
+        )
+
+        XCTAssertEqual(restored, snapshot)
+        XCTAssertEqual(restored.descriptorReleases.first?.descriptorSHA256, fixture.descriptor.descriptorSHA256)
+        XCTAssertEqual(restored.relationships.first?.eventSHA256, fixture.added.eventSHA256)
+        try restored.validate()
+    }
+}

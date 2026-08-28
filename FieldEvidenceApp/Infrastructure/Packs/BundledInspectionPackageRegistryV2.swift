@@ -127,6 +127,24 @@ enum BundledInspectionPackageRegistryV2 {
         return binding
     }
 
+    /// Shipping currently declares no functional edge vocabulary. Returning an
+    /// exact empty sidecar is deliberate: C41 does not infer a lighting graph
+    /// from asset kinds or inspection capabilities.
+    static func shippingFunctionalRelationshipBinding(
+        workspaceID: WorkspaceID
+    ) throws -> InspectionPackageFunctionalRelationshipBindingV1 {
+        let package = try ShippingIlluminatedSignAdapterV1.inspectionPackage()
+        return try InspectionPackageFunctionalRelationshipBindingV1(
+            workspaceID: workspaceID,
+            packageRelease: PackageReleaseIdentityV1(
+                packageID: package.packageID,
+                schemaVersion: package.schemaVersion,
+                contentVersion: package.contentVersion
+            ),
+            descriptorReleases: []
+        )
+    }
+
     static func shippingDraftRelease(
         workflow: WorkflowDefinitionV1
     ) throws -> InspectionPackageReleaseV1 {

@@ -124,6 +124,12 @@ struct AuthorityCriterionDeletionInventoryV1: Equatable, Sendable {
     var isEmpty: Bool { recordIDsByKind.values.allSatisfy(\.isEmpty) }
 }
 
+struct FunctionalRelationshipDeletionInventoryV1: Equatable, Sendable {
+    let descriptorReleaseIDs: Set<UUID>
+    let eventIDs: Set<UUID>
+    var isEmpty: Bool { descriptorReleaseIDs.isEmpty && eventIDs.isEmpty }
+}
+
 enum WholeSignDeletionRule {
     static func validatePartyAccountabilityLifecycle(
         authority: PartyAccountabilityDeletionAuthorityV1,
@@ -165,6 +171,40 @@ enum WholeSignDeletionRule {
             guard after == before else { throw WholeSignDeletionRuleError.invalidGraph }
         case .workspaceErase:
             guard after.isEmpty else { throw WholeSignDeletionRuleError.invalidGraph }
+        }
+    }
+
+    static func validateFunctionalRelationshipLifecycle(
+        authority: PartyAccountabilityDeletionAuthorityV1,
+        before: FunctionalRelationshipDeletionInventoryV1,
+        after: FunctionalRelationshipDeletionInventoryV1
+    ) throws {
+        switch authority {
+        case .ordinaryAssetOrSiteDelete:
+            guard after == before else { throw WholeSignDeletionRuleError.invalidGraph }
+        case .workspaceErase:
+            guard after.isEmpty else { throw WholeSignDeletionRuleError.invalidGraph }
+        }
+    }
+
+    static func functionalRelationshipEndpointDeletionPreviews(
+        assetID: UUID,
+        assetSiteID: UUID,
+        projection: CurrentFunctionalRelationshipProjectionV1,
+        descriptors: [FunctionalRelationshipTypeDescriptorV1]
+    ) throws -> [FunctionalRelationshipDispositionPreviewV1] {
+        let descriptorByID = Dictionary(
+            uniqueKeysWithValues: descriptors.map { ($0.descriptorReleaseID, $0) }
+        )
+        return try projection.currentRelationships.compactMap { relationship in
+            guard relationship.sourceAssetID == assetID || relationship.targetAssetID == assetID,
+                  let descriptor = descriptorByID[
+                    relationship.descriptor.descriptorReleaseID
+                  ] else { return nil }
+            return try FunctionalRelationshipDispositionPreviewEngineV1.preview(
+                change: .deleted, relationship: relationship,
+                descriptor: descriptor, currentSiteID: assetSiteID
+            )
         }
     }
 

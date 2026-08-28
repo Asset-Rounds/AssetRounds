@@ -1532,3 +1532,20 @@ private struct MutationJournalFileAuthorityV1: ApplicationFileAuthorityV1 {
         "mutation-staging/\(mutationID.rawValue.uuidString.lowercased())/\(component)"
     }
 }
+
+extension V10_02MutationEnvelopeReceiptTests {
+    func testV23P03C41MutationEnvelopeHasCanonicalReplayBytes() throws {
+        let fixture = try C41FunctionalRelationshipTestSupportV1.makeFixture(seed: 41_020)
+        let bytes = try FunctionalRelationshipCanonicalCodecV1.encode(fixture.added)
+        let replayed = try FunctionalRelationshipCanonicalCodecV1.decode(
+            AssetFunctionalRelationshipEventV1.self, from: bytes
+        )
+
+        XCTAssertEqual(replayed, fixture.added)
+        XCTAssertEqual(try FunctionalRelationshipCanonicalCodecV1.encode(replayed), bytes)
+        XCTAssertEqual(replayed.mutationID, fixture.added.mutationID)
+        XCTAssertEqual(replayed.revision, fixture.added.revision)
+        XCTAssertEqual(replayed.eventSHA256, fixture.added.eventSHA256)
+        try replayed.validate()
+    }
+}

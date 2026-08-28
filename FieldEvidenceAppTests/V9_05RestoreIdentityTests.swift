@@ -870,3 +870,19 @@ private extension V9_05RestoreIdentityTests {
         do { try await expression(); XCTFail("Expected error", file: file, line: line) } catch { verify(error) }
     }
 }
+
+extension V9_05RestoreIdentityTests {
+    func testV23P03C41RestoreRebindsWorkspaceAndPreservesPredecessorIdentity() throws {
+        let fixture = try C41FunctionalRelationshipTestSupportV1.makeFixture(seed: 41_050)
+        let restoredWorkspace = C41FunctionalRelationshipTestSupportV1.workspace(41_051)
+        let restored = try fixture.ended.rebound(to: restoredWorkspace)
+
+        XCTAssertEqual(restored.workspaceID, restoredWorkspace)
+        XCTAssertEqual(restored.actor.workspaceID, restoredWorkspace)
+        XCTAssertEqual(restored.predecessorEventID, fixture.added.eventID)
+        XCTAssertEqual(restored.expectedRelationshipRevision, fixture.added.revision)
+        XCTAssertEqual(restored.revision, fixture.ended.revision)
+        XCTAssertNotEqual(restored.eventSHA256, fixture.ended.eventSHA256)
+        try restored.validate()
+    }
+}

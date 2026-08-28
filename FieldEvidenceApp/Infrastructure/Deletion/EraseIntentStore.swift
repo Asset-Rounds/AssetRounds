@@ -1,6 +1,14 @@
 import Darwin
 import Foundation
 
+enum FunctionalRelationshipEraseIntentStorePolicyV1 {
+    static func validate() throws {
+        guard FunctionalRelationshipEraseBoundaryV1.validate() else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+    }
+}
+
 enum EraseIntentStoreError: Error, Equatable {
     case invalidAuthority
     case invalidIntent

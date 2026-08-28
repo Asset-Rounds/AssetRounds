@@ -433,3 +433,21 @@ enum V906Integration {
         try? FileManager.default.removeItem(at: root)
     }
 }
+
+extension V9_06DeletionRightsTests {
+    func testV23P03C41DeletionPreviewEndsRelationshipWithoutPersistentWrite() throws {
+        let fixture = try C41FunctionalRelationshipTestSupportV1.makeFixture(seed: 41_060)
+        let preview = try FunctionalRelationshipDispositionPreviewEngineV1.preview(
+            change: .deleted,
+            relationship: fixture.added,
+            descriptor: fixture.descriptor,
+            currentSiteID: C41FunctionalRelationshipTestSupportV1.id(41_061)
+        )
+
+        XCTAssertEqual(preview.disposition, .end)
+        XCTAssertEqual(preview.change, .deleted)
+        XCTAssertEqual(preview.relationshipRevision, fixture.added.revision)
+        XCTAssertFalse(preview.persistentWriteOccurred)
+        try preview.validate()
+    }
+}

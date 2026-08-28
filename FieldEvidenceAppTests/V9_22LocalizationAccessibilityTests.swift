@@ -712,6 +712,171 @@ final class V9_22LocalizationAccessibilityTests: XCTestCase {
         )
     }
 
+    func testV23P03C41FunctionalRelationshipLocalizationAndAccessibilityIsEnglishOnly() throws {
+        let registry = try BundledLocalizationCatalogV1.functionalRelationshipRegistry()
+        try registry.validate()
+
+        let expectedKeys = Set(FunctionalRelationshipLocalizationKeyV1.allCases.map(\.rawValue))
+        XCTAssertEqual(Set(FunctionalRelationshipLocalizationPolicyV1.keys), expectedKeys)
+        XCTAssertTrue(expectedKeys.isSubset(of: Set(registry.definitions.map { $0.key.rawValue })))
+        XCTAssertEqual(FunctionalRelationshipLocalizationPolicyV1.sourceLocale, "en")
+        XCTAssertEqual(FunctionalRelationshipLocalizationPolicyV1.shippingLocale, "en")
+        XCTAssertEqual(FunctionalRelationshipLocalizationPolicyV1.metadataLocale, "en-US")
+        XCTAssertTrue(FunctionalRelationshipLocalizationPolicyV1.directionTextRequired)
+        XCTAssertTrue(FunctionalRelationshipLocalizationPolicyV1.stateTextRequired)
+        XCTAssertEqual(
+            Set(FunctionalRelationshipLocalizationPolicyV1.testOnlyLocales),
+            Set(TestOnlyPseudoLocaleV1.allCases.map(\.rawValue))
+        )
+        XCTAssertEqual(
+            Set(FunctionalRelationshipLocalizationPolicyV1.reportKeys),
+            expectedKeys
+        )
+
+        XCTAssertEqual(
+            FunctionalRelationshipLocalizationKeyV1.directionKey(.directed),
+            .directedSourceToTarget
+        )
+        XCTAssertEqual(
+            FunctionalRelationshipLocalizationKeyV1.directionKey(.undirected),
+            .symmetric
+        )
+        XCTAssertEqual(
+            FunctionalRelationshipLocalizationKeyV1.symmetryKey(.symmetric),
+            .symmetric
+        )
+        XCTAssertEqual(
+            FunctionalRelationshipLocalizationKeyV1.symmetryKey(.asymmetric),
+            .directedSourceToTarget
+        )
+        XCTAssertEqual(
+            FunctionalRelationshipLocalizationKeyV1.eventStateKey(.added),
+            .activeState
+        )
+        XCTAssertEqual(
+            FunctionalRelationshipLocalizationKeyV1.eventStateKey(.ended),
+            .endedState
+        )
+        XCTAssertEqual(
+            FunctionalRelationshipLocalizationKeyV1.eventStateKey(.superseded),
+            .supersededState
+        )
+        XCTAssertEqual(
+            FunctionalRelationshipLocalizationKeyV1.readinessStateKey(.incomplete),
+            .incompleteState
+        )
+        XCTAssertEqual(
+            FunctionalRelationshipLocalizationKeyV1.dispositionStateKey(.reviewRequired),
+            .blockedState
+        )
+        XCTAssertEqual(
+            FunctionalRelationshipLocalizationKeyV1.sitePolicyKey(.sameSiteRequired),
+            .site
+        )
+        XCTAssertEqual(
+            FunctionalRelationshipLocalizationKeyV1.sitePolicyKey(.crossSiteLocalAllowed),
+            .crossSiteState
+        )
+        XCTAssertEqual(
+            FunctionalRelationshipLocalizationKeyV1.minimumRequirementKey(.readiness),
+            .minimumNextRequirement
+        )
+
+        let accessibility = try BundledLocalizationCatalogV1
+            .functionalRelationshipAccessibilityRegistry(localization: registry)
+        let expectedIDs = Set(FunctionalRelationshipAccessibilityIDV1.allCases.map(\.rawValue))
+        let accessibilityIDs = Set(accessibility.entries.map(\.semanticID))
+        XCTAssertTrue(expectedIDs.isSubset(of: accessibilityIDs))
+        XCTAssertEqual(Set(FunctionalRelationshipAccessibilityPolicyV1.semanticIDs), expectedIDs)
+        XCTAssertTrue(FunctionalRelationshipAccessibilityPolicyV1.directionTextRequired)
+        XCTAssertTrue(FunctionalRelationshipAccessibilityPolicyV1.stateTextRequired)
+        XCTAssertTrue(accessibility.entries.allSatisfy {
+            $0.dynamicSuffixPolicy == .none && $0.deprecatedAliases.isEmpty
+        })
+
+        let entriesByID = Dictionary(uniqueKeysWithValues: accessibility.entries.map {
+            ($0.semanticID, $0)
+        })
+        for semanticID in FunctionalRelationshipAccessibilityIDV1.allCases {
+            let entry = try XCTUnwrap(entriesByID[semanticID.rawValue])
+            XCTAssertEqual(
+                try accessibility.identifier(semanticID: semanticID.rawValue),
+                semanticID.rawValue
+            )
+            XCTAssertTrue(
+                registry.definitions.contains { $0.key == entry.labelKey },
+                "missing localized label for \(semanticID.rawValue)"
+            )
+        }
+        for semanticID in FunctionalRelationshipAccessibilityPolicyV1.stateSemanticIDs {
+            XCTAssertEqual(try XCTUnwrap(entriesByID[semanticID]).role, .status)
+        }
+        for semanticID in FunctionalRelationshipAccessibilityPolicyV1.indeterminateSemanticIDs {
+            let entry = try XCTUnwrap(entriesByID[semanticID])
+            XCTAssertNotNil(entry.hintKey, "\(semanticID) needs a minimum next requirement")
+            XCTAssertTrue(FunctionalRelationshipAccessibilityPolicyV1.requiresTextAndIcon(for: semanticID))
+            XCTAssertTrue(FunctionalRelationshipAccessibilityPolicyV1.requiresActionableNextStep(for: semanticID))
+        }
+        XCTAssertTrue(FunctionalRelationshipAccessibilityPolicyV1.nonColorStateTextRequired)
+        XCTAssertTrue(FunctionalRelationshipAccessibilityPolicyV1.textAndIconRequiredForIndeterminateStates)
+        XCTAssertTrue(FunctionalRelationshipAccessibilityPolicyV1.actionableNextStepRequired)
+        XCTAssertFalse(FunctionalRelationshipAccessibilityPolicyV1.colorOnlyStateAllowed)
+        XCTAssertFalse(FunctionalRelationshipAccessibilityPolicyV1.iconOnlyStateAllowed)
+
+        let source = try JSONSerialization.jsonObject(with: sourceCatalogData()) as? [String: Any]
+        let strings = try XCTUnwrap(source?["strings"] as? [String: Any])
+        var c41Text = [String]()
+        for key in FunctionalRelationshipLocalizationKeyV1.allCases {
+            let entry = try XCTUnwrap(strings[key.rawValue] as? [String: Any])
+            let comment = try XCTUnwrap(entry["comment"] as? String)
+            XCTAssertFalse(comment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            let localizations = try XCTUnwrap(entry["localizations"] as? [String: Any])
+            XCTAssertEqual(Set(localizations.keys), Set(["en"]))
+            let english = try XCTUnwrap(localizations["en"] as? [String: Any])
+            let unit = try XCTUnwrap(english["stringUnit"] as? [String: Any])
+            let value = try XCTUnwrap(unit["value"] as? String)
+            XCTAssertFalse(value.isEmpty)
+            c41Text.append(contentsOf: [comment, value])
+            let bundledKey = try XCTUnwrap(BundledLocalizationKeyV1(rawValue: key.rawValue))
+            XCTAssertEqual(BundledLocalizationCatalogV1.localized(bundledKey), value)
+        }
+        XCTAssertTrue(c41Text.contains("Source to target"))
+        XCTAssertTrue(c41Text.contains("Minimum requirement"))
+        XCTAssertFalse(
+            FunctionalRelationshipLocalizationPolicyV1.containsProhibitedClaim(in: c41Text)
+        )
+        XCTAssertFalse(
+            FunctionalRelationshipClaimVocabularyV1.containsProhibitedClaim(
+                in: ["Observed source to target association", "safely recorded"]
+            )
+        )
+        XCTAssertTrue(
+            FunctionalRelationshipClaimVocabularyV1.containsProhibitedClaim(
+                in: [
+                    "ownership asserted", "authorization granted", "compliance status",
+                    "safety result", "telemetry enabled", "remote command",
+                ]
+            )
+        )
+
+        let publication = try BundledLocalizationCatalogV1.publish(
+            sourceCatalogBytes: sourceCatalogData(),
+            legacy: legacyAllowlist(),
+            includeFunctionalRelationships: true
+        )
+        guard case let .complete(
+            publishedRegistry, publishedAccessibility, _, _, receipt
+        ) = publication else {
+            return XCTFail("C41 requires one complete functional-relationship catalog publication")
+        }
+        XCTAssertEqual(publishedRegistry, registry)
+        XCTAssertEqual(
+            Set(publishedAccessibility.entries.map(\.semanticID)),
+            Set(accessibility.entries.map(\.semanticID))
+        )
+        XCTAssertTrue(KernelCanonicalHashV1.validSHA256(receipt.release.releaseSHA256))
+    }
+
     private func corpus() throws -> Corpus {
         try JSONDecoder().decode(Corpus.self, from: Data(contentsOf: try fixtureURL()))
     }

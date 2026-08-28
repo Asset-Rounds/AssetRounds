@@ -771,6 +771,45 @@ struct FrozenFunctionalRelationshipReferenceV1: Codable, Equatable, Hashable, Se
     let semanticCatalogRelease: AssetSemanticCatalogReleaseReferenceV1
     let semanticID: String
 
+    init(
+        relationshipID: UUID,
+        relationshipRevision: UInt64,
+        descriptorReleaseID: UUID,
+        descriptorReleaseRevision: UInt64,
+        packageRelease: PackageReleaseIdentityV1,
+        semanticCatalogRelease: AssetSemanticCatalogReleaseReferenceV1,
+        semanticID: String
+    ) {
+        self.relationshipID = relationshipID
+        self.relationshipRevision = relationshipRevision
+        self.descriptorReleaseID = descriptorReleaseID
+        self.descriptorReleaseRevision = descriptorReleaseRevision
+        self.packageRelease = packageRelease
+        self.semanticCatalogRelease = semanticCatalogRelease
+        self.semanticID = semanticID
+    }
+
+    init(
+        event: AssetFunctionalRelationshipEventV1,
+        descriptor: FunctionalRelationshipTypeDescriptorV1
+    ) throws {
+        try event.validate()
+        try descriptor.validate()
+        guard event.workspaceID == descriptor.workspaceID,
+              event.descriptor == FunctionalRelationshipDescriptorReferenceV1(descriptor),
+              event.action != .ended else {
+            throw AssetSemanticContractFailureV1.invalidAtomicReference
+        }
+        relationshipID = event.relationshipID
+        relationshipRevision = event.revision
+        descriptorReleaseID = descriptor.descriptorReleaseID
+        descriptorReleaseRevision = descriptor.revision
+        packageRelease = descriptor.packageRelease
+        semanticCatalogRelease = descriptor.sourceCatalogRelease
+        semanticID = descriptor.semanticID
+        try validate()
+    }
+
     func validate() throws {
         guard relationshipID != AssetSemanticValidationV1.zeroUUID,
               descriptorReleaseID != AssetSemanticValidationV1.zeroUUID,
@@ -967,6 +1006,23 @@ extension WorkSubjectScopeSnapshotV1 {
         let frozenPackages = Set(semanticBindings.flatMap(\.workflowPackageReleases))
         guard Set(packageReleases).isSubset(of: frozenPackages) else {
             throw AssetSemanticContractFailureV1.incompatibleRelease
+        }
+    }
+
+    func validateFunctionalRelationshipSnapshot(
+        _ snapshot: CompletedFunctionalRelationshipSnapshotV1
+    ) throws {
+        try validate()
+        try snapshot.validate()
+        guard snapshot.workspaceID == workspaceID else {
+            throw AssetSemanticContractFailureV1.crossWorkspaceReference
+        }
+        let frozen = Set(snapshot.frozenReferences)
+        let scoped = subjects.compactMap(\.functionalRelationship)
+        guard !scoped.isEmpty,
+              Set(scoped).count == scoped.count,
+              Set(scoped).isSubset(of: frozen) else {
+            throw AssetSemanticContractFailureV1.invalidAtomicReference
         }
     }
 }

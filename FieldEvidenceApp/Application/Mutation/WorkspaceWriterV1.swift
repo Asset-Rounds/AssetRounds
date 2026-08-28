@@ -496,6 +496,20 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
                 }
             } catch let failure as WorkspaceMutationFailureV1 { throw failure }
             catch { throw WorkspaceMutationFailureV1.invalidCommand }
+        case .applyFunctionalRelationship(let value):
+            do {
+                try value.validate()
+                let target = try value.concurrencyIdentity
+                let expectedEntityRevision = request.expectedRevision.entityRevisions
+                    .first(where: { $0.identity == target })?.revision
+                guard value.workspaceID == identity.workspaceID,
+                      value.mutationID == request.mutationID,
+                      sourceKind == .importedHistory || occurredAtOverride != nil
+                        || expectedEntityRevision == value.expectedRevision else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            } catch let failure as WorkspaceMutationFailureV1 { throw failure }
+            catch { throw WorkspaceMutationFailureV1.invalidCommand }
         default:
             break
         }
@@ -678,6 +692,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
 
         workspaceRevision += 1
         if case let .applyAuthorityCriterion(mutation) = request.command {
+            entityRevisions[try mutation.affectedIdentity] = mutation.postImage.revision
+        } else if case let .applyFunctionalRelationship(mutation) = request.command {
             entityRevisions[try mutation.affectedIdentity] = mutation.postImage.revision
         } else {
             for target in targets { entityRevisions[target, default: 0] += 1 }
@@ -1119,6 +1135,9 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
         case let .applyAuthorityCriterion(value):
             try value.validate()
             values = [try value.affectedIdentity]
+        case let .applyFunctionalRelationship(value):
+            try value.validate()
+            values = [try value.affectedIdentity]
         }
         guard Set(values).count == values.count else {
             throw WorkspaceMutationFailureV1.invalidCommand
@@ -1130,6 +1149,10 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
         for command: WorkspaceCommandV1
     ) throws -> [WorkspaceEntityIdentityV1] {
         if case let .applyAuthorityCriterion(value) = command {
+            try value.validate()
+            return [try value.concurrencyIdentity]
+        }
+        if case let .applyFunctionalRelationship(value) = command {
             try value.validate()
             return [try value.concurrencyIdentity]
         }

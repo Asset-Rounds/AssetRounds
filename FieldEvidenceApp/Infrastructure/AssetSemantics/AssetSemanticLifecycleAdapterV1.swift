@@ -360,6 +360,7 @@ final class AssetSemanticLifecycleAdapterV1: AssetSemanticLifecyclePortV1 {
                 throw AssetSemanticContractFailureV1.invalidValue
             }
             try validateSemanticBindings(in: scope)
+            try validateFunctionalRelationshipBindings(in: scope)
         }
     }
 
@@ -434,6 +435,90 @@ final class AssetSemanticLifecycleAdapterV1: AssetSemanticLifecyclePortV1 {
             assetID: assetID,
             in: modelContext
         )
+    }
+
+    func functionalRelationshipProjection(
+        boundary: FunctionalRelationshipReadinessBoundaryV1? = nil
+    ) throws -> CurrentFunctionalRelationshipProjectionV1 {
+        guard let workspaceID else {
+            throw AssetSemanticContractFailureV1.crossWorkspaceReference
+        }
+        return try functionalRelationshipProjection(
+            workspaceID: workspaceID,
+            boundary: boundary
+        )
+    }
+
+    private func functionalRelationshipProjection(
+        workspaceID: WorkspaceID,
+        boundary: FunctionalRelationshipReadinessBoundaryV1? = nil
+    ) throws -> CurrentFunctionalRelationshipProjectionV1 {
+        let workspace = workspaceID.rawValue
+        let descriptors = try modelContext.fetch(
+            FetchDescriptor<FunctionalRelationshipTypeDescriptorRow>(
+                predicate: #Predicate { $0.workspaceID == workspace }
+            )
+        ).map { try $0.value() }
+        let events = try modelContext.fetch(
+            FetchDescriptor<AssetFunctionalRelationshipEventRow>(
+                predicate: #Predicate { $0.workspaceID == workspace }
+            )
+        ).map { try $0.value() }
+        return try FunctionalRelationshipProjectionBuilderV1.rebuild(
+            workspaceID: workspaceID,
+            events: events,
+            descriptors: descriptors,
+            boundary: boundary
+        )
+    }
+
+    func functionalRelationshipPreview(
+        change: FunctionalRelationshipEndpointChangeV1,
+        relationshipID: UUID,
+        currentSiteID: UUID,
+        proposedSiteID: UUID? = nil
+    ) throws -> FunctionalRelationshipDispositionPreviewV1 {
+        let projection = try functionalRelationshipProjection()
+        guard let relationship = projection.currentRelationships.first(where: {
+            $0.relationshipID == relationshipID
+        }) else {
+            throw FunctionalRelationshipFailureV1.invalidValue
+        }
+        let descriptorID = relationship.descriptor.descriptorReleaseID
+        let rows = try modelContext.fetch(
+            FetchDescriptor<FunctionalRelationshipTypeDescriptorRow>(
+                predicate: #Predicate { $0.descriptorReleaseID == descriptorID }
+            )
+        )
+        guard rows.count == 1, let descriptor = try rows.first?.value() else {
+            throw FunctionalRelationshipFailureV1.unknownDescriptor
+        }
+        return try FunctionalRelationshipDispositionPreviewEngineV1.preview(
+            change: change,
+            relationship: relationship,
+            descriptor: descriptor,
+            currentSiteID: currentSiteID,
+            proposedSiteID: proposedSiteID
+        )
+    }
+
+    func validate(
+        _ scope: WorkSubjectScopeSnapshotV1,
+        against snapshot: CompletedFunctionalRelationshipSnapshotV1
+    ) throws {
+        if let workspaceID {
+            guard scope.workspaceID == workspaceID,
+                  snapshot.workspaceID == workspaceID else {
+                throw AssetSemanticContractFailureV1.crossWorkspaceReference
+            }
+        }
+        try scope.validate(); try snapshot.validate()
+        guard scope.workspaceID == snapshot.workspaceID else {
+            throw AssetSemanticContractFailureV1.crossWorkspaceReference
+        }
+        if scope.subjects.contains(where: { $0.functionalRelationship != nil }) {
+            try scope.validateFunctionalRelationshipSnapshot(snapshot)
+        }
     }
 
     static func snapshot(
@@ -533,6 +618,46 @@ final class AssetSemanticLifecycleAdapterV1: AssetSemanticLifecyclePortV1 {
                 compatibleReleases.contains($0)
             }) else {
                 throw AssetSemanticContractFailureV1.incompatibleRelease
+            }
+        }
+    }
+
+    private func validateFunctionalRelationshipBindings(
+        in scope: WorkSubjectScopeSnapshotV1
+    ) throws {
+        let references = scope.subjects.compactMap(\.functionalRelationship)
+        guard !references.isEmpty else { return }
+        if let workspaceID, scope.workspaceID != workspaceID {
+            throw AssetSemanticContractFailureV1.crossWorkspaceReference
+        }
+        let projection = try functionalRelationshipProjection(
+            workspaceID: scope.workspaceID
+        )
+        let descriptorIDs = Set(references.map(\.descriptorReleaseID))
+        let workspace = scope.workspaceID.rawValue
+        let descriptors = try modelContext.fetch(
+            FetchDescriptor<FunctionalRelationshipTypeDescriptorRow>(
+                predicate: #Predicate { $0.workspaceID == workspace }
+            )
+        ).map { try $0.value() }.filter {
+            descriptorIDs.contains($0.descriptorReleaseID)
+        }
+        guard Set(descriptors.map(\.descriptorReleaseID)) == descriptorIDs else {
+            throw AssetSemanticContractFailureV1.invalidAtomicReference
+        }
+        let descriptorByID = Dictionary(uniqueKeysWithValues: descriptors.map {
+            ($0.descriptorReleaseID, $0)
+        })
+        let currentByID = Dictionary(uniqueKeysWithValues:
+            projection.currentRelationships.map { ($0.relationshipID, $0) }
+        )
+        for reference in references {
+            guard let event = currentByID[reference.relationshipID],
+                  let descriptor = descriptorByID[reference.descriptorReleaseID],
+                  try FrozenFunctionalRelationshipReferenceV1(
+                    event: event, descriptor: descriptor
+                  ) == reference else {
+                throw AssetSemanticContractFailureV1.invalidAtomicReference
             }
         }
     }

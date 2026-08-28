@@ -165,6 +165,13 @@ final class SwiftDataSearchCanonicalProjectionSourceV1: SearchCanonicalProjectio
         let criterionResultSummary: String = ""
         let severityLevelSummary: String = ""
         let measurementProtocolSummary: String = ""
+        /// C41 fields are restricted to descriptor and current-head facts.
+        /// Relationship history, actors, locators, and topology internals
+        /// never enter the disposable index.
+        let functionalRelationshipDescriptorSummary: String = ""
+        let functionalRelationshipDirectionSummary: String = ""
+        let functionalRelationshipStateSummary: String = ""
+        let functionalRelationshipEndpointSummary: String = ""
     }
 
     let registry: SearchableFieldRegistryV1
@@ -176,6 +183,7 @@ final class SwiftDataSearchCanonicalProjectionSourceV1: SearchCanonicalProjectio
     private let includeAccountability: Bool
     private let includeAssetSemantics: Bool
     private let includeAuthorityCriterion: Bool
+    private let includeFunctionalRelationships: Bool
     private var snapshotRevision: SearchSourceRevisionV1?
     private var snapshotValues: [CanonicalValue]?
     private var snapshotBackupStaleIdentities: Set<SearchCanonicalRecordIdentityV1> = []
@@ -188,7 +196,8 @@ final class SwiftDataSearchCanonicalProjectionSourceV1: SearchCanonicalProjectio
         operationalStatusProvider: (any SearchOperationalStatusProvidingV1)? = nil,
         includeAccountability: Bool = false,
         includeAssetSemantics: Bool = false,
-        includeAuthorityCriterion: Bool = false
+        includeAuthorityCriterion: Bool = false,
+        includeFunctionalRelationships: Bool = false
     ) throws {
         guard workspaceID != SearchContractValidationV1.zeroUUID,
               generationID != SearchContractValidationV1.zeroUUID else {
@@ -202,10 +211,12 @@ final class SwiftDataSearchCanonicalProjectionSourceV1: SearchCanonicalProjectio
         self.includeAccountability = includeAccountability
         self.includeAssetSemantics = includeAssetSemantics
         self.includeAuthorityCriterion = includeAuthorityCriterion
+        self.includeFunctionalRelationships = includeFunctionalRelationships
         registry = try Self.makeExtendedRegistry(
             includeAccountability: includeAccountability,
             includeAssetSemantics: includeAssetSemantics,
-            includeAuthorityCriterion: includeAuthorityCriterion
+            includeAuthorityCriterion: includeAuthorityCriterion,
+            includeFunctionalRelationships: includeFunctionalRelationships
         )
     }
 
@@ -286,6 +297,9 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         let authorityByActivity = includeAuthorityCriterion
             ? try authorityCriterionSearchValues()
             : [:]
+        let functionalRelationshipValues = includeFunctionalRelationships
+            ? try functionalRelationshipSearchValues()
+            : []
         values += try modelContext.fetch(FetchDescriptor<Asset>()).map {
             let semantic = semanticByAsset[$0.id]
             return CanonicalValue(kind: .asset, stableID: try stableKey(kind: .asset, id: $0.id),
@@ -333,6 +347,7 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
                 display: display, summary: display, breadcrumb: [], status: $0.pdfState,
                 dueAt: nil, timestamp: $0.createdAt)
         }
+        values += functionalRelationshipValues
         if includeAccountability {
             var rolesByParty: [UUID: Set<String>] = [:]
             let roleRows = try modelContext.fetch(FetchDescriptor<SitePartyRoleEventRow>())
@@ -465,6 +480,112 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         var measurementProtocols: Set<String> = []
     }
 
+    /// Reads only descriptor releases and the one current head selected by the
+    /// canonical C41 projection builder. Any orphan, fork, cycle, unknown
+    /// descriptor, or invalid transition fails the rebuild rather than being
+    /// silently indexed.
+    func functionalRelationshipSearchValues() throws -> [CanonicalValue] {
+        let expectedWorkspace = WorkspaceID(rawValue: workspaceID)
+        let descriptorRows = try modelContext.fetch(
+            FetchDescriptor<FunctionalRelationshipTypeDescriptorRow>()
+        ).filter { $0.workspaceID == workspaceID }
+        let descriptors = try descriptorRows.map { try $0.value() }
+        var descriptorByID: [UUID: FunctionalRelationshipTypeDescriptorV1] = [:]
+        for descriptor in descriptors {
+            guard descriptor.workspaceID == expectedWorkspace,
+                  descriptorByID[descriptor.descriptorReleaseID] == nil else {
+                throw SearchContractFailureV1.invalidContext
+            }
+            descriptorByID[descriptor.descriptorReleaseID] = descriptor
+        }
+        let eventRows = try modelContext.fetch(
+            FetchDescriptor<AssetFunctionalRelationshipEventRow>()
+        ).filter { $0.workspaceID == workspaceID }
+        let events = try eventRows.map { try $0.value() }
+        let current = try FunctionalRelationshipProjectionBuilderV1.rebuild(
+            workspaceID: expectedWorkspace,
+            events: events,
+            descriptors: descriptors
+        ).currentRelationships
+
+        // Placement history is canonical context, never indexed content. When
+        // both endpoints have a current placement, same-site descriptors must
+        // agree with it; a cross-site row is rejected instead of becoming a
+        // misleading search hit. Missing placement is left unresolved for a
+        // descriptor that explicitly permits cross-site local associations.
+        let placementValues = try modelContext.fetch(
+            FetchDescriptor<AssetPlacementEventRow>()
+        ).filter { $0.workspaceID == workspaceID }.map { try $0.value() }
+        let currentPlacements = try authorityCriterionUniqueHeadsV1(
+            values: placementValues,
+            expectedWorkspace: expectedWorkspace,
+            id: { $0.id },
+            workspace: { $0.workspaceID },
+            predecessor: { $0.predecessorEventID },
+            group: { $0.assetID }
+        )
+        let siteByAsset = Dictionary(uniqueKeysWithValues: currentPlacements.map {
+            ($0.assetID, $0.siteID)
+        })
+        for event in current {
+            guard let descriptor = descriptorByID[event.descriptor.descriptorReleaseID] else {
+                throw SearchContractFailureV1.invalidContext
+            }
+            if descriptor.sitePolicy == .sameSiteRequired,
+               let sourceSite = siteByAsset[event.sourceAssetID],
+               let targetSite = siteByAsset[event.targetAssetID],
+               sourceSite != targetSite {
+                throw SearchContractFailureV1.invalidContext
+            }
+        }
+
+        var values: [CanonicalValue] = []
+        for descriptor in descriptors.sorted(by: {
+            ($0.semanticID, $0.descriptorReleaseID.uuidString)
+                < ($1.semanticID, $1.descriptorReleaseID.uuidString)
+        }) {
+            values.append(CanonicalValue(
+                kind: .asset,
+                stableID: "functional-descriptor-\(descriptor.descriptorReleaseID.uuidString.lowercased())",
+                display: descriptor.semanticID,
+                summary: descriptor.semanticID,
+                breadcrumb: [],
+                status: "descriptor",
+                dueAt: nil,
+                timestamp: descriptor.releasedAt,
+                functionalRelationshipDescriptorSummary: descriptor.semanticID,
+                functionalRelationshipDirectionSummary: descriptor.direction.rawValue,
+                functionalRelationshipStateSummary: "DESCRIPTOR",
+                functionalRelationshipEndpointSummary: ""
+            ))
+        }
+        for event in current.sorted(by: {
+            ($0.relationshipID.uuidString, $0.revision)
+                < ($1.relationshipID.uuidString, $1.revision)
+        }) {
+            guard let descriptor = descriptorByID[event.descriptor.descriptorReleaseID],
+                  descriptor.descriptorSHA256 == event.descriptor.descriptorSHA256 else {
+                throw SearchContractFailureV1.invalidContext
+            }
+            let state = event.action == .superseded ? "SUPERSEDED" : "ACTIVE"
+            values.append(CanonicalValue(
+                kind: .asset,
+                stableID: "functional-relationship-\(event.relationshipID.uuidString.lowercased())",
+                display: descriptor.semanticID,
+                summary: descriptor.semanticID,
+                breadcrumb: [],
+                status: state.lowercased(),
+                dueAt: nil,
+                timestamp: event.recordedAt,
+                functionalRelationshipDescriptorSummary: descriptor.semanticID,
+                functionalRelationshipDirectionSummary: descriptor.direction.rawValue,
+                functionalRelationshipStateSummary: state,
+                functionalRelationshipEndpointSummary: "\(event.sourceAssetID.uuidString.lowercased()) \(event.targetAssetID.uuidString.lowercased())"
+            ))
+        }
+        return values
+    }
+
     /// Builds only exact activity-bound summaries. Licensed content, clause/raw
     /// locators, external locator values, and derived facts without an explicit
     /// activity reference are intentionally excluded.
@@ -582,9 +703,19 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         var fields: [(String, String)]
         switch value.kind {
         case .asset:
-            fields = [("asset_identifier", value.stableID), ("asset_label", value.display),
-                      ("status", value.status)]
-            if includeAssetSemantics {
+            if includeFunctionalRelationships,
+               value.stableID.hasPrefix("functional-") {
+                fields = [
+                    ("functional_relationship_descriptor", value.functionalRelationshipDescriptorSummary),
+                    ("functional_relationship_direction", value.functionalRelationshipDirectionSummary),
+                    ("functional_relationship_state", value.functionalRelationshipStateSummary),
+                    ("functional_relationship_endpoint", value.functionalRelationshipEndpointSummary),
+                ].filter { !$0.1.isEmpty }
+            } else {
+                fields = [("asset_identifier", value.stableID), ("asset_label", value.display),
+                          ("status", value.status)]
+            }
+            if includeAssetSemantics && !value.stableID.hasPrefix("functional-") {
                 fields += [
                     ("asset_semantic_kind", value.semanticKindSummary),
                     ("asset_semantic_capability", value.semanticCapabilitySummary),
@@ -715,10 +846,24 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         )
     }
 
+    static func makeFunctionalRelationshipsRegistry(
+        includeAccountability: Bool = false,
+        includeAssetSemantics: Bool = false,
+        includeAuthorityCriterion: Bool = false
+    ) throws -> SearchableFieldRegistryV1 {
+        try makeExtendedRegistry(
+            includeAccountability: includeAccountability,
+            includeAssetSemantics: includeAssetSemantics,
+            includeAuthorityCriterion: includeAuthorityCriterion,
+            includeFunctionalRelationships: true
+        )
+    }
+
     static func makeExtendedRegistry(
         includeAccountability: Bool,
         includeAssetSemantics: Bool,
-        includeAuthorityCriterion: Bool
+        includeAuthorityCriterion: Bool,
+        includeFunctionalRelationships: Bool = false
     ) throws -> SearchableFieldRegistryV1 {
         var fields = try (includeAccountability ? makeAccountabilityRegistry() : makeRegistry()).fields
         func append(_ id: String, _ kind: SearchSourceKindV1) throws {
@@ -736,6 +881,11 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         }
         if includeAuthorityCriterion {
             for id in SearchAuthorityCriterionPersistencePolicyV1.fieldIDs { try append(id, .work) }
+        }
+        if includeFunctionalRelationships {
+            for id in SearchFunctionalRelationshipsPersistencePolicyV1.fieldIDs {
+                try append(id, .asset)
+            }
         }
         return try SearchableFieldRegistryV1(fields: fields)
     }

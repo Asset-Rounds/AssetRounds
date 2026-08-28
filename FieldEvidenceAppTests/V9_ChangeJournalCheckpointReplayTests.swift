@@ -900,3 +900,28 @@ private struct ChangeJournalCorpusV1: Decodable {
     let rollback: Rollback
     let releaseAbsence: ReleaseAbsence
 }
+
+extension V9_ChangeJournalCheckpointReplayTests {
+    func testV23P03C41CheckpointReplayProducesDeterministicProjections() throws {
+        let fixture = try C41FunctionalRelationshipTestSupportV1.makeFixture(seed: 41_090)
+
+        let ended = try FunctionalRelationshipProjectionBuilderV1.rebuild(
+            workspaceID: fixture.workspaceID,
+            events: [fixture.added, fixture.ended],
+            descriptors: [fixture.descriptor]
+        )
+        let superseded = try FunctionalRelationshipProjectionBuilderV1.rebuild(
+            workspaceID: fixture.workspaceID,
+            events: [fixture.added, fixture.superseded],
+            descriptors: [fixture.descriptor]
+        )
+
+        XCTAssertTrue(ended.currentRelationships.isEmpty)
+        XCTAssertEqual(superseded.currentRelationships.count, 1)
+        XCTAssertEqual(superseded.currentRelationships.first?.revision, 2)
+        XCTAssertNotEqual(ended.sourceEventsSHA256, superseded.sourceEventsSHA256)
+        XCTAssertEqual(superseded.currentRelationships.first?.predecessorEventID, fixture.added.eventID)
+        try fixture.ended.validateSuccessor(of: fixture.added)
+        try fixture.superseded.validateSuccessor(of: fixture.added)
+    }
+}

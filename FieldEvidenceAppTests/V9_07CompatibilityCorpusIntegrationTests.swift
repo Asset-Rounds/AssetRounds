@@ -598,3 +598,28 @@ private func restorePointer(
         replicaID: try XCTUnwrap(UUID(uuidString: pointer.replicaID))
     )
 }
+
+extension V9_07CompatibilityCorpusIntegrationTests {
+    func testV23P03C41CorpusBindsV12AndPortableContractNames() throws {
+        let url = C41FunctionalRelationshipTestSupportV1.sourceRoot().appendingPathComponent(
+            "FieldEvidenceAppTests/Fixtures/V21/FunctionalRelationships/V21P03C41FunctionalRelationshipCorpusV1.json"
+        )
+        let root = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+        )
+        XCTAssertEqual(root["schema"] as? String, "V21P03C41FunctionalRelationshipCorpusV1")
+        XCTAssertEqual(root["cardID"] as? String, "V23-P03-C41")
+
+        let persistence = try XCTUnwrap(root["persistence"] as? [String: Any])
+        XCTAssertEqual(persistence["schemaRelease"] as? String, "PERSISTENT_SCHEMA_V12_FUNCTIONAL_RELATIONSHIPS")
+        XCTAssertEqual(persistence["predecessorSchemaVersion"] as? Int, 11)
+        XCTAssertEqual(persistence["recordsCatalog"] as? String, "RECORDS11")
+
+        let contracts = try XCTUnwrap(root["requiredContractNames"] as? [String])
+        XCTAssertTrue(contracts.contains("FunctionalRelationshipTypeDescriptorV1"))
+        XCTAssertTrue(contracts.contains("AssetFunctionalRelationshipEventV1"))
+        XCTAssertTrue(contracts.contains("CurrentFunctionalRelationshipProjectionV1"))
+        XCTAssertTrue(contracts.contains("CompletedFunctionalRelationshipSnapshotV1"))
+        XCTAssertTrue(contracts.contains("FunctionalRelationshipDispositionPreviewV1"))
+    }
+}

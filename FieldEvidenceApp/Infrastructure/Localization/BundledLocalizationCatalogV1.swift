@@ -49,6 +49,33 @@ enum BundledLocalizationKeyV1: String, CaseIterable, Sendable {
     case authorityCriterionTechnicalBasis = "authority.criterion.technical_basis"
     case authorityCriterionNextStep = "authority.criterion.next_step"
     case authorityCriterionAssessedAgainst = "authority.criterion.assessed_against"
+    case functionalRelationshipHeading = "functional.relationship.heading"
+    case functionalRelationshipType = "functional.relationship.type"
+    case functionalRelationshipDirectedSourceToTarget = "functional.relationship.direction.source_to_target"
+    case functionalRelationshipSymmetric = "functional.relationship.direction.symmetric"
+    case functionalRelationshipActiveState = "functional.relationship.state.active"
+    case functionalRelationshipEndedState = "functional.relationship.state.ended"
+    case functionalRelationshipSupersededState = "functional.relationship.state.superseded"
+    case functionalRelationshipIncompleteState = "functional.relationship.state.incomplete"
+    case functionalRelationshipBlockedState = "functional.relationship.state.blocked"
+    case functionalRelationshipMinimumNextRequirement = "functional.relationship.next_step.minimum_requirement"
+    case functionalRelationshipDescriptor = "functional.relationship.descriptor"
+    case functionalRelationshipBounds = "functional.relationship.bounds"
+    case functionalRelationshipSite = "functional.relationship.site"
+    case functionalRelationshipCrossSiteState = "functional.relationship.site.cross_site"
+
+    static var functionalRelationshipDirected: Self { .functionalRelationshipDirectedSourceToTarget }
+    static var functionalRelationshipActive: Self { .functionalRelationshipActiveState }
+    static var functionalRelationshipEnded: Self { .functionalRelationshipEndedState }
+    static var functionalRelationshipSuperseded: Self { .functionalRelationshipSupersededState }
+    static var functionalRelationshipIncomplete: Self { .functionalRelationshipIncompleteState }
+    static var functionalRelationshipBlocked: Self { .functionalRelationshipBlockedState }
+    static var functionalRelationshipMinimumNextStepRequirement: Self {
+        .functionalRelationshipMinimumNextRequirement
+    }
+    static var functionalRelationshipCardinalityBounds: Self { .functionalRelationshipBounds }
+    static var functionalRelationshipSitePolicy: Self { .functionalRelationshipSite }
+    static var functionalRelationshipCrossSite: Self { .functionalRelationshipCrossSiteState }
 }
 
 enum LocalizationCatalogPublicationBoundaryV1: String, CaseIterable, Sendable {
@@ -311,6 +338,102 @@ enum BundledLocalizationCatalogV1 {
 
     static func authorityCriteriaRegistry() throws -> LocalizationKeyRegistryV1 {
         try authorityCriterionRegistry()
+    }
+
+    /// C41's additive key surface.  Relationship values remain typed facts
+    /// owned by the functional-relationship contracts; this catalog supplies
+    /// only their English display vocabulary.
+    static func functionalRelationshipRegistry() throws -> LocalizationKeyRegistryV1 {
+        let base = try authorityCriterionRegistry()
+        let additions = [
+            try definition(
+                .functionalRelationshipHeading, "functional.relationship.heading",
+                "Functional relationships",
+                "Heading for recorded functional relationship facts."
+            ),
+            try definition(
+                .functionalRelationshipType, "functional.relationship.type",
+                "Relationship type",
+                "Localized label for the package-declared relationship type."
+            ),
+            try definition(
+                .functionalRelationshipDirectedSourceToTarget,
+                "functional.relationship.direction.source_to_target",
+                "Source to target",
+                "Text label for a directed relationship from source to target."
+            ),
+            try definition(
+                .functionalRelationshipSymmetric,
+                "functional.relationship.direction.symmetric",
+                "Symmetric",
+                "Text label for a symmetric relationship."
+            ),
+            try definition(
+                .functionalRelationshipActiveState,
+                "functional.relationship.state.active",
+                "Active",
+                "Text label for an active relationship record."
+            ),
+            try definition(
+                .functionalRelationshipEndedState,
+                "functional.relationship.state.ended",
+                "Ended",
+                "Text label for an ended relationship record."
+            ),
+            try definition(
+                .functionalRelationshipSupersededState,
+                "functional.relationship.state.superseded",
+                "Superseded",
+                "Text label for a superseded relationship record."
+            ),
+            try definition(
+                .functionalRelationshipIncompleteState,
+                "functional.relationship.state.incomplete",
+                "Incomplete",
+                "Text label for an incomplete relationship readiness state."
+            ),
+            try definition(
+                .functionalRelationshipBlockedState,
+                "functional.relationship.state.blocked",
+                "Blocked",
+                "Text label for a blocked relationship state."
+            ),
+            try definition(
+                .functionalRelationshipMinimumNextRequirement,
+                "functional.relationship.next_step.minimum_requirement",
+                "Minimum requirement",
+                "Actionable label for the minimum next requirement for an incomplete record."
+            ),
+            try definition(
+                .functionalRelationshipDescriptor,
+                "functional.relationship.descriptor",
+                "Descriptor",
+                "Localized label for a package relationship descriptor."
+            ),
+            try definition(
+                .functionalRelationshipBounds,
+                "functional.relationship.bounds",
+                "Cardinality bounds",
+                "Localized label for source and target cardinality bounds."
+            ),
+            try definition(
+                .functionalRelationshipSite,
+                "functional.relationship.site",
+                "Same-site policy",
+                "Localized label for the descriptor's Site policy."
+            ),
+            try definition(
+                .functionalRelationshipCrossSiteState,
+                "functional.relationship.site.cross_site",
+                "Cross-site local",
+                "Text label for a recorded cross-Site relationship state."
+            ),
+        ]
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+
+    static func functionalRelationshipsRegistry() throws -> LocalizationKeyRegistryV1 {
+        try functionalRelationshipRegistry()
     }
 
     static func accessibilityRegistry(
@@ -656,6 +779,144 @@ enum BundledLocalizationCatalogV1 {
         try authorityCriterionAccessibilityRegistry(localization: localization)
     }
 
+    /// C41's additive semantic IDs inherit the C16/C38/C39/C40 IDs and bind
+    /// every relationship label to the sole typed localization registry.
+    static func functionalRelationshipAccessibilityRegistry(
+        localization: LocalizationKeyRegistryV1
+    ) throws -> SemanticAccessibilityIDRegistryV1 {
+        let base = try authorityCriterionAccessibilityRegistry(localization: localization)
+        let minimumNextRequirement = try LocalizationKeyV1(
+            BundledLocalizationKeyV1.functionalRelationshipMinimumNextRequirement.rawValue
+        )
+        let entries: [AccessibilityContractV1] = [
+            AccessibilityContractV1(
+                semanticID: FunctionalRelationshipAccessibilityIDV1.screen.rawValue,
+                role: .screen, reachability: .always,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.functionalRelationshipHeading.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: FunctionalRelationshipAccessibilityIDV1.heading.rawValue,
+                role: .heading, reachability: .always,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.functionalRelationshipHeading.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: FunctionalRelationshipAccessibilityIDV1.type.rawValue,
+                role: .group, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.functionalRelationshipType.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: FunctionalRelationshipAccessibilityIDV1.directedSourceToTarget.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.functionalRelationshipDirectedSourceToTarget.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: FunctionalRelationshipAccessibilityIDV1.symmetric.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.functionalRelationshipSymmetric.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: FunctionalRelationshipAccessibilityIDV1.activeState.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.functionalRelationshipActiveState.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: FunctionalRelationshipAccessibilityIDV1.endedState.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.functionalRelationshipEndedState.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: FunctionalRelationshipAccessibilityIDV1.supersededState.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.functionalRelationshipSupersededState.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: FunctionalRelationshipAccessibilityIDV1.incompleteState.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.functionalRelationshipIncompleteState.rawValue
+                ), hintKey: minimumNextRequirement, valueKey: nil,
+                dynamicSuffixPolicy: .none, deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: FunctionalRelationshipAccessibilityIDV1.blockedState.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.functionalRelationshipBlockedState.rawValue
+                ), hintKey: minimumNextRequirement, valueKey: nil,
+                dynamicSuffixPolicy: .none, deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: FunctionalRelationshipAccessibilityIDV1.minimumNextRequirement.rawValue,
+                role: .button, reachability: .whenAvailable,
+                labelKey: minimumNextRequirement, hintKey: nil, valueKey: nil,
+                dynamicSuffixPolicy: .none, deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: FunctionalRelationshipAccessibilityIDV1.descriptor.rawValue,
+                role: .group, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.functionalRelationshipDescriptor.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: FunctionalRelationshipAccessibilityIDV1.bounds.rawValue,
+                role: .group, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.functionalRelationshipBounds.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: FunctionalRelationshipAccessibilityIDV1.site.rawValue,
+                role: .group, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.functionalRelationshipSite.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: FunctionalRelationshipAccessibilityIDV1.crossSiteState.rawValue,
+                role: .status, reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(
+                    BundledLocalizationKeyV1.functionalRelationshipCrossSiteState.rawValue
+                ), hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+        ]
+        return try base.appending(entries, localization: localization)
+    }
+
+    static func functionalRelationshipsAccessibilityRegistry(
+        localization: LocalizationKeyRegistryV1
+    ) throws -> SemanticAccessibilityIDRegistryV1 {
+        try functionalRelationshipAccessibilityRegistry(localization: localization)
+    }
+
     static func publish(
         sourceCatalogBytes: Data,
         packagePublications: [InspectionPackagePublishedReleaseV1] = [],
@@ -665,6 +926,7 @@ enum BundledLocalizationCatalogV1 {
         includeAccountability: Bool = false,
         includeAssetSemantics: Bool = false,
         includeAuthorityCriteria: Bool = false,
+        includeFunctionalRelationships: Bool = false,
         interruption: Interruption = { _ in }
     ) throws -> LocalizationCatalogPublicationV1 {
         try interruption(.beforeValidation)
@@ -672,7 +934,9 @@ enum BundledLocalizationCatalogV1 {
         let locales = LocalizationLocaleManifestV1.shippingV1()
         try locales.validate()
         let keys: LocalizationKeyRegistryV1
-        if includeAuthorityCriteria {
+        if includeFunctionalRelationships {
+            keys = try functionalRelationshipRegistry()
+        } else if includeAuthorityCriteria {
             keys = try authorityCriterionRegistry()
         } else if includeAssetSemantics {
             keys = try assetSemanticRegistry()
@@ -689,7 +953,9 @@ enum BundledLocalizationCatalogV1 {
         }
         if let previousLegacy { try previousLegacy.validateObserved(legacy.entries) }
         let accessibility: SemanticAccessibilityIDRegistryV1
-        if includeAuthorityCriteria {
+        if includeFunctionalRelationships {
+            accessibility = try functionalRelationshipAccessibilityRegistry(localization: keys)
+        } else if includeAuthorityCriteria {
             accessibility = try authorityCriterionAccessibilityRegistry(localization: keys)
         } else if includeAssetSemantics {
             accessibility = try assetSemanticAccessibilityRegistry(localization: keys)
@@ -738,7 +1004,8 @@ enum BundledLocalizationCatalogV1 {
         packagePublications: [InspectionPackagePublishedReleaseV1] = [],
         includeAccountability: Bool = false,
         includeAssetSemantics: Bool = false,
-        includeAuthorityCriteria: Bool = false
+        includeAuthorityCriteria: Bool = false,
+        includeFunctionalRelationships: Bool = false
     ) throws -> LocalizationCatalogPublicationV1 {
         switch (sourceCatalogBytes, receipt) {
         case (nil, nil): return .zero
@@ -749,7 +1016,8 @@ enum BundledLocalizationCatalogV1 {
                 legacy: legacy,
                 includeAccountability: includeAccountability,
                 includeAssetSemantics: includeAssetSemantics,
-                includeAuthorityCriteria: includeAuthorityCriteria
+                includeAuthorityCriteria: includeAuthorityCriteria,
+                includeFunctionalRelationships: includeFunctionalRelationships
             )
             guard case let .complete(_, _, _, _, actual) = publication,
                   actual == expected else { throw LocalizationContractFailureV1.digestMismatch }
@@ -857,6 +1125,34 @@ enum BundledLocalizationCatalogV1 {
             return String(localized: "authority.criterion.next_step", defaultValue: "Next step", bundle: bundle, locale: locale, comment: "Localized label for the actionable next step accompanying an unresolved state.")
         case .authorityCriterionAssessedAgainst:
             return String(localized: "authority.criterion.assessed_against", defaultValue: "Assessed against", bundle: bundle, locale: locale, comment: "Localized wording for a report that states which basis was assessed against.")
+        case .functionalRelationshipHeading:
+            return String(localized: "functional.relationship.heading", defaultValue: "Functional relationships", bundle: bundle, locale: locale, comment: "Heading for recorded functional relationship facts.")
+        case .functionalRelationshipType:
+            return String(localized: "functional.relationship.type", defaultValue: "Relationship type", bundle: bundle, locale: locale, comment: "Localized label for the package-declared relationship type.")
+        case .functionalRelationshipDirectedSourceToTarget:
+            return String(localized: "functional.relationship.direction.source_to_target", defaultValue: "Source to target", bundle: bundle, locale: locale, comment: "Text label for a directed relationship from source to target.")
+        case .functionalRelationshipSymmetric:
+            return String(localized: "functional.relationship.direction.symmetric", defaultValue: "Symmetric", bundle: bundle, locale: locale, comment: "Text label for a symmetric relationship.")
+        case .functionalRelationshipActiveState:
+            return String(localized: "functional.relationship.state.active", defaultValue: "Active", bundle: bundle, locale: locale, comment: "Text label for an active relationship record.")
+        case .functionalRelationshipEndedState:
+            return String(localized: "functional.relationship.state.ended", defaultValue: "Ended", bundle: bundle, locale: locale, comment: "Text label for an ended relationship record.")
+        case .functionalRelationshipSupersededState:
+            return String(localized: "functional.relationship.state.superseded", defaultValue: "Superseded", bundle: bundle, locale: locale, comment: "Text label for a superseded relationship record.")
+        case .functionalRelationshipIncompleteState:
+            return String(localized: "functional.relationship.state.incomplete", defaultValue: "Incomplete", bundle: bundle, locale: locale, comment: "Text label for an incomplete relationship readiness state.")
+        case .functionalRelationshipBlockedState:
+            return String(localized: "functional.relationship.state.blocked", defaultValue: "Blocked", bundle: bundle, locale: locale, comment: "Text label for a blocked relationship state.")
+        case .functionalRelationshipMinimumNextRequirement:
+            return String(localized: "functional.relationship.next_step.minimum_requirement", defaultValue: "Minimum requirement", bundle: bundle, locale: locale, comment: "Actionable label for the minimum next requirement for an incomplete record.")
+        case .functionalRelationshipDescriptor:
+            return String(localized: "functional.relationship.descriptor", defaultValue: "Descriptor", bundle: bundle, locale: locale, comment: "Localized label for a package relationship descriptor.")
+        case .functionalRelationshipBounds:
+            return String(localized: "functional.relationship.bounds", defaultValue: "Cardinality bounds", bundle: bundle, locale: locale, comment: "Localized label for source and target cardinality bounds.")
+        case .functionalRelationshipSite:
+            return String(localized: "functional.relationship.site", defaultValue: "Same-site policy", bundle: bundle, locale: locale, comment: "Localized label for the descriptor's Site policy.")
+        case .functionalRelationshipCrossSiteState:
+            return String(localized: "functional.relationship.site.cross_site", defaultValue: "Cross-site local", bundle: bundle, locale: locale, comment: "Text label for a recorded cross-Site relationship state.")
         }
     }
 
@@ -908,8 +1204,8 @@ enum BundledLocalizationCatalogV1 {
         // The source catalog may be validated against any currently declared
         // additive projection, while the selected registry still controls the
         // required subset.  This keeps C16/C38 compatibility callers frozen
-        // and lets the C39/C40 typed surfaces publish atomically.
-        let supportedKeys = Set((try? authorityCriterionRegistry())?.definitions.map(\.key.rawValue) ?? [])
+        // and lets each additive typed surface publish atomically.
+        let supportedKeys = Set((try? functionalRelationshipRegistry())?.definitions.map(\.key.rawValue) ?? [])
         guard registeredKeys.isSubset(of: Set(strings.keys)),
               Set(strings.keys).isSubset(of: supportedKeys) else {
             throw LocalizationContractFailureV1.invalidValue

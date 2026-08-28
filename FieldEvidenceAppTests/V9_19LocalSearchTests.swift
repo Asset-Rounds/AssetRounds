@@ -4,6 +4,27 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class V9_19LocalSearchTests: XCTestCase {
+    func testV23P03C41FunctionalRelationshipSearchRegistryIsOptInAndBounded() throws {
+        let registry = try SearchIndexRebuildCoordinatorV1.makeExtendedRegistry(
+            includeAccountability: false,
+            includeAssetSemantics: false,
+            includeAuthorityCriterion: false,
+            includeFunctionalRelationships: true
+        )
+        XCTAssertEqual(
+            registry.fields.count,
+            SearchContractLimitsV1.maximumFunctionalRelationshipFieldRegistrations
+        )
+        XCTAssertTrue(
+            SearchFunctionalRelationshipsPersistencePolicyV1.fieldIDs.allSatisfy { fieldID in
+                registry.fields.contains { $0.fieldID == fieldID && $0.sourceKind == .asset }
+            }
+        )
+        XCTAssertTrue(SearchFunctionalRelationshipsPersistencePolicyV1.indexesCurrentHeadsOnly)
+        XCTAssertTrue(SearchFunctionalRelationshipsPersistencePolicyV1.excludesHistoricalEvents)
+        XCTAssertTrue(SearchFunctionalRelationshipsPersistencePolicyV1.excludesGraphTruth)
+    }
+
     func testV23P03C40SearchHeadExcludesSupersededAuthorityRelease() throws {
         let root = try C40BackupLifecycleTestValues.source()
         let successor = try C40BackupLifecycleTestValues.source(

@@ -1232,6 +1232,8 @@ private extension WholeSignDeletionService {
         let assetLifecycleEvents: [AssetLifecycleEventRow]
         let assetSuccessorLinks: [AssetSuccessorLinkRow]
         let workSubjectScopeSnapshots: [WorkSubjectScopeSnapshotRow]
+        let functionalRelationshipDescriptors: [FunctionalRelationshipTypeDescriptorRow]
+        let functionalRelationshipEvents: [AssetFunctionalRelationshipEventRow]
         let observationAndTime: [UUID: ObservationAndTimeRow]
         let recordPayloads: [WorkflowRecordPayloadV1]
         let evidence: [EvidenceFile]
@@ -1271,6 +1273,8 @@ private extension WholeSignDeletionService {
                 assetLifecycleEvents: try boundedFetch(AssetLifecycleEventRow.self),
                 assetSuccessorLinks: try boundedFetch(AssetSuccessorLinkRow.self),
                 workSubjectScopeSnapshots: try boundedFetch(WorkSubjectScopeSnapshotRow.self),
+                functionalRelationshipDescriptors: try boundedFetch(FunctionalRelationshipTypeDescriptorRow.self),
+                functionalRelationshipEvents: try boundedFetch(AssetFunctionalRelationshipEventRow.self),
                 observationAndTime: observationAndTime,
                 recordPayloads: recordPayloads,
                 evidence: try boundedFetch(EvidenceFile.self),
@@ -1289,6 +1293,33 @@ private extension WholeSignDeletionService {
         deletingSiteID: UUID?
     ) throws {
         do {
+            let descriptors = try rows.functionalRelationshipDescriptors.map { try $0.value() }
+            let events = try rows.functionalRelationshipEvents.map { try $0.value() }
+            for workspaceID in Set(events.map(\.workspaceID)) {
+                let projection = try FunctionalRelationshipProjectionBuilderV1.rebuild(
+                    workspaceID: workspaceID,
+                    events: events.filter { $0.workspaceID == workspaceID },
+                    descriptors: descriptors.filter { $0.workspaceID == workspaceID }
+                )
+                if let deletingAssetID,
+                   let siteID = rows.assets.first(where: { $0.id == deletingAssetID })?.siteID {
+                    let previews = try WholeSignDeletionRule
+                        .functionalRelationshipEndpointDeletionPreviews(
+                            assetID: deletingAssetID, assetSiteID: siteID,
+                            projection: projection, descriptors: descriptors
+                        )
+                    guard previews.isEmpty,
+                          previews.allSatisfy({ !$0.persistentWriteOccurred }) else {
+                        throw WholeSignDeletionServiceError.graphInvalid
+                    }
+                }
+                if let deletingSiteID {
+                    let siteAssets = Set(rows.assets.filter { $0.siteID == deletingSiteID }.map(\.id))
+                    guard !projection.currentRelationships.contains(where: {
+                        siteAssets.contains($0.sourceAssetID) || siteAssets.contains($0.targetAssetID)
+                    }) else { throw WholeSignDeletionServiceError.graphInvalid }
+                }
+            }
             try WholeSignDeletionRule.validateLocationDeletionNoCascade(
                 deletingAssetID: deletingAssetID,
                 deletingSiteID: deletingSiteID,
@@ -1717,6 +1748,8 @@ private extension WholeSignDeletionService {
               unique(rows.assetLifecycleEvents.map(\.eventID)),
               unique(rows.assetSuccessorLinks.map(\.linkID)),
               unique(rows.workSubjectScopeSnapshots.map(\.snapshotID)),
+              unique(rows.functionalRelationshipDescriptors.map(\.descriptorReleaseID)),
+              unique(rows.functionalRelationshipEvents.map(\.eventID)),
               rows.serviceParties.allSatisfy({ (try? $0.value()) != nil }),
               rows.sitePartyRoles.allSatisfy({ (try? $0.value()) != nil }),
               rows.actorSnapshots.allSatisfy({ (try? $0.value()) != nil }),
@@ -1728,6 +1761,8 @@ private extension WholeSignDeletionService {
               rows.assetLifecycleEvents.allSatisfy({ (try? $0.value()) != nil }),
               rows.assetSuccessorLinks.allSatisfy({ (try? $0.value()) != nil }),
               rows.workSubjectScopeSnapshots.allSatisfy({ (try? $0.value()) != nil }),
+              rows.functionalRelationshipDescriptors.allSatisfy({ (try? $0.value()) != nil }),
+              rows.functionalRelationshipEvents.allSatisfy({ (try? $0.value()) != nil }),
               rows.sites.allSatisfy({ $0.schemaVersion == 1 }),
               rows.assets.allSatisfy({ asset in
                   asset.schemaVersion == 1

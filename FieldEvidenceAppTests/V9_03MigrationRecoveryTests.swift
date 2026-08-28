@@ -1432,3 +1432,25 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         UUID(uuidString: value)!
     }
 }
+
+extension V9_03MigrationRecoveryTests {
+    func testV23P03C41MigrationReplayRetainsCanonicalRelationshipHistory() throws {
+        let fixture = try C41FunctionalRelationshipTestSupportV1.makeFixture(seed: 41_030)
+        try fixture.ended.validateSuccessor(of: fixture.added)
+
+        let endedProjection = try FunctionalRelationshipProjectionBuilderV1.rebuild(
+            workspaceID: fixture.workspaceID,
+            events: [fixture.added, fixture.ended],
+            descriptors: [fixture.descriptor]
+        )
+        XCTAssertTrue(endedProjection.currentRelationships.isEmpty)
+        XCTAssertEqual(endedProjection.readiness, .ready)
+
+        let encoded = try FunctionalRelationshipCanonicalCodecV1.encode(fixture.ended)
+        let decoded = try FunctionalRelationshipCanonicalCodecV1.decode(
+            AssetFunctionalRelationshipEventV1.self, from: encoded
+        )
+        XCTAssertEqual(decoded, fixture.ended)
+        XCTAssertEqual(try FunctionalRelationshipCanonicalCodecV1.encode(decoded), encoded)
+    }
+}

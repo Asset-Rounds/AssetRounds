@@ -222,6 +222,12 @@ final class BackupRestoreService {
                 && modelContext.fetchCount(FetchDescriptor<MeasurementProtocolReleaseRow>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<DerivedFactEvaluatorDescriptorRow>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<DerivedFactProvenanceRow>()) == 0
+                && modelContext.fetchCount(
+                    FetchDescriptor<FunctionalRelationshipTypeDescriptorRow>()
+                ) == 0
+                && modelContext.fetchCount(
+                    FetchDescriptor<AssetFunctionalRelationshipEventRow>()
+                ) == 0
                 && modelContext.fetchCount(FetchDescriptor<WorkflowRecord>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<EvidenceFile>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<Issue>()) == 0
@@ -1503,6 +1509,7 @@ private extension BackupRestoreService {
         with packets: [V4BackupPacketDTO]
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            functionalRelationships: records.functionalRelationships,
             authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
             assetCompositionEdges: records.assetCompositionEdges,
             assetCompositionEvents: records.assetCompositionEvents,
@@ -1549,6 +1556,7 @@ private extension BackupRestoreService {
         with history: MutationHistorySnapshotV1
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            functionalRelationships: records.functionalRelationships,
             authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
             assetCompositionEdges: records.assetCompositionEdges,
             assetCompositionEvents: records.assetCompositionEvents,
@@ -1653,6 +1661,7 @@ private extension BackupRestoreService {
             return try V8BackupRequirementAssuranceRecordV1(row)
         }.sorted { canonical($0.workflowRecordID) < canonical($1.workflowRecordID) }
         return V4BackupRecordsV1(
+            functionalRelationships: records.functionalRelationships,
             authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
             assetCompositionEdges: records.assetCompositionEdges,
             assetCompositionEvents: records.assetCompositionEvents,
@@ -1859,6 +1868,7 @@ private extension BackupRestoreService {
         )
         guard let archived = records.locationMigrationReceipts.first else {
             return V4BackupRecordsV1(
+                functionalRelationships: try rebindingFunctionalRelationships(records.functionalRelationships, workspaceID: workspaceID),
                 authorityCriterion: authorityCriterion, assetSemantics: assetSemantics,
                 assetCompositionEdges: reboundEdges.map(\.0),
                 assetCompositionEvents: compositionEvents,
@@ -1900,6 +1910,7 @@ private extension BackupRestoreService {
             bindings: receipt.bindings
         )
         return V4BackupRecordsV1(
+            functionalRelationships: try rebindingFunctionalRelationships(records.functionalRelationships, workspaceID: workspaceID),
             authorityCriterion: authorityCriterion, assetSemantics: assetSemantics,
             assetCompositionEdges: reboundEdges.map(\.0),
             assetCompositionEvents: compositionEvents,
@@ -2250,6 +2261,36 @@ private extension BackupRestoreService {
         }
     }
 
+    func rebindingFunctionalRelationships(
+        _ records: [V12BackupFunctionalRelationshipRecordV1],
+        workspaceID: WorkspaceID
+    ) throws -> [V12BackupFunctionalRelationshipRecordV1] {
+        do {
+            return try records.map { record in
+                let data: Data
+                switch record.kind {
+                case .descriptor:
+                    let source = try FunctionalRelationshipCanonicalCodecV1.decode(
+                        FunctionalRelationshipTypeDescriptorV1.self, from: record.canonicalData
+                    )
+                    data = try FunctionalRelationshipCanonicalCodecV1.encode(
+                        source.workspaceID == workspaceID ? source : source.rebound(to: workspaceID)
+                    )
+                case .event:
+                    let source = try FunctionalRelationshipCanonicalCodecV1.decode(
+                        AssetFunctionalRelationshipEventV1.self, from: record.canonicalData
+                    )
+                    data = try FunctionalRelationshipCanonicalCodecV1.encode(
+                        source.workspaceID == workspaceID ? source : source.rebound(to: workspaceID)
+                    )
+                }
+                return .init(kind: record.kind, id: record.id,
+                             workspaceID: workspaceID.rawValue,
+                             revision: record.revision, canonicalData: data)
+            }
+        } catch { throw BackupRestoreServiceError.invalidPackage }
+    }
+
     func recordsWithObservationAndTime(
         _ records: V4BackupRecordsV1
     ) throws -> V4BackupRecordsV1 {
@@ -2265,7 +2306,7 @@ private extension BackupRestoreService {
             )
         }
         return V4BackupRecordsV1(
-            authorityCriterion: [], assetSemantics: [],
+            functionalRelationships: [], authorityCriterion: [], assetSemantics: [],
             assetCompositionEdges: records.assetCompositionEdges,
             assetCompositionEvents: records.assetCompositionEvents,
             assetPlacementEvents: records.assetPlacementEvents,
@@ -2435,7 +2476,8 @@ private extension BackupRestoreService {
                 || records.recordsSchemaVersion == 7
                 || records.recordsSchemaVersion == 8
                 || records.recordsSchemaVersion == 9
-                || records.recordsSchemaVersion == 10)
+                || records.recordsSchemaVersion == 10
+                || records.recordsSchemaVersion == 11)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -2449,7 +2491,7 @@ private extension BackupRestoreService {
         case (2, let ledger?, nil), (3, let ledger?, _), (4, let ledger?, _),
              (5, let ledger?, _), (6, let ledger?, _),
              (7, let ledger?, _), (8, let ledger?, _),
-             (9, let ledger?, _):
+             (9, let ledger?, _), (10, let ledger?, _), (11, let ledger?, _):
             do {
                 try ledger.validate()
                 try DeletionLedgerStore(context: context).stageUnion(ledger.entries)
@@ -2686,7 +2728,8 @@ private extension BackupRestoreService {
         }
         if records.recordsSchemaVersion == 6 || records.recordsSchemaVersion == 7
             || records.recordsSchemaVersion == 8 || records.recordsSchemaVersion == 9
-            || records.recordsSchemaVersion == 10 {
+            || records.recordsSchemaVersion == 10
+            || records.recordsSchemaVersion == 11 {
             do {
                 for record in records.savedSmartViews {
                     let descriptor = try record.descriptor()
@@ -2819,6 +2862,28 @@ private extension BackupRestoreService {
                 }
             } catch { throw BackupRestoreServiceError.invalidPackage }
         }
+        if records.recordsSchemaVersion >= 11 {
+            do {
+                for record in records.functionalRelationships {
+                    switch record.kind {
+                    case .descriptor:
+                        context.insert(try FunctionalRelationshipTypeDescriptorRow(
+                            FunctionalRelationshipCanonicalCodecV1.decode(
+                                FunctionalRelationshipTypeDescriptorV1.self,
+                                from: record.canonicalData
+                            )
+                        ))
+                    case .event:
+                        context.insert(try AssetFunctionalRelationshipEventRow(
+                            FunctionalRelationshipCanonicalCodecV1.decode(
+                                AssetFunctionalRelationshipEventV1.self,
+                                from: record.canonicalData
+                            )
+                        ))
+                    }
+                }
+            } catch { throw BackupRestoreServiceError.invalidPackage }
+        }
         if let mutationHistory = records.mutationHistory {
             guard records.recordsSchemaVersion == 3
                     || records.recordsSchemaVersion == 4
@@ -2827,7 +2892,8 @@ private extension BackupRestoreService {
                     || records.recordsSchemaVersion == 7
                     || records.recordsSchemaVersion == 8
                     || records.recordsSchemaVersion == 9
-                    || records.recordsSchemaVersion == 10 else {
+                    || records.recordsSchemaVersion == 10
+                    || records.recordsSchemaVersion == 11 else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {
@@ -3896,7 +3962,8 @@ private extension BackupRestoreService {
         let actual = try records(in: context)
         if actual == expected { return }
         guard expected.recordsSchemaVersion < 9,
-              (actual.recordsSchemaVersion == 9 || actual.recordsSchemaVersion == 10) else {
+              (actual.recordsSchemaVersion == 9 || actual.recordsSchemaVersion == 10
+                || actual.recordsSchemaVersion == 11) else {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
         if expected.recordsSchemaVersion == 5 || expected.recordsSchemaVersion == 6 {
@@ -3915,6 +3982,7 @@ private extension BackupRestoreService {
         schemaVersion: Int
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            functionalRelationships: schemaVersion >= 11 ? records.functionalRelationships : [],
             authorityCriterion: schemaVersion >= 10 ? records.authorityCriterion : [],
             assetSemantics: schemaVersion >= 9 ? records.assetSemantics : [],
             assetCompositionEdges: records.assetCompositionEdges,
@@ -3944,6 +4012,7 @@ private extension BackupRestoreService {
         expected: V4BackupRecordsV1
     ) throws -> Bool {
         let predecessor = V4BackupRecordsV1(
+            functionalRelationships: expected.recordsSchemaVersion >= 11 ? expected.functionalRelationships : [],
             authorityCriterion: expected.recordsSchemaVersion >= 10 ? expected.authorityCriterion : [],
             assetSemantics: expected.recordsSchemaVersion >= 9 ? expected.assetSemantics : [],
             assets: actual.assets,
@@ -4113,6 +4182,12 @@ private extension BackupRestoreService {
         let measurementProtocols = try context.fetch(FetchDescriptor<MeasurementProtocolReleaseRow>())
         let evaluators = try context.fetch(FetchDescriptor<DerivedFactEvaluatorDescriptorRow>())
         let derivedFacts = try context.fetch(FetchDescriptor<DerivedFactProvenanceRow>())
+        let functionalRelationshipDescriptors = try context.fetch(
+            FetchDescriptor<FunctionalRelationshipTypeDescriptorRow>()
+        )
+        let functionalRelationshipEvents = try context.fetch(
+            FetchDescriptor<AssetFunctionalRelationshipEventRow>()
+        )
         let observationAndTime: [UUID: ObservationAndTimeRow]
         if includesObservationAndTime {
             observationAndTime = try ObservationAndTimeRowStoreV1.validatedIndex(
@@ -4131,6 +4206,22 @@ private extension BackupRestoreService {
             mutationHistory = nil
         }
         return V4BackupRecordsV1(
+            functionalRelationships: try (
+                functionalRelationshipDescriptors.map {
+                    let value = try $0.value()
+                    return .init(kind: .descriptor, id: value.descriptorReleaseID,
+                                 workspaceID: value.workspaceID.rawValue,
+                                 revision: value.revision, canonicalData: $0.canonicalData)
+                } + functionalRelationshipEvents.map {
+                    let value = try $0.value()
+                    return .init(kind: .event, id: value.eventID,
+                                 workspaceID: value.workspaceID.rawValue,
+                                 revision: value.revision, canonicalData: $0.canonicalData)
+                }
+            ).sorted {
+                "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
+                    < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
+            },
             authorityCriterion: try (
                 authoritySourceReleases.map { let v=try $0.value(); return .init(kind: .authoritySourceRelease,id:v.releaseID,workspaceID:v.workspaceID.rawValue,canonicalData:$0.canonicalData) }
                 + requirementBasisBindings.map { let v=try $0.value(); return .init(kind:.requirementBasisBinding,id:v.bindingID,workspaceID:v.workspaceID.rawValue,canonicalData:$0.canonicalData) }
@@ -4274,7 +4365,9 @@ private extension BackupRestoreService {
                 "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
                     < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
             },
-            recordsSchemaVersion: authoritySourceReleases.isEmpty
+            recordsSchemaVersion: functionalRelationshipDescriptors.isEmpty
+                    && functionalRelationshipEvents.isEmpty
+                ? (authoritySourceReleases.isEmpty
                     && requirementBasisBindings.isEmpty
                     && applicabilityContexts.isEmpty
                     && assessmentScopes.isEmpty
@@ -4283,8 +4376,9 @@ private extension BackupRestoreService {
                     && measurementProtocols.isEmpty
                     && evaluators.isEmpty
                     && derivedFacts.isEmpty
-                ? (mutationHistory == nil ? (includingDeletionLedger ? 2 : 1) : 9)
-                : 10,
+                    ? (mutationHistory == nil ? (includingDeletionLedger ? 2 : 1) : 9)
+                    : 10)
+                : 11,
             reports: reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,

@@ -24,6 +24,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             .applyPartyAccountability,
             .applyAssetSemantics,
             .applyAuthorityCriterion,
+            .applyFunctionalRelationship,
         ])
 
     private let modelContext: ModelContext
@@ -124,6 +125,8 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             )
         case let .applyAuthorityCriterion(value):
             return try applyAuthorityCriterion(value, temporaryRelativePath: temporaryRelativePath)
+        case let .applyFunctionalRelationship(value):
+            return try applyFunctionalRelationship(value, temporaryRelativePath: temporaryRelativePath)
         case .deleteAsset,
              .deleteSite,
              .eraseWorkspace,
@@ -134,6 +137,150 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
              .archiveEntities:
             throw WorkspaceMutationFailureV1.unsupportedCommand
         }
+    }
+
+    private func applyFunctionalRelationship(
+        _ mutation: FunctionalRelationshipMutationV1,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1 {
+        do {
+            try mutation.validate()
+            let affected = try mutation.affectedIdentity
+            guard try !functionalRelationshipRowExists(affected) else {
+                throw WorkspaceMutationFailureV1.sequenceCollision
+            }
+            if let predecessor = try mutation.postImage.predecessorIdentity {
+                let prior = try functionalRelationshipValue(predecessor)
+                guard prior.workspaceID == mutation.workspaceID,
+                      prior.revision == mutation.expectedRevision,
+                      prior.revision < UInt64.max,
+                      mutation.postImage.revision == prior.revision + 1,
+                      try !functionalRelationshipSuccessorExists(predecessor) else {
+                    throw WorkspaceMutationFailureV1.staleEntityRevision(predecessor)
+                }
+                switch mutation.postImage {
+                case let .supersedeDescriptor(value):
+                    let id = predecessor.id
+                    let rows = try modelContext.fetch(FetchDescriptor<FunctionalRelationshipTypeDescriptorRow>(predicate: #Predicate { $0.descriptorReleaseID == id }))
+                    guard rows.count == 1, let priorValue = try rows.first?.value() else { throw WorkspaceMutationFailureV1.invalidCommand }
+                    try value.validateSuccessor(of: priorValue)
+                case let .endRelationship(value), let .supersedeRelationship(value):
+                    let id = predecessor.id
+                    let rows = try modelContext.fetch(FetchDescriptor<AssetFunctionalRelationshipEventRow>(predicate: #Predicate { $0.eventID == id }))
+                    guard rows.count == 1, let priorValue = try rows.first?.value() else { throw WorkspaceMutationFailureV1.invalidCommand }
+                    try value.validateSuccessor(of: priorValue)
+                default: throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            }
+            switch mutation.postImage {
+            case let .appendDescriptor(value), let .supersedeDescriptor(value):
+                modelContext.insert(try FunctionalRelationshipTypeDescriptorRow(value))
+            case let .addRelationship(value), let .endRelationship(value), let .supersedeRelationship(value):
+                let descriptorID = value.descriptor.descriptorReleaseID
+                let descriptors = try modelContext.fetch(FetchDescriptor<FunctionalRelationshipTypeDescriptorRow>(
+                    predicate: #Predicate { $0.descriptorReleaseID == descriptorID }
+                ))
+                guard descriptors.count == 1, let descriptorRow = descriptors.first else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+                let descriptor = try descriptorRow.value()
+                guard descriptor.workspaceID == value.workspaceID,
+                      value.descriptor == FunctionalRelationshipDescriptorReferenceV1(descriptor) else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+                let source = try functionalRelationshipEndpoint(value.sourceAssetID, workspaceID: value.workspaceID)
+                let target = try functionalRelationshipEndpoint(value.targetAssetID, workspaceID: value.workspaceID)
+                let existing = try modelContext.fetch(FetchDescriptor<AssetFunctionalRelationshipEventRow>())
+                    .map { try $0.value() }.filter { $0.workspaceID == value.workspaceID }
+                try FunctionalRelationshipProjectionBuilderV1.validateCandidate(
+                    value, source: source, target: target, descriptor: descriptor,
+                    existingCurrent: try FunctionalRelationshipProjectionBuilderV1.rebuild(
+                        workspaceID: value.workspaceID,
+                        events: existing,
+                        descriptors: try modelContext.fetch(FetchDescriptor<FunctionalRelationshipTypeDescriptorRow>()).map { try $0.value() }.filter { $0.workspaceID == value.workspaceID }
+                    ).currentRelationships
+                )
+                modelContext.insert(try AssetFunctionalRelationshipEventRow(value))
+            }
+            return try WorkspaceMutationEffectV1(
+                affectedEntities: [affected], temporaryRelativePath: temporaryRelativePath
+            )
+        } catch let failure as WorkspaceMutationFailureV1 { modelContext.rollback(); throw failure }
+        catch { modelContext.rollback(); throw WorkspaceMutationFailureV1.invalidCommand }
+    }
+
+    private func functionalRelationshipEndpoint(
+        _ assetID: UUID, workspaceID: WorkspaceID
+    ) throws -> FunctionalRelationshipEndpointSnapshotV1 {
+        let assets = try modelContext.fetch(FetchDescriptor<Asset>(predicate: #Predicate { $0.id == assetID }))
+        guard assets.count == 1, let asset = assets.first else { throw WorkspaceMutationFailureV1.invalidCommand }
+        let kindValues = try modelContext.fetch(FetchDescriptor<AssetKindBindingEventRow>())
+            .map { try $0.value() }.filter { $0.assetID == assetID && $0.workspaceID == workspaceID }
+        guard let kind = kindValues.max(by: { $0.revision < $1.revision }) else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        let workflowValues = try modelContext.fetch(FetchDescriptor<AssetWorkflowCapabilityBindingEventRow>())
+            .map { try $0.value() }.filter {
+                $0.assetID == assetID && $0.workspaceID == workspaceID
+                    && $0.kindBindingEventID == kind.eventID && $0.disposition == .bound
+            }
+        let capabilities = workflowValues.max(by: { $0.revision < $1.revision })?.capabilityIDs ?? []
+        let identity = try WorkspaceEntityIdentityV1(kind: .asset, id: assetID)
+        let key = identity.stableKey
+        let revisions = try modelContext.fetch(FetchDescriptor<EntityMutationRevisionRow>(predicate: #Predicate { $0.stableIdentity == key }))
+        guard revisions.count == 1, let rawRevision = revisions.first?.revision, rawRevision > 0 else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        return try FunctionalRelationshipEndpointSnapshotV1(
+            assetID: assetID, workspaceID: workspaceID, siteID: asset.siteID,
+            assetRevision: UInt64(rawRevision), kindBindingEventID: kind.eventID,
+            kindBindingRevision: kind.revision, catalogRelease: kind.catalogRelease,
+            semanticID: kind.semanticID, capabilityIDs: capabilities
+        )
+    }
+
+    private func functionalRelationshipRowExists(_ identity: WorkspaceEntityIdentityV1) throws -> Bool {
+        let id = identity.id
+        switch identity.kind {
+        case .functionalRelationshipTypeDescriptor:
+            return try uniquePresence(modelContext.fetch(FetchDescriptor<FunctionalRelationshipTypeDescriptorRow>(predicate: #Predicate { $0.descriptorReleaseID == id })))
+        case .assetFunctionalRelationshipEvent:
+            return try uniquePresence(modelContext.fetch(FetchDescriptor<AssetFunctionalRelationshipEventRow>(predicate: #Predicate { $0.eventID == id })))
+        default: return false
+        }
+    }
+
+    private func functionalRelationshipValue(
+        _ identity: WorkspaceEntityIdentityV1
+    ) throws -> (workspaceID: WorkspaceID, revision: UInt64) {
+        let id = identity.id
+        switch identity.kind {
+        case .functionalRelationshipTypeDescriptor:
+            let rows = try modelContext.fetch(FetchDescriptor<FunctionalRelationshipTypeDescriptorRow>(predicate: #Predicate { $0.descriptorReleaseID == id }))
+            guard rows.count == 1, let value = try rows.first?.value() else { throw WorkspaceMutationFailureV1.invalidCommand }
+            return (value.workspaceID, value.revision)
+        case .assetFunctionalRelationshipEvent:
+            let rows = try modelContext.fetch(FetchDescriptor<AssetFunctionalRelationshipEventRow>(predicate: #Predicate { $0.eventID == id }))
+            guard rows.count == 1, let value = try rows.first?.value() else { throw WorkspaceMutationFailureV1.invalidCommand }
+            return (value.workspaceID, value.revision)
+        default: throw WorkspaceMutationFailureV1.invalidCommand
+        }
+    }
+
+    private func functionalRelationshipSuccessorExists(_ predecessor: WorkspaceEntityIdentityV1) throws -> Bool {
+        let id = predecessor.id
+        let count: Int
+        switch predecessor.kind {
+        case .functionalRelationshipTypeDescriptor:
+            count = try modelContext.fetch(FetchDescriptor<FunctionalRelationshipTypeDescriptorRow>())
+                .map { try $0.value() }.filter { $0.supersedesDescriptorReleaseID == id }.count
+        case .assetFunctionalRelationshipEvent:
+            count = try modelContext.fetch(FetchDescriptor<AssetFunctionalRelationshipEventRow>())
+                .map { try $0.value() }.filter { $0.predecessorEventID == id }.count
+        default: throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        guard count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        return count == 1
     }
 
     private func applyAuthorityCriterion(

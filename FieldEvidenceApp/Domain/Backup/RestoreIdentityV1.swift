@@ -91,6 +91,14 @@ struct RestoreIdentityV1: Equatable, Sendable {
     func destinationRecordID(for sourceRecordID: UUID) -> UUID? {
         sourceRecordID
     }
+
+    func destinationFunctionalRelationshipWorkspaceID() -> WorkspaceID {
+        WorkspaceID(rawValue: targetPointer.workspaceID)
+    }
+
+    func destinationFunctionalRelationshipRecordID(for sourceID: UUID) -> UUID? {
+        destinationRecordID(for: sourceID)
+    }
 }
 
 enum RestoreIdentityDecisionErrorV1: Error, Equatable {

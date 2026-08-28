@@ -124,6 +124,59 @@ enum ReportAuthorityCriterionProjectionPolicyV1 {
     }
 }
 
+/// C41 frozen functional-relationship report section.  This is a typed,
+/// audience-safe history projection: it carries descriptor identity, direction,
+/// state, bounds, and site policy without turning an association into a
+/// placement, ownership, authorization, compliance, or telemetry claim.
+enum ReportFunctionalRelationshipsProjectionPolicyV1 {
+    static let sectionID = "functional-relationships"
+    static let sectionVersion = 1
+    static let projectionVersion = "report-functional-relationships-v1"
+    static let privacyClass = ReportPrivacyClassV1.audienceSafe
+    static let supportedFormats: [ReportProjectionFormatV1] = [.openJSON, .structuredText]
+    static let requiredTypedLabels = true
+    static let excludesOwnershipAuthorizationComplianceClaims = true
+    static let excludesTelemetryAndOperationalClaims = true
+    static let excludesRawLocators = true
+
+    static func supports(_ format: ReportProjectionFormatV1) -> Bool {
+        supportedFormats.contains(format)
+    }
+
+    static func directionLocalizationKey(
+        _ direction: FunctionalRelationshipDirectionV1
+    ) -> FunctionalRelationshipLocalizationKeyV1 {
+        FunctionalRelationshipLocalizationKeyV1.directionKey(direction)
+    }
+
+    static func symmetryLocalizationKey(
+        _ symmetry: FunctionalRelationshipSymmetryV1
+    ) -> FunctionalRelationshipLocalizationKeyV1 {
+        FunctionalRelationshipLocalizationKeyV1.symmetryKey(symmetry)
+    }
+
+    static func eventStateLocalizationKey(
+        _ action: AssetFunctionalRelationshipEventActionV1
+    ) -> FunctionalRelationshipLocalizationKeyV1 {
+        FunctionalRelationshipLocalizationKeyV1.eventStateKey(action)
+    }
+
+    static func siteLocalizationKey(
+        _ policy: FunctionalRelationshipSitePolicyV1
+    ) -> FunctionalRelationshipLocalizationKeyV1 {
+        FunctionalRelationshipLocalizationKeyV1.sitePolicyKey(policy)
+    }
+
+    static func minimumRequirementLocalizationKey(
+        _ boundary: FunctionalRelationshipReadinessBoundaryV1
+    ) -> FunctionalRelationshipLocalizationKeyV1 {
+        FunctionalRelationshipLocalizationKeyV1.minimumRequirementKey(boundary)
+    }
+}
+
+typealias ReportFunctionalRelationshipProjectionPolicyV1 =
+    ReportFunctionalRelationshipsProjectionPolicyV1
+
 struct ReportSectionDefinitionV1: Codable, Equatable, Hashable, Sendable {
     let sectionID: String
     let version: Int

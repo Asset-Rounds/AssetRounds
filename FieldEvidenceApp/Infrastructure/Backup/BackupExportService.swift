@@ -44,6 +44,8 @@ final class BackupExportService {
     private static let checkpointBasisExportedAt = Date(timeIntervalSince1970: 0)
 
     private struct Rows {
+        let functionalRelationshipDescriptors: [FunctionalRelationshipTypeDescriptorRow]
+        let functionalRelationshipEvents: [AssetFunctionalRelationshipEventRow]
         let authoritySourceReleases: [AuthoritySourceReleaseRow]
         let requirementBasisBindings: [RequirementBasisBindingRow]
         let applicabilityContextSnapshots: [ApplicabilityContextSnapshotRow]
@@ -669,6 +671,7 @@ private extension BackupExportService {
         do {
             recordsData = try BackupCanonicalEncoderV1().encodeRecords(records).data
             let semanticRecords = V4BackupRecordsV1(
+                functionalRelationships: records.functionalRelationships,
                 authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
                 assetCompositionEdges: records.assetCompositionEdges,
                 assetCompositionEvents: records.assetCompositionEvents,
@@ -894,9 +897,9 @@ private extension BackupExportService {
             source: .init(
                 appBuild: appBuild(),
                 appVersion: appVersion(),
-                persistentSchemaVersion: 11,
+                persistentSchemaVersion: 12,
                 replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: 10,
+                recordsSchemaVersion: 11,
                 sourceGenerationID: generationID,
                 workspaceID: sourceIdentity.workspaceID.rawValue
             )
@@ -1411,6 +1414,8 @@ private extension BackupExportService {
     private func fetchRows() throws -> Rows {
         do {
             return Rows(
+                functionalRelationshipDescriptors: try modelContext.fetch(FetchDescriptor<FunctionalRelationshipTypeDescriptorRow>()),
+                functionalRelationshipEvents: try modelContext.fetch(FetchDescriptor<AssetFunctionalRelationshipEventRow>()),
                 authoritySourceReleases: try modelContext.fetch(FetchDescriptor<AuthoritySourceReleaseRow>()),
                 requirementBasisBindings: try modelContext.fetch(FetchDescriptor<RequirementBasisBindingRow>()),
                 applicabilityContextSnapshots: try modelContext.fetch(FetchDescriptor<ApplicabilityContextSnapshotRow>()),
@@ -1890,7 +1895,9 @@ private extension BackupExportService {
         }.sorted { $0.id.uuidString < $1.id.uuidString } }
         let assetSemantics = mutationHistory == nil ? [] : try assetSemanticRecords(rows)
         let authorityCriterion = mutationHistory == nil ? [] : try authorityCriterionRecords(rows)
+        let functionalRelationships = mutationHistory == nil ? [] : try functionalRelationshipRecords(rows)
         return V4BackupRecordsV1(
+            functionalRelationships: functionalRelationships,
             authorityCriterion: authorityCriterion,
             assetSemantics: assetSemantics,
             assetCompositionEdges: assetCompositionEdges,
@@ -1941,7 +1948,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : 10,
+                : 11,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -1973,6 +1980,25 @@ private extension BackupExportService {
                 return workflowDTO(record, observationAndTime: companion)
             }.sorted(by: dtoOrder)
         )
+    }
+
+    private func functionalRelationshipRecords(
+        _ rows: Rows
+    ) throws -> [V12BackupFunctionalRelationshipRecordV1] {
+        var result: [V12BackupFunctionalRelationshipRecordV1] = []
+        result += try rows.functionalRelationshipDescriptors.map {
+            let value = try $0.value()
+            return .init(kind: .descriptor, id: value.descriptorReleaseID,
+                         workspaceID: value.workspaceID.rawValue, revision: value.revision,
+                         canonicalData: try FunctionalRelationshipCanonicalCodecV1.encode(value))
+        }
+        result += try rows.functionalRelationshipEvents.map {
+            let value = try $0.value()
+            return .init(kind: .event, id: value.eventID,
+                         workspaceID: value.workspaceID.rawValue, revision: value.revision,
+                         canonicalData: try FunctionalRelationshipCanonicalCodecV1.encode(value))
+        }
+        return result.sorted { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)" }
     }
 
     private func partyAccountabilityRecords(

@@ -540,6 +540,160 @@
           }
         }
       }
+    },
+    "functional.relationship.heading" : {
+      "comment" : "Heading for recorded functional relationship facts.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Functional relationships"
+          }
+        }
+      }
+    },
+    "functional.relationship.type" : {
+      "comment" : "Localized label for the package-declared relationship type.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Relationship type"
+          }
+        }
+      }
+    },
+    "functional.relationship.direction.source_to_target" : {
+      "comment" : "Text label for a directed relationship from source to target.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Source to target"
+          }
+        }
+      }
+    },
+    "functional.relationship.direction.symmetric" : {
+      "comment" : "Text label for a symmetric relationship.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Symmetric"
+          }
+        }
+      }
+    },
+    "functional.relationship.state.active" : {
+      "comment" : "Text label for an active relationship record.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Active"
+          }
+        }
+      }
+    },
+    "functional.relationship.state.ended" : {
+      "comment" : "Text label for an ended relationship record.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ended"
+          }
+        }
+      }
+    },
+    "functional.relationship.state.superseded" : {
+      "comment" : "Text label for a superseded relationship record.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Superseded"
+          }
+        }
+      }
+    },
+    "functional.relationship.state.incomplete" : {
+      "comment" : "Text label for an incomplete relationship readiness state.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Incomplete"
+          }
+        }
+      }
+    },
+    "functional.relationship.state.blocked" : {
+      "comment" : "Text label for a blocked relationship state.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blocked"
+          }
+        }
+      }
+    },
+    "functional.relationship.next_step.minimum_requirement" : {
+      "comment" : "Actionable label for the minimum next requirement for an incomplete record.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minimum requirement"
+          }
+        }
+      }
+    },
+    "functional.relationship.descriptor" : {
+      "comment" : "Localized label for a package relationship descriptor.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descriptor"
+          }
+        }
+      }
+    },
+    "functional.relationship.bounds" : {
+      "comment" : "Localized label for source and target cardinality bounds.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cardinality bounds"
+          }
+        }
+      }
+    },
+    "functional.relationship.site" : {
+      "comment" : "Localized label for the descriptor's Site policy.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Same-site policy"
+          }
+        }
+      }
+    },
+    "functional.relationship.site.cross_site" : {
+      "comment" : "Text label for a recorded cross-Site relationship state.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cross-site local"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

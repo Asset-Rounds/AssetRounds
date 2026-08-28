@@ -649,3 +649,18 @@ private final class Harness {
         UUID(uuid: (byte, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, byte))
     }
 }
+
+extension V10_01WorkspaceWriterTests {
+    func testV23P03C41WriterInputCarriesExplicitMutationAndRevisionIdentity() throws {
+        let fixture = try C41FunctionalRelationshipTestSupportV1.makeFixture(seed: 41_010)
+
+        XCTAssertEqual(fixture.added.action, .added)
+        XCTAssertEqual(fixture.added.revision, 1)
+        XCTAssertNil(fixture.added.predecessorEventID)
+        XCTAssertEqual(fixture.added.expectedRelationshipRevision, 0)
+        XCTAssertNotEqual(fixture.added.mutationID.rawValue, FunctionalRelationshipLimitsV1.zeroUUID)
+        XCTAssertNotEqual(fixture.descriptor.mutationID.rawValue, FunctionalRelationshipLimitsV1.zeroUUID)
+        XCTAssertNotEqual(fixture.added.mutationID, fixture.descriptor.mutationID)
+        try fixture.added.validate()
+    }
+}

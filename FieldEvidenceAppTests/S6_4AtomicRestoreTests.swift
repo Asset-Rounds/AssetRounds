@@ -805,6 +805,28 @@ private extension S6_4AtomicRestoreTests {
     }
 }
 
+extension S6_4AtomicRestoreTests {
+    func testV23P03C41AtomicRestoreRebindsDescriptorAndEventTogether() throws {
+        let fixture = try C41FunctionalRelationshipTestSupportV1.makeFixture(seed: 41_640)
+        let snapshot = try CompletedFunctionalRelationshipSnapshotV1(
+            snapshotID: C41FunctionalRelationshipTestSupportV1.id(41_642),
+            workspaceID: fixture.workspaceID,
+            capturedAt: C41FunctionalRelationshipTestSupportV1.fixedDate,
+            descriptorReleases: [fixture.descriptor],
+            relationships: [fixture.added]
+        )
+        let restoredWorkspace = C41FunctionalRelationshipTestSupportV1.workspace(41_643)
+        let restored = try snapshot.rebound(to: restoredWorkspace)
+
+        XCTAssertEqual(restored.workspaceID, restoredWorkspace)
+        XCTAssertEqual(restored.descriptorReleases.first?.workspaceID, restoredWorkspace)
+        XCTAssertEqual(restored.relationships.first?.workspaceID, restoredWorkspace)
+        XCTAssertEqual(restored.relationships.first?.actor.workspaceID, restoredWorkspace)
+        XCTAssertNotEqual(restored.snapshotSHA256, snapshot.snapshotSHA256)
+        try restored.validate()
+    }
+}
+
 private extension S6_4AtomicRestoreTests {
     @MainActor
     func XCTAssertThrowsErrorAsync(

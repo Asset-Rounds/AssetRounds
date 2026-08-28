@@ -871,3 +871,28 @@ private extension S6_6EraseRecoveryTests {
         }
     }
 }
+
+extension S6_6EraseRecoveryTests {
+    func testV23P03C41EraseRecoveryRetainsSnapshotAndZeroWriteDisposition() throws {
+        let fixture = try C41FunctionalRelationshipTestSupportV1.makeFixture(seed: 41_660)
+        let preview = try FunctionalRelationshipDispositionPreviewEngineV1.preview(
+            change: .retired,
+            relationship: fixture.added,
+            descriptor: fixture.descriptor,
+            currentSiteID: C41FunctionalRelationshipTestSupportV1.id(41_661)
+        )
+        let snapshot = try CompletedFunctionalRelationshipSnapshotV1(
+            snapshotID: C41FunctionalRelationshipTestSupportV1.id(41_662),
+            workspaceID: fixture.workspaceID,
+            capturedAt: C41FunctionalRelationshipTestSupportV1.fixedDate,
+            descriptorReleases: [fixture.descriptor],
+            relationships: [fixture.added]
+        )
+
+        XCTAssertEqual(preview.disposition, .end)
+        XCTAssertFalse(preview.persistentWriteOccurred)
+        XCTAssertEqual(snapshot.relationships.count, 1)
+        XCTAssertEqual(snapshot.frozenReferences.first?.relationshipID, fixture.relationshipID)
+        try snapshot.validate()
+    }
+}

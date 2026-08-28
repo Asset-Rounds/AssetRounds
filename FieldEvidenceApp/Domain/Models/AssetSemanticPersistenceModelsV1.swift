@@ -211,4 +211,21 @@ final class WorkSubjectScopeSnapshotRow {
         }
         return value
     }
+
+    /// Rehydrates the existing frozen C39 row and proves that every functional
+    /// relationship subject is an exact member of the completed C41 snapshot.
+    /// No C41 projection or duplicate graph state is persisted on this row.
+    func value(
+        validatingAgainst snapshot: CompletedFunctionalRelationshipSnapshotV1
+    ) throws -> WorkSubjectScopeSnapshotV1 {
+        let value = try value()
+        try snapshot.validate()
+        guard value.workspaceID == snapshot.workspaceID else {
+            throw AssetSemanticContractFailureV1.crossWorkspaceReference
+        }
+        if value.subjects.contains(where: { $0.functionalRelationship != nil }) {
+            try value.validateFunctionalRelationshipSnapshot(snapshot)
+        }
+        return value
+    }
 }

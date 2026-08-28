@@ -438,6 +438,7 @@ final class LocalChangeJournalV1 {
             try change.validate()
             try Self.validateAssetSemanticChange(change)
             try Self.validateAuthorityCriterionChange(change)
+            try Self.validateFunctionalRelationshipChange(change)
             let disposition: MutationReplayDispositionV1
             if blocked {
                 disposition = try .init(mutationID: change.envelope.mutationID, disposition: .deferredGap, reasonCode: "PRIOR_CAUSAL_GAP")
@@ -1453,6 +1454,24 @@ final class LocalChangeJournalV1 {
             let identity = try mutation.affectedIdentity
             let postImages = change.receipt.postImages
             guard change.envelope.commandKind == .applyAuthorityCriterion,
+                  change.envelope.mutationID == mutation.mutationID,
+                  change.receipt.mutationID == mutation.mutationID,
+                  postImages == [try mutation.postImage.mutationPostImage],
+                  change.entityChanges.map(\.identity) == [identity],
+                  change.entityChanges.map(\.postImage) == postImages else {
+                throw ChangeJournalFailureV1.tamperedBatch
+            }
+        } catch let failure as ChangeJournalFailureV1 { throw failure }
+        catch { throw ChangeJournalFailureV1.tamperedBatch }
+    }
+
+    private static func validateFunctionalRelationshipChange(_ change: JournalChangeV1) throws {
+        guard case let .applyFunctionalRelationship(mutation) = change.envelope.command else { return }
+        do {
+            try mutation.validate()
+            let identity = try mutation.affectedIdentity
+            let postImages = change.receipt.postImages
+            guard change.envelope.commandKind == .applyFunctionalRelationship,
                   change.envelope.mutationID == mutation.mutationID,
                   change.receipt.mutationID == mutation.mutationID,
                   postImages == [try mutation.postImage.mutationPostImage],

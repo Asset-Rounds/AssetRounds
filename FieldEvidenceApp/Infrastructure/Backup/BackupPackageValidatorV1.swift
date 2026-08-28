@@ -720,6 +720,7 @@ private extension BackupPackageValidatorV1 {
         try validatePartyAccountability(records, manifest: manifest)
         try validateAssetSemantics(records, manifest: manifest)
         try validateAuthorityCriterion(records, manifest: manifest)
+        try validateFunctionalRelationships(records, manifest: manifest)
         let savedSmartViews: [SavedSmartViewDescriptorV1]
         do {
             savedSmartViews = try records.savedSmartViews.map { try $0.descriptor() }
@@ -732,7 +733,8 @@ private extension BackupPackageValidatorV1 {
                         || records.recordsSchemaVersion == 7
                         || records.recordsSchemaVersion == 8
                         || records.recordsSchemaVersion == 9
-                        || records.recordsSchemaVersion == 10)
+                        || records.recordsSchemaVersion == 10
+                        || records.recordsSchemaVersion == 11)
                     && savedSmartViews.allSatisfy({
                         $0.workspaceID == manifest.source.workspaceID
                     }))) else {
@@ -784,7 +786,8 @@ private extension BackupPackageValidatorV1 {
                 ? assuranceSnapshots.isEmpty
                 : ((records.recordsSchemaVersion == 7 || records.recordsSchemaVersion == 8
                         || records.recordsSchemaVersion == 9
-                        || records.recordsSchemaVersion == 10)
+                        || records.recordsSchemaVersion == 10
+                        || records.recordsSchemaVersion == 11)
                     && assuranceSnapshots.allSatisfy({ snapshot in
                         snapshot.workspaceID == manifest.source.workspaceID
                             && workflow[snapshot.workflowRecordID] != nil
@@ -1075,7 +1078,7 @@ private extension BackupPackageValidatorV1 {
             }) else { throw invalid() }
             return
         }
-        guard (4...10).contains(records.recordsSchemaVersion) else { throw invalid() }
+        guard (4...11).contains(records.recordsSchemaVersion) else { throw invalid() }
         for record in records.workflowRecords {
             guard let basisData = record.observationBasisV1Data,
                   let temporalData = record.temporalContextV1Data else {
@@ -1123,10 +1126,11 @@ private extension BackupPackageValidatorV1 {
             guard records.partyAccountability.isEmpty else { throw invalid() }
             return
         }
-        guard (8...10).contains(records.recordsSchemaVersion),
+        guard (8...11).contains(records.recordsSchemaVersion),
               (manifest.source.persistentSchemaVersion == 9
                 || manifest.source.persistentSchemaVersion == 10
-                || manifest.source.persistentSchemaVersion == 11),
+                || manifest.source.persistentSchemaVersion == 11
+                || manifest.source.persistentSchemaVersion == 12),
               let workspaceID = manifest.source.workspaceID else { throw invalid() }
         let keys = records.partyAccountability.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
@@ -1206,8 +1210,10 @@ private extension BackupPackageValidatorV1 {
             guard records.assetSemantics.isEmpty else { throw invalid() }
             return
         }
-        guard (9...10).contains(records.recordsSchemaVersion),
-              (manifest.source.persistentSchemaVersion == 10 || manifest.source.persistentSchemaVersion == 11),
+        guard (9...11).contains(records.recordsSchemaVersion),
+              (manifest.source.persistentSchemaVersion == 10
+                || manifest.source.persistentSchemaVersion == 11
+                || manifest.source.persistentSchemaVersion == 12),
               let sourceWorkspaceID = manifest.source.workspaceID else { throw invalid() }
         let keys = records.assetSemantics.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         guard keys == keys.sorted(), Set(keys).count == keys.count,
@@ -1408,8 +1414,9 @@ private extension BackupPackageValidatorV1 {
             guard records.authorityCriterion.isEmpty else { throw invalid() }
             return
         }
-        guard records.recordsSchemaVersion == 10,
-              manifest.source.persistentSchemaVersion == 11,
+        guard (10...11).contains(records.recordsSchemaVersion),
+              (manifest.source.persistentSchemaVersion == 11
+                || manifest.source.persistentSchemaVersion == 12),
               let workspaceID = manifest.source.workspaceID else { throw invalid() }
         let keys = records.authorityCriterion.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         guard keys == keys.sorted(), Set(keys).count == keys.count,
@@ -1543,6 +1550,69 @@ private extension BackupPackageValidatorV1 {
         } catch { throw invalid() }
     }
 
+    func validateFunctionalRelationships(
+        _ records: V4BackupRecordsV1,
+        manifest: V4BackupManifestV1
+    ) throws {
+        guard records.recordsSchemaVersion >= 11 else {
+            guard records.functionalRelationships.isEmpty else { throw invalid() }
+            return
+        }
+        guard records.recordsSchemaVersion == 11,
+              manifest.source.persistentSchemaVersion == 12,
+              let sourceWorkspaceID = manifest.source.workspaceID else { throw invalid() }
+        do {
+            let workspaceID = WorkspaceID(rawValue: sourceWorkspaceID)
+            var descriptors: [UUID: FunctionalRelationshipTypeDescriptorV1] = [:]
+            var events: [UUID: AssetFunctionalRelationshipEventV1] = [:]
+            for row in records.functionalRelationships {
+                switch row.kind {
+                case .descriptor:
+                    let value = try FunctionalRelationshipCanonicalCodecV1.decode(
+                        FunctionalRelationshipTypeDescriptorV1.self, from: row.canonicalData
+                    )
+                    try value.validate()
+                    guard value.descriptorReleaseID == row.id, value.workspaceID == workspaceID,
+                          value.revision == row.revision,
+                          descriptors.updateValue(value, forKey: value.descriptorReleaseID) == nil else { throw invalid() }
+                case .event:
+                    let value = try FunctionalRelationshipCanonicalCodecV1.decode(
+                        AssetFunctionalRelationshipEventV1.self, from: row.canonicalData
+                    )
+                    try value.validate()
+                    guard value.eventID == row.id, value.workspaceID == workspaceID,
+                          value.revision == row.revision,
+                          events.updateValue(value, forKey: value.eventID) == nil else { throw invalid() }
+                }
+            }
+            var claimedDescriptorPredecessors = Set<UUID>()
+            for value in descriptors.values {
+                if let predecessorID = value.supersedesDescriptorReleaseID {
+                    guard let predecessor = descriptors[predecessorID],
+                          claimedDescriptorPredecessors.insert(predecessorID).inserted else { throw invalid() }
+                    try value.validateSuccessor(of: predecessor)
+                } else if value.revision != 1 { throw invalid() }
+            }
+            try requireAcyclic(Array(descriptors.values), id: \.descriptorReleaseID,
+                               next: \.supersedesDescriptorReleaseID)
+            let deletedAssets = Set((records.deletionLedger?.entries ?? []).compactMap {
+                $0.identity.kind == .asset ? $0.identity.id : nil
+            })
+            let assetIDs = Set(records.assets.map(\.id)).union(deletedAssets)
+            guard events.values.allSatisfy({ value in
+                guard let descriptor = descriptors[value.descriptor.descriptorReleaseID] else { return false }
+                return value.descriptor == FunctionalRelationshipDescriptorReferenceV1(descriptor)
+                    && assetIDs.contains(value.sourceAssetID)
+                    && assetIDs.contains(value.targetAssetID)
+            }) else { throw invalid() }
+            _ = try FunctionalRelationshipProjectionBuilderV1.rebuild(
+                workspaceID: workspaceID,
+                events: Array(events.values),
+                descriptors: Array(descriptors.values)
+            )
+        } catch { throw invalid() }
+    }
+
     func validateLocationRecords(
         _ records: V4BackupRecordsV1,
         manifest: V4BackupManifestV1
@@ -1568,7 +1638,9 @@ private extension BackupPackageValidatorV1 {
                 || (records.recordsSchemaVersion == 9
                     && manifest.source.persistentSchemaVersion == 10)
                 || (records.recordsSchemaVersion == 10
-                    && manifest.source.persistentSchemaVersion == 11)),
+                    && manifest.source.persistentSchemaVersion == 11)
+                || (records.recordsSchemaVersion == 11
+                    && manifest.source.persistentSchemaVersion == 12)),
               let sourceWorkspaceID = manifest.source.workspaceID else {
             throw invalid()
         }

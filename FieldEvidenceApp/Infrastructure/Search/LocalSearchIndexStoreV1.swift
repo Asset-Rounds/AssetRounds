@@ -142,6 +142,15 @@ actor LocalSearchIndexStoreV1: SearchIndexSnapshotProvidingV1, SearchIndexLifecy
                           in: $0.normalizedTokens + [$0.permittedSnippet].compactMap { $0 }
                       )
                   },
+                  records.filter {
+                      $0.sourceKind == .asset
+                          && SearchFunctionalRelationshipsPersistencePolicyV1.accepts(fieldID: $0.fieldID)
+                  }.allSatisfy {
+                      SearchFunctionalRelationshipsPersistencePolicyV1.accepts(fieldID: $0.fieldID)
+                          && !FunctionalRelationshipClaimVocabularyV1.containsProhibitedClaim(
+                              in: $0.normalizedTokens + [$0.permittedSnippet].compactMap { $0 }
+                          )
+                  },
                   records.allSatisfy({
                       $0.workspaceID == source.workspaceID
                           && $0.sourceRevision <= source.commitRevision
@@ -365,6 +374,43 @@ actor LocalSearchIndexStoreV1: SearchIndexSnapshotProvidingV1, SearchIndexLifecy
             throw LocalSearchIndexStoreFailureV1.corruptStore
         }
         return value
+    }
+
+    /// Reads the disposable C41 relationship projection through its explicit
+    /// allowlist. Only descriptor/current-head fields are admitted; the
+    /// canonical event history remains in SwiftData and is rebuilt on demand.
+    func functionalRelationshipsProjection(
+        for source: SearchSourceRevisionV1,
+        registry: SearchableFieldRegistryV1
+    ) throws -> SearchIndexProjectionV1 {
+        guard registry.fields.contains(where: {
+            $0.sourceKind == .asset
+                && SearchFunctionalRelationshipsPersistencePolicyV1.accepts(fieldID: $0.fieldID)
+        }) else {
+            throw SearchContractFailureV1.forbiddenField
+        }
+        let value = try projection(for: source, registry: registry)
+        guard value.records.filter({
+            $0.sourceKind == .asset
+                && SearchFunctionalRelationshipsPersistencePolicyV1.accepts(fieldID: $0.fieldID)
+        }).allSatisfy({
+            SearchFunctionalRelationshipsPersistencePolicyV1.accepts(fieldID: $0.fieldID)
+                && !FunctionalRelationshipClaimVocabularyV1.containsProhibitedClaim(
+                    in: $0.normalizedTokens + [$0.permittedSnippet].compactMap { $0 }
+                )
+        }) else {
+            throw LocalSearchIndexStoreFailureV1.corruptStore
+        }
+        return value
+    }
+
+    /// Singular compatibility spelling for callers that model one bounded
+    /// relationship projection rather than the collection of current heads.
+    func functionalRelationshipProjection(
+        for source: SearchSourceRevisionV1,
+        registry: SearchableFieldRegistryV1
+    ) throws -> SearchIndexProjectionV1 {
+        try functionalRelationshipsProjection(for: source, registry: registry)
     }
 
     func revision() throws -> SearchIndexRevisionV1? {

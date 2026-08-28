@@ -3,6 +3,25 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class V9_16SnapshotProjectionTests: XCTestCase {
+    func testV23P03C41V6FunctionalRelationshipSnapshotIsRequiredAtTheTypeBoundary() {
+        let keyPath: KeyPath<
+            CompletedActivitySnapshotPayloadV6,
+            CompletedFunctionalRelationshipSnapshotV1
+        > = \.functionalRelationships
+        XCTAssertNotNil(keyPath)
+        XCTAssertEqual(CompletedActivitySnapshotPayloadV6.schemaVersion, 6)
+        XCTAssertEqual(CompletedFunctionalRelationshipSnapshotV1.schemaVersion, 1)
+        XCTAssertEqual(
+            ReportFunctionalRelationshipsProjectionPolicyV1.sectionID,
+            "functional-relationships"
+        )
+        XCTAssertTrue(ReportFunctionalRelationshipsProjectionPolicyV1.requiredTypedLabels)
+        XCTAssertTrue(
+            ReportFunctionalRelationshipsProjectionPolicyV1
+                .excludesOwnershipAuthorizationComplianceClaims
+        )
+    }
+
     func testV23P03C40V5AuthorityProjectionIsRequiredAtTheTypeBoundary() {
         let keyPath: KeyPath<
             CompletedActivitySnapshotPayloadV5,

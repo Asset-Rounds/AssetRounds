@@ -100,6 +100,27 @@ enum AuthorityCriterionDeletionLedgerPolicyV1 {
     }
 }
 
+enum FunctionalRelationshipDeletionDispositionV1: String, Codable, Equatable, Sendable {
+    case preserveImmutableHistoryUntilWorkspaceErase = "PRESERVE_IMMUTABLE_HISTORY_UNTIL_WORKSPACE_ERASE"
+}
+
+enum FunctionalRelationshipDeletionLedgerPolicyV1 {
+    static func disposition(
+        for kind: V12BackupFunctionalRelationshipRecordV1.Kind
+    ) -> FunctionalRelationshipDeletionDispositionV1 {
+        switch kind {
+        case .descriptor, .event: return .preserveImmutableHistoryUntilWorkspaceErase
+        }
+    }
+
+    static func validate() throws {
+        let kinds = V12BackupFunctionalRelationshipRecordV1.Kind.allCases
+        guard kinds.count == 2, Set(kinds.map(\.rawValue)).count == kinds.count,
+              kinds.allSatisfy({ disposition(for: $0) == .preserveImmutableHistoryUntilWorkspaceErase })
+        else { throw DeletionLedgerFailureV2.invalidIdentity }
+    }
+}
+
 struct DeletionIdentityV2: Codable, Comparable, Equatable, Hashable, Sendable {
     static let separator = ":"
 
@@ -154,6 +175,7 @@ struct DeletionLedgerEntryV2: Codable, Equatable, Hashable, Sendable {
         try PartyAccountabilityDeletionLedgerPolicyV1.validate()
         try AssetSemanticDeletionLedgerPolicyV1.validate()
         try AuthorityCriterionDeletionLedgerPolicyV1.validate()
+        try FunctionalRelationshipDeletionLedgerPolicyV1.validate()
         guard schemaVersion == 2 else {
             throw DeletionLedgerFailureV2.invalidSchemaVersion
         }

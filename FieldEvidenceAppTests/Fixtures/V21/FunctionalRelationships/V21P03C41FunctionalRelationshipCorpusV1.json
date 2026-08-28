@@ -1,0 +1,273 @@
+{
+  "schema": "V21P03C41FunctionalRelationshipCorpusV1",
+  "schemaVersion": 1,
+  "fixtureIdentity": "V21-P03-C41-FUNCTIONAL-RELATIONSHIP-CORPUS-V1",
+  "cardID": "V23-P03-C41",
+  "workspaceID": "41000000-0000-4000-8000-000000000001",
+  "synthetic": true,
+  "containsCustomerData": false,
+  "containsSecrets": false,
+  "persistence": {
+    "schemaRelease": "PERSISTENT_SCHEMA_V12_FUNCTIONAL_RELATIONSHIPS",
+    "predecessorSchemaVersion": 11,
+    "recordsCatalog": "RECORDS11",
+    "migration": "EXACT_V11_TO_V12_COPY_ON_WRITE",
+    "canonicalWriter": "V23-P02-C01",
+    "lifecycleOwner": "V23-P03-C41",
+    "descriptorDisposition": "IMMUTABLE_PACKAGE_QUALIFIED_RELEASE_HISTORY",
+    "eventDisposition": "APPEND_ONLY_ADDED_ENDED_SUPERSEDED_HISTORY",
+    "projectionDisposition": "REBUILDABLE_CURRENT_PROJECTION_FROM_EVENTS",
+    "backupDisposition": "CANONICAL_DESCRIPTOR_AND_EVENT_BYTES",
+    "restoreDisposition": "REBOUND_WORKSPACE_WITH_HISTORY_PRESERVED",
+    "deleteDisposition": "PREVIEW_END_OR_DENY_WITHOUT_CASCADE",
+    "eraseDisposition": "EXPLICIT_WORKSPACE_ERASE_WITH_COMPLETED_SNAPSHOT_RETENTION_POLICY",
+    "searchRebuild": "ALLOWLISTED_CURRENT_RELATIONSHIP_DISPLAY_FIELDS_ONLY",
+    "reportProjection": "FROZEN_DESCRIPTOR_AND_RELATIONSHIP_REFERENCES",
+    "downgradeDisposition": "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_FIRST_V12_WRITE"
+  },
+  "requiredContractNames": [
+    "FunctionalRelationshipTypeDescriptorV1",
+    "AssetFunctionalRelationshipEventV1",
+    "CurrentFunctionalRelationshipProjectionV1",
+    "FunctionalRelationshipDispositionPreviewV1",
+    "CompletedFunctionalRelationshipSnapshotV1"
+  ],
+  "descriptorCases": [
+    {
+      "id": "C41-G01-directed-controls",
+      "semanticID": "relationship.controls",
+      "direction": "DIRECTED",
+      "symmetry": "ASYMMETRIC",
+      "sourceSemanticIDs": ["asset.controller"],
+      "targetSemanticIDs": ["asset.zone"],
+      "requiredSourceCapabilityIDs": ["capability.control"],
+      "requiredTargetCapabilityIDs": ["capability.inspect"],
+      "sourceMinimum": 0,
+      "sourceMaximum": 2,
+      "targetMinimum": 0,
+      "targetMaximum": 2,
+      "selfEdgePolicy": "FORBIDDEN",
+      "cyclePolicy": "FORBIDDEN",
+      "maximumTraversalDepth": 8,
+      "maximumHardEdges": 16,
+      "sitePolicy": "SAME_SITE_REQUIRED",
+      "workspacePolicy": "SAME_WORKSPACE_REQUIRED",
+      "minimumCardinalityBoundaries": ["FINALIZATION", "READINESS"]
+    },
+    {
+      "id": "C41-A01-undirected-symmetric",
+      "semanticID": "relationship.supports",
+      "direction": "UNDIRECTED",
+      "symmetry": "SYMMETRIC",
+      "sourceSemanticIDs": ["asset.controller"],
+      "targetSemanticIDs": ["asset.zone"],
+      "requiredSourceCapabilityIDs": [],
+      "requiredTargetCapabilityIDs": [],
+      "sourceMinimum": 0,
+      "sourceMaximum": 3,
+      "targetMinimum": 0,
+      "targetMaximum": 3,
+      "selfEdgePolicy": "FORBIDDEN",
+      "cyclePolicy": "BOUNDED",
+      "maximumTraversalDepth": 4,
+      "maximumHardEdges": 12,
+      "sitePolicy": "SAME_SITE_REQUIRED",
+      "workspacePolicy": "SAME_WORKSPACE_REQUIRED",
+      "minimumCardinalityBoundaries": []
+    }
+  ],
+  "eventCases": [
+    {
+      "id": "C41-G01-add",
+      "action": "ADDED",
+      "relationshipRevision": 1,
+      "predecessorEventPresent": false,
+      "expectedResult": "CURRENT_RELATIONSHIP"
+    },
+    {
+      "id": "C41-R01-end",
+      "action": "ENDED",
+      "relationshipRevision": 2,
+      "predecessorEventPresent": true,
+      "expectedResult": "HISTORY_RETAINED_CURRENT_REMOVED"
+    },
+    {
+      "id": "C41-R01-supersede",
+      "action": "SUPERSEDED",
+      "relationshipRevision": 2,
+      "predecessorEventPresent": true,
+      "expectedResult": "CURRENT_SUCCESSOR_RETAINED"
+    }
+  ],
+  "projectionCases": [
+    {
+      "id": "C41-G01-current",
+      "events": ["C41-G01-add"],
+      "boundary": null,
+      "expectedReadiness": "READY",
+      "expectedCurrentCount": 1
+    },
+    {
+      "id": "C41-A01-readiness-minimum",
+      "events": ["C41-G01-add"],
+      "boundary": "READINESS",
+      "expectedReadiness": "INCOMPLETE",
+      "expectedCurrentCount": 1
+    },
+    {
+      "id": "C41-R01-ended-history",
+      "events": ["C41-G01-add", "C41-R01-end"],
+      "boundary": null,
+      "expectedReadiness": "READY",
+      "expectedCurrentCount": 0
+    }
+  ],
+  "dispositionPreviewCases": [
+    {"change": "MOVED", "disposition": "REVIEW_REQUIRED", "persistentWriteOccurred": false},
+    {"change": "REPARENTED", "disposition": "REVIEW_REQUIRED", "persistentWriteOccurred": false},
+    {"change": "REPLACED", "disposition": "REVIEW_REQUIRED", "persistentWriteOccurred": false},
+    {"change": "RETIRED", "disposition": "REVIEW_REQUIRED", "persistentWriteOccurred": false},
+    {"change": "DELETED", "disposition": "END", "persistentWriteOccurred": false},
+    {"change": "RESTORED", "disposition": "REVIEW_REQUIRED", "persistentWriteOccurred": false},
+    {"change": "IDENTITY_RECONCILED", "disposition": "REVIEW_REQUIRED", "persistentWriteOccurred": false},
+    {"change": "IMPORTED", "disposition": "REVIEW_REQUIRED", "persistentWriteOccurred": false},
+    {"change": "PACKAGE_RETIRED", "disposition": "END", "persistentWriteOccurred": false},
+    {"change": "CROSS_SITE_CHANGED", "disposition": "DENIED", "persistentWriteOccurred": false}
+  ],
+  "goldenCases": [
+    {
+      "id": "C41-G01-controller-zones",
+      "expectedResult": "BOUNDED_DIRECTED_RELATIONSHIP",
+      "reason": "A package-qualified controller-to-zone edge validates endpoint semantic IDs and capability tags without becoming telemetry or a command."
+    },
+    {
+      "id": "C41-G01-frozen-snapshot",
+      "expectedResult": "IMMUTABLE_DESCRIPTOR_AND_EVENT_REFERENCE",
+      "reason": "A completed snapshot binds exact descriptor and relationship revisions; later topology changes cannot rewrite it."
+    },
+    {
+      "id": "C41-G01-shared-component",
+      "expectedResult": "BOUNDED_MANY_TO_ONE_ALLOWED",
+      "reason": "Several source assets may target one declared component only within descriptor cardinality and traversal bounds."
+    },
+    {
+      "id": "C41-G01-lighting-parity",
+      "expectedResult": "ADAPTER_REUSES_C41_CONTRACT",
+      "reason": "A package adapter supplies vocabulary and capability declarations while C41 remains the sole functional relationship owner."
+    }
+  ],
+  "alternateCases": [
+    {
+      "id": "C41-A01-atomic-bundle-minimum",
+      "expectedResult": "MINIMUM_CHECKED_ONLY_AT_NAMED_BOUNDARY",
+      "reason": "Mutation projection permits an incomplete relationship; readiness, finalization, or atomic-bundle validation reports missing cardinality."
+    },
+    {
+      "id": "C41-A01-undirected-symmetry",
+      "expectedResult": "DIRECTION_SYMMETRY_PARITY",
+      "reason": "Undirected descriptors must be symmetric and directed descriptors must remain asymmetric."
+    },
+    {
+      "id": "C41-A01-import-package-parity",
+      "expectedResult": "CANONICAL_DESCRIPTOR_RELEASE_REQUIRED",
+      "reason": "Import and package re-entry use the same descriptor release and endpoint checks as local admission."
+    },
+    {
+      "id": "C41-A01-legacy-byte-parity",
+      "expectedResult": "V11_DATA_PRESERVED",
+      "reason": "V11-to-V12 migration copies existing rows and creates no inferred relationship event."
+    }
+  ],
+  "hostileCases": [
+    {"id": "C41-H01-duplicate-edge", "expectedDisposition": "FAIL_CLOSED", "reason": "Duplicate relationship identity is rejected."},
+    {"id": "C41-H01-reverse-symmetric-duplicate", "expectedDisposition": "FAIL_CLOSED", "reason": "Reverse symmetric duplicate cannot create a second edge."},
+    {"id": "C41-H01-stale-endpoint-revision", "expectedDisposition": "FAIL_CLOSED", "reason": "An event with an obsolete endpoint revision is rejected by the canonical writer."},
+    {"id": "C41-H01-cross-workspace", "expectedDisposition": "FAIL_CLOSED", "reason": "Workspace-scoped events cannot be projected into another workspace."},
+    {"id": "C41-H01-illegal-cross-site", "expectedDisposition": "FAIL_CLOSED", "reason": "Same-site policy denies an unqualified cross-site association."},
+    {"id": "C41-H01-concurrent-cycle", "expectedDisposition": "FAIL_CLOSED", "reason": "A forbidden cycle introduced by concurrent events is rejected during projection rebuild."},
+    {"id": "C41-H01-replaced-mid-draft", "expectedDisposition": "FAIL_CLOSED", "reason": "Endpoint replacement produces a disposition preview and never silently mutates the edge."},
+    {"id": "C41-H01-orphan-event", "expectedDisposition": "FAIL_CLOSED", "reason": "An event whose descriptor release is absent is quarantined."},
+    {"id": "C41-H01-cascade-delete", "expectedDisposition": "FAIL_CLOSED", "reason": "Endpoint deletion cannot cascade into completed relationship snapshots."},
+    {"id": "C41-H01-script-request", "expectedDisposition": "FAIL_CLOSED", "reason": "A package cannot provide executable scripts, commands, or remote-control behavior."},
+    {"id": "C41-H01-unknown-semantic", "expectedDisposition": "FAIL_CLOSED", "reason": "Unknown endpoint semantic IDs fail catalog validation."},
+    {"id": "C41-H01-missing-capability", "expectedDisposition": "FAIL_CLOSED", "reason": "Required endpoint capabilities must be declared by the exact catalog release."},
+    {"id": "C41-H01-self-edge", "expectedDisposition": "FAIL_CLOSED", "reason": "Forbidden self edges are never admitted."},
+    {"id": "C41-H01-traversal-bound", "expectedDisposition": "FAIL_CLOSED", "reason": "Projection traversal remains below the descriptor hard bound."}
+  ],
+  "interruptionCases": [
+    {"id": "C41-I01-add-before-receipt", "expectedDisposition": "RETRY_IDEMPOTENT_NO_PARTIAL_ACTIVATION", "reason": "Retrying add with the same MutationID converges to one event and receipt."},
+    {"id": "C41-I01-end-before-receipt", "expectedDisposition": "RETRY_IDEMPOTENT_NO_PARTIAL_ACTIVATION", "reason": "Retrying end preserves the predecessor chain and never duplicates history."},
+    {"id": "C41-I01-supersede-before-receipt", "expectedDisposition": "RETRY_IDEMPOTENT_NO_PARTIAL_ACTIVATION", "reason": "Supersession either has one successor or no effect."},
+    {"id": "C41-I01-projection-rebuild", "expectedDisposition": "RETRY_IDEMPOTENT_NO_PARTIAL_ACTIVATION", "reason": "Projection rebuild is deterministic from the append-only event set."},
+    {"id": "C41-I01-migration", "expectedDisposition": "RETRY_IDEMPOTENT_NO_PARTIAL_ACTIVATION", "reason": "Migration leaves V11 rows intact or installs a complete V12 generation."},
+    {"id": "C41-I01-archive", "expectedDisposition": "RETRY_IDEMPOTENT_NO_PARTIAL_ACTIVATION", "reason": "Archive interruption retains descriptor and event history."},
+    {"id": "C41-I01-restore", "expectedDisposition": "RETRY_IDEMPOTENT_NO_PARTIAL_ACTIVATION", "reason": "Restore interruption exposes the old generation or one fully validated rebound generation."},
+    {"id": "C41-I01-disposition-preview", "expectedDisposition": "RETRY_IDEMPOTENT_NO_PARTIAL_ACTIVATION", "reason": "Preview creation has no persistent write to leave half-complete."}
+  ],
+  "recoveryCases": [
+    {"id": "C41-R01-backup-restore", "expectedDisposition": "RECOVER_EFFECT_RECEIPT_AND_HISTORY", "reason": "Canonical descriptor/event bytes survive backup and replace restore."},
+    {"id": "C41-R01-clone", "expectedDisposition": "RECOVER_EFFECT_RECEIPT_AND_HISTORY", "reason": "Clone remaps workspace identity while preserving relationship revision history."},
+    {"id": "C41-R01-fork", "expectedDisposition": "RECOVER_EFFECT_RECEIPT_AND_HISTORY", "reason": "Fork retains immutable source snapshots and starts a new workspace projection."},
+    {"id": "C41-R01-journal-replay", "expectedDisposition": "RECOVER_EFFECT_RECEIPT_AND_HISTORY", "reason": "Journal replay rebuilds one current projection without a second graph truth."},
+    {"id": "C41-R01-search-rebuild", "expectedDisposition": "RECOVER_EFFECT_RECEIPT_AND_HISTORY", "reason": "Search rebuild derives only allowlisted current relationship display fields."},
+    {"id": "C41-R01-report-snapshot", "expectedDisposition": "RECOVER_EFFECT_RECEIPT_AND_HISTORY", "reason": "Reports retain exact descriptor and relationship revisions after endpoint changes."},
+    {"id": "C41-R01-delete-erase", "expectedDisposition": "RECOVER_EFFECT_RECEIPT_AND_HISTORY", "reason": "Delete and Erase use explicit disposition without cascading into completed snapshots."},
+    {"id": "C41-R01-forward-fix", "expectedDisposition": "RECOVER_EFFECT_RECEIPT_AND_HISTORY", "reason": "Post-activation corrections append END or SUPERSEDE and never rewrite released history."}
+  ],
+  "localizationAccessibility": {
+    "sourceLanguage": "en",
+    "shippingLocales": ["en"],
+    "semanticIDs": ["functional_relationship.controls", "functional_relationship.supports"],
+    "directionTextRequired": true,
+    "stateTextRequired": true,
+    "nonColorStateTextRequired": true,
+    "dynamicTypeRequired": true,
+    "voiceOverRequired": true,
+    "voiceControlRequired": true,
+    "switchControlRequired": true,
+    "rtlRequired": true
+  },
+  "claims": {
+    "ownership": false,
+    "authorization": false,
+    "telemetry": false,
+    "remoteControl": false,
+    "routing": false,
+    "gis": false,
+    "compliance": false,
+    "safety": false,
+    "installation": false,
+    "condition": false,
+    "verifiedIdentity": false,
+    "networkSync": false,
+    "nativeCompile": false,
+    "hostedDispatch": false,
+    "adoption": false,
+    "acceptance": false,
+    "release": false
+  },
+  "provisionalFlags": {
+    "nativeCompileRan": false,
+    "hostedDispatchEnabled": false,
+    "physicalEvidenceComplete": false,
+    "adoptionEnabled": false,
+    "acceptanceEnabled": false,
+    "acceptanceCredit": false,
+    "releaseCredit": false,
+    "requiresAcceptedS10_6Reconciliation": true
+  },
+  "exclusions": [
+    "NO_USER_CREATED_RELATIONSHIP_TYPES",
+    "NO_ARBITRARY_RELATIONSHIP_PAYLOADS",
+    "NO_UNBOUNDED_GRAPH",
+    "NO_ARBITRARY_CYCLES",
+    "NO_ROUTE_NETWORK_HYDRAULIC_OR_ELECTRICAL_SOLVER",
+    "NO_GIS",
+    "NO_TELEMETRY",
+    "NO_CONTROLLER_COMMANDS",
+    "NO_CASCADE_DELETE",
+    "NO_INFERRED_LINKS",
+    "NO_SECOND_GRAPH_STORE_OR_WRITER",
+    "NO_S10_UI_OR_FINALIZATION_PRODUCER"
+  ]
+}

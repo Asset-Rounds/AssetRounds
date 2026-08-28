@@ -205,3 +205,45 @@ enum AuthorityCriterionPackageCompatibilityRegistryV1 {
         }
     }
 }
+
+enum FunctionalRelationshipPackageCompatibilityRegistryV1 {
+    static func validate(
+        _ binding: InspectionPackageFunctionalRelationshipBindingV1,
+        package: InspectionPackageV2,
+        semanticCatalogs: [AssetSemanticCatalogReleaseV1]
+    ) throws {
+        try binding.validate(); try package.validate()
+        guard binding.packageRelease.packageID == package.packageID,
+              binding.packageRelease.schemaVersion == package.schemaVersion,
+              binding.packageRelease.contentVersion == package.contentVersion else {
+            throw InspectionPackageFailureV2.incompatiblePackage
+        }
+        guard Set(semanticCatalogs.map(\.releaseID)).count == semanticCatalogs.count else {
+            throw InspectionPackageFailureV2.duplicateDeclaration
+        }
+        let catalogs = Dictionary(uniqueKeysWithValues: semanticCatalogs.map { ($0.releaseID, $0) })
+        for descriptor in binding.descriptorReleases {
+            guard let source = catalogs[descriptor.sourceCatalogRelease.releaseID],
+                  let target = catalogs[descriptor.targetCatalogRelease.releaseID] else {
+                throw InspectionPackageFailureV2.incompatiblePackage
+            }
+            try descriptor.validate(sourceCatalog: source, targetCatalog: target)
+        }
+    }
+
+    static func validate(
+        _ bindings: [InspectionPackageFunctionalRelationshipBindingV1],
+        registry: InspectionPackageRegistryV2,
+        semanticCatalogs: [AssetSemanticCatalogReleaseV1]
+    ) throws {
+        guard bindings.count <= InspectionPackageRegistrySchemaV2.maximumPackageCount,
+              Set(bindings.map(\.packageRelease)).count == bindings.count else {
+            throw InspectionPackageFailureV2.duplicateDeclaration
+        }
+        for binding in bindings {
+            try validate(binding,
+                package: registry.package(id: binding.packageRelease.packageID),
+                semanticCatalogs: semanticCatalogs)
+        }
+    }
+}

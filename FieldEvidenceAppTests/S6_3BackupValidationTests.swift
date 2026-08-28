@@ -2010,3 +2010,21 @@ private enum FixtureError: Error { case invalid }
 private extension Data {
     var sha256: String { SHA256.hash(data: self).map { String(format: "%02x", $0) }.joined() }
 }
+
+extension S6_3BackupValidationTests {
+    func testV23P03C41BackupValidationRejectsNonCanonicalRelationshipBytes() throws {
+        let fixture = try C41FunctionalRelationshipTestSupportV1.makeFixture(seed: 41_630)
+        var bytes = try FunctionalRelationshipCanonicalCodecV1.encode(fixture.added)
+        bytes.append(0x0A)
+
+        XCTAssertThrowsError(
+            try FunctionalRelationshipCanonicalCodecV1.decode(
+                AssetFunctionalRelationshipEventV1.self, from: bytes
+            )
+        ) { error in
+            XCTAssertEqual(error as? FunctionalRelationshipFailureV1, .nonCanonicalData)
+        }
+        XCTAssertEqual(fixture.added.eventSHA256.count, 64)
+        XCTAssertEqual(fixture.added.mutationID.rawValue, C41FunctionalRelationshipTestSupportV1.mutation(41_641).rawValue)
+    }
+}

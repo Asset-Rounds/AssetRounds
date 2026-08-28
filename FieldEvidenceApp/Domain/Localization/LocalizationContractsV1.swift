@@ -543,3 +543,186 @@ extension AuthorityCriterionLocalizationKeyV1 {
         }
     }
 }
+
+/// C41's functional-relationship labels are a closed, English-only display
+/// surface.  The relationship contract owns the recorded topology facts;
+/// these keys only give local readers stable text for those facts.
+enum FunctionalRelationshipLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
+    case heading = "functional.relationship.heading"
+    case type = "functional.relationship.type"
+    case directedSourceToTarget = "functional.relationship.direction.source_to_target"
+    case symmetric = "functional.relationship.direction.symmetric"
+    case activeState = "functional.relationship.state.active"
+    case endedState = "functional.relationship.state.ended"
+    case supersededState = "functional.relationship.state.superseded"
+    case incompleteState = "functional.relationship.state.incomplete"
+    case blockedState = "functional.relationship.state.blocked"
+    case minimumNextRequirement = "functional.relationship.next_step.minimum_requirement"
+    case descriptor = "functional.relationship.descriptor"
+    case bounds = "functional.relationship.bounds"
+    case site = "functional.relationship.site"
+    case crossSiteState = "functional.relationship.site.cross_site"
+
+    // Additive aliases keep the closed surface discoverable for callers that
+    // name the displayed concept rather than the compact enum case.
+    static var relationshipHeading: Self { .heading }
+    static var relationshipType: Self { .type }
+    static var directed: Self { .directedSourceToTarget }
+    static var active: Self { .activeState }
+    static var ended: Self { .endedState }
+    static var superseded: Self { .supersededState }
+    static var incomplete: Self { .incompleteState }
+    static var blocked: Self { .blockedState }
+    static var minimumNextStepRequirement: Self { .minimumNextRequirement }
+    static var cardinalityBounds: Self { .bounds }
+    static var sitePolicy: Self { .site }
+    static var crossSite: Self { .crossSiteState }
+
+    var localizationKey: LocalizationKeyV1 {
+        // Construction is non-throwing for this closed repository-owned set;
+        // registry construction remains the validation boundary.
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+}
+
+enum FunctionalRelationshipLocalizationPolicyV1 {
+    static let semanticNamespace = "functional.relationship"
+    static let sourceLocale = "en"
+    static let shippingLocale = "en"
+    static let metadataLocale = "en-US"
+    static let testOnlyLocales = TestOnlyPseudoLocaleV1.allCases.map(\.rawValue).sorted()
+    static let keys = FunctionalRelationshipLocalizationKeyV1.allCases.map(\.rawValue)
+    static let semanticIDs = FunctionalRelationshipAccessibilityIDV1.allCases.map(\.rawValue)
+    static let reportKeys = FunctionalRelationshipLocalizationKeyV1.allCases.map(\.rawValue)
+
+    static let directionTextRequired = true
+    static let stateTextRequired = true
+    static let excludesOwnershipClaims = true
+    static let excludesAuthorizationClaims = true
+    static let excludesComplianceClaims = true
+    static let excludesSafetyClaims = true
+    static let excludesTelemetryClaims = true
+    static let excludesRemoteClaims = true
+    static let requiresNonColorStateText = true
+    static let requiresTextAndIconForIndeterminateStates = true
+    static let requiresActionableNextStep = true
+    static let allowsColorOnlyState = false
+    static let allowsIconOnlyState = false
+
+    /// Claim words are tokenized so a harmless word such as "safely" does not
+    /// accidentally become a prohibited relationship claim.
+    static let prohibitedClaimTokens: Set<String> = [
+        "owner", "owners", "owned", "ownership",
+        "authorize", "authorized", "authorization",
+        "compliance", "compliant",
+        "safety", "safe",
+        "telemetry", "telemetric",
+        "remote", "remotely",
+    ]
+
+    static func containsProhibitedClaim(in values: [String]) -> Bool {
+        values.contains { value in
+            let tokens = value.lowercased().split { !$0.isLetter && !$0.isNumber }
+            return tokens.contains { prohibitedClaimTokens.contains(String($0)) }
+        }
+    }
+}
+
+/// A named vocabulary alias keeps privacy tests and report consumers from
+/// coupling to the authority-criterion claim vocabulary.
+enum FunctionalRelationshipClaimVocabularyV1 {
+    static let prohibitedTokens = FunctionalRelationshipLocalizationPolicyV1.prohibitedClaimTokens
+
+    static func containsProhibitedClaim(in values: [String]) -> Bool {
+        FunctionalRelationshipLocalizationPolicyV1.containsProhibitedClaim(in: values)
+    }
+}
+
+extension FunctionalRelationshipLocalizationKeyV1 {
+    static func directionLocalizationKey(_ direction: FunctionalRelationshipDirectionV1) -> Self {
+        directionKey(direction)
+    }
+
+    static func directionKey(_ direction: FunctionalRelationshipDirectionV1) -> Self {
+        switch direction {
+        case .directed: return .directedSourceToTarget
+        case .undirected: return .symmetric
+        }
+    }
+
+    static func symmetryLocalizationKey(_ symmetry: FunctionalRelationshipSymmetryV1) -> Self {
+        symmetryKey(symmetry)
+    }
+
+    static func symmetryKey(_ symmetry: FunctionalRelationshipSymmetryV1) -> Self {
+        switch symmetry {
+        case .asymmetric: return .directedSourceToTarget
+        case .symmetric: return .symmetric
+        }
+    }
+
+    static func stateKey(_ action: AssetFunctionalRelationshipEventActionV1) -> Self {
+        eventStateKey(action)
+    }
+
+    static func eventStateKey(_ action: AssetFunctionalRelationshipEventActionV1) -> Self {
+        switch action {
+        case .added: return .activeState
+        case .ended: return .endedState
+        case .superseded: return .supersededState
+        }
+    }
+
+    static func stateKey(_ state: FunctionalRelationshipReadinessStateV1) -> Self {
+        readinessStateKey(state)
+    }
+
+    static func readinessStateKey(_ state: FunctionalRelationshipReadinessStateV1) -> Self {
+        switch state {
+        case .ready: return .activeState
+        case .incomplete: return .incompleteState
+        }
+    }
+
+    static func stateKey(_ disposition: FunctionalRelationshipDispositionV1) -> Self {
+        dispositionStateKey(disposition)
+    }
+
+    static func dispositionStateKey(_ disposition: FunctionalRelationshipDispositionV1) -> Self {
+        switch disposition {
+        case .retain: return .activeState
+        case .end: return .endedState
+        case .supersede: return .supersededState
+        case .reviewRequired, .denied: return .blockedState
+        }
+    }
+
+    static func siteLocalizationKey(_ policy: FunctionalRelationshipSitePolicyV1) -> Self {
+        sitePolicyKey(policy)
+    }
+
+    static func sitePolicyKey(_ policy: FunctionalRelationshipSitePolicyV1) -> Self {
+        switch policy {
+        case .sameSiteRequired: return .site
+        case .crossSiteLocalAllowed: return .crossSiteState
+        }
+    }
+
+    static func nextStepKey(
+        _ boundary: FunctionalRelationshipReadinessBoundaryV1
+    ) -> Self {
+        minimumRequirementKey(boundary)
+    }
+
+    static func minimumRequirementKey(
+        _ boundary: FunctionalRelationshipReadinessBoundaryV1
+    ) -> Self {
+        // Every named readiness boundary uses the same localized next-step
+        // wording; the boundary's machine value remains a recorded fact.
+        switch boundary {
+        case .atomicCreationBundle, .readiness, .finalization:
+            return .minimumNextRequirement
+        }
+    }
+}

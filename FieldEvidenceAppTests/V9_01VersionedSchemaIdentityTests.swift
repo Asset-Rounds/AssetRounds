@@ -892,3 +892,31 @@ final class V9_01VersionedSchemaIdentityTests: XCTestCase {
         models.map { ObjectIdentifier($0) }
     }
 }
+
+extension V9_01VersionedSchemaIdentityTests {
+    func testV23P03C41SchemaIdentityIncludesFunctionalRelationshipHistory() throws {
+        let fixture = try C41FunctionalRelationshipTestSupportV1.makeFixture()
+
+        XCTAssertEqual(PersistentSchemaV12.versionIdentifier, Schema.Version(12, 0, 0))
+        XCTAssertEqual(
+            PersistentSchemaReleaseV1.v12.compatibilityID,
+            "PERSISTENT_SCHEMA_V12_FUNCTIONAL_RELATIONSHIP_HISTORY"
+        )
+        XCTAssertTrue(
+            PersistentSchemaV12.models.contains {
+                ObjectIdentifier($0) == ObjectIdentifier(FunctionalRelationshipTypeDescriptorRow.self)
+            }
+        )
+        XCTAssertTrue(
+            PersistentSchemaV12.models.contains {
+                ObjectIdentifier($0) == ObjectIdentifier(AssetFunctionalRelationshipEventRow.self)
+            }
+        )
+        XCTAssertEqual(fixture.descriptor.schemaVersion, FunctionalRelationshipTypeDescriptorV1.schemaVersion)
+        XCTAssertEqual(fixture.added.schemaVersion, AssetFunctionalRelationshipEventV1.schemaVersion)
+        try fixture.descriptor.validate(
+            sourceCatalog: fixture.sourceCatalog, targetCatalog: fixture.targetCatalog
+        )
+        try fixture.added.validate()
+    }
+}

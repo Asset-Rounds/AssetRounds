@@ -4444,3 +4444,219 @@ private extension Data {
         self = result
     }
 }
+
+/// Small, deterministic C41 fixtures shared by the legacy lifecycle tests.
+/// The helper only constructs the canonical C41 contract objects; persistence
+/// and coordinator behavior remain owned by their production adapters.
+enum C41FunctionalRelationshipTestSupportV1 {
+    struct Fixture {
+        let workspaceID: WorkspaceID
+        let packageRelease: PackageReleaseIdentityV1
+        let sourceCatalog: AssetSemanticCatalogReleaseV1
+        let targetCatalog: AssetSemanticCatalogReleaseV1
+        let descriptor: FunctionalRelationshipTypeDescriptorV1
+        let actor: LocalActorReferenceV1
+        let relationshipID: UUID
+        let sourceAssetID: UUID
+        let targetAssetID: UUID
+        let added: AssetFunctionalRelationshipEventV1
+        let ended: AssetFunctionalRelationshipEventV1
+        let superseded: AssetFunctionalRelationshipEventV1
+    }
+
+    static let fixedDate = Date(timeIntervalSince1970: 1_735_689_600.125)
+
+    static func id(_ seed: Int) -> UUID {
+        UUID(uuidString: String(format: "00000000-0000-0000-0000-%012x", seed))!
+    }
+
+    static func workspace(_ seed: Int = 41_000) -> WorkspaceID {
+        WorkspaceID(rawValue: id(seed))
+    }
+
+    static func sourceRoot() -> URL {
+        KernelConformanceFixtureHarnessV1.sourceRoot()
+    }
+
+    static func mutation(_ seed: Int) throws -> MutationIDV1 {
+        try MutationIDV1(rawValue: id(seed))
+    }
+
+    static func makeFixture(
+        seed: Int = 41_000,
+        direction: FunctionalRelationshipDirectionV1 = .directed,
+        symmetry: FunctionalRelationshipSymmetryV1 = .asymmetric,
+        cyclePolicy: FunctionalRelationshipCyclePolicyV1 = .forbidden,
+        sourceMinimum: Int = 0,
+        targetMinimum: Int = 0,
+        sourceMaximum: Int = 2,
+        targetMaximum: Int = 2,
+        minimumCardinalityBoundaries: [FunctionalRelationshipReadinessBoundaryV1] = [.readiness, .finalization]
+    ) throws -> Fixture {
+        let workspaceID = workspace(seed)
+        let packageRelease = try PackageReleaseIdentityV1(
+            packageID: "com.assetrounds.c41.fixture",
+            schemaVersion: 1,
+            contentVersion: 1
+        )
+        let sourceCapability = try AssetSemanticCapabilityIDV1("capability.control")
+        let targetCapability = try AssetSemanticCapabilityIDV1("capability.inspect")
+        let sourceCatalog = try makeCatalog(
+            packageRelease: packageRelease,
+            releaseID: id(seed + 1),
+            semanticID: "asset.controller",
+            capabilityIDs: [sourceCapability]
+        )
+        let targetCatalog = try makeCatalog(
+            packageRelease: packageRelease,
+            releaseID: id(seed + 2),
+            semanticID: "asset.zone",
+            capabilityIDs: [targetCapability]
+        )
+        let descriptor = try FunctionalRelationshipTypeDescriptorV1(
+            descriptorReleaseID: id(seed + 3),
+            workspaceID: workspaceID,
+            packageRelease: packageRelease,
+            semanticID: "relationship.controls",
+            sourceCatalogRelease: sourceCatalog.reference,
+            targetCatalogRelease: targetCatalog.reference,
+            sourceSemanticIDs: ["asset.controller"],
+            targetSemanticIDs: ["asset.zone"],
+            requiredSourceCapabilityIDs: [sourceCapability],
+            requiredTargetCapabilityIDs: [targetCapability],
+            direction: direction,
+            symmetry: symmetry,
+            sourceCardinality: try FunctionalRelationshipCardinalityV1(
+                minimum: sourceMinimum, maximum: sourceMaximum
+            ),
+            targetCardinality: try FunctionalRelationshipCardinalityV1(
+                minimum: targetMinimum, maximum: targetMaximum
+            ),
+            selfEdgePolicy: .forbidden,
+            cyclePolicy: cyclePolicy,
+            maximumTraversalDepth: 8,
+            maximumHardEdges: 16,
+            sitePolicy: .sameSiteRequired,
+            minimumCardinalityBoundaries: minimumCardinalityBoundaries,
+            displayNameLocalizationKey: "functional_relationship.controls.name",
+            descriptionLocalizationKey: "functional_relationship.controls.description",
+            sourceRoleLocalizationKey: "functional_relationship.controls.source",
+            targetRoleLocalizationKey: "functional_relationship.controls.target",
+            releasedAt: fixedDate,
+            mutationID: try mutation(seed + 4)
+        )
+        let actor = try LocalActorReferenceV1(
+            actorReferenceID: id(seed + 5), workspaceID: workspaceID,
+            displayName: "C41 fixture actor"
+        )
+        let relationshipID = id(seed + 6)
+        let sourceAssetID = id(seed + 7)
+        let targetAssetID = id(seed + 8)
+        let added = try makeEvent(
+            eventID: id(seed + 10), relationshipID: relationshipID,
+            workspaceID: workspaceID, action: .added,
+            sourceAssetID: sourceAssetID, targetAssetID: targetAssetID,
+            descriptor: descriptor, actor: actor,
+            predecessorEventID: nil, expectedRelationshipRevision: 0,
+            revision: 1, mutationID: try mutation(seed + 11)
+        )
+        let ended = try makeEvent(
+            eventID: id(seed + 13), relationshipID: relationshipID,
+            workspaceID: workspaceID, action: .ended,
+            sourceAssetID: sourceAssetID, targetAssetID: targetAssetID,
+            descriptor: descriptor, actor: actor,
+            predecessorEventID: added.eventID, expectedRelationshipRevision: 1,
+            revision: 2, mutationID: try mutation(seed + 14),
+            recordedAt: fixedDate.addingTimeInterval(2)
+        )
+        let superseded = try makeEvent(
+            eventID: id(seed + 16), relationshipID: relationshipID,
+            workspaceID: workspaceID, action: .superseded,
+            sourceAssetID: sourceAssetID, targetAssetID: targetAssetID,
+            descriptor: descriptor, actor: actor,
+            predecessorEventID: added.eventID, expectedRelationshipRevision: 1,
+            revision: 2, mutationID: try mutation(seed + 17),
+            recordedAt: fixedDate.addingTimeInterval(2)
+        )
+        return Fixture(
+            workspaceID: workspaceID, packageRelease: packageRelease,
+            sourceCatalog: sourceCatalog, targetCatalog: targetCatalog,
+            descriptor: descriptor, actor: actor, relationshipID: relationshipID,
+            sourceAssetID: sourceAssetID, targetAssetID: targetAssetID,
+            added: added, ended: ended, superseded: superseded
+        )
+    }
+
+    static func makeCatalog(
+        packageRelease: PackageReleaseIdentityV1,
+        releaseID: UUID,
+        semanticID: String,
+        capabilityIDs: [AssetSemanticCapabilityIDV1]
+    ) throws -> AssetSemanticCatalogReleaseV1 {
+        try AssetSemanticCatalogReleaseV1(
+            releaseID: releaseID,
+            packageRelease: packageRelease,
+            revision: 1,
+            definitions: [try AssetKindDefinitionV1(
+                semanticID: semanticID,
+                displayNameLocalizationKey: "functional_relationship.\(semanticID).name",
+                descriptionLocalizationKey: "functional_relationship.\(semanticID).description",
+                capabilityIDs: capabilityIDs,
+                compatibleWorkflowPackageReleases: [packageRelease],
+                compatibilityPolicy: .sameSemanticIDSuccessor
+            )],
+            releasedAt: fixedDate
+        )
+    }
+
+    static func makeEvent(
+        eventID: UUID,
+        relationshipID: UUID,
+        workspaceID: WorkspaceID,
+        action: AssetFunctionalRelationshipEventActionV1,
+        sourceAssetID: UUID,
+        targetAssetID: UUID,
+        descriptor: FunctionalRelationshipTypeDescriptorV1,
+        actor: LocalActorReferenceV1,
+        predecessorEventID: UUID?,
+        expectedRelationshipRevision: UInt64,
+        revision: UInt64,
+        mutationID: MutationIDV1,
+        recordedAt: Date = fixedDate
+    ) throws -> AssetFunctionalRelationshipEventV1 {
+        try AssetFunctionalRelationshipEventV1(
+            eventID: eventID, relationshipID: relationshipID,
+            workspaceID: workspaceID, action: action,
+            sourceAssetID: sourceAssetID, targetAssetID: targetAssetID,
+            sourceAssetRevision: 1, targetAssetRevision: 1,
+            descriptor: FunctionalRelationshipDescriptorReferenceV1(descriptor),
+            effectiveAt: fixedDate, recordedAt: recordedAt, actor: actor,
+            provenance: "C41_SYNTHETIC_FIXTURE",
+            predecessorEventID: predecessorEventID,
+            expectedRelationshipRevision: expectedRelationshipRevision,
+            revision: revision, mutationID: mutationID
+        )
+    }
+
+    static func makeCycleEvents(_ fixture: Fixture) throws -> [AssetFunctionalRelationshipEventV1] {
+        let second = try makeEvent(
+            eventID: id(42_101), relationshipID: id(42_102),
+            workspaceID: fixture.workspaceID, action: .added,
+            sourceAssetID: fixture.targetAssetID, targetAssetID: id(42_103),
+            descriptor: fixture.descriptor, actor: fixture.actor,
+            predecessorEventID: nil, expectedRelationshipRevision: 0,
+            revision: 1, mutationID: mutation(42_104),
+            recordedAt: fixedDate.addingTimeInterval(1)
+        )
+        let third = try makeEvent(
+            eventID: id(42_106), relationshipID: id(42_107),
+            workspaceID: fixture.workspaceID, action: .added,
+            sourceAssetID: id(42_103), targetAssetID: fixture.sourceAssetID,
+            descriptor: fixture.descriptor, actor: fixture.actor,
+            predecessorEventID: nil, expectedRelationshipRevision: 0,
+            revision: 1, mutationID: mutation(42_108),
+            recordedAt: fixedDate.addingTimeInterval(1)
+        )
+        return [fixture.added, second, third]
+    }
+}

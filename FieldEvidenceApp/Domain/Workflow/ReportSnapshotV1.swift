@@ -40,6 +40,9 @@ struct ReportSnapshotV1: Codable, Equatable, Sendable {
     /// Optional C40 frozen authority, applicability, assessment, classification,
     /// severity, measurement-protocol, and derived-fact projection.
     var authorityCriterion: CompletedAuthorityCriterionSnapshotV1? = nil
+    /// Optional C41 frozen functional-relationship descriptor/history snapshot.
+    /// It is a typed report fact only; later events never mutate this value.
+    var functionalRelationships: CompletedFunctionalRelationshipSnapshotV1? = nil
 }
 
 struct AcknowledgementSnapshotV1: Codable, Equatable, Sendable {

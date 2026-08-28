@@ -227,6 +227,7 @@ struct SnapshotValidatorV1 {
         let snapshot = try ReportSnapshotEncoderV1().decode(snapshotData)
         try validateRequirementAssurance(snapshot)
         try validateAuthorityCriterion(snapshot)
+        try validateFunctionalRelationships(snapshot)
         guard try ReportSnapshotEncoderV1().encode(snapshot).data == snapshotData,
               snapshot.snapshotSchemaVersion == report.snapshotSchemaVersion,
               snapshot.reportID == report.id,
@@ -474,6 +475,19 @@ struct SnapshotValidatorV1 {
             try authority.validate()
             if case .live(let dependencies, _) = lifecycleRoute,
                authority.workspaceID.rawValue != dependencies.workspaceID {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+        } catch {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+    }
+
+    private func validateFunctionalRelationships(_ snapshot: ReportSnapshotV1) throws {
+        guard let relationships = snapshot.functionalRelationships else { return }
+        do {
+            try relationships.validate()
+            if case .live(let dependencies, _) = lifecycleRoute,
+               relationships.workspaceID.rawValue != dependencies.workspaceID {
                 throw SnapshotValidationErrorV1.invalidAuthority
             }
         } catch {

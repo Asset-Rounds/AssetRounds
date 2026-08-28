@@ -65,6 +65,31 @@ enum SearchAuthorityCriterionPersistencePolicyV1 {
     static func accepts(fieldID: String) -> Bool { fieldIDs.contains(fieldID) }
 }
 
+/// C41 keeps functional-relationship search disposable and bounded to the
+/// current descriptor/event-derived view. It never indexes historical graph
+/// bytes, actor/provenance details, locators, ownership, authorization,
+/// compliance, safety, telemetry, or remote claims.
+enum SearchFunctionalRelationshipsPersistencePolicyV1 {
+    static let semanticLabel = "FUNCTIONAL_RELATIONSHIPS_SEARCH_PROJECTION_V1"
+    static let sourceKind = "ASSET"
+    static let fieldIDs = [
+        "functional_relationship_descriptor",
+        "functional_relationship_direction",
+        "functional_relationship_state",
+        "functional_relationship_endpoint",
+    ]
+    static let indexesCurrentHeadsOnly = true
+    static let excludesHistoricalEvents = true
+    static let excludesGraphTruth = true
+    static let excludesOwnershipAuthorizationComplianceClaims = true
+    static let excludesTelemetryAndRemoteClaims = true
+
+    static func accepts(fieldID: String) -> Bool { fieldIDs.contains(fieldID) }
+}
+
+typealias SearchFunctionalRelationshipPersistencePolicyV1 =
+    SearchFunctionalRelationshipsPersistencePolicyV1
+
 enum SearchPersistenceCodecV1 {
     static func encode<T: Encodable>(_ value: T) throws -> Data {
         let encoder = JSONEncoder()

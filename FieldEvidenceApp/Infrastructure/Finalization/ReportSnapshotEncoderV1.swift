@@ -136,6 +136,21 @@ struct ReportSnapshotEncoderV1: Sendable {
         catch { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
     }
 
+    /// C41's additive frozen snapshot codec. V1--V5 encode/decode behavior is
+    /// intentionally unchanged so an older report cannot be rewritten by a
+    /// newer relationship projection.
+    func encode(_ snapshot: CompletedActivitySnapshotV6) throws -> EncodedReportSnapshotV1 {
+        do {
+            let data = try CompletedActivitySnapshotCanonicalCodecV6.encode(snapshot)
+            return EncodedReportSnapshotV1(data: data, sha256: KernelCanonicalHashV1.sha256(data))
+        } catch { throw ReportSnapshotEncodingErrorV1.invalidSnapshot }
+    }
+
+    func decodeCompletedActivityV6(_ data: Data) throws -> CompletedActivitySnapshotV6 {
+        do { return try CompletedActivitySnapshotCanonicalCodecV6.decode(data) }
+        catch { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
+    }
+
     func encode(
         _ snapshot: RequirementAssuranceSnapshotV1
     ) throws -> EncodedReportSnapshotV1 {
@@ -172,13 +187,21 @@ struct ReportSnapshotEncoderV1: Sendable {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
-            let value = try container.decode(String.self)
-            guard Self.isCanonicalTimestamp(value),
-                  let date = Self.timestampFormatter.date(from: value)
-            else {
-                throw ReportSnapshotEncodingErrorV1.noncanonicalData
+            if let value = try? container.decode(String.self) {
+                guard Self.isCanonicalTimestamp(value),
+                      let date = Self.timestampFormatter.date(from: value) else {
+                    throw ReportSnapshotEncodingErrorV1.noncanonicalData
+                }
+                return date
             }
-            return date
+            // C41's nested domain codec uses canonical milliseconds. Accept
+            // that representation only for the additive relationship field;
+            // legacy report dates remain strict UTC timestamp strings.
+            if let milliseconds = try? container.decode(Double.self),
+               milliseconds.isFinite {
+                return Date(timeIntervalSince1970: milliseconds / 1_000)
+            }
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
         }
 
         guard let snapshot = try? decoder.decode(ReportSnapshotV1.self, from: data),
@@ -252,6 +275,9 @@ struct ReportSnapshotEncoderV1: Sendable {
         }
         if let authorityCriterion = snapshot.authorityCriterion {
             guard (try? authorityCriterion.validate()) != nil else { return false }
+        }
+        if let functionalRelationships = snapshot.functionalRelationships {
+            guard (try? functionalRelationships.validate()) != nil else { return false }
         }
 
         guard validObservationAndTime(
@@ -374,7 +400,24 @@ extension CanonicalJSONV1 {
         if let authorityCriterion = value.authorityCriterion {
             object["authorityCriterion"] = Self.authorityCriterion(authorityCriterion)
         }
+        if let functionalRelationships = value.functionalRelationships {
+            object["functionalRelationships"] = Self.functionalRelationships(functionalRelationships)
+        }
         return .object(object)
+    }
+
+    /// C41 relationship descriptors and event history are encoded by the
+    /// domain's canonical codec first, then copied into the report JSON tree.
+    /// This preserves exact nested keys/digests without exposing a second
+    /// report-specific wire representation.
+    private static func functionalRelationships(
+        _ value: CompletedFunctionalRelationshipSnapshotV1
+    ) -> CanonicalJSONValueV1 {
+        guard let data = try? FunctionalRelationshipCanonicalCodecV1.encode(value),
+              let object = try? JSONSerialization.jsonObject(with: data) else {
+            return .null
+        }
+        return canonicalValue(object)
     }
 
     private static func authorityCriterion(

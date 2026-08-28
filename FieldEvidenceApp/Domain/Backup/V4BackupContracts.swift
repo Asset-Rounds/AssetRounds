@@ -151,6 +151,18 @@ struct V11BackupAuthorityCriterionRecordV1: Codable, Equatable, Sendable {
     let canonicalData: Data
 }
 
+struct V12BackupFunctionalRelationshipRecordV1: Codable, Equatable, Sendable {
+    enum Kind: String, Codable, CaseIterable, Sendable {
+        case descriptor = "FUNCTIONAL_RELATIONSHIP_DESCRIPTOR"
+        case event = "ASSET_FUNCTIONAL_RELATIONSHIP_EVENT"
+    }
+    let kind: Kind
+    let id: UUID
+    let workspaceID: UUID
+    let revision: UInt64
+    let canonicalData: Data
+}
+
 struct V4BackupSiteDTO: Codable, Equatable, Identifiable, Sendable {
     let id: UUID
     let schemaVersion: Int
@@ -313,6 +325,7 @@ struct V4BackupReportDTO: Codable, Equatable, Identifiable, Sendable {
 }
 
 struct V4BackupRecordsV1: Codable, Equatable, Sendable {
+    let functionalRelationships: [V12BackupFunctionalRelationshipRecordV1]
     let authorityCriterion: [V11BackupAuthorityCriterionRecordV1]
     let assetSemantics: [V10BackupAssetSemanticRecordV1]
     let assetCompositionEdges: [V5BackupLocationRecordV1]
@@ -336,6 +349,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     let workflowRecords: [V4BackupWorkflowRecordDTO]
 
     init(
+        functionalRelationships: [V12BackupFunctionalRelationshipRecordV1] = [],
         authorityCriterion: [V11BackupAuthorityCriterionRecordV1] = [],
         assetSemantics: [V10BackupAssetSemanticRecordV1] = [],
         assetCompositionEdges: [V5BackupLocationRecordV1] = [],
@@ -358,6 +372,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         sites: [V4BackupSiteDTO],
         workflowRecords: [V4BackupWorkflowRecordDTO]
     ) {
+        self.functionalRelationships = functionalRelationships
         self.authorityCriterion = authorityCriterion
         self.assetSemantics = assetSemantics
         self.assetCompositionEdges = assetCompositionEdges
@@ -382,7 +397,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case authorityCriterion, assetSemantics, assetCompositionEdges, assetCompositionEvents, assetPlacementEvents, assets
+        case functionalRelationships, authorityCriterion, assetSemantics, assetCompositionEdges, assetCompositionEvents, assetPlacementEvents, assets
         case deletionLedger, evidenceFiles, issues, locationHierarchyEvents
         case locationMigrationReceipts, locationNodes, mutationHistory, packets, partyAccountability
         case recordsSchemaVersion, reports, requirementAssurance, savedSmartViews, sites
@@ -393,6 +408,9 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         let version = try values.decode(Int.self, forKey: .recordsSchemaVersion)
         self.init(
+            functionalRelationships: try values.decodeIfPresent(
+                [V12BackupFunctionalRelationshipRecordV1].self, forKey: .functionalRelationships
+            ) ?? [],
             authorityCriterion: try values.decodeIfPresent(
                 [V11BackupAuthorityCriterionRecordV1].self, forKey: .authorityCriterion
             ) ?? [],

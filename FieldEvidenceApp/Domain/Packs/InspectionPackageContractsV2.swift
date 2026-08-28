@@ -589,6 +589,47 @@ struct InspectionPackageAuthorityCriterionBindingV1: Codable, Equatable, Hashabl
     }
 }
 
+/// Declarative C41 sidecar. Functional topology policy is immutable package
+/// vocabulary and remains outside the package's executable/canonical V2 body.
+struct InspectionPackageFunctionalRelationshipBindingV1: Codable, Equatable, Hashable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let workspaceID: WorkspaceID
+    let packageRelease: PackageReleaseIdentityV1
+    let descriptorReleases: [FunctionalRelationshipTypeDescriptorV1]
+    let declaresExecutableContent: Bool
+
+    init(
+        workspaceID: WorkspaceID,
+        packageRelease: PackageReleaseIdentityV1,
+        descriptorReleases: [FunctionalRelationshipTypeDescriptorV1],
+        declaresExecutableContent: Bool = false
+    ) throws {
+        schemaVersion = Self.schemaVersion
+        self.workspaceID = workspaceID
+        self.packageRelease = packageRelease
+        self.descriptorReleases = descriptorReleases.sorted {
+            $0.descriptorReleaseID.uuidString < $1.descriptorReleaseID.uuidString
+        }
+        self.declaresExecutableContent = declaresExecutableContent
+        try validate()
+    }
+
+    func validate() throws {
+        try descriptorReleases.forEach { try $0.validate() }
+        guard schemaVersion == Self.schemaVersion,
+              AssetSemanticValidationV1.validPackageRelease(packageRelease),
+              descriptorReleases.count <= FunctionalRelationshipLimitsV1.maximumDescriptors,
+              Set(descriptorReleases.map(\.descriptorReleaseID)).count == descriptorReleases.count,
+              descriptorReleases.allSatisfy({
+                $0.workspaceID == workspaceID && $0.packageRelease == packageRelease
+              }),
+              !declaresExecutableContent else {
+            throw InspectionPackageFailureV2.incompatiblePackage
+        }
+    }
+}
+
 enum InspectionPackageValidationV2 {
     static func validIdentifier(_ value: String, maximumBytes: Int) -> Bool {
         value == value.lowercased()

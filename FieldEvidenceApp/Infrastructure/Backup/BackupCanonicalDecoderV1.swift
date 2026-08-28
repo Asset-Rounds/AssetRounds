@@ -48,6 +48,7 @@ struct BackupCanonicalDecoderV1: Sendable {
             try Self.validatePartyAccountability(value)
             try Self.validateAssetSemantics(value)
             try Self.validateAuthorityCriterion(value)
+            try Self.validateFunctionalRelationships(value)
             let canonical = try BackupCanonicalEncoderV1().encodeRecords(value).data
             guard canonical == data else {
                 throw BackupCanonicalDecodingErrorV1.invalidRecords
@@ -60,6 +61,26 @@ struct BackupCanonicalDecoderV1: Sendable {
 }
 
 private extension BackupCanonicalDecoderV1 {
+    static func validateFunctionalRelationships(_ records: V4BackupRecordsV1) throws {
+        guard records.recordsSchemaVersion >= 11 else {
+            guard records.functionalRelationships.isEmpty else { throw BackupCanonicalDecodingErrorV1.invalidRecords }
+            return
+        }
+        for record in records.functionalRelationships {
+            let identity: (UUID, WorkspaceID, UInt64)
+            switch record.kind {
+            case .descriptor:
+                let value = try FunctionalRelationshipCanonicalCodecV1.decode(FunctionalRelationshipTypeDescriptorV1.self, from: record.canonicalData)
+                try value.validate(); identity = (value.descriptorReleaseID, value.workspaceID, value.revision)
+            case .event:
+                let value = try FunctionalRelationshipCanonicalCodecV1.decode(AssetFunctionalRelationshipEventV1.self, from: record.canonicalData)
+                try value.validate(); identity = (value.eventID, value.workspaceID, value.revision)
+            }
+            guard identity.0 == record.id, identity.1.rawValue == record.workspaceID,
+                  identity.2 == record.revision else { throw BackupCanonicalDecodingErrorV1.invalidRecords }
+        }
+    }
+
     static func validateAuthorityCriterion(_ records: V4BackupRecordsV1) throws {
         guard records.recordsSchemaVersion >= 10 else {
             guard records.authorityCriterion.isEmpty else { throw BackupCanonicalDecodingErrorV1.invalidRecords }

@@ -266,6 +266,71 @@ final class S8_3DiagnosticPrivacyTests: XCTestCase {
             )
         )
     }
+
+    func testC41FunctionalRelationshipLocalizationIsCustomerSafeAndClaimBounded() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let catalogURL = root
+            .appendingPathComponent("FieldEvidenceApp/Resources/Localizable.xcstrings")
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: catalogURL)) as? [String: Any]
+        )
+        let strings = try XCTUnwrap(object["strings"] as? [String: Any])
+        let c41Text = try FunctionalRelationshipLocalizationKeyV1.allCases.flatMap { key in
+            let entry = try XCTUnwrap(strings[key.rawValue] as? [String: Any])
+            let comment = try XCTUnwrap(entry["comment"] as? String)
+            let localizations = try XCTUnwrap(entry["localizations"] as? [String: Any])
+            XCTAssertEqual(Set(localizations.keys), Set(["en"]))
+            let english = try XCTUnwrap(localizations["en"] as? [String: Any])
+            let unit = try XCTUnwrap(english["stringUnit"] as? [String: Any])
+            return [comment, try XCTUnwrap(unit["value"] as? String)]
+        }
+
+        XCTAssertFalse(
+            FunctionalRelationshipLocalizationPolicyV1.containsProhibitedClaim(in: c41Text)
+        )
+        XCTAssertTrue(FunctionalRelationshipLocalizationPolicyV1.excludesOwnershipClaims)
+        XCTAssertTrue(FunctionalRelationshipLocalizationPolicyV1.excludesAuthorizationClaims)
+        XCTAssertTrue(FunctionalRelationshipLocalizationPolicyV1.excludesComplianceClaims)
+        XCTAssertTrue(FunctionalRelationshipLocalizationPolicyV1.excludesSafetyClaims)
+        XCTAssertTrue(FunctionalRelationshipLocalizationPolicyV1.excludesTelemetryClaims)
+        XCTAssertTrue(FunctionalRelationshipLocalizationPolicyV1.excludesRemoteClaims)
+        XCTAssertTrue(FunctionalRelationshipLocalizationPolicyV1.requiresNonColorStateText)
+        XCTAssertTrue(FunctionalRelationshipLocalizationPolicyV1.requiresActionableNextStep)
+
+        XCTAssertFalse(c41Text.contains { $0 == "\n" })
+        XCTAssertFalse(c41Text.contains { $0 == "\r" })
+        for restricted in [
+            "http://", "https://", "file://", "private locator", "raw sample",
+        ] {
+            XCTAssertFalse(
+                c41Text.contains { $0.localizedCaseInsensitiveContains(restricted) },
+                restricted
+            )
+        }
+
+        let hostileRelationshipText = [
+            "ownership asserted", "authorization granted", "compliance result",
+            "safety guarantee", "telemetry stream", "remote command",
+            "owned by a provider", "cross-site remote operation",
+        ]
+        XCTAssertTrue(
+            hostileRelationshipText.allSatisfy {
+                FunctionalRelationshipClaimVocabularyV1.containsProhibitedClaim(in: [$0])
+            }
+        )
+        XCTAssertFalse(
+            FunctionalRelationshipClaimVocabularyV1.containsProhibitedClaim(
+                in: ["Recorded source to target relationship", "safely recorded state"]
+            )
+        )
+        XCTAssertTrue(
+            AudiencePrivacyLexicalDetectorV1.containsProhibitedPattern(
+                in: ["https://relationship.example/type", "file:///Users/private/relationship"]
+            )
+        )
+    }
 }
 
 private final class DiagnosticsLogProbe: @unchecked Sendable {
@@ -282,5 +347,23 @@ private final class DiagnosticsLogProbe: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return events
+    }
+}
+
+extension S8_3DiagnosticPrivacyTests {
+    func testV23P03C41CorpusContainsNoCustomerOrSecretDiagnosticData() throws {
+        let url = C41FunctionalRelationshipTestSupportV1.sourceRoot().appendingPathComponent(
+            "FieldEvidenceAppTests/Fixtures/V21/FunctionalRelationships/V21P03C41FunctionalRelationshipCorpusV1.json"
+        )
+        let root = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+        )
+
+        XCTAssertEqual(root["synthetic"] as? Bool, true)
+        XCTAssertEqual(root["containsCustomerData"] as? Bool, false)
+        XCTAssertEqual(root["containsSecrets"] as? Bool, false)
+        let claims = try XCTUnwrap(root["claims"] as? [String: Any])
+        XCTAssertTrue(claims.values.allSatisfy { ($0 as? Bool) == false })
+        XCTAssertTrue(root.keys.contains("localizationAccessibility"))
     }
 }

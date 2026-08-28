@@ -223,6 +223,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
         let c46 = TemporalOriginV1(card: "V23_P03_C38", ordinal: 46)
         let c47 = TemporalOriginV1(card: "V23_P03_C39", ordinal: 47)
         let c48 = TemporalOriginV1(card: "V23_P03_C40", ordinal: 48)
+        let c49 = TemporalOriginV1(card: "V23_P03_C41", ordinal: 49)
         let groups: [(TemporalOriginV1, [String])] = [
             (c16, [
                 "JOURNAL:CurrentGenerationPointerV2",
@@ -360,6 +361,16 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
                 "PROJECTION:DerivedFactProvenanceV1",
                 "PROJECTION:StoreSemanticEnvelopeV11",
             ]),
+            (c49, [
+                "PERSISTENT_MODEL:FunctionalRelationshipTypeDescriptorRow",
+                "PERSISTENT_MODEL:AssetFunctionalRelationshipEventRow",
+                "PROJECTION:FunctionalRelationshipTypeDescriptorV1",
+                "PROJECTION:AssetFunctionalRelationshipEventV1",
+                "PROJECTION:CurrentFunctionalRelationshipProjectionV1",
+                "PROJECTION:FunctionalRelationshipDispositionPreviewV1",
+                "PROJECTION:CompletedFunctionalRelationshipSnapshotV1",
+                "PROJECTION:StoreSemanticEnvelopeV12",
+            ]),
         ]
         return groups.reduce(into: [:]) { result, group in
             for kindID in group.1 {
@@ -424,14 +435,25 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
             "PROJECTION:MeasurementProtocolReleaseV1", "PROJECTION:DerivedFactEvaluatorDescriptorV1",
             "PROJECTION:DerivedFactProvenanceV1", "PROJECTION:StoreSemanticEnvelopeV11",
         ])
-        guard kindIDs.count == 164,
+        let c41KindIDs = Set([
+            "PERSISTENT_MODEL:FunctionalRelationshipTypeDescriptorRow",
+            "PERSISTENT_MODEL:AssetFunctionalRelationshipEventRow",
+            "PROJECTION:FunctionalRelationshipTypeDescriptorV1",
+            "PROJECTION:AssetFunctionalRelationshipEventV1",
+            "PROJECTION:CurrentFunctionalRelationshipProjectionV1",
+            "PROJECTION:FunctionalRelationshipDispositionPreviewV1",
+            "PROJECTION:CompletedFunctionalRelationshipSnapshotV1",
+            "PROJECTION:StoreSemanticEnvelopeV12",
+        ])
+        guard kindIDs.count == 172,
               Set(kindIDs).count == kindIDs.count,
-              laterTemporalOrigins.count == 108,
+              laterTemporalOrigins.count == 116,
               c09KindIDs.isSubset(of: Set(kindIDs)),
               c12KindIDs.isSubset(of: Set(kindIDs)),
               c38KindIDs.isSubset(of: Set(kindIDs)),
               c39KindIDs.isSubset(of: Set(kindIDs)),
               c40KindIDs.isSubset(of: Set(kindIDs)),
+              c41KindIDs.isSubset(of: Set(kindIDs)),
               Set(laterTemporalOrigins.keys).isSubset(of: Set(kindIDs)) else {
             throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage
         }
@@ -440,7 +462,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
                 registration.subject
             ) ? registration.subject.canonicalKey : nil
         })
-        guard durableKindIDs.count == 99 else {
+        guard durableKindIDs.count == 101 else {
             throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage
         }
         let universeBytes = try CompatibilityCanonicalV1.encode(
@@ -448,6 +470,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
                 !c09KindIDs.contains($0) && !c12KindIDs.contains($0)
                     && !c38KindIDs.contains($0) && !c39KindIDs.contains($0)
                     && !c40KindIDs.contains($0)
+                    && !c41KindIDs.contains($0)
             }
         )
         guard CompatibilityCanonicalV1.sha256(universeBytes)

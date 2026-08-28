@@ -740,3 +740,20 @@ private struct ReplicationConflictPolicyCorpusFixtureV1: Decodable {
     let lifecycle: Lifecycle
     let privacy: Privacy
 }
+
+extension V10_03ReplicationConflictRegistryTests {
+    func testV23P03C41ReplicationSuccessorBindsPredecessorAndRevision() throws {
+        let fixture = try C41FunctionalRelationshipTestSupportV1.makeFixture(seed: 41_030)
+
+        try fixture.superseded.validateSuccessor(of: fixture.added)
+        XCTAssertEqual(fixture.superseded.action, .superseded)
+        XCTAssertEqual(fixture.superseded.predecessorEventID, fixture.added.eventID)
+        XCTAssertEqual(
+            fixture.superseded.expectedRelationshipRevision,
+            fixture.added.revision
+        )
+        XCTAssertEqual(fixture.superseded.revision, fixture.added.revision + 1)
+        XCTAssertNotEqual(fixture.superseded.mutationID, fixture.added.mutationID)
+        XCTAssertEqual(fixture.superseded.workspaceID, fixture.added.workspaceID)
+    }
+}

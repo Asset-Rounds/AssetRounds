@@ -41,6 +41,16 @@ enum SearchContractLimitsV1 {
     static let maximumAccountabilityAuthorityCriterionFieldRegistrations = 22
     static let maximumAssetSemanticsAuthorityCriterionFieldRegistrations = 23
     static let maximumAllProjectionFieldRegistrations = 27
+    /// C41 relationship fields are opt-in. The legacy maximum above remains
+    /// unchanged for byte-compatible V1--V3 registries.
+    static let maximumFunctionalRelationshipFieldRegistrations = 17
+    static let maximumAccountabilityFunctionalRelationshipFieldRegistrations = 21
+    static let maximumAssetSemanticsFunctionalRelationshipFieldRegistrations = 22
+    static let maximumAccountabilityAssetSemanticsFunctionalRelationshipFieldRegistrations = 26
+    static let maximumAuthorityCriterionFunctionalRelationshipFieldRegistrations = 22
+    static let maximumAccountabilityAuthorityCriterionFunctionalRelationshipFieldRegistrations = 26
+    static let maximumAssetSemanticsAuthorityCriterionFunctionalRelationshipFieldRegistrations = 27
+    static let maximumAllProjectionFunctionalRelationshipFieldRegistrations = 31
     static let maximumFilters = 16
     static let maximumSuggestions = 5
     static let maximumSnippetBytes = 320
@@ -48,6 +58,7 @@ enum SearchContractLimitsV1 {
     static let maximumProjectionTokens = 128
     static let maximumCanonicalRecords = 10_000
     static let maximumSearchableFieldCount = maximumAllProjectionFieldRegistrations
+    static let maximumC41SearchableFieldCount = maximumAllProjectionFunctionalRelationshipFieldRegistrations
     static let maximumProjectionRecords = maximumCanonicalRecords * maximumSearchableFieldCount
     static let maximumAccountabilityProjectionFieldsPerRecord = 4
     static let maximumAccountabilityProjectionRecords = maximumCanonicalRecords
@@ -193,6 +204,10 @@ enum FrozenSearchableFieldV1: String, CaseIterable, Codable, Hashable, Sendable 
     case criterionResult = "criterion_result"
     case severityLevel = "severity_level"
     case measurementProtocol = "measurement_protocol"
+    case functionalRelationshipDescriptor = "functional_relationship_descriptor"
+    case functionalRelationshipDirection = "functional_relationship_direction"
+    case functionalRelationshipState = "functional_relationship_state"
+    case functionalRelationshipEndpoint = "functional_relationship_endpoint"
 
     var allowedSourceKinds: Set<SearchSourceKindV1> {
         switch self {
@@ -206,6 +221,8 @@ enum FrozenSearchableFieldV1: String, CaseIterable, Codable, Hashable, Sendable 
              .assetProductIdentityState, .workSubjectScope: return [.asset]
         case .authoritySource, .applicabilityDisposition, .criterionResult,
              .severityLevel, .measurementProtocol: return [.work]
+        case .functionalRelationshipDescriptor, .functionalRelationshipDirection,
+             .functionalRelationshipState, .functionalRelationshipEndpoint: return [.asset]
         }
     }
 
@@ -328,7 +345,7 @@ struct SearchableFieldRegistryV1: Codable, Equatable, Sendable {
 
     func validate() throws {
         guard schemaVersion == Self.schemaVersion,
-              fields.count <= SearchContractLimitsV1.maximumAllProjectionFieldRegistrations else {
+              fields.count <= SearchContractLimitsV1.maximumAllProjectionFunctionalRelationshipFieldRegistrations else {
             throw SearchContractFailureV1.limitExceeded
         }
         guard fields.count == SearchContractLimitsV1.maximumFieldRegistrations
@@ -338,7 +355,15 @@ struct SearchableFieldRegistryV1: Codable, Equatable, Sendable {
                 || fields.count == SearchContractLimitsV1.maximumAuthorityCriterionFieldRegistrations
                 || fields.count == SearchContractLimitsV1.maximumAccountabilityAuthorityCriterionFieldRegistrations
                 || fields.count == SearchContractLimitsV1.maximumAssetSemanticsAuthorityCriterionFieldRegistrations
-                || fields.count == SearchContractLimitsV1.maximumAllProjectionFieldRegistrations else {
+                || fields.count == SearchContractLimitsV1.maximumAllProjectionFieldRegistrations
+                || fields.count == SearchContractLimitsV1.maximumFunctionalRelationshipFieldRegistrations
+                || fields.count == SearchContractLimitsV1.maximumAccountabilityFunctionalRelationshipFieldRegistrations
+                || fields.count == SearchContractLimitsV1.maximumAssetSemanticsFunctionalRelationshipFieldRegistrations
+                || fields.count == SearchContractLimitsV1.maximumAccountabilityAssetSemanticsFunctionalRelationshipFieldRegistrations
+                || fields.count == SearchContractLimitsV1.maximumAuthorityCriterionFunctionalRelationshipFieldRegistrations
+                || fields.count == SearchContractLimitsV1.maximumAccountabilityAuthorityCriterionFunctionalRelationshipFieldRegistrations
+                || fields.count == SearchContractLimitsV1.maximumAssetSemanticsAuthorityCriterionFunctionalRelationshipFieldRegistrations
+                || fields.count == SearchContractLimitsV1.maximumAllProjectionFunctionalRelationshipFieldRegistrations else {
             throw SearchContractFailureV1.invalidField
         }
         let identities = fields.map { $0.fieldID + ":" + $0.sourceKind.rawValue }
@@ -352,7 +377,15 @@ struct SearchableFieldRegistryV1: Codable, Equatable, Sendable {
                 || Set(identities) == Self.authorityCriterionRegistrationIdentities
                 || Set(identities) == Self.accountabilityAuthorityCriterionRegistrationIdentities
                 || Set(identities) == Self.assetSemanticsAuthorityCriterionRegistrationIdentities
-                || Set(identities) == Self.allProjectionRegistrationIdentities else {
+                || Set(identities) == Self.allProjectionRegistrationIdentities
+                || Set(identities) == Self.functionalRelationshipRegistrationIdentities
+                || Set(identities) == Self.accountabilityFunctionalRelationshipRegistrationIdentities
+                || Set(identities) == Self.assetSemanticsFunctionalRelationshipRegistrationIdentities
+                || Set(identities) == Self.accountabilityAssetSemanticsFunctionalRelationshipRegistrationIdentities
+                || Set(identities) == Self.authorityCriterionFunctionalRelationshipRegistrationIdentities
+                || Set(identities) == Self.accountabilityAuthorityCriterionFunctionalRelationshipRegistrationIdentities
+                || Set(identities) == Self.assetSemanticsAuthorityCriterionFunctionalRelationshipRegistrationIdentities
+                || Set(identities) == Self.allProjectionFunctionalRelationshipRegistrationIdentities else {
             throw SearchContractFailureV1.invalidField
         }
         try fields.forEach { try $0.validate() }
@@ -407,9 +440,33 @@ struct SearchableFieldRegistryV1: Codable, Equatable, Sendable {
     static let allProjectionRegistrationIdentities: Set<String> =
         accountabilityAssetSemanticsRegistrationIdentities.union(authorityCriterionFields)
 
+    static let functionalRelationshipRegistrationIdentities: Set<String> =
+        frozenRegistrationIdentities.union(functionalRelationshipFields)
+    static let accountabilityFunctionalRelationshipRegistrationIdentities: Set<String> =
+        accountabilityRegistrationIdentities.union(functionalRelationshipFields)
+    static let assetSemanticsFunctionalRelationshipRegistrationIdentities: Set<String> =
+        assetSemanticsRegistrationIdentities.union(functionalRelationshipFields)
+    static let accountabilityAssetSemanticsFunctionalRelationshipRegistrationIdentities: Set<String> =
+        accountabilityAssetSemanticsRegistrationIdentities.union(functionalRelationshipFields)
+    static let authorityCriterionFunctionalRelationshipRegistrationIdentities: Set<String> =
+        authorityCriterionRegistrationIdentities.union(functionalRelationshipFields)
+    static let accountabilityAuthorityCriterionFunctionalRelationshipRegistrationIdentities: Set<String> =
+        accountabilityAuthorityCriterionRegistrationIdentities.union(functionalRelationshipFields)
+    static let assetSemanticsAuthorityCriterionFunctionalRelationshipRegistrationIdentities: Set<String> =
+        assetSemanticsAuthorityCriterionRegistrationIdentities.union(functionalRelationshipFields)
+    static let allProjectionFunctionalRelationshipRegistrationIdentities: Set<String> =
+        allProjectionRegistrationIdentities.union(functionalRelationshipFields)
+
     private static let authorityCriterionFields: Set<String> = [
         "authority_source:WORK", "applicability_disposition:WORK",
         "criterion_result:WORK", "severity_level:WORK", "measurement_protocol:WORK",
+    ]
+
+    private static let functionalRelationshipFields: Set<String> = [
+        "functional_relationship_descriptor:ASSET",
+        "functional_relationship_direction:ASSET",
+        "functional_relationship_state:ASSET",
+        "functional_relationship_endpoint:ASSET",
     ]
 
     func descriptor(fieldID: String, sourceKind: SearchSourceKindV1) throws -> SearchableFieldDescriptorV1 {
