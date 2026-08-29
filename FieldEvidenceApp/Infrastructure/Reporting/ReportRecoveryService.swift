@@ -1029,3 +1029,44 @@ enum PlanReportRecoveryPolicyV1 {
         return projection
     }
 }
+
+// MARK: - C37 pose history/rebase recovery boundary
+
+enum C37PoseReportRecoveryPolicyV1 {
+    static let staleCurrentTipRequiresReconciliation = true
+    static let rebasePreviewMustBeRecomputed = true
+    static let historicSnapshotRemainsReadable = true
+    static let interruptionHasNoPartialCanonicalPose = true
+    static let manualFallbackRemainsAvailable = true
+    static let excludesSensorStream = true
+
+    static func validate(
+        _ projection: C37PlacementPoseReportProjectionV1
+    ) throws -> C37PlacementPoseReportProjectionV1 {
+        guard staleCurrentTipRequiresReconciliation,
+              rebasePreviewMustBeRecomputed,
+              historicSnapshotRemainsReadable,
+              interruptionHasNoPartialCanonicalPose,
+              manualFallbackRemainsAvailable,
+              excludesSensorStream else {
+            throw C37PoseReportProjectionFailureV1.privacyViolation
+        }
+        try C37PoseReportProjectionPolicyV1.validate(projection)
+        return projection
+    }
+
+    static func recoverFrozenSnapshot(
+        _ snapshot: C37PlacementPoseFrozenSnapshotV1
+    ) throws -> C37PlacementPoseFrozenSnapshotV1 {
+        try snapshot.validate()
+        return snapshot
+    }
+}
+
+extension ReportRecoveryService {
+    static func recoverPlacementPoseProjection(
+        _ projection: C37PlacementPoseReportProjectionV1
+    ) throws -> C37PlacementPoseReportProjectionV1 {
+        try C37PoseReportRecoveryPolicyV1.validate(projection)
+    }
+}

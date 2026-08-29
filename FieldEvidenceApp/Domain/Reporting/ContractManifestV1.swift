@@ -814,3 +814,80 @@ extension ContractManifestV1 {
         return self
     }
 }
+
+// MARK: - C37 placement-pose report consumer boundary
+
+/// The C37 consumer registers the canonical pose/event families and the
+/// derived report projection without promoting display text, search rows, or
+/// rebase previews into durable truth.
+enum PlacementPoseContractManifestBoundaryV1 {
+    static let contractTypeIDs = [
+        "PoseAxisDescriptorV1",
+        "PlacementPoseV1",
+        "AssetPoseEventReferenceV1",
+        "AssetPoseEventV1",
+        "SpatialAnchorObservationV1",
+        "PosePlacementDispositionComponentV1",
+        "PoseFrameRebaseComponentV1",
+        "CompletedPlacementPoseSnapshotV1",
+        "C37PlacementPoseReportProjectionV1",
+    ]
+    static let durableFamilies = [
+        "AssetPoseEventV1",
+        "SpatialAnchorObservationV1",
+    ]
+    static let derivedFamilies = [
+        "AssetPoseCurrentTipV1",
+        "CompletedPlacementPoseSnapshotV1",
+        "C37PlacementPoseReportProjectionV1",
+    ]
+    static let reportProjectionVersion = C37PlacementPoseReportProjectionV1.projectionVersion
+    static let persistentSchema = "PLACEMENT_POSE_V1"
+    static let currentAndHistoryAreRecordedFacts = true
+    static let historicDisplayIsFrozen = true
+    static let rebasePreviewIsNotApplied = true
+    static let sensorAndNetworkInputsExcluded = true
+    static let actorIdentityAndPrivateLocatorsExcluded = true
+    static let noSecondWriter = true
+
+    static func validate() throws {
+        guard contractTypeIDs == [
+                  "PoseAxisDescriptorV1",
+                  "PlacementPoseV1",
+                  "AssetPoseEventReferenceV1",
+                  "AssetPoseEventV1",
+                  "SpatialAnchorObservationV1",
+                  "PosePlacementDispositionComponentV1",
+                  "PoseFrameRebaseComponentV1",
+                  "CompletedPlacementPoseSnapshotV1",
+                  "C37PlacementPoseReportProjectionV1",
+              ],
+              durableFamilies == [
+                  "AssetPoseEventV1",
+                  "SpatialAnchorObservationV1",
+              ],
+              derivedFamilies == [
+                  "AssetPoseCurrentTipV1",
+                  "CompletedPlacementPoseSnapshotV1",
+                  "C37PlacementPoseReportProjectionV1",
+              ],
+              reportProjectionVersion == C37PlacementPoseReportProjectionV1.projectionVersion,
+              persistentSchema == "PLACEMENT_POSE_V1",
+              currentAndHistoryAreRecordedFacts,
+              historicDisplayIsFrozen,
+              rebasePreviewIsNotApplied,
+              sensorAndNetworkInputsExcluded,
+              actorIdentityAndPrivateLocatorsExcluded,
+              noSecondWriter else {
+            throw SnapshotProjectionFailureV1.invalidValue
+        }
+    }
+}
+
+extension ContractManifestV1 {
+    func validatePlacementPoseConsumerContract() throws -> Self {
+        try validate()
+        try PlacementPoseContractManifestBoundaryV1.validate()
+        return self
+    }
+}

@@ -82,6 +82,35 @@ enum PlanKernelDeletionEnrollmentV1 {
     }
 }
 
+/// Pose observations are durable event history, while current tips, completed
+/// snapshots, and axis registries are rebuilt projections.  Ordinary asset
+/// deletion therefore preserves the event graph; workspace Erase is the only
+/// operation that clears its canonical rows.
+enum PlacementPoseKernelDeletionEnrollmentV1 {
+    static let persistentRowNames: Set<String> = [
+        "AssetPoseEventRow", "SpatialAnchorObservationRow"
+    ]
+    static let derivedProjectionNames: Set<String> = [
+        "PoseAxisDescriptorRegistryV1", "AssetPoseCurrentTipV1",
+        "CompletedPlacementPoseSnapshotV1"
+    ]
+    static let ordinaryDeletionPreservesHistory = true
+    static let workspaceEraseClearsRows = true
+    static let sensorProposalsAreNonpersistent = true
+
+    static func validate() throws {
+        guard persistentRowNames.count == PlacementPosePersistenceEnrollmentV1.durableModelCount,
+              derivedProjectionNames.count == 3,
+              persistentRowNames.isDisjoint(with: derivedProjectionNames),
+              ordinaryDeletionPreservesHistory,
+              workspaceEraseClearsRows,
+              sensorProposalsAreNonpersistent else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+        try PlacementPoseDeletionLedgerPolicyV1.validate()
+    }
+}
+
 enum KernelDeleteDispositionV4: String, Codable, Sendable {
     case explicitOnly = "EXPLICIT_ONLY"
     case deleteAfterDependents = "DELETE_AFTER_DEPENDENTS"
@@ -389,6 +418,17 @@ enum KernelDeletionEraseRegistryV4 {
             throw KernelPersistenceV4Failure.incompleteCoverage
         }
     }
+    static func validatePlacementPoseLifecycle() throws {
+        try PlacementPoseKernelDeletionEnrollmentV1.validate()
+        guard PlacementPoseStreamingArchivePolicyV1.recordsSchemaVersion == 28,
+              PlacementPoseStreamingArchivePolicyV1.persistentSchemaVersion == 29,
+              PlacementPoseRestoreIdentityPolicyV1.durableFamilyCount == 2,
+              !PlacementPoseRestoreIdentityPolicyV1.cloneForkSourcePoseAutomaticallyActive,
+              PlacementPoseReplacementRestorePolicyV1.durableFamilyCount == 2,
+              !PlacementPoseReplacementRestorePolicyV1.derivedProjectionsRestored else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
     /// Search V1 has one canonical workspace-owned record and one disposable
     /// local projection. Keeping these routes beside the kernel registry makes
     /// delete/Erase audits distinguish canonical deletion from index rebuild.
@@ -444,6 +484,7 @@ enum KernelDeletionEraseRegistryV4 {
         try validateAccessibleDocumentLifecycle()
         try validateScheduleLifecycle()
         try validatePlanLifecycle()
+        try validatePlacementPoseLifecycle()
         try validatePrivacyTransformLifecycle()
         try validateMeasurementIntegrityLifecycle()
         try validatePackageEvolutionLifecycle()

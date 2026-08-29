@@ -308,6 +308,10 @@ final class BackupRestoreService {
                 ) == 0
                 && modelContext.fetchCount(FetchDescriptor<AssetLocatorRow>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<LocatorBindingReceiptRow>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<AssetPoseEventRow>()) == 0
+                && modelContext.fetchCount(
+                    FetchDescriptor<SpatialAnchorObservationRow>()
+                ) == 0
                 && hasNoObservationAndTime
         } catch {
             return false
@@ -1650,6 +1654,7 @@ private extension BackupRestoreService {
             assetLocators: records.assetLocators,
             schedules: records.schedules,
             plans: records.plans,
+            placementPoses: records.placementPoses,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
@@ -1700,6 +1705,7 @@ private extension BackupRestoreService {
             + records.locationNodes.map(\.id)
             + records.savedSmartViews.map(\.id)
             + records.surveyDefinitions.map(\.id)
+            + records.placementPoses.map(\.id)
         return Set(ids).count == ids.count
     }
 
@@ -1712,6 +1718,7 @@ private extension BackupRestoreService {
             assetLocators: records.assetLocators,
             schedules: records.schedules,
             plans: records.plans,
+            placementPoses: records.placementPoses,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
@@ -1758,6 +1765,28 @@ private extension BackupRestoreService {
             workspaceID: identityDecision.map { $0.targetPointer.workspaceID }
                 ?? legacyWorkspaceID
         )
+        if !normalized.placementPoses.isEmpty {
+            let destinationWorkspaceID = WorkspaceID(
+                rawValue: identityDecision?.targetPointer.workspaceID
+                    ?? legacyWorkspaceID
+            )
+            if let identityDecision {
+                normalized = try rebindingPlacementPoses(
+                    in: normalized,
+                    identity: identityDecision,
+                    workspaceID: destinationWorkspaceID
+                )
+            } else {
+                guard normalized.placementPoses.allSatisfy({
+                    $0.workspaceID == destinationWorkspaceID.rawValue
+                }) else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                _ = try PlacementPoseBackupRecordSetV1.decode(
+                    normalized.placementPoses
+                )
+            }
+        }
         if normalized.recordsSchemaVersion >= 5,
            let identityDecision {
             let sourcePreviews = try sourceAssurancePreviews(
@@ -1801,6 +1830,124 @@ private extension BackupRestoreService {
         )
     }
 
+    func rebindingPlacementPoses(
+        in records: V4BackupRecordsV1,
+        identity: RestoreIdentityV1,
+        workspaceID: WorkspaceID
+    ) throws -> V4BackupRecordsV1 {
+        let sourceValues = try PlacementPoseBackupRecordSetV1.decode(
+            records.placementPoses
+        )
+        let sourceWorkspaceIDs = Set(records.placementPoses.map(\.workspaceID))
+        guard sourceWorkspaceIDs.count <= 1,
+              let sourceWorkspaceID = sourceWorkspaceIDs.first else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        guard sourceValues.poseEvents.allSatisfy({
+            $0.workspaceID.rawValue == sourceWorkspaceID
+        }), sourceValues.spatialAnchors.allSatisfy({
+            $0.workspaceID.rawValue == sourceWorkspaceID
+        }) else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        let needsRebind = sourceWorkspaceID != workspaceID.rawValue
+            || identity.mode == .clone || identity.mode == .fork
+        guard needsRebind else { return records }
+
+        func actor(_ source: ActorSnapshotV1) throws -> ActorSnapshotV1 {
+            let local = try LocalActorReferenceV1(
+                actorReferenceID: source.actor.actorReferenceID,
+                workspaceID: workspaceID,
+                partyID: source.actor.partyID,
+                displayName: source.actor.displayName
+            )
+            return try ActorSnapshotV1(
+                snapshotID: source.snapshotID,
+                workspaceID: workspaceID,
+                actor: local,
+                responsibility: source.responsibility,
+                displayNameAtTime: source.displayNameAtTime,
+                capturedAt: source.capturedAt
+            )
+        }
+
+        var reboundEvents: [UUID: AssetPoseEventV1] = [:]
+        for source in sourceValues.poseEvents.sorted(by: {
+            ($0.revision, $0.eventID.uuidString.lowercased())
+                < ($1.revision, $1.eventID.uuidString.lowercased())
+        }) {
+            let predecessor: AssetPoseEventV1?
+            if let sourcePredecessor = source.predecessor {
+                guard let value = reboundEvents[sourcePredecessor.eventID] else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                predecessor = value
+            } else {
+                predecessor = nil
+            }
+            let rebound = try source.rebound(
+                to: workspaceID,
+                predecessor: predecessor,
+                recordedBy: actor(source.recordedBy)
+            )
+            guard reboundEvents.updateValue(rebound, forKey: source.eventID)
+                    == nil else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+        }
+
+        var reboundObservations: [UUID: SpatialAnchorObservationV1] = [:]
+        for source in sourceValues.spatialAnchors.sorted(by: {
+            ($0.revision, $0.observationID.uuidString.lowercased())
+                < ($1.revision, $1.observationID.uuidString.lowercased())
+        }) {
+            let predecessor: SpatialAnchorObservationV1?
+            if let sourcePredecessor = source.predecessorObservationID {
+                guard let value = reboundObservations[sourcePredecessor] else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                predecessor = value
+            } else {
+                predecessor = nil
+            }
+            let rebound = try source.rebound(
+                to: workspaceID,
+                predecessor: predecessor,
+                observedBy: actor(source.observedBy)
+            )
+            guard reboundObservations.updateValue(rebound, forKey: source.observationID)
+                    == nil else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+        }
+
+        let placementPoses = try (
+            reboundEvents.values.map {
+                V29BackupPlacementPoseRecordV1(
+                    kind: .poseEvent,
+                    id: $0.eventID,
+                    workspaceID: workspaceID.rawValue,
+                    revision: $0.revision,
+                    canonicalData: try PlacementPoseCanonicalCodecV1.encode($0)
+                )
+            }
+            + reboundObservations.values.map {
+                V29BackupPlacementPoseRecordV1(
+                    kind: .spatialAnchorObservation,
+                    id: $0.observationID,
+                    workspaceID: workspaceID.rawValue,
+                    revision: $0.revision,
+                    canonicalData: try PlacementPoseCanonicalCodecV1.encode($0)
+                )
+            }
+        ).sorted {
+            "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
+                < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
+        }
+        _ = try PlacementPoseBackupRecordSetV1.decode(placementPoses)
+        return records.replacingPlacementPoses(placementPoses)
+    }
+
     func recordsWithRequirementAssurance(
         _ records: V4BackupRecordsV1,
         workspaceID: UUID
@@ -1838,6 +1985,7 @@ private extension BackupRestoreService {
             assetLocators: records.assetLocators,
             schedules: records.schedules,
             plans: records.plans,
+            placementPoses: records.placementPoses,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
@@ -2125,6 +2273,7 @@ private extension BackupRestoreService {
                 assetLocators: assetLocators,
                 schedules: schedules,
                 plans: plans,
+                placementPoses: records.placementPoses,
                 accessibleDocumentAssessments:records.accessibleDocumentAssessments,
                 surveyDefinitions: surveyDefinitions,
                 fieldReferences:fieldReferences,
@@ -2195,6 +2344,7 @@ private extension BackupRestoreService {
             assetLocators: assetLocators,
             schedules: schedules,
             plans: plans,
+            placementPoses: records.placementPoses,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: surveyDefinitions,
             fieldReferences:fieldReferences,
@@ -4073,6 +4223,7 @@ private extension BackupRestoreService {
             accessibleDocumentAssessments:[],
             surveyDefinitions: [],
             fieldReferences: [],
+            placementPoses: [],
             evidenceAssurance: [], functionalRelationships: [], authorityCriterion: [], assetSemantics: [],
             assetCompositionEdges: records.assetCompositionEdges,
             assetCompositionEvents: records.assetCompositionEvents,
@@ -4451,7 +4602,9 @@ private extension BackupRestoreService {
                 || records.recordsSchemaVersion == 23
                 || records.recordsSchemaVersion == 24
                 || records.recordsSchemaVersion == 25
-                || records.recordsSchemaVersion == 26)
+                || records.recordsSchemaVersion == 26
+                || records.recordsSchemaVersion == 27
+                || records.recordsSchemaVersion == 28)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -4470,7 +4623,8 @@ private extension BackupRestoreService {
              (15, let ledger?, _), (16, let ledger?, _), (17, let ledger?, _),
              (18, let ledger?, _), (19, let ledger?, _), (20, let ledger?, _),
              (21, let ledger?, _), (22, let ledger?, _), (23, let ledger?, _),
-             (24, let ledger?, _), (25, let ledger?, _), (26, let ledger?, _):
+             (24, let ledger?, _), (25, let ledger?, _), (26, let ledger?, _),
+             (27, let ledger?, _), (28, let ledger?, _):
             do {
                 try ledger.validate()
                 try DeletionLedgerStore(context: context).stageUnion(ledger.entries)
@@ -4479,6 +4633,25 @@ private extension BackupRestoreService {
             }
         default:
             throw BackupRestoreServiceError.invalidPackage
+        }
+        if records.recordsSchemaVersion >= 28 {
+            do {
+                let placementPoseSet = try PlacementPoseBackupRecordSetV1.decode(
+                    records.placementPoses
+                )
+                for value in placementPoseSet.poseEvents {
+                    context.insert(try AssetPoseEventRow(value))
+                }
+                for value in placementPoseSet.spatialAnchors {
+                    context.insert(try SpatialAnchorObservationRow(value))
+                }
+            } catch {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+        } else {
+            guard records.placementPoses.isEmpty else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
         }
         for value in records.sites {
             context.insert(Site(
@@ -6278,6 +6451,7 @@ private extension BackupRestoreService {
             assetLocators: schemaVersion >= 25 ? records.assetLocators : [],
             schedules: schemaVersion >= 26 ? records.schedules : [],
             plans: schemaVersion >= 27 ? records.plans : [],
+            placementPoses: schemaVersion >= 28 ? records.placementPoses : [],
             accessibleDocumentAssessments:schemaVersion >= 22 ? records.accessibleDocumentAssessments:[],
             surveyDefinitions: schemaVersion >= 23 ? records.surveyDefinitions : [],
             fieldReferences:schemaVersion >= 21 ? records.fieldReferences:[],
@@ -6530,6 +6704,10 @@ private extension BackupRestoreService {
         let planRevisionRows = try context.fetch(FetchDescriptor<PlanRevisionRow>())
         let planPlacementRows = try context.fetch(FetchDescriptor<PlanPlacementRow>())
         let rebaseReceiptRows = try context.fetch(FetchDescriptor<RebaseReceiptRow>())
+        let poseEventRows = try context.fetch(FetchDescriptor<AssetPoseEventRow>())
+        let spatialAnchorObservationRows = try context.fetch(
+            FetchDescriptor<SpatialAnchorObservationRow>()
+        )
         let recoverabilityVerificationReceipts=try context.fetch(FetchDescriptor<RecoverabilityVerificationReceiptRow>())
         let clientCapabilityProfiles=try context.fetch(FetchDescriptor<ClientCapabilityProfileRow>()),packageLifecyclePolicies=try context.fetch(FetchDescriptor<PackageLifecyclePolicyRow>()),packageLifecycleDispositions=try context.fetch(FetchDescriptor<PackageLifecycleDispositionRow>()),clientCapabilityAdmissionDecisions=try context.fetch(FetchDescriptor<ClientCapabilityAdmissionDecisionRow>())
         let privacyTransformPolicies=try context.fetch(FetchDescriptor<PrivacyTransformPolicyRow>()),privacyRegions=try context.fetch(FetchDescriptor<PrivacyRegionRow>()),privacyTransformManifests=try context.fetch(FetchDescriptor<PrivacyTransformManifestRow>()),privacyReviewReceipts=try context.fetch(FetchDescriptor<PrivacyReviewReceiptRow>())
@@ -6663,11 +6841,43 @@ private extension BackupRestoreService {
             receiptRows: rebaseReceiptRows,
             mutationHistory: mutationHistory
         )
+        guard mutationHistory != nil
+                || (poseEventRows.isEmpty && spatialAnchorObservationRows.isEmpty) else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        let placementPoseRecords: [V29BackupPlacementPoseRecordV1] =
+            mutationHistory == nil ? [] : try (
+                poseEventRows.map { value in
+                    let event = try value.value()
+                    return V29BackupPlacementPoseRecordV1(
+                        kind: .poseEvent,
+                        id: event.eventID,
+                        workspaceID: event.workspaceID.rawValue,
+                        revision: event.revision,
+                        canonicalData: try PlacementPoseCanonicalCodecV1.encode(event)
+                    )
+                }
+                + spatialAnchorObservationRows.map { value in
+                    let observation = try value.value()
+                    return V29BackupPlacementPoseRecordV1(
+                        kind: .spatialAnchorObservation,
+                        id: observation.observationID,
+                        workspaceID: observation.workspaceID.rawValue,
+                        revision: observation.revision,
+                        canonicalData: try PlacementPoseCanonicalCodecV1.encode(observation)
+                    )
+                }
+            ).sorted {
+                "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
+                    < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
+            }
+        _ = try PlacementPoseBackupRecordSetV1.decode(placementPoseRecords)
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveyRecords,
             assetLocators: assetLocatorRecords,
             schedules: scheduleRecords,
             plans: planArchiveRecords,
+            placementPoses: placementPoseRecords,
             accessibleDocumentAssessments:accessibleDocumentAssessmentRecords,
             surveyDefinitions: surveyDefinitionRecords,
             fieldReferences:fieldReferenceRecords,

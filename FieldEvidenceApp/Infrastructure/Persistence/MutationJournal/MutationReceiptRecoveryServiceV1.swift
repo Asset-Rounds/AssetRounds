@@ -48,4 +48,5 @@ final class MutationReceiptRecoveryServiceV1 {
     /// C29 repairs the four plan histories and their generic receipt together;
     /// spatial frames stay embedded and rebase previews are rebuilt.
     func recoverPlanEffectsBeforeWriterActivation()throws{try recoverBeforeWriterActivation()}
+    func recoverPlacementPoseEffectsBeforeWriterActivation()throws{try recoverBeforeWriterActivation()}
 }

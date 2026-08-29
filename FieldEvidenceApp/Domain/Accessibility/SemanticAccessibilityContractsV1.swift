@@ -1971,3 +1971,150 @@ enum PlanAccessibilityPolicyV1 {
         }
     }
 }
+
+// MARK: - C37 reference-framed pose accessibility
+
+/// Stable semantic IDs for the C37 projection. They name recorded facts and
+/// recovery states rather than claiming a pose is aligned, accurate, or
+/// compliant. State IDs are spoken as text and are never color/icon-only.
+enum C37PlacementPoseAccessibilityIDV1: String, Codable, CaseIterable, Sendable {
+    case screen = "pose.screen"
+    case heading = "pose.heading"
+    case axis = "pose.axis"
+    case current = "pose.current"
+    case history = "pose.history"
+    case referenceFrame = "pose.reference_frame"
+    case referenceTrue = "pose.reference.true"
+    case referenceMagnetic = "pose.reference.magnetic"
+    case referencePlanRelative = "pose.reference.plan_relative"
+    case referenceUnknown = "pose.reference.unknown"
+    case observation = "pose.observation"
+    case observed = "pose.observation.observed"
+    case notObserved = "pose.observation.not_observed"
+    case manualFallback = "pose.observation.manual_fallback"
+    case uncertainty = "pose.uncertainty"
+    case uncertaintyKnown = "pose.uncertainty.known"
+    case uncertaintyUnknown = "pose.uncertainty.unknown"
+    case notObservedReason = "pose.not_observed.reason"
+    case reasonNotYetObserved = "pose.not_observed.reason.not_yet_observed"
+    case reasonPhysicalMove = "pose.not_observed.reason.physical_move_reobservation"
+    case reasonPlanFrameLost = "pose.not_observed.reason.plan_frame_lost_reobservation"
+    case reasonObscured = "pose.not_observed.reason.obscured_or_unsafe"
+    case reasonSourceUnavailable = "pose.not_observed.reason.source_unavailable"
+    case reasonUserDeclined = "pose.not_observed.reason.user_declined"
+    case currentTip = "pose.current_tip"
+    case historyFrozen = "pose.history.frozen"
+    case rebasePreview = "pose.rebase.preview"
+    case previewNotApplied = "pose.rebase.preview.not_applied"
+    case reviewRequired = "pose.review_required"
+    case azimuth = "pose.azimuth"
+    case elevation = "pose.elevation"
+    case horizontalUncertainty = "pose.horizontal_uncertainty"
+    case verticalUncertainty = "pose.vertical_uncertainty"
+    case recordedSource = "pose.recorded_source"
+    case claimBoundary = "pose.claim_boundary"
+    case nextStep = "pose.next_step"
+    case missing = "pose.missing"
+
+    var localizationKey: LocalizationKeyV1 {
+        let key: C37PoseLocalizationKeyV1
+        switch self {
+        case .screen, .heading: key = .heading
+        case .axis: key = .axis
+        case .current: key = .current
+        case .history: key = .history
+        case .referenceFrame: key = .referenceFrame
+        case .referenceTrue: key = .referenceTrue
+        case .referenceMagnetic: key = .referenceMagnetic
+        case .referencePlanRelative: key = .referencePlanRelative
+        case .referenceUnknown: key = .referenceUnknown
+        case .observation: key = .observation
+        case .observed: key = .observed
+        case .notObserved: key = .notObserved
+        case .manualFallback: key = .manualFallback
+        case .uncertainty: key = .uncertainty
+        case .uncertaintyKnown: key = .uncertaintyKnown
+        case .uncertaintyUnknown: key = .uncertaintyUnknown
+        case .notObservedReason: key = .notObservedReason
+        case .reasonNotYetObserved: key = .reasonNotYetObserved
+        case .reasonPhysicalMove: key = .reasonPhysicalMove
+        case .reasonPlanFrameLost: key = .reasonPlanFrameLost
+        case .reasonObscured: key = .reasonObscured
+        case .reasonSourceUnavailable: key = .reasonSourceUnavailable
+        case .reasonUserDeclined: key = .reasonUserDeclined
+        case .currentTip: key = .currentTip
+        case .historyFrozen: key = .historyFrozen
+        case .rebasePreview: key = .rebasePreview
+        case .previewNotApplied: key = .previewNotApplied
+        case .reviewRequired: key = .reviewRequired
+        case .azimuth: key = .azimuth
+        case .elevation: key = .elevation
+        case .horizontalUncertainty: key = .horizontalUncertainty
+        case .verticalUncertainty: key = .verticalUncertainty
+        case .recordedSource: key = .recordedSource
+        case .claimBoundary: key = .claimBoundary
+        case .nextStep: key = .nextStep
+        case .missing: key = .missing
+        }
+        return key.localizationKey
+    }
+}
+
+enum C37PoseAccessibilityPolicyV1 {
+    static let semanticIDs = C37PlacementPoseAccessibilityIDV1.allCases.map(\.rawValue)
+    static let stateSemanticIDs: Set<String> = Set([
+        C37PlacementPoseAccessibilityIDV1.referenceTrue,
+        .referenceMagnetic, .referencePlanRelative, .referenceUnknown,
+        .observed, .notObserved, .manualFallback, .uncertaintyKnown,
+        .uncertaintyUnknown, .historyFrozen, .previewNotApplied,
+        .reviewRequired, .missing,
+    ].map(\.rawValue))
+    static let indeterminateSemanticIDs: Set<String> = Set([
+        C37PlacementPoseAccessibilityIDV1.notObserved,
+        .manualFallback, .referenceUnknown, .uncertaintyUnknown,
+        .previewNotApplied, .reviewRequired, .missing,
+        .reasonNotYetObserved, .reasonPhysicalMove, .reasonPlanFrameLost,
+        .reasonObscured, .reasonSourceUnavailable, .reasonUserDeclined,
+    ].map(\.rawValue))
+    static let denyByDefault = true
+    static let nonColorStateTextRequired = true
+    static let textAlternativeRequired = true
+    static let textAndIconRequiredForIndeterminateStates = true
+    static let actionableNextStepRequiredForIndeterminateStates = true
+    static let colorOnlyStateAllowed = false
+    static let iconOnlyStateAllowed = false
+    static let motionOnlyStateAllowed = false
+    static let sensorStreamStored = false
+    static let networkInputUsed = false
+
+    static func requiresTextAndIcon(for semanticID: String) -> Bool {
+        indeterminateSemanticIDs.contains(semanticID)
+    }
+
+    static func requiresActionableNextStep(for semanticID: String) -> Bool {
+        indeterminateSemanticIDs.contains(semanticID)
+    }
+
+    static func referenceFrameID(
+        _ value: C37PoseReferenceFrameProjectionV1
+    ) -> C37PlacementPoseAccessibilityIDV1 {
+        switch value {
+        case .trueBearing: return .referenceTrue
+        case .magneticBearing: return .referenceMagnetic
+        case .planRelative: return .referencePlanRelative
+        case .unknown: return .referenceUnknown
+        }
+    }
+
+    static func observationStateID(
+        _ value: C37PoseObservationStateV1
+    ) -> C37PlacementPoseAccessibilityIDV1 {
+        switch value {
+        case .observed: return .observed
+        case .notObserved: return .notObserved
+        case .manualFallback: return .manualFallback
+        case .uncertaintyUnknown: return .uncertaintyUnknown
+        case .reviewRequired: return .reviewRequired
+        }
+    }
+}

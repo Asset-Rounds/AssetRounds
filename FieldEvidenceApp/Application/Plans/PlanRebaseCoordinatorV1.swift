@@ -73,9 +73,16 @@ final class PlanRebaseCoordinatorV1 {
                  predecessorPlacements: [PlanPlacementV1], receiptID: UUID,
                  prerequisites: PlanPrerequisiteClosureV1,
                  predecessorReceipt: RebaseReceiptV1?, mutationID: MutationIDV1,
-                 reviewedBy: ActorSnapshotV1, recordedAt: Date) throws -> PlanRebaseApprovalOutcomeV1 {
+                 reviewedBy: ActorSnapshotV1, recordedAt: Date,
+                 poseEffects: PlacementPoseMutationV1? = nil) throws -> PlanRebaseApprovalOutcomeV1 {
         try preview.validate()
         try prerequisites.validate(revision: newRevision, placements: placements)
+        let poseContribution = preview.contributions.first {
+            $0.componentID == "C37_POSE_FRAME_REBASE" && $0.mutationIntentSHA256 != nil
+        }
+        guard (poseEffects != nil) == (poseContribution != nil) else {
+            throw PlanContractFailureV1.componentConflict
+        }
         guard reviewedBy.responsibility == .reviewedBy else {
             throw PlanContractFailureV1.reviewRequired
         }
@@ -84,7 +91,7 @@ final class PlanRebaseCoordinatorV1 {
             newRevision: newRevision, predecessorRevision: predecessorRevision,
             placements: placements, predecessorPlacements: predecessorPlacements,
             receiptID: receiptID, predecessorReceipt: predecessorReceipt,
-            reviewedBy: reviewedBy, recordedAt: recordedAt
+            reviewedBy: reviewedBy, recordedAt: recordedAt, poseEffects: poseEffects
         )
         let receiptRevision: UInt64
         if let predecessorReceipt {
@@ -110,7 +117,8 @@ final class PlanRebaseCoordinatorV1 {
                                   placements: placements,
                                   predecessorPlacements: predecessorPlacements,
                                   receipt: planReceipt,
-                                  predecessorReceipt: predecessorReceipt)
+                                  predecessorReceipt: predecessorReceipt,
+                                  poseEffects: poseEffects)
         )
         let mutationReceipt = try writer.commitPlan(mutation, validatedAgainst: preview)
         return PlanRebaseApprovalOutcomeV1(preview: preview, planReceipt: planReceipt,
@@ -150,5 +158,17 @@ final class PlanRebaseCoordinatorV1 {
                                           ))
         let mutationReceipt = try writer.commitPlan(mutation, validatedAgainst: preview)
         return .init(preview: preview, planReceipt: planReceipt, mutationReceipt: mutationReceipt)
+    }
+}
+
+enum C37PoseIntegration_FieldEvidenceApp_Application_Plans_PlanRebaseCoordinatorV1_swift {
+    /// Typed C37 boundary: inherited owners may retain an immutable pose
+    /// reference, but cannot infer pose, compliance, or current-state truth.
+    static func validate(reference: AssetPoseEventReferenceV1,
+                         in workspaceID: WorkspaceID) throws {
+        try reference.validate()
+        guard reference.workspaceID == workspaceID else {
+            throw PlacementPoseFailureV1.wrongWorkspace
+        }
     }
 }

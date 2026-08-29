@@ -282,6 +282,18 @@ private final class C36TargetProbeV1: DraftCanonicalCommitPortV1 {
 }
 
 final class V9_30FieldDraftResilienceTests: XCTestCase {
+    func testV23P03C37TypedPoseContractAnchor() throws {
+        let axis = try PoseAxisDescriptorV1(
+            axisID: PoseAxisID(rawValue: "axis.c37.anchor"),
+            localizedLabelKey: "pose.c37.anchor",
+            semanticRole: .otherDeclaredAxis,
+            requiredComponents: .azimuthOnly,
+            observationRequirement: .optional,
+            applicability: .applicable
+        )
+        let registry = try PoseAxisDescriptorRegistryV1(descriptors: [axis])
+        XCTAssertEqual(try registry.descriptor(for: axis.axisID), axis)
+    }
     private func fixture() throws -> C36FieldDraftTestSupportV1.Fixture {
         try C36FieldDraftTestSupportV1.makeFixture()
     }

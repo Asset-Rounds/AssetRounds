@@ -111,6 +111,31 @@ struct PlanDiagnosticMetadataV1: Codable, Equatable, Sendable {
     }
 }
 
+/// C37 exposes only aggregate pose-health facts. Durable pose history and
+/// spatial observations are never serialized into diagnostics; current tips,
+/// completed snapshots, and axis registries are derived and rebuilt.
+struct PlacementPoseDiagnosticMetadataV1: Codable, Equatable, Sendable {
+    let poseEventCount: Int
+    let spatialAnchorObservationCount: Int
+    let currentTipCount: Int
+    let completedSnapshotCount: Int
+    let metadataOnly: Bool
+    let immutableHistoryPreserved: Bool
+    let derivedProjectionRebuilt: Bool
+    let sensorProposalPersistence: String
+
+    var isValid: Bool {
+        [
+            poseEventCount, spatialAnchorObservationCount,
+            currentTipCount, completedSnapshotCount,
+        ].allSatisfy { $0 >= 0 && $0 <= 100_000 }
+            && metadataOnly
+            && immutableHistoryPreserved
+            && derivedProjectionRebuilt
+            && sensorProposalPersistence == "NONPERSISTENT"
+    }
+}
+
 struct DiagnosticExportV1: Codable, Equatable, Sendable {
     let app: DiagnosticAppContextV1
     let counters: DiagnosticsV1
@@ -156,6 +181,9 @@ struct DiagnosticExportV1: Codable, Equatable, Sendable {
     /// Optional C29 aggregate-only plan health. Immutable plan bytes and
     /// component-registry/rebase payloads are excluded from diagnostics.
     var plan: PlanDiagnosticMetadataV1? = nil
+    /// Optional C37 aggregate-only pose health. Event/observation bytes,
+    /// actors, asset identities, and spatial coordinates are excluded.
+    var placementPose: PlacementPoseDiagnosticMetadataV1? = nil
 
     /// Integration event payloads, subjects, cursors, and checkpoint bytes are
     /// never diagnostic material. Diagnostics may describe only the static
@@ -187,6 +215,7 @@ struct DiagnosticExportV1: Codable, Equatable, Sendable {
             && (accessibleDocument?.isValid ?? true)
             && (schedule?.isValid ?? true)
             && (plan?.isValid ?? true)
+            && (placementPose?.isValid ?? true)
             && integrationProjectionPayloadExcluded
     }
 
@@ -264,6 +293,7 @@ struct DiagnosticExportService {
     typealias AccessibleDocumentProvider = () -> AccessibleDocumentDiagnosticMetadataV1?
     typealias ScheduleProvider = () -> ScheduleDiagnosticMetadataV1?
     typealias PlanProvider = () -> PlanDiagnosticMetadataV1?
+    typealias PlacementPoseProvider = () -> PlacementPoseDiagnosticMetadataV1?
     typealias ContextProvider<Value> = () -> Value
     typealias Clock = () -> Date
 
@@ -277,6 +307,7 @@ struct DiagnosticExportService {
     private let accessibleDocumentProvider: AccessibleDocumentProvider
     private let scheduleProvider: ScheduleProvider
     private let planProvider: PlanProvider
+    private let placementPoseProvider: PlacementPoseProvider
     private let appProvider: ContextProvider<DiagnosticAppContextV1>
     private let deviceProvider: ContextProvider<DiagnosticDeviceContextV1>
     private let clock: Clock
@@ -294,7 +325,8 @@ struct DiagnosticExportService {
         fieldReference: @escaping FieldReferenceProvider = { nil },
         accessibleDocument: @escaping AccessibleDocumentProvider = { nil },
         schedule: @escaping ScheduleProvider = { nil },
-        plan: @escaping PlanProvider = { nil }
+        plan: @escaping PlanProvider = { nil },
+        placementPose: @escaping PlacementPoseProvider = { nil }
     ) {
         countersProvider = counters
         metricKitProvider = metricKit
@@ -306,6 +338,7 @@ struct DiagnosticExportService {
         accessibleDocumentProvider = accessibleDocument
         scheduleProvider = schedule
         planProvider = plan
+        placementPoseProvider = placementPose
         appProvider = app
         deviceProvider = device
         self.clock = clock
@@ -323,6 +356,7 @@ struct DiagnosticExportService {
         accessibleDocument: @escaping AccessibleDocumentProvider = { nil },
         schedule: @escaping ScheduleProvider = { nil },
         plan: @escaping PlanProvider = { nil },
+        placementPose: @escaping PlacementPoseProvider = { nil },
         bundle: Bundle = .main,
         device: UIDevice = .current,
         clock: @escaping Clock = Date.init
@@ -352,7 +386,8 @@ struct DiagnosticExportService {
             fieldReference: fieldReference,
             accessibleDocument: accessibleDocument,
             schedule: schedule,
-            plan: plan
+            plan: plan,
+            placementPose: placementPose
         )
     }
 
@@ -371,7 +406,8 @@ struct DiagnosticExportService {
             fieldReference: fieldReferenceProvider(),
             accessibleDocument: accessibleDocumentProvider(),
             schedule: scheduleProvider(),
-            plan: planProvider()
+            plan: planProvider(),
+            placementPose: placementPoseProvider()
         )
         guard value.isValid else {
             throw DiagnosticExportError.invalidValue
@@ -432,6 +468,9 @@ enum DiagnosticExportCanonicalEncoderV1 {
         }
         if let plan = value.plan {
             object["plan"] = planValue(plan)
+        }
+        if let placementPose = value.placementPose {
+            object["placementPose"] = placementPoseValue(placementPose)
         }
         let data = try CanonicalJSONV1.encode(.object(object))
         try IntegrationProjectionDiagnosticExclusionV1.validate(data)
@@ -656,6 +695,23 @@ enum DiagnosticExportCanonicalEncoderV1 {
             "metadataOnly": .bool(value.metadataOnly),
             "derivedPreviewRebuilt": .bool(value.derivedPreviewRebuilt),
             "componentRegistryExcluded": .bool(value.componentRegistryExcluded),
+        ])
+    }
+
+    private static func placementPoseValue(
+        _ value: PlacementPoseDiagnosticMetadataV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "poseEventCount": .integer(value.poseEventCount),
+            "spatialAnchorObservationCount": .integer(
+                value.spatialAnchorObservationCount
+            ),
+            "currentTipCount": .integer(value.currentTipCount),
+            "completedSnapshotCount": .integer(value.completedSnapshotCount),
+            "metadataOnly": .bool(value.metadataOnly),
+            "immutableHistoryPreserved": .bool(value.immutableHistoryPreserved),
+            "derivedProjectionRebuilt": .bool(value.derivedProjectionRebuilt),
+            "sensorProposalPersistence": .string(value.sensorProposalPersistence),
         ])
     }
 

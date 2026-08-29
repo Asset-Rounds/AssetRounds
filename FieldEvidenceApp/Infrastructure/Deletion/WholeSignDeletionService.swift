@@ -1326,6 +1326,8 @@ private extension WholeSignDeletionService {
         let planRevisions: [PlanRevisionRow]
         let planPlacements: [PlanPlacementRow]
         let rebaseReceipts: [RebaseReceiptRow]
+        let poseEvents: [AssetPoseEventRow]
+        let spatialAnchorObservations: [SpatialAnchorObservationRow]
         let observationAndTime: [UUID: ObservationAndTimeRow]
         let recordPayloads: [WorkflowRecordPayloadV1]
         let evidence: [EvidenceFile]
@@ -1394,6 +1396,8 @@ private extension WholeSignDeletionService {
                  planRevisions: try boundedFetch(PlanRevisionRow.self),
                  planPlacements: try boundedFetch(PlanPlacementRow.self),
                  rebaseReceipts: try boundedFetch(RebaseReceiptRow.self),
+                 poseEvents: try boundedFetch(AssetPoseEventRow.self),
+                 spatialAnchorObservations: try boundedFetch(SpatialAnchorObservationRow.self),
                 observationAndTime: observationAndTime,
                 recordPayloads: recordPayloads,
                 evidence: try boundedFetch(EvidenceFile.self),
@@ -1485,6 +1489,34 @@ private extension WholeSignDeletionService {
             receipts: rebaseReceipts
         ).validate()
         try PlanKernelDeletionEnrollmentV1.validate()
+        try PlacementPoseKernelDeletionEnrollmentV1.validate()
+        try PlacementPoseDeletionLedgerPolicyV1.validate()
+        let poseRecords = try (
+            rows.poseEvents.map { row -> V29BackupPlacementPoseRecordV1 in
+                let value = try row.value()
+                return .init(
+                    kind: .poseEvent,
+                    id: value.eventID,
+                    workspaceID: value.workspaceID.rawValue,
+                    revision: value.revision,
+                    canonicalData: try PlacementPoseCanonicalCodecV1.encode(value)
+                )
+            }
+            + rows.spatialAnchorObservations.map { row -> V29BackupPlacementPoseRecordV1 in
+                let value = try row.value()
+                return .init(
+                    kind: .spatialAnchorObservation,
+                    id: value.observationID,
+                    workspaceID: value.workspaceID.rawValue,
+                    revision: value.revision,
+                    canonicalData: try PlacementPoseCanonicalCodecV1.encode(value)
+                )
+            }
+        ).sorted {
+            "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
+                < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
+        }
+        _ = try PlacementPoseBackupRecordSetV1.decode(poseRecords)
         do {
             var assetIDs = Set<UUID>()
             if let deletingAssetID { assetIDs.insert(deletingAssetID) }

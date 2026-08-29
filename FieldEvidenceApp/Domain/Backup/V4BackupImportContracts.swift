@@ -183,3 +183,34 @@ enum V28PlanImportBoundaryV1 {
         }
     }
 }
+
+/// C37 archives only the two durable pose-event families. Current tips,
+/// completed placement snapshots, editor state, and sensor/proposal values
+/// are derived projections and must be rebuilt after import. Pose history is
+/// mutation-history backed, so a restored event can never become live merely
+/// because a projection happened to be present in the package.
+enum V29PlacementPoseImportBoundaryV1 {
+    static let persistentSchemaVersion = 29
+    static let recordsSchemaVersion = 28
+    static let durableFamilyCount = 2
+    static let archiveFamilyCount = 2
+    static let derivedProjectionStorage = "NONPERSISTENT_REBUILD"
+    static let lifecycleHistoryStorage = "MUTATION_HISTORY_ONLY"
+    static let sensorProposalPersistence = "NONPERSISTENT"
+    static let cloneForkSourcePoseAutomaticallyActive = false
+
+    static func validate(persistent: Int, records: Int) throws {
+        guard persistent == persistentSchemaVersion,
+              records == recordsSchemaVersion,
+              durableFamilyCount == PlacementPosePersistenceEnrollmentV1.durableModelCount,
+              archiveFamilyCount == V29BackupPlacementPoseRecordV1.Kind.allCases.count,
+              PlacementPosePersistenceEnrollmentV1.persistentSchemaVersion == persistentSchemaVersion,
+              PlacementPosePersistenceEnrollmentV1.recordsSchemaVersion == recordsSchemaVersion,
+              derivedProjectionStorage == "NONPERSISTENT_REBUILD",
+              lifecycleHistoryStorage == "MUTATION_HISTORY_ONLY",
+              sensorProposalPersistence == "NONPERSISTENT",
+              !cloneForkSourcePoseAutomaticallyActive else {
+            throw BackupImportServiceError.unsupportedSchemaVersion
+        }
+    }
+}

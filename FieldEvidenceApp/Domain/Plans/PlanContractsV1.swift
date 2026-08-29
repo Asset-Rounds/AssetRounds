@@ -1093,6 +1093,7 @@ struct PlanRebaseCommandBasisV1: Codable, Equatable, Sendable {
     let predecessorPlacements: [PlanPlacementV1]
     let receiptID: UUID
     let predecessorReceiptSHA256: String?
+    let canonicalPoseEffectsSHA256: String?
     let reviewedBy: ActorSnapshotV1
     let recordedAt: Date
 
@@ -1100,25 +1101,34 @@ struct PlanRebaseCommandBasisV1: Codable, Equatable, Sendable {
          newRevision: PlanRevisionV1, predecessorRevision: PlanRevisionV1,
          placements: [PlanPlacementV1], predecessorPlacements: [PlanPlacementV1],
          receiptID: UUID, predecessorReceipt: RebaseReceiptV1?,
-         reviewedBy: ActorSnapshotV1, recordedAt: Date) throws {
+         reviewedBy: ActorSnapshotV1, recordedAt: Date,
+         poseEffects: PlacementPoseMutationV1? = nil) throws {
         self.workspaceID = workspaceID; self.mutationID = mutationID
         previewID = preview.previewID; previewSHA256 = preview.previewSHA256
         self.newRevision = newRevision; self.predecessorRevision = predecessorRevision
         self.placements = placements.sorted { $0.placementID.uuidString < $1.placementID.uuidString }
         self.predecessorPlacements = predecessorPlacements.sorted { $0.placementID.uuidString < $1.placementID.uuidString }
         self.receiptID = receiptID; predecessorReceiptSHA256 = predecessorReceipt?.receiptSHA256
+        if let poseEffects { try poseEffects.validate() }
+        canonicalPoseEffectsSHA256 = try poseEffects.map { try WorkspaceMutationCanonicalV1.sha256($0) }
         self.reviewedBy = reviewedBy; self.recordedAt = recordedAt
-        try validate(preview: preview, predecessorReceipt: predecessorReceipt)
+        try validate(preview: preview, predecessorReceipt: predecessorReceipt, poseEffects: poseEffects)
     }
 
     var canonicalSHA256: String { get throws { try PlanCanonicalCodecV1.sha256(self) } }
 
-    func validate(preview: RebasePreviewV1, predecessorReceipt: RebaseReceiptV1?) throws {
+    func validate(preview: RebasePreviewV1, predecessorReceipt: RebaseReceiptV1?,
+                  poseEffects: PlacementPoseMutationV1? = nil) throws {
         try preview.validate(); try newRevision.validateSuccessor(of: predecessorRevision)
         try placements.forEach { try $0.validateIntrinsic() }
         try predecessorPlacements.forEach { try $0.validateIntrinsic() }
         try predecessorReceipt?.validateIntrinsic(); try reviewedBy.validate()
         try PlanLimitsV1.id(receiptID); try PlanLimitsV1.instant(recordedAt)
+        let expectedPoseSHA = try poseEffects.map { try WorkspaceMutationCanonicalV1.sha256($0) }
+            ?? canonicalPoseEffectsSHA256
+        let reviewedPoseIntent = preview.contributions.first {
+            $0.componentID == "C37_POSE_FRAME_REBASE"
+        }?.mutationIntentSHA256
         let priorByID = Dictionary(grouping: predecessorPlacements, by: \.placementID)
         guard workspaceID == preview.workspaceID, previewID == preview.previewID,
               previewSHA256 == preview.previewSHA256,
@@ -1129,7 +1139,9 @@ struct PlanRebaseCommandBasisV1: Codable, Equatable, Sendable {
               Set(placements.map(\.placementID)) == Set(predecessorPlacements.map(\.placementID)),
               priorByID.values.allSatisfy({ $0.count == 1 }),
               reviewedBy.workspaceID == workspaceID, reviewedBy.responsibility == .reviewedBy,
-              predecessorReceiptSHA256 == predecessorReceipt?.receiptSHA256 else {
+              predecessorReceiptSHA256 == predecessorReceipt?.receiptSHA256,
+              canonicalPoseEffectsSHA256 == expectedPoseSHA,
+              reviewedPoseIntent == expectedPoseSHA else {
             throw PlanContractFailureV1.stalePreview
         }
         for placement in placements {
@@ -1291,6 +1303,18 @@ struct PlanLifecycleClosureV1: Sendable {
                 throw PlanContractFailureV1.invalidSuccessor
             }
             for index in ordered.indices.dropFirst() { try successor(ordered[index - 1], ordered[index]) }
+        }
+    }
+}
+
+enum C37PoseIntegration_FieldEvidenceApp_Domain_Plans_PlanContractsV1_swift {
+    /// Typed C37 boundary: inherited owners may retain an immutable pose
+    /// reference, but cannot infer pose, compliance, or current-state truth.
+    static func validate(reference: AssetPoseEventReferenceV1,
+                         in workspaceID: WorkspaceID) throws {
+        try reference.validate()
+        guard reference.workspaceID == workspaceID else {
+            throw PlacementPoseFailureV1.wrongWorkspace
         }
     }
 }

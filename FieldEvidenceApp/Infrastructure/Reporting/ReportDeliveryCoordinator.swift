@@ -2575,3 +2575,33 @@ private struct ReadyReportAuthorityValidator {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 }
+
+// MARK: - C37 local pose report delivery boundary
+
+enum C37PoseReportDeliveryPolicyV1 {
+    static let localOnly = true
+    static let deliveryIsNotTruth = true
+    static let historicDisplayIsFrozen = true
+    static let noRemoteAcknowledgement = true
+    static let excludesSensorStream = true
+
+    static func validate(
+        _ projection: C37PlacementPoseReportProjectionV1
+    ) throws -> C37PlacementPoseReportProjectionV1 {
+        guard localOnly, deliveryIsNotTruth, historicDisplayIsFrozen,
+              noRemoteAcknowledgement, excludesSensorStream else {
+            throw C37PoseReportProjectionFailureV1.privacyViolation
+        }
+        try C37PoseReportProjectionPolicyV1.validate(projection)
+        return projection
+    }
+}
+
+extension ReportDeliveryCoordinator {
+    static func localPlacementPoseExport(
+        _ projection: C37PlacementPoseReportProjectionV1
+    ) throws -> ReportProjectionOutputV1 {
+        try C37PoseReportDeliveryPolicyV1.validate(projection)
+        return try DeterministicOpenJSONRendererV1.renderPlacementPose(projection)
+    }
+}

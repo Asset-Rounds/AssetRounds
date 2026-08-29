@@ -1,0 +1,114 @@
+{
+  "schema": "V22P03C37PlacementPoseCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P03-C37",
+  "persistentSchemaVersion": 29,
+  "recordsSchemaVersion": 28,
+  "persistentKindLifecycleModelCount": 102,
+  "durableFamilyCount": 2,
+  "durableFamilies": [
+    "AssetPoseEventV1",
+    "SpatialAnchorObservationV1"
+  ],
+  "requiredContractNames": [
+    "PoseAxisID",
+    "PoseAxisDescriptorV1",
+    "PoseAxisSemanticRoleV1",
+    "PoseAxisRegistryPolicyV1",
+    "PoseRequiredComponentsV1",
+    "PoseObservationRequirementV1",
+    "PoseAngleMilliDegreesV1",
+    "PoseObservationDispositionV1",
+    "PoseNotObservedReasonV1",
+    "PoseReferenceFrameV1",
+    "PlacementPoseV1",
+    "PoseCaptureSourceV1",
+    "DeviceHeadingProposalV1",
+    "AssetPoseEventV1",
+    "SpatialAnchorObservationV1",
+    "CurrentPoseProjectionV1",
+    "PosePlacementDispositionComponentV1",
+    "PoseFrameRebaseComponentV1",
+    "PoseFrameRebasePolicyV1",
+    "PlacementPoseEditorContractV1",
+    "PlacementPoseEditorStateV1",
+    "PlacementPoseEditorCommandV1",
+    "CompletedPlacementPoseSnapshotV1"
+  ],
+  "poseOutcomes": [
+    "OBSERVED",
+    "NOT_OBSERVED",
+    "REOBSERVE",
+    "CARRY_FORWARD_SAME_PHYSICAL_INSTALLATION",
+    "MARK_NOT_OBSERVED",
+    "TRANSFORMED",
+    "UNCHANGED",
+    "REVIEW_REQUIRED"
+  ],
+  "evidenceSelectors": [
+    "testV23P03C37G01ReferenceFramedPoseHistoryAndQualifiedSnapshotAreDeterministic",
+    "testV23P03C37A01ManualNotObservedAndNoPlanFallbackRemainComplete",
+    "testV23P03C37H01InvalidFramesAnglesTransformsForksAndClaimsFailClosed",
+    "testV23P03C37I01InterruptedMoveRebaseAndPromotionExposeOldOrOneSealedSuccessor",
+    "testV23P03C37R01RestoreReplayRebuildAndHistoricArtifactsPreserveExactPoseTruth"
+  ],
+  "fixedPointAnglesMilliDegrees": [
+    0,
+    1,
+    90000,
+    180000,
+    359999
+  ],
+  "coverage": {
+    "descriptorRequirementMatrices": true,
+    "appendOnlyTips": true,
+    "reversalAndConcurrency": true,
+    "physicalMoveCreatesNewEpisodeDisposition": true,
+    "planRebaseTransformVectors": true,
+    "manualFallback": true,
+    "immutableCompletedSnapshot": true,
+    "importSearchReportBackup": true,
+    "cloneForkDeleteErase": true,
+    "localizationAccessibility": true
+  },
+  "hostileVectors": [
+    "azimuth360000",
+    "elevationOutOfRange",
+    "uncertaintyOutOfRange",
+    "nanOrFloatingPointPayload",
+    "integerOverflow",
+    "nonApplicableDescriptor",
+    "duplicateAxisOrEvent",
+    "forkedSuccessor",
+    "reflectionShearNonUniformOrSingularTransform",
+    "wrongWorkspaceOrForgedReference"
+  ],
+  "interruptionBoundaries": [
+    "beforePoseMutation",
+    "afterPoseEffectBeforeReceipt",
+    "afterAnchorEffectBeforeReceipt",
+    "duringMoveReobservation",
+    "duringPlanRebasePromotion",
+    "restoreBeforeProjectionRebuild"
+  ],
+  "privacy": {
+    "sensorInputAllowed": false,
+    "networkInputAllowed": false,
+    "remoteIdentityClaim": false,
+    "surveyGradeClaim": false,
+    "historicPoseRewritten": false
+  },
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "release": false,
+    "releaseReadiness": false
+  }
+}

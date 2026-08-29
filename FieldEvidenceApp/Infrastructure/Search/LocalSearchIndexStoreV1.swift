@@ -1370,3 +1370,28 @@ extension LocalSearchIndexStoreV1 {
         return record
     }
 }
+
+// MARK: - C37 current placement-pose search adapter
+
+extension LocalSearchIndexStoreV1 {
+    /// Admits only a current-tip pose row to the disposable local index. The
+    /// immutable history remains available through the report projection and
+    /// is never flattened into searchable storage.
+    static func placementPoseSearchRecord(
+        from projection: C37PlacementPoseReportProjectionV1,
+        row: C37PoseHistoryProjectionV1
+    ) throws -> C37PoseSearchRecordV1 {
+        let record = try C37PoseSearchRecordV1(projection: projection, row: row)
+        try C37PoseSearchProjectionPolicyV1.validate(record)
+        try C37PoseSearchPersistencePolicyV1().validate()
+        return record
+    }
+
+    static func validatePlacementPoseSearchRecord(
+        _ record: C37PoseSearchRecordV1
+    ) throws -> C37PoseSearchRecordV1 {
+        try C37PoseSearchProjectionPolicyV1.validate(record)
+        try C37PoseSearchPersistencePolicyV1().validate()
+        return record
+    }
+}

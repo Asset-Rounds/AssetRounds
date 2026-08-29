@@ -38,6 +38,7 @@ enum PlanProtectedFileBoundaryV1 {
     static let canonicalRowsUseProtectedDatabase = true
     static let sourceContentRemainsUnderExistingContentAuthority = true
 }
+enum PlacementPoseProtectedFileBoundaryV1{static let ownsExternalFiles=false;static let durableBytesAreSwiftDataRows=true;static let derivedTipsAreDisposable=true}
 
 struct OwnedFileProtectionDispositionV1: Equatable, Sendable {
     let expectsDirectory: Bool

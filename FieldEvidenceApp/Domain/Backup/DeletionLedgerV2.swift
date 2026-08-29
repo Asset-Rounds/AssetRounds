@@ -24,6 +24,7 @@ struct DeletionLedgerProofV2: Codable, Equatable, Sendable {
         try FieldReferenceDeletionLedgerPolicyV1.validate()
         try AccessibleDocumentDeletionLedgerPolicyV1.validate()
         try PlanDeletionLedgerPolicyV1.validate()
+        try PlacementPoseDeletionLedgerPolicyV1.validate()
         let allowed = CharacterSet(charactersIn: "0123456789abcdef")
         guard entryCount >= 0,
               canonicalSHA256.utf8.count == 64,
@@ -81,6 +82,31 @@ enum PlanDeletionLedgerPolicyV1 {
               workspaceEraseRemovesAllCanonicalRows,
               previewsAndRegistriesAreDerived,
               missingFilesystemBytesCannotDeletePlanHistory else {
+            throw DeletionLedgerFailureV2.invalidSchemaVersion
+        }
+    }
+}
+
+/// Pose event and spatial-anchor rows are immutable history. Ordinary
+/// asset/site deletion preserves both chains; only a workspace Erase removes
+/// them. Current tips and placement snapshots are derived and therefore never
+/// receive deletion-ledger identities.
+enum PlacementPoseDeletionLedgerPolicyV1 {
+    static let durableKinds = ["AssetPoseEventV1", "SpatialAnchorObservationV1"]
+    static let ordinaryDeletionPreservesImmutableHistory = true
+    static let workspaceEraseRemovesAllCanonicalRows = true
+    static let derivedTipsAndSnapshotsAreLedgerFree = true
+    static let sensorProposalPersistence = "NONPERSISTENT"
+
+    static func validate() throws {
+        guard durableKinds.count == 2,
+              Set(durableKinds).count == durableKinds.count,
+              PlacementPosePersistenceEnrollmentV1.durableModelCount == 2,
+              V29BackupPlacementPoseRecordV1.Kind.allCases.count == durableKinds.count,
+              ordinaryDeletionPreservesImmutableHistory,
+              workspaceEraseRemovesAllCanonicalRows,
+              derivedTipsAndSnapshotsAreLedgerFree,
+              sensorProposalPersistence == "NONPERSISTENT" else {
             throw DeletionLedgerFailureV2.invalidSchemaVersion
         }
     }

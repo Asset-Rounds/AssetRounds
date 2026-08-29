@@ -108,6 +108,28 @@
     "secondWriter": false,
     "secondStore": false
   },
+  "c37PoseRebaseDraftClosure": {
+    "poseEventType": "AssetPoseEventV1",
+    "anchorObservationType": "SpatialAnchorObservationV1",
+    "locationPathSnapshotType": "LocationPathSnapshotV1",
+    "poseSources": ["MANUAL", "PLACEMENT_CARRY_FORWARD", "PLAN_REBASE", "SEMANTIC_REVERSAL"],
+    "directActorResponsibility": "OBSERVED_BY",
+    "derivedActorResponsibility": "RECORDED_BY",
+    "derivedRequiresPredecessor": true,
+    "rootObservationIsImmutable": true,
+    "rebasePolicyType": "PoseFrameRebasePolicyV1",
+    "rebaseComponentType": "PoseFrameRebaseComponentV1",
+    "draftCheckpointBoundary": "COMMITTED",
+    "draftRecoveryBoundary": "RECOVERY_REQUIRED",
+    "closureAssertions": {
+      "locationPathSnapshotDigestBound": true,
+      "poseSuccessorRejectsFork": true,
+      "anchorSuccessorRejectsMutationReuse": true,
+      "shearAndNonUniformTransformsRequireReview": true,
+      "completedPoseSnapshotBytesRemainImmutable": true,
+      "draftRecoveryRemainsSingleAuthority": true
+    }
+  },
   "boundaryRefs": ["V23-P03-C36-G01", "V23-P03-C36-A01", "V23-P03-C36-H01", "V23-P03-C36-I01", "V23-P03-C36-R01"],
   "provisionalFlags": { "native": false, "hosted": false, "adoption": false, "acceptance": false, "release": false }
 }

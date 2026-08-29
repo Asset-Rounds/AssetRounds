@@ -1,4 +1,5 @@
 import Foundation
+enum PlacementPoseWorkPacketPersistenceBoundaryV1{static let packetsReferencePoseResultsWithoutOwningTips=true}
 import SwiftData
 
 enum PlanWorkPacketBoundaryV1 { static let planRebaseDoesNotCreateWorkPackets = true; static let planRevisionHistoryIsImmutable = true }

@@ -470,10 +470,34 @@ struct LocationHierarchyRebindProvenanceV1: Codable, Equatable, Sendable {
 
 struct LocationHierarchyChangeReceiptV1: Codable, Equatable, Sendable {
     let planSHA256: String; let mutationReceiptIdentity: MutationReceiptIdentityV1
+    let placementPosePostImagesSHA256: String?; let commandBodySHA256: String?
     let mutationReceiptSHA256: String?; let committedAt: Date
     let rebindProvenance: LocationHierarchyRebindProvenanceV1?
-    init(plan: LocationHierarchyChangePlanV1, mutationReceipt: MutationReceiptV1) throws { try plan.validate(); try mutationReceipt.validate(); guard mutationReceipt.identity.workspaceID == plan.workspaceID else { throw LocationContractFailureV1.invalidValue }; planSHA256 = plan.planSHA256; mutationReceiptIdentity = mutationReceipt.identity; mutationReceiptSHA256 = try mutationReceipt.canonicalSHA256(); committedAt = mutationReceipt.committedAt; rebindProvenance = nil; try validate() }
-    private init(planSHA256: String, mutationReceiptIdentity: MutationReceiptIdentityV1, committedAt: Date, rebindProvenance: LocationHierarchyRebindProvenanceV1) throws { self.planSHA256 = planSHA256; self.mutationReceiptIdentity = mutationReceiptIdentity; mutationReceiptSHA256 = nil; self.committedAt = committedAt; self.rebindProvenance = rebindProvenance; try validate() }
+    init(plan: LocationHierarchyChangePlanV1,
+         placementChanges: [AssetPlacementChangePlanV1],
+         mutationReceipt: MutationReceiptV1) throws {
+        let mutation = try LocationHierarchyMutationV1(plan: plan, placementChanges: placementChanges)
+        try mutationReceipt.validate()
+        let commandBodySHA256 = try WorkspaceMutationCanonicalV1.sha256(
+            WorkspaceCommandV1.applyLocationHierarchyChange(mutation))
+        guard mutationReceipt.identity.workspaceID == plan.workspaceID,
+              mutationReceipt.mutationID.rawValue == plan.operationID,
+              mutationReceipt.commandBodySHA256 == commandBodySHA256 else {
+            throw LocationContractFailureV1.invalidValue
+        }
+        let poseDigests = placementChanges.compactMap(\.posePostImageSHA256).sorted()
+        planSHA256 = plan.planSHA256
+        placementPosePostImagesSHA256 = poseDigests.isEmpty ? nil : try WorkspaceMutationCanonicalV1.sha256(poseDigests)
+        self.commandBodySHA256 = commandBodySHA256
+        mutationReceiptIdentity = mutationReceipt.identity
+        mutationReceiptSHA256 = try mutationReceipt.canonicalSHA256()
+        committedAt = mutationReceipt.committedAt; rebindProvenance = nil
+        try validate()
+    }
+    init(plan: LocationHierarchyChangePlanV1, mutationReceipt: MutationReceiptV1) throws {
+        try self.init(plan: plan, placementChanges: [], mutationReceipt: mutationReceipt)
+    }
+    private init(planSHA256: String, mutationReceiptIdentity: MutationReceiptIdentityV1, committedAt: Date, rebindProvenance: LocationHierarchyRebindProvenanceV1) throws { self.planSHA256 = planSHA256; self.mutationReceiptIdentity = mutationReceiptIdentity; placementPosePostImagesSHA256 = nil; commandBodySHA256 = nil; mutationReceiptSHA256 = nil; self.committedAt = committedAt; self.rebindProvenance = rebindProvenance; try validate() }
     static func importedCloneFork(destinationPlan: LocationHierarchyChangePlanV1, sourcePlan: LocationHierarchyChangePlanV1, sourceReceipt: Self) throws -> Self {
         try destinationPlan.validate(); try sourcePlan.validate(); try sourceReceipt.validate()
         guard sourceReceipt.planSHA256 == sourcePlan.planSHA256,
@@ -503,14 +527,25 @@ struct LocationHierarchyChangeReceiptV1: Codable, Equatable, Sendable {
         guard committedAt.timeIntervalSinceReferenceDate.isFinite else { throw LocationContractFailureV1.invalidValue }
         if let provenance = rebindProvenance {
             try provenance.validate()
-            guard mutationReceiptSHA256 == nil, provenance.sourceWorkspaceID != mutationReceiptIdentity.workspaceID,
+            guard mutationReceiptSHA256 == nil, commandBodySHA256 == nil,
+                  placementPosePostImagesSHA256 == nil,
+                  provenance.sourceWorkspaceID != mutationReceiptIdentity.workspaceID,
                   provenance.sourcePlanSHA256 != planSHA256,
                   provenance.sourceMutationReceiptIdentity.replicaID == mutationReceiptIdentity.replicaID,
                   provenance.sourceMutationReceiptIdentity.localSequence == mutationReceiptIdentity.localSequence else { throw LocationContractFailureV1.invalidValue }
         } else {
-            guard let mutationReceiptSHA256 else { throw LocationContractFailureV1.invalidValue }
+            guard let mutationReceiptSHA256, let commandBodySHA256 else { throw LocationContractFailureV1.invalidValue }
             try LocationContractValidationV1.requireDigest(mutationReceiptSHA256)
+            try LocationContractValidationV1.requireDigest(commandBodySHA256)
+            try placementPosePostImagesSHA256.map(LocationContractValidationV1.requireDigest)
         }
+    }
+    func validate(plan: LocationHierarchyChangePlanV1,
+                  placementChanges: [AssetPlacementChangePlanV1],
+                  mutationReceipt: MutationReceiptV1) throws {
+        let rebuilt = try Self(plan: plan, placementChanges: placementChanges,
+                               mutationReceipt: mutationReceipt)
+        guard rebuilt == self else { throw LocationContractFailureV1.digestMismatch }
     }
     private static func isRebind(_ destination: LocationHierarchyChangePlanV1, of source: LocationHierarchyChangePlanV1) -> Bool {
         func sameNodes(_ lhs: [LocationNodeV1], _ rhs: [LocationNodeV1]) -> Bool {
@@ -531,9 +566,9 @@ struct LocationHierarchyChangeReceiptV1: Codable, Equatable, Sendable {
             && destination.operationContinuityDisposition == source.operationContinuityDisposition
             && destination.continuityReviews == source.continuityReviews
     }
-    private enum CodingKeys: String, CodingKey, CaseIterable { case planSHA256, mutationReceiptIdentity, mutationReceiptSHA256, committedAt, rebindProvenance }
-    init(from decoder: Decoder) throws { try LocationClosedCodingV1.require(decoder, keys: CodingKeys.self, required: Set([CodingKeys.planSHA256.rawValue, CodingKeys.mutationReceiptIdentity.rawValue, CodingKeys.committedAt.rawValue])); let c = try decoder.container(keyedBy: CodingKeys.self); planSHA256 = try c.decode(String.self, forKey: .planSHA256); mutationReceiptIdentity = try c.decode(MutationReceiptIdentityV1.self, forKey: .mutationReceiptIdentity); mutationReceiptSHA256 = try LocationClosedCodingV1.optional(String.self, from: c, forKey: .mutationReceiptSHA256); committedAt = try c.decode(Date.self, forKey: .committedAt); rebindProvenance = try LocationClosedCodingV1.optional(LocationHierarchyRebindProvenanceV1.self, from: c, forKey: .rebindProvenance); try validate() }
-    func encode(to encoder: Encoder) throws { try validate(); var c = encoder.container(keyedBy: CodingKeys.self); try c.encode(planSHA256, forKey: .planSHA256); try c.encode(mutationReceiptIdentity, forKey: .mutationReceiptIdentity); if let mutationReceiptSHA256 { try c.encode(mutationReceiptSHA256, forKey: .mutationReceiptSHA256) }; try c.encode(committedAt, forKey: .committedAt); if let rebindProvenance { try c.encode(rebindProvenance, forKey: .rebindProvenance) } }
+    private enum CodingKeys: String, CodingKey, CaseIterable { case planSHA256, placementPosePostImagesSHA256, commandBodySHA256, mutationReceiptIdentity, mutationReceiptSHA256, committedAt, rebindProvenance }
+    init(from decoder: Decoder) throws { try LocationClosedCodingV1.require(decoder, keys: CodingKeys.self, required: Set([CodingKeys.planSHA256.rawValue, CodingKeys.mutationReceiptIdentity.rawValue, CodingKeys.committedAt.rawValue])); let c = try decoder.container(keyedBy: CodingKeys.self); planSHA256 = try c.decode(String.self, forKey: .planSHA256); placementPosePostImagesSHA256 = try LocationClosedCodingV1.optional(String.self, from: c, forKey: .placementPosePostImagesSHA256); commandBodySHA256 = try LocationClosedCodingV1.optional(String.self, from: c, forKey: .commandBodySHA256); mutationReceiptIdentity = try c.decode(MutationReceiptIdentityV1.self, forKey: .mutationReceiptIdentity); mutationReceiptSHA256 = try LocationClosedCodingV1.optional(String.self, from: c, forKey: .mutationReceiptSHA256); committedAt = try c.decode(Date.self, forKey: .committedAt); rebindProvenance = try LocationClosedCodingV1.optional(LocationHierarchyRebindProvenanceV1.self, from: c, forKey: .rebindProvenance); try validate() }
+    func encode(to encoder: Encoder) throws { try validate(); var c = encoder.container(keyedBy: CodingKeys.self); try c.encode(planSHA256, forKey: .planSHA256); if let placementPosePostImagesSHA256 { try c.encode(placementPosePostImagesSHA256, forKey: .placementPosePostImagesSHA256) }; if let commandBodySHA256 { try c.encode(commandBodySHA256, forKey: .commandBodySHA256) }; try c.encode(mutationReceiptIdentity, forKey: .mutationReceiptIdentity); if let mutationReceiptSHA256 { try c.encode(mutationReceiptSHA256, forKey: .mutationReceiptSHA256) }; try c.encode(committedAt, forKey: .committedAt); if let rebindProvenance { try c.encode(rebindProvenance, forKey: .rebindProvenance) } }
 }
 
 struct LocationDeletionPlanV1: Codable, Equatable, Sendable {
@@ -580,5 +615,17 @@ struct LocationConsumerAdapterContractV1: Codable, Equatable, Sendable {
 enum C29PlanIntegration_Domain_Location_LocationHierarchyContractsV1 {
     static func validatePlanRevision(_ value: PlanRevisionReferenceV1) throws {
         try value.validate()
+    }
+}
+
+enum C37PoseIntegration_FieldEvidenceApp_Domain_Location_LocationHierarchyContractsV1_swift {
+    /// Typed C37 boundary: inherited owners may retain an immutable pose
+    /// reference, but cannot infer pose, compliance, or current-state truth.
+    static func validate(reference: AssetPoseEventReferenceV1,
+                         in workspaceID: WorkspaceID) throws {
+        try reference.validate()
+        guard reference.workspaceID == workspaceID else {
+            throw PlacementPoseFailureV1.wrongWorkspace
+        }
     }
 }

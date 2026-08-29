@@ -1631,3 +1631,44 @@ extension ReportRenderService {
         return try DeterministicPDFRendererV1.planTextLines(projection)
     }
 }
+
+// MARK: - C37 reference-framed pose rendering
+
+enum C37PoseReportRenderPolicyV1 {
+    static let metadataOnly = true
+    static let historicDisplayIsFrozen = true
+    static let rebasePreviewIsNotApplied = true
+    static let localProjectionOnly = true
+    static let excludesSensorCollection = true
+    static let excludesBareDirectionClaims = true
+    static let excludesComplianceClaims = true
+
+    static func validate(
+        _ projection: C37PlacementPoseReportProjectionV1
+    ) throws -> C37PlacementPoseReportProjectionV1 {
+        guard metadataOnly, historicDisplayIsFrozen,
+              rebasePreviewIsNotApplied, localProjectionOnly,
+              excludesSensorCollection, excludesBareDirectionClaims,
+              excludesComplianceClaims else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+        try C37PoseReportProjectionPolicyV1.validate(projection)
+        return projection
+    }
+}
+
+extension ReportRenderService {
+    static func renderPlacementPoseOpenJSON(
+        _ projection: C37PlacementPoseReportProjectionV1
+    ) throws -> ReportProjectionOutputV1 {
+        try C37PoseReportRenderPolicyV1.validate(projection)
+        return try DeterministicOpenJSONRendererV1.renderPlacementPose(projection)
+    }
+
+    static func placementPosePDFMetadataLines(
+        _ projection: C37PlacementPoseReportProjectionV1
+    ) throws -> [String] {
+        try C37PoseReportRenderPolicyV1.validate(projection)
+        return try DeterministicPDFRendererV1.placementPoseTextLines(projection)
+    }
+}

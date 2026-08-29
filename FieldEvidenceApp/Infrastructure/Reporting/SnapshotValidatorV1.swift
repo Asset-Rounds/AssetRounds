@@ -1745,3 +1745,35 @@ extension SnapshotValidatorV1 {
     static let planComponentConflictFailsClosed = true
     static let planMissingReceiptFailsClosed = true
 }
+
+// MARK: - C37 reference-framed pose validation
+
+extension SnapshotValidatorV1 {
+    /// C37 validates the exact frozen projection supplied by the snapshot.
+    /// It never asks a current-tip service to reinterpret historic output.
+    static func validatePlacementPoseProjection(
+        _ projection: C37PlacementPoseReportProjectionV1
+    ) throws -> C37PlacementPoseReportProjectionV1 {
+        try ReportProjectionRegistryV1.validatePlacementPoseProjection(projection)
+    }
+
+    static func validatePlacementPoseSnapshot(
+        _ snapshot: C37PlacementPoseFrozenSnapshotV1
+    ) throws -> C37PlacementPoseFrozenSnapshotV1 {
+        try snapshot.validate()
+        return snapshot
+    }
+
+    static func validatePlacementPoseOpenJSON(
+        _ data: Data
+    ) throws -> C37PlacementPoseReportProjectionV1 {
+        try DeterministicOpenJSONRendererV1.reopenPlacementPose(data)
+    }
+
+    static let placementPoseHistoricDisplayIsImmutable = true
+    static let placementPoseCurrentTipIsRecorded = true
+    static let placementPoseRebasePreviewIsNotApplied = true
+    static let placementPoseUnknownUncertaintyIsExplicit = true
+    static let placementPoseBareDirectionClaimsAreRejected = true
+    static let placementPoseSensorStreamIsExcluded = true
+}

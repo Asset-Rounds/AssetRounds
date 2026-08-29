@@ -78,6 +78,41 @@ final class FinalizationIntentStoreFailureInjection: @unchecked Sendable {
     }
 }
 
+// MARK: - C37 pose finalization boundary
+
+enum C37PoseFinalizationPolicyV1 {
+    static let snapshotMustBeFrozen = true
+    static let historyIsAmendOnly = true
+    static let currentTipIsCapturedAtFinalization = true
+    static let rebasePreviewIsNotApplied = true
+    static let noSensorInputAtFinalization = true
+    static let noPrivateLocatorInput = true
+
+    static func validate(
+        _ snapshot: C37PlacementPoseFrozenSnapshotV1
+    ) throws -> C37PlacementPoseFrozenSnapshotV1 {
+        guard snapshotMustBeFrozen, historyIsAmendOnly,
+              currentTipIsCapturedAtFinalization, rebasePreviewIsNotApplied,
+              noSensorInputAtFinalization, noPrivateLocatorInput else {
+            throw FinalizationIntentStoreError.intentInvalid
+        }
+        do {
+            try snapshot.validate()
+            return snapshot
+        } catch {
+            throw FinalizationIntentStoreError.intentInvalid
+        }
+    }
+}
+
+extension FinalizationIntentStore {
+    static func validatePlacementPoseSnapshot(
+        _ snapshot: C37PlacementPoseFrozenSnapshotV1
+    ) throws -> C37PlacementPoseFrozenSnapshotV1 {
+        try C37PoseFinalizationPolicyV1.validate(snapshot)
+    }
+}
+
 // MARK: - C23 field-reference finalization boundary
 
 /// Finalization consumes the already-bound projection as a value.  It never

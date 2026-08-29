@@ -210,6 +210,7 @@ struct BackupCanonicalDecoderV1: Sendable {
             try Self.validateAssetLocators(value)
             try Self.validateSchedules(value)
             try Self.validatePlans(value)
+            try Self.validatePlacementPoses(value)
             let canonical = try BackupCanonicalEncoderV1().encodeRecords(value).data
             guard canonical == data else {
                 throw BackupCanonicalDecodingErrorV1.invalidRecords
@@ -224,7 +225,7 @@ struct BackupCanonicalDecoderV1: Sendable {
 private extension BackupCanonicalDecoderV1 {
     static func validateGuidedSurveys(_ records:V4BackupRecordsV1)throws{
         guard records.recordsSchemaVersion>=24 else{guard records.guidedSurveys.isEmpty else{throw BackupCanonicalDecodingErrorV1.invalidRecords};return}
-        guard (24...27).contains(records.recordsSchemaVersion) else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
+        guard (24...28).contains(records.recordsSchemaVersion) else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
         if records.mutationHistory == nil {
             guard records.guidedSurveys.isEmpty else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
             return
@@ -286,7 +287,7 @@ private extension BackupCanonicalDecoderV1 {
             }
             return
         }
-        guard records.recordsSchemaVersion <= 27 else {
+        guard records.recordsSchemaVersion <= 28 else {
             throw BackupCanonicalDecodingErrorV1.invalidRecords
         }
         var locators: [UUID: AssetLocatorV1] = [:]
@@ -347,7 +348,7 @@ private extension BackupCanonicalDecoderV1 {
             }
             return
         }
-        guard (26...27).contains(records.recordsSchemaVersion) else {
+        guard (26...28).contains(records.recordsSchemaVersion) else {
             throw BackupCanonicalDecodingErrorV1.invalidRecords
         }
         guard records.schedules.count <= 200_000 else {
@@ -464,7 +465,7 @@ private extension BackupCanonicalDecoderV1 {
             }
             return
         }
-        guard records.recordsSchemaVersion == 27,
+        guard (27...28).contains(records.recordsSchemaVersion),
               records.mutationHistory != nil else {
             throw BackupCanonicalDecodingErrorV1.invalidRecords
         }
@@ -476,9 +477,28 @@ private extension BackupCanonicalDecoderV1 {
         }
     }
 
+    static func validatePlacementPoses(_ records: V4BackupRecordsV1) throws {
+        guard records.recordsSchemaVersion >= 28 else {
+            guard records.placementPoses.isEmpty else {
+                throw BackupCanonicalDecodingErrorV1.invalidRecords
+            }
+            return
+        }
+        guard records.recordsSchemaVersion == 28,
+              records.mutationHistory != nil else {
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
+        }
+        do {
+            try V29PlacementPoseImportBoundaryV1.validate(persistent: 29, records: 28)
+            _ = try PlacementPoseBackupRecordSetV1.decode(records.placementPoses)
+        } catch {
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
+        }
+    }
+
     static func validateSurveyDefinitions(_ records:V4BackupRecordsV1)throws{
         guard records.recordsSchemaVersion>=23 else{guard records.surveyDefinitions.isEmpty else{throw BackupCanonicalDecodingErrorV1.invalidRecords};return}
-        guard (23...27).contains(records.recordsSchemaVersion),let history=records.mutationHistory else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
+        guard (23...28).contains(records.recordsSchemaVersion),let history=records.mutationHistory else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
         var releases:[UUID:SurveyDefinitionReleaseV1]=[:],identities:[UUID:SurveyDefinitionIdentityV1]=[:],keys=Set<String>()
         for record in records.surveyDefinitions where record.kind == .release{let value=try SurveyDefinitionCanonicalCodecV1.decode(SurveyDefinitionReleaseV1.self,from:record.canonicalData);try value.validate();guard record.id==value.releaseID,record.workspaceID==value.workspaceID.rawValue,record.revision==value.revision,keys.insert("release|\(record.id.uuidString)").inserted,releases.updateValue(value,forKey:value.releaseID)==nil else{throw BackupCanonicalDecodingErrorV1.invalidRecords}}
         for record in records.surveyDefinitions where record.kind == .identity {
@@ -498,7 +518,7 @@ private extension BackupCanonicalDecoderV1 {
     }
     static func validateAccessibleDocumentAssessments(_ records:V4BackupRecordsV1)throws{
         guard records.recordsSchemaVersion>=22 else{guard records.accessibleDocumentAssessments.isEmpty else{throw BackupCanonicalDecodingErrorV1.invalidRecords};return}
-        guard (22...27).contains(records.recordsSchemaVersion) else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
+        guard (22...28).contains(records.recordsSchemaVersion) else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
         var values:[UUID:AccessibleDocumentAssessmentReceiptV1]=[:],children:[UUID:Int]=[:]
         for record in records.accessibleDocumentAssessments{let value=try AccessibleDocumentCanonicalCodecV1.decode(AccessibleDocumentAssessmentReceiptV1.self,from:record.canonicalData);try value.validateIntrinsic();guard record.id==value.receiptID,record.workspaceID==value.workspaceID.rawValue,record.revision==value.revision,values.updateValue(value,forKey:value.receiptID)==nil else{throw BackupCanonicalDecodingErrorV1.invalidRecords}}
         for value in values.values{if let predecessorID=value.supersedesReceiptID{guard let predecessor=values[predecessorID],predecessor.workspaceID==value.workspaceID,predecessor.treeSHA256==value.treeSHA256,predecessor.outputSHA256==value.outputSHA256,predecessor.revision<UInt64.max,value.revision==predecessor.revision+1 else{throw BackupCanonicalDecodingErrorV1.invalidRecords};children[predecessorID,default:0]+=1;guard children[predecessorID]==1 else{throw BackupCanonicalDecodingErrorV1.invalidRecords}}else if value.revision != 1{throw BackupCanonicalDecodingErrorV1.invalidRecords}}

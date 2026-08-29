@@ -3208,3 +3208,196 @@ enum PlanPlacementSearchProjectionPolicyV1 {
         }
     }
 }
+
+// MARK: - C37 current placement-pose search projection
+
+/// Search is limited to the current qualified tip per axis. Full immutable
+/// pose history remains a report/timeline concern, while index rows carry only
+/// stable IDs, reference frame, disposition, reason, and revision metadata.
+enum C37PoseSearchFieldV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case workspaceID = "pose_workspace_id"
+    case assetID = "pose_asset_id"
+    case eventID = "pose_event_id"
+    case axisID = "pose_axis_id"
+    case referenceFrame = "pose_reference_frame"
+    case disposition = "pose_disposition"
+    case observationState = "pose_observation_state"
+    case notObservedReason = "pose_not_observed_reason"
+    case revision = "pose_revision"
+    case projectionSHA256 = "pose_projection_sha256"
+}
+
+struct C37PoseSearchRecordV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let workspaceID: UUID
+    let assetID: UUID
+    let eventID: UUID
+    let axisID: String
+    let referenceFrame: C37PoseReferenceFrameProjectionV1
+    let disposition: PoseObservationDispositionV1
+    let observationState: C37PoseObservationStateV1
+    let notObservedReason: PoseNotObservedReasonV1?
+    let revision: UInt64
+    let projectionSHA256: String
+    let normalizedTokens: [String]
+
+    init(
+        projection: C37PlacementPoseReportProjectionV1,
+        row: C37PoseHistoryProjectionV1
+    ) throws {
+        try C37PoseReportProjectionPolicyV1.validate(projection)
+        try row.validate()
+        guard projection.history.contains(row),
+              projection.currentTipReferences.contains(where: {
+                  $0.eventID == row.eventID
+                      && $0.axisID.rawValue == row.axisID
+                      && $0.revision == row.revision
+                      && $0.eventSHA256 == row.eventSHA256
+              }) else {
+            throw SearchContractFailureV1.scopeMismatch
+        }
+        schemaVersion = Self.schemaVersion
+        workspaceID = projection.workspaceID.rawValue
+        assetID = projection.assetID
+        eventID = row.eventID
+        axisID = row.axisID
+        referenceFrame = row.referenceFrame
+        disposition = row.disposition
+        observationState = row.observationState
+        notObservedReason = row.notObservedReason
+        revision = row.revision
+        projectionSHA256 = projection.projectionSHA256
+        normalizedTokens = Self.tokens(
+            workspaceID: workspaceID,
+            assetID: assetID,
+            eventID: eventID,
+            axisID: axisID,
+            referenceFrame: referenceFrame,
+            disposition: disposition,
+            observationState: observationState,
+            notObservedReason: notObservedReason,
+            revision: revision,
+            projectionSHA256: projectionSHA256
+        )
+        try validate()
+    }
+
+    var projectionIdentity: String {
+        "pose-current:\(workspaceID.uuidString.lowercased()):\(assetID.uuidString.lowercased()):\(axisID)"
+    }
+
+    var boundedFieldValues: [C37PoseSearchFieldV1: String] {
+        [
+            .workspaceID: workspaceID.uuidString.lowercased(),
+            .assetID: assetID.uuidString.lowercased(),
+            .eventID: eventID.uuidString.lowercased(),
+            .axisID: axisID,
+            .referenceFrame: referenceFrame.rawValue,
+            .disposition: disposition.rawValue,
+            .observationState: observationState.rawValue,
+            .notObservedReason: notObservedReason?.rawValue ?? "NONE",
+            .revision: String(revision),
+            .projectionSHA256: projectionSHA256,
+        ]
+    }
+
+    func validate() throws {
+        let zero = SearchContractValidationV1.zeroUUID
+        guard schemaVersion == Self.schemaVersion,
+              workspaceID != zero, assetID != zero, eventID != zero,
+              SearchContractValidationV1.validID(axisID),
+              disposition == PoseObservationDispositionV1(rawValue: disposition.rawValue),
+              observationState == C37PoseObservationStateV1(rawValue: observationState.rawValue),
+              revision > 0,
+              KernelCanonicalHashV1.validSHA256(projectionSHA256),
+              (disposition == .notObserved) == (notObservedReason != nil),
+              boundedFieldValues.count == C37PoseSearchFieldV1.allCases.count,
+              normalizedTokens.count <= SearchContractLimitsV1.maximumQueryTokens,
+              normalizedTokens == normalizedTokens.sorted(),
+              SearchContractValidationV1.normalizedTokensAreCanonical(normalizedTokens),
+              boundedFieldValues.values.allSatisfy({ value in
+                  let parts = SearchContractValidationV1.normalizeSearchText(value)
+                      .split { !CharacterSet.alphanumerics.contains($0) }
+                      .map(String.init)
+                  return !parts.isEmpty
+                      && parts.allSatisfy(SearchContractValidationV1.isCanonicalSearchToken)
+              }) else {
+            throw SearchContractFailureV1.invalidField
+        }
+        guard C37PoseSearchProjectionPolicyV1.metadataOnly,
+              C37PoseSearchProjectionPolicyV1.currentTipsOnly,
+              C37PoseSearchProjectionPolicyV1.historyRemainsReportOnly,
+              C37PoseSearchProjectionPolicyV1.derivedOnly else {
+            throw SearchContractFailureV1.forbiddenField
+        }
+    }
+
+    private static func tokens(
+        workspaceID: UUID, assetID: UUID, eventID: UUID, axisID: String,
+        referenceFrame: C37PoseReferenceFrameProjectionV1,
+        disposition: PoseObservationDispositionV1,
+        observationState: C37PoseObservationStateV1,
+        notObservedReason: PoseNotObservedReasonV1?, revision: UInt64,
+        projectionSHA256: String
+    ) -> [String] {
+        let values = [
+            workspaceID.uuidString, assetID.uuidString, eventID.uuidString,
+            axisID, referenceFrame.rawValue, disposition.rawValue,
+            observationState.rawValue, notObservedReason?.rawValue ?? "NONE",
+            String(revision), projectionSHA256,
+        ]
+        return Array(Set(values.flatMap { value in
+            SearchContractValidationV1.normalizeSearchText(value)
+                .split { !CharacterSet.alphanumerics.contains($0) }
+                .map(String.init)
+        })).sorted()
+    }
+}
+
+enum C37PoseSearchProjectionPolicyV1 {
+    static let sourceKind = "POSE_CURRENT"
+    static let semanticLabel = "C37_POSE_CURRENT_METADATA_V1"
+    static let fieldIDs = C37PoseSearchFieldV1.allCases.map(\.rawValue).sorted()
+    static let metadataOnly = true
+    static let currentTipsOnly = true
+    static let historyRemainsReportOnly = true
+    static let derivedOnly = true
+    static let dropAndRebuildAfterRestore = true
+    static let dropAndRebuildOnReplay = true
+    static let dropAndRebuildAfterDelete = true
+    static let excludesAngles = true
+    static let excludesActorIdentity = true
+    static let excludesSensorStream = true
+    static let excludesPrivateLocators = true
+    static let excludesSourceBytes = true
+    static let excludesUnsupportedClaims = true
+
+    static func validate(_ record: C37PoseSearchRecordV1) throws {
+        try record.validateWithoutProjectionResolution()
+        guard metadataOnly, currentTipsOnly, historyRemainsReportOnly, derivedOnly,
+              dropAndRebuildAfterRestore, dropAndRebuildOnReplay,
+              dropAndRebuildAfterDelete, excludesAngles, excludesActorIdentity,
+              excludesSensorStream, excludesPrivateLocators, excludesSourceBytes,
+              excludesUnsupportedClaims else {
+            throw SearchContractFailureV1.forbiddenField
+        }
+    }
+}
+
+private extension C37PoseSearchRecordV1 {
+    func validateWithoutProjectionResolution() throws {
+        let zero = SearchContractValidationV1.zeroUUID
+        guard schemaVersion == Self.schemaVersion,
+              workspaceID != zero, assetID != zero, eventID != zero,
+              SearchContractValidationV1.validID(axisID), revision > 0,
+              KernelCanonicalHashV1.validSHA256(projectionSHA256),
+              (disposition == .notObserved) == (notObservedReason != nil),
+              boundedFieldValues.count == C37PoseSearchFieldV1.allCases.count,
+              normalizedTokens.count <= SearchContractLimitsV1.maximumQueryTokens,
+              normalizedTokens == normalizedTokens.sorted(),
+              SearchContractValidationV1.normalizedTokensAreCanonical(normalizedTokens) else {
+            throw SearchContractFailureV1.invalidField
+        }
+    }
+}

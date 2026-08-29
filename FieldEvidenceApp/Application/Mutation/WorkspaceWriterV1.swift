@@ -323,7 +323,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
     func commitSurveySession(_ mutation:SurveySessionMutationV1)throws->MutationReceiptV1{try mutation.validate();let current=try currentRevision(),targets=try mutation.concurrencyIdentities;let known=Dictionary(uniqueKeysWithValues:current.entityRevisions.map{($0.identity,$0.revision)});guard try targets.allSatisfy({known[$0,default:0]==(try mutation.expectedRevision(for:$0))})else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision};let expected=try WorkspaceExpectedRevisionV1(workspaceID:current.workspaceID,generationID:current.generationID,writerInstanceID:current.writerInstanceID,workspaceRevision:current.revision,entityRevisions:try targets.map{.init(identity:$0,revision:try mutation.expectedRevision(for:$0))});_ = try execute(.init(mutationID:mutation.mutationID,expectedRevision:expected,command:.applySurveySession(mutation)));guard let receipt=try journalStore?.receipt(mutationID:mutation.mutationID)else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};_ = try SurveySessionMutationReceiptV1(mutation:mutation,mutationReceipt:receipt);return receipt}
     func commitAssetLocator(_ mutation:AssetLocatorMutationV1)throws->MutationReceiptV1{try mutation.validate();let current=try currentRevision(),targets=try mutation.concurrencyIdentities,known=Dictionary(uniqueKeysWithValues:current.entityRevisions.map{($0.identity,$0.revision)});guard try targets.allSatisfy({known[$0,default:0]==(try mutation.expectedRevision(for:$0))})else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision};let expected=try WorkspaceExpectedRevisionV1(workspaceID:current.workspaceID,generationID:current.generationID,writerInstanceID:current.writerInstanceID,workspaceRevision:current.revision,entityRevisions:try targets.map{.init(identity:$0,revision:try mutation.expectedRevision(for:$0))});_ = try execute(.init(mutationID:mutation.mutationID,expectedRevision:expected,command:.applyAssetLocator(mutation)));guard let receipt=try journalStore?.receipt(mutationID:mutation.mutationID)else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};_ = try AssetLocatorMutationReceiptV1(mutation:mutation,mutationReceipt:receipt);return receipt}
     func commitSchedule(_ mutation:ScheduleMutationV1)throws->MutationReceiptV1{try mutation.validate();let current=try currentRevision(),targets=try mutation.concurrencyIdentities,known=Dictionary(uniqueKeysWithValues:current.entityRevisions.map{($0.identity,$0.revision)});guard try targets.allSatisfy({known[$0,default:0]==(try mutation.expectedRevision(for:$0))})else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision};let expected=try WorkspaceExpectedRevisionV1(workspaceID:current.workspaceID,generationID:current.generationID,writerInstanceID:current.writerInstanceID,workspaceRevision:current.revision,entityRevisions:try targets.map{.init(identity:$0,revision:try mutation.expectedRevision(for:$0))});_ = try execute(.init(mutationID:mutation.mutationID,expectedRevision:expected,command:.applySchedule(mutation)));guard let receipt=try journalStore?.receipt(mutationID:mutation.mutationID)else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};_ = try ScheduleMutationReceiptV1(mutation:mutation,mutationReceipt:receipt);return receipt}
-    func commitPlan(_ mutation:PlanMutationV1,validatedAgainst preview:RebasePreviewV1)throws->MutationReceiptV1{try mutation.validate();switch mutation.payload{case let .applyRebase(newRevision,predecessorRevision,placements,predecessorPlacements,receipt,predecessorReceipt):let basis=try PlanRebaseCommandBasisV1(workspaceID:mutation.workspaceID,mutationID:mutation.mutationID,preview:preview,newRevision:newRevision,predecessorRevision:predecessorRevision,placements:placements,predecessorPlacements:predecessorPlacements,receiptID:receipt.receiptID,predecessorReceipt:predecessorReceipt,reviewedBy:receipt.reviewedBy,recordedAt:receipt.recordedAt);try receipt.validate(preview:preview,commandBasis:basis,predecessor:predecessorReceipt);case let .recordRebaseRejection(receipt,predecessor):if let predecessor{try receipt.validateSuccessor(of:predecessor,preview:preview)}else{try receipt.validate(preview:preview);guard receipt.revision==1,receipt.supersedesReceiptSHA256==nil else{throw WorkspaceMutationFailureV1.invalidCommand}};default:throw WorkspaceMutationFailureV1.invalidCommand};let current=try currentRevision(),targets=try mutation.concurrencyIdentities,known=Dictionary(uniqueKeysWithValues:current.entityRevisions.map{($0.identity,$0.revision)});guard try targets.allSatisfy({known[$0,default:0]==(try mutation.expectedRevision(for:$0))})else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision};let expected=try WorkspaceExpectedRevisionV1(workspaceID:current.workspaceID,generationID:current.generationID,writerInstanceID:current.writerInstanceID,workspaceRevision:current.revision,entityRevisions:try targets.map{.init(identity:$0,revision:try mutation.expectedRevision(for:$0))});_ = try execute(.init(mutationID:mutation.mutationID,expectedRevision:expected,command:.applyPlan(mutation)));guard let receipt=try journalStore?.receipt(mutationID:mutation.mutationID)else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};_ = try PlanMutationReceiptV1(mutation:mutation,mutationReceipt:receipt);return receipt}
+    func commitPlan(_ mutation:PlanMutationV1,validatedAgainst preview:RebasePreviewV1)throws->MutationReceiptV1{try mutation.validate();switch mutation.payload{case let .applyRebase(newRevision,predecessorRevision,placements,predecessorPlacements,receipt,predecessorReceipt,poseEffects):let basis=try PlanRebaseCommandBasisV1(workspaceID:mutation.workspaceID,mutationID:mutation.mutationID,preview:preview,newRevision:newRevision,predecessorRevision:predecessorRevision,placements:placements,predecessorPlacements:predecessorPlacements,receiptID:receipt.receiptID,predecessorReceipt:predecessorReceipt,reviewedBy:receipt.reviewedBy,recordedAt:receipt.recordedAt,poseEffects:poseEffects);try receipt.validate(preview:preview,commandBasis:basis,predecessor:predecessorReceipt);case let .recordRebaseRejection(receipt,predecessor):if let predecessor{try receipt.validateSuccessor(of:predecessor,preview:preview)}else{try receipt.validate(preview:preview);guard receipt.revision==1,receipt.supersedesReceiptSHA256==nil else{throw WorkspaceMutationFailureV1.invalidCommand}};default:throw WorkspaceMutationFailureV1.invalidCommand};let current=try currentRevision(),targets=try mutation.concurrencyIdentities,known=Dictionary(uniqueKeysWithValues:current.entityRevisions.map{($0.identity,$0.revision)});guard try targets.allSatisfy({known[$0,default:0]==(try mutation.expectedRevision(for:$0))})else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision};let expected=try WorkspaceExpectedRevisionV1(workspaceID:current.workspaceID,generationID:current.generationID,writerInstanceID:current.writerInstanceID,workspaceRevision:current.revision,entityRevisions:try targets.map{.init(identity:$0,revision:try mutation.expectedRevision(for:$0))});_ = try execute(.init(mutationID:mutation.mutationID,expectedRevision:expected,command:.applyPlan(mutation)));guard let receipt=try journalStore?.receipt(mutationID:mutation.mutationID)else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};_ = try PlanMutationReceiptV1(mutation:mutation,mutationReceipt:receipt);return receipt}
 
     func execute(
         _ command: WorkspaceCommandV1,
@@ -455,6 +455,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
                 throw WorkspaceMutationFailureV1.invalidCommand
             }
         case .applyAssetPlacementChange(let plan):
+            try plan.validate()
             guard plan.mutationID == request.mutationID,
                   (sourceKind == .importedHistory || occurredAtOverride != nil || plan.basis.expectedRevision == request.expectedRevision),
                   plan.basis.workspaceID == identity.workspaceID else {
@@ -559,6 +560,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         case .applySchedule(let value):
             do{try value.validate();let targets=try value.concurrencyIdentities,expected=Dictionary(uniqueKeysWithValues:request.expectedRevision.entityRevisions.map{($0.identity,$0.revision)});guard value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,sourceKind == .importedHistory || occurredAtOverride != nil || (try targets.allSatisfy({expected[$0]==(try value.expectedRevision(for:$0))}))else{throw WorkspaceMutationFailureV1.invalidCommand}}catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
         case .applyPlan(let value):
+            do{try value.validate();let targets=try value.concurrencyIdentities,expected=Dictionary(uniqueKeysWithValues:request.expectedRevision.entityRevisions.map{($0.identity,$0.revision)});guard value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,sourceKind == .importedHistory || occurredAtOverride != nil || (try targets.allSatisfy({expected[$0]==(try value.expectedRevision(for:$0))}))else{throw WorkspaceMutationFailureV1.invalidCommand}}catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
+        case .applyPlacementPose(let value):
             do{try value.validate();let targets=try value.concurrencyIdentities,expected=Dictionary(uniqueKeysWithValues:request.expectedRevision.entityRevisions.map{($0.identity,$0.revision)});guard value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,sourceKind == .importedHistory || occurredAtOverride != nil || (try targets.allSatisfy({expected[$0]==(try value.expectedRevision(for:$0))}))else{throw WorkspaceMutationFailureV1.invalidCommand}}catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
         default:
             break
@@ -741,7 +744,13 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         }
 
         workspaceRevision += 1
-        if case let .applyAuthorityCriterion(mutation) = request.command {
+        if case let .applyAssetPlacementChange(plan) = request.command {
+            entityRevisions[try .init(kind: .asset, id: plan.basis.assetID), default: 0] += 1
+            entityRevisions[try .init(kind: .assetPlacementEvent, id: plan.newEventID)] = 1
+            for event in plan.poseEvents {
+                entityRevisions[try .init(kind: .assetPoseEvent, id: event.eventID)] = event.revision
+            }
+        } else if case let .applyAuthorityCriterion(mutation) = request.command {
             entityRevisions[try mutation.affectedIdentity] = mutation.postImage.revision
         } else if case let .applyFunctionalRelationship(mutation) = request.command {
             entityRevisions[try mutation.affectedIdentity] = mutation.postImage.revision
@@ -775,8 +784,17 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             for image in try mutation.mutationPostImages{entityRevisions[try image.identity]=image.revision}
         } else if case let .applyPlan(mutation) = request.command {
             for image in try mutation.mutationPostImages{entityRevisions[try image.identity]=image.revision}
+        } else if case let .applyPlacementPose(mutation) = request.command {
+            for image in try mutation.mutationPostImages{entityRevisions[try image.identity]=image.revision}
         } else {
             for target in targets { entityRevisions[target, default: 0] += 1 }
+        }
+        if case let .applyLocationHierarchyChange(value) = request.command {
+            for placement in value.placementChanges {
+                for event in placement.poseEvents {
+                    entityRevisions[try .init(kind: .assetPoseEvent, id: event.eventID)] = event.revision
+                }
+            }
         }
         let after = try currentRevision()
         let outcome = WorkspaceMutationOutcomeV1(
@@ -1171,7 +1189,9 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
                 throw WorkspaceMutationFailureV1.invalidCommand
             }
             let nodeIDs = Set(plan.beforeNodes.map(\.id)).union(plan.afterNodes.map(\.id))
-            guard nodeIDs.count + value.placementChanges.count * 2 <= MutationReceiptV1.maximumPostImageCount else {
+            let poseEventCount = value.placementChanges.reduce(0) { $0 + $1.poseEvents.count }
+            guard nodeIDs.count + value.placementChanges.count * 2 + poseEventCount
+                    <= MutationReceiptV1.maximumPostImageCount else {
                 throw WorkspaceMutationFailureV1.invalidCommand
             }
             var identities = try nodeIDs.map {
@@ -1180,9 +1200,13 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             for placement in value.placementChanges {
                 identities.append(try .init(kind: .asset, id: placement.basis.assetID))
                 identities.append(try .init(kind: .assetPlacementEvent, id: placement.newEventID))
+                identities.append(contentsOf: try placement.poseEvents.map {
+                    try .init(kind: .assetPoseEvent, id: $0.eventID)
+                })
             }
             values = identities
         case let .applyAssetPlacementChange(plan):
+            try plan.validate()
             guard plan.mutationID.rawValue != UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
                   plan.basis.currentPlacement?.id != plan.newEventID else {
                 throw WorkspaceMutationFailureV1.invalidCommand
@@ -1190,7 +1214,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             values = try [
                 WorkspaceEntityIdentityV1(kind: .asset, id: plan.basis.assetID),
                 WorkspaceEntityIdentityV1(kind: .assetPlacementEvent, id: plan.newEventID),
-            ]
+            ] + plan.poseEvents.map { try WorkspaceEntityIdentityV1(kind: .assetPoseEvent, id: $0.eventID) }
         case let .applyAssetCompositionChange(plan):
             try plan.validate()
             values = try [
@@ -1248,6 +1272,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             try value.validate();values=try value.affectedIdentities
         case let .applyPlan(value):
             try value.validate();values=try value.affectedIdentities
+        case let .applyPlacementPose(value):
+            try value.validate();values=try value.affectedIdentities
         }
         guard Set(values).count == values.count else {
             throw WorkspaceMutationFailureV1.invalidCommand
@@ -1258,6 +1284,21 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
     private static func expectedRevisionIdentities(
         for command: WorkspaceCommandV1
     ) throws -> [WorkspaceEntityIdentityV1] {
+        if case let .applyLocationHierarchyChange(value) = command {
+            var identities = try targetIdentities(for: command).filter { $0.kind != .assetPoseEvent }
+            for placement in value.placementChanges {
+                identities.append(contentsOf: try placement.poseEventPredecessors.map {
+                    try .init(kind: .assetPoseEvent, id: $0.eventID)
+                })
+            }
+            return identities
+        }
+        if case let .applyAssetPlacementChange(plan) = command {
+            try plan.validate()
+            return try ([WorkspaceEntityIdentityV1(kind: .asset, id: plan.basis.assetID),
+                         WorkspaceEntityIdentityV1(kind: .assetPlacementEvent, id: plan.newEventID)]
+                + plan.poseEventPredecessors.map { try WorkspaceEntityIdentityV1(kind: .assetPoseEvent, id: $0.eventID) })
+        }
         if case let .applyAuthorityCriterion(value) = command {
             try value.validate()
             return [try value.concurrencyIdentity]
@@ -1281,6 +1322,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         if case let .applyAssetLocator(value)=command{try value.validate();return try value.concurrencyIdentities}
         if case let .applySchedule(value)=command{try value.validate();return try value.concurrencyIdentities}
         if case let .applyPlan(value)=command{try value.validate();return try value.concurrencyIdentities}
+        if case let .applyPlacementPose(value)=command{try value.validate();return try value.concurrencyIdentities}
         return try targetIdentities(for: command)
     }
 
@@ -1330,5 +1372,41 @@ extension WorkspaceWriterV1: PlanRebaseWorkspaceWritingV1 {
         }
         _ = try PlanMutationReceiptV1(mutation: mutation, mutationReceipt: receipt)
         return receipt
+    }
+}
+
+extension WorkspaceWriterV1 {
+    func commitPlacementPose(_ mutation: PlacementPoseMutationV1) throws -> MutationReceiptV1 {
+        try mutation.validate()
+        let current = try currentRevision()
+        let targets = try mutation.concurrencyIdentities
+        let known = Dictionary(uniqueKeysWithValues: current.entityRevisions.map { ($0.identity, $0.revision) })
+        guard try targets.allSatisfy({ known[$0, default: 0] == (try mutation.expectedRevision(for: $0)) }) else {
+            throw WorkspaceMutationFailureV1.staleWorkspaceRevision
+        }
+        let expected = try WorkspaceExpectedRevisionV1(workspaceID: current.workspaceID,
+            generationID: current.generationID, writerInstanceID: current.writerInstanceID,
+            workspaceRevision: current.revision, entityRevisions: try targets.map {
+                .init(identity: $0, revision: try mutation.expectedRevision(for: $0))
+            })
+        _ = try execute(.init(mutationID: mutation.mutationID, expectedRevision: expected,
+                              command: .applyPlacementPose(mutation)))
+        guard let receipt = try journalStore?.receipt(mutationID: mutation.mutationID) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        _ = try PlacementPoseMutationReceiptV1(mutation: mutation, mutationReceipt: receipt)
+        return receipt
+    }
+}
+
+enum C37PoseIntegration_FieldEvidenceApp_Application_Mutation_WorkspaceWriterV1_swift {
+    /// Typed C37 boundary: inherited owners may retain an immutable pose
+    /// reference, but cannot infer pose, compliance, or current-state truth.
+    static func validate(reference: AssetPoseEventReferenceV1,
+                         in workspaceID: WorkspaceID) throws {
+        try reference.validate()
+        guard reference.workspaceID == workspaceID else {
+            throw PlacementPoseFailureV1.wrongWorkspace
+        }
     }
 }

@@ -8,6 +8,18 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class S6_3BackupValidationTests: XCTestCase {
+    func testV23P03C37TypedPoseContractAnchor() throws {
+        let axis = try PoseAxisDescriptorV1(
+            axisID: PoseAxisID(rawValue: "axis.c37.anchor"),
+            localizedLabelKey: "pose.c37.anchor",
+            semanticRole: .otherDeclaredAxis,
+            requiredComponents: .azimuthOnly,
+            observationRequirement: .optional,
+            applicability: .applicable
+        )
+        let registry = try PoseAxisDescriptorRegistryV1(descriptors: [axis])
+        XCTAssertEqual(try registry.descriptor(for: axis.axisID), axis)
+    }
     func testV23P03C29TypedPlanContractAnchor() throws {
         let minimum = try NormalizedPlanCoordinateV1(millionths: 0)
         let maximum = try NormalizedPlanCoordinateV1(millionths: PlanLimitsV1.normalizedScale)

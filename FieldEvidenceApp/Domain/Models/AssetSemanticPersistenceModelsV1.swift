@@ -1,4 +1,5 @@
 import Foundation
+enum PlacementPoseAssetSemanticPersistenceBoundaryV1{static let poseAxisDescriptorsAreEmbedded=true;static let assetSemanticRowsOwnNoPoseTips=true}
 import SwiftData
 
 enum PlanAssetSemanticPersistenceBindingV1 { static let durableDependency = AssetKindBindingEventRow.self; static let planPlacementUsesFrozenLocatorReceipt = true }

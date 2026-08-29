@@ -113,14 +113,19 @@ struct AssetPlacementPreviewBasisV1: Codable, Equatable, Sendable {
 
 struct PlacementChangeComponentContributionV1: Codable, Equatable, Sendable {
     let componentID: String; let componentVersion: Int; let warnings: [String]; let requiredContinuityReview: Bool; let intentSHA256: String
-    init(componentID: String, componentVersion: Int, warnings: [String], requiredContinuityReview: Bool, intentSHA256: String) throws {
+    let poseDispositionIntents: [PosePlacementDispositionIntentV1]
+    init(componentID: String, componentVersion: Int, warnings: [String], requiredContinuityReview: Bool, intentSHA256: String,
+         poseDispositionIntents: [PosePlacementDispositionIntentV1] = []) throws {
         try LocationContractValidationV1.requireText(componentID, maximumBytes: 128); try LocationContractValidationV1.requireSortedUnique(warnings); try LocationContractValidationV1.requireDigest(intentSHA256)
         guard componentVersion > 0 else { throw LocationContractFailureV1.invalidValue }
         self.componentID = componentID; self.componentVersion = componentVersion; self.warnings = warnings; self.requiredContinuityReview = requiredContinuityReview; self.intentSHA256 = intentSHA256
+        self.poseDispositionIntents = poseDispositionIntents.sorted { $0.predecessor.axisID < $1.predecessor.axisID }
+        guard Set(self.poseDispositionIntents.map(\.predecessor.axisID)).count == self.poseDispositionIntents.count else { throw LocationContractFailureV1.invalidValue }
     }
     var stableKey: String { "\(componentID)|\(componentVersion)" }
-    private enum CodingKeys: String, CodingKey, CaseIterable { case componentID, componentVersion, warnings, requiredContinuityReview, intentSHA256 }
-    init(from decoder: Decoder) throws { try LocationClosedCodingV1.require(decoder, keys: CodingKeys.self, required: Set(CodingKeys.allCases.map(\.rawValue))); let c = try decoder.container(keyedBy: CodingKeys.self); try self.init(componentID: c.decode(String.self, forKey: .componentID), componentVersion: c.decode(Int.self, forKey: .componentVersion), warnings: c.decode([String].self, forKey: .warnings), requiredContinuityReview: c.decode(Bool.self, forKey: .requiredContinuityReview), intentSHA256: c.decode(String.self, forKey: .intentSHA256)) }
+    private enum CodingKeys: String, CodingKey, CaseIterable { case componentID, componentVersion, warnings, requiredContinuityReview, intentSHA256, poseDispositionIntents }
+    init(from decoder: Decoder) throws { try LocationClosedCodingV1.require(decoder, keys: CodingKeys.self, required: Set(CodingKeys.allCases.filter { $0 != .poseDispositionIntents }.map(\.rawValue))); let c = try decoder.container(keyedBy: CodingKeys.self); try self.init(componentID: c.decode(String.self, forKey: .componentID), componentVersion: c.decode(Int.self, forKey: .componentVersion), warnings: c.decode([String].self, forKey: .warnings), requiredContinuityReview: c.decode(Bool.self, forKey: .requiredContinuityReview), intentSHA256: c.decode(String.self, forKey: .intentSHA256), poseDispositionIntents: (try? c.decode([PosePlacementDispositionIntentV1].self, forKey: .poseDispositionIntents)) ?? []) }
+    func encode(to encoder: Encoder) throws { var c = encoder.container(keyedBy: CodingKeys.self); try c.encode(componentID, forKey: .componentID); try c.encode(componentVersion, forKey: .componentVersion); try c.encode(warnings, forKey: .warnings); try c.encode(requiredContinuityReview, forKey: .requiredContinuityReview); try c.encode(intentSHA256, forKey: .intentSHA256); if !poseDispositionIntents.isEmpty { try c.encode(poseDispositionIntents, forKey: .poseDispositionIntents) } }
 }
 
 @MainActor
@@ -154,8 +159,11 @@ struct PlacementChangeComponentRegistryV1 {
 struct AssetPlacementChangePlanV1: Codable, Equatable, Sendable {
     let operationID: UUID; let mutationID: MutationIDV1; let basis: AssetPlacementPreviewBasisV1
     let newEventID: UUID; let resultingPhysicalEpisodeID: PhysicalPlacementEpisodeIDV1
-    let componentContributions: [PlacementChangeComponentContributionV1]; let planSHA256: String
-    init(operationID: UUID, mutationID: MutationIDV1, basis: AssetPlacementPreviewBasisV1, newEventID: UUID, resultingPhysicalEpisodeID: PhysicalPlacementEpisodeIDV1, componentContributions: [PlacementChangeComponentContributionV1]) throws {
+    let componentContributions: [PlacementChangeComponentContributionV1]
+    let poseEvents: [AssetPoseEventV1]; let poseEventPredecessors: [AssetPoseEventV1]
+    let poseAdmissionClosure: PlacementPoseAdmissionClosureV1?
+    let posePostImageSHA256: String?; let planSHA256: String
+    init(operationID: UUID, mutationID: MutationIDV1, basis: AssetPlacementPreviewBasisV1, newEventID: UUID, resultingPhysicalEpisodeID: PhysicalPlacementEpisodeIDV1, componentContributions: [PlacementChangeComponentContributionV1], poseEvents: [AssetPoseEventV1] = [], poseEventPredecessors: [AssetPoseEventV1] = [], poseAdmissionClosure: PlacementPoseAdmissionClosureV1? = nil) throws {
         try LocationContractValidationV1.requireID(operationID); try LocationContractValidationV1.requireID(newEventID)
         guard componentContributions.map(\.stableKey) == componentContributions.map(\.stableKey).sorted(), Set(componentContributions.map(\.stableKey)).count == componentContributions.count,
               !componentContributions.contains(where: { $0.requiredContinuityReview }) || basis.reviewedContinuity != .unknownReviewRequired,
@@ -164,7 +172,12 @@ struct AssetPlacementChangePlanV1: Codable, Equatable, Sendable {
                     == ($0.physicalEpisodeID != resultingPhysicalEpisodeID)
               }) ?? true else { throw LocationContractFailureV1.reviewRequired }
         self.operationID = operationID; self.mutationID = mutationID; self.basis = basis; self.newEventID = newEventID; self.resultingPhysicalEpisodeID = resultingPhysicalEpisodeID; self.componentContributions = componentContributions
+        self.poseEvents = poseEvents.sorted { $0.axisDescriptor.axisID < $1.axisDescriptor.axisID }
+        self.poseEventPredecessors = poseEventPredecessors.sorted { $0.axisDescriptor.axisID < $1.axisDescriptor.axisID }
+        self.poseAdmissionClosure = poseAdmissionClosure
+        posePostImageSHA256 = poseEvents.isEmpty ? nil : try WorkspaceMutationCanonicalV1.sha256(PoseBasis(events: self.poseEvents, predecessors: self.poseEventPredecessors, admissionClosure: poseAdmissionClosure))
         planSHA256 = try WorkspaceMutationCanonicalV1.sha256(Basis(operationID: operationID, mutationID: mutationID, basis: basis, newEventID: newEventID, resultingPhysicalEpisodeID: resultingPhysicalEpisodeID, componentContributions: componentContributions))
+        try validate()
     }
     func validate() throws {
         try LocationContractValidationV1.requireID(operationID)
@@ -174,33 +187,65 @@ struct AssetPlacementChangePlanV1: Codable, Equatable, Sendable {
             (basis.reviewedContinuity == .physicalMove)
                 == ($0.physicalEpisodeID != resultingPhysicalEpisodeID)
         } ?? true
+        let intents = componentContributions.flatMap(\.poseDispositionIntents).sorted { $0.predecessor.axisID < $1.predecessor.axisID }
         guard basis.currentPlacement?.id != newEventID,
               componentContributions.map(\.stableKey) == componentContributions.map(\.stableKey).sorted(),
               Set(componentContributions.map(\.stableKey)).count == componentContributions.count,
               !componentContributions.contains(where: { $0.requiredContinuityReview })
                 || basis.reviewedContinuity != .unknownReviewRequired,
               episodeTransitionIsValid,
+              poseEvents.count == poseEventPredecessors.count,
+              poseEvents.count == intents.count,
+              Set(poseEvents.map { $0.axisDescriptor.axisID }).count == poseEvents.count,
+              zip(poseEvents, poseEventPredecessors).allSatisfy({ value, predecessor in
+                  guard let intent = intents.first(where: { $0.predecessor == predecessor.reference }) else { return false }
+                  do { try value.validateSuccessor(of: predecessor) } catch { return false }
+                  return value.workspaceID == basis.workspaceID && value.assetID == basis.assetID
+                    && value.placementEventID == newEventID
+                    && value.placementEpisodeID == resultingPhysicalEpisodeID
+                    && value.locationPathSnapshot == basis.proposedPath
+                    && value.mutationID == mutationID && value.pose == intent.proposedPose
+                    && value.source == .placementCarryForward
+              }),
+              (poseEvents.isEmpty && poseAdmissionClosure == nil)
+                || (!poseEvents.isEmpty && poseAdmissionClosure != nil),
+              (poseEvents.isEmpty ? posePostImageSHA256 == nil : posePostImageSHA256 == (try WorkspaceMutationCanonicalV1.sha256(PoseBasis(events: poseEvents, predecessors: poseEventPredecessors, admissionClosure: poseAdmissionClosure)))),
               planSHA256 == (try WorkspaceMutationCanonicalV1.sha256(Basis(operationID: operationID, mutationID: mutationID, basis: basis, newEventID: newEventID, resultingPhysicalEpisodeID: resultingPhysicalEpisodeID, componentContributions: componentContributions))) else { throw LocationContractFailureV1.digestMismatch }
+        try poseAdmissionClosure?.validate(events: poseEvents, observations: [])
     }
     private struct Basis: Codable { let operationID: UUID; let mutationID: MutationIDV1; let basis: AssetPlacementPreviewBasisV1; let newEventID: UUID; let resultingPhysicalEpisodeID: PhysicalPlacementEpisodeIDV1; let componentContributions: [PlacementChangeComponentContributionV1] }
-    private enum CodingKeys: String, CodingKey, CaseIterable { case operationID, mutationID, basis, newEventID, resultingPhysicalEpisodeID, componentContributions, planSHA256 }
-    init(from decoder: Decoder) throws { try LocationClosedCodingV1.require(decoder, keys: CodingKeys.self, required: Set(CodingKeys.allCases.map(\.rawValue))); let c = try decoder.container(keyedBy: CodingKeys.self); let rebuilt = try Self(operationID: c.decode(UUID.self, forKey: .operationID), mutationID: c.decode(MutationIDV1.self, forKey: .mutationID), basis: c.decode(AssetPlacementPreviewBasisV1.self, forKey: .basis), newEventID: c.decode(UUID.self, forKey: .newEventID), resultingPhysicalEpisodeID: c.decode(PhysicalPlacementEpisodeIDV1.self, forKey: .resultingPhysicalEpisodeID), componentContributions: c.decode([PlacementChangeComponentContributionV1].self, forKey: .componentContributions)); guard try c.decode(String.self, forKey: .planSHA256) == rebuilt.planSHA256 else { throw LocationContractFailureV1.digestMismatch }; self = rebuilt }
+    private struct PoseBasis: Codable { let events: [AssetPoseEventV1]; let predecessors: [AssetPoseEventV1]; let admissionClosure: PlacementPoseAdmissionClosureV1? }
+    private enum CodingKeys: String, CodingKey, CaseIterable { case operationID, mutationID, basis, newEventID, resultingPhysicalEpisodeID, componentContributions, poseEvents, poseEventPredecessors, poseAdmissionClosure, posePostImageSHA256, planSHA256 }
+    init(from decoder: Decoder) throws { try LocationClosedCodingV1.require(decoder, keys: CodingKeys.self, required: Set(CodingKeys.allCases.filter { ![.poseEvents, .poseEventPredecessors, .poseAdmissionClosure, .posePostImageSHA256].contains($0) }.map(\.rawValue))); let c = try decoder.container(keyedBy: CodingKeys.self); let rebuilt = try Self(operationID: c.decode(UUID.self, forKey: .operationID), mutationID: c.decode(MutationIDV1.self, forKey: .mutationID), basis: c.decode(AssetPlacementPreviewBasisV1.self, forKey: .basis), newEventID: c.decode(UUID.self, forKey: .newEventID), resultingPhysicalEpisodeID: c.decode(PhysicalPlacementEpisodeIDV1.self, forKey: .resultingPhysicalEpisodeID), componentContributions: c.decode([PlacementChangeComponentContributionV1].self, forKey: .componentContributions), poseEvents: (try? c.decode([AssetPoseEventV1].self, forKey: .poseEvents)) ?? [], poseEventPredecessors: (try? c.decode([AssetPoseEventV1].self, forKey: .poseEventPredecessors)) ?? [], poseAdmissionClosure: try c.decodeIfPresent(PlacementPoseAdmissionClosureV1.self, forKey: .poseAdmissionClosure)); guard try c.decode(String.self, forKey: .planSHA256) == rebuilt.planSHA256, (try? c.decode(String.self, forKey: .posePostImageSHA256)) == rebuilt.posePostImageSHA256 else { throw LocationContractFailureV1.digestMismatch }; self = rebuilt }
+    func encode(to encoder: Encoder) throws { var c = encoder.container(keyedBy: CodingKeys.self); try c.encode(operationID, forKey: .operationID); try c.encode(mutationID, forKey: .mutationID); try c.encode(basis, forKey: .basis); try c.encode(newEventID, forKey: .newEventID); try c.encode(resultingPhysicalEpisodeID, forKey: .resultingPhysicalEpisodeID); try c.encode(componentContributions, forKey: .componentContributions); if !poseEvents.isEmpty { try c.encode(poseEvents, forKey: .poseEvents); try c.encode(poseEventPredecessors, forKey: .poseEventPredecessors); try c.encode(poseAdmissionClosure, forKey: .poseAdmissionClosure); try c.encode(posePostImageSHA256, forKey: .posePostImageSHA256) }; try c.encode(planSHA256, forKey: .planSHA256) }
 }
 
 struct AssetPlacementChangeReceiptV1: Codable, Equatable, Sendable {
     let planSHA256: String; let placementEvent: AssetPlacementEventV1; let mutationReceiptIdentity: MutationReceiptIdentityV1
+    let posePostImageSHA256: String?; let commandBodySHA256: String
     let mutationReceiptSHA256: String; let committedAt: Date; let receiptSHA256: String
     init(plan: AssetPlacementChangePlanV1, placementEvent: AssetPlacementEventV1, mutationReceipt: MutationReceiptV1) throws {
-        try placementEvent.validate(); try mutationReceipt.validate()
+        try plan.validate(); try placementEvent.validate(); try mutationReceipt.validate()
+        let commandBodySHA256 = try WorkspaceMutationCanonicalV1.sha256(
+            WorkspaceCommandV1.applyAssetPlacementChange(plan))
         guard placementEvent.id == plan.newEventID, placementEvent.mutationID == plan.mutationID,
-              mutationReceipt.mutationID == plan.mutationID, mutationReceipt.identity.workspaceID == plan.basis.workspaceID else { throw LocationContractFailureV1.invalidValue }
+              mutationReceipt.mutationID == plan.mutationID,
+              mutationReceipt.identity.workspaceID == plan.basis.workspaceID,
+              mutationReceipt.commandBodySHA256 == commandBodySHA256 else {
+            throw LocationContractFailureV1.invalidValue
+        }
         planSHA256 = plan.planSHA256; self.placementEvent = placementEvent; mutationReceiptIdentity = mutationReceipt.identity
+        posePostImageSHA256 = plan.posePostImageSHA256; self.commandBodySHA256 = commandBodySHA256
         mutationReceiptSHA256 = try mutationReceipt.canonicalSHA256(); committedAt = mutationReceipt.committedAt
-        receiptSHA256 = try WorkspaceMutationCanonicalV1.sha256(Basis(planSHA256: plan.planSHA256, placementEvent: placementEvent, mutationReceiptIdentity: mutationReceipt.identity, mutationReceiptSHA256: mutationReceiptSHA256, committedAt: committedAt))
+        receiptSHA256 = try WorkspaceMutationCanonicalV1.sha256(Basis(planSHA256: plan.planSHA256, placementEvent: placementEvent, posePostImageSHA256: plan.posePostImageSHA256, commandBodySHA256: commandBodySHA256, mutationReceiptIdentity: mutationReceipt.identity, mutationReceiptSHA256: mutationReceiptSHA256, committedAt: committedAt))
     }
-    private struct Basis: Codable { let planSHA256: String; let placementEvent: AssetPlacementEventV1; let mutationReceiptIdentity: MutationReceiptIdentityV1; let mutationReceiptSHA256: String; let committedAt: Date }
-    private enum CodingKeys: String, CodingKey, CaseIterable { case planSHA256, placementEvent, mutationReceiptIdentity, mutationReceiptSHA256, committedAt, receiptSHA256 }
-    init(from decoder: Decoder) throws { try LocationClosedCodingV1.require(decoder, keys: CodingKeys.self, required: Set(CodingKeys.allCases.map(\.rawValue))); let c = try decoder.container(keyedBy: CodingKeys.self); planSHA256 = try c.decode(String.self, forKey: .planSHA256); placementEvent = try c.decode(AssetPlacementEventV1.self, forKey: .placementEvent); mutationReceiptIdentity = try c.decode(MutationReceiptIdentityV1.self, forKey: .mutationReceiptIdentity); mutationReceiptSHA256 = try c.decode(String.self, forKey: .mutationReceiptSHA256); committedAt = try c.decode(Date.self, forKey: .committedAt); receiptSHA256 = try c.decode(String.self, forKey: .receiptSHA256); try placementEvent.validate(); try mutationReceiptIdentity.validate(); let expected = try WorkspaceMutationCanonicalV1.sha256(Basis(planSHA256: planSHA256, placementEvent: placementEvent, mutationReceiptIdentity: mutationReceiptIdentity, mutationReceiptSHA256: mutationReceiptSHA256, committedAt: committedAt)); guard receiptSHA256 == expected else { throw LocationContractFailureV1.digestMismatch } }
+    func validate(plan: AssetPlacementChangePlanV1, mutationReceipt: MutationReceiptV1) throws {
+        let rebuilt = try Self(plan: plan, placementEvent: placementEvent, mutationReceipt: mutationReceipt)
+        guard rebuilt == self else { throw LocationContractFailureV1.digestMismatch }
+    }
+    private struct Basis: Codable { let planSHA256: String; let placementEvent: AssetPlacementEventV1; let posePostImageSHA256: String?; let commandBodySHA256: String; let mutationReceiptIdentity: MutationReceiptIdentityV1; let mutationReceiptSHA256: String; let committedAt: Date }
+    private enum CodingKeys: String, CodingKey, CaseIterable { case planSHA256, placementEvent, posePostImageSHA256, commandBodySHA256, mutationReceiptIdentity, mutationReceiptSHA256, committedAt, receiptSHA256 }
+    init(from decoder: Decoder) throws { try LocationClosedCodingV1.require(decoder, keys: CodingKeys.self, required: Set(CodingKeys.allCases.filter { $0 != .posePostImageSHA256 }.map(\.rawValue))); let c = try decoder.container(keyedBy: CodingKeys.self); planSHA256 = try c.decode(String.self, forKey: .planSHA256); placementEvent = try c.decode(AssetPlacementEventV1.self, forKey: .placementEvent); posePostImageSHA256 = try c.decodeIfPresent(String.self, forKey: .posePostImageSHA256); commandBodySHA256 = try c.decode(String.self, forKey: .commandBodySHA256); mutationReceiptIdentity = try c.decode(MutationReceiptIdentityV1.self, forKey: .mutationReceiptIdentity); mutationReceiptSHA256 = try c.decode(String.self, forKey: .mutationReceiptSHA256); committedAt = try c.decode(Date.self, forKey: .committedAt); receiptSHA256 = try c.decode(String.self, forKey: .receiptSHA256); try placementEvent.validate(); try mutationReceiptIdentity.validate(); try LocationContractValidationV1.requireDigest(commandBodySHA256); try posePostImageSHA256.map(LocationContractValidationV1.requireDigest); let expected = try WorkspaceMutationCanonicalV1.sha256(Basis(planSHA256: planSHA256, placementEvent: placementEvent, posePostImageSHA256: posePostImageSHA256, commandBodySHA256: commandBodySHA256, mutationReceiptIdentity: mutationReceiptIdentity, mutationReceiptSHA256: mutationReceiptSHA256, committedAt: committedAt)); guard receiptSHA256 == expected else { throw LocationContractFailureV1.digestMismatch } }
 }
 
 enum AssetPlacementHistoryV1 {
@@ -241,5 +286,17 @@ enum AssetPlacementHistoryV1 {
 enum C29PlanIntegration_Domain_Location_AssetPlacementContractsV1 {
     static func validatePlanRevision(_ value: PlanRevisionReferenceV1) throws {
         try value.validate()
+    }
+}
+
+enum C37PoseIntegration_FieldEvidenceApp_Domain_Location_AssetPlacementContractsV1_swift {
+    /// Typed C37 boundary: inherited owners may retain an immutable pose
+    /// reference, but cannot infer pose, compliance, or current-state truth.
+    static func validate(reference: AssetPoseEventReferenceV1,
+                         in workspaceID: WorkspaceID) throws {
+        try reference.validate()
+        guard reference.workspaceID == workspaceID else {
+            throw PlacementPoseFailureV1.wrongWorkspace
+        }
     }
 }

@@ -4009,3 +4009,408 @@ enum PlanReportProjectionPolicyV1 {
         return projection
     }
 }
+
+// MARK: - C37 reference-framed placement-pose projection
+
+/// Report-facing frame labels are a closed projection over the canonical pose
+/// enum. They are deliberately not compass prose: TRUE, MAGNETIC, and
+/// PLAN_RELATIVE remain distinguishable recorded reference frames.
+enum C37PoseReferenceFrameProjectionV1: String, Codable, CaseIterable, Hashable, Sendable {
+    case trueBearing = "TRUE"
+    case magneticBearing = "MAGNETIC"
+    case planRelative = "PLAN_RELATIVE"
+    case unknown = "UNKNOWN"
+
+    init(_ value: PoseReferenceFrameV1) {
+        switch value {
+        case .trueBearing: self = .trueBearing
+        case .magneticBearing: self = .magneticBearing
+        case .planRelative: self = .planRelative
+        case .unknown: self = .unknown
+        }
+    }
+}
+
+/// A report can state that a pose was not observed without turning that fact
+/// into a claim about alignment or correctness. Manual input remains a
+/// separately visible fallback state and unknown uncertainty is explicit.
+enum C37PoseObservationStateV1: String, Codable, CaseIterable, Hashable, Sendable {
+    case observed = "OBSERVED"
+    case notObserved = "NOT_OBSERVED"
+    case manualFallback = "MANUAL_FALLBACK"
+    case uncertaintyUnknown = "UNCERTAINTY_UNKNOWN"
+    case reviewRequired = "REVIEW_REQUIRED"
+}
+
+enum C37PoseUncertaintyStateV1: String, Codable, CaseIterable, Hashable, Sendable {
+    case known = "KNOWN"
+    case unknown = "UNKNOWN"
+}
+
+struct C37PoseHistoryProjectionV1: Codable, Equatable, Hashable, Sendable {
+    let eventID: UUID
+    let axisID: String
+    let placementEpisodeID: UUID
+    let placementEventID: UUID
+    let rootObservationEventID: UUID
+    let rootObservedAt: Date
+    let occurredAt: Date
+    let recordedAt: Date
+    let referenceFrame: C37PoseReferenceFrameProjectionV1
+    let disposition: PoseObservationDispositionV1
+    let observationState: C37PoseObservationStateV1
+    let notObservedReason: PoseNotObservedReasonV1?
+    let azimuthMilliDegrees: Int32?
+    let elevationMilliDegrees: Int32?
+    let horizontalUncertaintyMilliDegrees: Int32?
+    let verticalUncertaintyMilliDegrees: Int32?
+    let horizontalUncertaintyState: C37PoseUncertaintyStateV1
+    let verticalUncertaintyState: C37PoseUncertaintyStateV1
+    let source: PoseObservationSourceV1
+    let revision: UInt64
+    let eventSHA256: String
+    let planRevisionID: UUID?
+    let planPageID: UUID?
+    let planSpatialFrameID: UUID?
+    let planTransformSHA256: String?
+
+    init(event: AssetPoseEventV1) throws {
+        try event.validateIntrinsic()
+        eventID = event.eventID
+        axisID = event.axisDescriptor.axisID.rawValue
+        placementEpisodeID = event.placementEpisodeID.rawValue
+        placementEventID = event.placementEventID
+        rootObservationEventID = event.rootObservationEventID
+        rootObservedAt = event.rootObservedAt
+        occurredAt = event.occurredAt
+        recordedAt = event.recordedAt
+        referenceFrame = C37PoseReferenceFrameProjectionV1(event.pose.referenceFrame)
+        disposition = event.pose.disposition
+        notObservedReason = event.pose.notObservedReason
+        azimuthMilliDegrees = event.pose.azimuth?.milliDegrees
+        elevationMilliDegrees = event.pose.elevation?.milliDegrees
+        horizontalUncertaintyMilliDegrees = Self.uncertaintyValue(event.pose.horizontalUncertainty)
+        verticalUncertaintyMilliDegrees = Self.uncertaintyValue(event.pose.verticalUncertainty)
+        horizontalUncertaintyState = Self.uncertaintyState(event.pose.horizontalUncertainty)
+        verticalUncertaintyState = Self.uncertaintyState(event.pose.verticalUncertainty)
+        source = event.source
+        revision = event.revision
+        eventSHA256 = event.eventSHA256
+        if case .planRelative(let frame) = event.pose.referenceFrame {
+            planRevisionID = frame.planRevision.planRevisionID
+            planPageID = frame.pageID
+            planSpatialFrameID = frame.spatialFrameID
+            planTransformSHA256 = frame.acceptedTransformSHA256
+        } else {
+            planRevisionID = nil
+            planPageID = nil
+            planSpatialFrameID = nil
+            planTransformSHA256 = nil
+        }
+        if event.pose.disposition == .notObserved {
+            observationState = .notObserved
+        } else if event.source == .manual {
+            observationState = .manualFallback
+        } else if Self.isUnknown(event.pose.horizontalUncertainty)
+                    || Self.isUnknown(event.pose.verticalUncertainty) {
+            observationState = .uncertaintyUnknown
+        } else {
+            observationState = .observed
+        }
+    }
+
+    private static func uncertaintyValue(_ value: PoseUncertaintyV1?) -> Int32? {
+        guard case .some(.known(let angle)) = value else { return nil }
+        return angle.milliDegrees
+    }
+
+    private static func isUnknown(_ value: PoseUncertaintyV1?) -> Bool {
+        guard case .some(.unknown) = value else { return false }
+        return true
+    }
+
+    private static func uncertaintyState(_ value: PoseUncertaintyV1?) -> C37PoseUncertaintyStateV1 {
+        guard case .some(.known) = value else { return .unknown }
+        return .known
+    }
+
+    func validate() throws {
+        try PlacementPoseLimitsV1.id(eventID)
+        try PlacementPoseLimitsV1.token(axisID)
+        try PlacementPoseLimitsV1.id(placementEpisodeID)
+        try PlacementPoseLimitsV1.id(placementEventID)
+        try PlacementPoseLimitsV1.id(rootObservationEventID)
+        try PlacementPoseLimitsV1.digest(eventSHA256)
+        try planRevisionID.map(PlacementPoseLimitsV1.id)
+        try planPageID.map(PlacementPoseLimitsV1.id)
+        try planSpatialFrameID.map(PlacementPoseLimitsV1.id)
+        try planTransformSHA256.map(PlacementPoseLimitsV1.digest)
+        let usesPlanRelativeFrame: Bool
+        if case .planRelative = referenceFrame {
+            usesPlanRelativeFrame = true
+        } else {
+            usesPlanRelativeFrame = false
+        }
+        let hasValidAzimuth = azimuthMilliDegrees.map { (0..<360_000).contains($0) } ?? true
+        let hasValidElevation = elevationMilliDegrees.map { (-90_000...90_000).contains($0) } ?? true
+        let hasValidHorizontalUncertainty = horizontalUncertaintyMilliDegrees
+            .map { (0...180_000).contains($0) } ?? true
+        let hasValidVerticalUncertainty = verticalUncertaintyMilliDegrees
+            .map { (0...90_000).contains($0) } ?? true
+        guard revision > 0,
+              revision <= UInt64(Int.max),
+              hasValidAzimuth,
+              hasValidElevation,
+              hasValidHorizontalUncertainty,
+              hasValidVerticalUncertainty,
+              (horizontalUncertaintyState == .known)
+                  == (horizontalUncertaintyMilliDegrees != nil),
+              (verticalUncertaintyState == .known)
+                  == (verticalUncertaintyMilliDegrees != nil),
+              (observationState == .manualFallback)
+                  == (source == .manual && disposition != .notObserved),
+              rootObservedAt.timeIntervalSinceReferenceDate.isFinite,
+              occurredAt.timeIntervalSinceReferenceDate.isFinite,
+              recordedAt.timeIntervalSinceReferenceDate.isFinite,
+              rootObservedAt <= occurredAt,
+              occurredAt <= recordedAt,
+              usesPlanRelativeFrame == (planRevisionID != nil),
+              usesPlanRelativeFrame == (planPageID != nil),
+              usesPlanRelativeFrame == (planSpatialFrameID != nil),
+              usesPlanRelativeFrame == (planTransformSHA256 != nil),
+              (disposition == .notObserved) == (observationState == .notObserved),
+              !(observationState == .observed &&
+                (horizontalUncertaintyState == .unknown || verticalUncertaintyState == .unknown) ) ||
+                observationState == .uncertaintyUnknown ||
+                observationState == .manualFallback ||
+                observationState == .notObserved else {
+            throw C37PoseReportProjectionFailureV1.invalidValue
+        }
+        if disposition == .notObserved {
+            guard referenceFrame == .unknown,
+                  azimuthMilliDegrees == nil,
+                  elevationMilliDegrees == nil,
+                  notObservedReason != nil else {
+                throw C37PoseReportProjectionFailureV1.invalidValue
+            }
+        } else {
+            guard referenceFrame != .unknown,
+                  notObservedReason == nil,
+                  azimuthMilliDegrees != nil,
+                  horizontalUncertaintyState != .unknown else {
+                throw C37PoseReportProjectionFailureV1.invalidValue
+            }
+        }
+    }
+}
+
+struct C37PlacementPoseReportProjectionV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let projectionVersion = "c37-placement-pose-report-v1"
+
+    let schemaVersion: Int
+    let projectionVersion: String
+    let workspaceID: WorkspaceID
+    let assetID: UUID
+    let currentTipReferences: [AssetPoseEventReferenceV1]
+    let history: [C37PoseHistoryProjectionV1]
+    let capturedAt: Date
+    let historyFrozen: Bool
+    let rebasePreviewIsNotApplied: Bool
+    let sensorInputAllowed: Bool
+    let networkInputAllowed: Bool
+    let projectionSHA256: String
+
+    init(workspaceID: WorkspaceID, assetID: UUID,
+         events: [AssetPoseEventV1], capturedAt: Date) throws {
+        try PlacementPoseLimitsV1.id(workspaceID.rawValue)
+        try PlacementPoseLimitsV1.id(assetID)
+        guard capturedAt.timeIntervalSinceReferenceDate.isFinite,
+              events.count <= PlacementPoseLimitsV1.maximumEventsPerClosure else {
+            throw C37PoseReportProjectionFailureV1.invalidValue
+        }
+        let orderedEvents = events.sorted {
+            ($0.axisDescriptor.axisID.rawValue, $0.revision, $0.eventID.uuidString)
+                < ($1.axisDescriptor.axisID.rawValue, $1.revision, $1.eventID.uuidString)
+        }
+        guard orderedEvents.allSatisfy({
+            $0.workspaceID == workspaceID && $0.assetID == assetID
+        }) else {
+            throw C37PoseReportProjectionFailureV1.wrongWorkspace
+        }
+        if orderedEvents.isEmpty {
+            currentTipReferences = []
+        } else {
+            currentTipReferences = try AssetPoseHistoryV1.currentTip(
+                workspaceID: workspaceID, assetID: assetID, events: orderedEvents
+            ).tips
+        }
+        history = try orderedEvents.map(C37PoseHistoryProjectionV1.init(event:))
+        schemaVersion = Self.schemaVersion
+        projectionVersion = Self.projectionVersion
+        self.workspaceID = workspaceID
+        self.assetID = assetID
+        self.capturedAt = capturedAt
+        historyFrozen = true
+        rebasePreviewIsNotApplied = true
+        sensorInputAllowed = false
+        networkInputAllowed = false
+        projectionSHA256 = try WorkspaceMutationCanonicalV1.sha256(
+            DigestBasis(
+                schemaVersion: schemaVersion,
+                projectionVersion: projectionVersion,
+                workspaceID: workspaceID,
+                assetID: assetID,
+                currentTipReferences: currentTipReferences,
+                history: history,
+                capturedAt: capturedAt,
+                historyFrozen: historyFrozen,
+                rebasePreviewIsNotApplied: rebasePreviewIsNotApplied,
+                sensorInputAllowed: sensorInputAllowed,
+                networkInputAllowed: networkInputAllowed
+            )
+        )
+        try validate()
+    }
+
+    func validate() throws {
+        try PlacementPoseLimitsV1.id(workspaceID.rawValue)
+        try PlacementPoseLimitsV1.id(assetID)
+        try history.forEach { try $0.validate() }
+        guard schemaVersion == Self.schemaVersion,
+              projectionVersion == Self.projectionVersion,
+              capturedAt.timeIntervalSinceReferenceDate.isFinite,
+              history == history.sorted(by: {
+                  ($0.axisID, $0.revision, $0.eventID.uuidString)
+                      < ($1.axisID, $1.revision, $1.eventID.uuidString)
+              }),
+              Set(history.map(\.eventID)).count == history.count,
+              currentTipReferences == currentTipReferences.sorted(by: {
+                  ($0.axisID, $0.revision, $0.eventID.uuidString)
+                      < ($1.axisID, $1.revision, $1.eventID.uuidString)
+              }),
+              Set(currentTipReferences.map(\.axisID)).count == currentTipReferences.count,
+              currentTipReferences.allSatisfy({ reference in
+                  reference.workspaceID == workspaceID && reference.assetID == assetID
+                      && history.contains(where: {
+                          $0.eventID == reference.eventID
+                              && $0.axisID == reference.axisID
+                              && $0.revision == reference.revision
+                              && $0.eventSHA256 == reference.eventSHA256
+                      })
+              }),
+              historyFrozen,
+              rebasePreviewIsNotApplied,
+              !sensorInputAllowed,
+              !networkInputAllowed,
+              projectionSHA256 == (try WorkspaceMutationCanonicalV1.sha256(
+                  DigestBasis(
+                      schemaVersion: schemaVersion,
+                      projectionVersion: projectionVersion,
+                      workspaceID: workspaceID,
+                      assetID: assetID,
+                      currentTipReferences: currentTipReferences,
+                      history: history,
+                      capturedAt: capturedAt,
+                      historyFrozen: historyFrozen,
+                      rebasePreviewIsNotApplied: rebasePreviewIsNotApplied,
+                      sensorInputAllowed: sensorInputAllowed,
+                      networkInputAllowed: networkInputAllowed
+                  )
+              )) else {
+            throw C37PoseReportProjectionFailureV1.invalidDigest
+        }
+        try currentTipReferences.forEach { try $0.validate() }
+    }
+
+    private struct DigestBasis: Codable {
+        let schemaVersion: Int
+        let projectionVersion: String
+        let workspaceID: WorkspaceID
+        let assetID: UUID
+        let currentTipReferences: [AssetPoseEventReferenceV1]
+        let history: [C37PoseHistoryProjectionV1]
+        let capturedAt: Date
+        let historyFrozen: Bool
+        let rebasePreviewIsNotApplied: Bool
+        let sensorInputAllowed: Bool
+        let networkInputAllowed: Bool
+    }
+}
+
+struct C37PlacementPoseFrozenSnapshotV1: Codable, Equatable, Sendable {
+    let sourceSnapshotID: UUID
+    let projection: C37PlacementPoseReportProjectionV1
+    let historicDisplayIsFrozen: Bool
+    let snapshotSHA256: String
+
+    init(sourceSnapshotID: UUID,
+         projection: C37PlacementPoseReportProjectionV1) throws {
+        try PlacementPoseLimitsV1.id(sourceSnapshotID)
+        try projection.validate()
+        self.sourceSnapshotID = sourceSnapshotID
+        self.projection = projection
+        historicDisplayIsFrozen = true
+        snapshotSHA256 = try WorkspaceMutationCanonicalV1.sha256(
+            DigestBasis(
+                sourceSnapshotID: sourceSnapshotID,
+                projection: projection,
+                historicDisplayIsFrozen: historicDisplayIsFrozen
+            )
+        )
+        try validate()
+    }
+
+    func validate() throws {
+        try PlacementPoseLimitsV1.id(sourceSnapshotID)
+        try projection.validate()
+        guard historicDisplayIsFrozen,
+              snapshotSHA256 == (try WorkspaceMutationCanonicalV1.sha256(
+                  DigestBasis(
+                      sourceSnapshotID: sourceSnapshotID,
+                      projection: projection,
+                      historicDisplayIsFrozen: historicDisplayIsFrozen
+                  )
+              )) else {
+            throw C37PoseReportProjectionFailureV1.invalidDigest
+        }
+    }
+
+    private struct DigestBasis: Codable {
+        let sourceSnapshotID: UUID
+        let projection: C37PlacementPoseReportProjectionV1
+        let historicDisplayIsFrozen: Bool
+    }
+}
+
+enum C37PoseReportProjectionFailureV1: Error, Equatable, Sendable {
+    case invalidValue
+    case invalidDigest
+    case wrongWorkspace
+    case staleHistory
+    case privacyViolation
+    case unsupportedClaim
+}
+
+enum C37PoseReportProjectionPolicyV1 {
+    static let metadataOnly = true
+    static let currentAndHistoryAreRecordedFacts = true
+    static let historyFrozen = true
+    static let rebasePreviewIsNotApplied = true
+    static let excludesSensorInput = true
+    static let excludesNetworkInput = true
+    static let excludesActorIdentity = true
+    static let excludesPrivateLocators = true
+    static let excludesSourceBytes = true
+    static let excludesUnsupportedClaims = true
+
+    static func validate(_ projection: C37PlacementPoseReportProjectionV1) throws {
+        guard metadataOnly, currentAndHistoryAreRecordedFacts, historyFrozen,
+              rebasePreviewIsNotApplied, excludesSensorInput, excludesNetworkInput,
+              excludesActorIdentity, excludesPrivateLocators, excludesSourceBytes,
+              excludesUnsupportedClaims else {
+            throw C37PoseReportProjectionFailureV1.privacyViolation
+        }
+        try projection.validate()
+    }
+}

@@ -2699,3 +2699,212 @@ extension DeterministicOpenJSONRendererV1 {
         try renderSchedule(projection, locale: locale)
     }
 }
+
+// MARK: - C37 reference-framed pose Open JSON
+
+struct C37PoseReportOpenJSONLabelsV1: Codable, Equatable, Sendable {
+    let heading: String
+    let axis: String
+    let current: String
+    let history: String
+    let referenceFrame: String
+    let observation: String
+    let uncertainty: String
+    let currentTip: String
+    let historyFrozen: String
+    let previewNotApplied: String
+    let claimBoundary: String
+    let nextStep: String
+    let referenceFrames: [String: String]
+    let observationStates: [String: String]
+    let notObservedReasons: [String: String]
+
+    init() {
+        heading = BundledLocalizationCatalogV1.localized(.heading)
+        axis = BundledLocalizationCatalogV1.localized(.axis)
+        current = BundledLocalizationCatalogV1.localized(.current)
+        history = BundledLocalizationCatalogV1.localized(.history)
+        referenceFrame = BundledLocalizationCatalogV1.localized(.referenceFrame)
+        observation = BundledLocalizationCatalogV1.localized(.observation)
+        uncertainty = BundledLocalizationCatalogV1.localized(.uncertainty)
+        currentTip = BundledLocalizationCatalogV1.localized(.currentTip)
+        historyFrozen = BundledLocalizationCatalogV1.localized(.historyFrozen)
+        previewNotApplied = BundledLocalizationCatalogV1.localized(.previewNotApplied)
+        claimBoundary = BundledLocalizationCatalogV1.localized(.claimBoundary)
+        nextStep = BundledLocalizationCatalogV1.localized(.nextStep)
+        referenceFrames = Dictionary(uniqueKeysWithValues:
+            C37PoseReferenceFrameProjectionV1.allCases.map {
+                ($0.rawValue, BundledLocalizationCatalogV1.poseReferenceFrameDisplayLabel(for: $0))
+            }
+        )
+        observationStates = Dictionary(uniqueKeysWithValues:
+            C37PoseObservationStateV1.allCases.map {
+                ($0.rawValue, BundledLocalizationCatalogV1.poseObservationStateDisplayLabel(for: $0))
+            }
+        )
+        notObservedReasons = Dictionary(uniqueKeysWithValues:
+            PoseNotObservedReasonV1.allCases.map {
+                ($0.rawValue, BundledLocalizationCatalogV1.poseNotObservedReasonDisplayLabel(for: $0))
+            }
+        )
+    }
+
+    func validate() throws {
+        let expected = Self()
+        let values = [
+            heading, axis, current, history, referenceFrame, observation,
+            uncertainty, currentTip, historyFrozen, previewNotApplied,
+            claimBoundary, nextStep,
+        ] + Array(referenceFrames.values) + Array(observationStates.values)
+            + Array(notObservedReasons.values)
+        guard self == expected,
+              values.allSatisfy({ !$0.isEmpty }),
+              Set(referenceFrames.keys) == Set(C37PoseReferenceFrameProjectionV1.allCases.map(\.rawValue)),
+              Set(observationStates.keys) == Set(C37PoseObservationStateV1.allCases.map(\.rawValue)),
+              Set(notObservedReasons.keys) == Set(PoseNotObservedReasonV1.allCases.map(\.rawValue)),
+              !C37PoseLocalizationPolicyV1.containsProhibitedClaim(values) else {
+            throw SnapshotProjectionFailureV1.hostileText
+        }
+    }
+}
+
+struct C37PoseQualifiedDisplayRowV1: Codable, Equatable, Sendable {
+    let eventID: UUID
+    let text: String
+
+    init(row: C37PoseHistoryProjectionV1, labels: C37PoseReportOpenJSONLabelsV1) {
+        eventID = row.eventID
+        let frame = labels.referenceFrames[row.referenceFrame.rawValue]
+            ?? row.referenceFrame.rawValue
+        let uncertainty = row.horizontalUncertaintyState == .unknown
+            || row.verticalUncertaintyState == .unknown
+            ? BundledLocalizationCatalogV1.localized(.uncertaintyUnknown)
+            : BundledLocalizationCatalogV1.localized(.uncertaintyKnown)
+        if row.disposition == .notObserved {
+            let reason = row.notObservedReason.map {
+                labels.notObservedReasons[$0.rawValue] ?? $0.rawValue
+            } ?? BundledLocalizationCatalogV1.localized(.missing)
+            text = "\(BundledLocalizationCatalogV1.localized(.notObserved)) — \(reason); \(uncertainty)"
+        } else {
+            let azimuth = row.azimuthMilliDegrees.map(Self.angleText) ?? "—"
+            let elevation = row.elevationMilliDegrees.map(Self.angleText)
+            let values = elevation.map { "\(azimuth)° / \($0)°" } ?? "\(azimuth)°"
+            let stateQualifier: String
+            switch row.observationState {
+            case .manualFallback:
+                stateQualifier = "\(BundledLocalizationCatalogV1.localized(.manualFallback)); "
+            case .reviewRequired:
+                stateQualifier = "\(BundledLocalizationCatalogV1.localized(.reviewRequired)); "
+            default:
+                stateQualifier = ""
+            }
+            text = "\(stateQualifier)\(values) \(frame); \(uncertainty)"
+        }
+    }
+
+    private static func angleText(_ value: Int32) -> String {
+        let sign = value < 0 ? "-" : ""
+        let magnitude = Int64(value < 0 ? -Int64(value) : Int64(value))
+        return String(format: "%@%lld.%03lld", sign, magnitude / 1_000,
+                      magnitude % 1_000)
+    }
+}
+
+struct C37PoseReportOpenJSONEnvelopeV1: Codable, Equatable, Sendable {
+    static let schema = "C37_PLACEMENT_POSE_OPEN_JSON_V1"
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let schema: String
+    let locale: String
+    let projection: C37PlacementPoseReportProjectionV1
+    let labels: C37PoseReportOpenJSONLabelsV1
+    let qualifiedRows: [C37PoseQualifiedDisplayRowV1]
+
+    init(projection: C37PlacementPoseReportProjectionV1, locale: String = "en") throws {
+        try C37PoseReportProjectionPolicyV1.validate(projection)
+        guard locale == "en" else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        schemaVersion = Self.schemaVersion
+        schema = Self.schema
+        self.locale = locale
+        self.projection = projection
+        let builtLabels = C37PoseReportOpenJSONLabelsV1()
+        labels = builtLabels
+        qualifiedRows = projection.history.map {
+            C37PoseQualifiedDisplayRowV1(row: $0, labels: builtLabels)
+        }
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              schema == Self.schema,
+              locale == "en" else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try C37PoseReportProjectionPolicyV1.validate(projection)
+        try labels.validate()
+        let expected = projection.history.map {
+            C37PoseQualifiedDisplayRowV1(row: $0, labels: labels)
+        }
+        guard qualifiedRows == expected,
+              !C37PoseLocalizationPolicyV1.containsProhibitedClaim(qualifiedRows.map(\.text)) else {
+            throw SnapshotProjectionFailureV1.hostileText
+        }
+    }
+}
+
+extension DeterministicOpenJSONRendererV1 {
+    static func renderPlacementPose(
+        _ projection: C37PlacementPoseReportProjectionV1,
+        locale: String = "en"
+    ) throws -> ReportProjectionOutputV1 {
+        let envelope = try C37PoseReportOpenJSONEnvelopeV1(
+            projection: projection, locale: locale
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let data = try encoder.encode(envelope)
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes,
+              try reopenPlacementPose(data) == projection else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return ReportProjectionOutputV1(
+            format: .openJSON,
+            data: data,
+            sha256: KernelCanonicalHashV1.sha256(data),
+            semanticSHA256: projection.projectionSHA256,
+            orderedSemanticIDs: C37PlacementPoseAccessibilityIDV1.allCases.map(\.rawValue),
+            taggedPDFAccessibilityEvidence: false
+        )
+    }
+
+    static func renderPoseOpenJSON(
+        _ projection: C37PlacementPoseReportProjectionV1,
+        locale: String = "en"
+    ) throws -> ReportProjectionOutputV1 {
+        try renderPlacementPose(projection, locale: locale)
+    }
+
+    static func reopenPlacementPose(
+        _ data: Data
+    ) throws -> C37PlacementPoseReportProjectionV1 {
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        let envelope = try JSONDecoder().decode(
+            C37PoseReportOpenJSONEnvelopeV1.self, from: data
+        )
+        try envelope.validate()
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        guard try encoder.encode(envelope) == data else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return envelope.projection
+    }
+}

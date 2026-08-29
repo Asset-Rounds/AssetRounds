@@ -624,3 +624,58 @@ extension DeterministicPDFRendererV1 {
         return lines
     }
 }
+
+// MARK: - C37 reference-framed pose PDF metadata
+
+enum C37PoseReportPDFBoundaryV1 {
+    static let localMetadataOnly = true
+    static let historyIsFrozen = true
+    static let rebasePreviewIsNotApplied = true
+    static let excludesSensorStream = true
+    static let excludesPrivateLocators = true
+    static let excludesUnsupportedClaims = true
+
+    static func validate(_ projection: C37PlacementPoseReportProjectionV1) throws {
+        guard localMetadataOnly, historyIsFrozen, rebasePreviewIsNotApplied,
+              excludesSensorStream, excludesPrivateLocators,
+              excludesUnsupportedClaims else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+        try C37PoseReportProjectionPolicyV1.validate(projection)
+    }
+}
+
+extension DeterministicPDFRendererV1 {
+    static func placementPoseTextLines(
+        _ projection: C37PlacementPoseReportProjectionV1
+    ) throws -> [String] {
+        try C37PoseReportPDFBoundaryV1.validate(projection)
+        let labels = C37PoseReportOpenJSONLabelsV1()
+        try labels.validate()
+        let rows = projection.history.map {
+            C37PoseQualifiedDisplayRowV1(row: $0, labels: labels)
+        }
+        let lines = [
+            labels.heading,
+            "\(labels.current): \(projection.currentTipReferences.count)",
+            "\(labels.history): \(projection.history.count)",
+            labels.historyFrozen,
+            labels.previewNotApplied,
+            labels.claimBoundary,
+        ] + rows.map { "\($0.eventID.uuidString.lowercased()): \($0.text)" } + [
+            labels.nextStep,
+        ]
+        guard !lines.isEmpty,
+              lines.allSatisfy({ !$0.isEmpty }),
+              !C37PoseLocalizationPolicyV1.containsProhibitedClaim(lines) else {
+            throw SnapshotProjectionFailureV1.hostileText
+        }
+        return lines
+    }
+
+    static func poseTextLines(
+        _ projection: C37PlacementPoseReportProjectionV1
+    ) throws -> [String] {
+        try placementPoseTextLines(projection)
+    }
+}

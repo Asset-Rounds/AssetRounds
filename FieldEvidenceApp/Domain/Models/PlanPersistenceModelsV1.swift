@@ -1,4 +1,5 @@
 import Foundation
+enum PlacementPosePlanPersistenceBoundaryV1{static let anchorObservationsBindExactEmbeddedFrames=true;static let framesRemainEmbeddedInPlanRevision=true}
 import SwiftData
 
 enum PlanPersistenceFailureV1: Error { case corruptRow }

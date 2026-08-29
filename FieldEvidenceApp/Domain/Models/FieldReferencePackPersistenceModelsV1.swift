@@ -1,4 +1,5 @@
 import Foundation
+enum PlacementPoseFieldReferencePersistenceBoundaryV1{static let fieldReferenceRowsOwnNoPoseAxesOrTips=true}
 import SwiftData
 
 enum PlanFieldReferencePersistenceBindingV1 { static let planRevisionRequiresExactRelease = true; static let originalContentAuthorityIsPreserved = true }

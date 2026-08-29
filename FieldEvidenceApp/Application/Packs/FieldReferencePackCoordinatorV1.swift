@@ -21,3 +21,15 @@ enum C29PlanIntegration_Application_Packs_FieldReferencePackCoordinatorV1 {
         try value.validate()
     }
 }
+
+enum C37PoseIntegration_FieldEvidenceApp_Application_Packs_FieldReferencePackCoordinatorV1_swift {
+    /// Typed C37 boundary: inherited owners may retain an immutable pose
+    /// reference, but cannot infer pose, compliance, or current-state truth.
+    static func validate(reference: AssetPoseEventReferenceV1,
+                         in workspaceID: WorkspaceID) throws {
+        try reference.validate()
+        guard reference.workspaceID == workspaceID else {
+            throw PlacementPoseFailureV1.wrongWorkspace
+        }
+    }
+}

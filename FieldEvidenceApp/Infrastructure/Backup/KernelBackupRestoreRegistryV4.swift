@@ -284,6 +284,7 @@ enum KernelBackupRestoreRegistryV4 {
     static let fieldReferenceArchiveKinds=V22BackupFieldReferenceRecordV1.Kind.allCases
     static let assetLocatorArchiveKinds = V26BackupAssetLocatorRecordV1.Kind.allCases
     static let planArchiveKinds = V28BackupPlanRecordV1.Kind.allCases
+    static let placementPoseArchiveKinds = V29BackupPlacementPoseRecordV1.Kind.allCases
     static let accessibleDocumentPersistentFamilies=AccessibleDocumentLifecycleV1.persistentFamilies
     static let accessibleDocumentSemanticTreePersistence=AccessibleDocumentLifecycleV1.semanticTreePersistence
     static let recoverabilityVerificationArchiveKindCount=1
@@ -388,6 +389,29 @@ enum KernelBackupRestoreRegistryV4 {
         }
         try PlanDeletionLedgerPolicyV1.validate()
     }
+
+    static func validatePlacementPoseLifecycle() throws {
+        guard placementPoseArchiveKinds.count == 2,
+              Set(placementPoseArchiveKinds.map(\.rawValue)).count == 2,
+              PlacementPosePersistenceEnrollmentV1.persistentSchemaVersion == 29,
+              PlacementPosePersistenceEnrollmentV1.recordsSchemaVersion == 28,
+              PlacementPosePersistenceEnrollmentV1.durableModelCount == 2,
+              PlacementPoseStreamingArchivePolicyV1.persistentSchemaVersion == 29,
+              PlacementPoseStreamingArchivePolicyV1.recordsSchemaVersion == 28,
+              PlacementPoseStreamingArchivePolicyV1.durableFamilyCount == 2,
+              PlacementPoseStreamingArchivePolicyV1.archiveFamilyCount == 2,
+              PlacementPoseStreamingArchivePolicyV1.lifecycleHistoryStorage == "MUTATION_HISTORY_ONLY",
+              PlacementPoseStreamingArchivePolicyV1.derivedProjectionStorage == "NONPERSISTENT_REBUILD",
+              PlacementPoseStreamingArchivePolicyV1.sensorProposalPersistence == "NONPERSISTENT",
+              !PlacementPoseStreamingArchivePolicyV1.cloneForkSourcePoseAutomaticallyActive,
+              PlacementPoseRestoreIdentityPolicyV1.durableFamilyCount == 2,
+              !PlacementPoseRestoreIdentityPolicyV1.cloneForkSourcePoseAutomaticallyActive else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+        try PlacementPoseRestoreIdentityPolicyV1.validate()
+        try PlacementPoseDeletionLedgerPolicyV1.validate()
+        try PlacementPoseReplacementRestorePolicyV1.validate([])
+    }
     typealias Route = (
         archive: KernelArchiveDispositionV4,
         restore: KernelRestoreDispositionV4,
@@ -432,6 +456,7 @@ enum KernelBackupRestoreRegistryV4 {
         try validateAssetLocatorLifecycle()
         try validateScheduleLifecycle()
         try validatePlanLifecycle()
+        try validatePlacementPoseLifecycle()
         try validatePrivacyTransformLifecycle()
         try validateMeasurementIntegrityLifecycle()
         try validatePackageEvolutionLifecycle()

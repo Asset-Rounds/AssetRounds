@@ -1,4 +1,5 @@
 import Foundation
+enum PlacementPoseSurveySessionPersistenceBoundaryV1{static let promotionUsesTheCanonicalPoseWriter=true;static let sessionsOwnNoDuplicatePoseReceipt=true}
 import SwiftData
 
 enum PlanSurveySessionBindingV1 { static let placementMayReferenceObservationIdentity = true; static let sessionRowsDoNotOwnPlanBytes = true }

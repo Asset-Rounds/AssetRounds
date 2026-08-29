@@ -112,6 +112,26 @@ enum PlanOrphanCleanupPolicyV1 {
     }
 }
 
+/// Pose events and anchor observations are SwiftData rows, not file-owned
+/// payloads. Orphan maintenance can remove only derived projection files; a
+/// missing file must never authorize removal of either immutable history row.
+enum PlacementPoseOrphanCleanupPolicyV1 {
+    static let rowsOwnNoFilesystemPayload = true
+    static let derivedProjectionsAreRebuilt = true
+    static let missingFileCannotDeleteCanonicalRows = true
+    static let durableFamilyCount = 2
+
+    static func validate() throws {
+        guard rowsOwnNoFilesystemPayload,
+              derivedProjectionsAreRebuilt,
+              missingFileCannotDeleteCanonicalRows,
+              durableFamilyCount == PlacementPosePersistenceEnrollmentV1.durableModelCount else {
+            throw OrphanFileCleanupServiceError.invalidOwnedLayout
+        }
+        try PlacementPoseDeletionLedgerPolicyV1.validate()
+    }
+}
+
 struct FieldDraftOrphanCleanupProofV1: Equatable, Sendable {
     let removableStageIDs: [UUID]
     let removableReservationIDs: [UUID]
@@ -326,6 +346,7 @@ private extension OrphanFileCleanupService {
         do {
             try ScheduleOrphanCleanupPolicyV1.validate()
             try PlanOrphanCleanupPolicyV1.validate()
+            try PlacementPoseOrphanCleanupPolicyV1.validate()
             let ownedContent = try KernelDeletionEraseRegistryV4.registration(
                 for: .contentReference
             )

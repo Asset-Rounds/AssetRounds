@@ -1850,6 +1850,31 @@ extension EvidenceDetailCardV1 {
     }
 }
 
+// MARK: - C37 qualified pose detail boundary
+
+enum C37PoseEvidenceDetailPolicyV1 {
+    static let structuredPoseOnly = true
+    static let frameMustBeExplicit = true
+    static let uncertaintyMustBeExplicit = true
+    static let notObservedReasonMustBeExplicit = true
+    static let excludesBareDirectionClaims = true
+    static let excludesComplianceClaims = true
+    static let excludesSensorStream = true
+
+    static func validate(
+        _ projection: C37PlacementPoseReportProjectionV1
+    ) throws -> C37PlacementPoseReportProjectionV1 {
+        guard structuredPoseOnly, frameMustBeExplicit,
+              uncertaintyMustBeExplicit, notObservedReasonMustBeExplicit,
+              excludesBareDirectionClaims, excludesComplianceClaims,
+              excludesSensorStream else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+        try C37PoseReportProjectionPolicyV1.validate(projection)
+        return projection
+    }
+}
+
 // MARK: - C28 schedule projection guard
 
 /// Evidence cards may reference schedule facts only through the frozen

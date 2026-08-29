@@ -168,6 +168,29 @@ enum PlanEraseAllPolicyV1 {
     }
 }
 
+enum PlacementPoseEraseAllPolicyV1 {
+    static let persistentSchemaVersion = 29
+    static let recordsSchemaVersion = 28
+    static let durableFamilyCount = 2
+    static let derivedProjectionStorage = "NONPERSISTENT_REBUILD"
+    static let workspaceEraseClearsCanonicalRows = true
+    static let ordinaryDeletionPreservesHistory = true
+
+    static func validatePublishedEmptyGeneration(_ context: ModelContext) throws {
+        guard persistentSchemaVersion == PlacementPosePersistenceEnrollmentV1.persistentSchemaVersion,
+              recordsSchemaVersion == PlacementPosePersistenceEnrollmentV1.recordsSchemaVersion,
+              durableFamilyCount == PlacementPosePersistenceEnrollmentV1.durableModelCount,
+              derivedProjectionStorage == "NONPERSISTENT_REBUILD",
+              workspaceEraseClearsCanonicalRows,
+              ordinaryDeletionPreservesHistory,
+              try context.fetchCount(FetchDescriptor<AssetPoseEventRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<SpatialAnchorObservationRow>()) == 0 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try PlacementPoseDeletionLedgerPolicyV1.validate()
+    }
+}
+
 enum EraseAllServiceError: Error, Equatable {
     case contextHasChanges
     case invalidAuthority
@@ -1347,6 +1370,9 @@ private extension EraseAllService {
         try AssetLocatorEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try ScheduleEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try PlanEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
+        try PlacementPoseEraseAllPolicyV1.validatePublishedEmptyGeneration(
+            session.modelContext
+        )
         if let identity {
             let history = try MutationJournalStoreV1(
                 modelContext: session.modelContext,

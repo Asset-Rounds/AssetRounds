@@ -1,4 +1,5 @@
 import Foundation
+enum PlacementPoseAssetPersistenceBoundaryV1{static let assetIdentityIsReferenced=true;static let poseHistoryIsStoredSeparately=true}
 
 enum AssetScheduleOwnershipBoundaryV1 { static let assetRowsStoreScheduleState = false }
 import SwiftData

@@ -1,4 +1,5 @@
 import Foundation
+enum PlacementPoseAssetLocatorPersistenceBoundaryV1{static let locatorIdentityNeverReplacesAssetIdentity=true;static let poseEventsBindAssetIDDirectly=true}
 import SwiftData
 
 enum PlanAssetLocatorPersistenceBindingV1 { static let planPlacementRequiresExactBindingReceipt = true; static let locatorResolutionIsDerived = true }

@@ -116,6 +116,57 @@ enum PlanRestoreIdentityPolicyV1 {
     }
 }
 
+enum PlacementPoseRestoreIdentityDispositionV1: String, Codable, Equatable, Sendable {
+    case preserveSameWorkspaceBytes = "PRESERVE_SAME_WORKSPACE_BYTES"
+    case historicRebindForCloneOrFork = "HISTORIC_REBIND_FOR_CLONE_OR_FORK"
+
+    static func resolve(_ mode: BackupRestoreMode) -> Self {
+        switch mode {
+        case .emptyInstall, .replaceExisting:
+            return .preserveSameWorkspaceBytes
+        case .clone, .fork:
+            return .historicRebindForCloneOrFork
+        }
+    }
+}
+
+/// Pose events and anchor observations are the only C37 durable families.
+/// Current tips/snapshots are reconstructed; clone/fork rebinding is explicit
+/// and source history can never be treated as a destination-live tip.
+enum PlacementPoseRestoreIdentityPolicyV1 {
+    static let persistentSchemaVersion = 29
+    static let recordsSchemaVersion = 28
+    static let durableFamilyCount = 2
+    static let derivedProjectionRebuilt = true
+    static let cloneForkSourcePoseAutomaticallyActive = false
+    static let sensorProposalPersistence = "NONPERSISTENT"
+
+    static func validate() throws {
+        guard persistentSchemaVersion == PlacementPosePersistenceEnrollmentV1.persistentSchemaVersion,
+              recordsSchemaVersion == PlacementPosePersistenceEnrollmentV1.recordsSchemaVersion,
+              durableFamilyCount == PlacementPosePersistenceEnrollmentV1.durableModelCount,
+              derivedProjectionRebuilt,
+              !cloneForkSourcePoseAutomaticallyActive,
+              sensorProposalPersistence == "NONPERSISTENT" else {
+            throw RestoreIdentityDecisionErrorV1.invalidMode
+        }
+    }
+
+    static func preservesImmutableBytes(for mode: BackupRestoreMode) -> Bool {
+        PlacementPoseRestoreIdentityDispositionV1.resolve(mode)
+            == .preserveSameWorkspaceBytes
+    }
+
+    static func validate(records: [V29BackupPlacementPoseRecordV1]) throws {
+        try validate()
+        do {
+            _ = try PlacementPoseBackupRecordSetV1.decode(records)
+        } catch {
+            throw RestoreIdentityDecisionErrorV1.invalidMode
+        }
+    }
+}
+
 extension RestoreIdentityV1 {
     func destinationPackageEvolutionWorkspaceID() -> WorkspaceID {
         WorkspaceID(rawValue: targetPointer.workspaceID)
@@ -132,6 +183,13 @@ extension RestoreIdentityV1 {
     func destinationRecoverabilityWorkspaceID() -> WorkspaceID { WorkspaceID(rawValue: targetPointer.workspaceID) }
     func destinationFieldReferenceWorkspaceID()->WorkspaceID{WorkspaceID(rawValue:targetPointer.workspaceID)}
     func destinationPlanWorkspaceID() -> WorkspaceID { WorkspaceID(rawValue: targetPointer.workspaceID) }
+    func destinationPlacementPoseWorkspaceID() -> WorkspaceID { WorkspaceID(rawValue: targetPointer.workspaceID) }
+    func placementPoseDisposition() -> PlacementPoseRestoreIdentityDispositionV1 {
+        PlacementPoseRestoreIdentityDispositionV1.resolve(mode)
+    }
+    func preservesPlacementPoseImmutableBytes() -> Bool {
+        PlacementPoseRestoreIdentityPolicyV1.preservesImmutableBytes(for: mode)
+    }
     func assetLocatorDisposition() -> AssetLocatorRestoreIdentityDispositionV1 {
         AssetLocatorRestoreIdentityDispositionV1.resolve(mode)
     }

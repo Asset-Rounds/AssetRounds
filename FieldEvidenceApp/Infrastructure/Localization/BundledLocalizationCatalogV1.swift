@@ -430,6 +430,43 @@ enum BundledLocalizationKeyV1: String, CaseIterable, Sendable {
     case accessibleDocumentClaimBoundary = "accessible.document.claim-boundary"
     case accessibleDocumentNextStep = "accessible.document.next-step"
 
+    case poseHeading = "pose.heading"
+    case poseAxis = "pose.axis"
+    case poseCurrent = "pose.current"
+    case poseHistory = "pose.history"
+    case poseReferenceFrame = "pose.reference_frame"
+    case poseReferenceTrue = "pose.reference.true"
+    case poseReferenceMagnetic = "pose.reference.magnetic"
+    case poseReferencePlanRelative = "pose.reference.plan_relative"
+    case poseReferenceUnknown = "pose.reference.unknown"
+    case poseObservation = "pose.observation"
+    case poseObserved = "pose.observation.observed"
+    case poseNotObserved = "pose.observation.not_observed"
+    case poseManualFallback = "pose.observation.manual_fallback"
+    case poseUncertainty = "pose.uncertainty"
+    case poseUncertaintyKnown = "pose.uncertainty.known"
+    case poseUncertaintyUnknown = "pose.uncertainty.unknown"
+    case poseNotObservedReason = "pose.not_observed.reason"
+    case poseReasonNotYetObserved = "pose.not_observed.reason.not_yet_observed"
+    case poseReasonPhysicalMove = "pose.not_observed.reason.physical_move_reobservation"
+    case poseReasonPlanFrameLost = "pose.not_observed.reason.plan_frame_lost_reobservation"
+    case poseReasonObscured = "pose.not_observed.reason.obscured_or_unsafe"
+    case poseReasonSourceUnavailable = "pose.not_observed.reason.source_unavailable"
+    case poseReasonUserDeclined = "pose.not_observed.reason.user_declined"
+    case poseCurrentTip = "pose.current_tip"
+    case poseHistoryFrozen = "pose.history.frozen"
+    case poseRebasePreview = "pose.rebase.preview"
+    case posePreviewNotApplied = "pose.rebase.preview.not_applied"
+    case poseReviewRequired = "pose.review_required"
+    case poseAzimuth = "pose.azimuth"
+    case poseElevation = "pose.elevation"
+    case poseHorizontalUncertainty = "pose.horizontal_uncertainty"
+    case poseVerticalUncertainty = "pose.vertical_uncertainty"
+    case poseRecordedSource = "pose.recorded_source"
+    case poseClaimBoundary = "pose.claim_boundary"
+    case poseNextStep = "pose.next_step"
+    case poseMissing = "pose.missing"
+
     static var functionalRelationshipDirected: Self { .functionalRelationshipDirectedSourceToTarget }
     static var functionalRelationshipActive: Self { .functionalRelationshipActiveState }
     static var functionalRelationshipEnded: Self { .functionalRelationshipEndedState }
@@ -3185,6 +3222,43 @@ enum BundledLocalizationCatalogV1 {
              .accessibleDocumentClaimBoundary,
              .accessibleDocumentNextStep:
             return AccessibleDocumentLocalizationKeyV1(rawValue: key.rawValue)?.englishDefaultValue ?? key.rawValue
+        case .poseHeading,
+             .poseAxis,
+             .poseCurrent,
+             .poseHistory,
+             .poseReferenceFrame,
+             .poseReferenceTrue,
+             .poseReferenceMagnetic,
+             .poseReferencePlanRelative,
+             .poseReferenceUnknown,
+             .poseObservation,
+             .poseObserved,
+             .poseNotObserved,
+             .poseManualFallback,
+             .poseUncertainty,
+             .poseUncertaintyKnown,
+             .poseUncertaintyUnknown,
+             .poseNotObservedReason,
+             .poseReasonNotYetObserved,
+             .poseReasonPhysicalMove,
+             .poseReasonPlanFrameLost,
+             .poseReasonObscured,
+             .poseReasonSourceUnavailable,
+             .poseReasonUserDeclined,
+             .poseCurrentTip,
+             .poseHistoryFrozen,
+             .poseRebasePreview,
+             .posePreviewNotApplied,
+             .poseReviewRequired,
+             .poseAzimuth,
+             .poseElevation,
+             .poseHorizontalUncertainty,
+             .poseVerticalUncertainty,
+             .poseRecordedSource,
+             .poseClaimBoundary,
+             .poseNextStep,
+             .poseMissing:
+            return C37PoseLocalizationKeyV1(rawValue: key.rawValue)?.englishDefaultValue ?? key.rawValue
         }
     }
 
@@ -4072,5 +4146,93 @@ extension BundledLocalizationCatalogV1 {
             entries: entries,
             localization: localization
         )
+    }
+}
+
+// MARK: - C37 reference-framed pose labels
+
+extension BundledLocalizationCatalogV1 {
+    static func poseRegistry() throws -> LocalizationKeyRegistryV1 {
+        let base = try privacyTransformRegistry()
+        let additions = try C37PoseLocalizationKeyV1.allCases.map { key in
+            guard let bundledKey = BundledLocalizationKeyV1(rawValue: key.rawValue) else {
+                throw LocalizationContractFailureV1.missingKey
+            }
+            return try definition(
+                bundledKey,
+                key.rawValue,
+                key.englishDefaultValue,
+                key.translatorComment
+            )
+        }
+        try C37PoseLocalizationPolicyV1.validate()
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+
+    static func poseAccessibilityRegistry(
+        localization: LocalizationKeyRegistryV1
+    ) throws -> SemanticAccessibilityIDRegistryV1 {
+        let base = try privacyTransformAccessibilityRegistry(localization: localization)
+        let entries = try C37PlacementPoseAccessibilityIDV1.allCases.map {
+            id -> AccessibilityContractV1 in
+            let role: SemanticAccessibilityRoleV1
+            switch id {
+            case .screen: role = .screen
+            case .heading: role = .heading
+            case .nextStep: role = .button
+            default:
+                role = C37PoseAccessibilityPolicyV1.stateSemanticIDs.contains(id.rawValue)
+                    ? .status : .group
+            }
+            let hintKey: LocalizationKeyV1? =
+                C37PoseAccessibilityPolicyV1.requiresActionableNextStep(for: id.rawValue)
+                    ? try LocalizationKeyV1(C37PoseLocalizationKeyV1.nextStep.rawValue)
+                    : nil
+            return AccessibilityContractV1(
+                semanticID: id.rawValue,
+                role: role,
+                reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(id.localizationKey.rawValue),
+                hintKey: hintKey,
+                valueKey: nil,
+                dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            )
+        }
+        return try SemanticAccessibilityIDRegistryV1(
+            entries: base.entries + entries,
+            localization: localization
+        )
+    }
+
+    static func localized(_ key: C37PoseLocalizationKeyV1) -> String {
+        guard let bundled = BundledLocalizationKeyV1(rawValue: key.rawValue) else {
+            return key.englishDefaultValue
+        }
+        return localized(bundled)
+    }
+
+    static func poseDisplayLabel(
+        for key: C37PoseLocalizationKeyV1
+    ) -> String {
+        localized(key)
+    }
+
+    static func poseReferenceFrameDisplayLabel(
+        for value: C37PoseReferenceFrameProjectionV1
+    ) -> String {
+        localized(C37PoseLocalizationKeyV1.referenceFrameKey(value))
+    }
+
+    static func poseObservationStateDisplayLabel(
+        for value: C37PoseObservationStateV1
+    ) -> String {
+        localized(C37PoseLocalizationKeyV1.observationStateKey(value))
+    }
+
+    static func poseNotObservedReasonDisplayLabel(
+        for value: PoseNotObservedReasonV1
+    ) -> String {
+        localized(C37PoseLocalizationKeyV1.notObservedReasonKey(value))
     }
 }

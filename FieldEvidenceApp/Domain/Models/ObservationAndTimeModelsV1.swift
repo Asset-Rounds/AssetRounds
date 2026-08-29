@@ -1,4 +1,5 @@
 import Foundation
+enum PlacementPoseObservationTimeBoundaryV1{static let poseTimesUseCanonicalMilliseconds=true;static let deviceHeadingProposalsAreNotDurableUntilAccepted=true}
 
 enum ObservationScheduleBoundaryV1 { static let scheduleTimeBasisIsFrozen = true }
 import SwiftData

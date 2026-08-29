@@ -329,6 +329,18 @@ private struct C29NoReceiptRecovery: PlanRebaseReceiptRecoveringV1 {
 
 @MainActor
 final class V9_43PlanRebaseTests: XCTestCase {
+    func testV23P03C37TypedPoseContractAnchor() throws {
+        let axis = try PoseAxisDescriptorV1(
+            axisID: PoseAxisID(rawValue: "axis.c37.anchor"),
+            localizedLabelKey: "pose.c37.anchor",
+            semanticRole: .otherDeclaredAxis,
+            requiredComponents: .azimuthOnly,
+            observationRequirement: .optional,
+            applicability: .applicable
+        )
+        let registry = try PoseAxisDescriptorRegistryV1(descriptors: [axis])
+        XCTAssertEqual(try registry.descriptor(for: axis.axisID), axis)
+    }
     func testV23P03C29G01ImmutableRevisionAndNormalizedPlacementProduceOneDeterministicRebaseReceipt() throws {
         let first = try C29PlanTestSupport.fixture()
         let second = try C29PlanTestSupport.fixture()

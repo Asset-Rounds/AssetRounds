@@ -792,6 +792,38 @@ enum PlanReportHistoryPolicyV1 {
     }
 }
 
+// MARK: - C37 frozen pose history
+
+enum C37PoseReportHistoryPolicyV1 {
+    static let currentAndHistoricalRowsAreRetained = true
+    static let historicDisplayIsFrozen = true
+    static let laterReobservationCreatesASuccessor = true
+    static let currentTipIsNotRecomputedForHistoricOutput = true
+    static let excludesActorIdentity = true
+    static let excludesSensorStream = true
+
+    static func validate(
+        _ projection: C37PlacementPoseReportProjectionV1
+    ) throws -> C37PlacementPoseReportProjectionV1 {
+        guard currentAndHistoricalRowsAreRetained, historicDisplayIsFrozen,
+              laterReobservationCreatesASuccessor,
+              currentTipIsNotRecomputedForHistoricOutput,
+              excludesActorIdentity, excludesSensorStream else {
+            throw C37PoseReportProjectionFailureV1.privacyViolation
+        }
+        try C37PoseReportProjectionPolicyV1.validate(projection)
+        return projection
+    }
+}
+
+extension ReportHistoryCoordinator {
+    static func validatePlacementPoseHistory(
+        _ projection: C37PlacementPoseReportProjectionV1
+    ) throws -> C37PlacementPoseReportProjectionV1 {
+        try C37PoseReportHistoryPolicyV1.validate(projection)
+    }
+}
+
 extension ReportHistoryCoordinator {
     static func validatePlanHistory(
         _ projection: PlanReportProjectionV1

@@ -1,4 +1,5 @@
 import Foundation
+enum PlacementPoseFieldDraftPersistenceBoundaryV1{static let draftPoseProposalsRemainDisposable=true;static let acceptedPoseWritesUseTheWorkspaceWriter=true}
 import SwiftData
 
 private func fieldDraftStoredRevision(_ value: UInt64) throws -> Int64 {

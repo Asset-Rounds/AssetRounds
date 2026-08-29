@@ -54,6 +54,27 @@ enum AssetLocatorDeletionLedgerStorePolicyV1 {
     }
 }
 
+enum PlacementPoseDeletionLedgerStorePolicyV1 {
+    static let durableFamilyCount = 2
+    static let recordsSchemaVersion = 28
+    static let persistentSchemaVersion = 29
+    static let ordinaryDeletionPreservesHistory = true
+    static let workspaceEraseRemovesRows = true
+    static let derivedTipsAreNotLedgerRows = true
+
+    static func validate() throws {
+        guard durableFamilyCount == PlacementPosePersistenceEnrollmentV1.durableModelCount,
+              recordsSchemaVersion == PlacementPosePersistenceEnrollmentV1.recordsSchemaVersion,
+              persistentSchemaVersion == PlacementPosePersistenceEnrollmentV1.persistentSchemaVersion,
+              ordinaryDeletionPreservesHistory,
+              workspaceEraseRemovesRows,
+              derivedTipsAreNotLedgerRows else {
+            throw DeletionLedgerFailureV2.invalidIdentity
+        }
+        try PlacementPoseDeletionLedgerPolicyV1.validate()
+    }
+}
+
 @MainActor
 final class DeletionLedgerStore {
     private let context: ModelContext
@@ -69,6 +90,7 @@ final class DeletionLedgerStore {
         try SurveyDefinitionDeletionLedgerStorePolicyV1.validate()
         try ScheduleDeletionLedgerStorePolicyV1.validate()
         try PlanDeletionLedgerStorePolicyV1.validate()
+        try PlacementPoseDeletionLedgerStorePolicyV1.validate()
         try SurveySessionDeletionLedgerPolicyV1.validate()
         var descriptor = FetchDescriptor<DeletionLedgerRow>()
         descriptor.fetchLimit = DeletionLedgerV2.maximumEntryCount + 1

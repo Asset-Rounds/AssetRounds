@@ -1,4 +1,5 @@
 import Foundation
+enum PlacementPoseSurveyDefinitionPersistenceBoundaryV1{static let definitionsOwnAxisRequirementsNotPoseEvents=true}
 import SwiftData
 
 enum PlanSurveyDefinitionBindingV1 { static let normalizedPlanPlacementRemainsDefinitionSemantic = true; static let planPlacementIsSeparateHistory = true }

@@ -3221,6 +3221,150 @@
     "plan.error.invalid_digest" : {
       "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Digest is invalid" } } }
+    },
+    "pose.heading" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Placement pose" } } }
+    },
+    "pose.axis" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Pose axis" } } }
+    },
+    "pose.current" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Current recorded pose" } } }
+    },
+    "pose.history" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Pose history" } } }
+    },
+    "pose.reference_frame" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reference frame" } } }
+    },
+    "pose.reference.true" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "TRUE reference frame" } } }
+    },
+    "pose.reference.magnetic" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "MAGNETIC reference frame" } } }
+    },
+    "pose.reference.plan_relative" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "PLAN_RELATIVE reference frame" } } }
+    },
+    "pose.reference.unknown" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reference frame unknown" } } }
+    },
+    "pose.observation" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Observation" } } }
+    },
+    "pose.observation.observed" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Observed" } } }
+    },
+    "pose.observation.not_observed" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Not observed" } } }
+    },
+    "pose.observation.manual_fallback" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Manual fallback recorded" } } }
+    },
+    "pose.uncertainty" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Uncertainty" } } }
+    },
+    "pose.uncertainty.known" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Uncertainty recorded" } } }
+    },
+    "pose.uncertainty.unknown" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Uncertainty unknown" } } }
+    },
+    "pose.not_observed.reason" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reason not observed" } } }
+    },
+    "pose.not_observed.reason.not_yet_observed" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Not yet observed" } } }
+    },
+    "pose.not_observed.reason.physical_move_reobservation" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Moved; re-observation required" } } }
+    },
+    "pose.not_observed.reason.plan_frame_lost_reobservation" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Plan frame lost; re-observation required" } } }
+    },
+    "pose.not_observed.reason.obscured_or_unsafe" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Obscured or unavailable for observation" } } }
+    },
+    "pose.not_observed.reason.source_unavailable" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Observation source unavailable" } } }
+    },
+    "pose.not_observed.reason.user_declined" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Observation not recorded by request" } } }
+    },
+    "pose.current_tip" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Current history tip" } } }
+    },
+    "pose.history.frozen" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Historic pose display remains unchanged" } } }
+    },
+    "pose.rebase.preview" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Pose rebase preview" } } }
+    },
+    "pose.rebase.preview.not_applied" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Preview only; it is not applied or saved" } } }
+    },
+    "pose.review_required" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review required" } } }
+    },
+    "pose.azimuth" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Azimuth" } } }
+    },
+    "pose.elevation" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Elevation" } } }
+    },
+    "pose.horizontal_uncertainty" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Horizontal uncertainty" } } }
+    },
+    "pose.vertical_uncertainty" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Vertical uncertainty" } } }
+    },
+    "pose.recorded_source" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recorded source" } } }
+    },
+    "pose.claim_boundary" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recorded pose metadata only" } } }
+    },
+    "pose.next_step" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review the recorded pose and uncertainty" } } }
+    },
+    "pose.missing" : {
+      "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Pose not recorded" } } }
     }
   },
   "version" : "1.0"

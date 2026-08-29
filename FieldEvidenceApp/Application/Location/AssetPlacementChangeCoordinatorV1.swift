@@ -1,5 +1,12 @@
 import Foundation
 
+struct PosePlacementPostImageContextV1: Sendable {
+    let mutationID: MutationIDV1; let newPlacementEventID: UUID
+    let resultingPhysicalEpisodeID: PhysicalPlacementEpisodeIDV1
+    let basis: AssetPlacementPreviewBasisV1
+    let contributions: [PlacementChangeComponentContributionV1]
+}
+
 @MainActor
 final class AssetPlacementChangeCoordinatorV1 {
     private let writer: WorkspaceWriterV1
@@ -10,7 +17,9 @@ final class AssetPlacementChangeCoordinatorV1 {
         self.writer = writer; self.idSource = idSource; self.components = components
     }
 
-    func previewAssetPlacementChange(_ basis: AssetPlacementPreviewBasisV1) throws -> AssetPlacementChangePlanV1 {
+    func previewAssetPlacementChange(_ basis: AssetPlacementPreviewBasisV1,
+        poseAdmissionClosure: PlacementPoseAdmissionClosureV1? = nil,
+        posePostImageBuilder: ((PosePlacementPostImageContextV1) throws -> (events: [AssetPoseEventV1], predecessors: [AssetPoseEventV1]))? = nil) throws -> AssetPlacementChangePlanV1 {
         let observedBefore = try writer.currentRevision()
         guard observedBefore == (try basis.expectedRevision.snapshotValue) else { throw LocationContractFailureV1.staleRevision }
         let contributions = try components.contributions(for: basis)
@@ -24,10 +33,16 @@ final class AssetPlacementChangeCoordinatorV1 {
         } else {
             throw LocationContractFailureV1.reviewRequired
         }
+        let newEventID = idSource.makeID()
+        let poseValues = try posePostImageBuilder?(.init(mutationID: mutationID,
+            newPlacementEventID: newEventID, resultingPhysicalEpisodeID: episode,
+            basis: basis, contributions: contributions)) ?? (events: [], predecessors: [])
         return try AssetPlacementChangePlanV1(
             operationID: idSource.makeID(), mutationID: mutationID, basis: basis,
-            newEventID: idSource.makeID(), resultingPhysicalEpisodeID: episode,
-            componentContributions: contributions
+            newEventID: newEventID, resultingPhysicalEpisodeID: episode,
+            componentContributions: contributions, poseEvents: poseValues.events,
+            poseEventPredecessors: poseValues.predecessors,
+            poseAdmissionClosure: poseAdmissionClosure
         )
     }
 
@@ -58,17 +73,23 @@ final class AssetPlacementChangeCoordinatorV1 {
         try plan.validate()
         let mutationID = try MutationIDV1(rawValue: plan.operationID)
         let reboundPlacements = try placementChanges.map {
+            let reboundPoseEvents = try zip($0.poseEvents, $0.poseEventPredecessors).map {
+                try $0.0.reissued(mutationID: mutationID, predecessor: $0.1)
+            }
             try AssetPlacementChangePlanV1(
                 operationID: plan.operationID, mutationID: mutationID, basis: $0.basis,
                 newEventID: $0.newEventID, resultingPhysicalEpisodeID: $0.resultingPhysicalEpisodeID,
-                componentContributions: $0.componentContributions
+                componentContributions: $0.componentContributions,
+                poseEvents: reboundPoseEvents, poseEventPredecessors: $0.poseEventPredecessors,
+                poseAdmissionClosure: $0.poseAdmissionClosure
             )
         }
         let value = try LocationHierarchyMutationV1(plan: plan, placementChanges: reboundPlacements)
         let request = WorkspaceMutationRequestV1(mutationID: mutationID, expectedRevision: plan.expectedRevision, command: .applyLocationHierarchyChange(value))
         _ = try writer.execute(request)
         guard let durable = try writer.durableReceipt(mutationID: mutationID) else { throw WorkspaceMutationFailureV1.invalidReceipt }
-        return try LocationHierarchyChangeReceiptV1(plan: plan, mutationReceipt: durable)
+        return try LocationHierarchyChangeReceiptV1(plan: plan,
+            placementChanges: reboundPlacements, mutationReceipt: durable)
     }
 
     func commitLocationDeletion(
@@ -183,5 +204,17 @@ private extension WorkspaceExpectedRevisionV1 {
 enum C29PlanIntegration_Application_Location_AssetPlacementChangeCoordinatorV1 {
     static func validatePlanRevision(_ value: PlanRevisionReferenceV1) throws {
         try value.validate()
+    }
+}
+
+enum C37PoseIntegration_FieldEvidenceApp_Application_Location_AssetPlacementChangeCoordinatorV1_swift {
+    /// Typed C37 boundary: inherited owners may retain an immutable pose
+    /// reference, but cannot infer pose, compliance, or current-state truth.
+    static func validate(reference: AssetPoseEventReferenceV1,
+                         in workspaceID: WorkspaceID) throws {
+        try reference.validate()
+        guard reference.workspaceID == workspaceID else {
+            throw PlacementPoseFailureV1.wrongWorkspace
+        }
     }
 }

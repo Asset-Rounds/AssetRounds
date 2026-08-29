@@ -877,6 +877,11 @@ private extension BackupImportService {
                 persistent: 28,
                 records: 27
             )) != nil
+        case (4,29,28):
+            schemaPairIsValid = (try? V29PlacementPoseImportBoundaryV1.validate(
+                persistent: 29,
+                records: 28
+            )) != nil
         default:
             schemaPairIsValid = false
         }

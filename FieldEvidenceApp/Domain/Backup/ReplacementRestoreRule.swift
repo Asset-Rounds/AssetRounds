@@ -286,7 +286,8 @@ private extension ReplacementRestoreRule {
              (19, let ledger?, let history?), (20, let ledger?, let history?),
              (21, let ledger?, let history?), (22, let ledger?, let history?),
              (23, let ledger?, let history?), (24, let ledger?, let history?),
-             (25, let ledger?, let history?), (26, let ledger?, let history?):
+             (25, let ledger?, let history?), (26, let ledger?, let history?),
+             (27, let ledger?, let history?), (28, let ledger?, let history?):
             try ledger.validate()
             try MutationJournalStoreV1.validateImportedSnapshot(history)
             explicit = ledger
@@ -357,6 +358,7 @@ private extension ReplacementRestoreRule {
             assetLocators: records.assetLocators,
             schedules: records.schedules,
             plans: records.plans,
+            placementPoses: records.placementPoses,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
@@ -407,6 +409,7 @@ private extension ReplacementRestoreRule {
             assetLocators: records.assetLocators,
             schedules: records.schedules,
             plans: records.plans,
+            placementPoses: records.placementPoses,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
@@ -450,6 +453,7 @@ private extension ReplacementRestoreRule {
             assetLocators: records.assetLocators,
             schedules: records.schedules,
             plans: records.plans,
+            placementPoses: records.placementPoses,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
@@ -495,6 +499,7 @@ private extension ReplacementRestoreRule {
             assetLocators: records.assetLocators,
             schedules: records.schedules,
             plans: records.plans,
+            placementPoses: records.placementPoses,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
@@ -1030,5 +1035,34 @@ enum PlanReplacementRestorePolicyV1 {
         } catch {
             throw ReplacementRestoreRuleError.invalidAuthority
         }
+    }
+}
+
+/// C37 replacement keeps pose history as an immutable closure. Deletion
+/// filtering may remove an asset's pose rows only when the asset itself is
+/// deleted; it may not trim an event chain or leave a dangling predecessor.
+enum PlacementPoseReplacementRestorePolicyV1 {
+    static let persistentSchemaVersion = 29
+    static let recordsSchemaVersion = 28
+    static let durableFamilyCount = 2
+    static let derivedProjectionsRestored = false
+    static let cloneForkRequiresHistoricRebind = true
+
+    static func validate(_ records: [V29BackupPlacementPoseRecordV1]) throws {
+        guard persistentSchemaVersion == PlacementPosePersistenceEnrollmentV1.persistentSchemaVersion,
+              recordsSchemaVersion == PlacementPosePersistenceEnrollmentV1.recordsSchemaVersion,
+              durableFamilyCount == PlacementPosePersistenceEnrollmentV1.durableModelCount,
+              !derivedProjectionsRestored,
+              cloneForkRequiresHistoricRebind else {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+        guard records == records.sorted(by: {
+            "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
+                < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
+        }), Set(records.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())" }).count == records.count else {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+        do { _ = try PlacementPoseBackupRecordSetV1.decode(records) }
+        catch { throw ReplacementRestoreRuleError.invalidAuthority }
     }
 }

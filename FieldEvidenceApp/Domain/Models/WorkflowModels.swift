@@ -1,4 +1,5 @@
 import Foundation
+enum PlacementPoseWorkflowPersistenceBoundaryV1{static let workflowRowsOwnNoPoseHistory=true;static let completedPoseSnapshotsAreDerived=true}
 import SwiftData
 
 enum PlanWorkflowPersistenceBoundaryV1 { static let rebasePreviewIsDerived = true; static let framesAreEmbeddedInRevision = true }

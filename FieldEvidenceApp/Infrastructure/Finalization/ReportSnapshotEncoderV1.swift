@@ -487,6 +487,12 @@ struct ReportSnapshotEncoderV1: Sendable {
                 return false
             }
         }
+        if let placementPose = snapshot.placementPose {
+            guard snapshot.snapshotSchemaVersion >= 4,
+                  (try? placementPose.validate()) != nil else {
+                return false
+            }
+        }
 
         guard validObservationAndTime(
             basis: snapshot.observationBasis,
@@ -640,6 +646,9 @@ extension CanonicalJSONV1 {
         if let planProjection = value.planProjection {
             object["planProjection"] = Self.planProjection(planProjection)
         }
+        if let placementPose = value.placementPose {
+            object["placementPose"] = Self.placementPose(placementPose)
+        }
         return .object(object)
     }
 
@@ -783,6 +792,81 @@ extension CanonicalJSONV1 {
             "disposition": .string(value.disposition.rawValue),
             "revision": .integer(Int(value.revision)),
             "placementSHA256": .string(value.placementSHA256),
+        ])
+    }
+
+    private static func placementPose(
+        _ value: C37PlacementPoseFrozenSnapshotV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "sourceSnapshotID": uuid(value.sourceSnapshotID),
+            "projection": placementPoseProjection(value.projection),
+            "historicDisplayIsFrozen": .bool(value.historicDisplayIsFrozen),
+            "snapshotSHA256": .string(value.snapshotSHA256),
+        ])
+    }
+
+    private static func placementPoseProjection(
+        _ value: C37PlacementPoseReportProjectionV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "schemaVersion": .integer(value.schemaVersion),
+            "projectionVersion": .string(value.projectionVersion),
+            "workspaceID": uuid(value.workspaceID.rawValue),
+            "assetID": uuid(value.assetID),
+            "currentTipReferences": .array(value.currentTipReferences.map(placementPoseReference)),
+            "history": .array(value.history.map(placementPoseHistory)),
+            "capturedAt": date(value.capturedAt),
+            "historyFrozen": .bool(value.historyFrozen),
+            "rebasePreviewIsNotApplied": .bool(value.rebasePreviewIsNotApplied),
+            "sensorInputAllowed": .bool(value.sensorInputAllowed),
+            "networkInputAllowed": .bool(value.networkInputAllowed),
+            "projectionSHA256": .string(value.projectionSHA256),
+        ])
+    }
+
+    private static func placementPoseReference(
+        _ value: AssetPoseEventReferenceV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "eventID": uuid(value.eventID),
+            "workspaceID": uuid(value.workspaceID.rawValue),
+            "assetID": uuid(value.assetID),
+            "axisID": .string(value.axisID.rawValue),
+            "revision": .integer(Int(value.revision)),
+            "eventSHA256": .string(value.eventSHA256),
+        ])
+    }
+
+    private static func placementPoseHistory(
+        _ value: C37PoseHistoryProjectionV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "eventID": uuid(value.eventID),
+            "axisID": .string(value.axisID),
+            "placementEpisodeID": uuid(value.placementEpisodeID),
+            "placementEventID": uuid(value.placementEventID),
+            "rootObservationEventID": uuid(value.rootObservationEventID),
+            "rootObservedAt": date(value.rootObservedAt),
+            "occurredAt": date(value.occurredAt),
+            "recordedAt": date(value.recordedAt),
+            "referenceFrame": .string(value.referenceFrame.rawValue),
+            "disposition": .string(value.disposition.rawValue),
+            "observationState": .string(value.observationState.rawValue),
+            "notObservedReason": value.notObservedReason.map { .string($0.rawValue) } ?? .null,
+            "azimuthMilliDegrees": value.azimuthMilliDegrees.map { .integer(Int($0)) } ?? .null,
+            "elevationMilliDegrees": value.elevationMilliDegrees.map { .integer(Int($0)) } ?? .null,
+            "horizontalUncertaintyMilliDegrees": value.horizontalUncertaintyMilliDegrees.map { .integer(Int($0)) } ?? .null,
+            "verticalUncertaintyMilliDegrees": value.verticalUncertaintyMilliDegrees.map { .integer(Int($0)) } ?? .null,
+            "horizontalUncertaintyState": .string(value.horizontalUncertaintyState.rawValue),
+            "verticalUncertaintyState": .string(value.verticalUncertaintyState.rawValue),
+            "source": .string(value.source.rawValue),
+            "revision": .integer(Int(value.revision)),
+            "eventSHA256": .string(value.eventSHA256),
+            "planRevisionID": value.planRevisionID.map { .string($0.uuidString.lowercased()) } ?? .null,
+            "planPageID": value.planPageID.map { .string($0.uuidString.lowercased()) } ?? .null,
+            "planSpatialFrameID": value.planSpatialFrameID.map { .string($0.uuidString.lowercased()) } ?? .null,
+            "planTransformSHA256": value.planTransformSHA256.map { .string($0) } ?? .null,
         ])
     }
 
@@ -1634,5 +1718,37 @@ extension ReportSnapshotEncoderV1 {
         } catch {
             throw ReportSnapshotEncodingErrorV1.noncanonicalData
         }
+    }
+
+    /// Encodes the standalone C37 frozen pose companion. The normal report
+    /// encoder includes this value under `placementPose`; this helper makes
+    /// the same canonical boundary available to local recovery/export code.
+    func encodePlacementPoseSnapshot(
+        _ snapshot: C37PlacementPoseFrozenSnapshotV1
+    ) throws -> EncodedReportSnapshotV1 {
+        try snapshot.validate()
+        let data = try PlacementPoseCanonicalCodecV1.encode(snapshot)
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        return EncodedReportSnapshotV1(
+            data: data,
+            sha256: KernelCanonicalHashV1.sha256(data)
+        )
+    }
+
+    func decodePlacementPoseSnapshot(
+        _ data: Data
+    ) throws -> C37PlacementPoseFrozenSnapshotV1 {
+        let snapshot = try PlacementPoseCanonicalCodecV1.decode(
+            C37PlacementPoseFrozenSnapshotV1.self,
+            from: data
+        )
+        try snapshot.validate()
+        guard try encodePlacementPoseSnapshot(snapshot).data == data else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return snapshot
     }
 }

@@ -2245,3 +2245,40 @@ extension ReportProjectionRegistryV1 {
         return try validateScheduleProjection(projection)
     }
 }
+
+// MARK: - C37 reference-framed pose projection
+
+extension ReportProjectionRegistryV1 {
+    static let placementPoseProjectionSectionID = "pose"
+    static let placementPoseProjectionVersion =
+        C37PlacementPoseReportProjectionV1.projectionVersion
+
+    func validatePlacementPoseProjection(
+        _ projection: C37PlacementPoseReportProjectionV1
+    ) throws -> C37PlacementPoseReportProjectionV1 {
+        try validate()
+        try C37PoseReportProjectionPolicyV1.validate(projection)
+        return projection
+    }
+
+    static func validatePlacementPoseProjection(
+        _ projection: C37PlacementPoseReportProjectionV1
+    ) throws -> C37PlacementPoseReportProjectionV1 {
+        try Self().validatePlacementPoseProjection(projection)
+    }
+
+    static func placementPoseProjection(
+        workspaceID: WorkspaceID,
+        assetID: UUID,
+        events: [AssetPoseEventV1],
+        capturedAt: Date
+    ) throws -> C37PlacementPoseReportProjectionV1 {
+        let projection = try C37PlacementPoseReportProjectionV1(
+            workspaceID: workspaceID,
+            assetID: assetID,
+            events: events,
+            capturedAt: capturedAt
+        )
+        return try validatePlacementPoseProjection(projection)
+    }
+}

@@ -1,4 +1,5 @@
 import Foundation
+enum PlacementPoseSitePersistenceBoundaryV1{static let workspaceAndPlacementEpisodeAdmissionIsExternalToSiteRows=true}
 import SwiftData
 
 enum PlanSitePersistenceBoundaryV1 { static let siteIdentityMayAnchorLocationSubjects = true; static let planRowsDoNotDuplicateSiteState = true }

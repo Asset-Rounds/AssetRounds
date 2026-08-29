@@ -4278,3 +4278,173 @@ enum PlanLocalizationPolicyV1 {
         }
     }
 }
+
+// MARK: - C37 reference-framed pose localization
+
+/// English-only, typed labels for the C37 report/search projection. The
+/// machine frame/disposition/reason remains beside these labels so a locale
+/// cannot collapse TRUE, MAGNETIC, or PLAN_RELATIVE into an ambiguous phrase.
+enum C37PoseLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
+    case heading = "pose.heading"
+    case axis = "pose.axis"
+    case current = "pose.current"
+    case history = "pose.history"
+    case referenceFrame = "pose.reference_frame"
+    case referenceTrue = "pose.reference.true"
+    case referenceMagnetic = "pose.reference.magnetic"
+    case referencePlanRelative = "pose.reference.plan_relative"
+    case referenceUnknown = "pose.reference.unknown"
+    case observation = "pose.observation"
+    case observed = "pose.observation.observed"
+    case notObserved = "pose.observation.not_observed"
+    case manualFallback = "pose.observation.manual_fallback"
+    case uncertainty = "pose.uncertainty"
+    case uncertaintyKnown = "pose.uncertainty.known"
+    case uncertaintyUnknown = "pose.uncertainty.unknown"
+    case notObservedReason = "pose.not_observed.reason"
+    case reasonNotYetObserved = "pose.not_observed.reason.not_yet_observed"
+    case reasonPhysicalMove = "pose.not_observed.reason.physical_move_reobservation"
+    case reasonPlanFrameLost = "pose.not_observed.reason.plan_frame_lost_reobservation"
+    case reasonObscured = "pose.not_observed.reason.obscured_or_unsafe"
+    case reasonSourceUnavailable = "pose.not_observed.reason.source_unavailable"
+    case reasonUserDeclined = "pose.not_observed.reason.user_declined"
+    case currentTip = "pose.current_tip"
+    case historyFrozen = "pose.history.frozen"
+    case rebasePreview = "pose.rebase.preview"
+    case previewNotApplied = "pose.rebase.preview.not_applied"
+    case reviewRequired = "pose.review_required"
+    case azimuth = "pose.azimuth"
+    case elevation = "pose.elevation"
+    case horizontalUncertainty = "pose.horizontal_uncertainty"
+    case verticalUncertainty = "pose.vertical_uncertainty"
+    case recordedSource = "pose.recorded_source"
+    case claimBoundary = "pose.claim_boundary"
+    case nextStep = "pose.next_step"
+    case missing = "pose.missing"
+
+    var localizationKey: LocalizationKeyV1 {
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+
+    var englishDefaultValue: String {
+        switch self {
+        case .heading: return "Placement pose"
+        case .axis: return "Pose axis"
+        case .current: return "Current recorded pose"
+        case .history: return "Pose history"
+        case .referenceFrame: return "Reference frame"
+        case .referenceTrue: return "TRUE reference frame"
+        case .referenceMagnetic: return "MAGNETIC reference frame"
+        case .referencePlanRelative: return "PLAN_RELATIVE reference frame"
+        case .referenceUnknown: return "Reference frame unknown"
+        case .observation: return "Observation"
+        case .observed: return "Observed"
+        case .notObserved: return "Not observed"
+        case .manualFallback: return "Manual fallback recorded"
+        case .uncertainty: return "Uncertainty"
+        case .uncertaintyKnown: return "Uncertainty recorded"
+        case .uncertaintyUnknown: return "Uncertainty unknown"
+        case .notObservedReason: return "Reason not observed"
+        case .reasonNotYetObserved: return "Not yet observed"
+        case .reasonPhysicalMove: return "Moved; re-observation required"
+        case .reasonPlanFrameLost: return "Plan frame lost; re-observation required"
+        case .reasonObscured: return "Obscured or unavailable for observation"
+        case .reasonSourceUnavailable: return "Observation source unavailable"
+        case .reasonUserDeclined: return "Observation not recorded by request"
+        case .currentTip: return "Current history tip"
+        case .historyFrozen: return "Historic pose display remains unchanged"
+        case .rebasePreview: return "Pose rebase preview"
+        case .previewNotApplied: return "Preview only; it is not applied or saved"
+        case .reviewRequired: return "Review required"
+        case .azimuth: return "Azimuth"
+        case .elevation: return "Elevation"
+        case .horizontalUncertainty: return "Horizontal uncertainty"
+        case .verticalUncertainty: return "Vertical uncertainty"
+        case .recordedSource: return "Recorded source"
+        case .claimBoundary: return "Recorded pose metadata only"
+        case .nextStep: return "Review the recorded pose and uncertainty"
+        case .missing: return "Pose not recorded"
+        }
+    }
+
+    var translatorComment: String {
+        "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream."
+    }
+
+    static func referenceFrameKey(
+        _ value: C37PoseReferenceFrameProjectionV1
+    ) -> Self {
+        switch value {
+        case .trueBearing: return .referenceTrue
+        case .magneticBearing: return .referenceMagnetic
+        case .planRelative: return .referencePlanRelative
+        case .unknown: return .referenceUnknown
+        }
+    }
+
+    static func observationStateKey(
+        _ value: C37PoseObservationStateV1
+    ) -> Self {
+        switch value {
+        case .observed: return .observed
+        case .notObserved: return .notObserved
+        case .manualFallback: return .manualFallback
+        case .uncertaintyUnknown: return .uncertaintyUnknown
+        case .reviewRequired: return .reviewRequired
+        }
+    }
+
+    static func notObservedReasonKey(
+        _ value: PoseNotObservedReasonV1
+    ) -> Self {
+        switch value {
+        case .notYetObserved: return .reasonNotYetObserved
+        case .physicalMoveReobservationRequired: return .reasonPhysicalMove
+        case .planFrameLostReobservationRequired: return .reasonPlanFrameLost
+        case .obscuredOrUnsafe: return .reasonObscured
+        case .sourceUnavailable: return .reasonSourceUnavailable
+        case .userDeclined: return .reasonUserDeclined
+        }
+    }
+}
+
+enum C37PoseLocalizationPolicyV1 {
+    static let sourceLocale = "en"
+    static let shippingRuntimeLocales = ["en"]
+    static let metadataLocale = "en-US"
+    static let pseudoLocalesAreTestOnly = true
+    static let englishOnly = true
+    static let denyByDefault = true
+    static let historyFrozen = true
+    static let previewIsNotApplied = true
+    static let keys = C37PoseLocalizationKeyV1.allCases.map(\.rawValue).sorted()
+    static let prohibitedClaimPhrases = [
+        "east", "west", "north", "south", "aligned", "aimed correctly",
+        "compliance", "accurate", "verified", "approved", "authorized",
+        "secure", "delivered", "operator", "customer data", "work data",
+        "sensor stream", "location stream",
+    ]
+
+    static func containsProhibitedClaim(_ values: [String]) -> Bool {
+        values.contains { value in
+            let normalized = value.lowercased()
+                .replacingOccurrences(of: "_", with: " ")
+                .replacingOccurrences(of: "-", with: " ")
+            return prohibitedClaimPhrases.contains { normalized.contains($0) }
+        }
+    }
+
+    static func validate() throws {
+        let definitions = C37PoseLocalizationKeyV1.allCases
+        let values = definitions.map(\.englishDefaultValue)
+        guard definitions.map(\.localizationKey.rawValue).sorted() == keys,
+              Set(keys).count == keys.count,
+              sourceLocale == "en", shippingRuntimeLocales == ["en"],
+              metadataLocale == "en-US", pseudoLocalesAreTestOnly,
+              englishOnly, denyByDefault, historyFrozen, previewIsNotApplied,
+              values.allSatisfy({ !$0.isEmpty && !containsProhibitedClaim([$0]) }) else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}

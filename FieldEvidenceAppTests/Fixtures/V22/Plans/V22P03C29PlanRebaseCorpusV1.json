@@ -81,6 +81,26 @@
     "silentPinRecalculation": false,
     "secondByteStore": false
   },
+  "c37PoseRebaseClosure": {
+    "poseEventType": "AssetPoseEventV1",
+    "anchorObservationType": "SpatialAnchorObservationV1",
+    "locationPathSnapshotType": "LocationPathSnapshotV1",
+    "rebaseComponentType": "PoseFrameRebaseComponentV1",
+    "rebasePolicyType": "PoseFrameRebasePolicyV1",
+    "referenceFrameType": "PlanRelativePoseFrameBindingV1",
+    "derivedSource": "PLACEMENT_CARRY_FORWARD",
+    "derivedActorResponsibility": "RECORDED_BY",
+    "directActorResponsibility": "OBSERVED_BY",
+    "closureAssertions": {
+      "planRevisionAndTransformRemainDigestBound": true,
+      "locationPathSnapshotIsRequiredOnPoseEvent": true,
+      "poseSuccessorPreservesRootObservation": true,
+      "poseAndAnchorHistoriesRejectForks": true,
+      "nonUniformShearAndSingularTransformsAreNotPromoted": true,
+      "rebasePreviewDoesNotMutateDraftOrPoseHistory": true,
+      "historicPlanAndPoseBytesRemainReadable": true
+    }
+  },
   "statusFlags": {
     "acceptance": false,
     "acceptanceCredit": false,

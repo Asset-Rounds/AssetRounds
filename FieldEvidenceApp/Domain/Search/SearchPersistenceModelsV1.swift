@@ -1116,3 +1116,67 @@ struct PlanPlacementSearchPersistencePolicyV1: Codable, Equatable, Sendable {
 extension SearchPersistenceReleaseV1 {
     static let planPlacementPolicy = PlanPlacementSearchPersistencePolicyV1()
 }
+
+// MARK: - C37 current placement-pose search persistence boundary
+
+/// Pose rows are disposable, current-tip-only metadata. The canonical pose
+/// event history is the rebuild source; no angle, sensor stream, actor, or
+/// private locator is admitted to this persistence projection.
+struct C37PoseSearchPersistencePolicyV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let sourceSchema: String
+    let searchPersistenceRelease: SearchPersistenceReleaseV1
+    let fieldIDs: [String]
+    let metadataOnly: Bool
+    let currentTipsOnly: Bool
+    let derivedOnly: Bool
+    let excludesAngles: Bool
+    let excludesSensorStream: Bool
+    let excludesActorIdentity: Bool
+    let excludesPrivateLocators: Bool
+    let excludesSourceBytes: Bool
+    let excludesUnsupportedClaims: Bool
+    let backupDisposition: String
+    let replayDisposition: String
+    let deleteDisposition: String
+
+    init() {
+        schemaVersion = Self.schemaVersion
+        sourceSchema = C37PoseSearchProjectionPolicyV1.semanticLabel
+        searchPersistenceRelease = .v7
+        fieldIDs = C37PoseSearchProjectionPolicyV1.fieldIDs
+        metadataOnly = true
+        currentTipsOnly = true
+        derivedOnly = true
+        excludesAngles = true
+        excludesSensorStream = true
+        excludesActorIdentity = true
+        excludesPrivateLocators = true
+        excludesSourceBytes = true
+        excludesUnsupportedClaims = true
+        backupDisposition = "EXCLUDED_DERIVED_REBUILD"
+        replayDisposition = "DROP_AND_REBUILD_FROM_CANONICAL_POSE_HISTORY"
+        deleteDisposition = "DROP_AND_REBUILD_AFTER_POSE_ERASE"
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              sourceSchema == C37PoseSearchProjectionPolicyV1.semanticLabel,
+              searchPersistenceRelease == .v7,
+              fieldIDs == C37PoseSearchProjectionPolicyV1.fieldIDs,
+              metadataOnly, currentTipsOnly, derivedOnly, excludesAngles,
+              excludesSensorStream, excludesActorIdentity, excludesPrivateLocators,
+              excludesSourceBytes, excludesUnsupportedClaims,
+              backupDisposition == "EXCLUDED_DERIVED_REBUILD",
+              replayDisposition == "DROP_AND_REBUILD_FROM_CANONICAL_POSE_HISTORY",
+              deleteDisposition == "DROP_AND_REBUILD_AFTER_POSE_ERASE" else {
+            throw SearchContractFailureV1.invalidField
+        }
+    }
+}
+
+extension SearchPersistenceReleaseV1 {
+    static let placementPosePolicy = C37PoseSearchPersistencePolicyV1()
+}

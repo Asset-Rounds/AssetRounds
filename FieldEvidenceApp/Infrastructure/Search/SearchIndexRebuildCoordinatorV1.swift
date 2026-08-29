@@ -2136,3 +2136,56 @@ extension SearchIndexRebuildCoordinatorV1 {
     static let planPlacementEraseDisposition =
         "DROP_AND_REBUILD_AFTER_PLAN_ERASE"
 }
+
+// MARK: - C37 current placement-pose search rebuild
+
+extension SearchIndexRebuildCoordinatorV1 {
+    /// Rebuilds current pose-tip rows from immutable report projections in a
+    /// stable order. Replays, restores, and Erase drop these rows and invoke
+    /// this route again; no sensor or private locator input is accepted.
+    static func placementPoseSearchRecords(
+        from projections: [C37PlacementPoseReportProjectionV1]
+    ) throws -> [C37PoseSearchRecordV1] {
+        try C37PoseSearchPersistencePolicyV1().validate()
+        guard projections.count <= SearchContractLimitsV1.maximumCanonicalRecords else {
+            throw SearchContractFailureV1.limitExceeded
+        }
+        try projections.forEach { try C37PoseReportProjectionPolicyV1.validate($0) }
+
+        var records: [C37PoseSearchRecordV1] = []
+        for projection in projections.sorted(by: { $0.projectionSHA256 < $1.projectionSHA256 }) {
+            let rowsByTip = projection.currentTipReferences.compactMap { reference in
+                projection.history.first {
+                    $0.eventID == reference.eventID
+                        && $0.axisID == reference.axisID.rawValue
+                        && $0.revision == reference.revision
+                        && $0.eventSHA256 == reference.eventSHA256
+                }
+            }
+            guard rowsByTip.count == projection.currentTipReferences.count else {
+                throw SearchContractFailureV1.staleIndex
+            }
+            for row in rowsByTip {
+                records.append(try LocalSearchIndexStoreV1.placementPoseSearchRecord(
+                    from: projection, row: row
+                ))
+            }
+        }
+        guard records.count <= SearchContractLimitsV1.maximumProjectionRecords else {
+            throw SearchContractFailureV1.limitExceeded
+        }
+        records.sort { $0.projectionIdentity < $1.projectionIdentity }
+        guard Set(records.map(\.projectionIdentity)).count == records.count else {
+            throw SearchContractFailureV1.duplicateProjection
+        }
+        try records.forEach { try C37PoseSearchProjectionPolicyV1.validate($0) }
+        return records
+    }
+
+    static let placementPoseReplayDisposition =
+        "DROP_AND_REBUILD_FROM_CANONICAL_POSE_HISTORY"
+    static let placementPoseRestoreDisposition =
+        "EXCLUDE_POSE_ROWS_AND_REBUILD_AFTER_CANONICAL_RESTORE"
+    static let placementPoseEraseDisposition =
+        "DROP_AND_REBUILD_AFTER_POSE_ERASE"
+}

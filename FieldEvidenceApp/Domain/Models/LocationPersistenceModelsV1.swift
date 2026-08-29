@@ -1,4 +1,5 @@
 import Foundation
+enum PlacementPoseLocationPersistenceBoundaryV1{static let poseEventsMustBindAnExactAssetPlacementEvent=true;static let poseHistoryNeverRewritesPlacementHistory=true}
 import SwiftData
 
 enum PlanLocationPersistenceBindingV1 { static let locationPlacementUsesStableSubjectIdentity = true; static let hierarchyRebaseDoesNotRewritePlanHistory = true }

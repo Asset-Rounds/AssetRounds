@@ -108,6 +108,11 @@ struct ReportSnapshotV1: Codable, Equatable, Sendable {
     /// private locators, actor identity, or an accuracy claim.
     var planProjection: PlanReportProjectionV1? = nil
 
+    /// Optional C37 frozen placement-pose projection. It preserves the
+    /// current tip and immutable observation history as reference-framed
+    /// metadata; it never infers facing, alignment, accuracy, or compliance.
+    var placementPose: C37PlacementPoseFrozenSnapshotV1? = nil
+
     var planHistoryProjection: PlanReportProjectionV1? {
         planProjection
     }
@@ -341,5 +346,35 @@ struct TimeContextSnapshotV1: Codable, Equatable, Sendable {
 enum C29PlanIntegration_Domain_Workflow_ReportSnapshotV1 {
     static func validatePlanRevision(_ value: PlanRevisionReferenceV1) throws {
         try value.validate()
+    }
+}
+
+enum C37PoseIntegration_FieldEvidenceApp_Domain_Workflow_ReportSnapshotV1_swift {
+    /// Typed C37 boundary: inherited owners may retain an immutable pose
+    /// reference, but cannot infer pose, compliance, or current-state truth.
+    static func validate(reference: AssetPoseEventReferenceV1,
+                         in workspaceID: WorkspaceID) throws {
+        try reference.validate()
+        guard reference.workspaceID == workspaceID else {
+            throw PlacementPoseFailureV1.wrongWorkspace
+        }
+    }
+}
+
+extension ReportSnapshotV1 {
+    /// Adds a validated C37 pose snapshot without resolving a later current
+    /// tip. A replacement report is required when the pose history changes.
+    func withC37PlacementPose(
+        _ pose: C37PlacementPoseFrozenSnapshotV1
+    ) throws -> ReportSnapshotV1 {
+        try pose.validate()
+        var copy = self
+        copy.placementPose = pose
+        return copy
+    }
+
+    func c37ValidatePlacementPose() throws -> C37PlacementPoseFrozenSnapshotV1? {
+        try placementPose?.validate()
+        return placementPose
     }
 }

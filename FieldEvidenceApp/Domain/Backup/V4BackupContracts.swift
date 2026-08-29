@@ -585,11 +585,162 @@ struct PlanBackupRecordSetV1: Sendable {
     }
 }
 
+/// C37 transports only the two durable pose families. Axis registries,
+/// current tips, completed snapshots, editor state, and rebase components are
+/// derived and are rebuilt from these immutable rows after import. The
+/// record-set decoder is the single backup boundary for pose history: it
+/// rejects duplicate identities, broken predecessor chains, cross-workspace
+/// material, and an observation chain that changes its exact episode or plan
+/// frame mid-history.
+struct V29BackupPlacementPoseRecordV1: Codable, Equatable, Sendable {
+    enum Kind: String, Codable, CaseIterable, Hashable, Sendable {
+        case poseEvent = "ASSET_POSE_EVENT"
+        case spatialAnchorObservation = "SPATIAL_ANCHOR_OBSERVATION"
+    }
+
+    let kind: Kind
+    let id: UUID
+    let workspaceID: UUID
+    let revision: UInt64
+    let canonicalData: Data
+}
+
+struct PlacementPoseBackupRecordSetV1: Sendable {
+    let poseEvents: [AssetPoseEventV1]
+    let spatialAnchors: [SpatialAnchorObservationV1]
+
+    static func decode(_ records: [V29BackupPlacementPoseRecordV1]) throws -> Self {
+        let ordered = records.sorted {
+            "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
+                < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
+        }
+        let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0,
+                               0, 0, 0, 0, 0, 0, 0, 0))
+        guard ordered == records,
+              records.count <= PlacementPoseLimitsV1.maximumEventsPerClosure * 2,
+              Set(records.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())" }).count == records.count else {
+            throw PlacementPoseFailureV1.unorderedValue
+        }
+
+        var events: [AssetPoseEventV1] = []
+        var observations: [SpatialAnchorObservationV1] = []
+        var workspaceIDs = Set<UUID>()
+        for record in records {
+            guard record.id != zero, record.workspaceID != zero,
+                  record.revision > 0,
+                  record.revision <= UInt64(Int.max),
+                  !record.canonicalData.isEmpty else {
+                throw PlacementPoseFailureV1.invalidValue
+            }
+            switch record.kind {
+            case .poseEvent:
+                let value = try PlacementPoseCanonicalCodecV1.decode(
+                    AssetPoseEventV1.self, from: record.canonicalData
+                )
+                try value.validateIntrinsic()
+                guard value.eventID == record.id,
+                      value.workspaceID.rawValue == record.workspaceID,
+                      value.revision == record.revision else {
+                    throw PlacementPoseFailureV1.referenceMismatch
+                }
+                events.append(value)
+                workspaceIDs.insert(value.workspaceID.rawValue)
+            case .spatialAnchorObservation:
+                let value = try PlacementPoseCanonicalCodecV1.decode(
+                    SpatialAnchorObservationV1.self, from: record.canonicalData
+                )
+                try value.validateIntrinsic()
+                guard value.observationID == record.id,
+                      value.workspaceID.rawValue == record.workspaceID,
+                      value.revision == record.revision else {
+                    throw PlacementPoseFailureV1.referenceMismatch
+                }
+                observations.append(value)
+                workspaceIDs.insert(value.workspaceID.rawValue)
+            }
+        }
+        guard workspaceIDs.count <= 1 else {
+            throw PlacementPoseFailureV1.wrongWorkspace
+        }
+
+        let eventGroups = Dictionary(grouping: events) {
+            "\($0.workspaceID.rawValue.uuidString.lowercased())\u{0}\($0.assetID.uuidString.lowercased())"
+        }
+        for values in eventGroups.values {
+            guard let first = values.first else { continue }
+            _ = try AssetPoseHistoryV1.currentTip(
+                workspaceID: first.workspaceID,
+                assetID: first.assetID,
+                events: values
+            )
+            let byID = Dictionary(uniqueKeysWithValues: values.map { ($0.eventID, $0) })
+            for value in values {
+                guard value.placementEventID != zero,
+                      value.placementEpisodeID.rawValue != zero else {
+                    throw PlacementPoseFailureV1.referenceMismatch
+                }
+                if let predecessor = value.predecessor {
+                    guard let prior = byID[predecessor.eventID],
+                          prior.eventSHA256 == predecessor.eventSHA256 else {
+                        throw PlacementPoseFailureV1.predecessorMismatch
+                    }
+                    // `validateSuccessor` checks identity/axis/revision and
+                    // permits a new physical episode or plan-frame binding
+                    // only when the canonical source explicitly represents
+                    // that disposition/rebase. A missing predecessor is
+                    // always corruption, regardless of source label.
+                    try value.validateSuccessor(of: prior)
+                }
+            }
+        }
+
+        let observationGroups = Dictionary(grouping: observations) {
+            "\($0.workspaceID.rawValue.uuidString.lowercased())\u{0}\($0.assetID.uuidString.lowercased())"
+        }
+        for values in observationGroups.values {
+            let orderedValues = values.sorted {
+                ($0.revision, $0.observationID.uuidString.lowercased())
+                    < ($1.revision, $1.observationID.uuidString.lowercased())
+            }
+            guard let first = orderedValues.first,
+                  first.revision == 1,
+                  first.predecessorObservationID == nil,
+                  first.predecessorSHA256 == nil else {
+                throw PlacementPoseFailureV1.predecessorMismatch
+            }
+            let byID = Dictionary(uniqueKeysWithValues: orderedValues.map { ($0.observationID, $0) })
+            var childCount: [UUID: Int] = [:]
+            for value in orderedValues {
+                if let predecessorID = value.predecessorObservationID {
+                    guard let prior = byID[predecessorID],
+                          prior.placementEpisodeID == value.placementEpisodeID,
+                          prior.planFrame == value.planFrame else {
+                        throw PlacementPoseFailureV1.referenceMismatch
+                    }
+                    try value.validateSuccessor(of: prior)
+                    childCount[predecessorID, default: 0] += 1
+                    guard childCount[predecessorID] == 1 else {
+                        throw PlacementPoseFailureV1.predecessorMismatch
+                    }
+                }
+            }
+            let tips = orderedValues.filter {
+                childCount[$0.observationID, default: 0] == 0
+            }
+            guard tips.count == 1 else {
+                throw PlacementPoseFailureV1.predecessorMismatch
+            }
+        }
+        return Self(poseEvents: events, spatialAnchors: observations)
+    }
+}
+
 struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     let guidedSurveys:[V25BackupGuidedSurveyRecordV1]
     let assetLocators: [V26BackupAssetLocatorRecordV1]
     let schedules: [V27BackupScheduleRecordV1]
     let plans: [V28BackupPlanRecordV1]
+    let placementPoses: [V29BackupPlacementPoseRecordV1]
     let surveyDefinitions:[V24BackupSurveyDefinitionRecordV1]
     let accessibleDocumentAssessments:[V23BackupAccessibleDocumentAssessmentRecordV1]
     let fieldReferences:[V22BackupFieldReferenceRecordV1]
@@ -630,6 +781,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         assetLocators: [V26BackupAssetLocatorRecordV1] = [],
         schedules: [V27BackupScheduleRecordV1] = [],
         plans: [V28BackupPlanRecordV1] = [],
+        placementPoses: [V29BackupPlacementPoseRecordV1] = [],
         accessibleDocumentAssessments:[V23BackupAccessibleDocumentAssessmentRecordV1]=[],
         surveyDefinitions:[V24BackupSurveyDefinitionRecordV1]=[],
         fieldReferences:[V22BackupFieldReferenceRecordV1]=[],
@@ -669,6 +821,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         self.assetLocators = assetLocators
         self.schedules = schedules
         self.plans = plans
+        self.placementPoses = placementPoses
         self.surveyDefinitions=surveyDefinitions
         self.accessibleDocumentAssessments=accessibleDocumentAssessments
         self.fieldReferences=fieldReferences
@@ -706,7 +859,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-         case guidedSurveys,assetLocators,schedules,plans,surveyDefinitions,accessibleDocumentAssessments,fieldReferences,recoverabilityReceipts, clientCapabilities, privacyTransforms, measurementIntegrity, packageEvolution, fieldDrafts, workPackets, inspectionReview, evidenceAssurance, functionalRelationships, authorityCriterion, assetSemantics, assetCompositionEdges, assetCompositionEvents, assetPlacementEvents, assets
+         case guidedSurveys,assetLocators,schedules,plans,placementPoses,surveyDefinitions,accessibleDocumentAssessments,fieldReferences,recoverabilityReceipts, clientCapabilities, privacyTransforms, measurementIntegrity, packageEvolution, fieldDrafts, workPackets, inspectionReview, evidenceAssurance, functionalRelationships, authorityCriterion, assetSemantics, assetCompositionEdges, assetCompositionEvents, assetPlacementEvents, assets
         case deletionLedger, evidenceFiles, issues, locationHierarchyEvents
         case locationMigrationReceipts, locationNodes, mutationHistory, packets, partyAccountability
         case recordsSchemaVersion, reports, requirementAssurance, savedSmartViews, sites
@@ -721,6 +874,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
             assetLocators: try values.decodeIfPresent([V26BackupAssetLocatorRecordV1].self, forKey: .assetLocators) ?? [],
             schedules: try values.decodeIfPresent([V27BackupScheduleRecordV1].self, forKey: .schedules) ?? [],
             plans: try values.decodeIfPresent([V28BackupPlanRecordV1].self, forKey: .plans) ?? [],
+            placementPoses: try values.decodeIfPresent([V29BackupPlacementPoseRecordV1].self, forKey: .placementPoses) ?? [],
             accessibleDocumentAssessments:try values.decodeIfPresent([V23BackupAccessibleDocumentAssessmentRecordV1].self,forKey:.accessibleDocumentAssessments) ?? [],
             surveyDefinitions:try values.decodeIfPresent([V24BackupSurveyDefinitionRecordV1].self,forKey:.surveyDefinitions) ?? [],
             fieldReferences:try values.decodeIfPresent([V22BackupFieldReferenceRecordV1].self,forKey:.fieldReferences) ?? [],
@@ -792,6 +946,7 @@ extension V4BackupRecordsV1{
     func replacingAssetLocators(_ values: [V26BackupAssetLocatorRecordV1]) -> Self {
         Self(guidedSurveys: guidedSurveys, assetLocators: values,
              schedules: schedules, plans: plans,
+             placementPoses: placementPoses,
              accessibleDocumentAssessments: accessibleDocumentAssessments,
              surveyDefinitions: surveyDefinitions, fieldReferences: fieldReferences,
              recoverabilityReceipts: recoverabilityReceipts,
@@ -817,7 +972,7 @@ extension V4BackupRecordsV1{
 
     func replacingSchedules(_ values: [V27BackupScheduleRecordV1]) -> Self {
         Self(guidedSurveys: guidedSurveys, assetLocators: assetLocators,
-             schedules: values, plans: plans, accessibleDocumentAssessments: accessibleDocumentAssessments,
+             schedules: values, plans: plans, placementPoses: placementPoses, accessibleDocumentAssessments: accessibleDocumentAssessments,
              surveyDefinitions: surveyDefinitions, fieldReferences: fieldReferences,
              recoverabilityReceipts: recoverabilityReceipts,
              clientCapabilities: clientCapabilities, privacyTransforms: privacyTransforms,
@@ -842,7 +997,7 @@ extension V4BackupRecordsV1{
 
     func replacingPlans(_ values: [V28BackupPlanRecordV1]) -> Self {
         Self(guidedSurveys: guidedSurveys, assetLocators: assetLocators,
-             schedules: schedules, plans: values,
+             schedules: schedules, plans: values, placementPoses: placementPoses,
              accessibleDocumentAssessments: accessibleDocumentAssessments,
              surveyDefinitions: surveyDefinitions, fieldReferences: fieldReferences,
              recoverabilityReceipts: recoverabilityReceipts,
@@ -866,9 +1021,35 @@ extension V4BackupRecordsV1{
              workflowRecords: workflowRecords)
     }
 
-    func replacingAccessibleDocumentAssessments(_ values:[V23BackupAccessibleDocumentAssessmentRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,accessibleDocumentAssessments:values,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords)}
-    func replacingSurveyDefinitions(_ values:[V24BackupSurveyDefinitionRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:values,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords)}
-    func replacingGuidedSurveys(_ values:[V25BackupGuidedSurveyRecordV1])->Self{Self(guidedSurveys:values,assetLocators:assetLocators,schedules:schedules,plans:plans,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords)}
+    func replacingPlacementPoses(_ values: [V29BackupPlacementPoseRecordV1]) -> Self {
+        Self(guidedSurveys: guidedSurveys, assetLocators: assetLocators,
+             schedules: schedules, plans: plans, placementPoses: values,
+             accessibleDocumentAssessments: accessibleDocumentAssessments,
+             surveyDefinitions: surveyDefinitions, fieldReferences: fieldReferences,
+             recoverabilityReceipts: recoverabilityReceipts,
+             clientCapabilities: clientCapabilities, privacyTransforms: privacyTransforms,
+             measurementIntegrity: measurementIntegrity, packageEvolution: packageEvolution,
+             fieldDrafts: fieldDrafts, workPackets: workPackets,
+             inspectionReview: inspectionReview, evidenceAssurance: evidenceAssurance,
+             functionalRelationships: functionalRelationships,
+             authorityCriterion: authorityCriterion, assetSemantics: assetSemantics,
+             assetCompositionEdges: assetCompositionEdges,
+             assetCompositionEvents: assetCompositionEvents,
+             assetPlacementEvents: assetPlacementEvents, assets: assets,
+             deletionLedger: deletionLedger, evidenceFiles: evidenceFiles,
+             issues: issues, locationHierarchyEvents: locationHierarchyEvents,
+             locationMigrationReceipts: locationMigrationReceipts,
+             locationNodes: locationNodes, mutationHistory: mutationHistory,
+             packets: packets, partyAccountability: partyAccountability,
+             recordsSchemaVersion: recordsSchemaVersion, reports: reports,
+             requirementAssurance: requirementAssurance,
+             savedSmartViews: savedSmartViews, sites: sites,
+             workflowRecords: workflowRecords)
+    }
+
+    func replacingAccessibleDocumentAssessments(_ values:[V23BackupAccessibleDocumentAssessmentRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:values,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords)}
+    func replacingSurveyDefinitions(_ values:[V24BackupSurveyDefinitionRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:values,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords)}
+    func replacingGuidedSurveys(_ values:[V25BackupGuidedSurveyRecordV1])->Self{Self(guidedSurveys:values,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords)}
 }
 
 struct V4BackupEntryV1: Codable, Equatable, Sendable {

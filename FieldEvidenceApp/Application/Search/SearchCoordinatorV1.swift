@@ -471,3 +471,31 @@ extension SearchCoordinatorV1 {
         return Array(matches.prefix(maximumResults))
     }
 }
+
+// MARK: - C37 current placement-pose metadata search
+
+extension SearchCoordinatorV1 {
+    /// Searches only current pose tips. Full pose history is intentionally
+    /// rendered by the report timeline and is not flattened into the index.
+    static func searchPlacementPoseMetadata(
+        query: String,
+        records: [C37PoseSearchRecordV1],
+        maximumResults: Int = 100
+    ) throws -> [C37PoseSearchRecordV1] {
+        guard maximumResults > 0,
+              maximumResults <= SearchContractLimitsV1.maximumCanonicalRecords else {
+            throw SearchContractFailureV1.limitExceeded
+        }
+        let tokens = normalizedTokens(query)
+        guard !tokens.isEmpty else { throw SearchContractFailureV1.invalidQuery }
+        try records.forEach { try C37PoseSearchProjectionPolicyV1.validate($0) }
+        let matches = records.filter { record in
+            tokens.allSatisfy { queryToken in
+                record.normalizedTokens.contains { indexedToken in
+                    indexedToken == queryToken || indexedToken.hasPrefix(queryToken)
+                }
+            }
+        }.sorted { $0.projectionIdentity < $1.projectionIdentity }
+        return Array(matches.prefix(maximumResults))
+    }
+}

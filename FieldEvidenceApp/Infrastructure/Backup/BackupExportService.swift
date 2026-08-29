@@ -68,6 +68,8 @@ final class BackupExportService {
         let planRevisions: [PlanRevisionRow]
         let planPlacements: [PlanPlacementRow]
         let rebaseReceipts: [RebaseReceiptRow]
+        let poseEvents: [AssetPoseEventRow]
+        let spatialAnchorObservations: [SpatialAnchorObservationRow]
         let fieldReferenceReleases:[FieldReferenceReleaseRow]
         let fieldReferenceBindings:[FieldReferenceBindingRow]
         let recoverabilityVerificationReceipts:[RecoverabilityVerificationReceiptRow]
@@ -746,6 +748,7 @@ private extension BackupExportService {
                 assetLocators: records.assetLocators,
                 schedules: records.schedules,
                 plans: records.plans,
+                placementPoses: records.placementPoses,
                 fieldReferences:records.fieldReferences,
                 fieldDrafts: records.fieldDrafts,
                 workPackets: records.workPackets,
@@ -987,9 +990,9 @@ private extension BackupExportService {
             source: .init(
                 appBuild: appBuild(),
                 appVersion: appVersion(),
-                persistentSchemaVersion: 28,
+                persistentSchemaVersion: 29,
                 replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: 27,
+                recordsSchemaVersion: 28,
                 sourceGenerationID: generationID,
                 workspaceID: sourceIdentity.workspaceID.rawValue
             )
@@ -1529,6 +1532,8 @@ private extension BackupExportService {
                  planRevisions: try modelContext.fetch(FetchDescriptor<PlanRevisionRow>()),
                  planPlacements: try modelContext.fetch(FetchDescriptor<PlanPlacementRow>()),
                  rebaseReceipts: try modelContext.fetch(FetchDescriptor<RebaseReceiptRow>()),
+                 poseEvents: try modelContext.fetch(FetchDescriptor<AssetPoseEventRow>()),
+                 spatialAnchorObservations: try modelContext.fetch(FetchDescriptor<SpatialAnchorObservationRow>()),
                  fieldReferenceReleases:try modelContext.fetch(FetchDescriptor<FieldReferenceReleaseRow>()),
                 fieldReferenceBindings:try modelContext.fetch(FetchDescriptor<FieldReferenceBindingRow>()),
                 recoverabilityVerificationReceipts:try modelContext.fetch(FetchDescriptor<RecoverabilityVerificationReceiptRow>()),
@@ -1679,6 +1684,39 @@ private extension BackupExportService {
               rows.assetLifecycleEvents.allSatisfy({ (try? $0.value())?.record.workspaceID == sourceIdentity.workspaceID }),
               rows.assetSuccessorLinks.allSatisfy({ (try? $0.value())?.workspaceID == sourceIdentity.workspaceID }),
               rows.workSubjectScopeSnapshots.allSatisfy({ (try? $0.value())?.workspaceID == sourceIdentity.workspaceID }) else {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        do {
+            let poseEvents = try rows.poseEvents.map { try $0.value() }
+            let anchorObservations = try rows.spatialAnchorObservations.map { try $0.value() }
+            guard poseEvents.allSatisfy({ $0.workspaceID == sourceIdentity.workspaceID }),
+                  anchorObservations.allSatisfy({ $0.workspaceID == sourceIdentity.workspaceID }),
+                  Set(poseEvents.map(\.eventID)).count == poseEvents.count,
+                  Set(anchorObservations.map(\.observationID)).count == anchorObservations.count else {
+                throw BackupExportServiceError.invalidAuthority
+            }
+            let poseRecords = try (poseEvents.map {
+                V29BackupPlacementPoseRecordV1(
+                    kind: .poseEvent,
+                    id: $0.eventID,
+                    workspaceID: $0.workspaceID.rawValue,
+                    revision: $0.revision,
+                    canonicalData: try PlacementPoseCanonicalCodecV1.encode($0)
+                )
+            } + anchorObservations.map {
+                V29BackupPlacementPoseRecordV1(
+                    kind: .spatialAnchorObservation,
+                    id: $0.observationID,
+                    workspaceID: $0.workspaceID.rawValue,
+                    revision: $0.revision,
+                    canonicalData: try PlacementPoseCanonicalCodecV1.encode($0)
+                )
+            }).sorted {
+                "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
+                    < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
+            }
+            _ = try PlacementPoseBackupRecordSetV1.decode(poseRecords)
+        } catch {
             throw BackupExportServiceError.invalidAuthority
         }
         _ = try assetLocatorRecords(rows)
@@ -2093,11 +2131,13 @@ private extension BackupExportService {
         let assetLocators = mutationHistory == nil ? [] : try assetLocatorRecords(rows)
         let schedules = mutationHistory == nil ? [] : try scheduleRecords(rows)
         let plans = mutationHistory == nil ? [] : try planRecords(rows)
+        let placementPoses = try placementPoseRecords(rows)
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveys,
             assetLocators: assetLocators,
             schedules: schedules,
             plans: plans,
+            placementPoses: placementPoses,
             accessibleDocumentAssessments:accessibleDocumentAssessments,
             surveyDefinitions:surveyDefinitions,
             fieldReferences:fieldReferences,
@@ -2161,7 +2201,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : 25,
+                : 28,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -2469,6 +2509,46 @@ private extension BackupExportService {
                 < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
         }
         _ = try PlanBackupRecordSetV1.decode(result)
+        return result
+    }
+
+    private func placementPoseRecords(
+        _ rows: Rows
+    ) throws -> [V29BackupPlacementPoseRecordV1] {
+        let events = try rows.poseEvents.map { try $0.value() }
+        let observations = try rows.spatialAnchorObservations.map { try $0.value() }
+        let workspaceID = try currentStreamingWorkspaceIdentity().workspaceID
+        guard events.allSatisfy({ $0.workspaceID == workspaceID }),
+              observations.allSatisfy({ $0.workspaceID == workspaceID }) else {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        let eventRecords = try events.map {
+            V29BackupPlacementPoseRecordV1(
+                kind: .poseEvent,
+                id: $0.eventID,
+                workspaceID: $0.workspaceID.rawValue,
+                revision: $0.revision,
+                canonicalData: try PlacementPoseCanonicalCodecV1.encode($0)
+            )
+        }
+        let observationRecords = try observations.map {
+            V29BackupPlacementPoseRecordV1(
+                kind: .spatialAnchorObservation,
+                id: $0.observationID,
+                workspaceID: $0.workspaceID.rawValue,
+                revision: $0.revision,
+                canonicalData: try PlacementPoseCanonicalCodecV1.encode($0)
+            )
+        }
+        let result = (eventRecords + observationRecords).sorted {
+            "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
+                < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
+        }
+        do {
+            _ = try PlacementPoseBackupRecordSetV1.decode(result)
+        } catch {
+            throw BackupExportServiceError.invalidAuthority
+        }
         return result
     }
 

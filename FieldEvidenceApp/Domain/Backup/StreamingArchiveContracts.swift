@@ -149,6 +149,50 @@ enum PlanStreamingArchivePolicyV1 {
     }
 }
 
+/// C37 transports the immutable pose-event and spatial-anchor histories as a
+/// single closure. Current tips, completed snapshots, and editor state are
+/// rebuilt after extraction; raw sensor/proposal values are never archive
+/// members. Clone/fork restore must explicitly rebind the history before it
+/// can participate in a destination workspace projection.
+enum PlacementPoseStreamingArchivePolicyV1 {
+    static let recordsSchemaVersion = 28
+    static let persistentSchemaVersion = 29
+    static let durableFamilyCount = 2
+    static let archiveFamilyCount = 2
+    static let derivedProjectionStorage = "NONPERSISTENT_REBUILD"
+    static let lifecycleHistoryStorage = "MUTATION_HISTORY_ONLY"
+    static let sensorProposalPersistence = "NONPERSISTENT"
+    static let cloneForkSourcePoseAutomaticallyActive = false
+
+    static func validate(records: V4BackupRecordsV1) throws {
+        guard records.recordsSchemaVersion <= recordsSchemaVersion,
+              derivedProjectionStorage == "NONPERSISTENT_REBUILD",
+              lifecycleHistoryStorage == "MUTATION_HISTORY_ONLY",
+              sensorProposalPersistence == "NONPERSISTENT",
+              !cloneForkSourcePoseAutomaticallyActive else {
+            throw StreamingArchiveFailureV1.invalidArchive
+        }
+        guard records.recordsSchemaVersion < recordsSchemaVersion else {
+            guard records.placementPoses.count <= PlacementPoseLimitsV1.maximumEventsPerClosure * 2,
+                  archiveFamilyCount == V29BackupPlacementPoseRecordV1.Kind.allCases.count,
+                  records.mutationHistory != nil else {
+                throw StreamingArchiveFailureV1.invalidArchive
+            }
+            do {
+                try V29PlacementPoseImportBoundaryV1.validate(
+                    persistent: persistentSchemaVersion,
+                    records: recordsSchemaVersion
+                )
+                _ = try PlacementPoseBackupRecordSetV1.decode(records.placementPoses)
+            } catch {
+                throw StreamingArchiveFailureV1.invalidArchive
+            }
+        } else if !records.placementPoses.isEmpty {
+            throw StreamingArchiveFailureV1.invalidArchive
+        }
+    }
+}
+
 enum StreamingArchiveCompressionV1: String, Codable, CaseIterable, Sendable {
     case stored
     case zlib
