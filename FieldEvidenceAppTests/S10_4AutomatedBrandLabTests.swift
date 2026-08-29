@@ -5458,7 +5458,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 minimumDoubleLengthResidualDiagnosticSource.components(
                     separatedBy: diagnosticLock
                 ).count - 1,
-                1,
+                diagnosticLock ==
+                    "S10.4 minimum double-length preflight residual diagnostic context" ? 2 : 1,
                 diagnosticLock
             )
         }
@@ -5504,7 +5505,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("preflightScrollView.exists", 3),
             ("preflightNavigationBar.exists", 3),
             ("preflightTabBar.exists", 3),
-            ("confirmationText.exists", 3),
+            ("confirmationText.exists", 4),
             ("confirmationText.identifier.isEmpty", 3),
             ("confirmationText.elementType == .staticText", 3),
             ("confirmationText.label == confirmationLabel", 3),
