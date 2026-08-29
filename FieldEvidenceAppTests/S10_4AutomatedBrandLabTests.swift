@@ -8134,10 +8134,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 workEditingPositioningStartRange.lowerBound..<workEditingPositioningEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(workEditingPositioningSource.utf8.count, 17_951)
+        XCTAssertEqual(workEditingPositioningSource.utf8.count, 19_790)
         XCTAssertEqual(
             Data(workEditingPositioningSource.utf8).sha256,
-            "A78F2B7A384412F7DEB46100F8EC161DF4C27FAC573FE8523C9AB8D0FEF371EF"
+            "3A4EEEACC60CC7C7886A9D1044AF2ED5165099FFF0D18162F425B64999FB431E"
         )
         let workEditingRouteBeforeEvidence =
             #"        let workPreview = element("s5.1.work.photo", in: app)"# + "\n" +
@@ -8187,7 +8187,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workEditingEvidenceBoundary =
             "        var workEditingAXTextFallbackAccepted = false\n" +
                 "        if preparesWorkEditingEvidence {\n" +
-                "        guard workHelperTexts.count == 1,"
+                "        guard workHelperTextBindingsAreValid(),"
         XCTAssertEqual(
             workEditingPositioningSource.components(
                 separatedBy: workEditingEvidenceBoundary
@@ -8208,6 +8208,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "        let workHelperTexts = app.staticTexts.matching(\n" +
                 #"            NSPredicate(format: "label == %@", workHelperLabel)"# + "\n" +
                 "        )\n" +
+                "        let minimumOSWorkHelperDuplicateExpected =\n" +
+                "            automationShard?.deviceProfileID\n" +
+                #"                == "iphone-se-3-ios-18.0-minimum""# + "\n" +
+                "        let expectedWorkHelperTextCount =\n" +
+                "            minimumOSWorkHelperDuplicateExpected ? 2 : 1\n" +
                 "        let workScrollViews = app.scrollViews.containing(\n" +
                 "            .image,\n" +
                 #"            identifier: "s5.1.work.photo""# + "\n" +
@@ -8218,6 +8223,56 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(
             workEditingPositioningSource.components(
                 separatedBy: workEditingPassiveBindings
+            ).count - 1,
+            1
+        )
+        let workEditingMinimumOSHelperDisambiguation =
+            "        let workHelper = workHelperTexts.firstMatch\n" +
+                "        let minimumOSWorkImportFixtureLabel = workHelperTexts.element(boundBy: 1)\n" +
+                "        let workScrollView = workScrollViews.firstMatch\n" +
+                "        let workNavigationBar = workNavigationBars.firstMatch\n" +
+                "        let verticalInset: CGFloat = 16\n" +
+                "        let receiverInset: CGFloat = 24\n" +
+                "        let minimumGestureDistance: CGFloat = 44\n"
+        XCTAssertEqual(
+            workEditingPositioningSource.components(
+                separatedBy: workEditingMinimumOSHelperDisambiguation
+            ).count - 1,
+            1
+        )
+        let workEditingMinimumOSHelperValidation =
+            "        let workHelperTextBindingsAreValid: () -> Bool = {\n" +
+                "            guard workHelperTexts.count == expectedWorkHelperTextCount else {\n" +
+                "                return false\n" +
+                "            }\n" +
+                "            guard minimumOSWorkHelperDuplicateExpected else {\n" +
+                "                return true\n" +
+                "            }\n" +
+                "            guard workHelper.exists,\n" +
+                "                  importPhoto.exists,\n" +
+                "                  minimumOSWorkImportFixtureLabel.exists else {\n" +
+                "                return false\n" +
+                "            }\n" +
+                "            let helperFrame = workHelper.frame\n" +
+                "            let importFixtureFrame = importPhoto.frame\n" +
+                "            let nestedLabelFrame = minimumOSWorkImportFixtureLabel.frame\n" +
+                "            return importPhoto.elementType == .button\n" +
+                #"                && importPhoto.identifier == "s5.1.work.import-fixture""# + "\n" +
+                "                && importPhoto.label == workHelperLabel\n" +
+                "                && minimumOSWorkImportFixtureLabel.elementType == .staticText\n" +
+                "                && minimumOSWorkImportFixtureLabel.identifier.isEmpty\n" +
+                "                && minimumOSWorkImportFixtureLabel.label == workHelperLabel\n" +
+                #"                && (minimumOSWorkImportFixtureLabel.value as? String) == """# + "\n" +
+                "                && workEditingFrameIsValid(helperFrame)\n" +
+                "                && workEditingFrameIsValid(importFixtureFrame)\n" +
+                "                && workEditingFrameIsValid(nestedLabelFrame)\n" +
+                "                && nestedLabelFrame == importFixtureFrame\n" +
+                "                && helperFrame != nestedLabelFrame\n" +
+                "                && helperFrame.maxY < nestedLabelFrame.minY\n" +
+                "        }"
+        XCTAssertEqual(
+            workEditingPositioningSource.components(
+                separatedBy: workEditingMinimumOSHelperValidation
             ).count - 1,
             1
         )
@@ -8235,12 +8290,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
         for (workEditingIdentityLock, count) in [
-            ("workHelperTexts.count == 1", 5),
+            ("workHelperTextBindingsAreValid()", 5),
+            ("workHelperTexts.count == 1", 0),
             ("workPreviewImages.count == 1", 1),
             ("workScrollViews.count == 1", 5),
             ("workNavigationBars.count == 1", 5),
             ("workEditingTabBars.count == 1", 1),
-            ("workHelper.exists", 5),
+            ("workHelper.exists", 6),
             ("workPreviewImage.exists", 1),
             ("workScrollView.exists", 4),
             ("workNavigationBar.exists", 4),
@@ -8805,10 +8861,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 workSavingPositioningStartRange.lowerBound..<workSavingPositioningEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(workSavingPositioningSource.utf8.count, 24_922)
+        XCTAssertEqual(workSavingPositioningSource.utf8.count, 24_946)
         XCTAssertEqual(
             Data(workSavingPositioningSource.utf8).sha256,
-            "8D720337F71F69119CAD4C66326550D0D4FA426234D7763D81AFE5FB585A1936"
+            "863FCB2B2FB02C6029A55A0EE03CCA7C48A34B04041B8F7ED8E73172BB519605"
         )
         let workSavingRouteBeforeEvidence =
             "        scroll(saveWork, in: app)\n" +
@@ -9082,7 +9138,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("app.state == .runningForeground", 3),
             ("workNoteHeadings.count == 1", 4),
             ("workTabBars.count == 1", 4),
-            ("workHelperTexts.count == 1", 4),
+            ("workHelperTextBindingsAreValid()", 4),
+            ("workHelperTexts.count == 1", 0),
             ("workScrollViews.count == 1", 4),
             ("workNavigationBars.count == 1", 4),
             ("workNoteHeading.exists", 4),
@@ -20475,10 +20532,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 766_584)
+        XCTAssertEqual(uiSource.utf8.count, 768_447)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "769326C94AAE2A4E394CE09EECE7A8547C299AE96FC68EE3A3B199E67C9618B5"
+            "8410FF7EBB410814BE2F83FEC5B640F4356EB526E1B1CAE9DECE4996166A06E6"
         )
         let assertControlSource = try boundedSource(
             uiSource,

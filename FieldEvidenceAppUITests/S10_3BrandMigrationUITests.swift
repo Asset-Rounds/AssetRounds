@@ -4852,6 +4852,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let workHelperTexts = app.staticTexts.matching(
             NSPredicate(format: "label == %@", workHelperLabel)
         )
+        let minimumOSWorkHelperDuplicateExpected =
+            automationShard?.deviceProfileID
+                == "iphone-se-3-ios-18.0-minimum"
+        let expectedWorkHelperTextCount =
+            minimumOSWorkHelperDuplicateExpected ? 2 : 1
         let workScrollViews = app.scrollViews.containing(
             .image,
             identifier: "s5.1.work.photo"
@@ -4860,6 +4865,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             identifier: "Record work"
         )
         let workHelper = workHelperTexts.firstMatch
+        let minimumOSWorkImportFixtureLabel = workHelperTexts.element(boundBy: 1)
         let workScrollView = workScrollViews.firstMatch
         let workNavigationBar = workNavigationBars.firstMatch
         let verticalInset: CGFloat = 16
@@ -4882,9 +4888,38 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && frame.size.width.isFinite
                 && frame.size.height.isFinite
         }
+        let workHelperTextBindingsAreValid: () -> Bool = {
+            guard workHelperTexts.count == expectedWorkHelperTextCount else {
+                return false
+            }
+            guard minimumOSWorkHelperDuplicateExpected else {
+                return true
+            }
+            guard workHelper.exists,
+                  importPhoto.exists,
+                  minimumOSWorkImportFixtureLabel.exists else {
+                return false
+            }
+            let helperFrame = workHelper.frame
+            let importFixtureFrame = importPhoto.frame
+            let nestedLabelFrame = minimumOSWorkImportFixtureLabel.frame
+            return importPhoto.elementType == .button
+                && importPhoto.identifier == "s5.1.work.import-fixture"
+                && importPhoto.label == workHelperLabel
+                && minimumOSWorkImportFixtureLabel.elementType == .staticText
+                && minimumOSWorkImportFixtureLabel.identifier.isEmpty
+                && minimumOSWorkImportFixtureLabel.label == workHelperLabel
+                && (minimumOSWorkImportFixtureLabel.value as? String) == ""
+                && workEditingFrameIsValid(helperFrame)
+                && workEditingFrameIsValid(importFixtureFrame)
+                && workEditingFrameIsValid(nestedLabelFrame)
+                && nestedLabelFrame == importFixtureFrame
+                && helperFrame != nestedLabelFrame
+                && helperFrame.maxY < nestedLabelFrame.minY
+        }
         let workEditingComposition: () -> Bool = {
             app.state == .runningForeground
-                && workHelperTexts.count == 1
+                && workHelperTextBindingsAreValid()
                 && workPreviewImages.count == 1
                 && workScrollViews.count == 1
                 && workNavigationBars.count == 1
@@ -4924,7 +4959,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         var initialHelperToPreviewSeparation: CGFloat?
         var workEditingAXTextFallbackAccepted = false
         if preparesWorkEditingEvidence {
-        guard workHelperTexts.count == 1,
+        guard workHelperTextBindingsAreValid(),
               workScrollViews.count == 1,
               workNavigationBars.count == 1 else {
             XCTFail("Record-work editing positioning bindings are ambiguous.")
@@ -4990,7 +5025,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         var provenGestureCount = 0
         for _ in 0..<4 {
             guard app.state == .runningForeground,
-                  workHelperTexts.count == 1,
+                  workHelperTextBindingsAreValid(),
                   workScrollViews.count == 1,
                   workNavigationBars.count == 1,
                   workHelper.exists,
@@ -5124,7 +5159,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 }
                 provenGestureCount += 1
             }
-            guard workHelperTexts.count == 1,
+            guard workHelperTextBindingsAreValid(),
                   workScrollViews.count == 1,
                   workNavigationBars.count == 1,
                   workHelper.exists,
@@ -5204,7 +5239,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             workPreviewHittabilityAccepted = finalWorkPreviewIsHittable
         }
         guard app.state == .runningForeground,
-              workHelperTexts.count == 1,
+              workHelperTextBindingsAreValid(),
               workScrollViews.count == 1,
               workNavigationBars.count == 1,
               workHelper.exists,
@@ -5282,7 +5317,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         guard app.state == .runningForeground,
               workNoteHeadings.count == 1,
               workTabBars.count == 1,
-              workHelperTexts.count == 1,
+              workHelperTextBindingsAreValid(),
               workScrollViews.count == 1,
               workNavigationBars.count == 1,
               workNoteHeading.exists,
@@ -5305,7 +5340,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             guard app.state == .runningForeground,
                   workNoteHeadings.count == 1,
                   workTabBars.count == 1,
-                  workHelperTexts.count == 1,
+                  workHelperTextBindingsAreValid(),
                   workScrollViews.count == 1,
                   workNavigationBars.count == 1,
                   (!workEditingAXTextEnabled
@@ -5552,7 +5587,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             )
             guard workNoteHeadings.count == 1,
                   workTabBars.count == 1,
-                  workHelperTexts.count == 1,
+                  workHelperTextBindingsAreValid(),
                   workScrollViews.count == 1,
                   workNavigationBars.count == 1,
                   (!workEditingAXTextEnabled
@@ -5721,7 +5756,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         guard app.state == .runningForeground,
               workNoteHeadings.count == 1,
               workTabBars.count == 1,
-              workHelperTexts.count == 1,
+              workHelperTextBindingsAreValid(),
               workScrollViews.count == 1,
               workNavigationBars.count == 1,
               (!workEditingAXTextEnabled
