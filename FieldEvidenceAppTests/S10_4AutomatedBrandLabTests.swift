@@ -5192,10 +5192,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 preflightVisibleStartRange.lowerBound..<preflightMinimumSource.endIndex
             ]
         )
-        XCTAssertEqual(preflightVisibleSource.utf8.count, 31_479)
+        XCTAssertEqual(preflightVisibleSource.utf8.count, 31_636)
         XCTAssertEqual(
             Data(preflightVisibleSource.utf8).sha256,
-            "27917894D5B077D615D52C4A1186C0C9941B03F31860625986839A9886C5CCFF"
+            "73A33CE6CA824BEFA18D23483C974A34DEDAB7AA9C6220C63682C9ECBB271BE6"
         )
         let minimumPreflightQuickPathWrapperStart =
             "                    let minimumPreflightQuickPathIntroductionViews ="
@@ -5230,10 +5230,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             Data(minimumPreflightQuickPathWrapperSource.utf8).sha256,
             "B99E943C870A4FA3B6E042AC727F480ED4E84FF8B4527A7214A9E58778A91292"
         )
-        XCTAssertEqual(minimumPreflightQuickPathCommonTailSource.utf8.count, 16_378)
+        XCTAssertEqual(minimumPreflightQuickPathCommonTailSource.utf8.count, 16_535)
         XCTAssertEqual(
             Data(minimumPreflightQuickPathCommonTailSource.utf8).sha256,
-            "468D540185455C67D65AF09EB0B7207E1AE524CAE03A708A92216DC724AD9B1D"
+            "EBFA660004093BCD143377DFF6F46FC35C2C7F5491FE314190194D2A6EC5A962"
         )
         let minimumDoubleLengthPositioningGate =
             "                    if automationShard?.shardID\n" +
@@ -6422,6 +6422,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let currentProfileQuickPathPrecededByMinimumFinalGuard =
             preflightFinalFailure + "\n                }\n            }\n        }\n" +
+                #"        if automationShard?.shardID == "s10.4.minimum.double-length" {"# +
+                "\n            try diagnoseMinimumDoubleLengthPreflightNativeContrast(in: app)\n" +
+                "        }\n" +
                 currentProfilePreflightQuickPathGate
         XCTAssertEqual(
             uiSource.components(
@@ -15223,7 +15226,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             uiSource.components(
                 separatedBy: "state.sign-detail.delete-confirmation"
             ).count - 1,
-            4
+            5
         )
         let doubleLengthGateStart =
             "        let runsMinimumDoubleLengthDeleteComposition ="
@@ -22733,7 +22736,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from:
                 "    @MainActor\n" +
                     "    private func diagnoseSegment3AXTextSignSelectionNativeContrast(",
-            before: "\n\n    private func publicAuditSignatureObject("
+            before:
+                "\n\n    @MainActor\n" +
+                    "    private func diagnoseMinimumDoubleLengthPreflightNativeContrast("
         )
         XCTAssertEqual(signSelectionDiagnosticSource.utf8.count, 11_417)
         XCTAssertEqual(
@@ -24527,8 +24532,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
 
         let restoredVisibleIssueCallChainLocks = [
-            "        completeVisibleIssueCheck(in: app)",
-            "    private func completeVisibleIssueCheck(in app: XCUIApplication) {",
+            "        try completeVisibleIssueCheck(in: app)",
+            "    private func completeVisibleIssueCheck(in app: XCUIApplication) throws {",
         ]
         for lock in restoredVisibleIssueCallChainLocks {
             XCTAssertEqual(
@@ -24549,10 +24554,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
         for throwingForm in [
-            "        try completeVisibleIssueCheck(in: app)",
             "        try? completeVisibleIssueCheck(in: app)",
             "        try! completeVisibleIssueCheck(in: app)",
-            "    private func completeVisibleIssueCheck(in app: XCUIApplication) throws {",
             "        try recoverCameraDenialAndResume(in: app)",
             "        try? recoverCameraDenialAndResume(in: app)",
             "        try! recoverCameraDenialAndResume(in: app)",
@@ -24567,7 +24570,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let exactTopRouteCallChain =
             "        assertLightFirstSignValidationAndCreation(in: app)\n" +
-                "        completeVisibleIssueCheck(in: app)\n" +
+                "        try completeVisibleIssueCheck(in: app)\n" +
                 "        assertFirstReceiptAndReport(in: app)"
         let exactCaptureRouteCallChain =
             "        captureBaseline(\"state.capture.wide-ready\", in: app)\n" +
