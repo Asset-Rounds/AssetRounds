@@ -120,8 +120,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 234_174,
-            sha256: "1563212EE99FF76636B20358BE292384631A849F26101E957E2E6D51EEFEA180"
+            byteCount: 234_118,
+            sha256: "77AFE9E4FBE2D10E49DE98338116073BF591D36CE7067260F8900FAF8138FC57"
         )
         let workflowSource = try text(workflowPath)
         let currentF25WatchdogTuple = "] == [420, 900, 1200, 1920, 4500]"
@@ -824,10 +824,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workerExecutionSource = String(
             workflowSource[workerExecutionStart.lowerBound..<workerExecutionEnd.lowerBound]
         )
-        XCTAssertEqual(workerExecutionSource.utf8.count, 101_073)
+        XCTAssertEqual(workerExecutionSource.utf8.count, 101_017)
         XCTAssertEqual(
             Data(workerExecutionSource.utf8).sha256,
-            "0147AF8E6E475F8595528E9CDA1E733C305F866C4B03B016E43A35EF6C1F5DA2"
+            "224C3D81CAA20A20A638EA7C96A553AD0FD9AAAF8A716ACAE664EF5D3BC07F3D"
         )
         let warpScopeSource = String(
             warpJobSource[warpScopeStart.lowerBound..<warpExecutionStart.lowerBound]
@@ -23567,9 +23567,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "test \"$CI_RUNNER_LABEL\" = \"bitrise-m4-pro\"",
             "none:iphone-17-ios-26.2-current)",
             "none:iphone-se-3-ios-18.0-minimum)",
-            "segment-1:iphone-17-ios-26.2-current |",
-            "segment-2:iphone-17-ios-26.2-current |",
-            "segment-3:iphone-17-ios-26.2-current)",
+            "segment-1:iphone-17-ios-26.2-current | segment-2:iphone-17-ios-26.2-current | segment-3:iphone-17-ios-26.2-current)",
             "test \"$CI_S10_4_RUNTIME_DOWNLOAD_VERSION\" = \"18.0\"",
             "CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION=\"$SIMULATOR_RUNTIME_BUILD\"",
             "test \"$CI_S10_4_SHARD_ID\" = \"s10.4.current.ax-text\"",
@@ -23602,9 +23600,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "bitrise:bitrise-m4-pro",
             "case \"$CI_S10_4_SEGMENT_ID:$CI_S10_4_DEVICE_PROFILE_ID\" in",
             "none:iphone-17-ios-26.2-current | none:iphone-se-3-ios-18.0-minimum) ;;",
-            "segment-1:iphone-17-ios-26.2-current |",
-            "segment-2:iphone-17-ios-26.2-current |",
-            "segment-3:iphone-17-ios-26.2-current)",
+            "segment-1:iphone-17-ios-26.2-current | segment-2:iphone-17-ios-26.2-current | segment-3:iphone-17-ios-26.2-current)",
             "test \"$CI_S10_4_SHARD_ID\" = \"s10.4.current.ax-text\"",
             "test \"${RUNNER_ARCH:-}\" = \"ARM64\"",
             "test \"$(uname -m)\" = \"arm64\"",

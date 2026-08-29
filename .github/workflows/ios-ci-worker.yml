@@ -452,9 +452,7 @@ jobs:
                   test "$CI_S10_4_PROVISION_RUNTIME" = "true"
                   test "$CI_S10_4_RUNTIME_DOWNLOAD_VERSION" = "18.0"
                   ;;
-                segment-1:iphone-17-ios-26.2-current |
-                segment-2:iphone-17-ios-26.2-current |
-                segment-3:iphone-17-ios-26.2-current)
+                segment-1:iphone-17-ios-26.2-current | segment-2:iphone-17-ios-26.2-current | segment-3:iphone-17-ios-26.2-current)
                   test "$CI_S10_4_SHARD_ID" = "s10.4.current.ax-text"
                   test "$CI_S10_4_PROVISION_RUNTIME" = "false"
                   test -z "$CI_S10_4_RUNTIME_DOWNLOAD_VERSION"
@@ -738,9 +736,7 @@ jobs:
           test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" = "bitrise:bitrise-m4-pro"
           case "$CI_S10_4_SEGMENT_ID:$CI_S10_4_DEVICE_PROFILE_ID" in
             none:iphone-17-ios-26.2-current | none:iphone-se-3-ios-18.0-minimum) ;;
-            segment-1:iphone-17-ios-26.2-current |
-            segment-2:iphone-17-ios-26.2-current |
-            segment-3:iphone-17-ios-26.2-current)
+            segment-1:iphone-17-ios-26.2-current | segment-2:iphone-17-ios-26.2-current | segment-3:iphone-17-ios-26.2-current)
               test "$CI_S10_4_SHARD_ID" = "s10.4.current.ax-text"
               ;;
             *) exit 1 ;;
