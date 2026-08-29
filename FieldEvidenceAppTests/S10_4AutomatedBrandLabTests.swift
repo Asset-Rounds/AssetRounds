@@ -9822,6 +9822,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let captureBaselineStart =
             "    @MainActor\n" +
                 "    private func captureBaseline("
+        let currentWorkSavingDiagnosticStart =
+            "    @MainActor\n" +
+                "    private func diagnoseCurrentWorkSavingNativeContrast("
         let segmentedReplayHelperStart =
             "    @MainActor\n" +
                 "    private func replaySegmentPrefixIfNeeded("
@@ -9837,9 +9840,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "\n    private func isActive("
         guard let captureBaselineStartRange = uiSource.range(
             of: captureBaselineStart
+        ), let currentWorkSavingDiagnosticStartRange = uiSource.range(
+            of: currentWorkSavingDiagnosticStart,
+            range: captureBaselineStartRange.upperBound ..< uiSource.endIndex
         ), let preparationPredicateHelperStartRange = uiSource.range(
             of: preparationPredicateHelperStart,
-            range: captureBaselineStartRange.upperBound ..< uiSource.endIndex
+            range: currentWorkSavingDiagnosticStartRange.upperBound ..<
+                uiSource.endIndex
         ), let segmentedReplayHelperStartRange = uiSource.range(
             of: segmentedReplayHelperStart,
             range: preparationPredicateHelperStartRange.upperBound ..< uiSource.endIndex
@@ -9855,7 +9862,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             return
         }
         let restoredCaptureBaselineEnd = uiSource.index(
-            preparationPredicateHelperStartRange.lowerBound,
+            currentWorkSavingDiagnosticStartRange.lowerBound,
             offsetBy: -2
         )
         let restoredCaptureBaselineSource = String(
@@ -9864,16 +9871,31 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     restoredCaptureBaselineEnd
             ]
         )
+        let currentWorkSavingDiagnosticEnd = uiSource.index(
+            preparationPredicateHelperStartRange.lowerBound,
+            offsetBy: -2
+        )
+        let currentWorkSavingDiagnosticSource = String(
+            uiSource[
+                currentWorkSavingDiagnosticStartRange.lowerBound ..<
+                    currentWorkSavingDiagnosticEnd
+            ]
+        )
         let issueRecheckDuePositioningHelperSource = String(
             uiSource[
                 issueRecheckDuePositioningHelperStartRange.lowerBound ..<
                     issueRecheckDuePositioningHelperEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 8_139)
+        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 8_693)
         XCTAssertEqual(
             Data(restoredCaptureBaselineSource.utf8).sha256,
-            "20B29BCDC20E2E4720307D9BCD74166B4AACCECE57141C085D7FC88C33721035"
+            "1DD6C48EA3A5AE2B8003B6FE67F7B158D152EA2A69BF90DE3AA7C6D3AAFB5308"
+        )
+        XCTAssertEqual(currentWorkSavingDiagnosticSource.utf8.count, 10_238)
+        XCTAssertEqual(
+            Data(currentWorkSavingDiagnosticSource.utf8).sha256,
+            "B902A952183B7851EEE0561EEA96376B8C416994916F1610A380BD506443C034"
         )
         XCTAssertEqual(issueRecheckDuePositioningHelperSource.utf8.count, 23_849)
         XCTAssertEqual(
@@ -9883,11 +9905,143 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let normalEligibleExceptionsBinding =
             "            let eligibleExceptions = " +
                 "Self.contrastAuditExceptionSignatures.filter {"
+        let currentWorkSavingDiagnosticGate =
+            "        do {\n" +
+                "            let currentWorkSavingDiagnosticShardIDs: Set<String> = [\n" +
+                "                \"s10.4.current.default-light\",\n" +
+                "                \"s10.4.current.default-dark\",\n" +
+                "                \"s10.4.current.differentiate-without-color\",\n" +
+                "            ]\n" +
+                "            if stateID == \"state.work.saving\",\n" +
+                "               currentWorkSavingDiagnosticShardIDs.contains(shard.shardID) {\n" +
+                "                try diagnoseCurrentWorkSavingNativeContrast(\n" +
+                "                    in: app,\n" +
+                "                    shard: shard,\n" +
+                "                    stateID: stateID\n" +
+                "                )\n" +
+                "            }\n" +
+                normalEligibleExceptionsBinding
         XCTAssertEqual(
             restoredCaptureBaselineSource.components(
-                separatedBy: "        do {\n" + normalEligibleExceptionsBinding
+                separatedBy: currentWorkSavingDiagnosticGate
             ).count - 1,
             1
+        )
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: currentWorkSavingDiagnosticGate
+            ).count - 1,
+            1
+        )
+
+        let currentWorkSavingDiagnosticQueryNames = [
+            "workScreens",
+            "descriptionFields",
+            "shortDescriptionStaticTexts",
+            "savingStatuses",
+            "noteHeadings",
+            "helperTexts",
+            "workScrollViews",
+            "navigationBars",
+            "tabBars",
+            "workPhotos",
+        ]
+        for queryName in currentWorkSavingDiagnosticQueryNames {
+            XCTAssertEqual(
+                currentWorkSavingDiagnosticSource.components(
+                    separatedBy: "\"\(queryName)\""
+                ).count - 1,
+                1,
+                queryName
+            )
+        }
+        for diagnosticPrefix in [
+            "S10_4_CURRENT_WORK_SAVING_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
+            "S10_4_CURRENT_WORK_SAVING_NATIVE_CONTRAST_ISSUE_DIAGNOSTIC",
+            "S10_4_CURRENT_WORK_SAVING_NATIVE_CONTRAST_COUNT_DIAGNOSTIC",
+        ] {
+            XCTAssertEqual(
+                currentWorkSavingDiagnosticSource.components(
+                    separatedBy: diagnosticPrefix
+                ).count - 1,
+                1,
+                diagnosticPrefix
+            )
+        }
+        for diagnosticAttachmentName in [
+            "S10.4 current Record-work saving native contrast diagnostic app",
+            "S10.4 current Record-work saving native contrast diagnostic tree",
+            "S10.4 current Record-work saving native contrast diagnostic context",
+            "S10.4 current Record-work saving native contrast diagnostic audited element ",
+        ] {
+            XCTAssertEqual(
+                currentWorkSavingDiagnosticSource.components(
+                    separatedBy: diagnosticAttachmentName
+                ).count - 1,
+                1,
+                diagnosticAttachmentName
+            )
+        }
+        for diagnosticPublicField in [
+            "auditTypeRawValue",
+            "compactDescription",
+            "detailedDescription",
+            "elementExists",
+            "elementEnabled",
+            "elementHittable",
+            "elementIdentifier",
+            "elementLabel",
+            "elementValue",
+            "elementTypeRawValue",
+            "elementTypeDescription",
+            "elementFrame",
+            "applicationFrame",
+        ] {
+            XCTAssertTrue(
+                currentWorkSavingDiagnosticSource.contains(
+                    "\"\(diagnosticPublicField)\""
+                ),
+                diagnosticPublicField
+            )
+        }
+        for (diagnosticInvariant, count) in [
+            ("acceptanceEligible", 3),
+            ("performAccessibilityAudit(for: .contrast)", 1),
+            ("return true", 1),
+            ("return false", 0),
+            ("XCTAttachment(screenshot:", 1),
+            ("XCTAttachment(string:", 1),
+            (".lifetime = .keepAlways", 4),
+            ("stateOrdinal", 3),
+            ("state.work.saving", 1),
+            ("completed nonaccepting", 1),
+            ("captureBaseline(", 0),
+            ("attachCandidate(", 0),
+            ("print(\"S10_MIGRATION_STATE", 0),
+            (".tap()", 0),
+            (".swipe", 0),
+            ("press(", 0),
+            ("waitForExistence", 0),
+            ("Thread.sleep", 0),
+            ("sleep(", 0),
+        ] {
+            XCTAssertEqual(
+                currentWorkSavingDiagnosticSource.components(
+                    separatedBy: diagnosticInvariant
+                ).count - 1,
+                count,
+                diagnosticInvariant
+            )
+        }
+        XCTAssertTrue(
+            currentWorkSavingDiagnosticSource.contains(
+                "self.auditFrameObject(element.frame)"
+            )
+        )
+        XCTAssertTrue(
+            currentWorkSavingDiagnosticSource.contains(
+                "self.auditFrameObject(app.frame)"
+            )
         )
 
         let issueRecheckDueRouteStart =
@@ -20297,10 +20451,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 748_749)
+        XCTAssertEqual(uiSource.utf8.count, 759_543)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "76F5C1029E4CADACFCD563B302B50F7726A643DA710A8EBAABB2744D9B5744E0"
+            "681A511D62D377E97A6C00AE55B605B608FCD24E08676D81E9F8ACC68FF47D6E"
         )
         let assertControlSource = try boundedSource(
             uiSource,
