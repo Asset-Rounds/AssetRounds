@@ -391,3 +391,44 @@ struct PackageSandboxRunnerV1: Sendable {
         )
     }
 }
+
+// MARK: - C25 survey-definition sandbox boundary
+
+enum SurveyDefinitionPackageSandboxPolicyV1 {
+    static let validatesClosedFieldSet = true
+    static let validatesConditionalReachability = true
+    static let validatesDraftOnlyImport = true
+    static let doesNotExecuteRuntimeCode = true
+    static let doesNotCreatePackageStorage = true
+    static let doesNotMutateActivePointer = true
+    static let doesNotPersistAnswers = true
+    static let excludesActorIdentity = true
+    static let excludesPrivateLocators = true
+
+    static func validateCandidate(
+        _ release: SurveyDefinitionReleaseV1,
+        lifecycleState: SurveyDefinitionLifecycleStateV1 = .draft
+    ) throws -> SurveyDefinitionReleaseReferenceV1 {
+        try release.validate()
+        guard lifecycleState == .draft,
+              validatesClosedFieldSet,
+              validatesConditionalReachability,
+              validatesDraftOnlyImport,
+              doesNotExecuteRuntimeCode,
+              doesNotCreatePackageStorage,
+              doesNotMutateActivePointer,
+              doesNotPersistAnswers,
+              excludesActorIdentity,
+              excludesPrivateLocators else {
+            throw SurveyDefinitionConsumerFailureV1.privacyViolation
+        }
+        return try SurveyDefinitionReleaseReferenceV1(release)
+    }
+}
+
+extension PackageSandboxRunnerV1 {
+    static let surveyDefinitionImportDisposition =
+        "QUARANTINE_THEN_NEW_DRAFT_IDENTITY"
+    static let surveyDefinitionReplayDisposition =
+        "DROP_UNACCEPTED_PREVIEW_AND_REBUILD_DERIVED_CONSUMERS"
+}

@@ -703,3 +703,15 @@ extension S8_3DiagnosticPrivacyTests {
         XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
     }
 }
+extension S8_3DiagnosticPrivacyTests {
+    func testC25SurveyDefinitionTypedAnchor() throws {
+        let settings = try SettingsRegistryV1.current()
+        let recent = try settings.descriptor(for: "device.recentInputMemory")
+        XCTAssertEqual(recent.scope, .deviceLocal)
+        XCTAssertEqual(recent.backup, .excludedDeviceLocal)
+        XCTAssertEqual(recent.privacy, .devicePreferenceNoCustomerData)
+        XCTAssertEqual(SurveyDefinitionDeviceMemoryV1.favoriteKey, "device.surveyDefinition.favoriteIDs")
+        XCTAssertEqual(SurveyDefinitionDeviceMemoryV1.recentsKey, "device.surveyDefinition.recentIDs")
+        XCTAssertNoThrow(try SurveyDefinitionDeviceMemoryV1.validatePolicy())
+    }
+}

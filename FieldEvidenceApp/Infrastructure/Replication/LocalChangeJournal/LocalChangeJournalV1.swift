@@ -162,6 +162,7 @@ final class LocalChangeJournalV1 {
         try receipts.forEach { try IntegrationEventProjectionV1.validateClientCapabilityReceiptShape($0) }
         try receipts.forEach { try IntegrationEventProjectionV1.validateFieldReferenceReceiptShape($0) }
         try receipts.forEach { try IntegrationEventProjectionV1.validateAccessibleDocumentAssessmentReceiptShape($0) }
+        try receipts.forEach { try IntegrationEventProjectionV1.validateSurveyDefinitionReceiptShape($0) }
         return receipts
     }
 
@@ -574,6 +575,7 @@ final class LocalChangeJournalV1 {
             try FieldDraftJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)
             try FieldReferenceJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)
             try AccessibleDocumentAssessmentJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)
+            try SurveyDefinitionJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)
             let disposition: MutationReplayDispositionV1
             if blocked {
                 disposition = try .init(mutationID: change.envelope.mutationID, disposition: .deferredGap, reasonCode: "PRIOR_CAUSAL_GAP")

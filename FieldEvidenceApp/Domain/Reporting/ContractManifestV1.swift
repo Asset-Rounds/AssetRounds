@@ -167,6 +167,40 @@ struct ContractFieldDefinitionV1: Codable, Equatable, Hashable, Comparable, Send
     }
 }
 
+// MARK: - C25 report consumer manifest boundary
+
+enum SurveyDefinitionContractManifestBoundaryV1 {
+    static let persistentSchema = "PERSISTENT_SCHEMA_V24_SURVEY_DEFINITION_IDENTITY_AND_RELEASE"
+    static let durableFamilies = [
+        "SurveyDefinitionIdentityV1",
+        "SurveyDefinitionReleaseV1",
+    ]
+    static let lifecycleBytesRemainInExistingMutationEnvelope = true
+    static let semanticDiffPersistence = "NONPERSISTENT"
+    static let adoptionPreviewPersistence = "NONPERSISTENT"
+    static let reportProjectionPersistence = "DERIVED_ONLY"
+    static let reportProjectionVersion = SurveyDefinitionConsumerPolicyV1.projectionVersion
+    static let historicArtifactsImmutable = true
+    static let addsNoStorageTable = true
+    static let addsNoSecondWriter = true
+
+    static func validate() throws {
+        guard durableFamilies == [
+                "SurveyDefinitionIdentityV1",
+                "SurveyDefinitionReleaseV1",
+            ],
+            lifecycleBytesRemainInExistingMutationEnvelope,
+            semanticDiffPersistence == "NONPERSISTENT",
+            adoptionPreviewPersistence == "NONPERSISTENT",
+            reportProjectionPersistence == "DERIVED_ONLY",
+            historicArtifactsImmutable,
+            addsNoStorageTable,
+            addsNoSecondWriter else {
+            throw SurveyDefinitionConsumerFailureV1.invalidValue
+        }
+    }
+}
+
 struct ContractObjectDefinitionV1: Codable, Equatable, Hashable, Comparable, Sendable {
     private enum CodingKeys: String, CodingKey, CaseIterable { case typeID, version, unknownFieldPolicy, fields }
 

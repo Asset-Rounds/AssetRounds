@@ -40,6 +40,7 @@ actor IntegrationProjectionCheckpointStoreV1: IntegrationProjectionOperationalSt
             try IntegrationProjectionCheckpointStoreV1.validateClientCapabilityEventPage(events)
             try IntegrationProjectionCheckpointStoreV1.validateFieldReferenceEventPage(events)
             try IntegrationProjectionCheckpointStoreV1.validateAccessibleDocumentAssessmentEventPage(events)
+            try IntegrationProjectionCheckpointStoreV1.validateSurveyDefinitionEventPage(events)
             guard schemaVersion == Self.schemaVersion,
                   generationID == expectedGenerationID,
                   workspaceID == expectedWorkspaceID,
@@ -145,6 +146,7 @@ actor IntegrationProjectionCheckpointStoreV1: IntegrationProjectionOperationalSt
     private static func validateClientCapabilityEventPage(_ events:[IntegrationEventV1])throws{let grouped=Dictionary(grouping:events,by:\.sourceReceiptID);for page in grouped.values{let subjects=page.map(\.subject),present=Set(subjects.map(\.kind)).intersection(IntegrationEventProjectionV1.clientCapabilityKinds);guard present.isEmpty || (page.count==1&&Set(subjects).count==1&&subjects.allSatisfy{IntegrationEventProjectionV1.clientCapabilityKinds.contains($0.kind)})else{throw IntegrationEventFailureV1.divergentEvent}}}
     private static func validateFieldReferenceEventPage(_ events:[IntegrationEventV1])throws{let grouped=Dictionary(grouping:events,by:\.sourceReceiptID);for page in grouped.values{let subjects=page.map(\.subject),present=Set(subjects.map(\.kind)).intersection(IntegrationEventProjectionV1.fieldReferenceKinds);guard present.isEmpty || (page.count==1&&Set(subjects).count==1&&subjects.allSatisfy{IntegrationEventProjectionV1.fieldReferenceKinds.contains($0.kind)})else{throw IntegrationEventFailureV1.divergentEvent}}}
     private static func validateAccessibleDocumentAssessmentEventPage(_ events:[IntegrationEventV1])throws{let grouped=Dictionary(grouping:events,by:\.sourceReceiptID);for page in grouped.values{let subjects=page.map(\.subject),present=Set(subjects.map(\.kind)).intersection(IntegrationEventProjectionV1.accessibleDocumentAssessmentKinds);guard present.isEmpty || (page.count==1&&Set(subjects).count==1&&subjects.allSatisfy{IntegrationEventProjectionV1.accessibleDocumentAssessmentKinds.contains($0.kind)})else{throw IntegrationEventFailureV1.divergentEvent}}}
+    private static func validateSurveyDefinitionEventPage(_ events:[IntegrationEventV1])throws{let grouped=Dictionary(grouping:events,by:\.sourceReceiptID);for page in grouped.values{let subjects=page.map(\.subject),present=Set(subjects.map(\.kind)).intersection(IntegrationEventProjectionV1.surveyDefinitionKinds);guard present.isEmpty || ((page.count==1||page.count==2)&&Set(subjects).count==subjects.count&&subjects.contains(where:{$0.kind == .surveyDefinitionIdentity})&&subjects.allSatisfy{IntegrationEventProjectionV1.surveyDefinitionKinds.contains($0.kind)})else{throw IntegrationEventFailureV1.divergentEvent}}}
 
     init(generationRootURL: URL, generationID: UUID, workspaceID: WorkspaceID,
          limits: IntegrationEventLimitsV1 = try! IntegrationEventLimitsV1(),

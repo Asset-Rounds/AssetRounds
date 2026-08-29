@@ -935,3 +935,10 @@ extension S4_3ReportDeliveryTests {
         XCTAssertFalse(FieldReferencePackLifecycleV1.drmOrAccountRequired)
     }
 }
+extension S4_3ReportDeliveryTests {
+    func testC25SurveyDefinitionTypedAnchor() throws {
+        XCTAssertEqual(ActivityKindSemanticsV1(kind: .survey).completion, .typedFactCollection)
+        XCTAssertEqual(SurveyDefinitionLifecycleV1.semanticDiffPersistence, "NONPERSISTENT")
+        XCTAssertEqual(SurveyDefinitionLifecycleV1.adoptionPreviewPersistence, "NONPERSISTENT")
+    }
+}

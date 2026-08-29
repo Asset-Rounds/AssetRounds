@@ -7,6 +7,13 @@ enum InspectionPackageReleaseStateV1: String, CaseIterable, Codable, Sendable {
     case published = "PUBLISHED"
 }
 
+extension InspectionPackageReleaseV1 {
+    func validateSurveyDefinitionRelease(_ survey: SurveyDefinitionReleaseV1) throws {
+        try validate(); try survey.validate()
+        guard survey.ownerPackageID == packageID else { throw InspectionKernelFailureV1.invalidValue }
+    }
+}
+
 enum InspectionPackageAccessibleDocumentBoundaryV1{
     static let semanticTreeMayChangePackageTruth=false
     static let assessmentMayActivatePackageRelease=false

@@ -1056,3 +1056,13 @@ extension V9_01VersionedSchemaIdentityTests {
         XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
     }
 }
+extension V9_01VersionedSchemaIdentityTests {
+    func testC25SurveyDefinitionTypedAnchor() throws {
+        XCTAssertEqual(PersistentSchemaV24.versionIdentifier, Schema.Version(24, 0, 0))
+        XCTAssertEqual(PersistentSchemaV24.models.count, 87)
+        XCTAssertEqual(PersistentSchemaV24.models.count, PersistentSchemaV23.models.count + 2)
+        XCTAssertEqual(CurrentSyncClassificationCatalogV1.activePersistentModelNames.count, 87)
+        let currentSync = try CurrentSyncClassificationCatalogV1.current
+        XCTAssertNoThrow(try currentSync.validate())
+    }
+}

@@ -19,6 +19,15 @@ enum InspectionKernelFailureV1: Error, Equatable, Sendable {
     case publicationInterrupted
 }
 
+enum SurveyWorkflowGrammarBoundaryV1 {
+    static let activityKindCount = 5
+    static let fieldGrammar = "CLOSED_BOUNDED_V1"
+    static let requiredVisibilityPolicy = "ACYCLIC_EXACT_FACT_REFERENCE"
+    static func validateKindRegistry() throws {
+        guard ActivityKindV1.allCases.count == activityKindCount else { throw InspectionKernelFailureV1.invalidValue }
+    }
+}
+
 enum WorkflowNodeKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case section = "SECTION"
     case instruction = "INSTRUCTION"

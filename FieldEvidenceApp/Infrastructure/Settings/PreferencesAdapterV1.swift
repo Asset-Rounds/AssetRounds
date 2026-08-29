@@ -232,6 +232,13 @@ final class PreferencesAdapterV1: DevicePreferencesPortV1, @unchecked Sendable {
                 try requireDeviceLocal(descriptor)
                 if preserveAcknowledgements,
                    descriptor.reset == .preserveAcknowledgement { continue }
+                if SurveyDefinitionDeviceMemoryV1.isPreferenceKey(descriptor.key) {
+                    // Favorites and recents are disposable device memory.  A
+                    // reset or erase removes the envelope rather than
+                    // retaining a stale release pointer or preference bytes.
+                    defaults.removeObject(forKey: storageKey(descriptor.key))
+                    continue
+                }
                 try validate(descriptor.defaultCanonicalValue, descriptor: descriptor)
                 try storeEnvelope(
                     PreferenceStorageEnvelopeV1(
@@ -348,5 +355,117 @@ final class PreferencesAdapterV1: DevicePreferencesPortV1, @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return try body()
+    }
+}
+
+// MARK: - C25 device-local survey-definition memory
+
+extension PreferencesAdapterV1 {
+    func readSurveyDefinitionFavoriteReferences() throws
+        -> [SurveyDefinitionPreferenceReferenceV1] {
+        try readSurveyDefinitionReferences(for: SurveyDefinitionDeviceMemoryV1.favoriteKey)
+    }
+
+    func writeSurveyDefinitionFavoriteReferences(
+        _ values: [SurveyDefinitionPreferenceReferenceV1],
+        operationID: UUID
+    ) throws {
+        try writeSurveyDefinitionReferences(
+            values,
+            key: SurveyDefinitionDeviceMemoryV1.favoriteKey,
+            operationID: operationID
+        )
+    }
+
+    func readSurveyDefinitionRecentReferences() throws
+        -> [SurveyDefinitionPreferenceReferenceV1] {
+        try readSurveyDefinitionReferences(for: SurveyDefinitionDeviceMemoryV1.recentsKey)
+    }
+
+    func writeSurveyDefinitionRecentReferences(
+        _ values: [SurveyDefinitionPreferenceReferenceV1],
+        operationID: UUID
+    ) throws {
+        try writeSurveyDefinitionReferences(
+            values,
+            key: SurveyDefinitionDeviceMemoryV1.recentsKey,
+            operationID: operationID
+        )
+    }
+
+    /// Compatibility spelling for callers that only display stable IDs.  The
+    /// stored value remains the typed reference array and this bridge rejects
+    /// arbitrary strings before they reach the adapter.
+    func readSurveyDefinitionFavoriteIDs() throws -> [String] {
+        try readSurveyDefinitionFavoriteReferences().map(\.stableStorageID)
+    }
+
+    func writeSurveyDefinitionFavoriteIDs(
+        _ values: [String],
+        operationID: UUID
+    ) throws {
+        try writeSurveyDefinitionFavoriteReferences(
+            try SurveyDefinitionDeviceMemoryV1.references(
+                fromStableStorageIDs: values,
+                recencyOrdered: false
+            ),
+            operationID: operationID
+        )
+    }
+
+    func readSurveyDefinitionRecentIDs() throws -> [String] {
+        try readSurveyDefinitionRecentReferences().map(\.stableStorageID)
+    }
+
+    func writeSurveyDefinitionRecentIDs(
+        _ values: [String],
+        operationID: UUID
+    ) throws {
+        try writeSurveyDefinitionRecentReferences(
+            try SurveyDefinitionDeviceMemoryV1.references(
+                fromStableStorageIDs: values,
+                recencyOrdered: true
+            ),
+            operationID: operationID
+        )
+    }
+
+    private func readSurveyDefinitionReferences(
+        for key: String
+    ) throws -> [SurveyDefinitionPreferenceReferenceV1] {
+        let descriptor = try SettingsRegistryV1.current().descriptor(for: key)
+        guard descriptor.valueKind == .surveyDefinitionPreferenceReferenceSet else {
+            throw PreferencesAdapterFailureV1.invalidCanonicalValue
+        }
+        let data = try readCanonicalValue(for: descriptor)
+        let values = try CompatibilityCanonicalV1.decode(
+            [SurveyDefinitionPreferenceReferenceV1].self,
+            from: data
+        )
+        let canonical = try SurveyDefinitionDeviceMemoryV1.canonicalReferences(
+            values,
+            forKey: key
+        )
+        guard canonical == values else {
+            throw PreferencesAdapterFailureV1.invalidCanonicalValue
+        }
+        return values
+    }
+
+    private func writeSurveyDefinitionReferences(
+        _ values: [SurveyDefinitionPreferenceReferenceV1],
+        key: String,
+        operationID: UUID
+    ) throws {
+        let canonical = try SurveyDefinitionDeviceMemoryV1.canonicalReferences(
+            values,
+            forKey: key
+        )
+        let descriptor = try SettingsRegistryV1.current().descriptor(for: key)
+        try writeCanonicalValue(
+            CompatibilityCanonicalV1.encode(canonical),
+            descriptor: descriptor,
+            operationID: operationID
+        )
     }
 }

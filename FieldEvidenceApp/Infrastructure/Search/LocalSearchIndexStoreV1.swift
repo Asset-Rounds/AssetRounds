@@ -933,6 +933,34 @@ extension LocalSearchIndexStoreV1 {
     }
 }
 
+// MARK: - C25 survey-definition adapter
+
+extension LocalSearchIndexStoreV1 {
+    /// Survey definitions contribute only disposable, bounded release
+    /// metadata.  Definition answers, prompts, locators, package payloads,
+    /// and actor identity never enter the local search store.
+    static func surveyDefinitionSearchRecord(
+        from release: SurveyDefinitionReleaseV1,
+        lifecycleState: SurveyDefinitionLifecycleStateV1
+    ) throws -> SurveyDefinitionSearchRecordV1 {
+        let record = try SurveyDefinitionSearchRecordV1(
+            release: release,
+            lifecycleState: lifecycleState
+        )
+        try SurveyDefinitionSearchProjectionPolicyV1.validate(record)
+        try SurveyDefinitionSearchPersistencePolicyV1().validate()
+        return record
+    }
+
+    static func validateSurveyDefinitionSearchRecord(
+        _ record: SurveyDefinitionSearchRecordV1
+    ) throws -> SurveyDefinitionSearchRecordV1 {
+        try SurveyDefinitionSearchProjectionPolicyV1.validate(record)
+        try SurveyDefinitionSearchPersistencePolicyV1().validate()
+        return record
+    }
+}
+
 private extension LocalSearchIndexStoreV1 {
     nonisolated static func synchronouslyRemoveDerivedBytes(
         applicationSupportURL: URL,

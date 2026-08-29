@@ -2078,3 +2078,39 @@ extension ReportProjectionRegistryV1 {
     static let fieldReferenceProjectionSectionID =
         FieldReferenceReportProjectionPolicyV1.sectionID
 }
+
+// MARK: - C25 survey-definition report projection
+
+extension ReportProjectionRegistryV1 {
+    static let surveyDefinitionProjectionSectionID = "survey.definition"
+    static let surveyDefinitionProjectionVersion =
+        SurveyDefinitionConsumerPolicyV1.projectionVersion
+
+    func validateSurveyDefinitionProjection(
+        _ projection: SurveyDefinitionReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> SurveyDefinitionReportProjectionV1 {
+        try validate()
+        try projection.validate(format: format)
+        try SurveyDefinitionContractManifestBoundaryV1.validate()
+        return projection
+    }
+
+    static func validateSurveyDefinitionProjection(
+        _ projection: SurveyDefinitionReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> SurveyDefinitionReportProjectionV1 {
+        try Self().validateSurveyDefinitionProjection(projection, format: format)
+    }
+
+    static func surveyDefinitionProjection(
+        release: SurveyDefinitionReleaseV1,
+        lifecycleState: SurveyDefinitionLifecycleStateV1
+    ) throws -> SurveyDefinitionReportProjectionV1 {
+        let projection = try SurveyDefinitionReportProjectionV1(
+            release: release,
+            lifecycleState: lifecycleState
+        )
+        return try validateSurveyDefinitionProjection(projection)
+    }
+}

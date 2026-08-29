@@ -11,6 +11,13 @@ struct WorkflowGraphValidationReceiptV1: Equatable, Sendable {
     let valid: Bool
 }
 
+extension WorkflowGraphValidatorV1 {
+    static func validate(_ workflow: WorkflowDefinitionV1, surveyRelease: SurveyDefinitionReleaseV1) throws -> WorkflowGraphValidationReceiptV1 {
+        try workflow.validateSurveyDefinition(surveyRelease)
+        return try validate(workflow)
+    }
+}
+
 enum WorkflowGraphValidatorV1 {
     static func validate(
         _ definition: WorkflowDefinitionV1,

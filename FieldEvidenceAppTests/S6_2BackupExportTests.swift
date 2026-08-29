@@ -670,3 +670,10 @@ extension S6_2BackupExportTests {
         XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
     }
 }
+extension S6_2BackupExportTests {
+    func testC25SurveyDefinitionTypedAnchor() throws {
+        XCTAssertEqual(ActivityKindV1.allCases.count, 5)
+        XCTAssertEqual(PersistentSchemaV24.models.count, 87)
+        XCTAssertEqual(V24BackupSurveyDefinitionRecordV1.Kind.allCases.count, 2)
+    }
+}

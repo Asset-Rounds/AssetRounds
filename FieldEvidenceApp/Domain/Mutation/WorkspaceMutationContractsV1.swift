@@ -86,6 +86,8 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case fieldReferenceRelease
     case fieldReferenceBinding
     case accessibleDocumentAssessmentReceipt
+    case surveyDefinitionIdentity
+    case surveyDefinitionRelease
     case workflowRecord
     case evidenceFile
     case issue
@@ -1372,6 +1374,54 @@ enum FieldReferenceMutationV1:Codable,Equatable,Sendable{
 
 struct AccessibleDocumentMutationV1:Codable,Equatable,Sendable{let receipt:AccessibleDocumentAssessmentReceiptV1;var workspaceID:WorkspaceID{receipt.workspaceID};var mutationID:MutationIDV1{receipt.mutationID};var revision:UInt64{receipt.revision};var expectedRevision:UInt64{revision-1};var affectedIdentity:WorkspaceEntityIdentityV1{get throws{try .init(kind:.accessibleDocumentAssessmentReceipt,id:receipt.receiptID)}};var concurrencyIdentity:WorkspaceEntityIdentityV1{get throws{try .init(kind:.accessibleDocumentAssessmentReceipt,id:receipt.supersedesReceiptID ?? receipt.receiptID)}};func validate()throws{try receipt.validateIntrinsic()};func canonicalSHA256()throws->String{try validate();return try WorkspaceMutationCanonicalV1.sha256(self)}}
 
+enum SurveyDefinitionMutationPayloadV1: Codable, Equatable, Sendable {
+    case apply(identity: SurveyDefinitionIdentityV1, release: SurveyDefinitionReleaseV1, event: SurveyDefinitionLifecycleEventV1)
+}
+
+struct SurveyDefinitionMutationV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let identity: SurveyDefinitionIdentityV1
+    let release: SurveyDefinitionReleaseV1
+    let event: SurveyDefinitionLifecycleEventV1
+
+    init(identity: SurveyDefinitionIdentityV1, release: SurveyDefinitionReleaseV1, event: SurveyDefinitionLifecycleEventV1) throws {
+        schemaVersion = Self.schemaVersion
+        self.identity = identity
+        self.release = release
+        self.event = event
+        try validate()
+    }
+
+    var workspaceID: WorkspaceID { identity.workspaceID }
+    var mutationID: MutationIDV1 { identity.mutationID }
+    var revision: UInt64 { identity.revision }
+    var expectedRevision: UInt64 { revision - 1 }
+    var appendsRelease: Bool { event.action != .publish && event.action != .retire }
+    var payload: SurveyDefinitionMutationPayloadV1 { .apply(identity: identity, release: release, event: event) }
+    var affectedIdentities: [WorkspaceEntityIdentityV1] { get throws { var values=[try WorkspaceEntityIdentityV1(kind:.surveyDefinitionIdentity,id:identity.definitionID)];if appendsRelease{values.append(try .init(kind:.surveyDefinitionRelease,id:release.releaseID))};return values.sorted{$0.stableKey<$1.stableKey} } }
+    var concurrencyIdentities: [WorkspaceEntityIdentityV1] { get throws { var values=[try WorkspaceEntityIdentityV1(kind:.surveyDefinitionIdentity,id:identity.definitionID)];if appendsRelease{values.append(try .init(kind:.surveyDefinitionRelease,id:release.supersedesReleaseID ?? release.releaseID))};return values.sorted{$0.stableKey<$1.stableKey} } }
+    func expectedRevision(for concurrencyIdentity: WorkspaceEntityIdentityV1) throws -> UInt64 {
+        switch concurrencyIdentity.kind {
+        case .surveyDefinitionIdentity: return expectedRevision
+        case .surveyDefinitionRelease where appendsRelease: return release.revision - 1
+        default: throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+    }
+
+    func validate() throws {
+        try identity.validate(currentRelease: release, event: event)
+        guard schemaVersion == Self.schemaVersion,
+              identity.workspaceID == release.workspaceID,
+              identity.mutationID == event.mutationID,
+              identity.revision == event.revision,
+              revision > 0,
+              !appendsRelease || identity.mutationID == release.mutationID else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+    }
+
+    func canonicalSHA256() throws -> String { try validate(); return try WorkspaceMutationCanonicalV1.sha256(self) }
+}
+
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
     case createCheckDraft(CheckDraftMutationV1)
@@ -1404,6 +1454,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyClientCapability(ClientCapabilityMutationV1)
     case applyFieldReference(FieldReferenceMutationV1)
     case applyAccessibleDocumentAssessment(AccessibleDocumentMutationV1)
+    case applySurveyDefinition(SurveyDefinitionMutationV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -1438,6 +1489,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyClientCapability:.applyClientCapability
         case .applyFieldReference:.applyFieldReference
         case .applyAccessibleDocumentAssessment:.applyAccessibleDocumentAssessment
+        case .applySurveyDefinition:.applySurveyDefinition
         }
     }
 }
@@ -1474,6 +1526,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyClientCapability="apply_client_capability"
     case applyFieldReference="apply_field_reference"
     case applyAccessibleDocumentAssessment="apply_accessible_document_assessment"
+    case applySurveyDefinition="apply_survey_definition"
 }
 
 extension WorkspaceCommandV1 {
@@ -2222,6 +2275,7 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind:.applyClientCapability,disposition:.irreversible,stableReason:"append_client_capability_forward_fix_only"),
         .init(commandKind:.applyFieldReference,disposition:.irreversible,stableReason:"append_field_reference_forward_fix_only"),
         .init(commandKind:.applyAccessibleDocumentAssessment,disposition:.irreversible,stableReason:"append_accessible_document_assessment_successor_only"),
+        .init(commandKind:.applySurveyDefinition,disposition:.compensatable,stableReason:"append_survey_definition_successor_only"),
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {

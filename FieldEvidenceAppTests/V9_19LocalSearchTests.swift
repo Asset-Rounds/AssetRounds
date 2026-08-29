@@ -1026,3 +1026,10 @@ extension V9_19LocalSearchTests {
         XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
     }
 }
+extension V9_19LocalSearchTests {
+    func testC25SurveyDefinitionTypedAnchor() throws {
+        XCTAssertEqual(SurveyDefinitionLifecycleV1.semanticDiffPersistence, "NONPERSISTENT")
+        XCTAssertEqual(SurveyDefinitionLifecycleV1.adoptionPreviewPersistence, "NONPERSISTENT")
+        XCTAssertFalse(ActivityKindSemanticsV1(kind: .survey).mayClaimReleaseToService)
+    }
+}

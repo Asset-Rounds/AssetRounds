@@ -2017,3 +2017,134 @@ extension DeterministicOpenJSONRendererV1 {
         return envelope.projection
     }
 }
+
+// MARK: - C25 survey-definition Open JSON
+
+struct SurveyDefinitionOpenJSONEnvelopeV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let schema = "SURVEY_DEFINITION_REPORT_OPEN_JSON_V1"
+
+    let schemaVersion: Int
+    let schema: String
+    let locale: String
+    let projection: SurveyDefinitionReportProjectionV1
+    let heading: String
+    let activityKindLabel: String
+    let lifecycleLabel: String
+    let claimBoundary: String
+    let nextStep: String
+
+    init(
+        projection: SurveyDefinitionReportProjectionV1,
+        locale: String = "en"
+    ) throws {
+        try projection.validate(format: .openJSON)
+        guard locale == "en" else {
+            throw SurveyDefinitionConsumerFailureV1.unsupportedFormat
+        }
+        schemaVersion = Self.schemaVersion
+        schema = Self.schema
+        self.locale = locale
+        self.projection = projection
+        heading = BundledLocalizationCatalogV1.localized(.reportHeading)
+        activityKindLabel = BundledLocalizationCatalogV1.localized(
+            SurveyDefinitionLocalizationKeyV1.activityKindKey(
+                projection.metadata.activityKind
+            )
+        )
+        lifecycleLabel = BundledLocalizationCatalogV1.localized(
+            SurveyDefinitionLocalizationKeyV1.lifecycleKey(
+                projection.metadata.lifecycleState
+            )
+        )
+        claimBoundary = BundledLocalizationCatalogV1.localized(.reportClaimBoundary)
+        nextStep = BundledLocalizationCatalogV1.localized(.nextStepReviewRecordedFacts)
+        try validate()
+    }
+
+    func validate() throws {
+        try projection.validate(format: .openJSON)
+        guard schemaVersion == Self.schemaVersion,
+              schema == Self.schema,
+              locale == "en",
+              heading == BundledLocalizationCatalogV1.localized(.reportHeading),
+              activityKindLabel == BundledLocalizationCatalogV1.localized(
+                SurveyDefinitionLocalizationKeyV1.activityKindKey(
+                    projection.metadata.activityKind
+                )
+              ),
+              lifecycleLabel == BundledLocalizationCatalogV1.localized(
+                SurveyDefinitionLocalizationKeyV1.lifecycleKey(
+                    projection.metadata.lifecycleState
+                )
+              ),
+              claimBoundary == BundledLocalizationCatalogV1.localized(.reportClaimBoundary),
+              nextStep == BundledLocalizationCatalogV1.localized(.nextStepReviewRecordedFacts),
+              !SurveyDefinitionConsumerPolicyV1.containsUnsupportedClaim([
+                  heading, activityKindLabel, lifecycleLabel, claimBoundary, nextStep
+              ]) else {
+            throw SurveyDefinitionConsumerFailureV1.privacyViolation
+        }
+    }
+}
+
+extension DeterministicOpenJSONRendererV1 {
+    static func renderSurveyDefinition(
+        _ projection: SurveyDefinitionReportProjectionV1,
+        locale: String = "en"
+    ) throws -> ReportProjectionOutputV1 {
+        let envelope = try SurveyDefinitionOpenJSONEnvelopeV1(
+            projection: projection,
+            locale: locale
+        )
+        let encoder = canonicalEncoder()
+        let data = try encoder.encode(envelope)
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SurveyDefinitionConsumerFailureV1.limitExceeded
+        }
+        guard try encoder.encode(try SurveyDefinitionOpenJSONEnvelopeV1(
+            projection: envelope.projection,
+            locale: envelope.locale
+        )) == data else {
+            throw SurveyDefinitionConsumerFailureV1.invalidValue
+        }
+        return ReportProjectionOutputV1(
+            format: .openJSON,
+            data: data,
+            sha256: KernelCanonicalHashV1.sha256(data),
+            semanticSHA256: KernelCanonicalHashV1.sha256(
+                Data(SurveyDefinitionConsumerPolicyV1.projectionVersion.utf8)
+            ),
+            orderedSemanticIDs: [
+                SurveyDefinitionAccessibilityIDV1.screen.rawValue,
+                SurveyDefinitionAccessibilityIDV1.heading.rawValue,
+                SurveyDefinitionAccessibilityIDV1.activityKind.rawValue,
+                SurveyDefinitionAccessibilityIDV1.lifecycle.rawValue,
+                SurveyDefinitionAccessibilityIDV1.claimBoundary.rawValue,
+                SurveyDefinitionAccessibilityIDV1.nextStep.rawValue,
+            ],
+            taggedPDFAccessibilityEvidence: false
+        )
+    }
+
+    static func reopenSurveyDefinition(
+        _ data: Data
+    ) throws -> SurveyDefinitionReportProjectionV1 {
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SurveyDefinitionConsumerFailureV1.limitExceeded
+        }
+        let decoder = JSONDecoder()
+        let envelope = try decoder.decode(
+            SurveyDefinitionOpenJSONEnvelopeV1.self,
+            from: data
+        )
+        try envelope.validate()
+        let encoder = canonicalEncoder()
+        guard try encoder.encode(envelope) == data else {
+            throw SurveyDefinitionConsumerFailureV1.invalidValue
+        }
+        return envelope.projection
+    }
+}

@@ -1435,3 +1435,10 @@ extension V9_13PersistentKindLifecycleCoverageTests {
         XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
     }
 }
+extension V9_13PersistentKindLifecycleCoverageTests {
+    func testC25SurveyDefinitionTypedAnchor() throws {
+        XCTAssertEqual(SurveyDefinitionLifecycleV1.persistentFamilies, ["SurveyDefinitionIdentityV1", "SurveyDefinitionReleaseV1"])
+        XCTAssertEqual(SurveyDefinitionLifecycleV1.quarantinePersistence, "DERIVED_ONLY")
+        XCTAssertEqual(SurveyDefinitionLifecycleV1.writer, "SOLE_CANONICAL_WORKSPACE_WRITER")
+    }
+}

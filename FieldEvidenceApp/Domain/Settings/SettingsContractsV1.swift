@@ -15,6 +15,7 @@ enum SettingValueKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case boolean = "BOOLEAN"
     case boundedString = "BOUNDED_STRING"
     case boundedStringSet = "BOUNDED_STRING_SET"
+    case surveyDefinitionPreferenceReferenceSet = "SURVEY_DEFINITION_PREFERENCE_REFERENCE_SET"
     case recentInputMemory = "RECENT_INPUT_MEMORY"
 }
 
@@ -161,6 +162,21 @@ struct SettingDescriptorV1: Codable, Equatable, Sendable {
             guard value == value.sorted(),
                   Set(value).count == value.count,
                   value.allSatisfy({ SettingsValidationV1.validToken($0, maximumBytes: 200) }) else {
+                throw SettingsContractFailureV1.invalidValue
+            }
+        case .surveyDefinitionPreferenceReferenceSet:
+            guard SurveyDefinitionDeviceMemoryV1.isPreferenceKey(key) else {
+                throw SettingsContractFailureV1.invalidValue
+            }
+            let value = try CompatibilityCanonicalV1.decode(
+                [SurveyDefinitionPreferenceReferenceV1].self,
+                from: data
+            )
+            let canonical = try SurveyDefinitionDeviceMemoryV1.canonicalReferences(
+                value,
+                forKey: key
+            )
+            guard canonical == value else {
                 throw SettingsContractFailureV1.invalidValue
             }
         case .recentInputMemory:
@@ -668,6 +684,12 @@ struct SettingsRegistryV1: Sendable {
         let lastSelectedSmartView = try CompatibilityCanonicalV1.encode(
             LastSelectedSmartViewPreferenceV1.logicalDefault
         )
+        let favoriteSurveyDefinitions = try CompatibilityCanonicalV1.encode(
+            [SurveyDefinitionPreferenceReferenceV1]()
+        )
+        let recentSurveyDefinitions = try CompatibilityCanonicalV1.encode(
+            [SurveyDefinitionPreferenceReferenceV1]()
+        )
         return try SettingsRegistryV1(descriptors: [
             try SettingDescriptorV1(
                 key: DeviceLocalAppLockSettingV1.key,
@@ -727,6 +749,34 @@ struct SettingsRegistryV1: Sendable {
                 privacy: .devicePreferenceNoCustomerData,
                 localizationKey: "settings.recentInputMemory"
             ),
+            try SettingDescriptorV1(
+                key: SurveyDefinitionDeviceMemoryV1.favoriteKey,
+                valueKind: .surveyDefinitionPreferenceReferenceSet,
+                scope: .deviceLocal,
+                storage: .soleDevicePreferencesAdapter,
+                defaultCanonicalValue: favoriteSurveyDefinitions,
+                maximumCanonicalBytes: SurveyDefinitionDeviceMemoryV1.maximumCanonicalBytes,
+                migrationVersion: SurveyDefinitionDeviceMemoryV1.schemaVersion,
+                backup: .excludedDeviceLocal,
+                reset: .restoreDefault,
+                erase: .restoreDefault,
+                privacy: .devicePreferenceNoCustomerData,
+                localizationKey: SurveyDefinitionLocalizationKeyV1.settingsFavorite.rawValue
+            ),
+            try SettingDescriptorV1(
+                key: SurveyDefinitionDeviceMemoryV1.recentsKey,
+                valueKind: .surveyDefinitionPreferenceReferenceSet,
+                scope: .deviceLocal,
+                storage: .soleDevicePreferencesAdapter,
+                defaultCanonicalValue: recentSurveyDefinitions,
+                maximumCanonicalBytes: SurveyDefinitionDeviceMemoryV1.maximumCanonicalBytes,
+                migrationVersion: SurveyDefinitionDeviceMemoryV1.schemaVersion,
+                backup: .excludedDeviceLocal,
+                reset: .restoreDefault,
+                erase: .restoreDefault,
+                privacy: .devicePreferenceNoCustomerData,
+                localizationKey: SurveyDefinitionLocalizationKeyV1.settingsRecents.rawValue
+            ),
         ])
     }
 }
@@ -736,5 +786,258 @@ enum SettingsValidationV1 {
 
     static func validToken(_ value: String, maximumBytes: Int = 128) -> Bool {
         CompatibilityCanonicalV1.validToken(value, maximumUTF8ByteCount: maximumBytes)
+    }
+}
+
+// MARK: - C25 device-local favorites and recents
+
+/// A preference points at an immutable, workspace-scoped survey-definition
+/// release.  It is deliberately richer than a free-form string so a device
+/// preference can never become a second source of definition truth.
+struct SurveyDefinitionPreferenceReferenceV1: Codable, Equatable, Hashable, Sendable {
+    let workspaceID: UUID
+    let definitionID: UUID
+    let releaseID: UUID
+    let activityKind: ActivityKindV1
+    let releaseRevision: UInt64
+    /// Zero is the newest recency position.  Favorites must always use zero.
+    let recencyRank: UInt64
+
+    init(
+        workspaceID: UUID,
+        definitionID: UUID,
+        releaseID: UUID,
+        activityKind: ActivityKindV1,
+        releaseRevision: UInt64,
+        recencyRank: UInt64 = 0
+    ) throws {
+        self.workspaceID = workspaceID
+        self.definitionID = definitionID
+        self.releaseID = releaseID
+        self.activityKind = activityKind
+        self.releaseRevision = releaseRevision
+        self.recencyRank = recencyRank
+        try validate()
+    }
+
+    init(
+        release: SurveyDefinitionReleaseV1,
+        recencyRank: UInt64 = 0
+    ) throws {
+        try self.init(
+            workspaceID: release.workspaceID.rawValue,
+            definitionID: release.definitionID,
+            releaseID: release.releaseID,
+            activityKind: release.activityKind,
+            releaseRevision: release.revision,
+            recencyRank: recencyRank
+        )
+    }
+
+    /// Strict compatibility bridge for the former ID-only API.  The complete
+    /// typed identity is required; arbitrary labels and partial IDs fail.
+    init(stableStorageID: String, recencyRank: UInt64 = 0) throws {
+        let pieces = stableStorageID.split(separator: ".", omittingEmptySubsequences: false)
+        guard pieces.count == 10,
+              pieces[0] == "workspace",
+              pieces[2] == "definition",
+              pieces[4] == "release",
+              pieces[6] == "activity",
+              pieces[8] == "revision",
+              let workspaceID = UUID(uuidString: String(pieces[1])),
+              let definitionID = UUID(uuidString: String(pieces[3])),
+              let releaseID = UUID(uuidString: String(pieces[5])),
+              let activityKind = ActivityKindV1(rawValue: String(pieces[7])),
+              let releaseRevision = UInt64(String(pieces[9])) else {
+            throw SettingsContractFailureV1.invalidValue
+        }
+        try self.init(
+            workspaceID: workspaceID,
+            definitionID: definitionID,
+            releaseID: releaseID,
+            activityKind: activityKind,
+            releaseRevision: releaseRevision,
+            recencyRank: recencyRank
+        )
+        guard self.stableStorageID == stableStorageID else {
+            throw SettingsContractFailureV1.invalidValue
+        }
+    }
+
+    /// Stable identity excludes recency so duplicate list entries can be
+    /// detected even when callers supplied different positions.
+    var stableStorageID: String {
+        "workspace.\(workspaceID.uuidString.lowercased()).definition.\(definitionID.uuidString.lowercased()).release.\(releaseID.uuidString.lowercased()).activity.\(activityKind.rawValue).revision.\(releaseRevision)"
+    }
+
+    func validate() throws {
+        guard workspaceID != SettingsValidationV1.zeroUUID,
+              definitionID != SettingsValidationV1.zeroUUID,
+              releaseID != SettingsValidationV1.zeroUUID,
+              releaseRevision > 0,
+              SettingsValidationV1.validToken(stableStorageID, maximumBytes: 320) else {
+            throw SettingsContractFailureV1.invalidValue
+        }
+    }
+}
+
+/// Source-compatible spelling for the earlier C25 type.  New persistence
+/// APIs use the explicit PreferenceReference name above.
+typealias SurveyDefinitionDeviceReferenceV1 = SurveyDefinitionPreferenceReferenceV1
+
+enum SurveyDefinitionDeviceMemoryV1 {
+    static let schemaVersion = 1
+    static let favoriteKey = "device.surveyDefinition.favoriteIDs"
+    static let recentsKey = "device.surveyDefinition.recentIDs"
+    static let maximumFavorites = 64
+    static let maximumRecents = 32
+    static let maximumCanonicalBytes = 65_536
+    static let backupDisposition = "EXCLUDED_DEVICE_LOCAL"
+    static let analyticsDisposition = "EXCLUDED_DEVICE_LOCAL"
+    static let searchDisposition = "EXCLUDED_DEVICE_LOCAL"
+    static let reportDisposition = "EXCLUDED_DEVICE_LOCAL"
+    static let canonicalTruthDisposition = "NO_CANONICAL_MUTATION"
+
+    static func isPreferenceKey(_ key: String) -> Bool {
+        key == favoriteKey || key == recentsKey
+    }
+
+    static func canonicalReferences(
+        _ references: [SurveyDefinitionPreferenceReferenceV1],
+        forKey key: String
+    ) throws -> [SurveyDefinitionPreferenceReferenceV1] {
+        try validatePolicy()
+        switch key {
+        case favoriteKey:
+            return try canonicalFavorites(references)
+        case recentsKey:
+            return try canonicalRecents(references)
+        default:
+            throw SettingsContractFailureV1.unknownKey
+        }
+    }
+
+    static func canonicalIDs(
+        _ references: [SurveyDefinitionDeviceReferenceV1],
+        maximum: Int
+    ) throws -> [String] {
+        let canonical = try canonicalFavorites(references)
+        guard canonical.count <= maximum else {
+            throw SettingsContractFailureV1.invalidValue
+        }
+        return canonical.map(\.stableStorageID)
+    }
+
+    /// Parses the compatibility ID list into typed references.  Recents use
+    /// input order as the explicit recency signal, then canonicalize it.
+    static func references(
+        fromStableStorageIDs values: [String],
+        recencyOrdered: Bool
+    ) throws -> [SurveyDefinitionPreferenceReferenceV1] {
+        let maximum = recencyOrdered ? maximumRecents : maximumFavorites
+        guard values.count <= maximum else {
+            throw SettingsContractFailureV1.invalidValue
+        }
+        var seen = Set<String>()
+        var references: [SurveyDefinitionPreferenceReferenceV1] = []
+        for value in values where seen.insert(value).inserted {
+            let rank = recencyOrdered ? UInt64(references.count) : 0
+            references.append(try SurveyDefinitionPreferenceReferenceV1(
+                stableStorageID: value,
+                recencyRank: rank
+            ))
+        }
+        return try canonicalReferences(
+            references,
+            forKey: recencyOrdered ? recentsKey : favoriteKey
+        )
+    }
+
+    static func validateStoredIDs(
+        _ values: [String],
+        maximum: Int
+    ) throws {
+        guard values.count <= maximum,
+              Set(values).count == values.count else {
+            throw SettingsContractFailureV1.invalidValue
+        }
+        _ = try values.map { try SurveyDefinitionPreferenceReferenceV1(
+            stableStorageID: $0
+        ) }
+    }
+
+    static func validatePolicy() throws {
+        guard backupDisposition == "EXCLUDED_DEVICE_LOCAL",
+              analyticsDisposition == "EXCLUDED_DEVICE_LOCAL",
+              searchDisposition == "EXCLUDED_DEVICE_LOCAL",
+              reportDisposition == "EXCLUDED_DEVICE_LOCAL",
+              canonicalTruthDisposition == "NO_CANONICAL_MUTATION",
+              maximumFavorites > 0, maximumRecents > 0,
+              maximumCanonicalBytes <= SettingDescriptorV1.maximumValueBytes else {
+            throw SettingsContractFailureV1.scopeMismatch
+        }
+    }
+
+    private static func canonicalFavorites(
+        _ references: [SurveyDefinitionPreferenceReferenceV1]
+    ) throws -> [SurveyDefinitionPreferenceReferenceV1] {
+        var byIdentity: [String: SurveyDefinitionPreferenceReferenceV1] = [:]
+        for reference in references {
+            try reference.validate()
+            guard reference.recencyRank == 0 else {
+                throw SettingsContractFailureV1.invalidValue
+            }
+            if let prior = byIdentity[reference.stableStorageID], prior != reference {
+                throw SettingsContractFailureV1.invalidValue
+            }
+            byIdentity[reference.stableStorageID] = reference
+        }
+        let values = byIdentity.values.sorted { $0.stableStorageID < $1.stableStorageID }
+        guard values.count <= maximumFavorites else {
+            throw SettingsContractFailureV1.invalidValue
+        }
+        return values
+    }
+
+    private static func canonicalRecents(
+        _ references: [SurveyDefinitionPreferenceReferenceV1]
+    ) throws -> [SurveyDefinitionPreferenceReferenceV1] {
+        var byIdentity: [String: SurveyDefinitionPreferenceReferenceV1] = [:]
+        for reference in references {
+            try reference.validate()
+            if let prior = byIdentity[reference.stableStorageID] {
+                guard prior.workspaceID == reference.workspaceID,
+                      prior.definitionID == reference.definitionID,
+                      prior.releaseID == reference.releaseID,
+                      prior.activityKind == reference.activityKind,
+                      prior.releaseRevision == reference.releaseRevision else {
+                    throw SettingsContractFailureV1.invalidValue
+                }
+                if reference.recencyRank < prior.recencyRank {
+                    byIdentity[reference.stableStorageID] = reference
+                }
+            } else {
+                byIdentity[reference.stableStorageID] = reference
+            }
+        }
+        let ordered = byIdentity.values.sorted {
+            if $0.recencyRank != $1.recencyRank {
+                return $0.recencyRank < $1.recencyRank
+            }
+            return $0.stableStorageID < $1.stableStorageID
+        }
+        guard ordered.count <= maximumRecents else {
+            throw SettingsContractFailureV1.invalidValue
+        }
+        return try ordered.enumerated().map { index, reference in
+            try SurveyDefinitionPreferenceReferenceV1(
+                workspaceID: reference.workspaceID,
+                definitionID: reference.definitionID,
+                releaseID: reference.releaseID,
+                activityKind: reference.activityKind,
+                releaseRevision: reference.releaseRevision,
+                recencyRank: UInt64(index)
+            )
+        }
     }
 }

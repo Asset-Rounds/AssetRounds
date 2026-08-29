@@ -23,6 +23,16 @@ enum ResponseTriStateV1: String, CaseIterable, Codable, Sendable {
     case trueValue = "TRUE"
     case falseValue = "FALSE"
     case unknown = "UNKNOWN"
+    case notObserved = "NOT_OBSERVED"
+}
+
+extension ResponseValueV1 {
+    func validateSurveyObservation(for fact: FactDefinitionV1) throws {
+        try fact.validate(); try validate()
+        if fact.kind == .booleanObservation {
+            guard case .triState = self else { throw ResponseContractFailureV1.invalidValue }
+        }
+    }
 }
 
 struct ResponseLocalDateV1: Codable, Equatable, Sendable {

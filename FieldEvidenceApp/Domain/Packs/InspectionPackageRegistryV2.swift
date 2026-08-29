@@ -42,6 +42,12 @@ struct InspectionPackageRegistryPublicationReceiptV2: Equatable, Sendable {
 }
 
 extension InspectionPackageRegistryV2 {
+    func validateSurveyDefinition(_ survey: SurveyDefinitionReleaseV1, package: InspectionPackageV2) throws {
+        try survey.validate(); try package.validateSurveyDefinition(survey)
+    }
+}
+
+extension InspectionPackageRegistryV2 {
     func package(id: String, admitting release: FieldReferenceReleaseV1) throws -> InspectionPackageV2 {
         let value = try package(id: id)
         try value.validateFieldReference(release)

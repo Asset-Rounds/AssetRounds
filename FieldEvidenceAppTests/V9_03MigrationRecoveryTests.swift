@@ -1580,3 +1580,10 @@ extension V9_03MigrationRecoveryTests {
         XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
     }
 }
+extension V9_03MigrationRecoveryTests {
+    func testC25SurveyDefinitionTypedAnchor() throws {
+        XCTAssertEqual(PersistentSchemaMigrationPlanV23.schemas.count, 2)
+        XCTAssertEqual(PersistentSchemaMigrationPlanV23.stages.count, 1)
+        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeRelease, .v24)
+    }
+}

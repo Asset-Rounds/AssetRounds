@@ -987,3 +987,10 @@ extension V9_05RestoreIdentityTests {
         XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
     }
 }
+extension V9_05RestoreIdentityTests {
+    func testC25SurveyDefinitionTypedAnchor() throws {
+        XCTAssertEqual(SurveyDefinitionLifecycleV1.persistentFamilies, ["SurveyDefinitionIdentityV1", "SurveyDefinitionReleaseV1"])
+        XCTAssertTrue(SurveyDefinitionLimitsV1.token("c25.definition.release"))
+        XCTAssertTrue(SurveyDefinitionLimitsV1.digest(String(repeating: "b", count: 64)))
+    }
+}

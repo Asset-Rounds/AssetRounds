@@ -1846,3 +1846,10 @@ extension V9_22LocalizationAccessibilityTests {
         XCTAssertFalse(FieldReferencePackLifecycleV1.drmOrAccountRequired)
     }
 }
+extension V9_22LocalizationAccessibilityTests {
+    func testC25SurveyDefinitionTypedAnchor() throws {
+        XCTAssertEqual(SurveyDefinitionLifecycleStateV1.allCases.map(\.rawValue), ["DRAFT", "PUBLISHED", "RETIRED"])
+        XCTAssertTrue(SurveyDefinitionLimitsV1.token("survey.section.heading"))
+        XCTAssertEqual(SurveyDefinitionLifecycleV1.quarantinePersistence, "DERIVED_ONLY")
+    }
+}

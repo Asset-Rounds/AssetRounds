@@ -333,6 +333,7 @@ enum KernelDeletionEraseRegistryV4 {
     }
 
     static func validate() throws {
+        try validateSurveyDefinitionLifecycle()
         try validateClientCapabilityLifecycle()
         try validateFieldReferenceLifecycle()
         try validateAccessibleDocumentLifecycle()
@@ -347,6 +348,15 @@ enum KernelDeletionEraseRegistryV4 {
         try validateSearchLifecycle()
         try validateIntegrationProjectionLifecycle()
         try validate(registrations)
+    }
+
+    static func validateSurveyDefinitionLifecycle() throws {
+        guard SurveyDefinitionEraseBoundaryV1.atomicFamilyCount == 2,
+              SurveyDefinitionEraseBoundaryV1.lifecycleEventsAreMutationHistoryOnly,
+              SurveyDefinitionEraseBoundaryV1.workspaceEraseClearsIdentityAndReleaseRows,
+              SurveyDefinitionEraseBoundaryV1.quarantinedImportsAreNoncanonical else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
     }
 
     static func validate(_ candidate: [KernelDeletionEraseRegistrationV4]) throws {

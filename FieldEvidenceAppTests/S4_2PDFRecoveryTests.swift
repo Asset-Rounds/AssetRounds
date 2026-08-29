@@ -787,3 +787,10 @@ private extension Data {
         SHA256.hash(data: self).map { String(format: "%02x", $0) }.joined()
     }
 }
+extension S4_2PDFRecoveryTests {
+    func testC25SurveyDefinitionTypedAnchor() throws {
+        XCTAssertEqual(SurveyDefinitionLifecycleStateV1.allCases.count, 3)
+        XCTAssertEqual(SurveyDefinitionLifecycleV1.lifecycleEventPersistence, "CANONICAL_MUTATION_JOURNAL_ENVELOPE")
+        XCTAssertEqual(PersistentSchemaV24.models.count, PersistentSchemaV23.models.count + 2)
+    }
+}

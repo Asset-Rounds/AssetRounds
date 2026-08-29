@@ -2163,3 +2163,10 @@ extension S6_3BackupValidationTests {
         XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
     }
 }
+extension S6_3BackupValidationTests {
+    func testC25SurveyDefinitionTypedAnchor() throws {
+        XCTAssertEqual(PersistentSchemaV24.models.count, 87)
+        XCTAssertEqual(V24BackupSurveyDefinitionRecordV1.Kind.allCases.count, 2)
+        XCTAssertEqual(V24SurveyDefinitionImportBoundaryV1.recordsSchemaVersion, 23)
+    }
+}

@@ -889,3 +889,36 @@ enum FieldReferenceReportRecoveryPolicyV1 {
         return projection
     }
 }
+
+// MARK: - C25 survey-definition recovery boundary
+
+enum SurveyDefinitionReportRecoveryPolicyV1 {
+    static let recoverySource = "CANONICAL_SURVEY_DEFINITION_RELEASE"
+    static let releaseBindingIsFrozen = true
+    static let draftPreviewsAreDiscarded = true
+    static let rebuildDerivedConsumers = true
+    static let historicReportsAreNotRewritten = true
+    static let excludesAnswers = true
+    static let excludesPromptText = true
+    static let excludesActorIdentity = true
+    static let excludesPrivateLocators = true
+    static let excludesEvidenceBytes = true
+
+    static func validateRecoveredProjection(
+        _ projection: SurveyDefinitionReportProjectionV1
+    ) throws -> SurveyDefinitionReportProjectionV1 {
+        try projection.validate(format: .openJSON)
+        guard releaseBindingIsFrozen,
+              draftPreviewsAreDiscarded,
+              rebuildDerivedConsumers,
+              historicReportsAreNotRewritten,
+              excludesAnswers,
+              excludesPromptText,
+              excludesActorIdentity,
+              excludesPrivateLocators,
+              excludesEvidenceBytes else {
+            throw SurveyDefinitionConsumerFailureV1.privacyViolation
+        }
+        return projection
+    }
+}

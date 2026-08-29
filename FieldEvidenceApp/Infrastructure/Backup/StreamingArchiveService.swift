@@ -17,13 +17,16 @@ struct StreamingArchiveService: Sendable {
     }
 
     private let limits: StreamingArchiveLimitsV1
+    private let pathProfile:StreamingArchivePathProfileV1
     private let makeOperationID: @Sendable () -> UUID
 
     init(
         limits: StreamingArchiveLimitsV1 = .card17,
+        pathProfile:StreamingArchivePathProfileV1 = .backupV4,
         makeOperationID: @escaping @Sendable () -> UUID = UUID.init
     ) {
         self.limits = limits
+        self.pathProfile=pathProfile
         self.makeOperationID = makeOperationID
     }
 
@@ -534,6 +537,7 @@ struct StreamingArchiveService: Sendable {
         }
         let index = try decodeCanonicalIndex(indexData)
         try validateIndex(index)
+        if pathProfile == .surveyTemplate{try SurveyTemplateArchiveAdmissionV1.validate(index)}
         let expectedArchiveBytes = try adding(
             Int64(StreamingArchiveFormatV1.headerByteCount),
             try adding(
@@ -688,6 +692,13 @@ struct StreamingArchiveService: Sendable {
             )
         }
     }
+
+    func extractSurveyTemplateFromQuarantineOffMain(_ archiveURL:URL,quarantineRootURL:URL,to extractedDirectoryURL:URL,context:ResumableLocalJobExecutionContextV1?=nil,storageCheck:@escaping @Sendable(Int64)throws->Void={_ in})async throws->StreamingArchiveExtractionV1{
+        guard pathProfile == .surveyTemplate,archiveURL.isFileURL,quarantineRootURL.isFileURL else{throw StreamingArchiveFailureV1.invalidPlan}
+        let archive=archiveURL.standardizedFileURL,root=quarantineRootURL.standardizedFileURL,rootPrefix=root.path.hasSuffix("/") ? root.path:root.path+"/"
+        guard archive.path.hasPrefix(rootPrefix),archive.pathExtension==SurveyTemplateArchiveManifestV1.fileExtension else{throw StreamingArchiveFailureV1.invalidArchive}
+        let value=try await extractOffMain(archive,to:extractedDirectoryURL,context:context,storageCheck:storageCheck);try SurveyTemplateArchiveAdmissionV1.validate(value.index);return value
+    }
 }
 
 private actor BackupOffMainWorkerV1 {
@@ -830,7 +841,7 @@ private extension StreamingArchiveService {
             omittingEmptySubsequences: false
         ).map(String.init)
         guard !components.isEmpty,
-              components.count <= 2,
+              components.count <= (pathProfile == .surveyTemplate ? SurveyTemplateArchiveAdmissionV1.maximumDepth:2),
               components.allSatisfy({
                 !$0.isEmpty && $0 != "." && $0 != ".."
                     && $0 == $0.precomposedStringWithCanonicalMapping
@@ -838,7 +849,7 @@ private extension StreamingArchiveService {
             throw StreamingArchiveFailureV1.hostilePath
         }
         let valid: Bool
-        switch components {
+        if pathProfile == .surveyTemplate{valid=ContentContractValidationV1.validMediaType(mimeType)}else{switch components {
         case ["manifest.json"], ["records.json"]:
             valid = mimeType == "application/json"
         case ["media", let name], ["thumbnails", let name]:
@@ -852,7 +863,7 @@ private extension StreamingArchiveService {
                 && mimeType == "application/pdf"
         default:
             valid = false
-        }
+        }}
         guard valid else { throw StreamingArchiveFailureV1.hostilePath }
     }
 
@@ -1046,33 +1057,9 @@ private extension StreamingArchiveService {
         for path: String,
         extraction: inout CreatedExtraction
     ) throws {
-        let components = path.split(separator: "/").map(String.init)
-        guard components.count == 2 else { return }
-        let name = components[0]
-        if extraction.directories.contains(name) { return }
-        guard Darwin.mkdirat(extraction.rootDescriptor, name, 0o700) == 0 else {
-            throw Self.mapWriteFailure()
-        }
-        extraction.directories.append(name)
-        let url = extraction.rootURL.appendingPathComponent(name, isDirectory: true)
-        let descriptor = Darwin.openat(
-            extraction.rootDescriptor,
-            name,
-            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
-        )
-        guard descriptor >= 0 else {
-            throw Self.mapOpenFailure()
-        }
-        defer { Darwin.close(descriptor) }
-        let snapshot = try Self.snapshotDirectory(descriptor)
-        try ProtectedFilePolicyV1.applyAndVerify(.restoreStaging, at: url) {
-            guard try Self.snapshotDirectory(descriptor) == snapshot else {
-                throw StreamingArchiveFailureV1.sourceChanged
-            }
-        }
-        guard Darwin.fsync(extraction.rootDescriptor) == 0 else {
-            throw Self.mapWriteFailure()
-        }
+        let components=path.split(separator:"/").dropLast().map(String.init);guard !components.isEmpty else{return};var parent=Darwin.dup(extraction.rootDescriptor);guard parent>=0 else{throw Self.mapOpenFailure()};defer{Darwin.close(parent)};var relative=""
+        for component in components{relative=relative.isEmpty ? component:"\(relative)/\(component)";if !extraction.directories.contains(relative){guard Darwin.mkdirat(parent,component,0o700)==0 else{throw Self.mapWriteFailure()};extraction.directories.append(relative)};let next=Darwin.openat(parent,component,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);guard next>=0 else{throw Self.mapOpenFailure()};Darwin.close(parent);parent=next;let url=extraction.rootURL.appendingPathComponent(relative,isDirectory:true),snapshot=try Self.snapshotDirectory(parent);try ProtectedFilePolicyV1.applyAndVerify(.restoreStaging,at:url){guard try Self.snapshotDirectory(parent)==snapshot else{throw StreamingArchiveFailureV1.sourceChanged}}}
+        guard Darwin.fsync(extraction.rootDescriptor)==0 else{throw Self.mapWriteFailure()}
     }
 
     func cleanupExtraction(_ extraction: inout CreatedExtraction) -> Bool {

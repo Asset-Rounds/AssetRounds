@@ -968,3 +968,10 @@ extension S6_4AtomicRestoreTests {
         XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
     }
 }
+extension S6_4AtomicRestoreTests {
+    func testC25SurveyDefinitionTypedAnchor() throws {
+        XCTAssertEqual(SurveyDefinitionLifecycleV1.writer, "SOLE_CANONICAL_WORKSPACE_WRITER")
+        XCTAssertEqual(SurveyDefinitionLifecycleV1.persistentFamilies.count, 2)
+        XCTAssertEqual(PersistentSchemaV24.models.count, 87)
+    }
+}

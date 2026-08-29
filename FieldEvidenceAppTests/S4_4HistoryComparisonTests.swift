@@ -737,3 +737,10 @@ private extension Data {
         SHA256.hash(data: self).map { String(format: "%02x", $0) }.joined()
     }
 }
+extension S4_4HistoryComparisonTests {
+    func testC25SurveyDefinitionTypedAnchor() throws {
+        XCTAssertEqual(SurveyDefinitionLifecycleStateV1.allCases, [.draft, .published, .retired])
+        XCTAssertEqual(SurveyDefinitionLifecycleV1.persistentFamilies, ["SurveyDefinitionIdentityV1", "SurveyDefinitionReleaseV1"])
+        XCTAssertTrue(SurveyDefinitionLimitsV1.digest(String(repeating: "a", count: 64)))
+    }
+}

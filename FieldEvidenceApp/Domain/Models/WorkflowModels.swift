@@ -14,6 +14,12 @@ final class DeletionLedgerRow {
     }
 }
 
+enum SurveyDefinitionPersistenceBoundaryV1 {
+    static let durableFamilies = ["SurveyDefinitionIdentityV1", "SurveyDefinitionReleaseV1"]
+    static let lifecycleEventStorage = "MUTATION_JOURNAL"
+    static let currentProjectionStorage = "NONPERSISTENT"
+}
+
 @Model
 final class WorkflowRecord {
     @Attribute(.unique) var id: UUID

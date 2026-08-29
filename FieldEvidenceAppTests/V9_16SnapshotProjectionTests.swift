@@ -746,3 +746,10 @@ extension V9_16SnapshotProjectionTests {
         XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
     }
 }
+extension V9_16SnapshotProjectionTests {
+    func testC25SurveyDefinitionTypedAnchor() throws {
+        XCTAssertEqual(SurveyDefinitionLifecycleV1.persistentFamilies.count, 2)
+        XCTAssertEqual(SurveyDefinitionLifecycleV1.semanticDiffPersistence, "NONPERSISTENT")
+        XCTAssertTrue(SurveyDefinitionLimitsV1.token("survey.report.heading"))
+    }
+}

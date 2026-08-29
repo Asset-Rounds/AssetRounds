@@ -1825,3 +1825,47 @@ extension SearchIndexRebuildCoordinatorV1 {
     static let accessibleDocumentReplayDisposition =
         "DROP_AND_REBUILD_FROM_CANONICAL_ACCESSIBLE_DOCUMENT_TREE"
 }
+
+// MARK: - C25 survey-definition search rebuild
+
+extension SearchIndexRebuildCoordinatorV1 {
+    /// Rebuilds the disposable survey-definition index from immutable release
+    /// facts and the canonical identity's recorded lifecycle state.  A
+    /// missing state is rejected rather than inferred, and no draft answer,
+    /// prompt, locator, or actor value is accepted by this consumer.
+    static func surveyDefinitionSearchRecords(
+        from releases: [SurveyDefinitionReleaseV1],
+        lifecycleStates: [UUID: SurveyDefinitionLifecycleStateV1]
+    ) throws -> [SurveyDefinitionSearchRecordV1] {
+        try SurveyDefinitionSearchPersistencePolicyV1().validate()
+        guard releases.count <= 4_096 else {
+            throw SurveyDefinitionConsumerFailureV1.limitExceeded
+        }
+        let sorted = releases.sorted {
+            $0.releaseID.uuidString.lowercased() < $1.releaseID.uuidString.lowercased()
+        }
+        guard Set(sorted.map(\.releaseID)).count == sorted.count else {
+            throw SurveyDefinitionConsumerFailureV1.duplicateIdentity
+        }
+        let records = try sorted.map { release in
+            guard let state = lifecycleStates[release.definitionID] else {
+                throw SurveyDefinitionConsumerFailureV1.staleBinding
+            }
+            return try LocalSearchIndexStoreV1.surveyDefinitionSearchRecord(
+                from: release,
+                lifecycleState: state
+            )
+        }
+        guard records == records.sorted(by: {
+            $0.releaseID < $1.releaseID
+        }) else {
+            throw SurveyDefinitionConsumerFailureV1.invalidValue
+        }
+        return records
+    }
+
+    static let surveyDefinitionReplayDisposition =
+        "DROP_AND_REBUILD_FROM_CANONICAL_SURVEY_DEFINITION_RELEASES"
+    static let surveyDefinitionRestoreDisposition =
+        "EXCLUDE_INDEX_ROWS_AND_REBUILD_AFTER_CANONICAL_RESTORE"
+}

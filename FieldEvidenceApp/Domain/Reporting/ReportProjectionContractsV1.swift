@@ -2674,3 +2674,180 @@ enum FieldReferenceReportProjectionPolicyV1 {
         return projection
     }
 }
+
+// MARK: - C25 bounded survey-definition report consumer
+
+enum SurveyDefinitionConsumerFailureV1: Error, Equatable, Sendable {
+    case invalidValue
+    case privacyViolation
+    case unsupportedFormat
+    case duplicateIdentity
+    case staleBinding
+    case limitExceeded
+}
+
+enum SurveyDefinitionConsumerPolicyV1 {
+    static let schemaVersion = 1
+    static let sourceKind = "SURVEY_DEFINITION_RELEASE"
+    static let projectionVersion = "SURVEY_REPORT_PROJECTION_V1"
+    static let metadataOnly = true
+    static let derivedOnly = true
+    static let historicDisplayFrozen = true
+    static let includesAnswers = false
+    static let includesPromptText = false
+    static let includesActorIdentity = false
+    static let includesPrivateLocators = false
+    static let includesEvidenceBytes = false
+    static let allowsInspectionPassFailClaim = false
+    static let allowsCertificationClaim = false
+    static let allowsComplianceClaim = false
+    static let allowsTrainingClaim = false
+    static let allowedFormats: Set<ReportProjectionFormatV1> = [.openJSON, .pdf, .structuredText]
+
+    static func validID(_ value: String) -> Bool {
+        SurveyDefinitionLimitsV1.token(value, maximumBytes: 160)
+    }
+
+    static func validDigest(_ value: String) -> Bool {
+        KernelCanonicalHashV1.validSHA256(value)
+    }
+
+    static func containsUnsupportedClaim(_ values: [String]) -> Bool {
+        let prohibited = [
+            "inspection pass", "inspection fail", "inspection passed", "inspection failed",
+            "certified", "certification", "compliant", "compliance", "training complete",
+            "authorized", "approved", "safe", "warranty", "recall",
+        ]
+        return values.map { $0.lowercased() }.contains { value in
+            prohibited.contains { value.contains($0) }
+        }
+    }
+}
+
+struct SurveyDefinitionBoundedMetadataV1: Codable, Equatable, Hashable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let definitionID: String
+    let releaseID: String
+    let activityKind: ActivityKindV1
+    let lifecycleState: SurveyDefinitionLifecycleStateV1
+    let releaseRevision: UInt64
+    let releaseSHA256: String
+    let localizationReleaseSHA256: String
+    let sectionCount: Int
+    let factCount: Int
+    let reportProjectionID: String
+    let claimsProfileID: String
+
+    init(
+        release: SurveyDefinitionReleaseV1,
+        lifecycleState: SurveyDefinitionLifecycleStateV1
+    ) throws {
+        try release.validate()
+        schemaVersion = Self.schemaVersion
+        definitionID = release.definitionID.uuidString.lowercased()
+        releaseID = release.releaseID.uuidString.lowercased()
+        activityKind = release.activityKind
+        self.lifecycleState = lifecycleState
+        releaseRevision = release.revision
+        releaseSHA256 = release.releaseSHA256
+        localizationReleaseSHA256 = release.localizationReleaseSHA256
+        sectionCount = release.sections.count
+        factCount = release.sections.flatMap(\.facts).count
+        reportProjectionID = release.reportProjection.projectionID
+        claimsProfileID = release.claimsProfile.profileID
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              SurveyDefinitionConsumerPolicyV1.validID(definitionID),
+              SurveyDefinitionConsumerPolicyV1.validID(releaseID),
+              SurveyDefinitionConsumerPolicyV1.validDigest(releaseSHA256),
+              SurveyDefinitionConsumerPolicyV1.validDigest(localizationReleaseSHA256),
+              SurveyDefinitionConsumerPolicyV1.validID(reportProjectionID),
+              SurveyDefinitionConsumerPolicyV1.validID(claimsProfileID),
+              releaseRevision > 0,
+              (0...SurveyDefinitionLimitsV1.maximumSections).contains(sectionCount),
+              (0...SurveyDefinitionLimitsV1.maximumFacts).contains(factCount) else {
+            throw SurveyDefinitionConsumerFailureV1.invalidValue
+        }
+    }
+}
+
+struct SurveyDefinitionReportProjectionV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let metadata: SurveyDefinitionBoundedMetadataV1
+    let projectionVersion: String
+    let headingLocalizationKey: String
+    let emptyValueLocalizationKey: String
+    let nextStepLocalizationKey: String
+    let sectionIDs: [String]
+    let includedFactIDs: [String]
+    let historicDisplayFrozen: Bool
+    let includesAnswers: Bool
+    let includesPromptText: Bool
+    let includesActorIdentity: Bool
+    let includesPrivateLocators: Bool
+    let includesEvidenceBytes: Bool
+
+    init(
+        release: SurveyDefinitionReleaseV1,
+        lifecycleState: SurveyDefinitionLifecycleStateV1
+    ) throws {
+        let bounded = try SurveyDefinitionBoundedMetadataV1(
+            release: release,
+            lifecycleState: lifecycleState
+        )
+        schemaVersion = Self.schemaVersion
+        metadata = bounded
+        projectionVersion = SurveyDefinitionConsumerPolicyV1.projectionVersion
+        headingLocalizationKey = "survey.definition.report.heading"
+        emptyValueLocalizationKey = "survey.definition.value.not_observed"
+        nextStepLocalizationKey = "survey.definition.next_step.review_recorded_facts"
+        sectionIDs = release.reportProjection.sectionIDs.sorted()
+        includedFactIDs = release.reportProjection.includedFactIDs.sorted()
+        historicDisplayFrozen = SurveyDefinitionConsumerPolicyV1.historicDisplayFrozen
+        includesAnswers = SurveyDefinitionConsumerPolicyV1.includesAnswers
+        includesPromptText = SurveyDefinitionConsumerPolicyV1.includesPromptText
+        includesActorIdentity = SurveyDefinitionConsumerPolicyV1.includesActorIdentity
+        includesPrivateLocators = SurveyDefinitionConsumerPolicyV1.includesPrivateLocators
+        includesEvidenceBytes = SurveyDefinitionConsumerPolicyV1.includesEvidenceBytes
+        try validate()
+    }
+
+    func validate(format: ReportProjectionFormatV1? = nil) throws {
+        if let format, !SurveyDefinitionConsumerPolicyV1.allowedFormats.contains(format) {
+            throw SurveyDefinitionConsumerFailureV1.unsupportedFormat
+        }
+        try metadata.validate()
+        guard schemaVersion == Self.schemaVersion,
+              projectionVersion == SurveyDefinitionConsumerPolicyV1.projectionVersion,
+              [headingLocalizationKey, emptyValueLocalizationKey, nextStepLocalizationKey]
+                .allSatisfy(SurveyDefinitionConsumerPolicyV1.validID),
+              sectionIDs == sectionIDs.sorted(),
+              includedFactIDs == includedFactIDs.sorted(),
+              Set(sectionIDs).count == sectionIDs.count,
+              Set(includedFactIDs).count == includedFactIDs.count,
+              sectionIDs.count <= SurveyDefinitionLimitsV1.maximumSections,
+              includedFactIDs.count <= SurveyDefinitionLimitsV1.maximumFacts,
+              historicDisplayFrozen,
+              !includesAnswers,
+              !includesPromptText,
+              !includesActorIdentity,
+              !includesPrivateLocators,
+              !includesEvidenceBytes,
+              SurveyDefinitionConsumerPolicyV1.metadataOnly,
+              SurveyDefinitionConsumerPolicyV1.derivedOnly else {
+            throw SurveyDefinitionConsumerFailureV1.privacyViolation
+        }
+        guard !SurveyDefinitionConsumerPolicyV1.containsUnsupportedClaim([
+            headingLocalizationKey, emptyValueLocalizationKey, nextStepLocalizationKey
+        ]) else {
+            throw SurveyDefinitionConsumerFailureV1.privacyViolation
+        }
+    }
+}

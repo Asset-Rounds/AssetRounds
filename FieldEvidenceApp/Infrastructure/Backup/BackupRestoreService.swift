@@ -1645,6 +1645,7 @@ private extension BackupRestoreService {
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
+            surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
             recoverabilityReceipts:records.recoverabilityReceipts,
             clientCapabilities: records.clientCapabilities,
@@ -1692,6 +1693,7 @@ private extension BackupRestoreService {
             + records.locationMigrationReceipts.map(\.id)
             + records.locationNodes.map(\.id)
             + records.savedSmartViews.map(\.id)
+            + records.surveyDefinitions.map(\.id)
         return Set(ids).count == ids.count
     }
 
@@ -1701,6 +1703,7 @@ private extension BackupRestoreService {
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
+            surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
             recoverabilityReceipts:records.recoverabilityReceipts,
             clientCapabilities: records.clientCapabilities,
@@ -1822,6 +1825,7 @@ private extension BackupRestoreService {
         }.sorted { canonical($0.workflowRecordID) < canonical($1.workflowRecordID) }
         return V4BackupRecordsV1(
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
+            surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
             recoverabilityReceipts:records.recoverabilityReceipts,
             clientCapabilities: records.clientCapabilities,
@@ -2076,9 +2080,15 @@ private extension BackupRestoreService {
         let clientCapabilities = try rebindingClientCapabilities(records.clientCapabilities,workspaceID:workspaceID,packageEvolution:packageEvolution)
         let recoverabilityReceipts = try records.recoverabilityReceipts.map{record in let value=try RecoverabilityVerificationCanonicalCodecV1.decode(RecoverabilityVerificationReceiptV1.self,from:record.canonicalData);guard value.workspaceID != workspaceID else{return record};let rebound=try value.rebound(to:workspaceID);return V21BackupRecoverabilityReceiptRecordV1(id:rebound.receiptID,workspaceID:workspaceID.rawValue,revision:rebound.revision,canonicalData:try RecoverabilityVerificationCanonicalCodecV1.encode(rebound))}.sorted{$0.id.uuidString<$1.id.uuidString}
         let fieldReferences = try rebindingFieldReferences(records.fieldReferences,workspaceID:workspaceID)
+        let surveyDefinitions = try rebindingSurveyDefinitions(
+            records.surveyDefinitions,
+            history: records.mutationHistory,
+            workspaceID: workspaceID
+        )
         guard let archived = records.locationMigrationReceipts.first else {
             return V4BackupRecordsV1(
                 accessibleDocumentAssessments:records.accessibleDocumentAssessments,
+                surveyDefinitions: surveyDefinitions,
                 fieldReferences:fieldReferences,
                 recoverabilityReceipts:recoverabilityReceipts,
                 clientCapabilities: clientCapabilities,
@@ -2125,6 +2135,7 @@ private extension BackupRestoreService {
            privacyTransforms == records.privacyTransforms,
            recoverabilityReceipts == records.recoverabilityReceipts,
            fieldReferences == records.fieldReferences,
+           surveyDefinitions == records.surveyDefinitions,
            clientCapabilities == records.clientCapabilities,
            workPackets == records.workPackets,
            reports == records.reports {
@@ -2140,6 +2151,7 @@ private extension BackupRestoreService {
         )
         return V4BackupRecordsV1(
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
+            surveyDefinitions: surveyDefinitions,
             fieldReferences:fieldReferences,
             recoverabilityReceipts:recoverabilityReceipts,
             clientCapabilities: clientCapabilities,
@@ -2174,6 +2186,104 @@ private extension BackupRestoreService {
             sites: records.sites,
             workflowRecords: records.workflowRecords
         )
+    }
+
+    func rebindingSurveyDefinitions(
+        _ records: [V24BackupSurveyDefinitionRecordV1],
+        history: MutationHistorySnapshotV1?,
+        workspaceID: WorkspaceID
+    ) throws -> [V24BackupSurveyDefinitionRecordV1] {
+        guard !records.isEmpty else { return [] }
+        guard let history else { throw BackupRestoreServiceError.invalidPackage }
+        var sourceEvents: [UUID: SurveyDefinitionLifecycleEventV1] = [:]
+        for receipt in history.receipts {
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: receipt.envelopeData)
+            guard case let .applySurveyDefinition(mutation) = envelope.command else { continue }
+            guard sourceEvents.updateValue(mutation.event, forKey: mutation.event.eventID) == nil else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+        }
+        func actor(_ source: ActorSnapshotV1) throws -> ActorSnapshotV1 {
+            let local = try LocalActorReferenceV1(
+                actorReferenceID: source.actor.actorReferenceID,
+                workspaceID: workspaceID,
+                partyID: source.actor.partyID,
+                displayName: source.actor.displayName
+            )
+            return try ActorSnapshotV1(
+                snapshotID: source.snapshotID,
+                workspaceID: workspaceID,
+                actor: local,
+                responsibility: source.responsibility,
+                displayNameAtTime: source.displayNameAtTime,
+                capturedAt: source.capturedAt
+            )
+        }
+        var releases: [UUID: SurveyDefinitionReleaseV1] = [:]
+        for record in records where record.kind == .release {
+            let source = try SurveyDefinitionCanonicalCodecV1.decode(
+                SurveyDefinitionReleaseV1.self, from: record.canonicalData
+            )
+            let value = source.workspaceID == workspaceID
+                ? source
+                : try source.rebound(to: workspaceID, actor: actor(source.authoredBy))
+            guard releases.updateValue(value, forKey: value.releaseID) == nil else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+        }
+        var output = try releases.values.map {
+            V24BackupSurveyDefinitionRecordV1(
+                kind: .release, id: $0.releaseID,
+                workspaceID: workspaceID.rawValue, revision: $0.revision,
+                canonicalData: try SurveyDefinitionCanonicalCodecV1.encode($0)
+            )
+        }
+        for record in records where record.kind == .identity {
+            let source = try SurveyDefinitionCanonicalCodecV1.decode(
+                SurveyDefinitionIdentityV1.self, from: record.canonicalData
+            )
+            guard let release = releases[source.currentRelease.releaseID],
+                  let sourceEvent = sourceEvents[source.latestLifecycleEventID] else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            let event = try SurveyDefinitionLifecycleEventV1(
+                eventID: sourceEvent.eventID, workspaceID: workspaceID,
+                definitionID: sourceEvent.definitionID, action: sourceEvent.action,
+                priorState: sourceEvent.priorState, resultingState: sourceEvent.resultingState,
+                release: SurveyDefinitionReleaseReferenceV1(release),
+                predecessorEventID: sourceEvent.predecessorEventID,
+                predecessorEventSHA256: sourceEvent.predecessorEventSHA256,
+                sourceDefinitionID: sourceEvent.sourceDefinitionID,
+                sourceReleaseID: sourceEvent.sourceReleaseID,
+                sourceReleaseSHA256: sourceEvent.sourceReleaseSHA256,
+                sourceArchiveSHA256: sourceEvent.sourceArchiveSHA256,
+                semanticDiffSHA256: sourceEvent.semanticDiffSHA256,
+                actor: actor(sourceEvent.actor), recordedAt: sourceEvent.recordedAt,
+                revision: sourceEvent.revision, mutationID: sourceEvent.mutationID
+            )
+            let value = try SurveyDefinitionIdentityV1(
+                definitionID: source.definitionID, workspaceID: workspaceID,
+                activityKind: source.activityKind, lifecycleState: source.lifecycleState,
+                currentRelease: SurveyDefinitionReleaseReferenceV1(release),
+                latestLifecycleEventID: event.eventID,
+                latestLifecycleEventSHA256: event.eventSHA256,
+                createdBy: actor(source.createdBy), createdAt: source.createdAt,
+                revision: source.revision, mutationID: source.mutationID
+            )
+            try value.validate(currentRelease: release, event: event)
+            output.append(.init(
+                kind: .identity, id: value.definitionID,
+                workspaceID: workspaceID.rawValue, revision: value.revision,
+                canonicalData: try SurveyDefinitionCanonicalCodecV1.encode(value)
+            ))
+        }
+        guard output.count == records.count else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        return output.sorted {
+            "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
+                < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
+        }
     }
 
     func rebindingPartyAccountability(
@@ -3212,6 +3322,7 @@ private extension BackupRestoreService {
         }
         return V4BackupRecordsV1(
             accessibleDocumentAssessments:[],
+            surveyDefinitions: [],
             fieldReferences: [],
             evidenceAssurance: [], functionalRelationships: [], authorityCriterion: [], assetSemantics: [],
             assetCompositionEdges: records.assetCompositionEdges,
@@ -3587,7 +3698,8 @@ private extension BackupRestoreService {
                 || records.recordsSchemaVersion == 19
                 || records.recordsSchemaVersion == 20
                 || records.recordsSchemaVersion == 21
-                || records.recordsSchemaVersion == 22)
+                || records.recordsSchemaVersion == 22
+                || records.recordsSchemaVersion == 23)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -3602,7 +3714,10 @@ private extension BackupRestoreService {
              (5, let ledger?, _), (6, let ledger?, _),
              (7, let ledger?, _), (8, let ledger?, _),
              (9, let ledger?, _), (10, let ledger?, _), (11, let ledger?, _),
-             (12, let ledger?, _):
+             (12, let ledger?, _), (13, let ledger?, _), (14, let ledger?, _),
+             (15, let ledger?, _), (16, let ledger?, _), (17, let ledger?, _),
+             (18, let ledger?, _), (19, let ledger?, _), (20, let ledger?, _),
+             (21, let ledger?, _), (22, let ledger?, _), (23, let ledger?, _):
             do {
                 try ledger.validate()
                 try DeletionLedgerStore(context: context).stageUnion(ledger.entries)
@@ -3850,7 +3965,8 @@ private extension BackupRestoreService {
             || records.recordsSchemaVersion == 19
             || records.recordsSchemaVersion == 20
             || records.recordsSchemaVersion == 21
-            || records.recordsSchemaVersion == 22 {
+            || records.recordsSchemaVersion == 22
+            || records.recordsSchemaVersion == 23 {
             do {
                 for record in records.savedSmartViews {
                     let descriptor = try record.descriptor()
@@ -4133,6 +4249,26 @@ private extension BackupRestoreService {
         if records.recordsSchemaVersion >= 22 {
             do{let rows=try records.accessibleDocumentAssessments.map{record in let value=try AccessibleDocumentCanonicalCodecV1.decode(AccessibleDocumentAssessmentReceiptV1.self,from:record.canonicalData);guard let tree=preparedAccessibleDocumentTrees[value.receiptID] else{throw BackupRestoreServiceError.invalidRestoreAuthority};let row=try AccessibleDocumentAssessmentReceiptRow(value,tree:tree);_ = try row.value(tree:tree);return row};rows.forEach{context.insert($0)}}catch{throw BackupRestoreServiceError.invalidPackage}
         }
+        if records.recordsSchemaVersion >= 23 {
+            do {
+                for record in records.surveyDefinitions {
+                    switch record.kind {
+                    case .identity:
+                        context.insert(try SurveyDefinitionIdentityRow(
+                            SurveyDefinitionCanonicalCodecV1.decode(
+                                SurveyDefinitionIdentityV1.self, from: record.canonicalData
+                            )
+                        ))
+                    case .release:
+                        context.insert(try SurveyDefinitionReleaseRow(
+                            SurveyDefinitionCanonicalCodecV1.decode(
+                                SurveyDefinitionReleaseV1.self, from: record.canonicalData
+                            )
+                        ))
+                    }
+                }
+            } catch { throw BackupRestoreServiceError.invalidPackage }
+        }
         if let mutationHistory = records.mutationHistory {
             guard records.recordsSchemaVersion == 3
                     || records.recordsSchemaVersion == 4
@@ -4153,7 +4289,8 @@ private extension BackupRestoreService {
                     || records.recordsSchemaVersion == 19
                     || records.recordsSchemaVersion == 20
                     || records.recordsSchemaVersion == 21
-                    || records.recordsSchemaVersion == 22 else {
+                    || records.recordsSchemaVersion == 22
+                    || records.recordsSchemaVersion == 23 else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {
@@ -5243,7 +5380,8 @@ private extension BackupRestoreService {
                 || actual.recordsSchemaVersion == 19
                 || actual.recordsSchemaVersion == 20
                 || actual.recordsSchemaVersion == 21
-                || actual.recordsSchemaVersion == 22) else {
+                || actual.recordsSchemaVersion == 22
+                || actual.recordsSchemaVersion == 23) else {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
         if expected.recordsSchemaVersion == 5 || expected.recordsSchemaVersion == 6 {
@@ -5263,6 +5401,7 @@ private extension BackupRestoreService {
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
             accessibleDocumentAssessments:schemaVersion >= 22 ? records.accessibleDocumentAssessments:[],
+            surveyDefinitions: schemaVersion >= 23 ? records.surveyDefinitions : [],
             fieldReferences:schemaVersion >= 21 ? records.fieldReferences:[],
             recoverabilityReceipts:schemaVersion >= 20 ? records.recoverabilityReceipts:[],
             clientCapabilities: schemaVersion >= 19 ? records.clientCapabilities : [],
@@ -5304,6 +5443,7 @@ private extension BackupRestoreService {
     ) throws -> Bool {
         let predecessor = V4BackupRecordsV1(
             accessibleDocumentAssessments:expected.recordsSchemaVersion >= 22 ? expected.accessibleDocumentAssessments:[],
+            surveyDefinitions: expected.recordsSchemaVersion >= 23 ? expected.surveyDefinitions : [],
             fieldReferences:expected.recordsSchemaVersion >= 21 ? expected.fieldReferences:[],
             recoverabilityReceipts:expected.recordsSchemaVersion >= 20 ? expected.recoverabilityReceipts:[],
             clientCapabilities: expected.recordsSchemaVersion >= 19 ? expected.clientCapabilities : [],
@@ -5501,6 +5641,8 @@ private extension BackupRestoreService {
         let activePackageRegistryPointers = try context.fetch(FetchDescriptor<ActivePackageRegistryPointerRow>())
         let fieldReferenceReleases=try context.fetch(FetchDescriptor<FieldReferenceReleaseRow>()),fieldReferenceBindings=try context.fetch(FetchDescriptor<FieldReferenceBindingRow>())
         let accessibleDocumentAssessmentReceipts=try context.fetch(FetchDescriptor<AccessibleDocumentAssessmentReceiptRow>())
+        let surveyDefinitionIdentities=try context.fetch(FetchDescriptor<SurveyDefinitionIdentityRow>())
+        let surveyDefinitionReleases=try context.fetch(FetchDescriptor<SurveyDefinitionReleaseRow>())
         let recoverabilityVerificationReceipts=try context.fetch(FetchDescriptor<RecoverabilityVerificationReceiptRow>())
         let clientCapabilityProfiles=try context.fetch(FetchDescriptor<ClientCapabilityProfileRow>()),packageLifecyclePolicies=try context.fetch(FetchDescriptor<PackageLifecyclePolicyRow>()),packageLifecycleDispositions=try context.fetch(FetchDescriptor<PackageLifecycleDispositionRow>()),clientCapabilityAdmissionDecisions=try context.fetch(FetchDescriptor<ClientCapabilityAdmissionDecisionRow>())
         let privacyTransformPolicies=try context.fetch(FetchDescriptor<PrivacyTransformPolicyRow>()),privacyRegions=try context.fetch(FetchDescriptor<PrivacyRegionRow>()),privacyTransformManifests=try context.fetch(FetchDescriptor<PrivacyTransformManifestRow>()),privacyReviewReceipts=try context.fetch(FetchDescriptor<PrivacyReviewReceiptRow>())
@@ -5558,8 +5700,13 @@ private extension BackupRestoreService {
         let fieldReferenceReleaseValues=try Dictionary(uniqueKeysWithValues:fieldReferenceReleases.map{let value=try $0.value();return(value.releaseID,value)})
         let fieldReferenceRecords:[V22BackupFieldReferenceRecordV1]=mutationHistory == nil ? [] : try (fieldReferenceReleaseValues.values.map{.init(kind:.release,id:$0.releaseID,workspaceID:$0.workspaceID.rawValue,revision:$0.revision,canonicalData:try FieldReferencePackCanonicalCodecV1.encode($0))}+fieldReferenceBindings.map{row in guard let release=fieldReferenceReleaseValues[row.releaseID]else{throw BackupRestoreServiceError.invalidRestoreAuthority};let value=try row.value(release:release);return .init(kind:.binding,id:value.bindingID,workspaceID:value.workspaceID.rawValue,revision:value.revision,canonicalData:try FieldReferencePackCanonicalCodecV1.encode(value))}).sorted{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"}
         let accessibleDocumentAssessmentRecords:[V23BackupAccessibleDocumentAssessmentRecordV1]=mutationHistory == nil ? [] : try accessibleDocumentAssessmentReceipts.map{let value=try $0.value();return .init(id:value.receiptID,workspaceID:value.workspaceID.rawValue,revision:value.revision,canonicalData:try AccessibleDocumentCanonicalCodecV1.encode(value))}.sorted{$0.id.uuidString<$1.id.uuidString}
+        let surveyDefinitionRecords:[V24BackupSurveyDefinitionRecordV1]=mutationHistory == nil ? [] : try (
+            surveyDefinitionIdentities.map{let value=try $0.value();return .init(kind:.identity,id:value.definitionID,workspaceID:value.workspaceID.rawValue,revision:value.revision,canonicalData:try SurveyDefinitionCanonicalCodecV1.encode(value))}
+            + surveyDefinitionReleases.map{let value=try $0.value();return .init(kind:.release,id:value.releaseID,workspaceID:value.workspaceID.rawValue,revision:value.revision,canonicalData:try SurveyDefinitionCanonicalCodecV1.encode(value))}
+        ).sorted{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"}
         return V4BackupRecordsV1(
             accessibleDocumentAssessments:accessibleDocumentAssessmentRecords,
+            surveyDefinitions: surveyDefinitionRecords,
             fieldReferences:fieldReferenceRecords,
             recoverabilityReceipts:recoverabilityReceiptRecords,
             clientCapabilities: clientCapabilityRecords,
@@ -5758,7 +5905,7 @@ private extension BackupRestoreService {
                 "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
                     < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
             },
-            recordsSchemaVersion: mutationHistory != nil ? 22
+            recordsSchemaVersion: mutationHistory != nil ? 23
                 : !(privacyTransformPolicies.isEmpty && privacyRegions.isEmpty
                 && privacyTransformManifests.isEmpty && privacyReviewReceipts.isEmpty) ? 18
                 : !(instrumentReferences.isEmpty && calibrationStatusSnapshots.isEmpty

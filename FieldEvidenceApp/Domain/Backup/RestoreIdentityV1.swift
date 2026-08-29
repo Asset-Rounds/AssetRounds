@@ -340,3 +340,26 @@ private extension RestoreIdentityDecisionV1 {
             }
     }
 }
+
+/// C25 keeps survey lifecycle authority in mutation history. Replacement may
+/// preserve the exact two durable values; clone/fork must project them into
+/// the destination workspace while retaining immutable definition/release IDs.
+enum SurveyDefinitionRestoreIdentityPolicyV1 {
+    static func validate(
+        record: V24BackupSurveyDefinitionRecordV1,
+        decision: RestoreIdentityV1?
+    ) throws {
+        guard let decision else { return }
+        switch decision.mode {
+        case .emptyInstall, .replaceExisting:
+            guard record.workspaceID == decision.source.workspaceID else {
+                throw RestoreIdentityDecisionErrorV1.workspaceCollision
+            }
+        case .clone, .fork:
+            guard decision.targetPointer.workspaceID != decision.source.workspaceID,
+                  record.workspaceID == decision.targetPointer.workspaceID else {
+                throw RestoreIdentityDecisionErrorV1.workspaceCollision
+            }
+        }
+    }
+}

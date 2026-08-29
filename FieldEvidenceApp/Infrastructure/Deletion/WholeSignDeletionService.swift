@@ -1314,6 +1314,7 @@ private extension WholeSignDeletionService {
         let clientCapabilityProfiles:[ClientCapabilityProfileRow];let packageLifecyclePolicies:[PackageLifecyclePolicyRow];let packageLifecycleDispositions:[PackageLifecycleDispositionRow];let clientCapabilityAdmissionDecisions:[ClientCapabilityAdmissionDecisionRow]
         let fieldReferenceReleases:[FieldReferenceReleaseRow];let fieldReferenceBindings:[FieldReferenceBindingRow]
         let accessibleDocumentAssessmentReceipts:[AccessibleDocumentAssessmentReceiptRow]
+        let surveyDefinitionIdentities:[SurveyDefinitionIdentityRow];let surveyDefinitionReleases:[SurveyDefinitionReleaseRow]
         let observationAndTime: [UUID: ObservationAndTimeRow]
         let recordPayloads: [WorkflowRecordPayloadV1]
         let evidence: [EvidenceFile]
@@ -1372,6 +1373,7 @@ private extension WholeSignDeletionService {
                 clientCapabilityProfiles:try boundedFetch(ClientCapabilityProfileRow.self),packageLifecyclePolicies:try boundedFetch(PackageLifecyclePolicyRow.self),packageLifecycleDispositions:try boundedFetch(PackageLifecycleDispositionRow.self),clientCapabilityAdmissionDecisions:try boundedFetch(ClientCapabilityAdmissionDecisionRow.self),
                 fieldReferenceReleases:try boundedFetch(FieldReferenceReleaseRow.self),fieldReferenceBindings:try boundedFetch(FieldReferenceBindingRow.self),
                 accessibleDocumentAssessmentReceipts:try boundedFetch(AccessibleDocumentAssessmentReceiptRow.self),
+                surveyDefinitionIdentities:try boundedFetch(SurveyDefinitionIdentityRow.self),surveyDefinitionReleases:try boundedFetch(SurveyDefinitionReleaseRow.self),
                 observationAndTime: observationAndTime,
                 recordPayloads: recordPayloads,
                 evidence: try boundedFetch(EvidenceFile.self),
@@ -1426,6 +1428,8 @@ private extension WholeSignDeletionService {
         let accessibleReceipts=try rows.accessibleDocumentAssessmentReceipts.map{try $0.value()}
         let accessibleInventory=AccessibleDocumentDeletionInventoryV1(receiptIDs:Set(accessibleReceipts.map(\.receiptID)),outputSHA256:Set(accessibleReceipts.map(\.outputSHA256)))
         try WholeSignDeletionRule.validateAccessibleDocumentLifecycle(before:accessibleInventory,after:accessibleInventory,workspaceErase:false)
+        let surveyInventory=SurveyDefinitionDeletionInventoryV1(identityIDs:Set(rows.surveyDefinitionIdentities.map(\.definitionID)),releaseIDs:Set(rows.surveyDefinitionReleases.map(\.releaseID)))
+        try WholeSignDeletionRule.validateSurveyDefinitionLifecycle(before:surveyInventory,after:surveyInventory,workspaceErase:false)
         do {
             var assetIDs = Set<UUID>()
             if let deletingAssetID { assetIDs.insert(deletingAssetID) }

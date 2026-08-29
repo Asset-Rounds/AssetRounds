@@ -8,6 +8,143 @@ private struct PrivacyTransformCanonicalReviewEnvelopeV1: Decodable {
     let policyID: UUID; let policyRevision: UInt64; let policySHA256: String
 }
 
+enum SurveyDefinitionBackupGraphClosureV1 {
+    enum Failure: Error { case invalid }
+
+    static func validate(
+        identities: [SurveyDefinitionIdentityV1],
+        releases: [SurveyDefinitionReleaseV1],
+        history: MutationHistorySnapshotV1,
+        expectedWorkspaceID: WorkspaceID?
+    ) throws {
+        guard Set(identities.map(\.definitionID)).count == identities.count,
+              Set(releases.map(\.releaseID)).count == releases.count else {
+            throw Failure.invalid
+        }
+        let identityByID = Dictionary(uniqueKeysWithValues: identities.map { ($0.definitionID, $0) })
+        let releaseByID = Dictionary(uniqueKeysWithValues: releases.map { ($0.releaseID, $0) })
+        let workspaceIDs = Set(identities.map(\.workspaceID) + releases.map(\.workspaceID))
+        guard workspaceIDs.count <= 1,
+              expectedWorkspaceID.map({ workspaceIDs.isEmpty || workspaceIDs == Set([$0]) }) ?? true else {
+            throw Failure.invalid
+        }
+
+        var mutations: [SurveyDefinitionMutationV1] = []
+        for record in history.receipts {
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+            guard case let .applySurveyDefinition(mutation) = envelope.command else { continue }
+            try mutation.validate()
+            guard envelope.workspaceID == mutation.workspaceID,
+                  envelope.mutationID == mutation.mutationID,
+                  expectedWorkspaceID.map({ envelope.workspaceID == $0 }) ?? true,
+                  let storedIdentity = identityByID[mutation.identity.definitionID],
+                  let storedRelease = releaseByID[mutation.release.releaseID],
+                  storedRelease == mutation.release,
+                  mutation.identity.workspaceID == storedIdentity.workspaceID,
+                  mutation.identity.activityKind == storedIdentity.activityKind,
+                  mutation.identity.createdBy == storedIdentity.createdBy,
+                  mutation.identity.createdAt == storedIdentity.createdAt,
+                  mutation.event.workspaceID == mutation.workspaceID,
+                  mutation.event.definitionID == mutation.identity.definitionID,
+                  mutation.event.mutationID == mutation.mutationID,
+                  mutation.event.release == (try SurveyDefinitionReleaseReferenceV1(storedRelease)) else {
+                throw Failure.invalid
+            }
+            mutations.append(mutation)
+        }
+        let events = mutations.map(\.event)
+        guard Set(events.map(\.eventID)).count == events.count,
+              Set(events.map { $0.mutationID.rawValue }).count == events.count else {
+            throw Failure.invalid
+        }
+        let eventByID = Dictionary(uniqueKeysWithValues: events.map { ($0.eventID, $0) })
+        let mutationByEventID = Dictionary(uniqueKeysWithValues: mutations.map { ($0.event.eventID, $0) })
+
+        var releaseChildCount: [UUID: Int] = [:]
+        for release in releases {
+            guard let identity = identityByID[release.definitionID],
+                  identity.workspaceID == release.workspaceID else { throw Failure.invalid }
+            if let predecessorID = release.supersedesReleaseID {
+                guard let predecessor = releaseByID[predecessorID] else { throw Failure.invalid }
+                try release.validateSuccessor(of: predecessor)
+                releaseChildCount[predecessorID, default: 0] += 1
+                guard releaseChildCount[predecessorID] == 1 else { throw Failure.invalid }
+            }
+        }
+
+        var eventChildCount: [UUID: Int] = [:]
+        for event in events {
+            guard let identity = identityByID[event.definitionID],
+                  identity.workspaceID == event.workspaceID,
+                  let release = releaseByID[event.release.releaseID] else { throw Failure.invalid }
+            try event.validate(release: release)
+            if let predecessorID = event.predecessorEventID {
+                guard let predecessor = eventByID[predecessorID] else { throw Failure.invalid }
+                try event.validateSuccessor(of: predecessor, release: release)
+                eventChildCount[predecessorID, default: 0] += 1
+                guard eventChildCount[predecessorID] == 1 else { throw Failure.invalid }
+            }
+        }
+
+        for identity in identities {
+            guard let release = releaseByID[identity.currentRelease.releaseID],
+                  let event = eventByID[identity.latestLifecycleEventID],
+                  let latestMutation = mutationByEventID[event.eventID],
+                  latestMutation.identity == identity,
+                  identity.latestLifecycleEventSHA256 == event.eventSHA256 else {
+                throw Failure.invalid
+            }
+            try identity.validate(currentRelease: release, event: event)
+            let definitionEvents = events.filter { $0.definitionID == identity.definitionID }
+            let roots = definitionEvents.filter { $0.predecessorEventID == nil }
+            let heads = definitionEvents.filter { eventChildCount[$0.eventID, default: 0] == 0 }
+            guard roots.count == 1, heads.count == 1,
+                  heads[0].eventID == identity.latestLifecycleEventID else { throw Failure.invalid }
+            var visitedEvents = Set<UUID>()
+            var eventCursor: SurveyDefinitionLifecycleEventV1? = event
+            while let current = eventCursor {
+                guard visitedEvents.insert(current.eventID).inserted else { throw Failure.invalid }
+                eventCursor = current.predecessorEventID.flatMap { eventByID[$0] }
+            }
+            guard visitedEvents.count == definitionEvents.count else { throw Failure.invalid }
+
+            let definitionReleases = releases.filter { $0.definitionID == identity.definitionID }
+            let releaseRoots = definitionReleases.filter { $0.supersedesReleaseID == nil }
+            let releaseHeads = definitionReleases.filter { releaseChildCount[$0.releaseID, default: 0] == 0 }
+            guard releaseRoots.count == 1, releaseHeads.count == 1,
+                  releaseHeads[0].releaseID == identity.currentRelease.releaseID else { throw Failure.invalid }
+            var visitedReleases = Set<UUID>()
+            var releaseCursor: SurveyDefinitionReleaseV1? = release
+            while let current = releaseCursor {
+                guard visitedReleases.insert(current.releaseID).inserted else { throw Failure.invalid }
+                releaseCursor = current.supersedesReleaseID.flatMap { releaseByID[$0] }
+            }
+            guard visitedReleases.count == definitionReleases.count else { throw Failure.invalid }
+        }
+
+        guard events.allSatisfy({ identityByID[$0.definitionID] != nil }),
+              releases.allSatisfy({ identityByID[$0.definitionID] != nil }),
+              Set(events.map(\.release.releaseID)) == Set(releases.map(\.releaseID)),
+              identities.isEmpty == releases.isEmpty,
+              identities.isEmpty == events.isEmpty else { throw Failure.invalid }
+
+        var expectedRevisions: [String: UInt64] = [:]
+        for identity in identities {
+            let key = try WorkspaceEntityIdentityV1(kind: .surveyDefinitionIdentity, id: identity.definitionID).stableKey
+            guard expectedRevisions.updateValue(identity.revision, forKey: key) == nil else { throw Failure.invalid }
+        }
+        for release in releases {
+            let key = try WorkspaceEntityIdentityV1(kind: .surveyDefinitionRelease, id: release.releaseID).stableKey
+            guard expectedRevisions.updateValue(release.revision, forKey: key) == nil else { throw Failure.invalid }
+        }
+        var actualRevisions: [String: UInt64] = [:]
+        for value in history.entityRevisions where value.identity.kind == .surveyDefinitionIdentity || value.identity.kind == .surveyDefinitionRelease {
+            guard actualRevisions.updateValue(value.revision, forKey: value.identity.stableKey) == nil else { throw Failure.invalid }
+        }
+        guard actualRevisions == expectedRevisions else { throw Failure.invalid }
+    }
+}
+
 struct BackupCanonicalDecoderV1: Sendable {
     func decodeManifestOffMain(
         _ data: Data,
@@ -68,6 +205,7 @@ struct BackupCanonicalDecoderV1: Sendable {
             try Self.validateRecoverabilityReceipts(value)
             try Self.validateFieldReferences(value)
             try Self.validateAccessibleDocumentAssessments(value)
+            try Self.validateSurveyDefinitions(value)
             let canonical = try BackupCanonicalEncoderV1().encodeRecords(value).data
             guard canonical == data else {
                 throw BackupCanonicalDecodingErrorV1.invalidRecords
@@ -80,9 +218,29 @@ struct BackupCanonicalDecoderV1: Sendable {
 }
 
 private extension BackupCanonicalDecoderV1 {
+    static func validateSurveyDefinitions(_ records:V4BackupRecordsV1)throws{
+        guard records.recordsSchemaVersion>=23 else{guard records.surveyDefinitions.isEmpty else{throw BackupCanonicalDecodingErrorV1.invalidRecords};return}
+        guard records.recordsSchemaVersion==23,let history=records.mutationHistory else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
+        var releases:[UUID:SurveyDefinitionReleaseV1]=[:],identities:[UUID:SurveyDefinitionIdentityV1]=[:],keys=Set<String>()
+        for record in records.surveyDefinitions where record.kind == .release{let value=try SurveyDefinitionCanonicalCodecV1.decode(SurveyDefinitionReleaseV1.self,from:record.canonicalData);try value.validate();guard record.id==value.releaseID,record.workspaceID==value.workspaceID.rawValue,record.revision==value.revision,keys.insert("release|\(record.id.uuidString)").inserted,releases.updateValue(value,forKey:value.releaseID)==nil else{throw BackupCanonicalDecodingErrorV1.invalidRecords}}
+        for record in records.surveyDefinitions where record.kind == .identity {
+            let value=try SurveyDefinitionCanonicalCodecV1.decode(SurveyDefinitionIdentityV1.self,from:record.canonicalData)
+            guard record.id==value.definitionID,record.workspaceID==value.workspaceID.rawValue,
+                  record.revision==value.revision,keys.insert("identity|\(record.id.uuidString)").inserted,
+                  identities.updateValue(value,forKey:value.definitionID)==nil else {
+                throw BackupCanonicalDecodingErrorV1.invalidRecords
+            }
+        }
+        do {
+            try SurveyDefinitionBackupGraphClosureV1.validate(
+                identities:Array(identities.values),releases:Array(releases.values),
+                history:history,expectedWorkspaceID:nil
+            )
+        } catch { throw BackupCanonicalDecodingErrorV1.invalidRecords }
+    }
     static func validateAccessibleDocumentAssessments(_ records:V4BackupRecordsV1)throws{
         guard records.recordsSchemaVersion>=22 else{guard records.accessibleDocumentAssessments.isEmpty else{throw BackupCanonicalDecodingErrorV1.invalidRecords};return}
-        guard records.recordsSchemaVersion==22 else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
+        guard (22...23).contains(records.recordsSchemaVersion) else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
         var values:[UUID:AccessibleDocumentAssessmentReceiptV1]=[:],children:[UUID:Int]=[:]
         for record in records.accessibleDocumentAssessments{let value=try AccessibleDocumentCanonicalCodecV1.decode(AccessibleDocumentAssessmentReceiptV1.self,from:record.canonicalData);try value.validateIntrinsic();guard record.id==value.receiptID,record.workspaceID==value.workspaceID.rawValue,record.revision==value.revision,values.updateValue(value,forKey:value.receiptID)==nil else{throw BackupCanonicalDecodingErrorV1.invalidRecords}}
         for value in values.values{if let predecessorID=value.supersedesReceiptID{guard let predecessor=values[predecessorID],predecessor.workspaceID==value.workspaceID,predecessor.treeSHA256==value.treeSHA256,predecessor.outputSHA256==value.outputSHA256,predecessor.revision<UInt64.max,value.revision==predecessor.revision+1 else{throw BackupCanonicalDecodingErrorV1.invalidRecords};children[predecessorID,default:0]+=1;guard children[predecessorID]==1 else{throw BackupCanonicalDecodingErrorV1.invalidRecords}}else if value.revision != 1{throw BackupCanonicalDecodingErrorV1.invalidRecords}}

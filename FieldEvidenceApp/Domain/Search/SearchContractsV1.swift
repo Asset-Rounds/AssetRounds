@@ -2231,3 +2231,118 @@ enum FieldReferenceSearchProjectionPolicyV1 {
         fieldIDs.contains(field.rawValue)
     }
 }
+
+// MARK: - C25 bounded survey-definition search projection
+
+enum SurveyDefinitionSearchFieldV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case definitionID = "DEFINITION_ID"
+    case releaseID = "RELEASE_ID"
+    case activityKind = "ACTIVITY_KIND"
+    case lifecycleState = "LIFECYCLE_STATE"
+    case releaseRevision = "RELEASE_REVISION"
+    case releaseSHA256 = "RELEASE_SHA256"
+    case reportProjectionID = "REPORT_PROJECTION_ID"
+}
+
+struct SurveyDefinitionSearchRecordV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let maximumSearchTokens = 32
+
+    let schemaVersion: Int
+    let definitionID: String
+    let releaseID: String
+    let activityKind: ActivityKindV1
+    let lifecycleState: SurveyDefinitionLifecycleStateV1
+    let releaseRevision: UInt64
+    let releaseSHA256: String
+    let reportProjectionID: String
+    let normalizedTokens: [String]
+
+    init(
+        release: SurveyDefinitionReleaseV1,
+        lifecycleState: SurveyDefinitionLifecycleStateV1
+    ) throws {
+        try release.validate()
+        schemaVersion = Self.schemaVersion
+        definitionID = release.definitionID.uuidString.lowercased()
+        releaseID = release.releaseID.uuidString.lowercased()
+        activityKind = release.activityKind
+        self.lifecycleState = lifecycleState
+        releaseRevision = release.revision
+        releaseSHA256 = release.releaseSHA256
+        reportProjectionID = release.reportProjection.projectionID
+        normalizedTokens = Self.tokens(
+            definitionID: definitionID,
+            releaseID: releaseID,
+            activityKind: activityKind,
+            lifecycleState: lifecycleState,
+            reportProjectionID: reportProjectionID
+        )
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              SearchContractValidationV1.validID(definitionID),
+              SearchContractValidationV1.validID(releaseID),
+              SearchContractValidationV1.validID(reportProjectionID),
+              KernelCanonicalHashV1.validSHA256(releaseSHA256),
+              releaseRevision > 0,
+              normalizedTokens.count <= Self.maximumSearchTokens,
+              normalizedTokens == normalizedTokens.sorted(),
+              SearchContractValidationV1.normalizedTokensAreCanonical(normalizedTokens) else {
+            throw SurveyDefinitionConsumerFailureV1.invalidValue
+        }
+    }
+
+    private static func tokens(
+        definitionID: String,
+        releaseID: String,
+        activityKind: ActivityKindV1,
+        lifecycleState: SurveyDefinitionLifecycleStateV1,
+        reportProjectionID: String
+    ) -> [String] {
+        let values = [
+            definitionID, releaseID, activityKind.rawValue,
+            lifecycleState.rawValue, reportProjectionID,
+        ]
+        let tokens = values.flatMap { value in
+            SearchContractValidationV1.normalizeSearchText(value)
+                .split { !CharacterSet.alphanumerics.contains($0) }
+                .map(String.init)
+        }
+        return Array(Set(tokens)).sorted()
+    }
+}
+
+enum SurveyDefinitionSearchProjectionPolicyV1 {
+    static let sourceKind = "SURVEY_DEFINITION_RELEASE"
+    static let semanticLabel = "SURVEY_DEFINITION_RELEASE_METADATA_V1"
+    static let fieldIDs = SurveyDefinitionSearchFieldV1.allCases.map(\.rawValue).sorted()
+    static let metadataOnly = true
+    static let derivedOnly = true
+    static let boundedToDefinitionReleaseAndLifecycle = true
+    static let excludesAnswers = true
+    static let excludesPromptText = true
+    static let excludesActorIdentity = true
+    static let excludesPrivateLocators = true
+    static let excludesEvidenceBytes = true
+    static let excludesPackagePayload = true
+    static let dropAndRebuildAfterRestore = true
+    static let dropAndRebuildOnReplay = true
+    static let dropAndRebuildAfterDelete = true
+
+    static func accepts(_ field: SurveyDefinitionSearchFieldV1) -> Bool {
+        fieldIDs.contains(field.rawValue)
+    }
+
+    static func validate(_ record: SurveyDefinitionSearchRecordV1) throws {
+        try record.validate()
+        guard metadataOnly, derivedOnly,
+              boundedToDefinitionReleaseAndLifecycle,
+              excludesAnswers, excludesPromptText, excludesActorIdentity,
+              excludesPrivateLocators, excludesEvidenceBytes, excludesPackagePayload else {
+            throw SurveyDefinitionConsumerFailureV1.privacyViolation
+        }
+    }
+}

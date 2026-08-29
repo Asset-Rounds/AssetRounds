@@ -554,3 +554,10 @@ extension V9_06DeletionRightsTests {
         XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
     }
 }
+extension V9_06DeletionRightsTests {
+    func testC25SurveyDefinitionTypedAnchor() throws {
+        XCTAssertEqual(SurveyDefinitionLifecycleV1.importDisposition, "QUARANTINE_THEN_NEW_DRAFT_IDENTITY")
+        XCTAssertEqual(SurveyDefinitionLifecycleV1.persistentFamilies.count, 2)
+        XCTAssertEqual(SurveyDefinitionLimitsV1.maximumCanonicalBytes, 4_194_304)
+    }
+}

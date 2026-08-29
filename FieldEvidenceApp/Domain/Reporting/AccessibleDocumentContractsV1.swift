@@ -260,3 +260,71 @@ struct AccessibleDocumentAssessmentReceiptV1:Codable,Equatable,Sendable{
 
 enum AccessibleDocumentCanonicalCodecV1{static func encode<T:Encodable>(_ value:T)throws->Data{if let tree=value as? AccessibleDocumentSemanticTreeV1{try tree.validate()};if let receipt=value as? AccessibleDocumentAssessmentReceiptV1{try receipt.validateIntrinsic()};let e=JSONEncoder();e.outputFormatting=[.sortedKeys,.withoutEscapingSlashes];e.dateEncodingStrategy = .millisecondsSince1970;return try e.encode(value)}static func decode<T:Codable>(_ type:T.Type,from data:Data)throws->T{guard !data.isEmpty,data.count<=8_388_608 else{throw AccessibleDocumentFailureV1.invalidValue};let d=JSONDecoder();d.dateDecodingStrategy = .millisecondsSince1970;let value=try d.decode(type,from:data);if let tree=value as? AccessibleDocumentSemanticTreeV1{try tree.validate()};if let receipt=value as? AccessibleDocumentAssessmentReceiptV1{try receipt.validateIntrinsic()};guard try encode(value)==data else{throw AccessibleDocumentFailureV1.digestMismatch};return value}}
 enum AccessibleDocumentLifecycleV1{static let persistentFamilies=["AccessibleDocumentAssessmentReceiptV1"];static let semanticTreePersistence="DERIVED_ONLY";static let pdfUAClaimed=false;static let wcagClaimed=false;static let legalCertificationClaimed=false;static let s10BrandReconciled=false;static let rendererAuthority="EXISTING_REPORT_RENDERERS_ONLY"}
+
+// MARK: - C25 survey-definition accessibility semantics
+
+enum SurveyDefinitionAccessibilityIDV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case screen = "survey.definition.screen"
+    case heading = "survey.definition.heading"
+    case definition = "survey.definition.definition"
+    case release = "survey.definition.release"
+    case activityKind = "survey.definition.activity_kind"
+    case lifecycle = "survey.definition.lifecycle"
+    case sections = "survey.definition.sections"
+    case facts = "survey.definition.facts"
+    case claimBoundary = "survey.definition.claim_boundary"
+    case notObserved = "survey.definition.not_observed"
+    case nextStep = "survey.definition.next_step"
+
+    var localizationKey: SurveyDefinitionLocalizationKeyV1 {
+        switch self {
+        case .screen, .heading: return .reportHeading
+        case .definition: return .reportDefinition
+        case .release: return .reportRelease
+        case .activityKind: return .reportActivityKind
+        case .lifecycle: return .reportLifecycle
+        case .sections: return .reportSections
+        case .facts: return .reportFacts
+        case .claimBoundary: return .reportClaimBoundary
+        case .notObserved: return .reportNotObserved
+        case .nextStep: return .nextStepReviewRecordedFacts
+        }
+    }
+}
+
+enum SurveyDefinitionAccessibilityPolicyV1 {
+    static let semanticNamespace = "survey.definition"
+    static let stateSemanticIDs: Set<String> = [
+        SurveyDefinitionAccessibilityIDV1.lifecycle.rawValue,
+        SurveyDefinitionAccessibilityIDV1.notObserved.rawValue,
+        SurveyDefinitionAccessibilityIDV1.claimBoundary.rawValue,
+    ]
+    static let requiresTextAndIconForIndeterminateStates = true
+    static let requiresNonColorStateText = true
+    static let requiresActionableNextStep = true
+    static let allowsColorOnlyState = false
+    static let allowsIconOnlyState = false
+    static let allowsMotionOnlyState = false
+    static let excludesAnswers = true
+    static let excludesPromptText = true
+    static let excludesActorIdentity = true
+    static let excludesPrivateLocators = true
+    static let excludesEvidenceBytes = true
+
+    static func requiresActionableNextStep(for semanticID: String) -> Bool {
+        semanticID == SurveyDefinitionAccessibilityIDV1.nextStep.rawValue
+    }
+
+    static func validate() throws {
+        guard Set(SurveyDefinitionAccessibilityIDV1.allCases.map(\.rawValue)).count
+                == SurveyDefinitionAccessibilityIDV1.allCases.count,
+              requiresTextAndIconForIndeterminateStates,
+              requiresNonColorStateText,
+              requiresActionableNextStep,
+              !allowsColorOnlyState, !allowsIconOnlyState, !allowsMotionOnlyState,
+              excludesAnswers, excludesPromptText, excludesActorIdentity,
+              excludesPrivateLocators, excludesEvidenceBytes else {
+            throw SurveyDefinitionConsumerFailureV1.privacyViolation
+        }
+    }
+}

@@ -18,6 +18,15 @@ enum SnapshotProjectionFailureV1: Error, Equatable, Sendable {
     case incompatibleVersion
 }
 
+struct CompletedSurveyDefinitionReferenceV1: Codable, Equatable, Sendable {
+    let activityKind: ActivityKindV1
+    let release: SurveyDefinitionReleaseReferenceV1
+    init(release value: SurveyDefinitionReleaseV1) throws {
+        try value.validate(); activityKind = value.activityKind; release = try .init(value)
+    }
+    func validate() throws { try release.validate() }
+}
+
 extension CompletedActivitySnapshotV1 {
     func validateAccessibleDocumentTree(_ tree:AccessibleDocumentSemanticTreeV1)throws{
         try validate();try tree.validate();guard tree.publication.snapshotSHA256==snapshotSHA256 else{throw AccessibleDocumentFailureV1.staleAssessment}

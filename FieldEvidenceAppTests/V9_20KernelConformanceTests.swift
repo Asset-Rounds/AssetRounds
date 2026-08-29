@@ -620,3 +620,10 @@ extension V9_20KernelConformanceTests {
         XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
     }
 }
+extension V9_20KernelConformanceTests {
+    func testC25SurveyDefinitionTypedAnchor() throws {
+        XCTAssertEqual(ActivityKindV1.allCases.count, 5)
+        XCTAssertEqual(SurveyDefinitionLifecycleStateV1.allCases.count, 3)
+        XCTAssertFalse(ActivityKindV1.allCases.map { ActivityKindSemanticsV1(kind: $0) }.contains { $0.mayClaimReleaseToService })
+    }
+}

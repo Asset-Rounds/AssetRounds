@@ -132,3 +132,10 @@ extension S8_2GoldenAccessibilityTests {
         XCTAssertFalse(AccessibleDocumentLifecycleV1.pdfUAClaimed)
     }
 }
+extension S8_2GoldenAccessibilityTests {
+    func testC25SurveyDefinitionTypedAnchor() throws {
+        XCTAssertEqual(SurveyFieldKindV1.allCases.count, 18)
+        XCTAssertEqual(ActivityKindSemanticsV1(kind: .operationalRecheck).completion, .subsequentOperationalObservation)
+        XCTAssertFalse(ActivityKindSemanticsV1(kind: .operationalRecheck).mayClaimReleaseToService)
+    }
+}

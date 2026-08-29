@@ -15,6 +15,13 @@ enum InspectionPackageFailureV2: Error, Equatable, Sendable {
 }
 
 extension InspectionPackageV2 {
+    func validateSurveyDefinition(_ release: SurveyDefinitionReleaseV1) throws {
+        try release.validate()
+        guard release.ownerPackageID == packageID else { throw InspectionPackageFailureV2.invalidValue }
+    }
+}
+
+extension InspectionPackageV2 {
     /// C23 references are independently versioned content releases; package
     /// admission validates them but never folds their bytes into package truth.
     func validateFieldReference(_ release: FieldReferenceReleaseV1) throws {

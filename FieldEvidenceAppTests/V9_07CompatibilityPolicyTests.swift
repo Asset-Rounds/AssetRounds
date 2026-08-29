@@ -388,3 +388,10 @@ extension V9_07CompatibilityPolicyTests {
         XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
     }
 }
+extension V9_07CompatibilityPolicyTests {
+    func testC25SurveyDefinitionTypedAnchor() throws {
+        XCTAssertEqual(SurveySemanticCompatibilityV1.invalid.rawValue, "INVALID")
+        XCTAssertEqual(SurveyAdoptionDispositionV1.blocked.rawValue, "BLOCKED")
+        XCTAssertEqual(SurveyDefinitionLimitsV1.maximumFacts, 2_048)
+    }
+}

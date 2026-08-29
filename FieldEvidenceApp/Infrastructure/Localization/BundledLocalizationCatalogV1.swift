@@ -2423,6 +2423,7 @@ enum BundledLocalizationCatalogV1 {
         includeClientCapability: Bool = false,
         includeFieldReference: Bool = false,
         includeAccessibleDocument: Bool = false,
+        includeSurveyDefinition: Bool = false,
         interruption: Interruption = { _ in }
     ) throws -> LocalizationCatalogPublicationV1 {
         try interruption(.beforeValidation)
@@ -2430,7 +2431,9 @@ enum BundledLocalizationCatalogV1 {
         let locales = LocalizationLocaleManifestV1.shippingV1()
         try locales.validate()
         let keys: LocalizationKeyRegistryV1
-        if includeAccessibleDocument {
+        if includeSurveyDefinition {
+            keys = try surveyDefinitionRegistry()
+        } else if includeAccessibleDocument {
             keys = try accessibleDocumentRegistry()
         } else if includeFieldReference {
             keys = try fieldReferenceRegistry()
@@ -2467,7 +2470,9 @@ enum BundledLocalizationCatalogV1 {
         }
         if let previousLegacy { try previousLegacy.validateObserved(legacy.entries) }
         let accessibility: SemanticAccessibilityIDRegistryV1
-        if includeAccessibleDocument {
+        if includeSurveyDefinition {
+            accessibility = try surveyDefinitionAccessibilityRegistry(localization: keys)
+        } else if includeAccessibleDocument {
             accessibility = try accessibleDocumentAccessibilityRegistry(localization: keys)
         } else if includeFieldReference {
             accessibility = try fieldReferenceAccessibilityRegistry(localization: keys)
@@ -2551,7 +2556,8 @@ enum BundledLocalizationCatalogV1 {
         includePrivacyTransform: Bool = false,
         includeClientCapability: Bool = false,
         includeFieldReference: Bool = false,
-        includeAccessibleDocument: Bool = false
+        includeAccessibleDocument: Bool = false,
+        includeSurveyDefinition: Bool = false
     ) throws -> LocalizationCatalogPublicationV1 {
         switch (sourceCatalogBytes, receipt) {
         case (nil, nil): return .zero
@@ -2577,7 +2583,8 @@ enum BundledLocalizationCatalogV1 {
                 includePrivacyTransform: includePrivacyTransform,
                 includeClientCapability: includeClientCapability,
                 includeFieldReference: includeFieldReference,
-                includeAccessibleDocument: includeAccessibleDocument
+                includeAccessibleDocument: includeAccessibleDocument,
+                includeSurveyDefinition: includeSurveyDefinition
             )
             guard case let .complete(_, _, _, _, actual) = publication,
                   actual == expected else { throw LocalizationContractFailureV1.digestMismatch }
@@ -3238,6 +3245,9 @@ enum BundledLocalizationCatalogV1 {
         // C24 is an additive accessible-document consumer registry.  Source
         // catalog validation remains English-only and closed to these keys.
         supportedKeys.formUnion(AccessibleDocumentLocalizationKeyV1.allCases.map(\.rawValue))
+        // C25 adds the closed activity/definition vocabulary.  It remains
+        // English-only and is accepted by the same sole source catalog.
+        supportedKeys.formUnion(SurveyDefinitionLocalizationKeyV1.allCases.map(\.rawValue))
         guard registeredKeys.isSubset(of: Set(strings.keys)),
               Set(strings.keys).isSubset(of: supportedKeys) else {
             throw LocalizationContractFailureV1.invalidValue
@@ -3364,6 +3374,90 @@ extension BundledLocalizationCatalogV1 {
     static func packageEvolutionAccessibilityContracts()
         -> [PackageEvolutionAccessibilityContractV1] {
         PackageEvolutionAccessibilityPolicyV1.contracts
+    }
+}
+
+// MARK: - C25 guided-survey labels and accessibility registry
+
+extension BundledLocalizationCatalogV1 {
+    /// Extends the sole bundled catalog with C25's closed English-only
+    /// vocabulary.  The core release stores localization keys and a catalog
+    /// release digest; it never stores localized answers or actor values here.
+    static func surveyDefinitionRegistry() throws -> LocalizationKeyRegistryV1 {
+        try SurveyDefinitionLocalizationPolicyV1.validate()
+        let base = try accessibleDocumentRegistry()
+        let additions = try SurveyDefinitionLocalizationKeyV1.allCases.map { key in
+            LocalizationKeyDefinitionV1(
+                key: try LocalizationKeyV1(key.rawValue),
+                meaningID: key.rawValue,
+                translatorComment: key.translatorComment,
+                englishDefaultValue: key.englishDefaultValue,
+                arguments: [],
+                requiredEnglishPluralCategories: [],
+                state: .active,
+                deprecatedFallbackKey: nil
+            )
+        }
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+
+    static func localized(
+        _ key: SurveyDefinitionLocalizationKeyV1,
+        bundle: Bundle = .main
+    ) -> String {
+        String(
+            localized: key.rawValue,
+            defaultValue: key.englishDefaultValue,
+            bundle: bundle,
+            locale: Locale(identifier: runtimeLanguage),
+            comment: key.translatorComment
+        )
+    }
+
+    static func surveyDefinitionAccessibilityRegistry(
+        localization: LocalizationKeyRegistryV1
+    ) throws -> SemanticAccessibilityIDRegistryV1 {
+        try SurveyDefinitionAccessibilityPolicyV1.validate()
+        let base = try accessibleDocumentAccessibilityRegistry(
+            localization: localization
+        )
+        let entries = try SurveyDefinitionAccessibilityIDV1.allCases.map { id
+            -> AccessibilityContractV1 in
+            let role: SemanticAccessibilityRoleV1
+            switch id {
+            case .screen: role = .screen
+            case .heading: role = .heading
+            case .nextStep: role = .button
+            case .lifecycle, .notObserved, .claimBoundary: role = .status
+            default: role = .group
+            }
+            let labelKey = try LocalizationKeyV1(id.localizationKey.rawValue)
+            let hintKey: LocalizationKeyV1? =
+                SurveyDefinitionAccessibilityPolicyV1.requiresActionableNextStep(
+                    for: id.rawValue
+                )
+                ? try LocalizationKeyV1(
+                    SurveyDefinitionLocalizationKeyV1.nextStepReviewRecordedFacts.rawValue
+                )
+                : nil
+            return AccessibilityContractV1(
+                semanticID: id.rawValue,
+                role: role,
+                reachability: .whenAvailable,
+                labelKey: labelKey,
+                hintKey: hintKey,
+                valueKey: nil,
+                dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            )
+        }
+        return try base.appending(entries, localization: localization)
+    }
+
+    static func surveyDefinitionDisplayLabel(
+        for key: SurveyDefinitionLocalizationKeyV1
+    ) -> String {
+        localized(key)
     }
 }
 

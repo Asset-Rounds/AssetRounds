@@ -1420,3 +1420,10 @@ extension V9_10LifecycleBoundaryTests {
         XCTAssertEqual(fixture.commitReceipt.sagaEventSHA256Chain.count, 5)
     }
 }
+extension V9_10LifecycleBoundaryTests {
+    func testC25SurveyDefinitionTypedAnchor() throws {
+        XCTAssertEqual(SurveyDefinitionLifecycleActionV1.allCases.count, 7)
+        XCTAssertEqual(SurveyDefinitionLifecycleStateV1.allCases.count, 3)
+        XCTAssertEqual(SurveyDefinitionLifecycleV1.writer, "SOLE_CANONICAL_WORKSPACE_WRITER")
+    }
+}

@@ -18,6 +18,18 @@ struct StreamingArchiveLimitsV1: Codable, Equatable, Sendable {
         bufferByteCount: 64 * 1_024,
         stagingReserveByteCount: 64 * 1_048_576
     )
+    static let card25SurveyTemplate = StreamingArchiveLimitsV1(
+        maximumIndexByteCount: 1_048_576,
+        maximumEntryCount: 128,
+        maximumPathUTF8ByteCount: 240,
+        maximumStoredEntryByteCount: 8 * 1_048_576,
+        maximumUncompressedEntryByteCount: 8 * 1_048_576,
+        maximumStoredAggregateByteCount: 16 * 1_048_576,
+        maximumUncompressedAggregateByteCount: 16 * 1_048_576,
+        maximumCompressionRatio: 20,
+        bufferByteCount: 64 * 1_024,
+        stagingReserveByteCount: 16 * 1_048_576
+    )
 
     let maximumIndexByteCount: Int
     let maximumEntryCount: Int
@@ -45,6 +57,12 @@ struct StreamingArchiveLimitsV1: Codable, Equatable, Sendable {
             throw StreamingArchiveFailureV1.invalidLimits
         }
     }
+}
+
+enum StreamingArchivePathProfileV1:String,Codable,Sendable{case backupV4="BACKUP_V4",surveyTemplate="SURVEY_TEMPLATE"}
+enum SurveyTemplateArchiveAdmissionV1{
+    static let maximumTotalBytes:Int64=16*1_048_576,maximumEntryBytes:Int64=8*1_048_576,maximumEntries=128,maximumPathUTF8Bytes=240,maximumDepth=8,maximumCompressionRatio:Int64=20
+    static func validate(_ index:StreamingArchiveIndexV1)throws{guard !index.entries.isEmpty,index.entries.count<=maximumEntries,index.storedPayloadByteCount<=maximumTotalBytes,index.uncompressedPayloadByteCount<=maximumTotalBytes else{throw StreamingArchiveFailureV1.entryLimitExceeded};for entry in index.entries{let depth=entry.path.split(separator:"/",omittingEmptySubsequences:false).count;guard entry.path.utf8.count<=maximumPathUTF8Bytes,(1...maximumDepth).contains(depth),entry.storedByteCount>=0,entry.uncompressedByteCount>=0,entry.storedByteCount<=maximumEntryBytes,entry.uncompressedByteCount<=maximumEntryBytes else{throw StreamingArchiveFailureV1.hostilePath};if entry.storedByteCount==0{guard entry.uncompressedByteCount==0 else{throw StreamingArchiveFailureV1.compressionRatioExceeded}}else{guard entry.uncompressedByteCount<=entry.storedByteCount*maximumCompressionRatio else{throw StreamingArchiveFailureV1.compressionRatioExceeded}}}}
 }
 
 struct StreamingArchiveEntryV1: Codable, Equatable, Sendable {

@@ -83,6 +83,34 @@ struct PackFinalizationBindingV1: Equatable, Sendable {
     private static let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
 }
 
+/// The check runner may start new work only from a published, immutable
+/// survey-definition release.  This is a narrow binding over the canonical
+/// C25 release contract; it deliberately does not create a second definition
+/// or lifecycle model in the runner feature.
+struct CheckRunnerSurveyDefinitionStartBindingV1: Equatable, Sendable {
+    let release: SurveyDefinitionReleaseV1
+    let lifecycleState: SurveyDefinitionLifecycleStateV1
+
+    init(
+        release: SurveyDefinitionReleaseV1,
+        lifecycleState: SurveyDefinitionLifecycleStateV1
+    ) throws {
+        try release.validate()
+        guard lifecycleState == .published else {
+            throw CheckRunnerCoordinatorError.packageLifecycleMismatch
+        }
+        self.release = release
+        self.lifecycleState = lifecycleState
+    }
+
+    func validate() throws {
+        try release.validate()
+        guard lifecycleState == .published else {
+            throw CheckRunnerCoordinatorError.packageLifecycleMismatch
+        }
+    }
+}
+
 enum CheckOutcomeSelection: Equatable, Sendable {
     case noVisibleIssue
     case visibleIssue(labelKey: String)

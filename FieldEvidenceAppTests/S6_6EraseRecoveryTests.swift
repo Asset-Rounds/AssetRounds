@@ -1082,3 +1082,10 @@ extension S6_6EraseRecoveryTests {
         XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
     }
 }
+extension S6_6EraseRecoveryTests {
+    func testC25SurveyDefinitionTypedAnchor() throws {
+        XCTAssertEqual(SurveyDefinitionLifecycleV1.importDisposition, "QUARANTINE_THEN_NEW_DRAFT_IDENTITY")
+        XCTAssertEqual(V24BackupSurveyDefinitionRecordV1.Kind.allCases, [.identity, .release])
+        XCTAssertEqual(PersistentSchemaV24.models.count, 87)
+    }
+}

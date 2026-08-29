@@ -465,3 +465,10 @@ extension S8_1SecondPackZeroForkTests {
         XCTAssertFalse(FieldReferencePackLifecycleV1.runtimeFetchingAllowed)
     }
 }
+extension S8_1SecondPackZeroForkTests {
+    func testC25SurveyDefinitionTypedAnchor() throws {
+        XCTAssertEqual(ActivityKindV1.allCases.count, 5)
+        XCTAssertEqual(SurveyDefinitionLifecycleV1.quarantinePersistence, "DERIVED_ONLY")
+        XCTAssertEqual(SurveyDefinitionLifecycleV1.writer, "SOLE_CANONICAL_WORKSPACE_WRITER")
+    }
+}

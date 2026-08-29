@@ -606,3 +606,57 @@ struct FieldReferenceReportHistoryValueV1: Codable, Equatable, Sendable {
         }
     }
 }
+
+// MARK: - C25 survey-definition history binding
+
+struct SurveyDefinitionReportHistoryBindingV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let definitionID: String
+    let releaseID: String
+    let releaseRevision: UInt64
+    let releaseSHA256: String
+    let lifecycleState: SurveyDefinitionLifecycleStateV1
+    let historicDisplayFrozen: Bool
+
+    init(projection: SurveyDefinitionReportProjectionV1) throws {
+        try projection.validate(format: .openJSON)
+        schemaVersion = Self.schemaVersion
+        definitionID = projection.metadata.definitionID
+        releaseID = projection.metadata.releaseID
+        releaseRevision = projection.metadata.releaseRevision
+        releaseSHA256 = projection.metadata.releaseSHA256
+        lifecycleState = projection.metadata.lifecycleState
+        historicDisplayFrozen = projection.historicDisplayFrozen
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              SurveyDefinitionConsumerPolicyV1.validID(definitionID),
+              SurveyDefinitionConsumerPolicyV1.validID(releaseID),
+              SurveyDefinitionConsumerPolicyV1.validDigest(releaseSHA256),
+              releaseRevision > 0,
+              historicDisplayFrozen else {
+            throw SurveyDefinitionConsumerFailureV1.invalidValue
+        }
+    }
+}
+
+enum SurveyDefinitionReportHistoryPolicyV1 {
+    static let finalizedArtifactsAreImmutable = true
+    static let laterReleaseIsAmendOnly = true
+    static let currentPointerCannotRewriteHistory = true
+
+    static func binding(
+        from projection: SurveyDefinitionReportProjectionV1
+    ) throws -> SurveyDefinitionReportHistoryBindingV1 {
+        guard finalizedArtifactsAreImmutable,
+              laterReleaseIsAmendOnly,
+              currentPointerCannotRewriteHistory else {
+            throw SurveyDefinitionConsumerFailureV1.staleBinding
+        }
+        return try SurveyDefinitionReportHistoryBindingV1(projection: projection)
+    }
+}

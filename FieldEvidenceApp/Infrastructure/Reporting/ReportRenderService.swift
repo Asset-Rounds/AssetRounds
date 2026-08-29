@@ -1463,3 +1463,30 @@ extension ReportRenderService {
         return projection
     }
 }
+
+// MARK: - C25 survey-definition rendering boundary
+
+extension ReportRenderService {
+    static func renderSurveyDefinitionOpenJSON(
+        _ projection: SurveyDefinitionReportProjectionV1
+    ) throws -> ReportProjectionOutputV1 {
+        try SnapshotValidatorV1.validateSurveyDefinitionProjection(
+            projection,
+            format: .openJSON
+        )
+        return try DeterministicOpenJSONRendererV1.renderSurveyDefinition(projection)
+    }
+
+    static func surveyDefinitionPDFMetadataLines(
+        _ projection: SurveyDefinitionReportProjectionV1
+    ) throws -> [String] {
+        try SnapshotValidatorV1.validateSurveyDefinitionProjection(
+            projection,
+            format: .pdf
+        )
+        return try WorklightPDFRendererV1.surveyDefinitionMetadataLines(projection)
+    }
+
+    static let surveyDefinitionHistoricExportUsesPinnedRelease = true
+    static let surveyDefinitionReportDoesNotUpgradeDrafts = true
+}

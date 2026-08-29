@@ -103,3 +103,33 @@ struct FeaturePolicyLoaderV1: Sendable {
         )
     }
 }
+
+// MARK: - C25 survey-definition feature boundary
+
+enum SurveyDefinitionFeaturePolicyBoundaryV1 {
+    static let featureID = "surveyDefinition"
+    static let safeFallback = "READ_ONLY_RELEASE_METADATA"
+    static let noImplicitWrite = true
+    static let deviceMemoryIsNotFeatureTruth = true
+    static let excludesAnswers = true
+    static let excludesPromptText = true
+    static let excludesActorIdentity = true
+
+    /// A missing feature declaration fails closed to a read-only metadata
+    /// consumer.  The loader remains the sole policy reader; this boundary
+    /// does not add a parallel resource or mutate FeaturePolicyV1.json.
+    static func resolveIfDeclared(
+        using loader: FeaturePolicyLoaderV1
+    ) throws -> FeaturePolicyResolutionV1? {
+        do {
+            return try loader.resolve(featureID: featureID)
+        } catch CapabilityContractFailureV1.unknownFeature {
+            return nil
+        }
+    }
+
+    static func validate() -> Bool {
+        noImplicitWrite && deviceMemoryIsNotFeatureTruth
+            && excludesAnswers && excludesPromptText && excludesActorIdentity
+    }
+}

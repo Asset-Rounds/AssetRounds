@@ -274,6 +274,7 @@ private extension ReplacementRestoreRule {
 
         let result = V4BackupRecordsV1(
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
+            surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
             recoverabilityReceipts: records.recoverabilityReceipts,
             clientCapabilities: records.clientCapabilities,
@@ -319,6 +320,7 @@ private extension ReplacementRestoreRule {
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
+            surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
             recoverabilityReceipts: records.recoverabilityReceipts,
             clientCapabilities: records.clientCapabilities,
@@ -357,6 +359,7 @@ private extension ReplacementRestoreRule {
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
+            surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
             recoverabilityReceipts: records.recoverabilityReceipts,
             clientCapabilities: records.clientCapabilities,
@@ -397,6 +400,7 @@ private extension ReplacementRestoreRule {
     ) throws -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
+            surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
             recoverabilityReceipts: records.recoverabilityReceipts,
             clientCapabilities: records.clientCapabilities,
@@ -601,7 +605,8 @@ private extension ReplacementRestoreRule {
                 || records.recordsSchemaVersion == 19
                 || records.recordsSchemaVersion == 20
                 || records.recordsSchemaVersion == 21
-                || records.recordsSchemaVersion == 22 else {
+                || records.recordsSchemaVersion == 22
+                || records.recordsSchemaVersion == 23 else {
             return records.locationNodes.isEmpty
                 && records.assetPlacementEvents.isEmpty
                 && records.assetCompositionEdges.isEmpty

@@ -6,6 +6,13 @@ enum PackageEvolutionFailureV1: Error, Equatable, Sendable {
     case stalePointer, divergentMutation, limitExceeded, wrongWorkspace
 }
 
+enum SurveyDefinitionEvolutionV1 {
+    static func preview(source: SurveyDefinitionReleaseV1, target: SurveyDefinitionReleaseV1, draftIDs: [UUID], activeWorkCount: Int, at: Date) throws -> SurveyDefinitionAdoptionPreviewV1 {
+        guard source.definitionID == target.definitionID, source.activityKind == target.activityKind else { throw PackageEvolutionFailureV1.incompatiblePromotion }
+        return try .init(workspaceID: source.workspaceID, diff: .init(source: source, target: target), affectedDraftIDs: draftIDs, pinnedActiveWorkCount: activeWorkCount, generatedAt: at)
+    }
+}
+
 enum PackageSemanticDiffClassificationV1: String, Codable, CaseIterable, Hashable, Sendable {
     case noChange = "NO_CHANGE"
     case additiveDraftSafe = "ADDITIVE_DRAFT_SAFE"

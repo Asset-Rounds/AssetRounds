@@ -1249,6 +1249,37 @@ enum FieldReferenceReportDeliveryPolicyV1 {
         return try DeterministicPDFRendererV1.fieldReferenceMetadataData(projection)
     }
 }
+
+// MARK: - C25 local report delivery boundary
+
+enum SurveyDefinitionReportDeliveryPolicyV1 {
+    static let localExportOnly = true
+    static let remoteDeliveryClaimed = false
+    static let acknowledgementClaimed = false
+    static let historicReleasePinned = true
+    static let excludesAnswers = true
+    static let excludesPromptText = true
+    static let excludesActorIdentity = true
+    static let excludesPrivateLocators = true
+    static let excludesEvidenceBytes = true
+}
+
+extension ReportDeliveryCoordinator {
+    /// Produces a local, deterministic artifact.  The result does not imply
+    /// that it was sent, delivered, acknowledged, or accepted remotely.
+    static func localSurveyDefinitionExport(
+        _ projection: SurveyDefinitionReportProjectionV1
+    ) throws -> Data {
+        try projection.validate(format: .openJSON)
+        guard SurveyDefinitionReportDeliveryPolicyV1.localExportOnly,
+              !SurveyDefinitionReportDeliveryPolicyV1.remoteDeliveryClaimed,
+              !SurveyDefinitionReportDeliveryPolicyV1.acknowledgementClaimed,
+              SurveyDefinitionReportDeliveryPolicyV1.historicReleasePinned else {
+            throw SurveyDefinitionConsumerFailureV1.privacyViolation
+        }
+        return try DeterministicOpenJSONRendererV1.renderSurveyDefinition(projection).data
+    }
+}
 private struct ReadyValidatedEvidenceBytes: Sendable {
     let originalJPEG: Data
     let thumbnailJPEG: Data

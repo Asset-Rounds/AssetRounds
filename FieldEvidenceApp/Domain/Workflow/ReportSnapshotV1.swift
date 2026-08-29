@@ -110,6 +110,15 @@ struct ReportSnapshotV1: Codable, Equatable, Sendable {
     }
 }
 
+struct FrozenSurveyDefinitionSnapshotV1: Codable, Equatable, Sendable {
+    let activityKind: ActivityKindV1
+    let releaseID: UUID
+    let definitionID: UUID
+    let revision: UInt64
+    let releaseSHA256: String
+    init(_ value: SurveyDefinitionReleaseV1) throws { try value.validate(); activityKind=value.activityKind;releaseID=value.releaseID;definitionID=value.definitionID;revision=value.revision;releaseSHA256=value.releaseSHA256 }
+}
+
 enum ReportSnapshotAccessibleDocumentBoundaryV1{
     static let semanticTreeFieldStoredInSnapshot=false
     static let rebuildUsesFrozenSnapshotOnly=true

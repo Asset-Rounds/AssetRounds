@@ -2533,6 +2533,194 @@
     "accessible.document.next-step" : {
       "comment" : "English label for a recorded accessible-document role, alternate-text provenance, decorative state, or assessment state; do not imply certification, compliance, identity, legal status, or hidden evidence.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review the recorded document state" } } }
+    },
+    "activity.kind.inspection" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Inspection" } } }
+    },
+    "activity.kind.survey" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Survey" } } }
+    },
+    "activity.kind.preventive_maintenance" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Preventive maintenance" } } }
+    },
+    "activity.kind.repair" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Repair" } } }
+    },
+    "activity.kind.operational_recheck" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Operational recheck" } } }
+    },
+    "survey.definition.lifecycle.draft" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Draft" } } }
+    },
+    "survey.definition.lifecycle.published" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Published" } } }
+    },
+    "survey.definition.lifecycle.retired" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Retired" } } }
+    },
+    "survey.field.kind.instruction" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Instruction" } } }
+    },
+    "survey.field.kind.short_text" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Short text" } } }
+    },
+    "survey.field.kind.long_text" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Long text" } } }
+    },
+    "survey.field.kind.integer" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Integer" } } }
+    },
+    "survey.field.kind.decimal" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Decimal" } } }
+    },
+    "survey.field.kind.measurement" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Measurement" } } }
+    },
+    "survey.field.kind.boolean_observation" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Boolean observation" } } }
+    },
+    "survey.field.kind.single_choice" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Single choice" } } }
+    },
+    "survey.field.kind.multiple_choice" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Multiple choice" } } }
+    },
+    "survey.field.kind.date" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Date" } } }
+    },
+    "survey.field.kind.time" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Time" } } }
+    },
+    "survey.field.kind.subject_reference" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Subject reference" } } }
+    },
+    "survey.field.kind.locator" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Locator" } } }
+    },
+    "survey.field.kind.one_shot_location" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "One-shot location" } } }
+    },
+    "survey.field.kind.normalized_plan_placement" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Normalized plan placement" } } }
+    },
+    "survey.field.kind.evidence_request" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Evidence request" } } }
+    },
+    "survey.field.kind.repeatable_group" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Repeatable group" } } }
+    },
+    "survey.field.kind.attributed_acknowledgement" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Attributed acknowledgment" } } }
+    },
+    "survey.boolean.yes" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Yes" } } }
+    },
+    "survey.boolean.no" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "No" } } }
+    },
+    "survey.boolean.unknown" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Unknown" } } }
+    },
+    "survey.boolean.not_observed" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Not observed" } } }
+    },
+    "survey.definition.report.heading" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Survey definition" } } }
+    },
+    "survey.definition.report.definition" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Definition" } } }
+    },
+    "survey.definition.report.release" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Definition release" } } }
+    },
+    "survey.definition.report.activity_kind" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Activity kind" } } }
+    },
+    "survey.definition.report.lifecycle" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recorded lifecycle" } } }
+    },
+    "survey.definition.report.sections" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Sections" } } }
+    },
+    "survey.definition.report.facts" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Facts" } } }
+    },
+    "survey.definition.value.not_observed" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Not observed" } } }
+    },
+    "survey.definition.report.claim_boundary" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recorded definition metadata only" } } }
+    },
+    "survey.definition.next_step.review_recorded_facts" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review the recorded facts" } } }
+    },
+    "survey.definition.search.definition" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Survey definition" } } }
+    },
+    "survey.definition.search.release" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Definition release" } } }
+    },
+    "survey.definition.search.activity_kind" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Activity kind" } } }
+    },
+    "survey.definition.search.lifecycle" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recorded lifecycle" } } }
+    },
+    "survey.definition.search.release_revision" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Release revision" } } }
+    },
+    "settings.survey_definition.favorite" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Favorite definitions" } } }
+    },
+    "settings.survey_definition.recents" : {
+      "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recent definitions" } } }
     }
   },
   "version" : "1.0"

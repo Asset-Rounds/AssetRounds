@@ -983,3 +983,10 @@ final class V9_38AccessibleDocumentTests: XCTestCase {
         XCTAssertFalse(AccessibleDocumentLifecycleV1.s10BrandReconciled)
     }
 }
+extension V9_38AccessibleDocumentTests {
+    func testC25SurveyDefinitionTypedAnchor() throws {
+        XCTAssertEqual(SurveyDefinitionLifecycleV1.persistentFamilies.count, 2)
+        XCTAssertEqual(SurveyDefinitionLifecycleV1.quarantinePersistence, "DERIVED_ONLY")
+        XCTAssertFalse(ActivityKindSemanticsV1(kind: .inspection).mayClaimReleaseToService)
+    }
+}

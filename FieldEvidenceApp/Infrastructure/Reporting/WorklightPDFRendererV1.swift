@@ -757,3 +757,21 @@ private extension WorklightPDFRendererV1 {
         return formatter
     }()
 }
+
+// MARK: - C25 guided-survey report boundary
+
+extension WorklightPDFRendererV1 {
+    /// The existing Worklight renderer remains the only PDF renderer.  This
+    /// helper supplies its localized metadata lines without adding a survey
+    /// template renderer or a second persistence path.
+    static func surveyDefinitionMetadataLines(
+        _ projection: SurveyDefinitionReportProjectionV1
+    ) throws -> [String] {
+        try DeterministicPDFRendererV1.surveyDefinitionTextLines(projection)
+    }
+
+    static let surveyDefinitionUsesExistingRendererOnly = true
+    static let surveyDefinitionDoesNotClaimCertification = true
+    static let surveyDefinitionDoesNotClaimCompliance = true
+    static let surveyDefinitionDoesNotClaimInspectionResult = true
+}

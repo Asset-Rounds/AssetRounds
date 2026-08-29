@@ -401,3 +401,10 @@ private enum V9_17KernelPersistenceFixture {
         )
     }
 }
+extension V9_17KernelPersistenceTests {
+    func testC25SurveyDefinitionTypedAnchor() throws {
+        XCTAssertEqual(SurveyDefinitionLifecycleV1.lifecycleEventPersistence, "CANONICAL_MUTATION_JOURNAL_ENVELOPE")
+        XCTAssertEqual(SurveyDefinitionLifecycleV1.persistentFamilies.count, 2)
+        XCTAssertTrue(SurveyDefinitionLimitsV1.maximumCanonicalBytes >= 4_194_304)
+    }
+}

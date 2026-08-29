@@ -429,3 +429,40 @@ extension DeterministicPDFRendererV1 {
         ]
     }
 }
+
+// MARK: - C25 survey-definition PDF display
+
+extension DeterministicPDFRendererV1 {
+    /// Returns deterministic, localized lines for the existing renderer.
+    /// Only definition/release metadata is displayed; prompts, answers,
+    /// locators, bytes, and actor identity remain outside the projection.
+    static func surveyDefinitionTextLines(
+        _ projection: SurveyDefinitionReportProjectionV1
+    ) throws -> [String] {
+        try projection.validate(format: .pdf)
+        let kind = BundledLocalizationCatalogV1.localized(
+            SurveyDefinitionLocalizationKeyV1.activityKindKey(
+                projection.metadata.activityKind
+            )
+        )
+        let lifecycle = BundledLocalizationCatalogV1.localized(
+            SurveyDefinitionLocalizationKeyV1.lifecycleKey(
+                projection.metadata.lifecycleState
+            )
+        )
+        return [
+            BundledLocalizationCatalogV1.localized(.reportHeading),
+            "\(BundledLocalizationCatalogV1.localized(.reportDefinition)): \(projection.metadata.definitionID)",
+            "\(BundledLocalizationCatalogV1.localized(.reportRelease)): \(projection.metadata.releaseID)",
+            "\(BundledLocalizationCatalogV1.localized(.reportActivityKind)): \(kind)",
+            "\(BundledLocalizationCatalogV1.localized(.reportLifecycle)): \(lifecycle)",
+            "\(BundledLocalizationCatalogV1.localized(.reportSections)): \(projection.sectionIDs.count)",
+            "\(BundledLocalizationCatalogV1.localized(.reportFacts)): \(projection.includedFactIDs.count)",
+            BundledLocalizationCatalogV1.localized(.reportClaimBoundary),
+            BundledLocalizationCatalogV1.localized(.nextStepReviewRecordedFacts),
+        ]
+    }
+
+    static let surveyDefinitionHistoricOutputIsFrozen = true
+    static let surveyDefinitionUsesExistingRenderer = true
+}

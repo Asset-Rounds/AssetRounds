@@ -747,3 +747,10 @@ extension V9_07CompatibilityCorpusIntegrationTests {
         XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
     }
 }
+extension V9_07CompatibilityCorpusIntegrationTests {
+    func testC25SurveyDefinitionTypedAnchor() throws {
+        XCTAssertEqual(PersistentSchemaV24.models.count, 87)
+        XCTAssertEqual(SurveyDefinitionLifecycleV1.semanticDiffPersistence, "NONPERSISTENT")
+        XCTAssertEqual(SurveyDefinitionLifecycleV1.adoptionPreviewPersistence, "NONPERSISTENT")
+    }
+}

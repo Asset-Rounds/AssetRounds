@@ -15,6 +15,31 @@ struct ResponseCardinalityV1: Codable, Equatable, Sendable {
     }
 }
 
+extension ResponseFieldDefinitionV1 {
+    func validateSurveyFact(_ fact: FactDefinitionV1) throws {
+        try fact.validate(); try validate()
+        guard fieldID == fact.factID else { throw ResponseContractFailureV1.invalidValue }
+        let permitted: Set<ResponseValueKindV1>
+        switch fact.kind {
+        case .instruction: permitted = [.noValue]
+        case .shortText, .longText: permitted = [.text]
+        case .integer: permitted = [.integer]
+        case .decimal: permitted = [.decimal]
+        case .measurement: permitted = [.measurement]
+        case .booleanObservation: permitted = [.triState]
+        case .singleChoice: permitted = [.singleOption]
+        case .multipleChoice: permitted = [.multipleOptions]
+        case .date: permitted = [.localDate]
+        case .time: permitted = [.localTime]
+        case .subjectReference, .locator: permitted = [.entityReference]
+        case .oneShotLocation, .normalizedPlanPlacement, .evidenceRequest: permitted = [.contentReference]
+        case .repeatableGroup: permitted = [.noValue]
+        case .attributedAcknowledgement: permitted = [.boolean]
+        }
+        guard permitted.contains(valueKind) else { throw ResponseContractFailureV1.invalidValue }
+    }
+}
+
 struct ResponseFieldDefinitionV1: Codable, Equatable, Sendable {
     static let schemaVersion = 1
     let schemaVersion: Int

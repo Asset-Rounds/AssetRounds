@@ -511,3 +511,10 @@ extension V9_06DeletionArchiveIntegrationTests {
         XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
     }
 }
+extension V9_06DeletionArchiveIntegrationTests {
+    func testC25SurveyDefinitionTypedAnchor() throws {
+        XCTAssertEqual(SurveyTemplateArchiveManifestV1.fileExtension, "arsurveytemplate")
+        XCTAssertEqual(SurveyTemplateArchiveManifestV1.maximumEntries, 64)
+        XCTAssertEqual(SurveyDefinitionLifecycleV1.quarantinePersistence, "DERIVED_ONLY")
+    }
+}

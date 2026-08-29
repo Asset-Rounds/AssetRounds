@@ -3309,3 +3309,202 @@ enum AccessibleDocumentLocalizationPolicyV1 {
 }
 
 typealias AccessibleDocumentClaimVocabularyV1 = AccessibleDocumentLocalizationPolicyV1
+
+// MARK: - C25 guided-survey localization contract
+
+/// C25 keeps the activity vocabulary closed and machine values separate from
+/// user-facing copy.  These keys describe recorded definition/release state;
+/// they never turn a survey response into an inspection, compliance, safety,
+/// training, or certification claim.
+enum SurveyDefinitionLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
+    case activityKindInspection = "activity.kind.inspection"
+    case activityKindSurvey = "activity.kind.survey"
+    case activityKindPreventiveMaintenance = "activity.kind.preventive_maintenance"
+    case activityKindRepair = "activity.kind.repair"
+    case activityKindOperationalRecheck = "activity.kind.operational_recheck"
+    case lifecycleDraft = "survey.definition.lifecycle.draft"
+    case lifecyclePublished = "survey.definition.lifecycle.published"
+    case lifecycleRetired = "survey.definition.lifecycle.retired"
+    case fieldInstruction = "survey.field.kind.instruction"
+    case fieldShortText = "survey.field.kind.short_text"
+    case fieldLongText = "survey.field.kind.long_text"
+    case fieldInteger = "survey.field.kind.integer"
+    case fieldDecimal = "survey.field.kind.decimal"
+    case fieldMeasurement = "survey.field.kind.measurement"
+    case fieldBooleanObservation = "survey.field.kind.boolean_observation"
+    case fieldSingleChoice = "survey.field.kind.single_choice"
+    case fieldMultipleChoice = "survey.field.kind.multiple_choice"
+    case fieldDate = "survey.field.kind.date"
+    case fieldTime = "survey.field.kind.time"
+    case fieldSubjectReference = "survey.field.kind.subject_reference"
+    case fieldLocator = "survey.field.kind.locator"
+    case fieldOneShotLocation = "survey.field.kind.one_shot_location"
+    case fieldNormalizedPlanPlacement = "survey.field.kind.normalized_plan_placement"
+    case fieldEvidenceRequest = "survey.field.kind.evidence_request"
+    case fieldRepeatableGroup = "survey.field.kind.repeatable_group"
+    case fieldAttributedAcknowledgement = "survey.field.kind.attributed_acknowledgement"
+    case booleanYes = "survey.boolean.yes"
+    case booleanNo = "survey.boolean.no"
+    case booleanUnknown = "survey.boolean.unknown"
+    case booleanNotObserved = "survey.boolean.not_observed"
+    case reportHeading = "survey.definition.report.heading"
+    case reportDefinition = "survey.definition.report.definition"
+    case reportRelease = "survey.definition.report.release"
+    case reportActivityKind = "survey.definition.report.activity_kind"
+    case reportLifecycle = "survey.definition.report.lifecycle"
+    case reportSections = "survey.definition.report.sections"
+    case reportFacts = "survey.definition.report.facts"
+    case reportNotObserved = "survey.definition.value.not_observed"
+    case reportClaimBoundary = "survey.definition.report.claim_boundary"
+    case nextStepReviewRecordedFacts = "survey.definition.next_step.review_recorded_facts"
+    case searchDefinition = "survey.definition.search.definition"
+    case searchRelease = "survey.definition.search.release"
+    case searchActivityKind = "survey.definition.search.activity_kind"
+    case searchLifecycle = "survey.definition.search.lifecycle"
+    case searchReleaseRevision = "survey.definition.search.release_revision"
+    case settingsFavorite = "settings.survey_definition.favorite"
+    case settingsRecents = "settings.survey_definition.recents"
+
+    var englishDefaultValue: String {
+        switch self {
+        case .activityKindInspection: return "Inspection"
+        case .activityKindSurvey: return "Survey"
+        case .activityKindPreventiveMaintenance: return "Preventive maintenance"
+        case .activityKindRepair: return "Repair"
+        case .activityKindOperationalRecheck: return "Operational recheck"
+        case .lifecycleDraft: return "Draft"
+        case .lifecyclePublished: return "Published"
+        case .lifecycleRetired: return "Retired"
+        case .fieldInstruction: return "Instruction"
+        case .fieldShortText: return "Short text"
+        case .fieldLongText: return "Long text"
+        case .fieldInteger: return "Integer"
+        case .fieldDecimal: return "Decimal"
+        case .fieldMeasurement: return "Measurement"
+        case .fieldBooleanObservation: return "Boolean observation"
+        case .fieldSingleChoice: return "Single choice"
+        case .fieldMultipleChoice: return "Multiple choice"
+        case .fieldDate: return "Date"
+        case .fieldTime: return "Time"
+        case .fieldSubjectReference: return "Subject reference"
+        case .fieldLocator: return "Locator"
+        case .fieldOneShotLocation: return "One-shot location"
+        case .fieldNormalizedPlanPlacement: return "Normalized plan placement"
+        case .fieldEvidenceRequest: return "Evidence request"
+        case .fieldRepeatableGroup: return "Repeatable group"
+        case .fieldAttributedAcknowledgement: return "Attributed acknowledgment"
+        case .booleanYes: return "Yes"
+        case .booleanNo: return "No"
+        case .booleanUnknown: return "Unknown"
+        case .booleanNotObserved: return "Not observed"
+        case .reportHeading: return "Survey definition"
+        case .reportDefinition: return "Definition"
+        case .reportRelease: return "Definition release"
+        case .reportActivityKind: return "Activity kind"
+        case .reportLifecycle: return "Recorded lifecycle"
+        case .reportSections: return "Sections"
+        case .reportFacts: return "Facts"
+        case .reportNotObserved: return "Not observed"
+        case .reportClaimBoundary: return "Recorded definition metadata only"
+        case .nextStepReviewRecordedFacts: return "Review the recorded facts"
+        case .searchDefinition: return "Survey definition"
+        case .searchRelease: return "Definition release"
+        case .searchActivityKind: return "Activity kind"
+        case .searchLifecycle: return "Recorded lifecycle"
+        case .searchReleaseRevision: return "Release revision"
+        case .settingsFavorite: return "Favorite definitions"
+        case .settingsRecents: return "Recent definitions"
+        }
+    }
+
+    var translatorComment: String {
+        "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status."
+    }
+
+    static func activityKindKey(_ value: ActivityKindV1) -> Self {
+        switch value {
+        case .inspection: return .activityKindInspection
+        case .survey: return .activityKindSurvey
+        case .preventiveMaintenance: return .activityKindPreventiveMaintenance
+        case .repair: return .activityKindRepair
+        case .operationalRecheck: return .activityKindOperationalRecheck
+        }
+    }
+
+    static func lifecycleKey(_ value: SurveyDefinitionLifecycleStateV1) -> Self {
+        switch value {
+        case .draft: return .lifecycleDraft
+        case .published: return .lifecyclePublished
+        case .retired: return .lifecycleRetired
+        }
+    }
+
+    static func fieldKindKey(_ value: SurveyFieldKindV1) -> Self {
+        switch value {
+        case .instruction: return .fieldInstruction
+        case .shortText: return .fieldShortText
+        case .longText: return .fieldLongText
+        case .integer: return .fieldInteger
+        case .decimal: return .fieldDecimal
+        case .measurement: return .fieldMeasurement
+        case .booleanObservation: return .fieldBooleanObservation
+        case .singleChoice: return .fieldSingleChoice
+        case .multipleChoice: return .fieldMultipleChoice
+        case .date: return .fieldDate
+        case .time: return .fieldTime
+        case .subjectReference: return .fieldSubjectReference
+        case .locator: return .fieldLocator
+        case .oneShotLocation: return .fieldOneShotLocation
+        case .normalizedPlanPlacement: return .fieldNormalizedPlanPlacement
+        case .evidenceRequest: return .fieldEvidenceRequest
+        case .repeatableGroup: return .fieldRepeatableGroup
+        case .attributedAcknowledgement: return .fieldAttributedAcknowledgement
+        }
+    }
+
+    static func booleanKey(_ value: SurveyBooleanObservationV1) -> Self {
+        switch value {
+        case .yes: return .booleanYes
+        case .no: return .booleanNo
+        case .unknown: return .booleanUnknown
+        case .notObserved: return .booleanNotObserved
+        }
+    }
+}
+
+enum SurveyDefinitionLocalizationPolicyV1 {
+    static let semanticNamespace = "survey.definition"
+    static let sourceLocale = "en"
+    static let shippingLocale = "en"
+    static let metadataLocale = "en-US"
+    static let testOnlyLocales = TestOnlyPseudoLocaleV1.allCases.map(\.rawValue).sorted()
+    static let keys = SurveyDefinitionLocalizationKeyV1.allCases.map(\.rawValue).sorted()
+    static let denyByDefault = true
+    static let englishOnly = true
+    static let requiresTextState = true
+    static let requiresTextAndIconForIndeterminateState = true
+    static let requiresActionableNextStep = true
+    static let allowsColorOnlyState = false
+    static let allowsIconOnlyState = false
+    static let allowsMotionOnlyState = false
+    static let excludesAnswers = true
+    static let excludesPromptText = true
+    static let excludesActorIdentity = true
+    static let excludesPrivateLocators = true
+    static let excludesEvidenceBytes = true
+    static let excludesUnsupportedClaims = true
+
+    static func key(_ value: SurveyDefinitionLocalizationKeyV1) throws -> LocalizationKeyV1 {
+        try LocalizationKeyV1(value.rawValue)
+    }
+
+    static func validate() throws {
+        let typed = try SurveyDefinitionLocalizationKeyV1.allCases.map { try key($0) }
+        guard typed.map(\.rawValue).sorted() == keys,
+              Set(keys).count == keys.count,
+              denyByDefault, englishOnly, requiresTextState,
+              !allowsColorOnlyState, !allowsIconOnlyState, !allowsMotionOnlyState else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}

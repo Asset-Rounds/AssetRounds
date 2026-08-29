@@ -103,6 +103,7 @@ enum PrivacyTransformEraseAllPolicyV1 {
 enum ClientCapabilityEraseAllPolicyV1{static func validatePublishedEmptyGeneration(_ context:ModelContext)throws{guard try context.fetchCount(FetchDescriptor<ClientCapabilityProfileRow>())==0,try context.fetchCount(FetchDescriptor<PackageLifecyclePolicyRow>())==0,try context.fetchCount(FetchDescriptor<PackageLifecycleDispositionRow>())==0,try context.fetchCount(FetchDescriptor<ClientCapabilityAdmissionDecisionRow>())==0 else{throw EraseAllServiceError.invalidAuthority}}}
 enum FieldReferenceEraseAllPolicyV1{static func validatePublishedEmptyGeneration(_ context:ModelContext)throws{guard try context.fetchCount(FetchDescriptor<FieldReferenceReleaseRow>())==0,try context.fetchCount(FetchDescriptor<FieldReferenceBindingRow>())==0 else{throw EraseAllServiceError.invalidAuthority}}}
 enum AccessibleDocumentEraseAllPolicyV1{static func validatePublishedEmptyGeneration(_ context:ModelContext)throws{guard try context.fetchCount(FetchDescriptor<AccessibleDocumentAssessmentReceiptRow>())==0 else{throw EraseAllServiceError.invalidAuthority}}}
+enum SurveyDefinitionEraseAllPolicyV1{static func validatePublishedEmptyGeneration(_ context:ModelContext)throws{guard try context.fetchCount(FetchDescriptor<SurveyDefinitionIdentityRow>())==0,try context.fetchCount(FetchDescriptor<SurveyDefinitionReleaseRow>())==0 else{throw EraseAllServiceError.invalidAuthority}}}
 
 enum EraseAllServiceError: Error, Equatable {
     case contextHasChanges
@@ -1278,6 +1279,7 @@ private extension EraseAllService {
         try MeasurementIntegrityEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try FieldReferenceEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try AccessibleDocumentEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
+        try SurveyDefinitionEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         if let identity {
             let history = try MutationJournalStoreV1(
                 modelContext: session.modelContext,

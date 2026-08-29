@@ -591,3 +591,10 @@ extension V9_11PackRegistryTests {
         XCTAssertEqual(FieldReferenceReleaseDispositionV1.allCases.count, 2)
     }
 }
+extension V9_11PackRegistryTests {
+    func testC25SurveyDefinitionTypedAnchor() throws {
+        XCTAssertTrue(ActivityKindSemanticsV1(kind: .repair).mayClaimRepairPerformed)
+        XCTAssertFalse(ActivityKindSemanticsV1(kind: .repair).mayClaimInspectionResult)
+        XCTAssertFalse(ActivityKindSemanticsV1(kind: .repair).mayClaimReleaseToService)
+    }
+}

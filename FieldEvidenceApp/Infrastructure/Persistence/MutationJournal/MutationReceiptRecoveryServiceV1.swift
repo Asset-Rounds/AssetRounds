@@ -37,4 +37,5 @@ final class MutationReceiptRecoveryServiceV1 {
         try recoverBeforeWriterActivation()
     }
     func recoverAccessibleDocumentAssessmentEffectsBeforeWriterActivation()throws{try recoverBeforeWriterActivation()}
+    func recoverSurveyDefinitionEffectsBeforeWriterActivation()throws{try recoverBeforeWriterActivation()}
 }

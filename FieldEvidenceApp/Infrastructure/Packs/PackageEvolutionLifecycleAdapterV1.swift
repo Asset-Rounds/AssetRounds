@@ -129,3 +129,56 @@ extension PackageEvolutionLifecycleAdapterV1 {
         }
     }
 }
+
+// MARK: - C25 survey-definition lifecycle adapter
+
+struct SurveyDefinitionPackageLifecycleMetadataV1: Codable, Equatable, Sendable {
+    let definitionID: String
+    let releaseID: String
+    let releaseRevision: UInt64
+    let activityKind: ActivityKindV1
+    let lifecycleState: SurveyDefinitionLifecycleStateV1
+    let releaseSHA256: String
+    let importDisposition: String
+
+    init(
+        release: SurveyDefinitionReleaseV1,
+        lifecycleState: SurveyDefinitionLifecycleStateV1
+    ) throws {
+        try release.validate()
+        definitionID = release.definitionID.uuidString.lowercased()
+        releaseID = release.releaseID.uuidString.lowercased()
+        releaseRevision = release.revision
+        activityKind = release.activityKind
+        self.lifecycleState = lifecycleState
+        releaseSHA256 = release.releaseSHA256
+        importDisposition = SurveyDefinitionPackageEvolutionConsumerPolicyV1.importDisposition
+        try validate()
+    }
+
+    func validate() throws {
+        guard SurveyDefinitionConsumerPolicyV1.validID(definitionID),
+              SurveyDefinitionConsumerPolicyV1.validID(releaseID),
+              releaseRevision > 0,
+              SurveyDefinitionConsumerPolicyV1.validDigest(releaseSHA256),
+              importDisposition == "QUARANTINE_THEN_NEW_DRAFT_IDENTITY" else {
+            throw SurveyDefinitionConsumerFailureV1.invalidValue
+        }
+    }
+}
+
+extension PackageEvolutionLifecycleAdapterV1 {
+    static func surveyDefinitionLifecycleMetadata(
+        release: SurveyDefinitionReleaseV1,
+        lifecycleState: SurveyDefinitionLifecycleStateV1
+    ) throws -> SurveyDefinitionPackageLifecycleMetadataV1 {
+        try SurveyDefinitionPackageLifecycleMetadataV1(
+            release: release,
+            lifecycleState: lifecycleState
+        )
+    }
+
+    static let surveyDefinitionLifecycleEventsAreCanonical = true
+    static let surveyDefinitionImportCreatesNewDraftIdentity = true
+    static let surveyDefinitionPreviewIsNonpersistent = true
+}

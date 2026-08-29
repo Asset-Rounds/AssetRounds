@@ -8,6 +8,13 @@ enum PackageReleaseBindingKindV1: String, CaseIterable, Codable, Sendable {
     case export = "EXPORT"
 }
 
+enum SurveyPackageReleaseBindingV1 {
+    static func validate(survey: SurveyDefinitionReleaseV1, package: InspectionPackageReleaseV1) throws {
+        try package.validateSurveyDefinitionRelease(survey)
+        guard package.state == .published else { throw InspectionKernelFailureV1.invalidValue }
+    }
+}
+
 enum PackageReleaseAccessibleDocumentBindingV1{
     static let exactReleaseBindingRequired=true
     static let semanticTreePersistent=false

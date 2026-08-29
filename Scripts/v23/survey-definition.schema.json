@@ -1,0 +1,659 @@
+{
+  "$id": "https://assetrounds.invalid/v23/survey-definition.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "activityKinds": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "alternateCases": {
+      "items": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "adoptionExplicit": {
+                "type": "boolean"
+              },
+              "id": {
+                "type": "string"
+              },
+              "liveWorkspaceMutated": {
+                "type": "boolean"
+              },
+              "previewOnly": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "adoptionExplicit",
+              "id",
+              "liveWorkspaceMutated",
+              "previewOnly"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "identityDigestConflictRequiresExplicitChoice": {
+                "type": "boolean"
+              },
+              "sameDigestIdempotent": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "identityDigestConflictRequiresExplicitChoice",
+              "sameDigestIdempotent"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "importsAs": {
+                "type": "string"
+              },
+              "privateOriginalProjected": {
+                "type": "boolean"
+              },
+              "quarantined": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "importsAs",
+              "privateOriginalProjected",
+              "quarantined"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+    },
+    "availabilityStates": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 6,
+      "minItems": 6,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "cardID": {
+      "type": "string"
+    },
+    "claims": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance": {
+          "type": "boolean"
+        },
+        "acceptanceCredit": {
+          "type": "boolean"
+        },
+        "account": {
+          "type": "boolean"
+        },
+        "adoption": {
+          "type": "boolean"
+        },
+        "android": {
+          "type": "boolean"
+        },
+        "automaticCompletion": {
+          "type": "boolean"
+        },
+        "automaticCompliance": {
+          "type": "boolean"
+        },
+        "backend": {
+          "type": "boolean"
+        },
+        "cloudDurability": {
+          "type": "boolean"
+        },
+        "externalDurability": {
+          "type": "boolean"
+        },
+        "hiddenEvidence": {
+          "type": "boolean"
+        },
+        "hosted": {
+          "type": "boolean"
+        },
+        "inventedAlternateText": {
+          "type": "boolean"
+        },
+        "native": {
+          "type": "boolean"
+        },
+        "network": {
+          "type": "boolean"
+        },
+        "phase10PollingDuringParallelExecution": {
+          "type": "boolean"
+        },
+        "providerAvailability": {
+          "type": "boolean"
+        },
+        "release": {
+          "type": "boolean"
+        },
+        "releaseCredit": {
+          "type": "boolean"
+        },
+        "runtimeWebFetching": {
+          "type": "boolean"
+        },
+        "secondStore": {
+          "type": "boolean"
+        },
+        "secondWriter": {
+          "type": "boolean"
+        },
+        "web": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "acceptance",
+        "acceptanceCredit",
+        "account",
+        "adoption",
+        "android",
+        "automaticCompletion",
+        "automaticCompliance",
+        "backend",
+        "cloudDurability",
+        "externalDurability",
+        "hiddenEvidence",
+        "hosted",
+        "inventedAlternateText",
+        "native",
+        "network",
+        "phase10PollingDuringParallelExecution",
+        "providerAvailability",
+        "release",
+        "releaseCredit",
+        "runtimeWebFetching",
+        "secondStore",
+        "secondWriter",
+        "web"
+      ],
+      "type": "object"
+    },
+    "containsCustomerData": {
+      "type": "boolean"
+    },
+    "containsSecrets": {
+      "type": "boolean"
+    },
+    "durableFamilyCount": {
+      "type": "integer"
+    },
+    "evidenceCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "assertion": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "assertion",
+          "id",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "maxItems": 8,
+      "minItems": 8,
+      "type": "array"
+    },
+    "failureCases": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 21,
+      "minItems": 21,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "fieldKinds": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 17,
+      "minItems": 17,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "forbiddenClaims": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 15,
+      "minItems": 15,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "goldenCases": {
+      "items": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "activityKinds": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 5,
+                "minItems": 5,
+                "type": "array",
+                "uniqueItems": true
+              },
+              "exactlyFive": {
+                "type": "boolean"
+              },
+              "id": {
+                "type": "string"
+              },
+              "relabelAfterStart": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "activityKinds",
+              "exactlyFive",
+              "id",
+              "relabelAfterStart"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "historicReadableAfterRetirement": {
+                "type": "boolean"
+              },
+              "id": {
+                "type": "string"
+              },
+              "publishedImmutable": {
+                "type": "boolean"
+              },
+              "successorDraftOnEdit": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "historicReadableAfterRetirement",
+              "id",
+              "publishedImmutable",
+              "successorDraftOnEdit"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    },
+    "hostileCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedBoundary": {
+            "type": "string"
+          },
+          "expectedDisposition": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedBoundary",
+          "expectedDisposition",
+          "id"
+        ],
+        "type": "object"
+      },
+      "maxItems": 16,
+      "minItems": 16,
+      "type": "array"
+    },
+    "interruptionCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedBoundary": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "point": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedBoundary",
+          "id",
+          "point"
+        ],
+        "type": "object"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array"
+    },
+    "interruptionPoints": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "lifecycleStates": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 4,
+      "minItems": 4,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "persistence": {
+      "additionalProperties": false,
+      "properties": {
+        "backupRestoreRequired": {
+          "type": "boolean"
+        },
+        "canonicalSourceOfTruth": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "canonicalWriter": {
+          "type": "string"
+        },
+        "classificationRequired": {
+          "type": "boolean"
+        },
+        "currentProjectionRowCount": {
+          "type": "integer"
+        },
+        "deleteEraseRequired": {
+          "type": "boolean"
+        },
+        "downgrade": {
+          "type": "string"
+        },
+        "exportReportRequired": {
+          "type": "boolean"
+        },
+        "forwardFix": {
+          "type": "string"
+        },
+        "interruptionRecoveryRequired": {
+          "type": "boolean"
+        },
+        "migrationRequired": {
+          "type": "boolean"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "nonPersistentFamilies": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "persistedFamilies": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "providerRows": {
+          "type": "integer"
+        },
+        "recordsSchemaVersion": {
+          "type": "integer"
+        },
+        "replayRequired": {
+          "type": "boolean"
+        },
+        "schemaRelease": {
+          "type": "string"
+        },
+        "schemaVersion": {
+          "type": "integer"
+        },
+        "searchRebuildRequired": {
+          "type": "boolean"
+        },
+        "secondStore": {
+          "type": "boolean"
+        },
+        "secondWriter": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "backupRestoreRequired",
+        "canonicalSourceOfTruth",
+        "canonicalWriter",
+        "classificationRequired",
+        "currentProjectionRowCount",
+        "deleteEraseRequired",
+        "downgrade",
+        "exportReportRequired",
+        "forwardFix",
+        "interruptionRecoveryRequired",
+        "migrationRequired",
+        "mode",
+        "nonPersistentFamilies",
+        "persistedFamilies",
+        "providerRows",
+        "recordsSchemaVersion",
+        "replayRequired",
+        "schemaRelease",
+        "schemaVersion",
+        "searchRebuildRequired",
+        "secondStore",
+        "secondWriter"
+      ],
+      "type": "object"
+    },
+    "persistentKindLifecycleModelCount": {
+      "type": "integer"
+    },
+    "persistentSchemaVersion": {
+      "type": "integer"
+    },
+    "recordsSchemaVersion": {
+      "type": "integer"
+    },
+    "recoveryCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedBoundary": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedBoundary",
+          "id"
+        ],
+        "type": "object"
+      },
+      "maxItems": 7,
+      "minItems": 7,
+      "type": "array"
+    },
+    "releaseDispositions": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 4,
+      "minItems": 4,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "requiredBehaviors": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "contract": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "requirement": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "contract",
+          "evidence",
+          "id",
+          "requirement"
+        ],
+        "type": "object"
+      },
+      "maxItems": 7,
+      "minItems": 7,
+      "type": "array"
+    },
+    "requiredContractNames": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "integer"
+    },
+    "sensitivities": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "subjectKinds": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 6,
+      "minItems": 6,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "subjectStates": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 4,
+      "minItems": 4,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "synthetic": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "activityKinds",
+    "alternateCases",
+    "availabilityStates",
+    "cardID",
+    "claims",
+    "containsCustomerData",
+    "containsSecrets",
+    "durableFamilyCount",
+    "evidenceCases",
+    "failureCases",
+    "fieldKinds",
+    "forbiddenClaims",
+    "goldenCases",
+    "hostileCases",
+    "interruptionCases",
+    "interruptionPoints",
+    "lifecycleStates",
+    "persistence",
+    "persistentKindLifecycleModelCount",
+    "persistentSchemaVersion",
+    "recordsSchemaVersion",
+    "recoveryCases",
+    "releaseDispositions",
+    "requiredBehaviors",
+    "requiredContractNames",
+    "schema",
+    "schemaVersion",
+    "sensitivities",
+    "subjectKinds",
+    "subjectStates",
+    "synthetic"
+  ],
+  "title": "V23 P03 C25 Survey Definition Corpus",
+  "type": "object"
+}

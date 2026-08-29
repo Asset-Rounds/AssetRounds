@@ -477,3 +477,10 @@ extension V9_18PackLifecycleIntegrationTests {
         XCTAssertEqual(FieldReferencePackLifecycleV1.stagingPersistence, "DERIVED_ONLY")
     }
 }
+extension V9_18PackLifecycleIntegrationTests {
+    func testC25SurveyDefinitionTypedAnchor() throws {
+        XCTAssertEqual(PersistentSchemaV24.models.count, 87)
+        XCTAssertEqual(SurveyDefinitionLifecycleV1.importDisposition, "QUARANTINE_THEN_NEW_DRAFT_IDENTITY")
+        XCTAssertEqual(SurveyDefinitionLifecycleV1.writer, "SOLE_CANONICAL_WORKSPACE_WRITER")
+    }
+}

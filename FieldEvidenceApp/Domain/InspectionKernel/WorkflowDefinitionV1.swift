@@ -113,6 +113,15 @@ struct WorkflowNodeV1: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
+extension WorkflowDefinitionV1 {
+    func validateSurveyDefinition(_ release: SurveyDefinitionReleaseV1) throws {
+        try release.validate()
+        guard Set(declaredFieldIDs) == Set(release.sections.flatMap(\.facts).map(\.factID)) else {
+            throw InspectionKernelFailureV1.invalidValue
+        }
+    }
+}
+
 struct WorkflowDefinitionV1: Codable, Equatable, Sendable {
     static let schemaVersion = 1
     let schemaVersion: Int

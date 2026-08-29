@@ -1639,3 +1639,31 @@ extension SnapshotValidatorV1 {
         try DeterministicOpenJSONRendererV1.reopenClientCapability(data)
     }
 }
+
+// MARK: - C25 survey-definition validation
+
+extension SnapshotValidatorV1 {
+    /// Validates a report projection against the pinned release supplied by
+    /// the caller.  It never consults a current pointer, so a later publish or
+    /// retirement cannot rewrite historic display semantics.
+    static func validateSurveyDefinitionProjection(
+        _ projection: SurveyDefinitionReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> SurveyDefinitionReportProjectionV1 {
+        try projection.validate(format: format)
+        return try ReportProjectionRegistryV1.validateSurveyDefinitionProjection(
+            projection,
+            format: format
+        )
+    }
+
+    static func validateSurveyDefinitionOpenJSON(
+        _ data: Data
+    ) throws -> SurveyDefinitionReportProjectionV1 {
+        try DeterministicOpenJSONRendererV1.reopenSurveyDefinition(data)
+    }
+
+    static let surveyDefinitionHistoricDisplayIsImmutable = true
+    static let surveyDefinitionAnswersAreNeverReportInput = true
+    static let surveyDefinitionMissingStateFailsClosed = true
+}

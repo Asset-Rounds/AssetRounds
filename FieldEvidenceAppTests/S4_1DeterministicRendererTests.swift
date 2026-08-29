@@ -1178,3 +1178,11 @@ private func collectPDFImageResource(
     Unmanaged<PDFResourceFacts>.fromOpaque(info).takeUnretainedValue().images
         .insert("\(width)x\(height)")
 }
+extension S4_1DeterministicRendererTests {
+    func testC25SurveyDefinitionTypedAnchor() throws {
+        XCTAssertEqual(ActivityKindV1.allCases.count, 5)
+        XCTAssertEqual(ActivityKindSemanticsV1(kind: .inspection).completion, .criterionAssessment)
+        XCTAssertFalse(ActivityKindSemanticsV1(kind: .survey).mayClaimInspectionResult)
+        XCTAssertFalse(ActivityKindSemanticsV1(kind: .inspection).mayClaimReleaseToService)
+    }
+}

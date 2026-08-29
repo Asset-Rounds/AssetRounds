@@ -165,3 +165,49 @@ final class PackageEvolutionCoordinatorV1 {
         return receipt
     }
 }
+
+// MARK: - C25 package-evolution consumer
+
+enum SurveyDefinitionPackageEvolutionConsumerPolicyV1 {
+    static let canonicalWriter = "SOLE_CANONICAL_WORKSPACE_WRITER"
+    static let durableFamilies = [
+        "SurveyDefinitionIdentityV1",
+        "SurveyDefinitionReleaseV1",
+    ]
+    static let lifecycleEventsUseExistingMutationEnvelope = true
+    static let importDisposition = "QUARANTINE_THEN_NEW_DRAFT_IDENTITY"
+    static let draftPreviewIsNonpersistent = true
+    static let noPackageCreatedStorage = true
+    static let noRuntimeCodeExecution = true
+    static let noSecondWriter = true
+    static let historicReleaseIsImmutable = true
+
+    static func validate() throws {
+        guard durableFamilies == [
+                "SurveyDefinitionIdentityV1",
+                "SurveyDefinitionReleaseV1",
+            ],
+            lifecycleEventsUseExistingMutationEnvelope,
+            importDisposition == "QUARANTINE_THEN_NEW_DRAFT_IDENTITY",
+            draftPreviewIsNonpersistent,
+            noPackageCreatedStorage,
+            noRuntimeCodeExecution,
+            noSecondWriter,
+            historicReleaseIsImmutable else {
+            throw SurveyDefinitionConsumerFailureV1.invalidValue
+        }
+    }
+}
+
+extension PackageEvolutionCoordinatorV1 {
+    /// Package evolution may inspect and carry a validated definition release,
+    /// but it does not become a second writer for the canonical identity or
+    /// release lifecycle.
+    static func validateSurveyDefinitionConsumer(
+        _ release: SurveyDefinitionReleaseV1
+    ) throws -> SurveyDefinitionReleaseReferenceV1 {
+        try SurveyDefinitionPackageEvolutionConsumerPolicyV1.validate()
+        try release.validate()
+        return try SurveyDefinitionReleaseReferenceV1(release)
+    }
+}

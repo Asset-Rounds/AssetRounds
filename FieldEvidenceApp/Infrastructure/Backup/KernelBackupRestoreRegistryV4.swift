@@ -338,6 +338,7 @@ enum KernelBackupRestoreRegistryV4 {
     }
 
     static func validate() throws {
+        try validateSurveyDefinitionLifecycle()
         try validateClientCapabilityLifecycle()
         try validateRecoverabilityVerificationLifecycle()
         try validateFieldReferenceLifecycle()
@@ -350,6 +351,15 @@ enum KernelBackupRestoreRegistryV4 {
         try validateWorkPacketLifecycle()
         try validateFieldDraftLifecycle()
         try validate(registrations)
+    }
+
+    static func validateSurveyDefinitionLifecycle() throws {
+        guard SurveyDefinitionLifecycleV1.persistentFamilies == [
+            "SurveyDefinitionIdentityV1", "SurveyDefinitionReleaseV1"
+        ], SurveyDefinitionLifecycleV1.lifecycleEventPersistence
+            == "CANONICAL_MUTATION_JOURNAL_ENVELOPE" else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
     }
 
     static func validate(_ candidate: [KernelBackupRestoreRegistrationV4]) throws {

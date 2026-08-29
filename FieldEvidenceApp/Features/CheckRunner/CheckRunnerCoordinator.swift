@@ -182,6 +182,19 @@ final class CheckRunnerCoordinator {
         validCouldNotVerifyRegistry() ? signPack.couldNotVerifyReasons.entries : []
     }
 
+    /// Exposes the canonical C25 release gate to the check-runner boundary.
+    /// Draft and retired releases remain readable elsewhere, but cannot be
+    /// selected for newly started work.
+    func surveyDefinitionStartBinding(
+        release: SurveyDefinitionReleaseV1,
+        lifecycleState: SurveyDefinitionLifecycleStateV1
+    ) throws -> CheckRunnerSurveyDefinitionStartBindingV1 {
+        try CheckRunnerSurveyDefinitionStartBindingV1(
+            release: release,
+            lifecycleState: lifecycleState
+        )
+    }
+
     func currentRequirementAssuranceDecision(
         workflowRecordID: UUID
     ) -> RequirementAssuranceGatePreflightV1 {

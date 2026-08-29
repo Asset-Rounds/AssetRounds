@@ -56,6 +56,8 @@ final class BackupExportService {
     private static let checkpointBasisExportedAt = Date(timeIntervalSince1970: 0)
 
     private struct Rows {
+        let surveyDefinitionIdentities:[SurveyDefinitionIdentityRow]
+        let surveyDefinitionReleases:[SurveyDefinitionReleaseRow]
         let accessibleDocumentAssessmentReceipts:[AccessibleDocumentAssessmentReceiptRow]
         let fieldReferenceReleases:[FieldReferenceReleaseRow]
         let fieldReferenceBindings:[FieldReferenceBindingRow]
@@ -1502,6 +1504,8 @@ private extension BackupExportService {
     private func fetchRows() throws -> Rows {
         do {
             return Rows(
+                surveyDefinitionIdentities:try modelContext.fetch(FetchDescriptor<SurveyDefinitionIdentityRow>()),
+                surveyDefinitionReleases:try modelContext.fetch(FetchDescriptor<SurveyDefinitionReleaseRow>()),
                 accessibleDocumentAssessmentReceipts:try modelContext.fetch(FetchDescriptor<AccessibleDocumentAssessmentReceiptRow>()),
                 fieldReferenceReleases:try modelContext.fetch(FetchDescriptor<FieldReferenceReleaseRow>()),
                 fieldReferenceBindings:try modelContext.fetch(FetchDescriptor<FieldReferenceBindingRow>()),
@@ -2061,8 +2065,10 @@ private extension BackupExportService {
         let recoverabilityReceipts = mutationHistory == nil ? [] : try recoverabilityReceiptRecords(rows)
         let fieldReferences = mutationHistory == nil ? [] : try fieldReferenceRecords(rows)
         let accessibleDocumentAssessments = mutationHistory == nil ? [] : try accessibleDocumentAssessmentRecords(rows)
+        let surveyDefinitions=try mutationHistory.map{try surveyDefinitionRecords(rows,history:$0)} ?? []
         return V4BackupRecordsV1(
             accessibleDocumentAssessments:accessibleDocumentAssessments,
+            surveyDefinitions:surveyDefinitions,
             fieldReferences:fieldReferences,
             recoverabilityReceipts:recoverabilityReceipts,
             clientCapabilities: clientCapabilities,
@@ -2124,7 +2130,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : 22,
+                : 23,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -2261,6 +2267,23 @@ private extension BackupExportService {
 
     private func accessibleDocumentAssessmentRecords(_ rows:Rows)throws->[V23BackupAccessibleDocumentAssessmentRecordV1]{
         try rows.accessibleDocumentAssessmentReceipts.map{let value=try $0.value();return .init(id:value.receiptID,workspaceID:value.workspaceID.rawValue,revision:value.revision,canonicalData:try AccessibleDocumentCanonicalCodecV1.encode(value))}.sorted{$0.id.uuidString<$1.id.uuidString}
+    }
+
+    private func surveyDefinitionRecords(_ rows:Rows,history:MutationHistorySnapshotV1)throws->[V24BackupSurveyDefinitionRecordV1]{
+        let releases=try Dictionary(uniqueKeysWithValues:rows.surveyDefinitionReleases.map{let value=try $0.value();return(value.releaseID,value)})
+        let events=try history.receipts.compactMap{record->(UUID,SurveyDefinitionLifecycleEventV1)? in let envelope=try MutationEnvelopeV1.decodeCanonical(from:record.envelopeData);guard case let .applySurveyDefinition(mutation)=envelope.command else{return nil};try mutation.validate();return(mutation.event.eventID,mutation.event)};guard Set(events.map(\.0)).count==events.count else{throw BackupExportServiceError.invalidAuthority};let eventByID=Dictionary(uniqueKeysWithValues:events)
+        var result=try releases.values.map{V24BackupSurveyDefinitionRecordV1(kind:.release,id:$0.releaseID,workspaceID:$0.workspaceID.rawValue,revision:$0.revision,canonicalData:try SurveyDefinitionCanonicalCodecV1.encode($0))}
+        result += try rows.surveyDefinitionIdentities.map{row in
+            guard let release=releases[row.currentReleaseID],let historic=eventByID[row.latestLifecycleEventID]else{throw BackupExportServiceError.invalidAuthority}
+            let value=try row.value()
+            if historic.workspaceID==value.workspaceID{try value.validate(currentRelease:release,event:historic)}else{
+                let local=try LocalActorReferenceV1(actorReferenceID:historic.actor.actor.actorReferenceID,workspaceID:value.workspaceID,partyID:historic.actor.actor.partyID,displayName:historic.actor.actor.displayName)
+                let actor=try ActorSnapshotV1(snapshotID:historic.actor.snapshotID,workspaceID:value.workspaceID,actor:local,responsibility:historic.actor.responsibility,displayNameAtTime:historic.actor.displayNameAtTime,capturedAt:historic.actor.capturedAt)
+                let rebound=try SurveyDefinitionLifecycleEventV1(eventID:historic.eventID,workspaceID:value.workspaceID,definitionID:historic.definitionID,action:historic.action,priorState:historic.priorState,resultingState:historic.resultingState,release:SurveyDefinitionReleaseReferenceV1(release),predecessorEventID:historic.predecessorEventID,predecessorEventSHA256:historic.predecessorEventSHA256,sourceDefinitionID:historic.sourceDefinitionID,sourceReleaseID:historic.sourceReleaseID,sourceReleaseSHA256:historic.sourceReleaseSHA256,sourceArchiveSHA256:historic.sourceArchiveSHA256,semanticDiffSHA256:historic.semanticDiffSHA256,actor:actor,recordedAt:historic.recordedAt,revision:historic.revision,mutationID:historic.mutationID)
+                try value.validate(currentRelease:release,event:rebound)
+            }
+            return .init(kind:.identity,id:value.definitionID,workspaceID:value.workspaceID.rawValue,revision:value.revision,canonicalData:try SurveyDefinitionCanonicalCodecV1.encode(value))
+        };return result.sorted{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"}
     }
 
     private func functionalRelationshipRecords(

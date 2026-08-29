@@ -325,3 +325,10 @@ extension V9_13TypedResponseTests {
         XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
     }
 }
+extension V9_13TypedResponseTests {
+    func testC25SurveyDefinitionTypedAnchor() throws {
+        XCTAssertEqual(SurveyFieldKindV1.allCases.count, 18)
+        XCTAssertEqual(SurveyBooleanObservationV1.allCases.count, 4)
+        XCTAssertEqual(ActivityKindV1.allCases.count, 5)
+    }
+}

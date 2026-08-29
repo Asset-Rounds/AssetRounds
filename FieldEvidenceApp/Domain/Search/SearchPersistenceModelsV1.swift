@@ -804,3 +804,57 @@ struct AccessibleDocumentSearchPersistencePolicyV1: Codable, Equatable, Sendable
 extension SearchPersistenceReleaseV1 {
     static let accessibleDocumentPolicy = AccessibleDocumentSearchPersistencePolicyV1()
 }
+
+// MARK: - C25 survey-definition search persistence boundary
+
+struct SurveyDefinitionSearchPersistencePolicyV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let sourceSchema: String
+    let searchPersistenceRelease: SearchPersistenceReleaseV1
+    let fieldIDs: [String]
+    let metadataOnly: Bool
+    let derivedOnly: Bool
+    let excludesAnswers: Bool
+    let excludesPromptText: Bool
+    let excludesActorIdentity: Bool
+    let excludesPrivateLocators: Bool
+    let excludesEvidenceBytes: Bool
+    let backupDisposition: String
+    let replayDisposition: String
+
+    init() {
+        schemaVersion = Self.schemaVersion
+        sourceSchema = SurveyDefinitionSearchProjectionPolicyV1.semanticLabel
+        searchPersistenceRelease = .v7
+        fieldIDs = SurveyDefinitionSearchProjectionPolicyV1.fieldIDs
+        metadataOnly = true
+        derivedOnly = true
+        excludesAnswers = true
+        excludesPromptText = true
+        excludesActorIdentity = true
+        excludesPrivateLocators = true
+        excludesEvidenceBytes = true
+        backupDisposition = "EXCLUDED_DERIVED_REBUILD"
+        replayDisposition = "DROP_AND_REBUILD_FROM_CANONICAL_RELEASES"
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              sourceSchema == SurveyDefinitionSearchProjectionPolicyV1.semanticLabel,
+              searchPersistenceRelease == .v7,
+              fieldIDs == SurveyDefinitionSearchProjectionPolicyV1.fieldIDs,
+              metadataOnly, derivedOnly,
+              excludesAnswers, excludesPromptText, excludesActorIdentity,
+              excludesPrivateLocators, excludesEvidenceBytes,
+              backupDisposition == "EXCLUDED_DERIVED_REBUILD",
+              replayDisposition == "DROP_AND_REBUILD_FROM_CANONICAL_RELEASES" else {
+            throw SurveyDefinitionConsumerFailureV1.invalidValue
+        }
+    }
+}
+
+extension SearchPersistenceReleaseV1 {
+    static let surveyDefinitionPolicy = SurveyDefinitionSearchPersistencePolicyV1()
+}
