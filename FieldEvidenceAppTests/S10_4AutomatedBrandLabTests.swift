@@ -20798,10 +20798,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 781_182)
+        XCTAssertEqual(uiSource.utf8.count, 781_252)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "129947AB3327D8C6D378F5DD870CF48B503E963D3583D6CB81FE2D6CEEE6270F"
+            "4E920767BA306F638EF1A01FD6480A288A870DC323FAE053D1DA19D96222D99A"
         )
         let assertControlSource = try boundedSource(
             uiSource,
@@ -21321,10 +21321,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "\n    @MainActor\n" +
                     "    private func positionAXTextPurchaseCompleteViewport("
         )
-        XCTAssertEqual(availablePaywallSource.utf8.count, 12_120)
+        XCTAssertEqual(availablePaywallSource.utf8.count, 12_190)
         XCTAssertEqual(
             Data(availablePaywallSource.utf8).sha256,
-            "5E49ECFBAC50A1B9D3865A23469EFB3C7B5782FB42404F3B9D28D63200D6815B"
+            "5CA9014C003A8551CF824B63A6E4D97EECEA7784B2EBF51C009509F5CA3D9418"
         )
         for exact in [
             "emitsEvidence: Bool = true",
