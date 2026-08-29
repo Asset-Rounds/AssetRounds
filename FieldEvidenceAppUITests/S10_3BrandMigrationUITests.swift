@@ -2881,6 +2881,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 }
             }
         }
+        if automationShard?.shardID == "s10.4.minimum.double-length" {
+            try diagnoseMinimumDoubleLengthPreflightNativeContrast(in: app)
+        }
         if automationShard?.deviceProfileID
             == "iphone-17-ios-26.2-current" {
             let currentPreflightQuickPathIntroductionViews =
@@ -14403,6 +14406,228 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         )
         throw AutomationConfigurationError.invalid(
             "S10.4 AX-text sign-selection native contrast diagnostic completed nonaccepting"
+        )
+    }
+
+    @MainActor
+    private func diagnoseMinimumDoubleLengthPreflightNativeContrast(
+        in app: XCUIApplication
+    ) throws {
+        let stateID = "state.check-preflight.ready"
+        let expectedMigratedStateIDs = Array(
+            Self.segmentedRouteStateIDs.prefix(8)
+        )
+        guard let shard = automationShard,
+              shard.ordinal == 9,
+              shard.shardID == "s10.4.minimum.double-length",
+              shard.requirementID == "double_length",
+              shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum",
+              automationSegment == .none,
+              Self.segmentedRouteStateIDs.count == 67,
+              Set(Self.segmentedRouteStateIDs).count == 67,
+              Self.segmentedRouteStateIDs[8] == stateID,
+              segmentedRouteStateCursor == 8,
+              migratedStateIDs == expectedMigratedStateIDs,
+              automationAXTreeDigests.keys.sorted()
+                == expectedMigratedStateIDs.sorted(),
+              automationContrastExceptions.isEmpty,
+              !automatedSegmentFinished,
+              app.state == .runningForeground else {
+            throw AutomationConfigurationError.invalid(
+                "S10.4 minimum double-length preflight native contrast diagnostic gate is invalid"
+            )
+        }
+
+        let siteTimeZonePredicate = NSPredicate(
+            format: "label CONTAINS[c] %@",
+            "Site time zone"
+        )
+        let diagnosticQueryBindings: [(
+            name: String,
+            query: XCUIElementQuery
+        )] = [
+            (
+                "preflightScreens",
+                app.descendants(matching: .any).matching(
+                    identifier: "s3.preflight.screen"
+                )
+            ),
+            (
+                "siteTimeZoneStaticTexts",
+                app.staticTexts.matching(siteTimeZonePredicate)
+            ),
+            (
+                "timeZoneFields",
+                app.textFields.matching(identifier: "s3.preflight.time-zone")
+            ),
+            (
+                "confirmationSwitches",
+                app.switches.matching(
+                    identifier: "s3.preflight.time-zone-confirmed"
+                )
+            ),
+            (
+                "afterDarkSwitches",
+                app.switches.matching(identifier: "s3.preflight.after-dark")
+            ),
+            (
+                "safePositionSwitches",
+                app.switches.matching(identifier: "s3.preflight.safe-position")
+            ),
+            ("navigationBars", app.navigationBars),
+            ("tabBars", app.tabBars),
+            ("keyboards", app.keyboards),
+            (
+                "inputViews",
+                app.otherElements.matching(
+                    NSPredicate(format: "identifier == %@", "inputView")
+                )
+            ),
+        ]
+        let diagnosticElementObject: (XCUIElement) -> [String: Any] = {
+            element in
+            let valueObject: Any
+            if let value = element.value as? String {
+                valueObject = value
+            } else {
+                valueObject = NSNull()
+            }
+            return [
+                "exists": element.exists,
+                "isEnabled": element.isEnabled,
+                "isHittable": element.isHittable,
+                "identifier": element.identifier,
+                "label": element.label,
+                "value": valueObject,
+                "elementTypeRawValue": element.elementType.rawValue,
+                "elementTypeDescription": String(describing: element.elementType),
+                "frame": self.auditFrameObject(element.frame),
+            ]
+        }
+        let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {
+            query in
+            let count = query.count
+            var elements: [[String: Any]] = []
+            for index in 0..<count {
+                elements.append(
+                    diagnosticElementObject(query.element(boundBy: index))
+                )
+            }
+            return [
+                "count": count,
+                "elements": elements,
+            ]
+        }
+        var diagnosticQueryObjects: [String: Any] = [:]
+        for binding in diagnosticQueryBindings {
+            diagnosticQueryObjects[binding.name] = diagnosticQueryObject(binding.query)
+        }
+
+        var observedIssueObjects: [[String: Any]] = []
+        var auditedElementCount = 0
+        try app.performAccessibilityAudit(for: .contrast) { issue in
+            let auditedElement = issue.element
+            var diagnosticIssue: [String: Any] = [
+                "issueOrdinal": observedIssueObjects.count + 1,
+                "auditTypeRawValue": String(issue.auditType.rawValue),
+                "compactDescription": issue.compactDescription,
+                "detailedDescription": issue.detailedDescription,
+                "elementExists": NSNull(),
+                "elementEnabled": NSNull(),
+                "elementHittable": NSNull(),
+                "elementIdentifier": NSNull(),
+                "elementLabel": NSNull(),
+                "elementValue": NSNull(),
+                "elementTypeRawValue": NSNull(),
+                "elementTypeDescription": NSNull(),
+                "elementFrame": NSNull(),
+                "applicationFrame": self.auditFrameObject(app.frame),
+                "segmentID": self.automationSegment.rawValue,
+                "segmentStateCursor": self.segmentedRouteStateCursor,
+            ]
+            if let auditedElement {
+                auditedElementCount += 1
+                let auditedElementObject = diagnosticElementObject(auditedElement)
+                diagnosticIssue["elementExists"] =
+                    auditedElementObject["exists"]
+                diagnosticIssue["elementEnabled"] =
+                    auditedElementObject["isEnabled"]
+                diagnosticIssue["elementHittable"] =
+                    auditedElementObject["isHittable"]
+                diagnosticIssue["elementIdentifier"] =
+                    auditedElementObject["identifier"]
+                diagnosticIssue["elementLabel"] =
+                    auditedElementObject["label"]
+                diagnosticIssue["elementValue"] =
+                    auditedElementObject["value"]
+                diagnosticIssue["elementTypeRawValue"] =
+                    auditedElementObject["elementTypeRawValue"]
+                diagnosticIssue["elementTypeDescription"] =
+                    auditedElementObject["elementTypeDescription"]
+                diagnosticIssue["elementFrame"] =
+                    auditedElementObject["frame"]
+            }
+            observedIssueObjects.append(diagnosticIssue)
+            return true
+        }
+
+        let diagnosticContext: [String: Any] = [
+            "schemaVersion": 1,
+            "acceptanceEligible": false,
+            "shardID": shard.shardID,
+            "requirementID": shard.requirementID,
+            "deviceProfileID": shard.deviceProfileID,
+            "segmentID": automationSegment.rawValue,
+            "segmentStateCursor": segmentedRouteStateCursor,
+            "stateID": stateID,
+            "stateOrdinal": 9,
+            "predecessorStateID": "state.sign-detail.delete-confirmation",
+            "predecessorOrdinal": 8,
+            "successorStateID": "state.capture.wide-ready",
+            "successorOrdinal": 10,
+            "migratedStateIDs": migratedStateIDs,
+            "axTreeDigestStateIDs": automationAXTreeDigests.keys.sorted(),
+            "contrastExceptionStateIDs": automationContrastExceptions.keys.sorted(),
+            "applicationState": String(describing: app.state),
+            "applicationStateRawValue": app.state.rawValue,
+            "applicationForeground": app.state == .runningForeground,
+            "applicationFrame": auditFrameObject(app.frame),
+            "application": diagnosticElementObject(app),
+            "queries": diagnosticQueryObjects,
+            "observedIssueCount": observedIssueObjects.count,
+            "auditedElementCount": auditedElementCount,
+            "issues": observedIssueObjects,
+        ]
+        printJSONLine(
+            prefix:
+                "S10_4_MINIMUM_DOUBLE_LENGTH_PREFLIGHT_NATIVE_CONTRAST_DIAGNOSTIC",
+            object: diagnosticContext
+        )
+
+        let appAttachment = XCTAttachment(screenshot: app.screenshot())
+        appAttachment.name =
+            "S10.4 minimum double-length preflight native contrast diagnostic app"
+        appAttachment.lifetime = .keepAlways
+        add(appAttachment)
+        let treeAttachment = XCTAttachment(string: app.debugDescription)
+        treeAttachment.name =
+            "S10.4 minimum double-length preflight native contrast diagnostic tree"
+        treeAttachment.lifetime = .keepAlways
+        add(treeAttachment)
+        let contextData = try JSONSerialization.data(
+            withJSONObject: diagnosticContext,
+            options: [.prettyPrinted, .sortedKeys]
+        )
+        let contextAttachment = XCTAttachment(
+            string: String(decoding: contextData, as: UTF8.self)
+        )
+        contextAttachment.name =
+            "S10.4 minimum double-length preflight native contrast diagnostic context"
+        contextAttachment.lifetime = .keepAlways
+        add(contextAttachment)
+
+        throw AutomationConfigurationError.invalid(
+            "S10.4 minimum double-length preflight native contrast diagnostic completed nonaccepting"
         )
     }
 

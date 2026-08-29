@@ -2428,16 +2428,134 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     preflightQuickPathSource.endIndex
             ]
         )
-        XCTAssertEqual(preflightMinimumSource.utf8.count, 67_175)
+        XCTAssertEqual(preflightMinimumSource.utf8.count, 67_332)
         XCTAssertEqual(
             Data(preflightMinimumSource.utf8).sha256,
-            "5BEC29D90B62A988206A16AE9F11E1B63603C2F7CBA8926249866A97A2D51B4F"
+            "9DBF882BAC56E24A0558EC075B1037F171CDF4156FBFD2BDE8F8C61F30559000"
         )
         XCTAssertEqual(currentProfilePreflightQuickPathSource.utf8.count, 29_876)
         XCTAssertEqual(
             Data(currentProfilePreflightQuickPathSource.utf8).sha256,
             "0F0B1CEB5A80D8DA541B032DE0716317B48739B7D599715AE091AFF00BC30FA7"
         )
+        let minimumDoubleLengthPreflightDiagnosticCaller =
+            #"        if automationShard?.shardID == "s10.4.minimum.double-length" {"#
+                + "\n"
+                + "            try diagnoseMinimumDoubleLengthPreflightNativeContrast(in: app)\n"
+                + "        }"
+        XCTAssertEqual(
+            preflightMinimumSource.components(
+                separatedBy: minimumDoubleLengthPreflightDiagnosticCaller
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: minimumDoubleLengthPreflightDiagnosticCaller
+            ).count - 1,
+            1
+        )
+        let minimumDoubleLengthPreflightDiagnosticSource = try boundedSource(
+            uiSource,
+            from:
+                "    @MainActor\n"
+                    + "    private func diagnoseMinimumDoubleLengthPreflightNativeContrast(",
+            before: "\n\n    private func publicAuditSignatureObject("
+        )
+        XCTAssertEqual(
+            minimumDoubleLengthPreflightDiagnosticSource.utf8.count,
+            9_463
+        )
+        XCTAssertEqual(
+            Data(minimumDoubleLengthPreflightDiagnosticSource.utf8).sha256,
+            "A9B949BC3222E647328299BC50B6EA04B89420688D946B25EA309E7BAA1C283D"
+        )
+        let minimumDoubleLengthPreflightDiagnosticPrefix =
+            "S10_4_MINIMUM_DOUBLE_LENGTH_PREFLIGHT_NATIVE_CONTRAST_DIAGNOSTIC"
+        XCTAssertEqual(
+            minimumDoubleLengthPreflightDiagnosticSource.components(
+                separatedBy: minimumDoubleLengthPreflightDiagnosticPrefix
+            ).count - 1,
+            1
+        )
+        for exactCount in [
+            ("try app.performAccessibilityAudit(for: .contrast) { issue in", 1),
+            ("return true", 1),
+            ("XCTAttachment(", 3),
+            (".lifetime = .keepAlways", 3),
+            ("self.automationSegment.rawValue", 1),
+            ("self.segmentedRouteStateCursor", 1),
+            ("self.auditFrameObject(app.frame)", 1),
+            ("\"issues\": observedIssueObjects", 1),
+            ("\"observedIssueCount\": observedIssueObjects.count", 1),
+            ("\"auditedElementCount\": auditedElementCount", 1),
+            (
+                "S10.4 minimum double-length preflight native contrast diagnostic completed nonaccepting",
+                1
+            ),
+        ] {
+            XCTAssertEqual(
+                minimumDoubleLengthPreflightDiagnosticSource.components(
+                    separatedBy: exactCount.0
+                ).count - 1,
+                exactCount.1,
+                exactCount.0
+            )
+        }
+        var minimumDoubleLengthDiagnosticSearchStart =
+            minimumDoubleLengthPreflightDiagnosticSource.startIndex
+        for exact in [
+            #"shard.shardID == "s10.4.minimum.double-length""#,
+            #"shard.requirementID == "double_length""#,
+            #"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#,
+            "automationSegment == .none",
+            "segmentedRouteStateCursor == 8",
+            "migratedStateIDs == expectedMigratedStateIDs",
+            "try app.performAccessibilityAudit(for: .contrast) { issue in",
+            "observedIssueObjects.append(diagnosticIssue)",
+            "return true",
+            "let diagnosticContext: [String: Any] = [",
+            "\"stateOrdinal\": 9",
+            #""predecessorStateID": "state.sign-detail.delete-confirmation""#,
+            #""successorStateID": "state.capture.wide-ready""#,
+            "\"issues\": observedIssueObjects",
+            "printJSONLine(",
+            "let appAttachment = XCTAttachment(screenshot: app.screenshot())",
+            "let treeAttachment = XCTAttachment(string: app.debugDescription)",
+            "let contextAttachment = XCTAttachment(",
+            "throw AutomationConfigurationError.invalid("
+        ] {
+            let range = try XCTUnwrap(
+                minimumDoubleLengthPreflightDiagnosticSource.range(
+                    of: exact,
+                    range:
+                        minimumDoubleLengthDiagnosticSearchStart ..<
+                        minimumDoubleLengthPreflightDiagnosticSource.endIndex
+                ),
+                exact
+            )
+            minimumDoubleLengthDiagnosticSearchStart = range.upperBound
+        }
+        for prohibited in [
+            "ContrastAuditExceptionSignature(",
+            "eligibleExceptions",
+            "captureBaseline(",
+            "S10_4_AX_STATE",
+            "S10_4_CONTRAST",
+            "candidate attachment",
+            "issueAttachment",
+            "audited element",
+            "return false",
+            "tolerance",
+        ] {
+            XCTAssertEqual(
+                minimumDoubleLengthPreflightDiagnosticSource.components(
+                    separatedBy: prohibited
+                ).count - 1,
+                0,
+                prohibited
+            )
+        }
 
         let preflightZoneScroll = "        scroll(zone, in: app)"
         XCTAssertEqual(
@@ -20544,10 +20662,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 769_297)
+        XCTAssertEqual(uiSource.utf8.count, 778_919)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "68D6E70E4A471EF81E48C4EE1F420B26D724E1B824ECD0419A5EA40CEADEB4BE"
+            "3906DDBA1F40017D18F7F16FE145E76DCB9927203F44AC81F70C33EC865BA9D6"
         )
         let assertControlSource = try boundedSource(
             uiSource,
