@@ -12,6 +12,10 @@ struct WorkflowGraphValidationReceiptV1: Equatable, Sendable {
 }
 
 extension WorkflowGraphValidatorV1 {
+    static func validateSurvey(_ workflow:WorkflowDefinitionV1,release:SurveyDefinitionReleaseV1)throws{try C26SurveyWorkflowDefinitionV1.validate(workflow,for:release);let ids=release.sections.flatMap(\.facts).map(\.factID);guard Set(ids).count==ids.count else{throw SurveySessionFailureV1.wrongDefinition}}
+}
+
+extension WorkflowGraphValidatorV1 {
     static func validate(_ workflow: WorkflowDefinitionV1, surveyRelease: SurveyDefinitionReleaseV1) throws -> WorkflowGraphValidationReceiptV1 {
         try workflow.validateSurveyDefinition(surveyRelease)
         return try validate(workflow)

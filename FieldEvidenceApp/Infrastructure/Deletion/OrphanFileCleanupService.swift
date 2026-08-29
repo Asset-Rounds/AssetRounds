@@ -1,6 +1,8 @@
 import Darwin
 import Foundation
 
+enum SurveySessionOrphanCleanupEnrollmentV1{static let surveyRowsOwnNoExternalFiles=true;static let cleanupMustNotInventPromotionOrPublication=true}
+
 struct OrphanFileCleanupSummary: Equatable, Sendable {
     let inspectedFileCount: Int
     let removedFileCount: Int

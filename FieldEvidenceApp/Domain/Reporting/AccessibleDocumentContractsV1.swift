@@ -1,5 +1,12 @@
 import Foundation
 
+enum GuidedSurveyAccessibleDocumentBoundaryV1 {
+    static func validate(_ projection: SurveyPublicationReportProjectionV1) throws {
+        try projection.validate()
+    }
+    static let laterPromotionMayRewriteExistingTree = false
+}
+
 enum AccessibleDocumentFailureV1: Error, Equatable, Sendable {
     case invalidValue, incompatibleVersion, duplicateIdentity, missingParent, invalidOrder
     case invalidHeading, invalidTable, inventedAlternateText, privacyViolation, missingEvidence

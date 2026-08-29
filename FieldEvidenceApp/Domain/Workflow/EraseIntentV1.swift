@@ -33,6 +33,7 @@ enum ClientCapabilityEraseBoundaryV1{static let atomicFamilyCount=4;static let o
 enum FieldReferenceEraseBoundaryV1{static let atomicFamilyCount=2;static let ordinaryDeletionRetainsBoundAndFinalizedReleaseBytes=true;static let unboundReleaseMayBeDiscarded=true;static let workspaceEraseClearsRowsAndOwnedBytes=true;static let readinessProjectionIsNonpersistent=true}
 enum AccessibleDocumentEraseBoundaryV1{static let atomicFamilyCount=1;static let semanticTreeIsDerived=true;static let workspaceEraseClearsReceiptsAndOwnedOutputs=true;static let escapedOutputsCannotBeRecalled=true}
 enum SurveyDefinitionEraseBoundaryV1{static let atomicFamilyCount=2;static let lifecycleEventsAreMutationHistoryOnly=true;static let workspaceEraseClearsIdentityAndReleaseRows=true;static let quarantinedImportsAreNoncanonical=true}
+enum SurveySessionEraseBoundaryV1{static let atomicFamilyCount=5;static let ordinaryDeletionPreservesPublicationAndCaptureHistory=true;static let workspaceEraseClearsEntireLifecycleClosure=true;static let previewsAndCurrentProjectionsAreNonpersistent=true}
 
 enum EvidenceAssuranceEraseBoundaryV1 {
     static let immutableHistoryClearedOnlyByWorkspaceErase = true

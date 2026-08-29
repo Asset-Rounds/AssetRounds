@@ -3,6 +3,13 @@ import Foundation
 import SwiftData
 import SwiftUI
 
+enum GuidedSurveyReportRecoveryBoundaryV1 {
+    static func validateRecovered(_ snapshot: ReportSnapshotV1) throws {
+        try snapshot.surveyPublication?.validate()
+    }
+    static let recoveryRecomputesPublication = false
+}
+
 @MainActor
 final class ReportLaunchAttemptRegistry {
     private var attemptedReportIDs = Set<UUID>()

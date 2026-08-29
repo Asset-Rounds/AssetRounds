@@ -1442,3 +1442,12 @@ extension V9_13PersistentKindLifecycleCoverageTests {
         XCTAssertEqual(SurveyDefinitionLifecycleV1.writer, "SOLE_CANONICAL_WORKSPACE_WRITER")
     }
 }
+extension V9_13PersistentKindLifecycleCoverageTests {
+    func testC26SurveySessionTypedAnchor() throws {
+        XCTAssertEqual(ActivityKindSemanticsV1(kind: .survey).completion, .typedFactCollection)
+        XCTAssertFalse(ActivityKindSemanticsV1(kind: .survey).mayClaimInspectionResult)
+        XCTAssertEqual(SurveySessionStateV1.allCases.count, 8)
+        XCTAssertEqual(SurveySessionTransitionV1.allCases.count, 10)
+        XCTAssertNoThrow(try V25GuidedSurveyImportBoundaryV1.validate(persistent: 25, records: 24))
+    }
+}

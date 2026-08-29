@@ -1164,3 +1164,9 @@ enum SurveyDefinitionPersistentKindPolicyV1 {
     static func validate(_ descriptors:[PersistentKindDescriptorV1])throws{let byID=Dictionary(uniqueKeysWithValues:descriptors.map{($0.stableKindID,$0)});guard durableKindIDs.allSatisfy({byID[$0].map{PersistentKindLifecycleRegistryV1.hasIndependentRepresentationWrite($0.subject)} == true}),derivedKindIDs.allSatisfy({byID[$0]?.kindClassification == .nonpersistent})else{throw PersistentKindLifecycleFailureV1.invalidLifecyclePolicy}}
     static func validateDeclaration()throws{guard durableKindIDs.count==3,derivedKindIDs.count==3,(durableKindIDs.union(derivedKindIDs)).allSatisfy(PersistentKindLifecycleValidationV1.validKindID)else{throw PersistentKindLifecycleFailureV1.invalidLifecyclePolicy}}
 }
+
+enum SurveySessionPersistentKindPolicyV1 {
+    static let durableKindIDs=Set(["PERSISTENT_MODEL:SurveySessionRow","PERSISTENT_MODEL:FactCaptureRow","PERSISTENT_MODEL:ProvisionalSubjectRow","PERSISTENT_MODEL:SubjectPromotionReceiptRow","PERSISTENT_MODEL:SurveyPublicationSnapshotRow"])
+    static let derivedKindIDs=Set(["PROJECTION:SurveySessionLifecycleClosureV1","PROJECTION:StoreSemanticEnvelopeV25"])
+    static func validateDeclaration()throws{guard durableKindIDs.count==5,derivedKindIDs.count==2,durableKindIDs.isDisjoint(with:derivedKindIDs),(durableKindIDs.union(derivedKindIDs)).allSatisfy(PersistentKindLifecycleValidationV1.validKindID)else{throw PersistentKindLifecycleFailureV1.invalidLifecyclePolicy}}
+}

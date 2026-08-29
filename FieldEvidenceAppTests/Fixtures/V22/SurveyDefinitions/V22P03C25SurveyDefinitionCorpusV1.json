@@ -54,5 +54,16 @@
   "noSilentUpgrade": true,
   "quarantinesImports": true,
   "oldOrNewOnly": true,
-  "noC26OrC47": true
+  "noC26OrC47": true,
+  "c26Enrollment": {
+    "cardID": "V23-P03-C26",
+    "activityKind": "SURVEY",
+    "sessionContract": "SurveySessionV1",
+    "packageReleaseReference": "SurveyPackageReleaseReferenceV1",
+    "persistentSchemaVersion": 25,
+    "recordsSchemaVersion": 24,
+    "persistentKindLifecycleModelCount": 92,
+    "compatibility": "HISTORIC_C25_DEFINITION_READABLE_NEW_SESSION_WORK_REQUIRES_EXACT_PUBLISHED_PACKAGE_RELEASE",
+    "admission": "SURVEY_ONLY_EXACT_WORKSPACE_DEFINITION_AND_PACKAGE_BINDING"
+  }
 }

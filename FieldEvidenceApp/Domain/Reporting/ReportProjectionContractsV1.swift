@@ -1,5 +1,88 @@
 import Foundation
 
+/// Immutable, renderer-neutral projection of a completed guided survey.  It
+/// deliberately carries completion facts and the subject as published, but no
+/// pass/fail, compliance, or later subject-promotion inference.
+struct SurveyPublicationReportProjectionV1: Codable, Equatable, Sendable {
+    static let projectionVersion = "SURVEY_PUBLICATION_REPORT_V1"
+
+    let projectionVersion: String
+    let snapshotID: UUID
+    let workspaceID: WorkspaceID
+    let sessionID: UUID
+    let sessionRevision: UInt64
+    let publicationRevision: UInt64
+    let publicationSHA256: String
+    let definitionReleaseID: UUID
+    let definitionRevision: UInt64
+    let definitionSHA256: String
+    let packageReleaseID: String
+    let packageID: String
+    let packageContentVersion: Int
+    let packageSHA256: String
+    let workflowSHA256: String
+    let subjectAtPublication: SurveySessionSubjectV1
+    let factCount: Int
+    let evidenceCount: Int
+
+    init(publication: SurveyPublicationSnapshotV1) throws {
+        try publication.validateIntrinsic()
+        projectionVersion = Self.projectionVersion
+        snapshotID = publication.snapshotID
+        workspaceID = publication.workspaceID
+        sessionID = publication.sessionID
+        sessionRevision = publication.sessionRevision
+        publicationRevision = publication.revision
+        publicationSHA256 = publication.snapshotSHA256
+        definitionReleaseID = publication.authority.definitionRelease.releaseID
+        definitionRevision = publication.authority.definitionRelease.revision
+        definitionSHA256 = publication.authority.definitionRelease.releaseSHA256
+        packageReleaseID = publication.authority.packageRelease.packageReleaseID
+        packageID = publication.authority.packageRelease.packageID
+        packageContentVersion = publication.authority.packageRelease.packageContentVersion
+        packageSHA256 = publication.authority.packageRelease.packageSHA256
+        workflowSHA256 = publication.authority.packageRelease.workflowSHA256
+        subjectAtPublication = publication.subjectAtPublication
+        factCount = publication.facts.count
+        evidenceCount = publication.facts.reduce(0) { $0 + $1.evidence.count }
+        try validate()
+    }
+
+    func validate() throws {
+        try subjectAtPublication.validate()
+        let subjectRevisionFits: Bool
+        switch subjectAtPublication {
+        case .canonical(let reference): subjectRevisionFits = reference.revision <= UInt64(Int.max)
+        case .provisional(let reference): subjectRevisionFits = reference.revision <= UInt64(Int.max)
+        }
+        guard projectionVersion == Self.projectionVersion,
+              snapshotID != UUID.zero,
+              sessionID != UUID.zero,
+              sessionRevision > 0,
+              publicationRevision > 0,
+              definitionReleaseID != UUID.zero,
+              definitionRevision > 0,
+              subjectRevisionFits,
+              packageContentVersion > 0,
+              WorkflowGrammarValidationV1.validID(packageID),
+              MutationEnvelopeV1.isSHA256(packageReleaseID),
+              MutationEnvelopeV1.isSHA256(packageSHA256),
+              MutationEnvelopeV1.isSHA256(workflowSHA256),
+              MutationEnvelopeV1.isSHA256(publicationSHA256),
+              MutationEnvelopeV1.isSHA256(definitionSHA256),
+              factCount >= 0,
+              evidenceCount >= 0 else {
+            throw SnapshotProjectionFailureV1.invalidValue
+        }
+    }
+}
+
+enum SurveyPublicationReportBoundaryV1 {
+    static let semanticTreeIsDerivedOnly = true
+    static let laterPromotionRewritesFrozenSubject = false
+    static let surveyPassFailMeaningIsDeclared = false
+}
+
 enum ReportAudienceV1: String, Codable, CaseIterable, Hashable, Sendable {
     case internalUse = "INTERNAL"
     case customerSafe = "CUSTOMER_SAFE"

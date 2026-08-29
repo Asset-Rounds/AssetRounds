@@ -1,5 +1,7 @@
 import Foundation
 
+enum SurveySessionKernelDeletionEnrollmentV1{static let persistentRowNames=Set(["SurveySessionRow","FactCaptureRow","ProvisionalSubjectRow","SubjectPromotionReceiptRow","SurveyPublicationSnapshotRow"]);static func validate()throws{guard persistentRowNames.count==5 else{throw KernelPersistenceV4Failure.incompleteCoverage};try SurveySessionEraseAllEnrollmentV1.validate()}}
+
 enum KernelDeleteDispositionV4: String, Codable, Sendable {
     case explicitOnly = "EXPLICIT_ONLY"
     case deleteAfterDependents = "DELETE_AFTER_DEPENDENTS"
@@ -334,6 +336,7 @@ enum KernelDeletionEraseRegistryV4 {
 
     static func validate() throws {
         try validateSurveyDefinitionLifecycle()
+        try SurveySessionKernelDeletionEnrollmentV1.validate()
         try validateClientCapabilityLifecycle()
         try validateFieldReferenceLifecycle()
         try validateAccessibleDocumentLifecycle()

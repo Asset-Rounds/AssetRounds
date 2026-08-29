@@ -56,6 +56,7 @@ final class BackupExportService {
     private static let checkpointBasisExportedAt = Date(timeIntervalSince1970: 0)
 
     private struct Rows {
+        let surveySessions:[SurveySessionRow];let factCaptures:[FactCaptureRow];let provisionalSubjects:[ProvisionalSubjectRow];let subjectPromotionReceipts:[SubjectPromotionReceiptRow];let surveyPublicationSnapshots:[SurveyPublicationSnapshotRow]
         let surveyDefinitionIdentities:[SurveyDefinitionIdentityRow]
         let surveyDefinitionReleases:[SurveyDefinitionReleaseRow]
         let accessibleDocumentAssessmentReceipts:[AccessibleDocumentAssessmentReceiptRow]
@@ -733,6 +734,7 @@ private extension BackupExportService {
         do {
             recordsData = try BackupCanonicalEncoderV1().encodeRecords(records).data
             let semanticRecords = V4BackupRecordsV1(
+                guidedSurveys:[],
                 fieldReferences:records.fieldReferences,
                 fieldDrafts: records.fieldDrafts,
                 workPackets: records.workPackets,
@@ -1504,6 +1506,7 @@ private extension BackupExportService {
     private func fetchRows() throws -> Rows {
         do {
             return Rows(
+                surveySessions:try modelContext.fetch(FetchDescriptor<SurveySessionRow>()),factCaptures:try modelContext.fetch(FetchDescriptor<FactCaptureRow>()),provisionalSubjects:try modelContext.fetch(FetchDescriptor<ProvisionalSubjectRow>()),subjectPromotionReceipts:try modelContext.fetch(FetchDescriptor<SubjectPromotionReceiptRow>()),surveyPublicationSnapshots:try modelContext.fetch(FetchDescriptor<SurveyPublicationSnapshotRow>()),
                 surveyDefinitionIdentities:try modelContext.fetch(FetchDescriptor<SurveyDefinitionIdentityRow>()),
                 surveyDefinitionReleases:try modelContext.fetch(FetchDescriptor<SurveyDefinitionReleaseRow>()),
                 accessibleDocumentAssessmentReceipts:try modelContext.fetch(FetchDescriptor<AccessibleDocumentAssessmentReceiptRow>()),
@@ -2066,7 +2069,9 @@ private extension BackupExportService {
         let fieldReferences = mutationHistory == nil ? [] : try fieldReferenceRecords(rows)
         let accessibleDocumentAssessments = mutationHistory == nil ? [] : try accessibleDocumentAssessmentRecords(rows)
         let surveyDefinitions=try mutationHistory.map{try surveyDefinitionRecords(rows,history:$0)} ?? []
+        let guidedSurveys=try mutationHistory.map{_ in try guidedSurveyRecords(rows)} ?? []
         return V4BackupRecordsV1(
+            guidedSurveys:guidedSurveys,
             accessibleDocumentAssessments:accessibleDocumentAssessments,
             surveyDefinitions:surveyDefinitions,
             fieldReferences:fieldReferences,
@@ -2284,6 +2289,15 @@ private extension BackupExportService {
             }
             return .init(kind:.identity,id:value.definitionID,workspaceID:value.workspaceID.rawValue,revision:value.revision,canonicalData:try SurveyDefinitionCanonicalCodecV1.encode(value))
         };return result.sorted{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"}
+    }
+    private func guidedSurveyRecords(_ rows:Rows)throws->[V25BackupGuidedSurveyRecordV1]{
+        try (
+            rows.surveySessions.map{let v=try $0.value();return .init(kind:.session,id:v.sessionID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try SurveySessionCanonicalCodecV1.encode(v))}
+            + rows.factCaptures.map{let v=try $0.value();return .init(kind:.factCapture,id:v.captureID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try SurveySessionCanonicalCodecV1.encode(v))}
+            + rows.provisionalSubjects.map{let v=try $0.value();return .init(kind:.provisionalSubject,id:v.provisionalSubjectID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try SurveySessionCanonicalCodecV1.encode(v))}
+            + rows.subjectPromotionReceipts.map{let v=try $0.value();return .init(kind:.subjectPromotionReceipt,id:v.receiptID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try SurveySessionCanonicalCodecV1.encode(v))}
+            + rows.surveyPublicationSnapshots.map{let v=try $0.value();return .init(kind:.publicationSnapshot,id:v.snapshotID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try SurveySessionCanonicalCodecV1.encode(v))}
+        ).sorted{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"}
     }
 
     private func functionalRelationshipRecords(

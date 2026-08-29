@@ -866,6 +866,8 @@ private extension BackupImportService {
             schemaPairIsValid=(try? V23AccessibleDocumentImportBoundaryV1.validate(persistent:23,records:22)) != nil
         case (4,24,23):
             schemaPairIsValid=(try? V24SurveyDefinitionImportBoundaryV1.validate(persistent:24,records:23)) != nil
+        case (4,25,24):
+            schemaPairIsValid=(try? V25GuidedSurveyImportBoundaryV1.validate(persistent:25,records:24)) != nil
         default:
             schemaPairIsValid = false
         }

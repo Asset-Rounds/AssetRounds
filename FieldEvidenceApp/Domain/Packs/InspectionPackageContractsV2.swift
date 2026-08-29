@@ -15,6 +15,10 @@ enum InspectionPackageFailureV2: Error, Equatable, Sendable {
 }
 
 extension InspectionPackageV2 {
+    func validateSurveySession(_ session:SurveySessionV1,definition:SurveyDefinitionReleaseV1)throws{try session.validate(definition:definition);try validateSurveyDefinition(definition);guard session.authority.packageRelease.packageID == packageID else{throw SurveySessionFailureV1.wrongDefinition}}
+}
+
+extension InspectionPackageV2 {
     func validateSurveyDefinition(_ release: SurveyDefinitionReleaseV1) throws {
         try release.validate()
         guard release.ownerPackageID == packageID else { throw InspectionPackageFailureV2.invalidValue }

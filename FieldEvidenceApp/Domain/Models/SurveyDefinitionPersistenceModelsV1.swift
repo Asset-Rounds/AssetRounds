@@ -90,3 +90,21 @@ enum SurveyDefinitionPersistenceFailureV1: Error { case corruptRow }
         return value
     }
 }
+
+// MARK: - C26 exact-release session binding
+
+extension SurveyDefinitionReleaseRow {
+    /// Decodes the immutable release only when it is the release pinned by the
+    /// session. Persistence never substitutes the current/latest definition.
+    func value(
+        pinnedBy authority: SurveySessionAuthorityV1,
+        packageRelease: InspectionPackageReleaseV1
+    ) throws -> SurveyDefinitionReleaseV1 {
+        let release = try value()
+        try authority.validate(definition: release, packageRelease: packageRelease)
+        guard authority.definitionRelease == (try SurveyDefinitionReleaseReferenceV1(release)) else {
+            throw SurveyDefinitionPersistenceFailureV1.corruptRow
+        }
+        return release
+    }
+}

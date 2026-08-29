@@ -1,4 +1,6 @@
 import Foundation
+
+enum SurveySessionDeletionLedgerStoreEnrollmentV1{static let retainedFrozenKind="SurveyPublicationSnapshotRow";static let workspaceEraseKinds=SurveySessionKernelDeletionEnrollmentV1.persistentRowNames}
 import SwiftData
 
 enum FieldReferenceDeletionLedgerStorePolicyV1{static func validate()throws{guard FieldReferenceDeletionLedgerPolicyV1.immutableKinds==["FieldReferenceReleaseV1","FieldReferenceBindingV1"],FieldReferenceDeletionLedgerPolicyV1.ordinaryDeletionRetainsBoundAndFinalizedBytes,FieldReferenceDeletionLedgerPolicyV1.workspaceEraseRemovesRowsAndOwnedBytes else{throw DeletionLedgerFailureV2.invalidIdentity}}}
@@ -17,6 +19,7 @@ final class DeletionLedgerStore {
         try FieldReferenceDeletionLedgerStorePolicyV1.validate()
         try AccessibleDocumentDeletionLedgerStorePolicyV1.validate()
         try SurveyDefinitionDeletionLedgerStorePolicyV1.validate()
+        try SurveySessionDeletionLedgerPolicyV1.validate()
         var descriptor = FetchDescriptor<DeletionLedgerRow>()
         descriptor.fetchLimit = DeletionLedgerV2.maximumEntryCount + 1
         let rows = try context.fetch(descriptor)

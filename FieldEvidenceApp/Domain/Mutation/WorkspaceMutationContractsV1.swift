@@ -88,6 +88,11 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case accessibleDocumentAssessmentReceipt
     case surveyDefinitionIdentity
     case surveyDefinitionRelease
+    case surveySession
+    case factCapture
+    case provisionalSubject
+    case subjectPromotionReceipt
+    case surveyPublicationSnapshot
     case workflowRecord
     case evidenceFile
     case issue
@@ -1422,6 +1427,45 @@ struct SurveyDefinitionMutationV1: Codable, Equatable, Sendable {
     func canonicalSHA256() throws -> String { try validate(); return try WorkspaceMutationCanonicalV1.sha256(self) }
 }
 
+enum SurveySessionMutationPayloadV1: Codable, Equatable, Sendable {
+    case applySession(SurveySessionV1, definition: SurveyDefinitionReleaseV1, publication: SurveyPublicationSnapshotV1?)
+    case captureFact(FactCaptureV1, session: SurveySessionV1, definition: SurveyDefinitionReleaseV1, predecessors: [FactCaptureV1])
+    case applyProvisionalSubject(ProvisionalSubjectV1)
+    case promoteSubject(ProvisionalSubjectV1, receipt: SubjectPromotionReceiptV1, preview: SubjectPromotionPreviewV1, predecessor: SubjectPromotionReceiptV1?)
+    case publish(SurveySessionV1, snapshot: SurveyPublicationSnapshotV1, definition: SurveyDefinitionReleaseV1, captures: [FactCaptureV1])
+}
+
+struct SurveySessionMutationV1: Codable, Equatable, Sendable {
+    let workspaceID: WorkspaceID; let mutationID: MutationIDV1; let payload: SurveySessionMutationPayloadV1
+    init(workspaceID:WorkspaceID,mutationID:MutationIDV1,payload:SurveySessionMutationPayloadV1)throws{self.workspaceID=workspaceID;self.mutationID=mutationID;self.payload=payload;try validate()}
+    func validate()throws{switch payload{
+    case let .applySession(v,d,p):try v.validate(definition:d);guard v.workspaceID==workspaceID,v.mutationID==mutationID,p==nil,v.transition != .complete else{throw WorkspaceMutationContractFailureV1.invalidPlan}
+    case let .captureFact(v,s,d,prior):if prior.isEmpty{try v.validate(session:s,definition:d)}else{try v.validateSuccessor(of:prior,session:s,definition:d)};guard v.workspaceID==workspaceID,v.mutationID==mutationID,s.state == .draft || s.state == .amended else{throw WorkspaceMutationContractFailureV1.invalidPlan}
+    case let .applyProvisionalSubject(v):try v.validate();guard v.workspaceID==workspaceID,v.mutationID==mutationID,(v.revision == 1 ? v.state == .active : (v.state == .active || v.state == .archived)) else{throw WorkspaceMutationContractFailureV1.invalidPlan}
+    case let .promoteSubject(v,r,p,old):try v.validate();try r.validate(preview:p,predecessor:old);guard v.workspaceID==workspaceID,r.workspaceID==workspaceID,v.mutationID==mutationID,r.mutationID==mutationID else{throw WorkspaceMutationContractFailureV1.invalidPlan}
+    case let .publish(s,p,d,c):try p.validate(session:s,definition:d,captures:c);guard s.workspaceID==workspaceID,p.workspaceID==workspaceID,s.mutationID==mutationID,p.mutationID==mutationID else{throw WorkspaceMutationContractFailureV1.invalidPlan}}
+    }
+    var affectedIdentities:[WorkspaceEntityIdentityV1]{get throws{switch payload{
+    case let .applySession(v,_,_):return[try .init(kind:.surveySession,id:v.sessionID)]
+    case let .captureFact(v,_,_,_):return[try .init(kind:.factCapture,id:v.captureID)]
+    case let .applyProvisionalSubject(v):return[try .init(kind:.provisionalSubject,id:v.provisionalSubjectID)]
+    case let .promoteSubject(v,r,_,_):return try [.init(kind:.provisionalSubject,id:v.provisionalSubjectID),.init(kind:.subjectPromotionReceipt,id:r.receiptID)].sorted{$0.stableKey<$1.stableKey}
+    case let .publish(s,p,_,_):return try [.init(kind:.surveySession,id:s.sessionID),.init(kind:.surveyPublicationSnapshot,id:p.snapshotID)].sorted{$0.stableKey<$1.stableKey}}}}
+    var concurrencyIdentities:[WorkspaceEntityIdentityV1]{get throws{switch payload{
+    case let .applySession(v,_,_):return[try .init(kind:.surveySession,id:v.sessionID)]
+    case let .captureFact(v,s,_,prior):var values:[WorkspaceEntityIdentityV1];if prior.isEmpty{values=[try .init(kind:.factCapture,id:v.captureID)]}else{values=try prior.map{try .init(kind:.factCapture,id:$0.captureID)}};values.append(try .init(kind:.surveySession,id:s.sessionID));guard Set(values).count==values.count else{throw WorkspaceMutationContractFailureV1.invalidPlan};return values.sorted{$0.stableKey<$1.stableKey}
+    case let .applyProvisionalSubject(v):return[try .init(kind:.provisionalSubject,id:v.provisionalSubjectID)]
+    case let .promoteSubject(v,r,_,old):return try [.init(kind:.provisionalSubject,id:v.provisionalSubjectID),.init(kind:.subjectPromotionReceipt,id:old?.receiptID ?? r.receiptID)].sorted{$0.stableKey<$1.stableKey}
+    case let .publish(s,p,_,_):return try [.init(kind:.surveySession,id:s.sessionID),.init(kind:.surveyPublicationSnapshot,id:p.supersedesSnapshotID ?? p.snapshotID)].sorted{$0.stableKey<$1.stableKey}}}}
+    func expectedRevision(for identity:WorkspaceEntityIdentityV1)throws->UInt64{switch payload{
+    case let .applySession(v,_,_):return v.revision-1
+    case let .captureFact(v,s,_,prior):if identity.kind == .surveySession,identity.id == s.sessionID{return s.revision};if prior.isEmpty,identity.kind == .factCapture,identity.id == v.captureID{return v.revision-1};guard identity.kind == .factCapture,let predecessor=prior.first(where:{$0.captureID==identity.id})else{throw WorkspaceMutationContractFailureV1.invalidPlan};return predecessor.revision
+    case let .applyProvisionalSubject(v):return v.revision-1
+    case let .promoteSubject(v,r,_,old):if identity.kind == .provisionalSubject{return v.revision-1};if identity.kind == .subjectPromotionReceipt{return old?.revision ?? 0}
+    case let .publish(s,p,_,_):if identity.kind == .surveySession{return s.revision-1};if identity.kind == .surveyPublicationSnapshot{return p.revision-1}}
+    throw WorkspaceMutationContractFailureV1.invalidPlan}
+}
+
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
     case createCheckDraft(CheckDraftMutationV1)
@@ -1455,6 +1499,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyFieldReference(FieldReferenceMutationV1)
     case applyAccessibleDocumentAssessment(AccessibleDocumentMutationV1)
     case applySurveyDefinition(SurveyDefinitionMutationV1)
+    case applySurveySession(SurveySessionMutationV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -1490,6 +1535,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyFieldReference:.applyFieldReference
         case .applyAccessibleDocumentAssessment:.applyAccessibleDocumentAssessment
         case .applySurveyDefinition:.applySurveyDefinition
+        case .applySurveySession:.applySurveySession
         }
     }
 }
@@ -1527,6 +1573,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyFieldReference="apply_field_reference"
     case applyAccessibleDocumentAssessment="apply_accessible_document_assessment"
     case applySurveyDefinition="apply_survey_definition"
+    case applySurveySession="apply_survey_session"
 }
 
 extension WorkspaceCommandV1 {

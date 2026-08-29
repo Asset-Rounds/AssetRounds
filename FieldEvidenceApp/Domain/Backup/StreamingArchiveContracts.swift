@@ -1,5 +1,11 @@
 import Foundation
 
+enum GuidedSurveyStreamingArchivePolicyV1 {
+    static let recordsSchemaVersion = 24
+    static let durableFamilyCount = 5
+    static let lifecycleEventsRemainInMutationHistory = true
+}
+
 enum StreamingArchiveCompressionV1: String, Codable, CaseIterable, Sendable {
     case stored
     case zlib

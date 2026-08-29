@@ -227,7 +227,7 @@ enum SurveyDefinitionStaticValidationV1 {
     private static func expressionIsWellTyped(_ value:SurveyVisibilityExpressionV1,before index:Int,factByID:[String:FactDefinitionV1],indexByID:[String:Int])->Bool {
         switch value { case .predicate(let predicate):guard let source=factByID[predicate.factID],let sourceIndex=indexByID[predicate.factID],sourceIndex<index else{return false};return response(predicate.expectedValue,isCompatibleWith:source);case .not(let child):return expressionIsWellTyped(child,before:index,factByID:factByID,indexByID:indexByID);case .all(let children),.any(let children):return children.allSatisfy{expressionIsWellTyped($0,before:index,factByID:factByID,indexByID:indexByID)} }
     }
-    private static func response(_ value:ResponseValueV1,isCompatibleWith fact:FactDefinitionV1)->Bool {
+    static func response(_ value:ResponseValueV1,isCompatibleWith fact:FactDefinitionV1)->Bool {
         switch (fact.payload,value) {
         case (.shortText(let constraints),.text(let text)),(.longText(let constraints),.text(let text)):return text.utf8.count<=constraints.maximumUTF8Bytes
         case (.integer(let constraints),.integer(let integer)):guard let decimal=try? ExactDecimalV1(mantissa:integer,scale:0)else{return false};return numeric(decimal,satisfies:constraints)

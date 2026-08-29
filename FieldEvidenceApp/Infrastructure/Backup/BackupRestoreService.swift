@@ -1644,6 +1644,7 @@ private extension BackupRestoreService {
         with packets: [V4BackupPacketDTO]
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            guidedSurveys:records.guidedSurveys,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
@@ -1702,6 +1703,7 @@ private extension BackupRestoreService {
         with history: MutationHistorySnapshotV1
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            guidedSurveys:records.guidedSurveys,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
@@ -1824,6 +1826,7 @@ private extension BackupRestoreService {
             return try V8BackupRequirementAssuranceRecordV1(row)
         }.sorted { canonical($0.workflowRecordID) < canonical($1.workflowRecordID) }
         return V4BackupRecordsV1(
+            guidedSurveys:records.guidedSurveys,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
@@ -2085,8 +2088,10 @@ private extension BackupRestoreService {
             history: records.mutationHistory,
             workspaceID: workspaceID
         )
+        let guidedSurveys = try rebindingGuidedSurveys(records.guidedSurveys,surveyDefinitions:surveyDefinitions,packageEvolution:packageEvolution,history:records.mutationHistory,workspaceID:workspaceID)
         guard let archived = records.locationMigrationReceipts.first else {
             return V4BackupRecordsV1(
+                guidedSurveys:guidedSurveys,
                 accessibleDocumentAssessments:records.accessibleDocumentAssessments,
                 surveyDefinitions: surveyDefinitions,
                 fieldReferences:fieldReferences,
@@ -2150,6 +2155,7 @@ private extension BackupRestoreService {
             bindings: receipt.bindings
         )
         return V4BackupRecordsV1(
+            guidedSurveys:guidedSurveys,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: surveyDefinitions,
             fieldReferences:fieldReferences,
@@ -2284,6 +2290,84 @@ private extension BackupRestoreService {
             "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
                 < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
         }
+    }
+
+    func rebindingGuidedSurveys(_ records:[V25BackupGuidedSurveyRecordV1],surveyDefinitions:[V24BackupSurveyDefinitionRecordV1],packageEvolution:[V17BackupPackageEvolutionRecordV1],history:MutationHistorySnapshotV1?,workspaceID:WorkspaceID)throws->[V25BackupGuidedSurveyRecordV1]{
+        guard !records.isEmpty else{return[]};guard let history else{throw BackupRestoreServiceError.invalidPackage}
+        var definitions:[UUID:SurveyDefinitionReleaseV1]=[:]
+        for record in surveyDefinitions where record.kind == .release {
+            let value=try SurveyDefinitionCanonicalCodecV1.decode(SurveyDefinitionReleaseV1.self,from:record.canonicalData)
+            guard definitions.updateValue(value,forKey:value.releaseID)==nil else{throw BackupRestoreServiceError.invalidPackage}
+        }
+        var packageReleases:[String:InspectionPackageReleaseV1]=[:]
+        for record in packageEvolution where record.kind == .promotedRelease {
+            let promoted=try PackageEvolutionCanonicalCodecV1.decode(PromotedPackageReleaseV1.self,from:record.canonicalData)
+            let release=promoted.packageRelease
+            guard packageReleases.updateValue(release,forKey:release.packageReleaseID)==nil else{throw BackupRestoreServiceError.invalidPackage}
+        }
+        func packageRelease(_ source:SurveySessionV1)throws->InspectionPackageReleaseV1{guard let value=packageReleases[source.authority.packageRelease.packageReleaseID]else{throw BackupRestoreServiceError.invalidPackage};try source.authority.packageRelease.validate(against:value);return value}
+        func actor(_ source:ActorSnapshotV1)throws->ActorSnapshotV1{let local=try LocalActorReferenceV1(actorReferenceID:source.actor.actorReferenceID,workspaceID:workspaceID,partyID:source.actor.partyID,displayName:source.actor.displayName);return try .init(snapshotID:source.snapshotID,workspaceID:workspaceID,actor:local,responsibility:source.responsibility,displayNameAtTime:source.displayNameAtTime,capturedAt:source.capturedAt)}
+        func content(_ source:ContentReferenceV1)throws->ContentReferenceV1{try .init(workspaceID:workspaceID.rawValue.uuidString.lowercased(),contentID:source.contentID,byteLength:source.byteLength,mediaType:source.mediaType,digests:source.digests,byteRole:source.byteRole,createdAt:source.createdAt)}
+        let sourceSessions=try records.filter{$0.kind == .session}.map{try SurveySessionCanonicalCodecV1.decode(SurveySessionV1.self,from:$0.canonicalData)},sourceCaptures=try records.filter{$0.kind == .factCapture}.map{try SurveySessionCanonicalCodecV1.decode(FactCaptureV1.self,from:$0.canonicalData)},sourceSubjects=try records.filter{$0.kind == .provisionalSubject}.map{try SurveySessionCanonicalCodecV1.decode(ProvisionalSubjectV1.self,from:$0.canonicalData)},sourceReceipts=try records.filter{$0.kind == .subjectPromotionReceipt}.map{try SurveySessionCanonicalCodecV1.decode(SubjectPromotionReceiptV1.self,from:$0.canonicalData)},sourcePublications=try records.filter{$0.kind == .publicationSnapshot}.map{try SurveySessionCanonicalCodecV1.decode(SurveyPublicationSnapshotV1.self,from:$0.canonicalData)}
+        var historicSubjects=sourceSubjects
+        for record in history.receipts {
+            let envelope=try MutationEnvelopeV1.decodeCanonical(from:record.envelopeData)
+            guard case let .applySurveySession(mutation)=envelope.command else{continue}
+            switch mutation.payload {
+            case .applyProvisionalSubject(let value): historicSubjects.append(value)
+            case .promoteSubject(let value,_,_,_): historicSubjects.append(value)
+            case .applySession,.captureFact,.publish: break
+            }
+        }
+        var subjectRevisionByKey:[String:ProvisionalSubjectV1]=[:]
+        for value in historicSubjects {
+            let key="\(value.provisionalSubjectID.uuidString)|\(value.revision)"
+            if let existing=subjectRevisionByKey[key],existing != value{throw BackupRestoreServiceError.invalidPackage}
+            subjectRevisionByKey[key]=value
+        }
+        var subjectByID:[UUID:ProvisionalSubjectV1]=[:]
+        for group in Dictionary(grouping:subjectRevisionByKey.values,by:\.provisionalSubjectID).values {
+            let ordered=group.sorted{$0.revision<$1.revision}
+            guard ordered.first?.revision==1 else{throw BackupRestoreServiceError.invalidPackage}
+            var prior:ProvisionalSubjectV1?
+            for source in ordered {
+                if let prior {
+                    guard prior.revision<UInt64.max,source.revision==prior.revision+1,
+                          source.supersedesSubjectSHA256==prior.subjectSHA256 else{throw BackupRestoreServiceError.invalidPackage}
+                } else if source.supersedesSubjectSHA256 != nil {throw BackupRestoreServiceError.invalidPackage}
+                let value=try source.rebound(to:workspaceID,siteID:source.siteID,createdBy:actor(source.createdBy),supersedesSubjectSHA256:prior?.subjectSHA256)
+                prior=value
+            }
+            guard let head=prior else{throw BackupRestoreServiceError.invalidPackage}
+            subjectByID[head.provisionalSubjectID]=head
+        }
+        guard sourceSubjects.allSatisfy({subjectByID[$0.provisionalSubjectID]?.revision==$0.revision}) else{throw BackupRestoreServiceError.invalidPackage}
+        func subject(_ source:SurveySessionSubjectV1)throws->SurveySessionSubjectV1{switch source{case .canonical:return source;case .provisional(let ref):guard let value=subjectByID[ref.provisionalSubjectID]else{throw BackupRestoreServiceError.invalidPackage};return .provisional(value.reference)}}
+        var captureByID:[UUID:FactCaptureV1]=[:]
+        for source in sourceCaptures.sorted(by:{$0.revision<$1.revision}){let refs=try source.predecessors.map{ref->FactCaptureReferenceV1 in guard let prior=captureByID[ref.captureID]else{throw BackupRestoreServiceError.invalidPackage};return try prior.reference}.sorted{$0.captureID.uuidString<$1.captureID.uuidString};guard let definition=definitions[source.definitionRelease.releaseID]else{throw BackupRestoreServiceError.invalidPackage};let value=try source.rebound(to:workspaceID,definitionRelease:try .init(definition),evidence:try source.evidence.map(content),predecessors:refs,capturedBy:actor(source.capturedBy));captureByID[value.captureID]=value}
+        var receiptByID:[UUID:SubjectPromotionReceiptV1]=[:]
+        for source in sourceReceipts.sorted(by:{$0.revision<$1.revision}){let prior=source.predecessorReceiptID.flatMap{receiptByID[$0]};guard let provisional=subjectByID[source.provisionalSubject.provisionalSubjectID]?.reference else{throw BackupRestoreServiceError.invalidPackage};let value=try source.rebound(to:workspaceID,provisionalSubject:provisional,canonicalSubject:source.canonicalSubject,affectedSessionIDs:source.affectedSessionIDs,actor:actor(source.actor),predecessor:prior);receiptByID[value.receiptID]=value}
+        var historicSessions=sourceSessions
+        for record in history.receipts{let envelope=try MutationEnvelopeV1.decodeCanonical(from:record.envelopeData);guard case let .applySurveySession(mutation)=envelope.command else{continue};switch mutation.payload{case .applySession(let v,_,_):historicSessions.append(v);case .captureFact:break;case .applyProvisionalSubject:break;case .promoteSubject:break;case .publish(let v,_,_,_):historicSessions.append(v)}}
+        var interimByKey:[String:SurveySessionV1]=[:]
+        for source in historicSessions.sorted(by:{$0.revision<$1.revision}){guard let definition=definitions[source.authority.definitionRelease.releaseID]else{throw BackupRestoreServiceError.invalidPackage};let key="\(source.sessionID.uuidString)|\(source.revision)",priorKey="\(source.sessionID.uuidString)|\(source.revision>0 ? source.revision-1:0)",prior=interimByKey[priorKey];let value=try source.rebound(to:workspaceID,definition:definition,packageRelease:packageRelease(source),subject:subject(source.subject),startedBy:actor(source.startedBy),lastTransitionBy:actor(source.lastTransitionBy),predecessorSessionSHA256:prior?.sessionSHA256,latestPublication:nil);interimByKey[key]=value}
+        var publicationByID:[UUID:SurveyPublicationSnapshotV1]=[:]
+        for source in sourcePublications.sorted(by:{$0.revision<$1.revision}){let key="\(source.sessionID.uuidString)|\(source.sessionRevision)",guard let session=interimByKey[key],let definition=definitions[source.authority.definitionRelease.releaseID]else{throw BackupRestoreServiceError.invalidPackage};let captures=captureByID.values.filter{$0.sessionID==source.sessionID},receipts=try source.promotionReceiptsAtPublication.map{item->SubjectPromotionReceiptV1 in guard let value=receiptByID[item.receiptID]else{throw BackupRestoreServiceError.invalidPackage};return value};let value=try source.rebound(to:workspaceID,session:session,definition:definition,captures:Array(captures),promotionReceipts:receipts,publishedBy:actor(source.publishedBy));publicationByID[value.snapshotID]=value}
+        var finalSessionByID:[UUID:SurveySessionV1]=[:]
+        for source in sourceSessions.sorted(by:{$0.revision<$1.revision}){guard let definition=definitions[source.authority.definitionRelease.releaseID]else{throw BackupRestoreServiceError.invalidPackage};let priorKey="\(source.sessionID.uuidString)|\(source.revision>0 ? source.revision-1:0)",latest=source.latestPublication.flatMap{publicationByID[$0.snapshotID]?.reference};let value=try source.rebound(to:workspaceID,definition:definition,packageRelease:packageRelease(source),subject:subject(source.subject),startedBy:actor(source.startedBy),lastTransitionBy:actor(source.lastTransitionBy),predecessorSessionSHA256:interimByKey[priorKey]?.sessionSHA256,latestPublication:latest);finalSessionByID[value.sessionID]=value}
+        for definition in definitions.values {
+            let sessions=finalSessionByID.values.filter{$0.authority.definitionRelease.releaseID==definition.releaseID}
+            guard !sessions.isEmpty else{continue}
+            let sessionIDs=Set(sessions.map(\.sessionID))
+            _ = try SurveySessionLifecycleClosureV1(definition:definition,sessions:Array(sessions),captures:captureByID.values.filter{sessionIDs.contains($0.sessionID)},provisionalSubjects:Array(subjectByID.values),promotionReceipts:receiptByID.values.filter{Set($0.affectedSessionIDs).isSubset(of:sessionIDs)},publications:publicationByID.values.filter{sessionIDs.contains($0.sessionID)})
+        }
+        var output:[V25BackupGuidedSurveyRecordV1]=[]
+        output += try finalSessionByID.values.map{V25BackupGuidedSurveyRecordV1(kind:.session,id:$0.sessionID,workspaceID:workspaceID.rawValue,revision:$0.revision,canonicalData:try SurveySessionCanonicalCodecV1.encode($0))}
+        output += try captureByID.values.map{V25BackupGuidedSurveyRecordV1(kind:.factCapture,id:$0.captureID,workspaceID:workspaceID.rawValue,revision:$0.revision,canonicalData:try SurveySessionCanonicalCodecV1.encode($0))}
+        output += try subjectByID.values.map{V25BackupGuidedSurveyRecordV1(kind:.provisionalSubject,id:$0.provisionalSubjectID,workspaceID:workspaceID.rawValue,revision:$0.revision,canonicalData:try SurveySessionCanonicalCodecV1.encode($0))}
+        output += try receiptByID.values.map{V25BackupGuidedSurveyRecordV1(kind:.subjectPromotionReceipt,id:$0.receiptID,workspaceID:workspaceID.rawValue,revision:$0.revision,canonicalData:try SurveySessionCanonicalCodecV1.encode($0))}
+        output += try publicationByID.values.map{V25BackupGuidedSurveyRecordV1(kind:.publicationSnapshot,id:$0.snapshotID,workspaceID:workspaceID.rawValue,revision:$0.revision,canonicalData:try SurveySessionCanonicalCodecV1.encode($0))}
+        guard output.count==records.count else{throw BackupRestoreServiceError.invalidPackage};return output.sorted{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"}
     }
 
     func rebindingPartyAccountability(
@@ -3321,6 +3405,7 @@ private extension BackupRestoreService {
             )
         }
         return V4BackupRecordsV1(
+            guidedSurveys:[],
             accessibleDocumentAssessments:[],
             surveyDefinitions: [],
             fieldReferences: [],
@@ -3699,7 +3784,8 @@ private extension BackupRestoreService {
                 || records.recordsSchemaVersion == 20
                 || records.recordsSchemaVersion == 21
                 || records.recordsSchemaVersion == 22
-                || records.recordsSchemaVersion == 23)
+                || records.recordsSchemaVersion == 23
+                || records.recordsSchemaVersion == 24)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -3966,7 +4052,8 @@ private extension BackupRestoreService {
             || records.recordsSchemaVersion == 20
             || records.recordsSchemaVersion == 21
             || records.recordsSchemaVersion == 22
-            || records.recordsSchemaVersion == 23 {
+            || records.recordsSchemaVersion == 23
+            || records.recordsSchemaVersion == 24 {
             do {
                 for record in records.savedSmartViews {
                     let descriptor = try record.descriptor()
@@ -4269,6 +4356,19 @@ private extension BackupRestoreService {
                 }
             } catch { throw BackupRestoreServiceError.invalidPackage }
         }
+        if records.recordsSchemaVersion >= 24 {
+            do {
+                for record in records.guidedSurveys {
+                    switch record.kind {
+                    case .session: context.insert(try SurveySessionRow(SurveySessionCanonicalCodecV1.decode(SurveySessionV1.self,from:record.canonicalData)))
+                    case .factCapture: context.insert(try FactCaptureRow(SurveySessionCanonicalCodecV1.decode(FactCaptureV1.self,from:record.canonicalData)))
+                    case .provisionalSubject: context.insert(try ProvisionalSubjectRow(SurveySessionCanonicalCodecV1.decode(ProvisionalSubjectV1.self,from:record.canonicalData)))
+                    case .subjectPromotionReceipt: context.insert(try SubjectPromotionReceiptRow(SurveySessionCanonicalCodecV1.decode(SubjectPromotionReceiptV1.self,from:record.canonicalData)))
+                    case .publicationSnapshot: context.insert(try SurveyPublicationSnapshotRow(SurveySessionCanonicalCodecV1.decode(SurveyPublicationSnapshotV1.self,from:record.canonicalData)))
+                    }
+                }
+            } catch { throw BackupRestoreServiceError.invalidPackage }
+        }
         if let mutationHistory = records.mutationHistory {
             guard records.recordsSchemaVersion == 3
                     || records.recordsSchemaVersion == 4
@@ -4290,7 +4390,8 @@ private extension BackupRestoreService {
                     || records.recordsSchemaVersion == 20
                     || records.recordsSchemaVersion == 21
                     || records.recordsSchemaVersion == 22
-                    || records.recordsSchemaVersion == 23 else {
+                    || records.recordsSchemaVersion == 23
+                    || records.recordsSchemaVersion == 24 else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {
@@ -5381,7 +5482,8 @@ private extension BackupRestoreService {
                 || actual.recordsSchemaVersion == 20
                 || actual.recordsSchemaVersion == 21
                 || actual.recordsSchemaVersion == 22
-                || actual.recordsSchemaVersion == 23) else {
+                || actual.recordsSchemaVersion == 23
+                || actual.recordsSchemaVersion == 24) else {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
         if expected.recordsSchemaVersion == 5 || expected.recordsSchemaVersion == 6 {
@@ -5400,6 +5502,7 @@ private extension BackupRestoreService {
         schemaVersion: Int
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            guidedSurveys:schemaVersion >= 24 ? records.guidedSurveys:[],
             accessibleDocumentAssessments:schemaVersion >= 22 ? records.accessibleDocumentAssessments:[],
             surveyDefinitions: schemaVersion >= 23 ? records.surveyDefinitions : [],
             fieldReferences:schemaVersion >= 21 ? records.fieldReferences:[],
@@ -5442,6 +5545,7 @@ private extension BackupRestoreService {
         expected: V4BackupRecordsV1
     ) throws -> Bool {
         let predecessor = V4BackupRecordsV1(
+            guidedSurveys:expected.recordsSchemaVersion >= 24 ? expected.guidedSurveys:[],
             accessibleDocumentAssessments:expected.recordsSchemaVersion >= 22 ? expected.accessibleDocumentAssessments:[],
             surveyDefinitions: expected.recordsSchemaVersion >= 23 ? expected.surveyDefinitions : [],
             fieldReferences:expected.recordsSchemaVersion >= 21 ? expected.fieldReferences:[],
@@ -5643,6 +5747,7 @@ private extension BackupRestoreService {
         let accessibleDocumentAssessmentReceipts=try context.fetch(FetchDescriptor<AccessibleDocumentAssessmentReceiptRow>())
         let surveyDefinitionIdentities=try context.fetch(FetchDescriptor<SurveyDefinitionIdentityRow>())
         let surveyDefinitionReleases=try context.fetch(FetchDescriptor<SurveyDefinitionReleaseRow>())
+        let surveySessions=try context.fetch(FetchDescriptor<SurveySessionRow>()),factCaptures=try context.fetch(FetchDescriptor<FactCaptureRow>()),provisionalSubjects=try context.fetch(FetchDescriptor<ProvisionalSubjectRow>()),subjectPromotionReceipts=try context.fetch(FetchDescriptor<SubjectPromotionReceiptRow>()),surveyPublicationSnapshots=try context.fetch(FetchDescriptor<SurveyPublicationSnapshotRow>())
         let recoverabilityVerificationReceipts=try context.fetch(FetchDescriptor<RecoverabilityVerificationReceiptRow>())
         let clientCapabilityProfiles=try context.fetch(FetchDescriptor<ClientCapabilityProfileRow>()),packageLifecyclePolicies=try context.fetch(FetchDescriptor<PackageLifecyclePolicyRow>()),packageLifecycleDispositions=try context.fetch(FetchDescriptor<PackageLifecycleDispositionRow>()),clientCapabilityAdmissionDecisions=try context.fetch(FetchDescriptor<ClientCapabilityAdmissionDecisionRow>())
         let privacyTransformPolicies=try context.fetch(FetchDescriptor<PrivacyTransformPolicyRow>()),privacyRegions=try context.fetch(FetchDescriptor<PrivacyRegionRow>()),privacyTransformManifests=try context.fetch(FetchDescriptor<PrivacyTransformManifestRow>()),privacyReviewReceipts=try context.fetch(FetchDescriptor<PrivacyReviewReceiptRow>())
@@ -5704,7 +5809,15 @@ private extension BackupRestoreService {
             surveyDefinitionIdentities.map{let value=try $0.value();return .init(kind:.identity,id:value.definitionID,workspaceID:value.workspaceID.rawValue,revision:value.revision,canonicalData:try SurveyDefinitionCanonicalCodecV1.encode(value))}
             + surveyDefinitionReleases.map{let value=try $0.value();return .init(kind:.release,id:value.releaseID,workspaceID:value.workspaceID.rawValue,revision:value.revision,canonicalData:try SurveyDefinitionCanonicalCodecV1.encode(value))}
         ).sorted{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"}
+        let guidedSurveyRecords:[V25BackupGuidedSurveyRecordV1]=mutationHistory == nil ? [] : try (
+            surveySessions.map{let v=try $0.value();return .init(kind:.session,id:v.sessionID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try SurveySessionCanonicalCodecV1.encode(v))}
+            + factCaptures.map{let v=try $0.value();return .init(kind:.factCapture,id:v.captureID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try SurveySessionCanonicalCodecV1.encode(v))}
+            + provisionalSubjects.map{let v=try $0.value();return .init(kind:.provisionalSubject,id:v.provisionalSubjectID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try SurveySessionCanonicalCodecV1.encode(v))}
+            + subjectPromotionReceipts.map{let v=try $0.value();return .init(kind:.subjectPromotionReceipt,id:v.receiptID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try SurveySessionCanonicalCodecV1.encode(v))}
+            + surveyPublicationSnapshots.map{let v=try $0.value();return .init(kind:.publicationSnapshot,id:v.snapshotID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try SurveySessionCanonicalCodecV1.encode(v))}
+        ).sorted{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"}
         return V4BackupRecordsV1(
+            guidedSurveys:guidedSurveyRecords,
             accessibleDocumentAssessments:accessibleDocumentAssessmentRecords,
             surveyDefinitions: surveyDefinitionRecords,
             fieldReferences:fieldReferenceRecords,
@@ -5905,7 +6018,10 @@ private extension BackupRestoreService {
                 "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
                     < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
             },
-            recordsSchemaVersion: mutationHistory != nil ? 23
+            recordsSchemaVersion: mutationHistory != nil && !(surveySessions.isEmpty
+                && factCaptures.isEmpty && provisionalSubjects.isEmpty
+                && subjectPromotionReceipts.isEmpty && surveyPublicationSnapshots.isEmpty) ? 24
+                : mutationHistory != nil ? 23
                 : !(privacyTransformPolicies.isEmpty && privacyRegions.isEmpty
                 && privacyTransformManifests.isEmpty && privacyReviewReceipts.isEmpty) ? 18
                 : !(instrumentReferences.isEmpty && calibrationStatusSnapshots.isEmpty

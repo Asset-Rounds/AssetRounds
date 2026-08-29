@@ -1,5 +1,10 @@
 import Foundation
 
+enum GuidedSurveyContractManifestBoundaryV1 {
+    static let projectionTypeID = "SurveyPublicationReportProjectionV1"
+    static let surveyOutcomeSemantics = "COMPLETION_ONLY_NO_PASS_FAIL"
+}
+
 private struct ContractManifestCodingKeyV1: CodingKey {
     let stringValue: String
     let intValue: Int? = nil

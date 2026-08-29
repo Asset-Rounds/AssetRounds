@@ -9,6 +9,11 @@ enum KernelMutationEffectDispositionV4: String, Codable, Sendable {
     case dormantNoRuntimeEffect = "DORMANT_NO_RUNTIME_EFFECT"
 }
 
+enum SurveySessionKernelMutationReceiptPolicyV1{
+    static let entityKinds:Set<WorkspaceEntityKindV1>=[.surveySession,.factCapture,.provisionalSubject,.subjectPromotionReceipt,.surveyPublicationSnapshot]
+    static func validate(mutation:SurveySessionMutationV1,receipt:MutationReceiptV1)throws{let affected=try mutation.affectedIdentities;guard entityKinds.count==5,affected.allSatisfy({entityKinds.contains($0.kind)})else{throw WorkspaceMutationFailureV1.invalidReceipt};_ = try SurveySessionMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)}
+}
+
 struct KernelMutationRegistrationV4: Codable, Equatable, Comparable, Sendable {
     private enum CodingKeys: String, CodingKey, CaseIterable {
         case kind, mutationEnvelopeTypeID, effectID, effectDisposition, receiptTypeID

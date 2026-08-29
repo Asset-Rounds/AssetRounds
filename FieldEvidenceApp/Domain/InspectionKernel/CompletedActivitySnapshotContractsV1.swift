@@ -18,6 +18,10 @@ enum SnapshotProjectionFailureV1: Error, Equatable, Sendable {
     case incompatibleVersion
 }
 
+enum C26CompletedSurveySnapshotBridgeV1 {
+    static func validate(publication:SurveyPublicationSnapshotV1,session:SurveySessionV1,definition:SurveyDefinitionReleaseV1,captures:[FactCaptureV1])throws{try publication.validate(session:session,definition:definition,captures:captures);guard session.state == .completed,session.latestPublication == publication.reference else{throw SurveySessionFailureV1.invalidTransition}}
+}
+
 struct CompletedSurveyDefinitionReferenceV1: Codable, Equatable, Sendable {
     let activityKind: ActivityKindV1
     let release: SurveyDefinitionReleaseReferenceV1

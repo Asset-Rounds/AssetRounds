@@ -1,5 +1,11 @@
 import Foundation
 
+enum GuidedSurveyBackupRegistryV1 {
+    static let persistentSchemaVersion = 25
+    static let recordsSchemaVersion = 24
+    static let canonicalKinds = Set(V25BackupGuidedSurveyRecordV1.Kind.allCases)
+}
+
 enum KernelArchiveDispositionV4: String, Codable, Sendable {
     case includeCanonical = "INCLUDE_CANONICAL"
     case includeImmutableHistory = "INCLUDE_IMMUTABLE_HISTORY"

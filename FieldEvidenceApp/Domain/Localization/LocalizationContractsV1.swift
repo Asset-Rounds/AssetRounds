@@ -3508,3 +3508,254 @@ enum SurveyDefinitionLocalizationPolicyV1 {
         }
     }
 }
+
+// MARK: - C26 guided-survey session localization contract
+
+/// C26 labels describe the recorded state of a survey session and its
+/// explicitly published fact snapshot.  They are presentation vocabulary,
+/// not a second source of truth for answers, subjects, actors, or publication
+/// authority.
+enum SurveySessionFactLocalizationStateV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case notRecorded = "NOT_RECORDED"
+    case recorded = "RECORDED"
+    case unknown = "UNKNOWN"
+    case notObserved = "NOT_OBSERVED"
+}
+
+enum SurveySessionSubjectLocalizationStateV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case canonical = "CANONICAL"
+    case provisional = "PROVISIONAL"
+    case promoted = "PROMOTED"
+    case reconciledAlias = "RECONCILED_ALIAS"
+    case promotionReversed = "PROMOTION_REVERSED"
+    case archived = "ARCHIVED"
+    case unavailable = "UNAVAILABLE"
+}
+
+/// Publication interruption is a consumer state supplied by the caller when
+/// no immutable snapshot was accepted; it is never inferred from a missing
+/// snapshot or treated as a successful publication.
+enum SurveySessionPublicationLocalizationStateV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case notPublished = "NOT_PUBLISHED"
+    case recorded = "RECORDED"
+    case interrupted = "INTERRUPTED"
+    case immutable = "IMMUTABLE"
+}
+
+enum SurveySessionLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
+    case heading = "survey.session.heading"
+    case lifecycle = "survey.session.lifecycle"
+    case lifecycleDraft = "survey.session.lifecycle.draft"
+    case lifecyclePaused = "survey.session.lifecycle.paused"
+    case lifecycleReviewRequired = "survey.session.lifecycle.review_required"
+    case lifecycleCompleted = "survey.session.lifecycle.completed"
+    case lifecycleAmended = "survey.session.lifecycle.amended"
+    case lifecycleSuperseded = "survey.session.lifecycle.superseded"
+    case lifecycleArchived = "survey.session.lifecycle.archived"
+    case lifecycleDeleted = "survey.session.lifecycle.deleted"
+    case fact = "survey.session.fact"
+    case factNotRecorded = "survey.session.fact.state.not_recorded"
+    case factRecorded = "survey.session.fact.state.recorded"
+    case factUnknown = "survey.session.fact.state.unknown"
+    case factNotObserved = "survey.session.fact.state.not_observed"
+    case subject = "survey.session.subject"
+    case subjectCanonical = "survey.session.subject.state.canonical"
+    case subjectProvisional = "survey.session.subject.state.provisional"
+    case subjectPromoted = "survey.session.subject.state.promoted"
+    case subjectReconciledAlias = "survey.session.subject.state.reconciled_alias"
+    case subjectPromotionReversed = "survey.session.subject.state.promotion_reversed"
+    case subjectArchived = "survey.session.subject.state.archived"
+    case subjectUnavailable = "survey.session.subject.state.unavailable"
+    case subjectPromotion = "survey.session.subject.promotion"
+    case subjectPromotionToAsset = "survey.session.subject.promotion.to_asset"
+    case subjectReconcileAsAlias = "survey.session.subject.promotion.reconcile_as_alias"
+    case subjectReversePromotion = "survey.session.subject.promotion.reverse"
+    case publication = "survey.session.publication"
+    case publicationNotPublished = "survey.session.publication.state.not_published"
+    case publicationRecorded = "survey.session.publication.state.recorded"
+    case publicationInterrupted = "survey.session.publication.state.interrupted"
+    case publicationImmutable = "survey.session.publication.state.immutable"
+    case claimBoundary = "survey.session.claim_boundary"
+    case nextStepReviewFacts = "survey.session.next_step.review_recorded_facts"
+    case nextStepReviewPromotion = "survey.session.next_step.review_subject_promotion"
+
+    var englishDefaultValue: String {
+        switch self {
+        case .heading: return "Survey session"
+        case .lifecycle: return "Session lifecycle"
+        case .lifecycleDraft: return "Draft"
+        case .lifecyclePaused: return "Paused"
+        case .lifecycleReviewRequired: return "Review required"
+        case .lifecycleCompleted: return "Completed"
+        case .lifecycleAmended: return "Amended"
+        case .lifecycleSuperseded: return "Superseded"
+        case .lifecycleArchived: return "Archived"
+        case .lifecycleDeleted: return "Deleted"
+        case .fact: return "Recorded fact"
+        case .factNotRecorded: return "Not recorded"
+        case .factRecorded: return "Recorded"
+        case .factUnknown: return "Unknown"
+        case .factNotObserved: return "Not observed"
+        case .subject: return "Session subject"
+        case .subjectCanonical: return "Canonical subject"
+        case .subjectProvisional: return "Provisional subject"
+        case .subjectPromoted: return "Promotion recorded"
+        case .subjectReconciledAlias: return "Alias reconciliation recorded"
+        case .subjectPromotionReversed: return "Promotion reversed"
+        case .subjectArchived: return "Provisional subject archived"
+        case .subjectUnavailable: return "Subject status unavailable"
+        case .subjectPromotion: return "Subject promotion"
+        case .subjectPromotionToAsset: return "Promotion to asset"
+        case .subjectReconcileAsAlias: return "Reconcile as alias"
+        case .subjectReversePromotion: return "Reverse recorded promotion"
+        case .publication: return "Publication record"
+        case .publicationNotPublished: return "Not published"
+        case .publicationRecorded: return "Publication recorded"
+        case .publicationInterrupted: return "Publication interrupted"
+        case .publicationImmutable: return "Immutable publication record"
+        case .claimBoundary: return "Recorded survey facts only"
+        case .nextStepReviewFacts: return "Review the recorded facts"
+        case .nextStepReviewPromotion: return "Review the recorded subject promotion"
+        }
+    }
+
+    var translatorComment: String {
+        "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging."
+    }
+
+    static func lifecycleKey(_ value: SurveySessionStateV1) -> Self {
+        switch value {
+        case .draft: return .lifecycleDraft
+        case .paused: return .lifecyclePaused
+        case .reviewRequired: return .lifecycleReviewRequired
+        case .completed: return .lifecycleCompleted
+        case .amended: return .lifecycleAmended
+        case .superseded: return .lifecycleSuperseded
+        case .archived: return .lifecycleArchived
+        case .deleted: return .lifecycleDeleted
+        }
+    }
+
+    static func factStateKey(_ value: SurveySessionFactLocalizationStateV1) -> Self {
+        switch value {
+        case .notRecorded: return .factNotRecorded
+        case .recorded: return .factRecorded
+        case .unknown: return .factUnknown
+        case .notObserved: return .factNotObserved
+        }
+    }
+
+    static func factStateKey(_ value: SurveyBooleanObservationV1) -> Self? {
+        switch value {
+        case .unknown: return .factUnknown
+        case .notObserved: return .factNotObserved
+        case .yes, .no: return nil
+        }
+    }
+
+    static func subjectStateKey(_ value: SurveySessionSubjectLocalizationStateV1) -> Self {
+        switch value {
+        case .canonical: return .subjectCanonical
+        case .provisional: return .subjectProvisional
+        case .promoted: return .subjectPromoted
+        case .reconciledAlias: return .subjectReconciledAlias
+        case .promotionReversed: return .subjectPromotionReversed
+        case .archived: return .subjectArchived
+        case .unavailable: return .subjectUnavailable
+        }
+    }
+
+    static func provisionalSubjectKey(_ value: ProvisionalSubjectStateV1) -> Self {
+        switch value {
+        case .active: return .subjectProvisional
+        case .promoted: return .subjectPromoted
+        case .reconciledAlias: return .subjectReconciledAlias
+        case .promotionReversed: return .subjectPromotionReversed
+        case .archived: return .subjectArchived
+        }
+    }
+
+    static func promotionActionKey(_ value: SubjectPromotionActionV1) -> Self {
+        switch value {
+        case .promoteToAsset: return .subjectPromotionToAsset
+        case .reconcileAsAlias: return .subjectReconcileAsAlias
+        case .reverse: return .subjectReversePromotion
+        }
+    }
+
+    static func publicationStateKey(
+        _ value: SurveySessionPublicationLocalizationStateV1
+    ) -> Self {
+        switch value {
+        case .notPublished: return .publicationNotPublished
+        case .recorded: return .publicationRecorded
+        case .interrupted: return .publicationInterrupted
+        case .immutable: return .publicationImmutable
+        }
+    }
+}
+
+enum SurveySessionLocalizationPolicyV1 {
+    static let semanticNamespace = "survey.session"
+    static let sourceLocale = "en"
+    static let shippingLocale = "en"
+    static let metadataLocale = "en-US"
+    static let testOnlyLocales = TestOnlyPseudoLocaleV1.allCases.map(\.rawValue).sorted()
+    static let keys = SurveySessionLocalizationKeyV1.allCases.map(\.rawValue).sorted()
+    static let denyByDefault = true
+    static let englishOnly = true
+    static let requiresTextState = true
+    static let requiresTextAndIconForIndeterminateState = true
+    static let requiresActionableNextStep = true
+    static let allowsColorOnlyState = false
+    static let allowsIconOnlyState = false
+    static let allowsMotionOnlyState = false
+    static let excludesAnswers = true
+    static let excludesPromptText = true
+    static let excludesActorIdentity = true
+    static let excludesPrivateLocators = true
+    static let excludesEvidenceBytes = true
+    static let excludesCustomerData = true
+    static let excludesUnsupportedClaims = true
+    static let excludesInspectionOutcomes = true
+    static let excludesAutomaticSubjectMerge = true
+
+    static let prohibitedClaimPhrases = [
+        "approval", "approve", "approved", "authorization", "authorize", "authorized",
+        "authorship", "author", "authored", "compliance", "compliant", "certification",
+        "certified", "professional", "legal", "legal signature", "nonrepudiation",
+        "non-repudiation", "tamperproof", "tamper-proof", "verified identity", "verified",
+        "secure", "secured", "sent", "delivered", "inspection pass", "inspection fail",
+        "pass", "fail", "automatic merge", "auto merge", "customer data", "private data",
+        "work data", "telemetry", "private locator", "evidence bytes"
+    ]
+
+    static func key(_ value: SurveySessionLocalizationKeyV1) throws -> LocalizationKeyV1 {
+        try LocalizationKeyV1(value.rawValue)
+    }
+
+    static func containsProhibitedClaim(_ value: String) -> Bool {
+        let normalized = value.lowercased()
+            .replacingOccurrences(of: "_", with: " ")
+            .replacingOccurrences(of: "-", with: " ")
+        return prohibitedClaimPhrases.contains { normalized.contains($0) }
+    }
+
+    static func validate() throws {
+        let typed = try SurveySessionLocalizationKeyV1.allCases.map { try key($0) }
+        guard typed.map(\.rawValue).sorted() == keys,
+              Set(keys).count == keys.count,
+              denyByDefault, englishOnly, requiresTextState,
+              requiresTextAndIconForIndeterminateState, requiresActionableNextStep,
+              !allowsColorOnlyState, !allowsIconOnlyState, !allowsMotionOnlyState,
+              excludesAnswers, excludesPromptText, excludesActorIdentity,
+              excludesPrivateLocators, excludesEvidenceBytes, excludesCustomerData,
+              excludesUnsupportedClaims, excludesInspectionOutcomes,
+              excludesAutomaticSubjectMerge,
+              SurveySessionLocalizationKeyV1.allCases.allSatisfy({
+                  !containsProhibitedClaim($0.englishDefaultValue)
+              }) else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}

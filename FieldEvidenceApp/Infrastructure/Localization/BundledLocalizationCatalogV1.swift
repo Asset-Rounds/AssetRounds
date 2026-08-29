@@ -3248,6 +3248,10 @@ enum BundledLocalizationCatalogV1 {
         // C25 adds the closed activity/definition vocabulary.  It remains
         // English-only and is accepted by the same sole source catalog.
         supportedKeys.formUnion(SurveyDefinitionLocalizationKeyV1.allCases.map(\.rawValue))
+        // C26 adds only recorded survey-session state labels.  Answers,
+        // prompts, subject labels, actor identity, and publication payloads
+        // remain outside the source catalog and its validation surface.
+        supportedKeys.formUnion(SurveySessionLocalizationKeyV1.allCases.map(\.rawValue))
         guard registeredKeys.isSubset(of: Set(strings.keys)),
               Set(strings.keys).isSubset(of: supportedKeys) else {
             throw LocalizationContractFailureV1.invalidValue
@@ -3374,6 +3378,51 @@ extension BundledLocalizationCatalogV1 {
     static func packageEvolutionAccessibilityContracts()
         -> [PackageEvolutionAccessibilityContractV1] {
         PackageEvolutionAccessibilityPolicyV1.contracts
+    }
+}
+
+// MARK: - C26 guided-survey session labels
+
+extension BundledLocalizationCatalogV1 {
+    /// C26 is an additive English-only presentation registry.  The durable
+    /// session, fact, subject, and publication records remain the sole source
+    /// of truth; this registry only supplies stable labels for their recorded
+    /// states.
+    static func surveySessionRegistry() throws -> LocalizationKeyRegistryV1 {
+        try SurveySessionLocalizationPolicyV1.validate()
+        let base = try surveyDefinitionRegistry()
+        let additions = try SurveySessionLocalizationKeyV1.allCases.map { key in
+            LocalizationKeyDefinitionV1(
+                key: try LocalizationKeyV1(key.rawValue),
+                meaningID: key.rawValue,
+                translatorComment: key.translatorComment,
+                englishDefaultValue: key.englishDefaultValue,
+                arguments: [],
+                requiredEnglishPluralCategories: [],
+                state: .active,
+                deprecatedFallbackKey: nil
+            )
+        }
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+
+    static func localized(
+        _ key: SurveySessionLocalizationKeyV1,
+        bundle: Bundle = .main
+    ) -> String {
+        String(
+            localized: key.rawValue,
+            defaultValue: key.englishDefaultValue,
+            bundle: bundle,
+            locale: Locale(identifier: runtimeLanguage),
+            comment: key.translatorComment
+        )
+    }
+
+    static func surveySessionDisplayLabel(
+        for key: SurveySessionLocalizationKeyV1
+    ) -> String {
+        localized(key)
     }
 }
 

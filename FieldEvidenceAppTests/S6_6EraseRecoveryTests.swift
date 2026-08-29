@@ -1089,3 +1089,12 @@ extension S6_6EraseRecoveryTests {
         XCTAssertEqual(PersistentSchemaV24.models.count, 87)
     }
 }
+extension S6_6EraseRecoveryTests {
+    func testC26SurveySessionTypedAnchor() throws {
+        XCTAssertEqual(ActivityKindSemanticsV1(kind: .survey).completion, .typedFactCollection)
+        XCTAssertFalse(ActivityKindSemanticsV1(kind: .survey).mayClaimInspectionResult)
+        XCTAssertEqual(SurveySessionStateV1.allCases.count, 8)
+        XCTAssertEqual(SurveySessionTransitionV1.allCases.count, 10)
+        XCTAssertNoThrow(try V25GuidedSurveyImportBoundaryV1.validate(persistent: 25, records: 24))
+    }
+}

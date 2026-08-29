@@ -2,6 +2,12 @@ import CryptoKit
 import Foundation
 import SwiftData
 
+enum GuidedSurveySnapshotValidatorV1 {
+    static func validate(_ snapshot: ReportSnapshotV1) throws {
+        try snapshot.surveyPublication?.validate()
+    }
+}
+
 enum SnapshotValidationErrorV1: Error, Equatable {
     case invalidAuthority
 }

@@ -38,4 +38,7 @@ final class MutationReceiptRecoveryServiceV1 {
     }
     func recoverAccessibleDocumentAssessmentEffectsBeforeWriterActivation()throws{try recoverBeforeWriterActivation()}
     func recoverSurveyDefinitionEffectsBeforeWriterActivation()throws{try recoverBeforeWriterActivation()}
+    /// C26's five post-image families and their generic receipt are repaired
+    /// together; no projection or provisional staging is promoted to truth.
+    func recoverSurveySessionEffectsBeforeWriterActivation()throws{try recoverBeforeWriterActivation()}
 }

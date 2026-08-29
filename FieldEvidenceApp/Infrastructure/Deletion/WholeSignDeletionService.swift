@@ -1,6 +1,8 @@
 import CryptoKit
 import Darwin
 import Foundation
+
+enum SurveySessionWholeSignDeletionEnrollmentV1{static func validate()throws{try SurveySessionDeletionLedgerPolicyV1.validate();guard SurveySessionDeletionLedgerPolicyV1.ordinaryAssetOrSiteDeleteRetainsFrozenPublications else{throw DeletionLedgerFailureV2.invalidSchemaVersion}}}
 import SwiftData
 
 private enum DeletionDescriptorRead {
@@ -1315,6 +1317,7 @@ private extension WholeSignDeletionService {
         let fieldReferenceReleases:[FieldReferenceReleaseRow];let fieldReferenceBindings:[FieldReferenceBindingRow]
         let accessibleDocumentAssessmentReceipts:[AccessibleDocumentAssessmentReceiptRow]
         let surveyDefinitionIdentities:[SurveyDefinitionIdentityRow];let surveyDefinitionReleases:[SurveyDefinitionReleaseRow]
+        let surveySessions:[SurveySessionRow];let factCaptures:[FactCaptureRow];let provisionalSubjects:[ProvisionalSubjectRow];let subjectPromotionReceipts:[SubjectPromotionReceiptRow];let surveyPublicationSnapshots:[SurveyPublicationSnapshotRow]
         let observationAndTime: [UUID: ObservationAndTimeRow]
         let recordPayloads: [WorkflowRecordPayloadV1]
         let evidence: [EvidenceFile]
@@ -1374,6 +1377,7 @@ private extension WholeSignDeletionService {
                 fieldReferenceReleases:try boundedFetch(FieldReferenceReleaseRow.self),fieldReferenceBindings:try boundedFetch(FieldReferenceBindingRow.self),
                 accessibleDocumentAssessmentReceipts:try boundedFetch(AccessibleDocumentAssessmentReceiptRow.self),
                 surveyDefinitionIdentities:try boundedFetch(SurveyDefinitionIdentityRow.self),surveyDefinitionReleases:try boundedFetch(SurveyDefinitionReleaseRow.self),
+                surveySessions:try boundedFetch(SurveySessionRow.self),factCaptures:try boundedFetch(FactCaptureRow.self),provisionalSubjects:try boundedFetch(ProvisionalSubjectRow.self),subjectPromotionReceipts:try boundedFetch(SubjectPromotionReceiptRow.self),surveyPublicationSnapshots:try boundedFetch(SurveyPublicationSnapshotRow.self),
                 observationAndTime: observationAndTime,
                 recordPayloads: recordPayloads,
                 evidence: try boundedFetch(EvidenceFile.self),
@@ -1430,6 +1434,7 @@ private extension WholeSignDeletionService {
         try WholeSignDeletionRule.validateAccessibleDocumentLifecycle(before:accessibleInventory,after:accessibleInventory,workspaceErase:false)
         let surveyInventory=SurveyDefinitionDeletionInventoryV1(identityIDs:Set(rows.surveyDefinitionIdentities.map(\.definitionID)),releaseIDs:Set(rows.surveyDefinitionReleases.map(\.releaseID)))
         try WholeSignDeletionRule.validateSurveyDefinitionLifecycle(before:surveyInventory,after:surveyInventory,workspaceErase:false)
+        try rows.surveySessions.forEach{_ = try $0.value()};try rows.factCaptures.forEach{_ = try $0.value()};try rows.provisionalSubjects.forEach{_ = try $0.value()};try rows.subjectPromotionReceipts.forEach{_ = try $0.value()};try rows.surveyPublicationSnapshots.forEach{_ = try $0.value()};let sessionInventory=SurveySessionDeletionInventoryV1(sessionIDs:Set(rows.surveySessions.map(\.sessionID)),captureIDs:Set(rows.factCaptures.map(\.captureID)),provisionalSubjectIDs:Set(rows.provisionalSubjects.map(\.provisionalSubjectID)),promotionReceiptIDs:Set(rows.subjectPromotionReceipts.map(\.receiptID)),publicationSnapshotIDs:Set(rows.surveyPublicationSnapshots.map(\.snapshotID)));try WholeSignDeletionRule.validateSurveySessionLifecycle(before:sessionInventory,after:sessionInventory,workspaceErase:false);try SurveySessionDeletionLedgerPolicyV1.validate()
         do {
             var assetIDs = Set<UUID>()
             if let deletingAssetID { assetIDs.insert(deletingAssetID) }

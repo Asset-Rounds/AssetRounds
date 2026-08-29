@@ -858,3 +858,71 @@ struct SurveyDefinitionSearchPersistencePolicyV1: Codable, Equatable, Sendable {
 extension SearchPersistenceReleaseV1 {
     static let surveyDefinitionPolicy = SurveyDefinitionSearchPersistencePolicyV1()
 }
+
+// MARK: - C26 guided-survey session search persistence boundary
+
+/// Session search rows are disposable, metadata-only derivatives.  Device
+/// favorites/recents and canonical fact values remain outside this store and
+/// are rebuilt or omitted at restore/replay boundaries.
+struct SurveySessionSearchPersistencePolicyV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let sourceSchema: String
+    let searchPersistenceRelease: SearchPersistenceReleaseV1
+    let fieldIDs: [String]
+    let metadataOnly: Bool
+    let derivedOnly: Bool
+    let excludesFactValues: Bool
+    let excludesPromptText: Bool
+    let excludesProvisionalSubjectLabels: Bool
+    let excludesActorIdentity: Bool
+    let excludesEvidenceReferences: Bool
+    let excludesEvidenceBytes: Bool
+    let excludesPrivateLocators: Bool
+    let excludesCustomerAndWorkData: Bool
+    let excludesUnsupportedClaims: Bool
+    let backupDisposition: String
+    let replayDisposition: String
+
+    init() {
+        schemaVersion = Self.schemaVersion
+        sourceSchema = SurveySessionSearchProjectionPolicyV1.semanticLabel
+        searchPersistenceRelease = .v7
+        fieldIDs = SurveySessionSearchProjectionPolicyV1.fieldIDs
+        metadataOnly = true
+        derivedOnly = true
+        excludesFactValues = true
+        excludesPromptText = true
+        excludesProvisionalSubjectLabels = true
+        excludesActorIdentity = true
+        excludesEvidenceReferences = true
+        excludesEvidenceBytes = true
+        excludesPrivateLocators = true
+        excludesCustomerAndWorkData = true
+        excludesUnsupportedClaims = true
+        backupDisposition = "EXCLUDED_DERIVED_REBUILD"
+        replayDisposition = "DROP_AND_REBUILD_FROM_CANONICAL_SURVEY_SESSIONS"
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              sourceSchema == SurveySessionSearchProjectionPolicyV1.semanticLabel,
+              searchPersistenceRelease == .v7,
+              fieldIDs == SurveySessionSearchProjectionPolicyV1.fieldIDs,
+              metadataOnly, derivedOnly,
+              excludesFactValues, excludesPromptText,
+              excludesProvisionalSubjectLabels, excludesActorIdentity,
+              excludesEvidenceReferences, excludesEvidenceBytes,
+              excludesPrivateLocators, excludesCustomerAndWorkData,
+              excludesUnsupportedClaims,
+              backupDisposition == "EXCLUDED_DERIVED_REBUILD",
+              replayDisposition == "DROP_AND_REBUILD_FROM_CANONICAL_SURVEY_SESSIONS" else {
+            throw SearchContractFailureV1.invalidField
+        }
+    }
+}
+
+extension SearchPersistenceReleaseV1 {
+    static let surveySessionPolicy = SurveySessionSearchPersistencePolicyV1()
+}

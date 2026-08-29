@@ -125,7 +125,8 @@ struct SettingDescriptorV1: Codable, Equatable, Sendable {
         case .deviceLocal:
             guard storage == .soleDevicePreferencesAdapter,
                   backup == .excludedDeviceLocal,
-                  privacy == .devicePreferenceNoCustomerData else {
+                  privacy == .devicePreferenceNoCustomerData,
+                  !SurveySessionDevicePersistenceBoundaryV1.isCanonicalFactKey(key) else {
                 throw SettingsContractFailureV1.scopeMismatch
             }
         case .workspaceCanonical:
@@ -1039,5 +1040,42 @@ enum SurveyDefinitionDeviceMemoryV1 {
                 recencyRank: UInt64(index)
             )
         }
+    }
+}
+
+// MARK: - C26 guided-survey device persistence boundary
+
+/// Canonical session lifecycle, fact, subject, and publication values never
+/// become device settings.  This closed namespace is intentionally rejected
+/// by the device-local descriptor and adapter; canonical writers own those
+/// values and local favorites/recents remain the only survey memory.
+enum SurveySessionDevicePersistenceBoundaryV1 {
+    static let canonicalKeyPrefixes = [
+        "survey.session.lifecycle",
+        "survey.session.fact",
+        "survey.session.subject",
+        "survey.session.publication"
+    ]
+    static let canonicalTruthDisposition = "WORKSPACE_CANONICAL_ONLY"
+    static let devicePersistenceDisposition = "REJECTED_DEVICE_LOCAL"
+    static let backupDisposition = "EXCLUDED_DEVICE_LOCAL"
+    static let searchDisposition = "DERIVED_METADATA_ONLY"
+    static let reportDisposition = "CANONICAL_SNAPSHOT_ONLY"
+
+    static func isCanonicalFactKey(_ key: String) -> Bool {
+        let normalized = key.lowercased()
+        return canonicalKeyPrefixes.contains {
+            normalized == $0 || normalized.hasPrefix($0 + ".")
+        }
+    }
+
+    static func validate() -> Bool {
+        canonicalTruthDisposition == "WORKSPACE_CANONICAL_ONLY"
+            && devicePersistenceDisposition == "REJECTED_DEVICE_LOCAL"
+            && backupDisposition == "EXCLUDED_DEVICE_LOCAL"
+            && searchDisposition == "DERIVED_METADATA_ONLY"
+            && reportDisposition == "CANONICAL_SNAPSHOT_ONLY"
+            && canonicalKeyPrefixes == canonicalKeyPrefixes.sorted()
+            && Set(canonicalKeyPrefixes).count == canonicalKeyPrefixes.count
     }
 }

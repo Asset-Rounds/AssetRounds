@@ -5,6 +5,12 @@ enum WorkflowRevisionKind: String, CaseIterable, Codable, Sendable {
     case clericalCorrection = "clerical_correction"
 }
 
+enum SurveySessionWorkflowBoundaryV1 {
+    static func validate(_ closure:SurveySessionLifecycleClosureV1)throws{try closure.validate()}
+    static let claimsInspectionPassFail=false
+    static let usesSoleWorkspaceWriter=true
+}
+
 struct WorkflowSurveyDefinitionBindingV1: Codable, Equatable, Sendable {
     let activityKind: ActivityKindV1
     let release: SurveyDefinitionReleaseReferenceV1

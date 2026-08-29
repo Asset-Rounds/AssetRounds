@@ -143,6 +143,7 @@ struct BackupCanonicalEncoderV1: Sendable {
         if records.recordsSchemaVersion >= 21 { fields["fieldReferences"] = .array(try records.fieldReferences.map(Self.fieldReferenceRecord)) }
         if records.recordsSchemaVersion >= 22 { fields["accessibleDocumentAssessments"] = .array(try records.accessibleDocumentAssessments.map(Self.accessibleDocumentAssessmentRecord)) }
         if records.recordsSchemaVersion >= 23 { fields["surveyDefinitions"] = .array(try records.surveyDefinitions.map(Self.surveyDefinitionRecord)) }
+        if records.recordsSchemaVersion >= 24 { fields["guidedSurveys"] = .array(try records.guidedSurveys.map(Self.guidedSurveyRecord)) }
         if let deletionLedger = records.deletionLedger {
             fields["deletionLedger"] = Self.deletionLedger(deletionLedger)
         }
@@ -177,7 +178,7 @@ struct BackupCanonicalEncoderV1: Sendable {
 
 private extension BackupCanonicalEncoderV1 {
     static func validSemantic(_ records: V4BackupRecordsV1) -> Bool {
-        guard (4...23).contains(records.recordsSchemaVersion),
+        guard (4...24).contains(records.recordsSchemaVersion),
               records.mutationHistory == nil,
               let ledger = records.deletionLedger,
               (try? ledger.validate()) != nil else {
@@ -203,6 +204,7 @@ private extension BackupCanonicalEncoderV1 {
             && validFieldReferences(records)
             && validAccessibleDocumentAssessments(records)
             && validSurveyDefinitions(records)
+            && validGuidedSurveys(records)
             && sortedUniqueIDs(records.assets.map(\.id))
             && records.assets.allSatisfy({ $0.schemaVersion == 1 })
             && sortedUniqueIDs(records.evidenceFiles.map(\.id))
@@ -238,7 +240,7 @@ private extension BackupCanonicalEncoderV1 {
              (13, let ledger?, let history?), (14, let ledger?, let history?),
              (15, let ledger?, let history?), (16, let ledger?, let history?),
              (17, let ledger?, let history?), (18, let ledger?, let history?), (19, let ledger?, let history?),
-             (20, let ledger?, let history?), (21, let ledger?, let history?), (22, let ledger?, let history?), (23, let ledger?, let history?):
+             (20, let ledger?, let history?), (21, let ledger?, let history?), (22, let ledger?, let history?), (23, let ledger?, let history?), (24, let ledger?, let history?):
             ledgerIsValid = (try? ledger.validate()) != nil
                 && (try? MutationJournalStoreV1.validateImportedSnapshot(history)) != nil
                 && validMutationHistoryOrder(history)
@@ -266,6 +268,7 @@ private extension BackupCanonicalEncoderV1 {
             && validFieldReferences(records)
             && validAccessibleDocumentAssessments(records)
             && validSurveyDefinitions(records)
+            && validGuidedSurveys(records)
             && sortedUniqueIDs(records.assets.map(\.id))
             && records.assets.allSatisfy({ $0.schemaVersion == 1 })
             && sortedUniqueIDs(records.evidenceFiles.map(\.id))
@@ -608,6 +611,8 @@ private extension BackupCanonicalEncoderV1 {
     static func accessibleDocumentAssessmentRecord(_ value:V23BackupAccessibleDocumentAssessmentRecordV1)throws->CanonicalJSONValueV1{guard let revision=Int(exactly:value.revision),!value.canonicalData.isEmpty else{throw BackupCanonicalEncodingErrorV1.invalidRecords};return .object(["canonicalData":.string(value.canonicalData.base64EncodedString()),"id":CanonicalJSONV1.uuid(value.id),"revision":.integer(revision),"workspaceID":CanonicalJSONV1.uuid(value.workspaceID)])}
     static func validSurveyDefinitions(_ records:V4BackupRecordsV1)->Bool{if records.recordsSchemaVersion<23{return records.surveyDefinitions.isEmpty};guard records.recordsSchemaVersion==23 else{return false};if records.mutationHistory==nil{return records.surveyDefinitions.isEmpty};let keys=records.surveyDefinitions.map{"\($0.kind.rawValue)|\($0.id.uuidString)"};let zero=UUID(uuid:(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0));return records.surveyDefinitions.count<=200_000&&keys==keys.sorted()&&Set(keys).count==keys.count&&records.surveyDefinitions.allSatisfy{$0.id != zero&&$0.workspaceID != zero&&$0.revision>0&&$0.revision<=UInt64(Int.max)&&!$0.canonicalData.isEmpty}}
     static func surveyDefinitionRecord(_ value:V24BackupSurveyDefinitionRecordV1)throws->CanonicalJSONValueV1{guard let revision=Int(exactly:value.revision),!value.canonicalData.isEmpty else{throw BackupCanonicalEncodingErrorV1.invalidRecords};return .object(["canonicalData":.string(value.canonicalData.base64EncodedString()),"id":CanonicalJSONV1.uuid(value.id),"kind":.string(value.kind.rawValue),"revision":.integer(revision),"workspaceID":CanonicalJSONV1.uuid(value.workspaceID)])}
+    static func validGuidedSurveys(_ records:V4BackupRecordsV1)->Bool{if records.recordsSchemaVersion<24{return records.guidedSurveys.isEmpty};guard records.recordsSchemaVersion==24 else{return false};if records.mutationHistory == nil{return records.guidedSurveys.isEmpty};let keys=records.guidedSurveys.map{"\($0.kind.rawValue)|\($0.id.uuidString)"};let zero=UUID(uuid:(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0));return records.guidedSurveys.count<=200_000&&keys==keys.sorted()&&Set(keys).count==keys.count&&records.guidedSurveys.allSatisfy{$0.id != zero&&$0.workspaceID != zero&&$0.revision>0&&$0.revision<=UInt64(Int.max)&&!$0.canonicalData.isEmpty}}
+    static func guidedSurveyRecord(_ value:V25BackupGuidedSurveyRecordV1)throws->CanonicalJSONValueV1{guard let revision=Int(exactly:value.revision),!value.canonicalData.isEmpty else{throw BackupCanonicalEncodingErrorV1.invalidRecords};return .object(["canonicalData":.string(value.canonicalData.base64EncodedString()),"id":CanonicalJSONV1.uuid(value.id),"kind":.string(value.kind.rawValue),"revision":.integer(revision),"workspaceID":CanonicalJSONV1.uuid(value.workspaceID)])}
 
     static func privacyTransformRecord(_ value: V19BackupPrivacyTransformRecordV1) throws -> CanonicalJSONValueV1 {
         guard let revision = Int(exactly: value.revision), !value.canonicalData.isEmpty else {

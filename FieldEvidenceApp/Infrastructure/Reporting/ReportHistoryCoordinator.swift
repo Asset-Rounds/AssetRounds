@@ -1,6 +1,11 @@
 import Foundation
 import SwiftData
 
+enum GuidedSurveyReportHistoryBoundaryV1 {
+    static let laterPromotionMutatesHistoricReport = false
+    static let correctionRequiresReplacementReport = true
+}
+
 enum ReportHistoryFilter: Hashable, Sendable {
     case all
     case site(UUID)

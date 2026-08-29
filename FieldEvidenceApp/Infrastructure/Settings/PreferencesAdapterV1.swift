@@ -261,7 +261,8 @@ final class PreferencesAdapterV1: DevicePreferencesPortV1, @unchecked Sendable {
     private func requireDeviceLocal(_ descriptor: SettingDescriptorV1) throws {
         try descriptor.validate()
         guard descriptor.scope == .deviceLocal,
-              descriptor.storage == .soleDevicePreferencesAdapter else {
+              descriptor.storage == .soleDevicePreferencesAdapter,
+              !SurveySessionDevicePersistenceBoundaryV1.isCanonicalFactKey(descriptor.key) else {
             throw PreferencesAdapterFailureV1.invalidScope
         }
     }

@@ -29,3 +29,27 @@ final class SurveyDefinitionLifecycleAdapterV1: SurveyDefinitionWritingV1 {
         return try SurveyDefinitionMutationReceiptV1(mutation: mutation, mutationReceipt: receipt)
     }
 }
+
+extension SurveyDefinitionLifecycleAdapterV1 {
+    /// Validates the complete published-definition tuple before it is pinned
+    /// into a C26 session. This remains a read-only authority projection.
+    func sessionAuthority(
+        identity: SurveyDefinitionIdentityV1,
+        release: SurveyDefinitionReleaseV1,
+        lifecycleEvent: SurveyDefinitionLifecycleEventV1,
+        packageRelease: InspectionPackageReleaseV1,
+        pinnedRevisions: [SurveyPinnedRevisionReferenceV1]
+    ) throws -> SurveySessionAuthorityV1 {
+        try identity.validate(currentRelease: release, event: lifecycleEvent)
+        guard identity.lifecycleState == .published,
+              identity.activityKind == .survey,
+              identity.currentRelease == (try SurveyDefinitionReleaseReferenceV1(release)) else {
+            throw SurveySessionFailureV1.wrongDefinition
+        }
+        return try SurveySessionAuthorityV1(
+            definition: release,
+            packageRelease: packageRelease,
+            pinnedRevisions: pinnedRevisions
+        )
+    }
+}

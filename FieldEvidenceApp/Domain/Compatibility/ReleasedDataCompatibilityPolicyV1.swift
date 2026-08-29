@@ -997,3 +997,25 @@ struct AccessibleDocumentCompatibilityPolicyV1:Codable,Equatable,Sendable{
     func validate()throws{guard semanticTreePersistence==AccessibleDocumentLifecycleV1.semanticTreePersistence,acceptedReceiptPreserved,unknownVersionsFailClosed else{throw CompatibilityContractErrorV1.invalidSupportTable}}
 }
 extension ReleasedDataCompatibilityPolicyV1{static let accessibleDocumentCompatibility=AccessibleDocumentCompatibilityPolicyV1.current}
+
+struct SurveyDefinitionCompatibilityPolicyV1:Codable,Equatable,Sendable{
+    static let persistentSchemaVersion=24,recordsSchemaVersion=23
+    static let currentPersistentWriterVersion="24.0.0",currentBackupWriterVersion="archive1-backup4-persistent24-records23"
+    static let readablePersistentWriterVersions=(1...24).map{"\($0).0.0"}
+    static let readableBackupWriterVersions=FieldReferencePackCompatibilityPolicyV1.readableBackupWriterVersions+["archive1-backup4-persistent23-records22",currentBackupWriterVersion]
+    static let current=Self()
+    func validate()throws{guard Self.readablePersistentWriterVersions.last==Self.currentPersistentWriterVersion,Self.readableBackupWriterVersions.last==Self.currentBackupWriterVersion,Set(Self.readableBackupWriterVersions).count==Self.readableBackupWriterVersions.count else{throw CompatibilityContractErrorV1.invalidSupportTable}}
+}
+extension ReleasedDataCompatibilityPolicyV1{static let surveyDefinitionCompatibility=SurveyDefinitionCompatibilityPolicyV1.current}
+
+struct SurveySessionCompatibilityPolicyV1:Codable,Equatable,Sendable{
+    static let persistentSchemaVersion=25,recordsSchemaVersion=24
+    static let currentPersistentWriterVersion="25.0.0",currentBackupWriterVersion="archive1-backup4-persistent25-records24"
+    static let readablePersistentWriterVersions=(1...25).map{"\($0).0.0"}
+    static let readableBackupWriterVersions=SurveyDefinitionCompatibilityPolicyV1.readableBackupWriterVersions+[currentBackupWriterVersion]
+    static let downgradeDisposition="PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_FIRST_V25_WRITE"
+    let stagingIsNonpersistent=true;let publicationSnapshotsRemainFrozen=true;let unknownVersionsFailClosed=true
+    static let current=Self()
+    func validate()throws{guard Set(Self.readablePersistentWriterVersions).count==25,Self.readablePersistentWriterVersions.last==Self.currentPersistentWriterVersion,Set(Self.readableBackupWriterVersions).count==Self.readableBackupWriterVersions.count,Self.readableBackupWriterVersions.last==Self.currentBackupWriterVersion,stagingIsNonpersistent,publicationSnapshotsRemainFrozen,unknownVersionsFailClosed else{throw CompatibilityContractErrorV1.invalidSupportTable}}
+}
+extension ReleasedDataCompatibilityPolicyV1{static let surveySessionCompatibility=SurveySessionCompatibilityPolicyV1.current}

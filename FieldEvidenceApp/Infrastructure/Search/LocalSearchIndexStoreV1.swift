@@ -1243,3 +1243,37 @@ extension LocalSearchIndexStoreV1 {
         return record
     }
 }
+
+// MARK: - C26 guided-survey session search adapter
+
+extension LocalSearchIndexStoreV1 {
+    /// Admits only the bounded session metadata projection to the disposable
+    /// local index.  The adapter never persists answer values, prompts,
+    /// provisional labels, actors, evidence references, or publication bytes.
+    static func surveySessionSearchRecord(
+        from session: SurveySessionV1,
+        publication: SurveyPublicationSnapshotV1? = nil,
+        provisionalSubject: ProvisionalSubjectV1? = nil,
+        factState: SurveySessionFactLocalizationStateV1? = nil,
+        publicationState: SurveySessionPublicationLocalizationStateV1? = nil
+    ) throws -> SurveySessionSearchRecordV1 {
+        let record = try SurveySessionSearchRecordV1(
+            session: session,
+            publication: publication,
+            provisionalSubject: provisionalSubject,
+            factState: factState,
+            publicationState: publicationState
+        )
+        try SurveySessionSearchProjectionPolicyV1.validate(record)
+        try SurveySessionSearchPersistencePolicyV1().validate()
+        return record
+    }
+
+    static func validateSurveySessionSearchRecord(
+        _ record: SurveySessionSearchRecordV1
+    ) throws -> SurveySessionSearchRecordV1 {
+        try SurveySessionSearchProjectionPolicyV1.validate(record)
+        try SurveySessionSearchPersistencePolicyV1().validate()
+        return record
+    }
+}

@@ -1,5 +1,12 @@
 import Foundation
 
+enum GuidedSurveyRestoreIdentityPolicyV1 {
+    static func remintsWorkspace(_ mode: BackupRestoreMode) -> Bool {
+        mode == .clone || mode == .fork
+    }
+    static let publicationSubjectIsFrozenAtPublication = true
+}
+
 enum BackupRestoreMode: String, CaseIterable, Codable, Equatable, Sendable {
     case emptyInstall = "empty_install"
     case replaceExisting = "replace_existing"

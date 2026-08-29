@@ -19,6 +19,12 @@ enum ResponseValueKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case contentReference = "CONTENT_REFERENCE"
 }
 
+enum C26SurveyResponseSemanticsV1 {
+    static let inspectionOutcomeKinds:Set<ResponseValueKindV1>=[]
+    static func validate(_ value:ResponseValueV1,for fact:FactDefinitionV1)throws{try value.validate();try fact.validate();guard SurveyDefinitionStaticValidationV1.response(value,isCompatibleWith:fact)else{throw SurveySessionFailureV1.wrongDefinition}}
+    static func isExplicitUnknownOrNotObserved(_ value:ResponseValueV1)->Bool{value == .triState(.unknown)||value == .triState(.notObserved)}
+}
+
 enum ResponseTriStateV1: String, CaseIterable, Codable, Sendable {
     case trueValue = "TRUE"
     case falseValue = "FALSE"

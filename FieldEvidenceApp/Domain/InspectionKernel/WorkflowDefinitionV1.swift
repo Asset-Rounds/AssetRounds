@@ -113,6 +113,10 @@ struct WorkflowNodeV1: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
+enum C26SurveyWorkflowDefinitionV1 {
+    static func validate(_ workflow:WorkflowDefinitionV1,for release:SurveyDefinitionReleaseV1)throws{try release.validate();guard release.activityKind == .survey else{throw SurveySessionFailureV1.wrongDefinition};let surveyFacts=Set(release.sections.flatMap(\.facts).map(\.factID));guard Set(workflow.declaredFieldIDs).isSubset(of:surveyFacts)else{throw SurveySessionFailureV1.wrongDefinition};_ = try WorkflowGraphValidatorV1.validate(workflow)}
+}
+
 extension WorkflowDefinitionV1 {
     func validateSurveyDefinition(_ release: SurveyDefinitionReleaseV1) throws {
         try release.validate()

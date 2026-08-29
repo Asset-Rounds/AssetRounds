@@ -8,6 +8,14 @@ enum PackageReleaseBindingKindV1: String, CaseIterable, Codable, Sendable {
     case export = "EXPORT"
 }
 
+enum C26SurveyPackageBindingLifecycleV1 {
+    static let persistentFamilies=["SurveySessionV1","FactCaptureV1","ProvisionalSubjectV1","SubjectPromotionReceiptV1","SurveyPublicationSnapshotV1"]
+    static let activityKind=ActivityKindV1.survey
+    static let immutablePublication=true
+    static let lastWriteWins=false
+    static func validate()throws{guard persistentFamilies.count==5,immutablePublication,!lastWriteWins else{throw SurveySessionFailureV1.invalidValue}}
+}
+
 enum SurveyPackageReleaseBindingV1 {
     static func validate(survey: SurveyDefinitionReleaseV1, package: InspectionPackageReleaseV1) throws {
         try package.validateSurveyDefinitionRelease(survey)

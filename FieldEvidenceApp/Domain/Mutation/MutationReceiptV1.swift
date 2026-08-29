@@ -123,6 +123,11 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
     case accessibleDocumentAssessmentReceipt(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case surveyDefinitionIdentity(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case surveyDefinitionRelease(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case surveySession(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case factCapture(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case provisionalSubject(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case subjectPromotionReceipt(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case surveyPublicationSnapshot(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case workflowRecord(id: UUID, revision: UInt64, semanticSHA256: String)
     case evidenceFile(id: UUID, revision: UInt64, semanticSHA256: String)
     case issue(id: UUID, revision: UInt64, semanticSHA256: String)
@@ -199,6 +204,11 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
             case let .accessibleDocumentAssessmentReceipt(id,_,_,_):return try .init(kind:.accessibleDocumentAssessmentReceipt,id:id)
             case let .surveyDefinitionIdentity(id,_,_,_):return try .init(kind:.surveyDefinitionIdentity,id:id)
             case let .surveyDefinitionRelease(id,_,_,_):return try .init(kind:.surveyDefinitionRelease,id:id)
+            case let .surveySession(id,_,_,_):return try .init(kind:.surveySession,id:id)
+            case let .factCapture(id,_,_,_):return try .init(kind:.factCapture,id:id)
+            case let .provisionalSubject(id,_,_,_):return try .init(kind:.provisionalSubject,id:id)
+            case let .subjectPromotionReceipt(id,_,_,_):return try .init(kind:.subjectPromotionReceipt,id:id)
+            case let .surveyPublicationSnapshot(id,_,_,_):return try .init(kind:.surveyPublicationSnapshot,id:id)
             case let .workflowRecord(id, _, _): return try .init(kind: .workflowRecord, id: id)
             case let .evidenceFile(id, _, _): return try .init(kind: .evidenceFile, id: id)
             case let .issue(id, _, _): return try .init(kind: .issue, id: id)
@@ -212,7 +222,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
 
     var semanticSHA256: String {
         switch self {
-        case let .accessibleDocumentAssessmentReceipt(_,_,_,value),let .surveyDefinitionIdentity(_,_,_,value),let .surveyDefinitionRelease(_,_,_,value):return value
+        case let .accessibleDocumentAssessmentReceipt(_,_,_,value),let .surveyDefinitionIdentity(_,_,_,value),let .surveyDefinitionRelease(_,_,_,value),let .surveySession(_,_,_,value),let .factCapture(_,_,_,value),let .provisionalSubject(_,_,_,value),let .subjectPromotionReceipt(_,_,_,value),let .surveyPublicationSnapshot(_,_,_,value):return value
         case let .site(_, _, value), let .asset(_, _, value), let .locationNode(_, _, value),
              let .assetPlacementEvent(_, _, value), let .assetCompositionEdge(_, _, value),
              let .assetCompositionEvent(_, _, value), let .savedSmartView(_, _, value),
@@ -305,6 +315,11 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
             case let .accessibleDocumentAssessmentReceipt(_,v,_,_):guard v.kind == .accessibleDocumentAssessmentReceipt else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             case let .surveyDefinitionIdentity(_,v,_,_):guard v.kind == .surveyDefinitionIdentity else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             case let .surveyDefinitionRelease(_,v,_,_):guard v.kind == .surveyDefinitionRelease else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+            case let .surveySession(_,v,_,_):guard v.kind == .surveySession else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+            case let .factCapture(_,v,_,_):guard v.kind == .factCapture else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+            case let .provisionalSubject(_,v,_,_):guard v.kind == .provisionalSubject else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+            case let .subjectPromotionReceipt(_,v,_,_):guard v.kind == .subjectPromotionReceipt else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+            case let .surveyPublicationSnapshot(_,v,_,_):guard v.kind == .surveyPublicationSnapshot else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             default:
                 return try identity
             }
@@ -313,7 +328,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
 
     var revision: UInt64 {
         switch self {
-        case let .accessibleDocumentAssessmentReceipt(_,_,value,_),let .surveyDefinitionIdentity(_,_,value,_),let .surveyDefinitionRelease(_,_,value,_):return value
+        case let .accessibleDocumentAssessmentReceipt(_,_,value,_),let .surveyDefinitionIdentity(_,_,value,_),let .surveyDefinitionRelease(_,_,value,_),let .surveySession(_,_,value,_),let .factCapture(_,_,value,_),let .provisionalSubject(_,_,value,_),let .subjectPromotionReceipt(_,_,value,_),let .surveyPublicationSnapshot(_,_,value,_):return value
         case let .site(_, value, _), let .asset(_, value, _),
              let .locationNode(_, value, _), let .assetPlacementEvent(_, value, _),
              let .assetCompositionEdge(_, value, _), let .assetCompositionEvent(_, value, _),
@@ -711,6 +726,17 @@ extension SurveyDefinitionMutationV1 {
         return try values.sorted { try $0.identity.stableKey < $1.identity.stableKey }
     } }
 }
+
+extension SurveySessionMutationV1 {
+    var mutationPostImages:[MutationPostImageV1]{get throws{let c=try concurrencyIdentities;func id(_ kind:WorkspaceEntityKindV1)throws->WorkspaceEntityIdentityV1{guard let v=c.first(where:{$0.kind==kind})else{throw WorkspaceMutationFailureV1.invalidCommand};return v};let values:[MutationPostImageV1];switch payload{
+    case let .applySession(v,_,_):values=[.surveySession(id:v.sessionID,concurrencyIdentity:try id(.surveySession),revision:v.revision,semanticSHA256:v.sessionSHA256)]
+    case let .captureFact(v,_,_,_):values=[.factCapture(id:v.captureID,concurrencyIdentity:try id(.factCapture),revision:v.revision,semanticSHA256:v.captureSHA256)]
+    case let .applyProvisionalSubject(v):values=[.provisionalSubject(id:v.provisionalSubjectID,concurrencyIdentity:try id(.provisionalSubject),revision:v.revision,semanticSHA256:v.subjectSHA256)]
+    case let .promoteSubject(v,r,_,_):values=[.provisionalSubject(id:v.provisionalSubjectID,concurrencyIdentity:try id(.provisionalSubject),revision:v.revision,semanticSHA256:v.subjectSHA256),.subjectPromotionReceipt(id:r.receiptID,concurrencyIdentity:try id(.subjectPromotionReceipt),revision:r.revision,semanticSHA256:r.receiptSHA256)]
+    case let .publish(s,p,_,_):values=[.surveySession(id:s.sessionID,concurrencyIdentity:try id(.surveySession),revision:s.revision,semanticSHA256:s.sessionSHA256),.surveyPublicationSnapshot(id:p.snapshotID,concurrencyIdentity:try id(.surveyPublicationSnapshot),revision:p.revision,semanticSHA256:p.snapshotSHA256)]};return try values.sorted{try $0.identity.stableKey<$1.identity.stableKey}}}
+}
+
+struct SurveySessionMutationReceiptV1:Codable,Equatable,Sendable{let mutationSHA256:String;let mutationReceipt:MutationReceiptV1;init(mutation:SurveySessionMutationV1,mutationReceipt:MutationReceiptV1)throws{try mutation.validate();try mutationReceipt.validate();let affected=try mutation.affectedIdentities,concurrency=try mutation.concurrencyIdentities,images=try mutation.mutationPostImages;guard mutationReceipt.mutationID==mutation.mutationID,mutationReceipt.identity.workspaceID==mutation.workspaceID,mutationReceipt.commandBodySHA256==(try WorkspaceMutationCanonicalV1.sha256(WorkspaceCommandV1.applySurveySession(mutation))),mutationReceipt.postImages==images,try concurrency.allSatisfy({identity in mutationReceipt.expectedRevision.entityRevisions.first(where:{row in row.identity==identity})?.revision == (try mutation.expectedRevision(for:identity))}),try images.allSatisfy({image in mutationReceipt.resultingRevision.entityRevisions.first(where:{$0.identity==(try image.identity)})?.revision==image.revision}),affected==images.compactMap{try? $0.identity} else{throw WorkspaceMutationFailureV1.invalidReceipt};mutationSHA256=try WorkspaceMutationCanonicalV1.sha256(mutation);self.mutationReceipt=mutationReceipt}}
 
 /// Typed C40 receipt binding the journal-owned receipt to the exact canonical
 /// authority/criterion post-image. It does not introduce a second receipt

@@ -1,5 +1,41 @@
 import Foundation
 
+enum GuidedSurveyOpenJSONBoundaryV1 {
+    static func validate(_ projection: SurveyPublicationReportProjectionV1) throws {
+        try projection.validate()
+    }
+    static let emitsPassFail = false
+}
+
+struct SurveyPublicationOpenJSONEnvelopeV1: Codable, Equatable, Sendable {
+    let schemaVersion: Int
+    let projection: SurveyPublicationReportProjectionV1
+
+    init(projection: SurveyPublicationReportProjectionV1) throws {
+        try projection.validate()
+        schemaVersion = 1
+        self.projection = projection
+    }
+}
+
+extension DeterministicOpenJSONRendererV1 {
+    static func renderSurveyPublication(
+        _ projection: SurveyPublicationReportProjectionV1
+    ) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let data = try encoder.encode(
+            SurveyPublicationOpenJSONEnvelopeV1(projection: projection)
+        )
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(SurveyPublicationOpenJSONEnvelopeV1.self, from: data)
+        guard decoded.projection == projection else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return data
+    }
+}
+
 struct ReportSemanticNodeV1: Codable, Equatable, Hashable, Comparable, Sendable {
     let semanticID: String
     let sectionID: String

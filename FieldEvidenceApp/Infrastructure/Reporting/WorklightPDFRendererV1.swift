@@ -4,6 +4,24 @@ import CryptoKit
 import Foundation
 import ImageIO
 
+enum GuidedSurveyWorklightPDFBoundaryV1 {
+    static let rendersFrozenSubjectAtPublication = true
+    static let rendersPassFail = false
+}
+
+
+extension RenderedPDFV1 {
+    func validatedForFrozenSurveyPublication(
+        _ projection: SurveyPublicationReportProjectionV1
+    ) throws -> RenderedPDFV1 {
+        try projection.validate()
+        guard KernelCanonicalHashV1.sha256(data) == sha256 else {
+            throw WorklightPDFRendererErrorV1.invalidValidatedSnapshot
+        }
+        return self
+    }
+}
+
 enum WorklightPDFRendererErrorV1: Error, Equatable {
     case invalidValidatedSnapshot
     case invalidImage

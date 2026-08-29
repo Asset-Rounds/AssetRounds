@@ -2346,3 +2346,265 @@ enum SurveyDefinitionSearchProjectionPolicyV1 {
         }
     }
 }
+
+// MARK: - C26 guided-survey session search projection
+
+/// C26 search rows are disposable metadata derived from validated session
+/// snapshots.  They deliberately omit fact values, prompts, provisional
+/// labels, actor snapshots, evidence references, and publication payloads.
+enum SurveySessionSearchFieldV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case sessionID = "survey_session_id"
+    case definitionID = "survey_definition_id"
+    case definitionReleaseID = "survey_definition_release_id"
+    case lifecycleState = "survey_lifecycle_state"
+    case sessionRevision = "survey_session_revision"
+    case factState = "survey_fact_state"
+    case subjectState = "survey_subject_state"
+    case publicationState = "survey_publication_state"
+    case publicationRevision = "survey_publication_revision"
+}
+
+struct SurveySessionSearchRecordV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let maximumSearchTokens = SearchContractLimitsV1.maximumQueryTokens
+
+    let schemaVersion: Int
+    let workspaceID: UUID
+    let sessionID: UUID
+    let definitionID: UUID
+    let definitionReleaseID: UUID
+    let lifecycleState: SurveySessionStateV1
+    let sessionRevision: UInt64
+    let factState: SurveySessionFactLocalizationStateV1
+    let factCount: Int
+    let subjectState: SurveySessionSubjectLocalizationStateV1
+    let publicationState: SurveySessionPublicationLocalizationStateV1
+    let publicationRevision: UInt64?
+    let normalizedTokens: [String]
+
+    init(
+        session: SurveySessionV1,
+        publication: SurveyPublicationSnapshotV1? = nil,
+        provisionalSubject: ProvisionalSubjectV1? = nil,
+        factState: SurveySessionFactLocalizationStateV1? = nil,
+        publicationState: SurveySessionPublicationLocalizationStateV1? = nil
+    ) throws {
+        try session.validateIntrinsic()
+        if let publication {
+            guard publication.workspaceID == session.workspaceID,
+                  publication.sessionID == session.sessionID,
+                  publication.snapshotID != SearchContractValidationV1.zeroUUID,
+                  publication.revision > 0 else {
+                throw SearchContractFailureV1.invalidSession
+            }
+            try publication.reference.validate()
+        }
+        if let publicationState {
+            guard (publication == nil) == (publicationState != .immutable) else {
+                throw SearchContractFailureV1.invalidSession
+            }
+        }
+        if let provisionalSubject {
+            try provisionalSubject.validate()
+            guard provisionalSubject.workspaceID == session.workspaceID else {
+                throw SearchContractFailureV1.scopeMismatch
+            }
+            guard case let .provisional(reference) = session.subject,
+                  reference.provisionalSubjectID == provisionalSubject.provisionalSubjectID,
+                  reference.revision == provisionalSubject.revision,
+                  reference.subjectSHA256 == provisionalSubject.subjectSHA256 else {
+                throw SearchContractFailureV1.invalidSession
+            }
+        }
+        let projectedFactCount = publication?.facts.count ?? 0
+        if let factState {
+            guard (projectedFactCount == 0) == (factState != .recorded) else {
+                throw SearchContractFailureV1.invalidField
+            }
+        }
+
+        schemaVersion = Self.schemaVersion
+        workspaceID = session.workspaceID.rawValue
+        sessionID = session.sessionID
+        definitionID = session.authority.definitionRelease.definitionID
+        definitionReleaseID = session.authority.definitionRelease.releaseID
+        lifecycleState = session.state
+        sessionRevision = session.revision
+        subjectState = Self.subjectState(
+            for: session.subject,
+            provisionalSubject: provisionalSubject
+        )
+        factCount = projectedFactCount
+        let resolvedFactState = factState ?? (factCount == 0 ? .notRecorded : .recorded)
+        self.factState = resolvedFactState
+        self.publicationRevision = publication?.revision ?? session.latestPublication?.revision
+        let resolvedPublicationState = publicationState ?? Self.publicationState(
+            publication: publication,
+            latestPublication: session.latestPublication
+        )
+        self.publicationState = resolvedPublicationState
+        normalizedTokens = Self.tokens(
+            sessionID: sessionID,
+            definitionID: definitionID,
+            definitionReleaseID: definitionReleaseID,
+            lifecycleState: lifecycleState,
+            sessionRevision: sessionRevision,
+            factState: resolvedFactState,
+            subjectState: subjectState,
+            publicationState: resolvedPublicationState,
+            publicationRevision: self.publicationRevision
+        )
+        try validate()
+    }
+
+    var projectionIdentity: String {
+        let publication = publicationRevision.map(String.init) ?? "none"
+        return "survey-session:\(sessionID.uuidString.lowercased()):publication:\(publication)"
+    }
+
+    var boundedFieldValues: [SurveySessionSearchFieldV1: String] {
+        [
+            .sessionID: sessionID.uuidString.lowercased(),
+            .definitionID: definitionID.uuidString.lowercased(),
+            .definitionReleaseID: definitionReleaseID.uuidString.lowercased(),
+            .lifecycleState: lifecycleState.rawValue,
+            .sessionRevision: String(sessionRevision),
+            .factState: factState.rawValue,
+            .subjectState: subjectState.rawValue,
+            .publicationState: publicationState.rawValue,
+            .publicationRevision: publicationRevision.map(String.init) ?? "0",
+        ]
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              workspaceID != SearchContractValidationV1.zeroUUID,
+              sessionID != SearchContractValidationV1.zeroUUID,
+              definitionID != SearchContractValidationV1.zeroUUID,
+              definitionReleaseID != SearchContractValidationV1.zeroUUID,
+              sessionRevision > 0,
+              factCount >= 0,
+              factCount <= SurveyDefinitionLimitsV1.maximumFacts,
+              normalizedTokens.count <= Self.maximumSearchTokens,
+              normalizedTokens == normalizedTokens.sorted(),
+              SearchContractValidationV1.normalizedTokensAreCanonical(normalizedTokens),
+              boundedFieldValues.count == SurveySessionSearchFieldV1.allCases.count else {
+            throw SearchContractFailureV1.invalidSession
+        }
+        switch publicationState {
+        case .notPublished, .interrupted:
+            guard publicationRevision == nil else { throw SearchContractFailureV1.invalidSession }
+        case .recorded, .immutable:
+            guard let publicationRevision, publicationRevision > 0 else {
+                throw SearchContractFailureV1.invalidSession
+            }
+        }
+        if factState == .recorded {
+            guard factCount > 0 else { throw SearchContractFailureV1.invalidField }
+        }
+        guard boundedFieldValues.values.allSatisfy({ value in
+            let tokens = SearchContractValidationV1.normalizeSearchText(value)
+                .unicodeScalars
+                .split { !CharacterSet.alphanumerics.contains($0) }
+                .map(String.init)
+            return !tokens.isEmpty
+                && tokens.allSatisfy(SearchContractValidationV1.isCanonicalSearchToken)
+        }) else {
+            throw SearchContractFailureV1.invalidField
+        }
+    }
+
+    private static func subjectState(
+        for subject: SurveySessionSubjectV1,
+        provisionalSubject: ProvisionalSubjectV1?
+    ) -> SurveySessionSubjectLocalizationStateV1 {
+        switch subject {
+        case .canonical:
+            return .canonical
+        case .provisional:
+            guard let provisionalSubject else { return .provisional }
+            switch provisionalSubject.state {
+            case .active: return .provisional
+            case .promoted: return .promoted
+            case .reconciledAlias: return .reconciledAlias
+            case .promotionReversed: return .promotionReversed
+            case .archived: return .archived
+            }
+        }
+    }
+
+    private static func publicationState(
+        publication: SurveyPublicationSnapshotV1?,
+        latestPublication: SurveyPublicationReferenceV1?
+    ) -> SurveySessionPublicationLocalizationStateV1 {
+        if publication != nil { return .immutable }
+        return latestPublication == nil ? .notPublished : .recorded
+    }
+
+    private static func tokens(
+        sessionID: UUID,
+        definitionID: UUID,
+        definitionReleaseID: UUID,
+        lifecycleState: SurveySessionStateV1,
+        sessionRevision: UInt64,
+        factState: SurveySessionFactLocalizationStateV1,
+        subjectState: SurveySessionSubjectLocalizationStateV1,
+        publicationState: SurveySessionPublicationLocalizationStateV1,
+        publicationRevision: UInt64?
+    ) -> [String] {
+        let values = [
+            sessionID.uuidString,
+            definitionID.uuidString,
+            definitionReleaseID.uuidString,
+            lifecycleState.rawValue,
+            String(sessionRevision),
+            factState.rawValue,
+            subjectState.rawValue,
+            publicationState.rawValue,
+            String(publicationRevision ?? 0),
+        ]
+        let tokens = values.flatMap { value in
+            SearchContractValidationV1.normalizeSearchText(value)
+                .split { !CharacterSet.alphanumerics.contains($0) }
+                .map(String.init)
+        }
+        return Array(Set(tokens)).sorted()
+    }
+}
+
+enum SurveySessionSearchProjectionPolicyV1 {
+    static let sourceKind = "SURVEY_SESSION"
+    static let semanticLabel = "SURVEY_SESSION_METADATA_V1"
+    static let fieldIDs = SurveySessionSearchFieldV1.allCases.map(\.rawValue).sorted()
+    static let metadataOnly = true
+    static let derivedOnly = true
+    static let dropAndRebuildAfterRestore = true
+    static let dropAndRebuildOnReplay = true
+    static let dropAndRebuildAfterDelete = true
+    static let excludesFactValues = true
+    static let excludesPromptText = true
+    static let excludesProvisionalSubjectLabels = true
+    static let excludesActorIdentity = true
+    static let excludesEvidenceReferences = true
+    static let excludesEvidenceBytes = true
+    static let excludesPrivateLocators = true
+    static let excludesCustomerAndWorkData = true
+    static let excludesUnsupportedClaims = true
+
+    static func accepts(_ field: SurveySessionSearchFieldV1) -> Bool {
+        fieldIDs.contains(field.rawValue)
+    }
+
+    static func validate(_ record: SurveySessionSearchRecordV1) throws {
+        try record.validate()
+        guard metadataOnly, derivedOnly, dropAndRebuildAfterRestore,
+              dropAndRebuildOnReplay, dropAndRebuildAfterDelete,
+              excludesFactValues, excludesPromptText,
+              excludesProvisionalSubjectLabels, excludesActorIdentity,
+              excludesEvidenceReferences, excludesEvidenceBytes,
+              excludesPrivateLocators, excludesCustomerAndWorkData,
+              excludesUnsupportedClaims else {
+            throw SearchContractFailureV1.forbiddenField
+        }
+    }
+}

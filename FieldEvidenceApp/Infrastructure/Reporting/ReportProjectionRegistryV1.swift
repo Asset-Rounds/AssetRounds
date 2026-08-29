@@ -1,5 +1,13 @@
 import Foundation
 
+enum GuidedSurveyReportProjectionRegistryV1 {
+    static func projection(
+        publication: SurveyPublicationSnapshotV1
+    ) throws -> SurveyPublicationReportProjectionV1 {
+        try SurveyPublicationReportProjectionV1(publication: publication)
+    }
+}
+
 enum IntegrationProjectionReportExclusionV1 {
     static func validate() throws {
         let coverage = IntegrationEventJournalCoverageV1()

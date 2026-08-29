@@ -230,3 +230,48 @@ actor SurveyDefinitionCoordinatorV1 {
         return receipt
     }
 }
+
+// MARK: - C26 guided-survey session authority
+
+extension SurveyDefinitionCoordinatorV1 {
+    /// Builds the immutable authority captured when a survey session starts.
+    /// Existing sessions retain this value; publishing a later definition or
+    /// package release never silently upgrades in-flight work.
+    func sessionAuthority(
+        identity: SurveyDefinitionIdentityV1,
+        release: SurveyDefinitionReleaseV1,
+        lifecycleEvent: SurveyDefinitionLifecycleEventV1,
+        packageRelease: InspectionPackageReleaseV1,
+        pinnedRevisions: [SurveyPinnedRevisionReferenceV1]
+    ) throws -> SurveySessionAuthorityV1 {
+        try identity.validate(currentRelease: release, event: lifecycleEvent)
+        guard identity.lifecycleState == .published,
+              release.activityKind == .survey,
+              identity.currentRelease == (try SurveyDefinitionReleaseReferenceV1(release)) else {
+            throw SurveySessionFailureV1.wrongDefinition
+        }
+        return try SurveySessionAuthorityV1(
+            definition: release,
+            packageRelease: packageRelease,
+            pinnedRevisions: pinnedRevisions
+        )
+    }
+
+    /// Read-back validation is exact-release only. Callers must create an
+    /// explicit successor session to adopt a newer definition release.
+    func validatePinnedSession(
+        _ session: SurveySessionV1,
+        definition: SurveyDefinitionReleaseV1,
+        packageRelease: InspectionPackageReleaseV1
+    ) throws {
+        try session.validate(definition: definition)
+        try session.authority.validate(
+            definition: definition,
+            packageRelease: packageRelease
+        )
+        guard session.authority.definitionRelease
+                == (try SurveyDefinitionReleaseReferenceV1(definition)) else {
+            throw SurveySessionFailureV1.wrongDefinition
+        }
+    }
+}

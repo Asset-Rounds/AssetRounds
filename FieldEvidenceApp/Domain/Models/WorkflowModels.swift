@@ -14,6 +14,14 @@ final class DeletionLedgerRow {
     }
 }
 
+enum SurveySessionPersistenceBoundaryV1 {
+    static let durableFamilies=C26SurveyPackageBindingLifecycleV1.persistentFamilies
+    static let publicationStorage="IMMUTABLE"
+    static let conflictPolicy="EXPLICIT_RESOLUTION_NO_LAST_WRITE_WINS"
+    static let previewPersistence="NONPERSISTENT"
+    static func validate()throws{try C26SurveyPackageBindingLifecycleV1.validate();guard durableFamilies.count==5,publicationStorage=="IMMUTABLE",previewPersistence=="NONPERSISTENT"else{throw SurveySessionFailureV1.invalidValue}}
+}
+
 enum SurveyDefinitionPersistenceBoundaryV1 {
     static let durableFamilies = ["SurveyDefinitionIdentityV1", "SurveyDefinitionReleaseV1"]
     static let lifecycleEventStorage = "MUTATION_JOURNAL"

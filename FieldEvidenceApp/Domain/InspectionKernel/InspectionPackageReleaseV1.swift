@@ -8,6 +8,10 @@ enum InspectionPackageReleaseStateV1: String, CaseIterable, Codable, Sendable {
 }
 
 extension InspectionPackageReleaseV1 {
+    func validateSurveySessionAuthority(_ authority:SurveySessionAuthorityV1,definition:SurveyDefinitionReleaseV1)throws{try authority.validate(definition:definition,packageRelease:self);guard state == .published,definition.activityKind == .survey,authority.packageRelease.packageReleaseID == packageReleaseID,authority.packageRelease.packageSHA256 == packageSHA256,authority.packageRelease.workflowSHA256 == workflowSHA256 else{throw SurveySessionFailureV1.wrongDefinition}}
+}
+
+extension InspectionPackageReleaseV1 {
     func validateSurveyDefinitionRelease(_ survey: SurveyDefinitionReleaseV1) throws {
         try validate(); try survey.validate()
         guard survey.ownerPackageID == packageID else { throw InspectionKernelFailureV1.invalidValue }

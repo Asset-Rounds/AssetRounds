@@ -18,6 +18,29 @@ extension PackageEvolutionCoordinatorV1 {
     }
 }
 
+// MARK: - C26 active-session package pinning
+
+extension PackageEvolutionCoordinatorV1 {
+    /// Package promotion may coexist with older in-flight survey sessions, but
+    /// it cannot rewrite their captured definition/package authority.
+    static func validateSurveySessionPin(
+        _ session: SurveySessionV1,
+        definition: SurveyDefinitionReleaseV1,
+        packageRelease: InspectionPackageReleaseV1
+    ) throws {
+        try session.validate(definition: definition)
+        try session.authority.validate(
+            definition: definition,
+            packageRelease: packageRelease
+        )
+        guard session.activityKind == .survey,
+              session.authority.packageRelease == (try SurveyPackageReleaseReferenceV1(packageRelease)),
+              packageRelease.packageID == definition.ownerPackageID else {
+            throw SurveySessionFailureV1.wrongDefinition
+        }
+    }
+}
+
 /// Typed C36 payload codec bridge. The package release is read from the
 /// purpose-owned payload schema; C18 never interprets generic JSON/EAV bytes.
 protocol DraftPackageReleaseInspectingV1: Sendable {

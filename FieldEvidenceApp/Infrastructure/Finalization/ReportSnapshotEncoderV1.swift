@@ -469,6 +469,14 @@ struct ReportSnapshotEncoderV1: Sendable {
                 return false
             }
         }
+        if let surveyPublication = snapshot.surveyPublication {
+            guard (try? surveyPublication.validate()) != nil,
+                  surveyPublication.sessionRevision <= UInt64(Int.max),
+                  surveyPublication.publicationRevision <= UInt64(Int.max),
+                  surveyPublication.definitionRevision <= UInt64(Int.max) else {
+                return false
+            }
+        }
 
         guard validObservationAndTime(
             basis: snapshot.observationBasis,
@@ -613,7 +621,53 @@ extension CanonicalJSONV1 {
         if let clientCapability = value.clientCapability {
             object["clientCapability"] = Self.clientCapability(clientCapability)
         }
+        if let surveyPublication = value.surveyPublication {
+            object["surveyPublication"] = Self.surveyPublication(surveyPublication)
+        }
         return .object(object)
+    }
+
+    private static func surveyPublication(
+        _ value: SurveyPublicationReportProjectionV1
+    ) -> CanonicalJSONValueV1 {
+        let subject: CanonicalJSONValueV1
+        switch value.subjectAtPublication {
+        case .canonical(let reference):
+            subject = .object([
+                "kind": .string("CANONICAL"),
+                "subjectID": uuid(reference.subjectID),
+                "subjectKind": .string(reference.kind.rawValue),
+                "subjectRevision": .integer(Int(reference.revision)),
+                "ownerAssetID": reference.ownerAssetID.map(uuid) ?? .null,
+            ])
+        case .provisional(let reference):
+            subject = .object([
+                "kind": .string("PROVISIONAL"),
+                "subjectID": uuid(reference.provisionalSubjectID),
+                "subjectRevision": .integer(Int(reference.revision)),
+                "subjectSHA256": .string(reference.subjectSHA256),
+            ])
+        }
+        return .object([
+            "projectionVersion": .string(value.projectionVersion),
+            "snapshotID": uuid(value.snapshotID),
+            "workspaceID": uuid(value.workspaceID.rawValue),
+            "sessionID": uuid(value.sessionID),
+            "sessionRevision": .integer(Int(value.sessionRevision)),
+            "publicationRevision": .integer(Int(value.publicationRevision)),
+            "publicationSHA256": .string(value.publicationSHA256),
+            "definitionReleaseID": uuid(value.definitionReleaseID),
+            "definitionRevision": .integer(Int(value.definitionRevision)),
+            "definitionSHA256": .string(value.definitionSHA256),
+            "packageReleaseID": .string(value.packageReleaseID),
+            "packageID": .string(value.packageID),
+            "packageContentVersion": .integer(value.packageContentVersion),
+            "packageSHA256": .string(value.packageSHA256),
+            "workflowSHA256": .string(value.workflowSHA256),
+            "subjectAtPublication": subject,
+            "factCount": .integer(value.factCount),
+            "evidenceCount": .integer(value.evidenceCount),
+        ])
     }
 
     /// C20 exposes only the approved derivative's bounded binding. In

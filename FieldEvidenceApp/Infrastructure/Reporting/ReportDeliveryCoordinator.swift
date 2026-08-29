@@ -4,6 +4,13 @@ import Foundation
 import PDFKit
 import SwiftData
 
+enum GuidedSurveyReportDeliveryBoundaryV1 {
+    static func validate(_ snapshot: ReportSnapshotV1) throws {
+        try snapshot.surveyPublication?.validate()
+    }
+    static let surveyPassFailClaimPermitted = false
+}
+
 extension Notification.Name {
     static let reportPDFBecameUnavailable = Notification.Name(
         "FieldEvidence.reportPDFBecameUnavailable"

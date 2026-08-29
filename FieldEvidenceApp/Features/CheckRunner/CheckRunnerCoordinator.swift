@@ -20,6 +20,11 @@ final class CheckRunnerCoordinatorFailureInjection {
     }
 }
 
+extension CheckRunnerCoordinator {
+    func validateSurveyResume(_ context:CheckRunnerSurveySessionContextV1)throws{try context.validate();guard [.draft,.paused,.reviewRequired,.amended].contains(context.session.state)else{throw CheckRunnerCoordinatorError.workPacketStaleRevision}}
+    func validateSurveyPublication(_ publication:SurveyPublicationSnapshotV1,context:CheckRunnerSurveySessionContextV1)throws{try context.validate();try publication.validate(session:context.session,definition:context.definition,captures:context.captures)}
+}
+
 @MainActor
 final class CheckRunnerCoordinator {
     private enum MutationRoute {

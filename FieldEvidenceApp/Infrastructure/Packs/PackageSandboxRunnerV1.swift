@@ -19,6 +19,34 @@ extension PackageSandboxRunnerV1 {
     }
 }
 
+// MARK: - C26 survey-session sandbox boundary
+
+extension PackageSandboxRunnerV1 {
+    static let surveySessionSandboxIsReadOnly = true
+    static let surveySessionSandboxDoesNotInferPassFail = true
+
+    static func validateSurveySessionFixture(
+        session: SurveySessionV1,
+        definition: SurveyDefinitionReleaseV1,
+        packageRelease: InspectionPackageReleaseV1,
+        captures: [FactCaptureV1]
+    ) throws {
+        guard surveySessionSandboxIsReadOnly,
+              surveySessionSandboxDoesNotInferPassFail,
+              session.activityKind == .survey else {
+            throw SurveySessionFailureV1.passFailClaimForbidden
+        }
+        try session.validate(definition: definition)
+        try session.authority.validate(
+            definition: definition,
+            packageRelease: packageRelease
+        )
+        try captures.forEach {
+            try $0.validate(session: session, definition: definition)
+        }
+    }
+}
+
 extension PackageSandboxRunnerV1 {
     func run(
         runID: UUID,

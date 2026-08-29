@@ -15,6 +15,10 @@ struct ResponseCardinalityV1: Codable, Equatable, Sendable {
     }
 }
 
+enum C26SurveyResponseFieldBridgeV1 {
+    static func validate(field:ResponseFieldDefinitionV1,fact:FactDefinitionV1)throws{try fact.validate();guard field.fieldID==fact.factID else{throw SurveySessionFailureV1.wrongDefinition}}
+}
+
 extension ResponseFieldDefinitionV1 {
     func validateSurveyFact(_ fact: FactDefinitionV1) throws {
         try fact.validate(); try validate()

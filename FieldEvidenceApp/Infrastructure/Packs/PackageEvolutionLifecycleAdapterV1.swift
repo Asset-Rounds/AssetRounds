@@ -130,6 +130,29 @@ extension PackageEvolutionLifecycleAdapterV1 {
     }
 }
 
+// MARK: - C26 session lifecycle isolation
+
+extension PackageEvolutionLifecycleAdapterV1 {
+    static let surveySessionsRetainPinnedPackageRelease = true
+    static let packagePromotionNeverRewritesSurveyHistory = true
+
+    static func validateSurveySessionLifecycle(
+        _ session: SurveySessionV1,
+        definition: SurveyDefinitionReleaseV1,
+        packageRelease: InspectionPackageReleaseV1
+    ) throws {
+        guard surveySessionsRetainPinnedPackageRelease,
+              packagePromotionNeverRewritesSurveyHistory else {
+            throw SurveySessionFailureV1.invalidTransition
+        }
+        try PackageEvolutionCoordinatorV1.validateSurveySessionPin(
+            session,
+            definition: definition,
+            packageRelease: packageRelease
+        )
+    }
+}
+
 // MARK: - C25 survey-definition lifecycle adapter
 
 struct SurveyDefinitionPackageLifecycleMetadataV1: Codable, Equatable, Sendable {

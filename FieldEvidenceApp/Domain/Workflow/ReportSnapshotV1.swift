@@ -77,6 +77,11 @@ struct ReportSnapshotV1: Codable, Equatable, Sendable {
     /// into a report snapshot.
     var fieldReferences: [FieldReferenceReportProjectionV1]? = nil
 
+    /// Optional C26 frozen guided-survey publication. Later promotion or
+    /// correction produces another publication/report; it never rewrites this
+    /// subject-at-publication or introduces pass/fail meaning.
+    var surveyPublication: SurveyPublicationReportProjectionV1? = nil
+
     var audienceSafeDerivativeProjection: PrivacyTransformReportProjectionV1? {
         privacyTransform
     }

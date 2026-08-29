@@ -1,6 +1,8 @@
 import Darwin
 import Foundation
 
+enum SurveySessionEraseIntentEnrollmentV1{static let schemaVersion=25;static let removesAllFiveFamilies=true;static func validate()throws{guard schemaVersion==25,removesAllFiveFamilies else{throw EraseIntentStoreError.invalidAuthority};try SurveySessionDeletionLedgerPolicyV1.validate()}}
+
 enum FunctionalRelationshipEraseIntentStorePolicyV1 {
     static func validate() throws {
         guard FunctionalRelationshipEraseBoundaryV1.validate() else {
@@ -362,6 +364,7 @@ final class EraseIntentStore {
         try FieldReferenceEraseIntentStorePolicyV1.validate()
         try AccessibleDocumentEraseIntentStorePolicyV1.validate()
         try SurveyDefinitionEraseIntentStorePolicyV1.validate()
+        try SurveySessionEraseIntentEnrollmentV1.validate()
         let root = applicationSupportURL.standardizedFileURL
         guard root.isFileURL else { throw EraseIntentStoreError.invalidAuthority }
         if expectedApplicationSupportIdentity == nil {

@@ -1,0 +1,359 @@
+{
+  "artifact": "V23P03C26SurveySessionContractV1",
+  "artifactDigest": "1558ae81cd1b9c57abed7003b443fa112663267e9a409079897784af0593d143",
+  "authority": {
+    "allowedPathCount": 137,
+    "appBaseHead": "885cb7478fef5a5ee66041bcccc6e85bda8b5745",
+    "appBaseTree": "288762ba89bb198f492562b993e4ee401d5d4e47",
+    "attemptID": 1,
+    "cardID": "V23-P03-C26",
+    "contextDigest": "94711c712cecbf4639124e11f12d3ce43faaf2a3e7ea1133ad2d7924a64b3d09",
+    "coordinationCASSequence": 268,
+    "coordinationHead": "55db2fac6ae88856a07a909184874b7949289aba",
+    "coordinationLedgerDigest": "ab5b61377dd908ae25f2c5d9203fc09b697dde8e46e234e15bd1cdf7549eaf14",
+    "coordinationOriginMainHead": "55db2fac6ae88856a07a909184874b7949289aba",
+    "coordinationProjectionDigest": "b629617ff17f03710ed6b96af601ef9fa553cbc24103ffb700359c012f26e9f5",
+    "coordinationTree": "e36979bd9a93f8ea5ed0dfc9c0801f867593db51",
+    "digestPinsPending": false,
+    "directPrerequisiteCards": [
+      "V23-P03-C25"
+    ],
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "existingPathCount": 123,
+    "fenceDigest": "e4262e0f0631682dfb1196e769dda7aeab644004d35487ed7a7b3b4d99a8bf7e",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationRevision": 1,
+    "hydrationTransitionDigest": "6178ba30a0e48586c4c36a5cafca69c5441a270f9469369ab08ba6e52bbddc0d",
+    "hydrationTransitionSequence": 268,
+    "inheritedV21BlockSHA256": "e131548caa72172cf2c6bce51cf60a95832ab0c6f302c9560098a4185e984187",
+    "inheritedV21BlockUTF8Length": 5413,
+    "newPathCount": 14,
+    "nextCard": "V23-P03-C27",
+    "pathFenceDigest": "e4262e0f0631682dfb1196e769dda7aeab644004d35487ed7a7b3b4d99a8bf7e",
+    "provisionalPrerequisiteDigest": "f74bafdc7120fd76e26bd2543851d2ae1981c658c655afc3638bade94c82d7c0",
+    "registerOrdinal": 63,
+    "sourceDossierSHA256": "47f14dc1c6863ffbf56a9315f93d27937ff4caf21ecbfaedbfa8d78072a9e21d",
+    "sourceDossierUTF8Length": 7129
+  },
+  "cardID": "V23-P03-C26",
+  "directPrerequisiteEvidence": {
+    "acceptanceCredit": false,
+    "canonicalRelationPreserved": true,
+    "disposition": "PROVISIONALLY_SATISFIED_FOR_ORDERED_IMPLEMENTATION_AND_STATIC_TEST_ONLY",
+    "nativeCompileRan": false,
+    "nonreleaseSpecialEdgeApplied": false,
+    "ordinaryDirectEdgeCount": 1,
+    "physicalLockedState": "REQUIRED_PENDING_OWNER",
+    "predecessors": [
+      {
+        "attemptID": 1,
+        "candidateHead": "885cb7478fef5a5ee66041bcccc6e85bda8b5745",
+        "candidateTree": "288762ba89bb198f492562b993e4ee401d5d4e47",
+        "cardID": "V23-P03-C25",
+        "checkpointDigest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "contextDigest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "disposition": "CHECKPOINTED_PROVISIONAL_CANONICAL_DIRECT_PREREQUISITE_AT_EXACT_C25_HEAD",
+        "pathFenceDigest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "verificationReceiptDigest": "0000000000000000000000000000000000000000000000000000000000000000"
+      }
+    ],
+    "prerequisiteDigest": "f74bafdc7120fd76e26bd2543851d2ae1981c658c655afc3638bade94c82d7c0",
+    "releaseCredit": false,
+    "schema": "ProvisionalExecutionPrerequisiteSetReceiptV1",
+    "schemaVersion": 1,
+    "successorAttemptID": 1,
+    "successorCardID": "V23-P03-C26"
+  },
+  "evidenceIDs": [
+    "V23-P03-C26-G01",
+    "V23-P03-C26-A01",
+    "V23-P03-C26-H01",
+    "V23-P03-C26-I01",
+    "V23-P03-C26-R01"
+  ],
+  "persistenceBoundary": {
+    "backupRestoreRequired": true,
+    "canonicalSourceOfTruth": [
+      "SurveySessionV1",
+      "FactCaptureV1",
+      "ProvisionalSubjectV1",
+      "SubjectPromotionReceiptV1",
+      "SurveyPublicationSnapshotV1"
+    ],
+    "canonicalWriter": "V23-P02-C01",
+    "cloneForkRequired": true,
+    "currentProjectionRowCount": 0,
+    "deleteEraseRequired": true,
+    "downgrade": "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_FIRST_V25_WRITE",
+    "durableFamilyCount": 5,
+    "exportReportRequired": true,
+    "forwardFix": "DROP_DERIVED_PREVIEWS_REBUILD_FROM_IMMUTABLE_FACTS_APPEND_SUCCESSOR_NEVER_REWRITE_HISTORY",
+    "interruptionRecoveryRequired": true,
+    "migrationRequired": true,
+    "mode": "NEW_SCHEMA_VERSION",
+    "nonPersistentFamilies": [
+      "SurveySemanticTreeV1",
+      "SurveyImportPreviewV1",
+      "SurveyDraftScratchV1"
+    ],
+    "persistedFamilies": [
+      "SurveySessionV1",
+      "FactCaptureV1",
+      "ProvisionalSubjectV1",
+      "SubjectPromotionReceiptV1",
+      "SurveyPublicationSnapshotV1"
+    ],
+    "persistentKindLifecycleModelCount": 92,
+    "persistentSchemaVersion": 25,
+    "providerRows": 0,
+    "recordsSchemaVersion": 24,
+    "replayRequired": true,
+    "schemaRelease": "SURVEY_SESSION_V1",
+    "searchRebuildRequired": true,
+    "secondStore": false,
+    "secondWriter": false
+  },
+  "priorFenceProof": {
+    "authorizedOverlapCount": 1466,
+    "edgeMaterialization": "COORDINATION_RECEIPT_BOUND_AT_HYDRATION",
+    "overlapCount": 1466,
+    "unauthorizedOverlapCount": 0
+  },
+  "requiredSemantics": {
+    "automaticCompliance": false,
+    "availabilityStates": [
+      "AVAILABLE",
+      "MISSING",
+      "STALE",
+      "QUARANTINED",
+      "INCOMPATIBLE"
+    ],
+    "contractNames": [
+      "SurveySessionV1",
+      "FactCaptureV1",
+      "ProvisionalSubjectV1",
+      "SubjectPromotionReceiptV1",
+      "SurveyPublicationSnapshotV1"
+    ],
+    "derivedSemanticTree": true,
+    "durableFamilyCount": 5,
+    "effectBeforeReceipt": true,
+    "explicitPromotionAndReversal": true,
+    "factActions": [
+      "RECORD",
+      "CORRECT",
+      "RETRACT",
+      "RESOLVE_CONFLICT"
+    ],
+    "fiveSelectors": [
+      "testV23P03C26G01GoldenSurveySessionCreatePauseResumeReviewPublishLifecycle",
+      "testV23P03C26A01ConcurrentFactConflictHasNoLastWriteWins",
+      "testV23P03C26H01HostileSessionDefinitionWorkspaceDigestAndClaimInputsFailClosed",
+      "testV23P03C26I01PublicationAndPersistenceInterruptionIsOldOrNew",
+      "testV23P03C26R01RecoveryPreservesImmutableSnapshotAndPromotionAliasHistory"
+    ],
+    "forbiddenClaims": [
+      "AUTOMATIC_ASSET_CREATION_OR_OCR",
+      "AUTOMATIC_SUBJECT_MERGE",
+      "SURVEY_AS_INSPECTION_PASS_FAIL_OR_COMPLIANCE",
+      "LAST_WRITE_WINS_FACT_MERGING",
+      "RUNTIME_CODE_OR_GENERIC_EAV",
+      "SECOND_WRITER_OR_SECOND_STORE",
+      "NETWORK_CLOUD_ACCOUNT_PROVIDER_OR_REMOTE_IDENTITY",
+      "LICENSED_BYTES_OR_EXTERNAL_DURABILITY",
+      "LEGAL_DIAGNOSIS_OR_NONREPUDIATION",
+      "NATIVE_HOSTED_ADOPTION_ACCEPTANCE_OR_RELEASE",
+      "PHASE10_OR_UI_SURFACE"
+    ],
+    "genericMutationReceiptKind": "MutationReceiptV1",
+    "idempotentRetry": true,
+    "immutableDefinitionAndPackageBinding": true,
+    "immutablePublication": true,
+    "interruptionPoints": [
+      "BEFORE_SESSION_ROW",
+      "AFTER_SESSION_BEFORE_TRANSITION_RECEIPT",
+      "AFTER_FACT_BEFORE_RECEIPT",
+      "AFTER_PUBLICATION_BEFORE_RECEIPT",
+      "AFTER_PROMOTION_BEFORE_RECEIPT",
+      "RESTORE_BEFORE_RENAME",
+      "SEARCH_AFTER_DROP_BEFORE_REBUILD",
+      "ERASE_AFTER_MARKER_BEFORE_CLEANUP",
+      "REPLAY_AFTER_EFFECT_BEFORE_CHECKPOINT"
+    ],
+    "lifecycleEventStorage": "EXISTING_MUTATION_ENVELOPE_AND_JOURNAL",
+    "liveWorkspaceMutation": false,
+    "nonPersistentFamilies": [
+      "SurveySemanticTreeV1",
+      "SurveyImportPreviewV1",
+      "SurveyDraftScratchV1"
+    ],
+    "packageReleaseReferenceAdmission": "PUBLISHED_ONLY_EXACT_RELEASE_ID_PACKAGE_ID_CONTENT_VERSION_AND_PACKAGE_WORKFLOW_SHA256",
+    "packageReleaseReferenceContainsRawBytes": false,
+    "packageReleaseReferenceFieldTypes": {
+      "packageContentVersion": "Int",
+      "packageID": "String",
+      "packageReleaseID": "String",
+      "packageSHA256": "String",
+      "releaseState": "InspectionPackageReleaseStateV1",
+      "workflowSHA256": "String"
+    },
+    "packageReleaseReferenceFields": [
+      "packageReleaseID",
+      "packageID",
+      "packageContentVersion",
+      "packageSHA256",
+      "workflowSHA256",
+      "releaseState"
+    ],
+    "packageReleaseReferenceType": "SurveyPackageReleaseReferenceV1",
+    "persistentFamilies": [
+      "SurveySessionV1",
+      "FactCaptureV1",
+      "ProvisionalSubjectV1",
+      "SubjectPromotionReceiptV1",
+      "SurveyPublicationSnapshotV1"
+    ],
+    "persistentKindLifecycleModelCount": 92,
+    "persistentSchemaVersion": 25,
+    "promotionActions": [
+      "PROMOTE_TO_ASSET",
+      "RECONCILE_AS_ALIAS",
+      "REVERSE"
+    ],
+    "recordsSchemaVersion": 24,
+    "remoteIdentity": false,
+    "runtimeFetching": false,
+    "sessionStates": [
+      "DRAFT",
+      "PAUSED",
+      "REVIEW_REQUIRED",
+      "COMPLETED",
+      "AMENDED",
+      "SUPERSEDED",
+      "ARCHIVED",
+      "DELETED"
+    ],
+    "sessionTransitions": [
+      "CREATE",
+      "PAUSE",
+      "RESUME",
+      "SUBMIT_FOR_REVIEW",
+      "RETURN_FOR_AMENDMENT",
+      "COMPLETE",
+      "REOPEN_AMENDMENT",
+      "SUPERSEDE",
+      "ARCHIVE",
+      "DELETE"
+    ],
+    "sourceBytesInProjections": false,
+    "subjectStates": [
+      "ACTIVE",
+      "PROMOTED",
+      "RECONCILED_ALIAS",
+      "PROMOTION_REVERSED",
+      "ARCHIVED"
+    ],
+    "typedFactsOnly": true,
+    "unknownAndNotObservedAllowed": true
+  },
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schemaArtifact": {
+    "bytes": 4601,
+    "path": "Scripts/v23/survey-session.schema.json",
+    "sha256": "95a39be47ed98f5912556c984114c4506161a389c7313b526efc44ad0b0faa4a"
+  },
+  "schemaVersion": 1,
+  "semanticScope": {
+    "activationPolicy": "PASS_STATIC_PROVISIONAL_PRE_S10_6",
+    "activityKind": "SURVEY_ONLY_NO_INSPECTION_PASS_FAIL_RELABELLING",
+    "atomicAuthorityPolicy": "SOLE_WORKSPACE_WRITER_EFFECT_BEFORE_GENERIC_DURABLE_RECEIPT_EXACT_REVISION_AND_MUTATION_ID",
+    "durableFamilies": [
+      "SurveySessionV1",
+      "FactCaptureV1",
+      "ProvisionalSubjectV1",
+      "SubjectPromotionReceiptV1",
+      "SurveyPublicationSnapshotV1"
+    ],
+    "durableOwner": [
+      "SurveySessionV1",
+      "FactCaptureV1",
+      "ProvisionalSubjectV1",
+      "SubjectPromotionReceiptV1",
+      "SurveyPublicationSnapshotV1"
+    ],
+    "forbiddenPolicy": "NO_OCR_ASSET_CREATION_NO_REMOTE_FETCH_NO_RUNTIME_CODE_NO_GENERIC_EAV_NO_SECOND_STORE_OR_WRITER_NO_LEGAL_OR_COMPLIANCE_INFERENCE",
+    "lifecyclePolicy": "V25_RECORDS24_NINETY_TWO_MODELS_FIVE_DURABLE_FAMILIES_BACKUP_RESTORE_CLONE_FORK_DELETE_ERASE_SEARCH_REPLAY_REPORT_RETENTION_COMPATIBILITY",
+    "nonPersistentFamilies": [
+      "SurveySemanticTreeV1",
+      "SurveyImportPreviewV1",
+      "SurveyDraftScratchV1"
+    ],
+    "packageReleaseAuthority": "SurveyPackageReleaseReferenceV1",
+    "packageReleaseAuthorityAdmission": "PUBLISHED_ONLY_EXACT_RELEASE_ID_PACKAGE_ID_CONTENT_VERSION_AND_PACKAGE_WORKFLOW_SHA256",
+    "packageReleaseAuthorityContainsRawBytes": false,
+    "packageReleaseAuthorityFields": [
+      "packageReleaseID",
+      "packageID",
+      "packageContentVersion",
+      "packageSHA256",
+      "workflowSHA256",
+      "releaseState"
+    ],
+    "promotionPolicy": "EXPLICIT_PREVIEW_PROMOTE_OR_REVERSE_RECEIPT_NO_AUTO_MERGE_NO_DESTINATION_TRUTH_FROM_SOURCE",
+    "publicationPolicy": "IMMUTABLE_SNAPSHOT_REPORT_BYTES_UNKNOWN_NOT_OBSERVED_ALLOWED_NO_AUTOMATIC_COMPLETION",
+    "replayPolicy": "DROP_UNACCEPTED_DERIVED_PREVIEWS_REBUILD_FROM_FIVE_IMMUTABLE_FAMILIES_AND_MUTATION_JOURNAL",
+    "s10Policy": "FROZEN_S10_RESERVATION_ZERO_OVERLAP",
+    "sessionBoundary": "GUIDED_SURVEY_ONLY_TYPED_FACTS_PROVISIONAL_SUBJECTS_AND_IMMUTABLE_PUBLICATION",
+    "stagingDisposition": "UNIVERSAL_DRAFT_AND_CHECKPOINT_SCRATCH_DERIVED_UNTIL_EXPLICIT_CANONICAL_RECEIPT"
+  },
+  "sourceProjection": {
+    "deterministicEvidenceIDs": [
+      "V23-P03-C26-G01",
+      "V23-P03-C26-A01",
+      "V23-P03-C26-H01",
+      "V23-P03-C26-I01",
+      "V23-P03-C26-R01"
+    ],
+    "directPrerequisiteCard": "V23-P03-C25",
+    "dossierLineRange": [
+      4088,
+      4147
+    ],
+    "dossierSHA256": "47f14dc1c6863ffbf56a9315f93d27937ff4caf21ecbfaedbfa8d78072a9e21d",
+    "dossierUTF8Length": 7129,
+    "inheritedV21BlockLineRange": [
+      14878,
+      14921
+    ],
+    "inheritedV21BlockSHA256": "e131548caa72172cf2c6bce51cf60a95832ab0c6f302c9560098a4185e984187",
+    "inheritedV21BlockUTF8Length": 5413,
+    "priorFenceOverlapCount": 1466,
+    "priorFenceUnauthorizedOverlapCount": 0,
+    "registerRow": "| 63 | <a id=\"v23-p03-c26-register\"></a>[`V23-P03-C26`](EXPANSION_V23_ARCHITECTURE_BLUEPRINT.md#v23-p03-c26) | Guided-survey sessions, typed facts, provisional subjects, publication, and lifecycle | `IMPLEMENT_NOW` | `NOT_STARTED` | `V23-P03-C25` | `EXACT_WITH_GENERATION_REBIND` |\n",
+    "registerRowSHA256": "088b88845978a229355706c0a906aa6e2c06d459a80b1c34d1105a0a46ba48d4",
+    "registerRowUTF8Length": 283
+  },
+  "status": "PASS_STATIC_PROVISIONAL",
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "testSelectors": [
+    "testV23P03C26G01GoldenSurveySessionCreatePauseResumeReviewPublishLifecycle",
+    "testV23P03C26A01ConcurrentFactConflictHasNoLastWriteWins",
+    "testV23P03C26H01HostileSessionDefinitionWorkspaceDigestAndClaimInputsFailClosed",
+    "testV23P03C26I01PublicationAndPersistenceInterruptionIsOldOrNew",
+    "testV23P03C26R01RecoveryPreservesImmutableSnapshotAndPromotionAliasHistory"
+  ],
+  "title": "Guided-survey sessions, typed facts, provisional subjects, publication, and lifecycle",
+  "verificationMode": "STATIC_ONLY"
+}

@@ -42,6 +42,10 @@ struct InspectionPackageRegistryPublicationReceiptV2: Equatable, Sendable {
 }
 
 extension InspectionPackageRegistryV2 {
+    func validateSurveySession(_ session:SurveySessionV1,definition:SurveyDefinitionReleaseV1,package:InspectionPackageV2)throws{try validateSurveyDefinition(definition,package:package);try package.validateSurveySession(session,definition:definition)}
+}
+
+extension InspectionPackageRegistryV2 {
     func validateSurveyDefinition(_ survey: SurveyDefinitionReleaseV1, package: InspectionPackageV2) throws {
         try survey.validate(); try package.validateSurveyDefinition(survey)
     }

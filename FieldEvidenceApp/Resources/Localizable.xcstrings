@@ -2721,6 +2721,146 @@
     "settings.survey_definition.recents" : {
       "comment" : "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recent definitions" } } }
+    },
+    "survey.session.heading" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Survey session" } } }
+    },
+    "survey.session.lifecycle" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Session lifecycle" } } }
+    },
+    "survey.session.lifecycle.draft" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Draft" } } }
+    },
+    "survey.session.lifecycle.paused" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Paused" } } }
+    },
+    "survey.session.lifecycle.review_required" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review required" } } }
+    },
+    "survey.session.lifecycle.completed" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Completed" } } }
+    },
+    "survey.session.lifecycle.amended" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Amended" } } }
+    },
+    "survey.session.lifecycle.superseded" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Superseded" } } }
+    },
+    "survey.session.lifecycle.archived" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Archived" } } }
+    },
+    "survey.session.lifecycle.deleted" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Deleted" } } }
+    },
+    "survey.session.fact" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recorded fact" } } }
+    },
+    "survey.session.fact.state.not_recorded" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Not recorded" } } }
+    },
+    "survey.session.fact.state.recorded" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recorded" } } }
+    },
+    "survey.session.fact.state.unknown" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Unknown" } } }
+    },
+    "survey.session.fact.state.not_observed" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Not observed" } } }
+    },
+    "survey.session.subject" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Session subject" } } }
+    },
+    "survey.session.subject.state.canonical" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Canonical subject" } } }
+    },
+    "survey.session.subject.state.provisional" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Provisional subject" } } }
+    },
+    "survey.session.subject.state.promoted" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Promotion recorded" } } }
+    },
+    "survey.session.subject.state.reconciled_alias" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Alias reconciliation recorded" } } }
+    },
+    "survey.session.subject.state.promotion_reversed" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Promotion reversed" } } }
+    },
+    "survey.session.subject.state.archived" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Provisional subject archived" } } }
+    },
+    "survey.session.subject.state.unavailable" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Subject status unavailable" } } }
+    },
+    "survey.session.subject.promotion" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Subject promotion" } } }
+    },
+    "survey.session.subject.promotion.to_asset" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Promotion to asset" } } }
+    },
+    "survey.session.subject.promotion.reconcile_as_alias" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reconcile as alias" } } }
+    },
+    "survey.session.subject.promotion.reverse" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reverse recorded promotion" } } }
+    },
+    "survey.session.publication" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Publication record" } } }
+    },
+    "survey.session.publication.state.not_published" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Not published" } } }
+    },
+    "survey.session.publication.state.recorded" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Publication recorded" } } }
+    },
+    "survey.session.publication.state.interrupted" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Publication interrupted" } } }
+    },
+    "survey.session.publication.state.immutable" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Immutable publication record" } } }
+    },
+    "survey.session.claim_boundary" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recorded survey facts only" } } }
+    },
+    "survey.session.next_step.review_recorded_facts" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review the recorded facts" } } }
+    },
+    "survey.session.next_step.review_subject_promotion" : {
+      "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review the recorded subject promotion" } } }
     }
   },
   "version" : "1.0"

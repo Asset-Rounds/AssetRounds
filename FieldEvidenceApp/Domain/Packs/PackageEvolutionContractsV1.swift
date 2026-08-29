@@ -6,6 +6,10 @@ enum PackageEvolutionFailureV1: Error, Equatable, Sendable {
     case stalePointer, divergentMutation, limitExceeded, wrongWorkspace
 }
 
+enum C26SurveyEvolutionPinningV1 {
+    static func validate(activeSessions:[SurveySessionV1],before:SurveyDefinitionReleaseV1,after:SurveyDefinitionReleaseV1)throws{try before.validate();try after.validate();guard activeSessions.allSatisfy({$0.authority.definitionRelease.releaseID==before.releaseID&&$0.authority.definitionRelease.releaseSHA256==before.releaseSHA256})else{throw SurveySessionFailureV1.staleRevision};try after.validateSuccessor(of:before)}
+}
+
 enum SurveyDefinitionEvolutionV1 {
     static func preview(source: SurveyDefinitionReleaseV1, target: SurveyDefinitionReleaseV1, draftIDs: [UUID], activeWorkCount: Int, at: Date) throws -> SurveyDefinitionAdoptionPreviewV1 {
         guard source.definitionID == target.definitionID, source.activityKind == target.activityKind else { throw PackageEvolutionFailureV1.incompatiblePromotion }

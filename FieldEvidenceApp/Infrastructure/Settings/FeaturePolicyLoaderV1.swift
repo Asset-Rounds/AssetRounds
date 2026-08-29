@@ -133,3 +133,38 @@ enum SurveyDefinitionFeaturePolicyBoundaryV1 {
             && excludesAnswers && excludesPromptText && excludesActorIdentity
     }
 }
+
+// MARK: - C26 guided-survey session feature boundary
+
+/// A missing C26 declaration fails closed to local, read-only session
+/// metadata.  Device preferences cannot enable canonical fact writes and a
+/// feature flag never changes the meaning of an accepted session snapshot.
+enum SurveySessionFeaturePolicyBoundaryV1 {
+    static let featureID = "surveySession"
+    static let safeFallback = "READ_ONLY_SURVEY_METADATA"
+    static let noImplicitCanonicalWrite = true
+    static let devicePreferencesAreNotCanonicalTruth = true
+    static let excludesFactValuesFromFeatureMetadata = true
+    static let excludesPromptTextFromFeatureMetadata = true
+    static let excludesActorIdentityFromFeatureMetadata = true
+    static let excludesPublicationPayloadFromFeatureMetadata = true
+
+    static func resolveIfDeclared(
+        using loader: FeaturePolicyLoaderV1
+    ) throws -> FeaturePolicyResolutionV1? {
+        do {
+            return try loader.resolve(featureID: featureID)
+        } catch CapabilityContractFailureV1.unknownFeature {
+            return nil
+        }
+    }
+
+    static func validate() -> Bool {
+        noImplicitCanonicalWrite
+            && devicePreferencesAreNotCanonicalTruth
+            && excludesFactValuesFromFeatureMetadata
+            && excludesPromptTextFromFeatureMetadata
+            && excludesActorIdentityFromFeatureMetadata
+            && excludesPublicationPayloadFromFeatureMetadata
+    }
+}

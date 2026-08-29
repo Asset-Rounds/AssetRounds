@@ -3,6 +3,13 @@ import Darwin
 import Foundation
 import SwiftData
 
+enum GuidedSurveyRenderServiceBoundaryV1 {
+    static func admit(_ snapshot: ReportSnapshotV1) throws {
+        try snapshot.surveyPublication?.validate()
+    }
+    static let mutatesSurveyPublication = false
+}
+
 enum ReportRenderServiceError: Error, Equatable {
     case invalidGeneration
     case reportNotFound

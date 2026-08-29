@@ -1,5 +1,28 @@
 import Foundation
 
+enum GuidedSurveyDeterministicPDFBoundaryV1 {
+    static func validate(_ projection: SurveyPublicationReportProjectionV1) throws {
+        try projection.validate()
+    }
+    static let frozenPublicationBytesAreRewritten = false
+}
+
+extension DeterministicPDFRendererV1 {
+    /// Stable metadata lines for the existing PDF renderer. They intentionally
+    /// describe completion/publication identity only, never a survey outcome.
+    static func surveyPublicationTextLines(
+        _ projection: SurveyPublicationReportProjectionV1
+    ) throws -> [String] {
+        try projection.validate()
+        return [
+            "Survey publication: \(projection.snapshotID.uuidString.lowercased())",
+            "Session revision: \(projection.sessionRevision)",
+            "Recorded facts: \(projection.factCount)",
+            "Evidence references: \(projection.evidenceCount)",
+        ]
+    }
+}
+
 enum DeterministicPDFRendererV1 {
     static let rendererVersion = "deterministic-pdf-renderer-v1"
 

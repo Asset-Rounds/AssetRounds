@@ -1869,3 +1869,94 @@ extension SearchIndexRebuildCoordinatorV1 {
     static let surveyDefinitionRestoreDisposition =
         "EXCLUDE_INDEX_ROWS_AND_REBUILD_AFTER_CANONICAL_RESTORE"
 }
+
+// MARK: - C26 guided-survey session search rebuild
+
+extension SearchIndexRebuildCoordinatorV1 {
+    /// Rebuilds disposable session rows from validated canonical snapshots.
+    /// Only IDs, closed state values, revisions, and a bounded fact count are
+    /// retained; answer payloads, prompts, labels, actors, and evidence are
+    /// intentionally consumed transiently and never become index data.
+    static func surveySessionSearchRecords(
+        from sessions: [SurveySessionV1],
+        publications: [SurveyPublicationSnapshotV1] = [],
+        provisionalSubjects: [ProvisionalSubjectV1] = [],
+        factStates: [UUID: SurveySessionFactLocalizationStateV1] = [:],
+        publicationStates: [UUID: SurveySessionPublicationLocalizationStateV1] = [:]
+    ) throws -> [SurveySessionSearchRecordV1] {
+        try SurveySessionSearchPersistencePolicyV1().validate()
+        guard sessions.count <= 4_096,
+              publications.count <= 4_096,
+              provisionalSubjects.count <= 4_096 else {
+            throw SearchContractFailureV1.limitExceeded
+        }
+
+        let orderedSessions = sessions.sorted {
+            $0.sessionID.uuidString.lowercased() < $1.sessionID.uuidString.lowercased()
+        }
+        guard Set(orderedSessions.map(\.sessionID)).count == orderedSessions.count else {
+            throw SearchContractFailureV1.duplicateProjection
+        }
+
+        var subjectsByID: [UUID: ProvisionalSubjectV1] = [:]
+        for subject in provisionalSubjects {
+            guard subjectsByID.updateValue(subject, forKey: subject.provisionalSubjectID) == nil else {
+                throw SearchContractFailureV1.duplicateProjection
+            }
+        }
+        let orderedPublications = publications.sorted {
+            if $0.sessionID != $1.sessionID { return $0.sessionID.uuidString < $1.sessionID.uuidString }
+            if $0.revision != $1.revision { return $0.revision < $1.revision }
+            return $0.snapshotID.uuidString < $1.snapshotID.uuidString
+        }
+        var publicationsBySession: [UUID: [SurveyPublicationSnapshotV1]] = [:]
+        for publication in orderedPublications {
+            guard !publicationsBySession[publication.sessionID, default: []].contains(where: {
+                $0.snapshotID == publication.snapshotID
+            }) else {
+                throw SearchContractFailureV1.duplicateProjection
+            }
+            publicationsBySession[publication.sessionID, default: []].append(publication)
+        }
+
+        var records: [SurveySessionSearchRecordV1] = []
+        for session in orderedSessions {
+            let provisional: ProvisionalSubjectV1?
+            if case let .provisional(reference) = session.subject {
+                provisional = subjectsByID[reference.provisionalSubjectID]
+            } else {
+                provisional = nil
+            }
+            let sessionPublications = publicationsBySession[session.sessionID] ?? []
+            if sessionPublications.isEmpty {
+                records.append(try LocalSearchIndexStoreV1.surveySessionSearchRecord(
+                    from: session,
+                    provisionalSubject: provisional,
+                    factState: factStates[session.sessionID],
+                    publicationState: publicationStates[session.sessionID]
+                ))
+            } else {
+                for publication in sessionPublications {
+                    records.append(try LocalSearchIndexStoreV1.surveySessionSearchRecord(
+                        from: session,
+                        publication: publication,
+                        provisionalSubject: provisional,
+                        factState: factStates[session.sessionID],
+                        publicationState: publicationStates[session.sessionID]
+                    ))
+                }
+            }
+        }
+        records.sort { $0.projectionIdentity < $1.projectionIdentity }
+        guard Set(records.map(\.projectionIdentity)).count == records.count else {
+            throw SearchContractFailureV1.duplicateProjection
+        }
+        try records.forEach { try SurveySessionSearchProjectionPolicyV1.validate($0) }
+        return records
+    }
+
+    static let surveySessionReplayDisposition =
+        "DROP_AND_REBUILD_FROM_CANONICAL_SURVEY_SESSION_SNAPSHOTS"
+    static let surveySessionRestoreDisposition =
+        "EXCLUDE_SESSION_ROWS_AND_REBUILD_AFTER_CANONICAL_RESTORE"
+}

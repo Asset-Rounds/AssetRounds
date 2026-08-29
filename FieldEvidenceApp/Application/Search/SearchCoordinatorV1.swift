@@ -350,3 +350,37 @@ private extension SearchCoordinatorV1 {
         }
     }
 }
+
+// MARK: - C26 guided-survey session metadata search
+
+extension SearchCoordinatorV1 {
+    /// Searches only the C26 disposable metadata rows.  This path is kept
+    /// separate from the general index response so it cannot accidentally
+    /// surface answers, prompts, actor identity, or evidence references.
+    static func searchSurveySessionMetadata(
+        query: String,
+        records: [SurveySessionSearchRecordV1],
+        maximumResults: Int = 100
+    ) throws -> [SurveySessionSearchRecordV1] {
+        guard maximumResults > 0,
+              maximumResults <= SearchContractLimitsV1.maximumCanonicalRecords else {
+            throw SearchContractFailureV1.limitExceeded
+        }
+        let tokens = normalizedTokens(query)
+        guard !tokens.isEmpty else { throw SearchContractFailureV1.invalidQuery }
+        try records.forEach { try SurveySessionSearchProjectionPolicyV1.validate($0) }
+        let matches = records.filter { record in
+            tokens.allSatisfy { queryToken in
+                record.normalizedTokens.contains { indexedToken in
+                    indexedToken == queryToken || indexedToken.hasPrefix(queryToken)
+                }
+            }
+        }.sorted {
+            if $0.sessionID != $1.sessionID {
+                return $0.sessionID.uuidString < $1.sessionID.uuidString
+            }
+            return $0.projectionIdentity < $1.projectionIdentity
+        }
+        return Array(matches.prefix(maximumResults))
+    }
+}
