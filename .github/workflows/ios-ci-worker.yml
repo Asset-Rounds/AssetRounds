@@ -1225,6 +1225,9 @@ jobs:
             "CI_SIMULATOR_READY_ELAPSED_SECONDS=$simulator_boot_ready_elapsed_seconds" \
             >> "$GITHUB_ENV"
 
+      - name: Await selected Simulator boot
+        wait: simulator_boot
+
       - name: Build unsigned simulator app
         shell: bash
         env:
@@ -1235,8 +1238,6 @@ jobs:
           bash Scripts/run-with-timeout.sh "$CI_BUILD_TIMEOUT_SECONDS" \
             bash Scripts/build-smoke.sh 2>&1 | tee "$CI_ARTIFACT_DIR/build-smoke.log"
 
-      - name: Await selected Simulator boot
-        wait: simulator_boot
       # INFRA_RECOVERY_END: simulator-readiness-scheduling
 
       - name: Run targeted tests

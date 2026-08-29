@@ -120,8 +120,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 234_118,
-            sha256: "77AFE9E4FBE2D10E49DE98338116073BF591D36CE7067260F8900FAF8138FC57"
+            byteCount: 234_119,
+            sha256: "7C966114A339DEE7416E214B90C790932DC574624CE1D04451655BAB7F757444"
         )
         let workflowSource = try text(workflowPath)
         let currentF25WatchdogTuple = "] == [420, 900, 1200, 1920, 4500]"
@@ -824,10 +824,44 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workerExecutionSource = String(
             workflowSource[workerExecutionStart.lowerBound..<workerExecutionEnd.lowerBound]
         )
-        XCTAssertEqual(workerExecutionSource.utf8.count, 101_017)
+        XCTAssertEqual(workerExecutionSource.utf8.count, 101_018)
         XCTAssertEqual(
             Data(workerExecutionSource.utf8).sha256,
-            "224C3D81CAA20A20A638EA7C96A553AD0FD9AAAF8A716ACAE664EF5D3BC07F3D"
+            "CFE1731054D332E04084ED5A6E7D25CDF747B79393434BFCE771DC69168E6A74"
+        )
+        let selectedSimulatorWait =
+            "      - name: Await selected Simulator boot\n" +
+                "        wait: simulator_boot"
+        let unsignedBuildStep = "      - name: Build unsigned simulator app\n"
+        XCTAssertEqual(
+            workerExecutionSource.components(separatedBy: selectedSimulatorWait).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workerExecutionSource.components(separatedBy: "        wait: simulator_boot").count - 1,
+            1
+        )
+        XCTAssertFalse(
+            workerExecutionSource.contains("Await selected Simulator boot after")
+        )
+        XCTAssertFalse(
+            workerExecutionSource.contains("Await selected Simulator boot before")
+        )
+        XCTAssertFalse(
+            workerExecutionSource.contains("wait: simulator_boot\n        if:")
+        )
+        let selectedSimulatorWaitRange = try XCTUnwrap(
+            workerExecutionSource.range(of: selectedSimulatorWait)
+        )
+        let unsignedBuildStepRange = try XCTUnwrap(
+            workerExecutionSource.range(
+                of: unsignedBuildStep,
+                range: selectedSimulatorWaitRange.upperBound..<workerExecutionSource.endIndex
+            )
+        )
+        XCTAssertLessThan(
+            selectedSimulatorWaitRange.lowerBound,
+            unsignedBuildStepRange.lowerBound
         )
         let warpScopeSource = String(
             warpJobSource[warpScopeStart.lowerBound..<warpExecutionStart.lowerBound]
