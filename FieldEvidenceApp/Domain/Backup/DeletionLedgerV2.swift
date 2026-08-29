@@ -418,6 +418,28 @@ enum C31LightingDeletionLedgerPolicyV1 {
     }
 }
 
+/// Accepted Assistance receipts are immutable mutation history. Entity
+/// deletion never creates a partial/orphan receipt; workspace Erase removes
+/// the receipt and its canonical mutation receipt together. Proposals have no
+/// deletion-ledger identity because they are nonpersistent.
+enum C32AssistanceDeletionLedgerPolicyV1 {
+    static let durableFamilies = ["AssistanceAcceptanceReceiptRow"]
+    static let ordinaryDeletionPreservesCanonicalMutationHistory = true
+    static let workspaceEraseRemovesReceiptWithMutationHistory = true
+    static let orphanReceiptsRejected = true
+    static let proposalLedgerEntriesCreated = false
+
+    static func validate() throws {
+        guard durableFamilies.count == AssistancePersistenceEnrollmentV1.durableModelCount,
+              ordinaryDeletionPreservesCanonicalMutationHistory,
+              workspaceEraseRemovesReceiptWithMutationHistory,
+              orphanReceiptsRejected,
+              !proposalLedgerEntriesCreated else {
+            throw DeletionLedgerFailureV2.invalidSchemaVersion
+        }
+    }
+}
+
 struct DeletionLedgerV2: Codable, Equatable, Sendable {
     static let maximumEntryCount = 100_000
 
@@ -439,6 +461,7 @@ struct DeletionLedgerV2: Codable, Equatable, Sendable {
         try AssetLocatorDeletionLedgerPolicyV1.validate()
         try PlanDeletionLedgerPolicyV1.validate()
         try C31LightingDeletionLedgerPolicyV1.validate()
+        try C32AssistanceDeletionLedgerPolicyV1.validate()
         guard schemaVersion == 2 else {
             throw DeletionLedgerFailureV2.invalidSchemaVersion
         }

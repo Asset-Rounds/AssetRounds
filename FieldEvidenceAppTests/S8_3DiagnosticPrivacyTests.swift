@@ -779,3 +779,24 @@ private final class C31LightingAnchorS83DiagnosticPrivacyTests: XCTestCase {
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
     }
 }
+
+private final class C32AssistanceAnchorS83DiagnosticPrivacy: XCTestCase {
+    func testC32S83DiagnosticPrivacyCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .asset,
+            fieldID: "diagnostics.bounded-counts-only",
+            value: .text("private proposal payload")
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .asset,
+            fieldID: "diagnostics.bounded-counts-only",
+            valueKind: .text
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

@@ -604,3 +604,24 @@ private final class C31LightingAnchorV943PlanRebaseTests: XCTestCase {
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
     }
 }
+
+private final class C32AssistanceAnchorV943PlanRebase: XCTestCase {
+    func testC32V943PlanRebaseCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .planRevision,
+            fieldID: "plan.no-proposal-rebase",
+            value: .text("manual plan value")
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .planRevision,
+            fieldID: "plan.no-proposal-rebase",
+            valueKind: .text
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

@@ -1129,3 +1129,24 @@ private final class C31LightingAnchorV911ObservationTemporalSemanticsTests: XCTe
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
     }
 }
+
+private final class C32AssistanceAnchorV911ObservationTemporalSemantics: XCTestCase {
+    func testC32V911ObservationTemporalSemanticsCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .factCapture,
+            fieldID: "temporal.timeout",
+            value: .text("time-bounded review value")
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .factCapture,
+            fieldID: "temporal.timeout",
+            valueKind: .text
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

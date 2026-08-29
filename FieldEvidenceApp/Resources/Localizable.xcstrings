@@ -3565,6 +3565,38 @@
     "lighting.manual_offline" : {
       "comment" : "English-only C31 manual/offline path label; no sensor, network, or remote-delivery claim.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Manual/offline path remains available" } } }
+    },
+    "assistance.proposal.unverified" : {
+      "comment" : "C32 status for an ephemeral assistance value that has not been reviewed or accepted as a canonical fact.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Unverified suggestion — review required" } } }
+    },
+    "assistance.proposal.review" : {
+      "comment" : "C32 action that opens explicit review without writing the proposed value.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review suggestion" } } }
+    },
+    "assistance.proposal.accept" : {
+      "comment" : "C32 action that accepts a reviewed value through the canonical expected-revision writer.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Accept reviewed value" } } }
+    },
+    "assistance.proposal.reject" : {
+      "comment" : "C32 action that discards an ephemeral proposal and its scratch data without retaining a rejected-suggestion corpus.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Discard suggestion" } } }
+    },
+    "assistance.proposal.expired" : {
+      "comment" : "C32 status shown when a proposal can no longer be accepted because its reviewed context changed.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Suggestion expired — review the current facts" } } }
+    },
+    "assistance.manual.available" : {
+      "comment" : "C32 truthful fallback label used when optional assistance is disabled, unavailable, denied, revoked, or interrupted.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter the value manually" } } }
+    },
+    "assistance.permission.denied" : {
+      "comment" : "C32 non-color permission state; optional assistance is unavailable and manual entry remains available.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Permission not granted. Manual entry remains available." } } }
+    },
+    "assistance.interrupted" : {
+      "comment" : "C32 interruption state; no proposed value was saved and the manual path remains available.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Suggestion interrupted. Nothing was saved." } } }
     }
   },
   "version" : "1.0"

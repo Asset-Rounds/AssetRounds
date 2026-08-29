@@ -1291,3 +1291,24 @@ extension S4_1DeterministicRendererTests {
         XCTAssertEqual(first.operations, second.operations)
     }
 }
+
+private final class C32AssistanceAnchorS41DeterministicRenderer: XCTestCase {
+    func testC32S41DeterministicRendererCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .report,
+            fieldID: "renderer.exclude-proposal",
+            value: .text("unverified render exclusion")
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .report,
+            fieldID: "renderer.exclude-proposal",
+            valueKind: .text
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

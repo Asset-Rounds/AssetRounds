@@ -554,3 +554,29 @@ enum C31LightingIntegrationEventBoundaryV1 {
             || event.subject.kind == .lightingClaimState
     }
 }
+// MARK: - C32 assistance integration event boundary
+
+enum C32AssistanceLifecycleBoundary_FieldEvidenceApp_Domain_Replication_IntegrationEventContractsV1_swift {
+    static let proposalIsPersistent = AssistancePersistenceEnrollmentV1.proposalIsPersistent
+    static let rejectedProposalCorpusIsPersistent = AssistancePersistenceEnrollmentV1.rejectedProposalCorpusIsPersistent
+    static let durableFamilyCount = AssistancePersistenceEnrollmentV1.durableModelCount
+    static let acceptedMutationKind: WorkspaceCommandKindV1 = .applyAssistanceAcceptance
+    static let manualFallback: ManualFallbackActionV1 = .typeManually
+    static let onlyAcceptedEffectEntersIntegration = true
+
+    static func validateProposal(_ proposal: AssistanceProposalV1, in context: AssistanceProposalEvaluationContextV1) throws {
+        try proposal.validate()
+        try context.validate()
+        guard proposal.verificationState.rawValue == AssistanceProposalVerificationStateV1.unverified.rawValue,
+              context.policy.manualFallback == .typeManually else {
+            throw AssistanceContractFailureV1.incompatibleCapability
+        }
+        if let reason = try proposal.expiryReason(in: context) {
+            throw AssistanceContractFailureV1.expired(reason)
+        }
+    }
+
+    static func validateAcceptanceReceipt(_ receipt: AssistanceAcceptanceReceiptV1) throws {
+        try receipt.validate()
+    }
+}

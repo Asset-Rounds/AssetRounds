@@ -730,3 +730,24 @@ private final class C31LightingAnchorV945EvidenceContextTests: XCTestCase {
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
     }
 }
+
+private final class C32AssistanceAnchorV945EvidenceContext: XCTestCase {
+    func testC32V945EvidenceContextCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .evidenceContext,
+            fieldID: "evidence-context.unverified",
+            value: .singleOption("UNVERIFIED")
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .evidenceContext,
+            fieldID: "evidence-context.unverified",
+            valueKind: .singleOption
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

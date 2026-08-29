@@ -90,6 +90,7 @@ final class BackupExportService {
         let lightingIssues: [LightingIssueRow]
         let lightingPlans: [MeasurementPlanRow]
         let lightingClaims: [LightingClaimStateRow]
+        let assistanceAcceptanceReceipts: [AssistanceAcceptanceReceiptRow]
         let fieldReferenceReleases:[FieldReferenceReleaseRow]
         let fieldReferenceBindings:[FieldReferenceBindingRow]
         let recoverabilityVerificationReceipts:[RecoverabilityVerificationReceiptRow]
@@ -770,6 +771,7 @@ private extension BackupExportService {
                 plans: records.plans,
                 placementPoses: records.placementPoses,
                 lighting: records.lighting,
+                assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
                 fieldReferences:records.fieldReferences,
                 fieldDrafts: records.fieldDrafts,
                 workPackets: records.workPackets,
@@ -1011,9 +1013,9 @@ private extension BackupExportService {
             source: .init(
                 appBuild: appBuild(),
                 appVersion: appVersion(),
-                persistentSchemaVersion: 29,
+                persistentSchemaVersion: AssistancePersistenceEnrollmentV1.persistentSchemaVersion,
                 replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: 28,
+                recordsSchemaVersion: AssistancePersistenceEnrollmentV1.recordsSchemaVersion,
                 sourceGenerationID: generationID,
                 workspaceID: sourceIdentity.workspaceID.rawValue
             )
@@ -1560,6 +1562,7 @@ private extension BackupExportService {
                  lightingIssues: try modelContext.fetch(FetchDescriptor<LightingIssueRow>()),
                  lightingPlans: try modelContext.fetch(FetchDescriptor<MeasurementPlanRow>()),
                  lightingClaims: try modelContext.fetch(FetchDescriptor<LightingClaimStateRow>()),
+                 assistanceAcceptanceReceipts: try modelContext.fetch(FetchDescriptor<AssistanceAcceptanceReceiptRow>()),
                  fieldReferenceReleases:try modelContext.fetch(FetchDescriptor<FieldReferenceReleaseRow>()),
                 fieldReferenceBindings:try modelContext.fetch(FetchDescriptor<FieldReferenceBindingRow>()),
                 recoverabilityVerificationReceipts:try modelContext.fetch(FetchDescriptor<RecoverabilityVerificationReceiptRow>()),
@@ -2159,6 +2162,9 @@ private extension BackupExportService {
         let plans = mutationHistory == nil ? [] : try planRecords(rows)
         let placementPoses = try placementPoseRecords(rows)
         let lighting = mutationHistory == nil ? [] : try lightingRecords(rows)
+        let assistanceAcceptanceReceipts = mutationHistory == nil ? [] : try rows.assistanceAcceptanceReceipts
+            .map { try V32BackupAssistanceAcceptanceRecordV1($0.value()) }
+            .sorted { $0.receiptID.uuidString.lowercased() < $1.receiptID.uuidString.lowercased() }
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveys,
             assetLocators: assetLocators,
@@ -2166,6 +2172,7 @@ private extension BackupExportService {
             plans: plans,
             placementPoses: placementPoses,
             lighting: lighting,
+            assistanceAcceptanceReceipts: assistanceAcceptanceReceipts,
             accessibleDocumentAssessments:accessibleDocumentAssessments,
             surveyDefinitions:surveyDefinitions,
             fieldReferences:fieldReferences,
@@ -2229,7 +2236,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : 30,
+                : 31,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,

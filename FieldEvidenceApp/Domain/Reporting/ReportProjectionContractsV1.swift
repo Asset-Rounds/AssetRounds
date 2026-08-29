@@ -4971,3 +4971,32 @@ enum C31LightingProjectionPolicyV1 {
         }
     }
 }
+
+// MARK: - C32 assistance report boundary
+
+/// Assistance proposals are review UI, not report facts. Even the durable
+/// acceptance receipt is accountability metadata rather than a second fact
+/// projection; after acceptance, the closed target mutation feeds its existing
+/// report projection exactly as the equivalent manual mutation does.
+enum C32AssistanceReportProjectionPolicyV1 {
+    static let proposalProjectionVersion: Int? = nil
+    static let acceptanceReceiptProjectionVersion: Int? = nil
+    static let acceptedCanonicalTargetUsesExistingProjection = true
+    static let rejectedCancelledExpiredCorpusIsProjected = false
+
+    static func validate(_ proposal: AssistanceProposalV1) throws {
+        try proposal.validate()
+        guard proposalProjectionVersion == nil,
+              !rejectedCancelledExpiredCorpusIsProjected else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+    }
+
+    static func validate(_ receipt: AssistanceAcceptanceReceiptV1) throws {
+        try receipt.validate()
+        guard acceptanceReceiptProjectionVersion == nil,
+              acceptedCanonicalTargetUsesExistingProjection else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+    }
+}

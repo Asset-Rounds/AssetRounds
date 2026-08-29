@@ -218,7 +218,7 @@ enum C31LightingStreamingArchivePolicyV1 {
     static let durableFamilyCount = 5
 
     static func validate(records: V4BackupRecordsV1) throws {
-        guard records.recordsSchemaVersion == 30,
+        guard records.recordsSchemaVersion == 30 || records.recordsSchemaVersion == 31,
               archiveKinds.count == durableFamilyCount,
               canonicalRowsOnly,
               derivedProjectionDisposition == "DROP_AND_REBUILD",
@@ -231,6 +231,25 @@ enum C31LightingStreamingArchivePolicyV1 {
         } catch {
             throw StreamingArchiveFailureV1.invalidArchive
         }
+    }
+}
+
+/// C32 carries accepted receipts as immutable canonical mutation provenance.
+/// Review proposals, rejected/cancelled corpora, and leased scratch are never
+/// archive entries.
+enum C32AssistanceStreamingArchivePolicyV1 {
+    static let recordsSchemaVersion = 31
+    static let durableFamilyCount = 1
+    static let proposalArchiveDisposition = "EXCLUDED_NONPERSISTENT"
+
+    static func validate(records: V4BackupRecordsV1) throws {
+        guard records.recordsSchemaVersion == recordsSchemaVersion,
+              durableFamilyCount == AssistancePersistenceEnrollmentV1.durableModelCount,
+              proposalArchiveDisposition == "EXCLUDED_NONPERSISTENT" else {
+            throw StreamingArchiveFailureV1.invalidArchive
+        }
+        do { try records.validateC32AssistanceAcceptanceReceipts() }
+        catch { throw StreamingArchiveFailureV1.invalidArchive }
     }
 }
 

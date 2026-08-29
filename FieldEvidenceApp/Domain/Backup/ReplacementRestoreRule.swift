@@ -163,9 +163,11 @@ enum ReplacementRestoreRule {
         }
 
         let mutationHistory: MutationHistorySnapshotV1?
+        let assistanceAcceptanceReceipts: [V32BackupAssistanceAcceptanceRecordV1]
         switch input.mode {
         case .emptyInstall, .clone, .fork:
             mutationHistory = input.incomingRecords.mutationHistory
+            assistanceAcceptanceReceipts = input.incomingRecords.assistanceAcceptanceReceipts
         case .replaceExisting:
             mutationHistory = try mergedMutationHistory(
                 current: input.currentRecords.mutationHistory,
@@ -173,8 +175,16 @@ enum ReplacementRestoreRule {
                 incoming: input.incomingRecords.mutationHistory,
                 incomingIdentity: input.incomingIdentity
             )
+            assistanceAcceptanceReceipts = try C32AssistanceReplacementRestorePolicyV1.merged(
+                current: input.currentRecords.assistanceAcceptanceReceipts,
+                incoming: input.incomingRecords.assistanceAcceptanceReceipts
+            )
         }
-        incoming = replacingMutationHistory(in: incoming, with: mutationHistory)
+        incoming = replacingMutationHistory(
+            in: incoming,
+            with: mutationHistory,
+            assistanceAcceptanceReceipts: assistanceAcceptanceReceipts
+        )
         if input.mode == .replaceExisting {
             incoming = try replacingRequirementAssurance(
                 in: incoming,
@@ -391,7 +401,8 @@ private extension ReplacementRestoreRule {
             requirementAssurance: requirementAssurance,
             savedSmartViews: records.savedSmartViews,
             sites: sites,
-            workflowRecords: workflow
+            workflowRecords: workflow,
+            assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts
         )
         guard validReferences(result), noDeletedLiveIdentity(result, ledger: ledger),
               validLocationReferences(result, ledger: ledger) else {
@@ -440,13 +451,15 @@ private extension ReplacementRestoreRule {
             requirementAssurance: records.requirementAssurance,
             savedSmartViews: records.savedSmartViews,
             sites: records.sites,
-            workflowRecords: records.workflowRecords
+            workflowRecords: records.workflowRecords,
+            assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts
         )
     }
 
     static func replacingMutationHistory(
         in records: V4BackupRecordsV1,
-        with mutationHistory: MutationHistorySnapshotV1?
+        with mutationHistory: MutationHistorySnapshotV1?,
+        assistanceAcceptanceReceipts: [V32BackupAssistanceAcceptanceRecordV1]
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
             guidedSurveys:records.guidedSurveys,
@@ -486,7 +499,8 @@ private extension ReplacementRestoreRule {
             requirementAssurance: records.requirementAssurance,
             savedSmartViews: records.savedSmartViews,
             sites: records.sites,
-            workflowRecords: records.workflowRecords
+            workflowRecords: records.workflowRecords,
+            assistanceAcceptanceReceipts: assistanceAcceptanceReceipts
         )
     }
 
@@ -524,7 +538,8 @@ private extension ReplacementRestoreRule {
             recordsSchemaVersion: records.recordsSchemaVersion,
             reports: records.reports, requirementAssurance: requirementAssurance,
             savedSmartViews: records.savedSmartViews, sites: records.sites,
-            workflowRecords: records.workflowRecords
+            workflowRecords: records.workflowRecords,
+            assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts
         )
     }
 
@@ -1131,6 +1146,48 @@ enum C31LightingReplacementRestorePolicyV1 {
             throw failure
         } catch {
             throw ReplacementRestoreRuleError.invalidAuthority
+        }
+    }
+}
+
+enum C32AssistanceReplacementRestorePolicyV1 {
+    static let preservesExistingReceipts = true
+    static let rejectsDivergentMutationIdentity = true
+    static let proposalsRestored = false
+
+    static func validate(current: [V32BackupAssistanceAcceptanceRecordV1],
+                         incoming: [V32BackupAssistanceAcceptanceRecordV1]) throws {
+        guard preservesExistingReceipts, rejectsDivergentMutationIdentity,
+              !proposalsRestored else { throw ReplacementRestoreRuleError.invalidAuthority }
+        do {
+            var currentByMutation: [UUID: V32BackupAssistanceAcceptanceRecordV1] = [:]
+            for record in current {
+                guard currentByMutation.updateValue(record, forKey: record.mutationID) == nil else {
+                    throw ReplacementRestoreRuleError.invalidAuthority
+                }
+            }
+            guard Set(incoming.map(\.mutationID)).count == incoming.count else {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+            for record in current + incoming { _ = try record.value() }
+            for record in incoming where currentByMutation[record.mutationID] != nil {
+                guard currentByMutation[record.mutationID] == record else {
+                    throw ReplacementRestoreRuleError.invalidAuthority
+                }
+            }
+        } catch let failure as ReplacementRestoreRuleError { throw failure }
+        catch { throw ReplacementRestoreRuleError.invalidAuthority }
+    }
+
+    static func merged(
+        current: [V32BackupAssistanceAcceptanceRecordV1],
+        incoming: [V32BackupAssistanceAcceptanceRecordV1]
+    ) throws -> [V32BackupAssistanceAcceptanceRecordV1] {
+        try validate(current: current, incoming: incoming)
+        var byMutation = Dictionary(uniqueKeysWithValues: current.map { ($0.mutationID, $0) })
+        for record in incoming { byMutation[record.mutationID] = record }
+        return byMutation.values.sorted {
+            $0.receiptID.uuidString.lowercased() < $1.receiptID.uuidString.lowercased()
         }
     }
 }

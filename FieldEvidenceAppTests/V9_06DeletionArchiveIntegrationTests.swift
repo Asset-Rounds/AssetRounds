@@ -582,3 +582,24 @@ private final class C31LightingAnchorV906DeletionArchiveIntegrationTests: XCTest
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
     }
 }
+
+private final class C32AssistanceAnchorV906DeletionArchiveIntegration: XCTestCase {
+    func testC32V906DeletionArchiveIntegrationCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .packet,
+            fieldID: "archive.accepted-receipt-only",
+            value: .singleOption("ACCEPTED_ONLY")
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .packet,
+            fieldID: "archive.accepted-receipt-only",
+            valueKind: .singleOption
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

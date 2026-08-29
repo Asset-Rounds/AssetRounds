@@ -857,3 +857,24 @@ extension V9_07CompatibilityCorpusIntegrationTests {
         }
     }
 }
+
+private final class C32AssistanceAnchorV907CompatibilityCorpusIntegration: XCTestCase {
+    func testC32V907CompatibilityCorpusIntegrationCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .report,
+            fieldID: "compatibility.corpus",
+            value: .singleOption("MANUAL_FALLBACK")
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .report,
+            fieldID: "compatibility.corpus",
+            valueKind: .singleOption
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

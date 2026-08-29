@@ -1188,3 +1188,29 @@ struct EvidenceContextMutationReceiptV1:Codable,Equatable,Sendable{let operation
 
 extension LightingWriteOperationV1 { var mutationPostImage:MutationPostImageV1 { get throws { let c=try concurrencyIdentity;switch self {case let .appendSystem(v,_,_):return .lightingSystem(id:v.recordID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.systemSHA256);case let .appendObservation(v,_,_):return .lightingObservation(id:v.recordID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.observationSHA256);case let .appendIssue(v,_,_):return .lightingIssue(id:v.recordID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.issueSHA256);case let .appendMeasurementPlan(v,_,_):return .lightingMeasurementPlan(id:v.recordID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.planSHA256);case let .appendClaim(v,_,_):return .lightingClaimState(id:v.recordID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.claimSHA256)}} } }
 struct LightingMutationReceiptV1:Codable,Equatable,Sendable { let operationSHA256:String;let mutationReceipt:MutationReceiptV1;init(operation:LightingWriteOperationV1,mutationReceipt:MutationReceiptV1)throws{try operation.validate();try mutationReceipt.validate();let image=try operation.mutationPostImage;guard mutationReceipt.mutationID==operation.mutationID,mutationReceipt.identity.workspaceID==operation.workspaceID,mutationReceipt.commandBodySHA256==(try WorkspaceMutationCanonicalV1.sha256(WorkspaceCommandV1.applyLighting(operation))),mutationReceipt.postImages==[image],mutationReceipt.expectedRevision.entityRevisions.first(where:{$0.identity==(try operation.concurrencyIdentity)})?.revision==operation.expectedRevision,mutationReceipt.resultingRevision.entityRevisions.first(where:{$0.identity==(try operation.affectedIdentity)})?.revision==operation.revision else{throw WorkspaceMutationFailureV1.invalidReceipt};operationSHA256=try LightingCanonicalCodecV1.sha256(operation);self.mutationReceipt=mutationReceipt} }
+// MARK: - C32 assistance mutation receipt boundary
+
+enum C32AssistanceLifecycleBoundary_FieldEvidenceApp_Domain_Mutation_MutationReceiptV1_swift {
+    static let proposalIsPersistent = AssistancePersistenceEnrollmentV1.proposalIsPersistent
+    static let rejectedProposalCorpusIsPersistent = AssistancePersistenceEnrollmentV1.rejectedProposalCorpusIsPersistent
+    static let durableFamilyCount = AssistancePersistenceEnrollmentV1.durableModelCount
+    static let acceptedMutationKind: WorkspaceCommandKindV1 = .applyAssistanceAcceptance
+    static let manualFallback: ManualFallbackActionV1 = .typeManually
+    static let acceptanceReceiptBindsCanonicalMutationReceipt = true
+
+    static func validateProposal(_ proposal: AssistanceProposalV1, in context: AssistanceProposalEvaluationContextV1) throws {
+        try proposal.validate()
+        try context.validate()
+        guard proposal.verificationState.rawValue == AssistanceProposalVerificationStateV1.unverified.rawValue,
+              context.policy.manualFallback == .typeManually else {
+            throw AssistanceContractFailureV1.incompatibleCapability
+        }
+        if let reason = try proposal.expiryReason(in: context) {
+            throw AssistanceContractFailureV1.expired(reason)
+        }
+    }
+
+    static func validateAcceptanceReceipt(_ receipt: AssistanceAcceptanceReceiptV1) throws {
+        try receipt.validate()
+    }
+}

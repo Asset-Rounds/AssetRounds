@@ -1208,3 +1208,24 @@ extension S6_6EraseRecoveryTests {
         }
     }
 }
+
+private final class C32AssistanceAnchorS66EraseRecovery: XCTestCase {
+    func testC32S66EraseRecoveryCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .site,
+            fieldID: "erase.workspace-receipt",
+            value: .boolean(true)
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .site,
+            fieldID: "erase.workspace-receipt",
+            valueKind: .boolean
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

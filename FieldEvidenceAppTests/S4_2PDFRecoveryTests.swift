@@ -858,3 +858,24 @@ private final class C31LightingAnchorS42PDFRecoveryTests: XCTestCase {
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
     }
 }
+
+private final class C32AssistanceAnchorS42PDFRecovery: XCTestCase {
+    func testC32S42PDFRecoveryCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .report,
+            fieldID: "pdf.exclude-proposal",
+            value: .text("unverified value excluded from PDF")
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .report,
+            fieldID: "pdf.exclude-proposal",
+            valueKind: .text
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

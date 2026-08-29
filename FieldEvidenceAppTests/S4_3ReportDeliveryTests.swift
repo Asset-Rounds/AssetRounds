@@ -1006,3 +1006,24 @@ private final class C31LightingAnchorS43ReportDeliveryTests: XCTestCase {
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
     }
 }
+
+private final class C32AssistanceAnchorS43ReportDelivery: XCTestCase {
+    func testC32S43ReportDeliveryCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .report,
+            fieldID: "delivery.exclude-proposal",
+            value: .singleOption("NOT_DELIVERED")
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .report,
+            fieldID: "delivery.exclude-proposal",
+            valueKind: .singleOption
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

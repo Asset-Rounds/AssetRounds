@@ -1149,3 +1149,24 @@ extension V9_19LocalSearchTests {
         XCTAssertEqual(Set(replayResponse.results.map(\.stableID)), Set(scenarios.map(\.archetypeID)))
     }
 }
+
+private final class C32AssistanceAnchorV919LocalSearch: XCTestCase {
+    func testC32V919LocalSearchCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .asset,
+            fieldID: "search.exclude-proposal",
+            value: .text("not searchable before acceptance")
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .asset,
+            fieldID: "search.exclude-proposal",
+            valueKind: .text
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

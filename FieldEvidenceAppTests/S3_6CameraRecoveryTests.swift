@@ -412,3 +412,24 @@ private final class C31LightingAnchorS3_6CameraRecovery: XCTestCase {
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
     }
 }
+
+private final class C32AssistanceAnchorS36CameraRecovery: XCTestCase {
+    func testC32S36CameraRecoveryCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .evidenceFile,
+            fieldID: "camera.ocr-scratch",
+            value: .text("OCR review candidate")
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .evidenceFile,
+            fieldID: "camera.ocr-scratch",
+            valueKind: .text
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

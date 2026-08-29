@@ -1104,3 +1104,24 @@ private final class C31LightingAnchorV930FieldDraftResilienceTests: XCTestCase {
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
     }
 }
+
+private final class C32AssistanceAnchorV930FieldDraftResilience: XCTestCase {
+    func testC32V930FieldDraftResilienceCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .fieldDraftCheckpoint,
+            fieldID: "draft.preserve-user-text",
+            value: .text("user-entered draft survives")
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .fieldDraftCheckpoint,
+            fieldID: "draft.preserve-user-text",
+            valueKind: .text
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

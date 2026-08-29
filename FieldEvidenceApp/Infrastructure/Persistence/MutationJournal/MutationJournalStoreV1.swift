@@ -546,6 +546,22 @@ final class MutationJournalStoreV1 {
                 receipt: hierarchyReceipt
             ))
         }
+        if case let .applyAssistanceAcceptance(request) = envelope.command {
+            try request.validate()
+            let mutationID = request.mutationID.rawValue
+            let existing = try modelContext.fetch(FetchDescriptor<AssistanceAcceptanceReceiptRow>(
+                predicate: #Predicate { $0.mutationID == mutationID }
+            ))
+            guard existing.isEmpty else {
+                throw WorkspaceMutationFailureV1.sequenceCollision
+            }
+            modelContext.insert(try AssistanceAcceptanceReceiptRow(
+                AssistanceAcceptanceReceiptV1(
+                    request: request,
+                    canonicalMutationReceipt: receipt
+                )
+            ))
+        }
         modelContext.insert(try MutationReceiptRow(
             envelope: envelope,
             receipt: receipt,
@@ -575,6 +591,76 @@ final class MutationJournalStoreV1 {
         let rows = try modelContext.fetch(FetchDescriptor<MutationReceiptRow>(predicate: #Predicate { $0.workspaceMutationKey == key }))
         guard rows.count <= 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
         return try rows.first.map { try validate(row: $0, expectedEnvelope: nil) }
+    }
+
+    /// Returns the durable C32 acceptance only when its immutable row and the
+    /// canonical mutation journal agree byte-for-byte. The two rows are saved
+    /// in the same transaction, so a one-sided relaunch state is corruption,
+    /// never a reason to replay the target mutation.
+    func assistanceAcceptanceReceipt(
+        mutationID: MutationIDV1
+    ) throws -> AssistanceAcceptanceReceiptV1? {
+        let rawMutationID = mutationID.rawValue
+        let acceptanceRows = try modelContext.fetch(
+            FetchDescriptor<AssistanceAcceptanceReceiptRow>(
+                predicate: #Predicate { $0.mutationID == rawMutationID }
+            )
+        )
+        guard acceptanceRows.count <= 1 else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        guard let acceptanceRow = acceptanceRows.first else {
+            let canonicalReceipt = try receipt(mutationID: mutationID)
+            guard canonicalReceipt == nil else {
+                let key = MutationWorkspaceKeyV1.value(
+                    workspaceID: identity.workspaceID,
+                    mutationID: mutationID
+                )
+                let rows = try modelContext.fetch(FetchDescriptor<MutationReceiptRow>(
+                    predicate: #Predicate { $0.workspaceMutationKey == key }
+                ))
+                if let row = rows.first {
+                    let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
+                    guard case .applyAssistanceAcceptance = envelope.command else { return nil }
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+                return nil
+            }
+            return nil
+        }
+        let value = try validateAssistanceAcceptanceRow(acceptanceRow)
+        // Clone/fork carries immutable source provenance in the destination
+        // store, but it is not an accepted mutation of the destination
+        // workspace and therefore must not satisfy active idempotent lookup.
+        guard acceptanceRow.workspaceID == identity.workspaceID.rawValue else { return nil }
+        return value
+    }
+
+    private func validateAssistanceAcceptanceRow(
+        _ acceptanceRow: AssistanceAcceptanceReceiptRow
+    ) throws -> AssistanceAcceptanceReceiptV1 {
+        let mutationID = try MutationIDV1(rawValue: acceptanceRow.mutationID)
+        let key = MutationWorkspaceKeyV1.value(
+            workspaceID: WorkspaceID(rawValue: acceptanceRow.workspaceID),
+            mutationID: mutationID
+        )
+        let mutationRows = try modelContext.fetch(FetchDescriptor<MutationReceiptRow>(
+            predicate: #Predicate { $0.workspaceMutationKey == key }
+        ))
+        guard mutationRows.count == 1,
+              let mutationRow = mutationRows.first else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        let canonicalReceipt = try validate(row: mutationRow, expectedEnvelope: nil)
+        let envelope = try MutationEnvelopeV1.decodeCanonical(from: mutationRow.envelopeData)
+        guard case let .applyAssistanceAcceptance(request) = envelope.command,
+              request.mutationID == mutationID else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        let value = try acceptanceRow.value()
+        try value.validate(request: request)
+        try value.validate(canonicalMutationReceipt: canonicalReceipt)
+        return value
     }
 
     func surveyDefinitionMutation(mutationID: MutationIDV1) throws -> SurveyDefinitionMutationV1? {
@@ -756,6 +842,7 @@ final class MutationJournalStoreV1 {
         var latestPostImageByIdentity: [WorkspaceEntityIdentityV1: MutationPostImageV1] = [:]
         var receiptsByMutation: [String: MutationReceiptV1] = [:]
         var rowsByMutation: [String: MutationReceiptRow] = [:]
+        var assistanceMutationKeys = Set<String>()
         for row in rows {
             let receipt = try validate(row: row, expectedEnvelope: nil)
             guard identities.insert(row.receiptIdentity).inserted,
@@ -789,6 +876,32 @@ final class MutationJournalStoreV1 {
             let key = MutationWorkspaceKeyV1.value(workspaceID: receipt.identity.workspaceID, mutationID: receipt.mutationID)
             receiptsByMutation[key] = receipt
             rowsByMutation[key] = row
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
+            if case let .applyAssistanceAcceptance(request) = envelope.command,
+               !assistanceMutationKeys.insert(MutationWorkspaceKeyV1.value(
+                    workspaceID: request.workspaceID,
+                    mutationID: request.mutationID
+               )).inserted {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+        }
+        let assistanceRows = try modelContext.fetch(FetchDescriptor<AssistanceAcceptanceReceiptRow>())
+        guard assistanceRows.count <= Self.maximumReceiptValidationCount else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        var assistanceReceiptMutationKeys = Set<String>()
+        for row in assistanceRows {
+            let key = MutationWorkspaceKeyV1.value(
+                workspaceID: WorkspaceID(rawValue: row.workspaceID),
+                mutationID: try MutationIDV1(rawValue: row.mutationID)
+            )
+            guard assistanceReceiptMutationKeys.insert(key).inserted else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            _ = try validateAssistanceAcceptanceRow(row)
+        }
+        guard assistanceReceiptMutationKeys == assistanceMutationKeys else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
         for (mutationKey, row) in rowsByMutation where row.semanticReversalData != nil {
             guard let data = row.semanticReversalData else { continue }
@@ -1341,6 +1454,7 @@ final class MutationJournalStoreV1 {
             try validateEvidenceContextReferences(operation)
         }
         if case let .applyLighting(operation)=envelope.command{try validateLightingReferences(operation)}
+        if case let .applyAssistanceAcceptance(request)=envelope.command{try request.validate()}
         let receipt = try MutationReceiptV1.decodeCanonical(from: row.receiptData)
         guard row.mutationID == envelope.mutationID.rawValue,
               row.workspaceID == envelope.workspaceID.rawValue,
@@ -1369,6 +1483,9 @@ final class MutationJournalStoreV1 {
             _ = try EvidenceContextMutationReceiptV1(operation:operation,mutationReceipt:receipt)
         }
         if case let .applyLighting(operation)=envelope.command{_ = try LightingMutationReceiptV1(operation:operation,mutationReceipt:receipt)}
+        if case let .applyAssistanceAcceptance(request)=envelope.command{
+            _ = try AssistanceAcceptanceReceiptV1(request:request,canonicalMutationReceipt:receipt)
+        }
         if let basisData = row.reversalBasisData {
             let basis = try ReversalBasisV1.decodeCanonical(from: basisData)
             guard row.reversalBasisSHA256 == (try basis.canonicalSHA256()),

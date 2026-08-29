@@ -2272,3 +2272,24 @@ extension S6_3BackupValidationTests {
         }
     }
 }
+
+private final class C32AssistanceAnchorS63BackupValidation: XCTestCase {
+    func testC32S63BackupValidationCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .packet,
+            fieldID: "backup.version-gate",
+            value: .singleOption("RECORDS_31")
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .packet,
+            fieldID: "backup.version-gate",
+            valueKind: .singleOption
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

@@ -2,6 +2,34 @@ import Foundation
 
 enum SurveySessionKernelDeletionEnrollmentV1{static let persistentRowNames=Set(["SurveySessionRow","FactCaptureRow","ProvisionalSubjectRow","SubjectPromotionReceiptRow","SurveyPublicationSnapshotRow"]);static func validate()throws{guard persistentRowNames.count==5 else{throw KernelPersistenceV4Failure.incompleteCoverage};try SurveySessionEraseAllEnrollmentV1.validate()}}
 
+/// C32 keeps only the reviewed acceptance receipt. Proposals and every
+/// rejected, cancelled, or expired proposal corpus remain ephemeral. An
+/// ordinary entity deletion preserves the accountability receipt as mutation
+/// history; workspace Erase removes its durable row with the rest of the
+/// canonical store, and there are no proposal-owned files to orphan-clean.
+enum C32AssistanceKernelDeletionEnrollmentV1 {
+    static let durableRowNames: Set<String> = ["AssistanceAcceptanceReceiptRow"]
+    static let nonpersistentValueNames: Set<String> = ["AssistanceProposalV1"]
+    static let ordinaryDeletionPreservesAcceptedHistory = true
+    static let workspaceEraseClearsAcceptedHistory = true
+    static let proposalsOwnNoFilesystemPayload = true
+
+    static func validate() throws {
+        guard durableRowNames == AssistancePersistentKindPolicyV1.durableKindIDs
+                .map({ $0.replacingOccurrences(of: "PERSISTENT_MODEL:", with: "") })
+                .reduce(into: Set<String>(), { $0.insert($1) }),
+              nonpersistentValueNames == ["AssistanceProposalV1"],
+              AssistancePersistenceEnrollmentV1.durableModelCount == durableRowNames.count,
+              !AssistancePersistenceEnrollmentV1.proposalIsPersistent,
+              !AssistancePersistenceEnrollmentV1.rejectedProposalCorpusIsPersistent,
+              ordinaryDeletionPreservesAcceptedHistory,
+              workspaceEraseClearsAcceptedHistory,
+              proposalsOwnNoFilesystemPayload else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}
+
 enum C30EvidenceContextKernelDeletionEnrollmentV1 {
     static let persistentRowNames: Set<String> = ["EvidenceContextRow", "PairedObservationLinkRow"]
     static let derivedNames: Set<String> = ["DerivedSolarContextV1", "PairedObservationMismatchPreviewV1"]
@@ -529,7 +557,15 @@ enum KernelDeletionEraseRegistryV4 {
         try validateFieldDraftLifecycle()
         try validateSearchLifecycle()
         try validateIntegrationProjectionLifecycle()
+        try validateAssistanceLifecycle()
         try validate(registrations)
+    }
+
+    static func validateAssistanceLifecycle() throws {
+        try C32AssistanceKernelDeletionEnrollmentV1.validate()
+        guard AssistanceRemovalKindV1.allCases.count == 4 else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
     }
 
     static func validateSurveyDefinitionLifecycle() throws {

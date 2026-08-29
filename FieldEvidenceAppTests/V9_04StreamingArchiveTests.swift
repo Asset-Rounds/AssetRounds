@@ -461,3 +461,24 @@ extension V9_04StreamingArchiveTests {
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: staging.path), [])
     }
 }
+
+private final class C32AssistanceAnchorV904StreamingArchive: XCTestCase {
+    func testC32V904StreamingArchiveCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .packet,
+            fieldID: "archive.stream-boundary",
+            value: .text("accepted receipt export only")
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .packet,
+            fieldID: "archive.stream-boundary",
+            valueKind: .text
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

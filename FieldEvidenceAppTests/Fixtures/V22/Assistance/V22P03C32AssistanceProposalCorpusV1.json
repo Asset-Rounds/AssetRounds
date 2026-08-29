@@ -1,0 +1,147 @@
+{
+  "schema": "V22P03C32AssistanceProposalCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P03-C32",
+  "proposalPersistenceDisposition": "NONPERSISTENT",
+  "durableFamilies": ["AssistanceAcceptanceReceiptV1"],
+  "persistentSchemaVersion": 32,
+  "recordsSchemaVersion": 31,
+  "requiredContractNames": [
+    "AssistanceCapabilityReferenceV1",
+    "AssistanceTargetV1",
+    "AssistanceSourceReferenceV1",
+    "AssistanceProposalV1",
+    "AssistanceCapabilityPolicyV1",
+    "AssistanceProposalEvaluationContextV1",
+    "AssistanceProposalExpiryReasonV1",
+    "AssistanceAcceptanceRequestV1",
+    "AssistanceAcceptanceReceiptV1"
+  ],
+  "evidenceIDs": [
+    "V23-P03-C32-G01",
+    "V23-P03-C32-A01",
+    "V23-P03-C32-H01",
+    "V23-P03-C32-I01",
+    "V23-P03-C32-R01"
+  ],
+  "capabilities": [
+    {
+      "id": "OCR_FIELD_PROPOSAL",
+      "version": "OCR_FIELD_PROPOSAL_V1",
+      "locale": "en-US",
+      "modelVersion": "OCR_MODEL_V1",
+      "permission": "CAMERA",
+      "manualFallback": "MANUAL_TYPED_FIELD_ENTRY"
+    },
+    {
+      "id": "DICTATION_FIELD_PROPOSAL",
+      "version": "DICTATION_FIELD_PROPOSAL_V1",
+      "locale": "en-US",
+      "modelVersion": "DICTATION_MODEL_V1",
+      "permission": "MICROPHONE",
+      "manualFallback": "MANUAL_TYPED_FIELD_ENTRY"
+    },
+    {
+      "id": "ONE_SHOT_LOCATION_PROPOSAL",
+      "version": "ONE_SHOT_LOCATION_PROPOSAL_V1",
+      "locale": "en-US",
+      "modelVersion": "LOCATION_MODEL_V1",
+      "permission": "LOCATION_WHEN_IN_USE",
+      "manualFallback": "MANUAL_TYPED_FIELD_ENTRY"
+    },
+    {
+      "id": "DETERMINISTIC_HELPER_PROPOSAL",
+      "version": "DETERMINISTIC_HELPER_PROPOSAL_V1",
+      "locale": "en-US",
+      "modelVersion": "CLOSED_RULES_V1",
+      "permission": "NONE",
+      "manualFallback": "MANUAL_TYPED_FIELD_ENTRY"
+    }
+  ],
+  "typedValueCases": [
+    {"kind": "TEXT", "value": "Observed exterior light is not illuminated."},
+    {"kind": "ENUM", "value": "NOT_OBSERVED"},
+    {"kind": "DECIMAL", "value": "12.50"},
+    {"kind": "INTEGER", "value": "4"},
+    {"kind": "BOOLEAN", "value": "true"},
+    {"kind": "UNIT_VALUE", "value": "12.50", "unit": "footCandle"},
+    {"kind": "DURATION_SECONDS", "value": "90"},
+    {"kind": "MATERIAL_QUANTITY", "value": "2", "unit": "fixture", "description": "replacement lamp"}
+  ],
+  "transitionMatrix": [
+    {"action": "ACCEPT", "proposalDisposition": "REMOVED", "scratchDisposition": "DELETED", "canonicalMutationCount": 1, "durableAcceptanceReceiptCount": 1},
+    {"action": "REJECT", "proposalDisposition": "REMOVED", "scratchDisposition": "DELETED", "canonicalMutationCount": 0, "durableAcceptanceReceiptCount": 0},
+    {"action": "CANCEL", "proposalDisposition": "REMOVED", "scratchDisposition": "DELETED", "canonicalMutationCount": 0, "durableAcceptanceReceiptCount": 0},
+    {"action": "EXPIRE", "proposalDisposition": "REMOVED", "scratchDisposition": "DELETED", "canonicalMutationCount": 0, "durableAcceptanceReceiptCount": 0}
+  ],
+  "expiryTriggers": [
+    "TARGET_REVISION_CHANGED",
+    "CAPABILITY_REVOKED",
+    "PACKAGE_CHANGED",
+    "DEFINITION_CHANGED",
+    "TIMEOUT",
+    "WORKSPACE_SWITCHED",
+    "SOURCE_DELETED"
+  ],
+  "hostileCases": [
+    "PROPOSAL_AFTER_USER_EDIT",
+    "CONFIDENCE_ABSENT_WHEN_REQUIRED",
+    "CONFIDENCE_OUT_OF_RANGE",
+    "WRONG_LOCALE",
+    "WRONG_MODEL_VERSION",
+    "SOURCE_REMOVED",
+    "PERMISSION_REVOKED",
+    "WORKSPACE_SWITCHED",
+    "APP_KILLED_DURING_REVIEW",
+    "TARGET_REVISION_STALE",
+    "TYPED_VALUE_INVALID_FOR_FIELD"
+  ],
+  "recovery": {
+    "effectBeforeReceipt": "RECOVER_SAME_ACCEPTED_EFFECT_AND_RECEIPT",
+    "receiptBeforeEffect": "FORBIDDEN",
+    "retryMutationID": "RETURNS_SAME_RECEIPT",
+    "relaunchDuringReview": "EXPIRE_AND_DELETE_SCRATCH",
+    "userEnteredText": "PRESERVED_INDEPENDENTLY"
+  },
+  "lifecycle": {
+    "proposal": "NONPERSISTENT",
+    "scratch": "NONPERSISTENT_DELETE_ON_TERMINAL_DISPOSITION",
+    "acceptanceReceipt": "PERSISTENT_V32_RECORDS31",
+    "backup": "ACCEPTANCE_RECEIPT_ONLY",
+    "restore": "ACCEPTANCE_RECEIPT_ONLY",
+    "search": "EXCLUDED",
+    "report": "EXCLUDED",
+    "diagnostics": "BOUNDED_COUNTS_ONLY",
+    "replication": "ACCEPTED_CANONICAL_EFFECT_ONLY",
+    "deleteErase": "WORKSPACE_SCOPED_RECEIPT_REMOVAL"
+  },
+  "invariants": {
+    "proposalNeverCanonical": true,
+    "proposalNeverPersistent": true,
+    "proposalNeverBackedUp": true,
+    "proposalNeverSearched": true,
+    "proposalNeverReported": true,
+    "noDirectMutation": true,
+    "explicitReviewRequired": true,
+    "expectedRevisionRequired": true,
+    "manualPathEquivalent": true,
+    "capabilitiesRollbackIndependently": true,
+    "noSharedGlobalConfidenceThreshold": true,
+    "noHiddenNetworkFallback": true,
+    "noDiagnosisOrComplianceSuggestion": true,
+    "rejectedProposalCorpusRetained": false
+  },
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "release": false,
+    "releaseReadiness": false
+  }
+}

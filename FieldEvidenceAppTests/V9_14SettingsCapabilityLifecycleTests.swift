@@ -1359,3 +1359,24 @@ private final class C31LightingAnchorV914SettingsCapabilityLifecycleTests: XCTes
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
     }
 }
+
+private final class C32AssistanceAnchorV914SettingsCapabilityLifecycle: XCTestCase {
+    func testC32V914SettingsCapabilityLifecycleCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .clientCapabilityProfile,
+            fieldID: "settings.independent-revocation",
+            value: .boolean(true)
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .clientCapabilityProfile,
+            fieldID: "settings.independent-revocation",
+            valueKind: .boolean
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

@@ -3589,3 +3589,21 @@ enum C31LightingSearchProjectionPolicyV1 {
         try record.validate()
     }
 }
+
+// MARK: - C32 assistance search isolation
+
+enum AssistanceSearchIsolationPolicyV1 {
+    static let proposalIsSearchable = false
+    static let acceptanceReceiptIsSearchable = false
+    static let acceptedCanonicalTargetUsesExistingProjection = true
+
+    static func mayIndex(_ proposal: AssistanceProposalV1) throws -> Bool {
+        try proposal.validate()
+        return false
+    }
+
+    static func mayIndex(_ receipt: AssistanceAcceptanceReceiptV1) throws -> Bool {
+        try receipt.validate()
+        return false
+    }
+}

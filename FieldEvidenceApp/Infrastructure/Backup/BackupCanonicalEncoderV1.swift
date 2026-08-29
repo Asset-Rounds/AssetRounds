@@ -163,6 +163,11 @@ struct BackupCanonicalEncoderV1: Sendable {
                 try records.lighting.map(Self.lightingRecord)
             )
         }
+        if records.recordsSchemaVersion >= 31 {
+            fields["assistanceAcceptanceReceipts"] = .array(
+                records.assistanceAcceptanceReceipts.map(Self.assistanceAcceptanceReceiptRecord)
+            )
+        }
         if let deletionLedger = records.deletionLedger {
             fields["deletionLedger"] = Self.deletionLedger(deletionLedger)
         }
@@ -222,7 +227,7 @@ enum C30EvidenceContextBackupEncoderV1 {
 
 private extension BackupCanonicalEncoderV1 {
     static func validSemantic(_ records: V4BackupRecordsV1) -> Bool {
-        guard (4...30).contains(records.recordsSchemaVersion),
+        guard (4...31).contains(records.recordsSchemaVersion),
               records.mutationHistory == nil,
               let ledger = records.deletionLedger,
               (try? ledger.validate()) != nil else {
@@ -255,6 +260,7 @@ private extension BackupCanonicalEncoderV1 {
             && validPlacementPoses(records)
             && validC30EvidenceContext(records)
             && validC31Lighting(records)
+            && validC32AssistanceAcceptanceReceipts(records)
             && sortedUniqueIDs(records.assets.map(\.id))
             && records.assets.allSatisfy({ $0.schemaVersion == 1 })
             && sortedUniqueIDs(records.evidenceFiles.map(\.id))
@@ -290,7 +296,7 @@ private extension BackupCanonicalEncoderV1 {
              (13, let ledger?, let history?), (14, let ledger?, let history?),
              (15, let ledger?, let history?), (16, let ledger?, let history?),
              (17, let ledger?, let history?), (18, let ledger?, let history?), (19, let ledger?, let history?),
-             (20, let ledger?, let history?), (21, let ledger?, let history?), (22, let ledger?, let history?), (23, let ledger?, let history?), (24, let ledger?, let history?), (25, let ledger?, let history?), (26, let ledger?, let history?), (27, let ledger?, let history?), (28, let ledger?, let history?), (29, let ledger?, let history?), (30, let ledger?, let history?):
+             (20, let ledger?, let history?), (21, let ledger?, let history?), (22, let ledger?, let history?), (23, let ledger?, let history?), (24, let ledger?, let history?), (25, let ledger?, let history?), (26, let ledger?, let history?), (27, let ledger?, let history?), (28, let ledger?, let history?), (29, let ledger?, let history?), (30, let ledger?, let history?), (31, let ledger?, let history?):
             ledgerIsValid = (try? ledger.validate()) != nil
                 && (try? MutationJournalStoreV1.validateImportedSnapshot(history)) != nil
                 && validMutationHistoryOrder(history)
@@ -324,6 +330,7 @@ private extension BackupCanonicalEncoderV1 {
             && validPlans(records)
             && validC30EvidenceContext(records)
             && validC31Lighting(records)
+            && validC32AssistanceAcceptanceReceipts(records)
             && sortedUniqueIDs(records.assets.map(\.id))
             && records.assets.allSatisfy({ $0.schemaVersion == 1 })
             && sortedUniqueIDs(records.evidenceFiles.map(\.id))
@@ -346,7 +353,7 @@ private extension BackupCanonicalEncoderV1 {
                 $0.observationBasisV1Data == nil && $0.temporalContextV1Data == nil
             }
         }
-        guard (4...30).contains(records.recordsSchemaVersion) else { return false }
+        guard (4...31).contains(records.recordsSchemaVersion) else { return false }
         return records.workflowRecords.allSatisfy { record in
             guard let basisData = record.observationBasisV1Data,
                   let temporalData = record.temporalContextV1Data else { return false }
@@ -482,7 +489,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validSavedSmartViews(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 6 { return records.savedSmartViews.isEmpty }
-        guard (6...30).contains(records.recordsSchemaVersion),
+        guard (6...31).contains(records.recordsSchemaVersion),
               records.savedSmartViews.map(\.id.uuidString)
                 == records.savedSmartViews.map(\.id.uuidString).sorted(),
               Set(records.savedSmartViews.map(\.id)).count == records.savedSmartViews.count else {
@@ -500,7 +507,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validRequirementAssurance(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 7 { return records.requirementAssurance.isEmpty }
-        guard (7...30).contains(records.recordsSchemaVersion),
+        guard (7...31).contains(records.recordsSchemaVersion),
               records.requirementAssurance.map(\.workflowRecordID.uuidString)
                 == records.requirementAssurance.map(\.workflowRecordID.uuidString).sorted(),
               Set(records.requirementAssurance.map(\.workflowRecordID)).count
@@ -514,7 +521,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validPartyAccountability(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 8 { return records.partyAccountability.isEmpty }
-        guard (8...30).contains(records.recordsSchemaVersion),
+        guard (8...31).contains(records.recordsSchemaVersion),
               records.partyAccountability.map({ "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" })
                 == records.partyAccountability.map({ "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }).sorted(),
               Set(records.partyAccountability.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }).count
@@ -529,7 +536,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validAssetSemantics(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 9 { return records.assetSemantics.isEmpty }
-        guard (9...30).contains(records.recordsSchemaVersion) else { return false }
+        guard (9...31).contains(records.recordsSchemaVersion) else { return false }
         let keys = records.assetSemantics.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
         return keys == keys.sorted() && Set(keys).count == keys.count
@@ -541,7 +548,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validAuthorityCriterion(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 10 { return records.authorityCriterion.isEmpty }
-        guard (10...30).contains(records.recordsSchemaVersion) else { return false }
+        guard (10...31).contains(records.recordsSchemaVersion) else { return false }
         let keys = records.authorityCriterion.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
         return keys == keys.sorted() && Set(keys).count == keys.count
@@ -552,7 +559,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validFunctionalRelationships(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 11 { return records.functionalRelationships.isEmpty }
-        guard (11...30).contains(records.recordsSchemaVersion) else { return false }
+        guard (11...31).contains(records.recordsSchemaVersion) else { return false }
         let keys = records.functionalRelationships.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
         return keys == keys.sorted() && Set(keys).count == keys.count
@@ -564,7 +571,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validEvidenceAssurance(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 12 { return records.evidenceAssurance.isEmpty }
-        guard (12...30).contains(records.recordsSchemaVersion) else { return false }
+        guard (12...31).contains(records.recordsSchemaVersion) else { return false }
         let keys = records.evidenceAssurance.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
         return keys == keys.sorted() && Set(keys).count == keys.count
@@ -576,7 +583,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validInspectionReview(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 13 { return records.inspectionReview.isEmpty }
-        guard (13...30).contains(records.recordsSchemaVersion) else { return false }
+        guard (13...31).contains(records.recordsSchemaVersion) else { return false }
         let keys = records.inspectionReview.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
         return records.inspectionReview.count <= InspectionReviewLimitsV1.maximumHistory
@@ -589,7 +596,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validWorkPackets(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 14 { return records.workPackets.isEmpty }
-        guard (14...30).contains(records.recordsSchemaVersion) else { return false }
+        guard (14...31).contains(records.recordsSchemaVersion) else { return false }
         let keys = records.workPackets.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
         return records.workPackets.count <= WorkPacketLimitsV1.maximumHistory
@@ -602,7 +609,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validFieldDrafts(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 15 { return records.fieldDrafts.isEmpty }
-        guard (15...30).contains(records.recordsSchemaVersion) else { return false }
+        guard (15...31).contains(records.recordsSchemaVersion) else { return false }
         let keys = records.fieldDrafts.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
         return records.fieldDrafts.count <= 100_000
@@ -615,7 +622,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validPackageEvolution(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 16 { return records.packageEvolution.isEmpty }
-        guard (16...30).contains(records.recordsSchemaVersion) else { return false }
+        guard (16...31).contains(records.recordsSchemaVersion) else { return false }
         let keys = records.packageEvolution.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
         return records.packageEvolution.count <= 100_000 && Set(keys).count == keys.count
@@ -626,7 +633,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validMeasurementIntegrity(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 17 { return records.measurementIntegrity.isEmpty }
-        guard (17...30).contains(records.recordsSchemaVersion) else { return false }
+        guard (17...31).contains(records.recordsSchemaVersion) else { return false }
         let keys = records.measurementIntegrity.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
         return records.measurementIntegrity.count <= 100_000 && keys == keys.sorted()
@@ -639,7 +646,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validPrivacyTransforms(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 18 { return records.privacyTransforms.isEmpty }
-        guard (18...30).contains(records.recordsSchemaVersion) else { return false }
+        guard (18...31).contains(records.recordsSchemaVersion) else { return false }
         let keys = records.privacyTransforms.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
         return records.privacyTransforms.count <= 100_000 && keys == keys.sorted()
@@ -652,25 +659,25 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validClientCapabilities(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 19 { return records.clientCapabilities.isEmpty }
-        guard (19...30).contains(records.recordsSchemaVersion) else { return false }
+        guard (19...31).contains(records.recordsSchemaVersion) else { return false }
         let keys=records.clientCapabilities.map{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"};let zero=UUID(uuid:(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
         return records.clientCapabilities.count<=100_000 && keys==keys.sorted() && Set(keys).count==keys.count && records.clientCapabilities.allSatisfy{$0.id != zero && $0.workspaceID != zero && $0.revision>0 && $0.revision<=UInt64(Int.max) && !$0.canonicalData.isEmpty}
     }
     static func clientCapabilityRecord(_ value:V20BackupClientCapabilityRecordV1)throws->CanonicalJSONValueV1{guard let revision=Int(exactly:value.revision),!value.canonicalData.isEmpty else{throw BackupCanonicalEncodingErrorV1.invalidRecords};return .object(["canonicalData":.string(value.canonicalData.base64EncodedString()),"id":CanonicalJSONV1.uuid(value.id),"kind":.string(value.kind.rawValue),"revision":.integer(revision),"workspaceID":CanonicalJSONV1.uuid(value.workspaceID)])}
 
-    static func validRecoverabilityReceipts(_ records:V4BackupRecordsV1)->Bool{if records.recordsSchemaVersion<20{return records.recoverabilityReceipts.isEmpty};guard (20...30).contains(records.recordsSchemaVersion) else{return false};let keys=records.recoverabilityReceipts.map{$0.id.uuidString};let zero=UUID(uuid:(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0));return records.recoverabilityReceipts.count<=100_000 && keys==keys.sorted() && Set(keys).count==keys.count && records.recoverabilityReceipts.allSatisfy{$0.id != zero && $0.workspaceID != zero && $0.revision>0 && $0.revision<=UInt64(Int.max) && !$0.canonicalData.isEmpty}}
+    static func validRecoverabilityReceipts(_ records:V4BackupRecordsV1)->Bool{if records.recordsSchemaVersion<20{return records.recoverabilityReceipts.isEmpty};guard (20...31).contains(records.recordsSchemaVersion) else{return false};let keys=records.recoverabilityReceipts.map{$0.id.uuidString};let zero=UUID(uuid:(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0));return records.recoverabilityReceipts.count<=100_000 && keys==keys.sorted() && Set(keys).count==keys.count && records.recoverabilityReceipts.allSatisfy{$0.id != zero && $0.workspaceID != zero && $0.revision>0 && $0.revision<=UInt64(Int.max) && !$0.canonicalData.isEmpty}}
     static func recoverabilityReceiptRecord(_ value:V21BackupRecoverabilityReceiptRecordV1)throws->CanonicalJSONValueV1{guard let revision=Int(exactly:value.revision),!value.canonicalData.isEmpty else{throw BackupCanonicalEncodingErrorV1.invalidRecords};return .object(["canonicalData":.string(value.canonicalData.base64EncodedString()),"id":CanonicalJSONV1.uuid(value.id),"revision":.integer(revision),"workspaceID":CanonicalJSONV1.uuid(value.workspaceID)])}
-    static func validFieldReferences(_ records:V4BackupRecordsV1)->Bool{if records.recordsSchemaVersion<21{return records.fieldReferences.isEmpty};guard records.recordsSchemaVersion<=30 else{return false};let keys=records.fieldReferences.map{"\($0.kind.rawValue)|\($0.id.uuidString)"};let zero=UUID(uuid:(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0));return records.fieldReferences.count<=100_000 && keys==keys.sorted() && Set(keys).count==keys.count && records.fieldReferences.allSatisfy{$0.id != zero && $0.workspaceID != zero && $0.revision>0 && $0.revision<=UInt64(Int.max) && !$0.canonicalData.isEmpty}}
+    static func validFieldReferences(_ records:V4BackupRecordsV1)->Bool{if records.recordsSchemaVersion<21{return records.fieldReferences.isEmpty};guard records.recordsSchemaVersion<=31 else{return false};let keys=records.fieldReferences.map{"\($0.kind.rawValue)|\($0.id.uuidString)"};let zero=UUID(uuid:(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0));return records.fieldReferences.count<=100_000 && keys==keys.sorted() && Set(keys).count==keys.count && records.fieldReferences.allSatisfy{$0.id != zero && $0.workspaceID != zero && $0.revision>0 && $0.revision<=UInt64(Int.max) && !$0.canonicalData.isEmpty}}
     static func fieldReferenceRecord(_ value:V22BackupFieldReferenceRecordV1)throws->CanonicalJSONValueV1{guard let revision=Int(exactly:value.revision),!value.canonicalData.isEmpty else{throw BackupCanonicalEncodingErrorV1.invalidRecords};return .object(["canonicalData":.string(value.canonicalData.base64EncodedString()),"id":CanonicalJSONV1.uuid(value.id),"kind":.string(value.kind.rawValue),"revision":.integer(revision),"workspaceID":CanonicalJSONV1.uuid(value.workspaceID)])}
     static func validAccessibleDocumentAssessments(_ records:V4BackupRecordsV1)->Bool{if records.recordsSchemaVersion<22{return records.accessibleDocumentAssessments.isEmpty};let keys=records.accessibleDocumentAssessments.map{$0.id.uuidString};let zero=UUID(uuid:(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0));return records.accessibleDocumentAssessments.count<=100_000 && keys==keys.sorted() && Set(keys).count==keys.count && records.accessibleDocumentAssessments.allSatisfy{$0.id != zero && $0.workspaceID != zero && $0.revision>0 && $0.revision<=UInt64(Int.max) && !$0.canonicalData.isEmpty}}
     static func accessibleDocumentAssessmentRecord(_ value:V23BackupAccessibleDocumentAssessmentRecordV1)throws->CanonicalJSONValueV1{guard let revision=Int(exactly:value.revision),!value.canonicalData.isEmpty else{throw BackupCanonicalEncodingErrorV1.invalidRecords};return .object(["canonicalData":.string(value.canonicalData.base64EncodedString()),"id":CanonicalJSONV1.uuid(value.id),"revision":.integer(revision),"workspaceID":CanonicalJSONV1.uuid(value.workspaceID)])}
-    static func validSurveyDefinitions(_ records:V4BackupRecordsV1)->Bool{if records.recordsSchemaVersion<23{return records.surveyDefinitions.isEmpty};guard (23...30).contains(records.recordsSchemaVersion) else{return false};if records.mutationHistory==nil{return records.surveyDefinitions.isEmpty};let keys=records.surveyDefinitions.map{"\($0.kind.rawValue)|\($0.id.uuidString)"};let zero=UUID(uuid:(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0));return records.surveyDefinitions.count<=200_000&&keys==keys.sorted()&&Set(keys).count==keys.count&&records.surveyDefinitions.allSatisfy{$0.id != zero&&$0.workspaceID != zero&&$0.revision>0&&$0.revision<=UInt64(Int.max)&&!$0.canonicalData.isEmpty}}
+    static func validSurveyDefinitions(_ records:V4BackupRecordsV1)->Bool{if records.recordsSchemaVersion<23{return records.surveyDefinitions.isEmpty};guard (23...31).contains(records.recordsSchemaVersion) else{return false};if records.mutationHistory==nil{return records.surveyDefinitions.isEmpty};let keys=records.surveyDefinitions.map{"\($0.kind.rawValue)|\($0.id.uuidString)"};let zero=UUID(uuid:(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0));return records.surveyDefinitions.count<=200_000&&keys==keys.sorted()&&Set(keys).count==keys.count&&records.surveyDefinitions.allSatisfy{$0.id != zero&&$0.workspaceID != zero&&$0.revision>0&&$0.revision<=UInt64(Int.max)&&!$0.canonicalData.isEmpty}}
     static func surveyDefinitionRecord(_ value:V24BackupSurveyDefinitionRecordV1)throws->CanonicalJSONValueV1{guard let revision=Int(exactly:value.revision),!value.canonicalData.isEmpty else{throw BackupCanonicalEncodingErrorV1.invalidRecords};return .object(["canonicalData":.string(value.canonicalData.base64EncodedString()),"id":CanonicalJSONV1.uuid(value.id),"kind":.string(value.kind.rawValue),"revision":.integer(revision),"workspaceID":CanonicalJSONV1.uuid(value.workspaceID)])}
-    static func validGuidedSurveys(_ records:V4BackupRecordsV1)->Bool{if records.recordsSchemaVersion<24{return records.guidedSurveys.isEmpty};guard (24...30).contains(records.recordsSchemaVersion) else{return false};if records.mutationHistory == nil{return records.guidedSurveys.isEmpty};let keys=records.guidedSurveys.map{"\($0.kind.rawValue)|\($0.id.uuidString)"};let zero=UUID(uuid:(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0));return records.guidedSurveys.count<=200_000&&keys==keys.sorted()&&Set(keys).count==keys.count&&records.guidedSurveys.allSatisfy{$0.id != zero&&$0.workspaceID != zero&&$0.revision>0&&$0.revision<=UInt64(Int.max)&&!$0.canonicalData.isEmpty}}
+    static func validGuidedSurveys(_ records:V4BackupRecordsV1)->Bool{if records.recordsSchemaVersion<24{return records.guidedSurveys.isEmpty};guard (24...31).contains(records.recordsSchemaVersion) else{return false};if records.mutationHistory == nil{return records.guidedSurveys.isEmpty};let keys=records.guidedSurveys.map{"\($0.kind.rawValue)|\($0.id.uuidString)"};let zero=UUID(uuid:(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0));return records.guidedSurveys.count<=200_000&&keys==keys.sorted()&&Set(keys).count==keys.count&&records.guidedSurveys.allSatisfy{$0.id != zero&&$0.workspaceID != zero&&$0.revision>0&&$0.revision<=UInt64(Int.max)&&!$0.canonicalData.isEmpty}}
     static func guidedSurveyRecord(_ value:V25BackupGuidedSurveyRecordV1)throws->CanonicalJSONValueV1{guard let revision=Int(exactly:value.revision),!value.canonicalData.isEmpty else{throw BackupCanonicalEncodingErrorV1.invalidRecords};return .object(["canonicalData":.string(value.canonicalData.base64EncodedString()),"id":CanonicalJSONV1.uuid(value.id),"kind":.string(value.kind.rawValue),"revision":.integer(revision),"workspaceID":CanonicalJSONV1.uuid(value.workspaceID)])}
     static func validAssetLocators(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 25 { return records.assetLocators.isEmpty }
-        guard records.recordsSchemaVersion <= 30 else { return false }
+        guard records.recordsSchemaVersion <= 31 else { return false }
         let keys = records.assetLocators.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())" }
         let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
         return records.assetLocators.count <= 200_000
@@ -696,7 +703,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validSchedules(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 26 { return records.schedules.isEmpty }
-        guard (26...30).contains(records.recordsSchemaVersion),
+        guard (26...31).contains(records.recordsSchemaVersion),
               records.schedules.count <= 200_000 else { return false }
         let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
         let keys = records.schedules.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())" }
@@ -724,7 +731,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validPlans(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 27 { return records.plans.isEmpty }
-        guard (27...30).contains(records.recordsSchemaVersion),
+        guard (27...31).contains(records.recordsSchemaVersion),
               records.plans.count <= PlanLimitsV1.maximumPlacements * 5,
               (try? PlanBackupRecordSetV1.decode(records.plans)) != nil else { return false }
         let keys = records.plans.map {
@@ -749,7 +756,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validPlacementPoses(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 28 { return records.placementPoses.isEmpty }
-        guard (28...30).contains(records.recordsSchemaVersion),
+        guard (28...31).contains(records.recordsSchemaVersion),
               records.placementPoses.count <= PlacementPoseLimitsV1.maximumEventsPerClosure * 2,
               (try? PlacementPoseBackupRecordSetV1.decode(records.placementPoses)) != nil else {
             return false
@@ -780,7 +787,7 @@ private extension BackupCanonicalEncoderV1 {
         if records.recordsSchemaVersion < 29 {
             return records.evidenceContexts.isEmpty && records.pairedObservationLinks.isEmpty
         }
-        guard (29...30).contains(records.recordsSchemaVersion),
+        guard (29...31).contains(records.recordsSchemaVersion),
               records.evidenceContexts.allSatisfy({ $0.kind == .evidenceContext }),
               records.pairedObservationLinks.allSatisfy({ $0.kind == .pairedObservationLink }) else {
             return false
@@ -790,7 +797,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validC31Lighting(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 30 { return records.lighting.isEmpty }
-        guard records.recordsSchemaVersion == 30,
+        guard records.recordsSchemaVersion == 30 || records.recordsSchemaVersion == 31,
               records.lighting.count <= 100_000,
               records.lighting.allSatisfy({
                   $0.id != LightingLimitsV1.zero && $0.workspaceID != LightingLimitsV1.zero
@@ -803,6 +810,30 @@ private extension BackupCanonicalEncoderV1 {
             "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
         }
         return keys == keys.sorted() && Set(keys).count == keys.count
+    }
+
+    static func validC32AssistanceAcceptanceReceipts(_ records: V4BackupRecordsV1) -> Bool {
+        if records.recordsSchemaVersion < 31 {
+            return records.assistanceAcceptanceReceipts.isEmpty
+        }
+        guard records.recordsSchemaVersion == 31,
+              records.assistanceAcceptanceReceipts.count <= 100_000 else { return false }
+        let keys = records.assistanceAcceptanceReceipts.map { $0.receiptID.uuidString.lowercased() }
+        return keys == keys.sorted()
+            && Set(keys).count == keys.count
+            && (try? records.validateC32AssistanceAcceptanceReceipts()) != nil
+    }
+
+    static func assistanceAcceptanceReceiptRecord(
+        _ value: V32BackupAssistanceAcceptanceRecordV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "canonicalData": .string(value.canonicalData.base64EncodedString()),
+            "mutationID": CanonicalJSONV1.uuid(value.mutationID),
+            "proposalID": CanonicalJSONV1.uuid(value.proposalID),
+            "receiptID": CanonicalJSONV1.uuid(value.receiptID),
+            "workspaceID": CanonicalJSONV1.uuid(value.workspaceID),
+        ])
     }
 
     static func evidenceContextRecord(
@@ -1057,7 +1088,7 @@ private extension BackupCanonicalEncoderV1 {
         ) {
         case (1, 1, 1), (2, 1, 1), (2, 3, 2), (3, 4, 3),
              (4, 5, 4), (4, 6, 5), (4, 7, 6), (4, 8, 7), (4, 9, 8),
-             (4, 10, 9), (4, 11, 10), (4, 12, 11), (4, 13, 12), (4, 14, 13), (4, 15, 14), (4, 16, 15), (4, 17, 16), (4, 18, 17), (4, 19, 18), (4, 20, 19), (4, 21, 20), (4, 22, 21), (4, 23, 22), (4, 24, 23), (4, 25, 24), (4, 26, 25), (4, 27, 26), (4, 28, 27):
+             (4, 10, 9), (4, 11, 10), (4, 12, 11), (4, 13, 12), (4, 14, 13), (4, 15, 14), (4, 16, 15), (4, 17, 16), (4, 18, 17), (4, 19, 18), (4, 20, 19), (4, 21, 20), (4, 22, 21), (4, 23, 22), (4, 24, 23), (4, 25, 24), (4, 26, 25), (4, 27, 26), (4, 28, 27), (4, 29, 28), (4, 30, 29), (4, 31, 30), (4, 32, 31):
             schemaPairIsValid = true
         default:
             schemaPairIsValid = false

@@ -956,3 +956,24 @@ private final class C31LightingAnchorV935ClientCapabilityPackageLifecycleTests: 
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
     }
 }
+
+private final class C32AssistanceAnchorV935ClientCapabilityPackageLifecycle: XCTestCase {
+    func testC32V935ClientCapabilityPackageLifecycleCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .clientCapabilityAdmissionDecision,
+            fieldID: "capability.package-version",
+            value: .singleOption("CAPABILITY_LOCAL")
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .clientCapabilityAdmissionDecision,
+            fieldID: "capability.package-version",
+            valueKind: .singleOption
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

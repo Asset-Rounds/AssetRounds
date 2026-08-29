@@ -267,3 +267,33 @@ enum V31LightingImportBoundaryV1 {
         _ = try LightingBackupRecordSetV1.decode(rows)
     }
 }
+
+/// C32 imports only durable acceptance receipts. Proposals and capability
+/// scratch are intentionally absent and therefore cannot be revived by an
+/// import, restore, clone, or fork.
+enum V32AssistanceImportBoundaryV1 {
+    static let persistentSchemaVersion = 32
+    static let recordsSchemaVersion = 31
+    static let durableFamilyCount = 1
+    static let proposalImportDisposition = "EXCLUDED_NONPERSISTENT"
+    static let rejectedCorpusImported = false
+
+    static func validate(
+        persistent: Int,
+        records: Int,
+        receipts: [V32BackupAssistanceAcceptanceRecordV1] = []
+    ) throws {
+        guard persistent == persistentSchemaVersion,
+              records == recordsSchemaVersion,
+              durableFamilyCount == AssistancePersistenceEnrollmentV1.durableModelCount,
+              proposalImportDisposition == "EXCLUDED_NONPERSISTENT",
+              !rejectedCorpusImported else {
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
+        }
+        guard Set(receipts.map(\.receiptID)).count == receipts.count,
+              Set(receipts.map { $0.mutationID.rawValue }).count == receipts.count else {
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
+        }
+        for receipt in receipts { _ = try receipt.value() }
+    }
+}

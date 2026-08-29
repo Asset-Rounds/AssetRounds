@@ -1666,3 +1666,24 @@ private final class C31InterruptedLightingWriter: LightingCanonicalWorkspaceWrit
         throw C31LightingTestError.interrupted
     }
 }
+
+private final class C32AssistanceAnchorV946LightingPackage: XCTestCase {
+    func testC32V946LightingPackageCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .lightingObservation,
+            fieldID: "lighting.no-compliance-promotion",
+            value: .decimal(try ExactDecimalV1(mantissa: 1250, scale: 2))
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .lightingObservation,
+            fieldID: "lighting.no-compliance-promotion",
+            valueKind: .decimal
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

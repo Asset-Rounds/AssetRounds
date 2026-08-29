@@ -834,7 +834,8 @@ private extension S6_4AtomicRestoreTests {
     func makeSourcePackage(
         in root: URL,
         name: String,
-        siteAddress: String? = nil
+        siteAddress: String? = nil,
+        seed: ((StoreGenerationSession) throws -> Void)? = nil
     ) throws -> URL {
         let support = root.appendingPathComponent(
             "\(name)-support",
@@ -861,6 +862,7 @@ private extension S6_4AtomicRestoreTests {
             label: "Pylon sign",
             createdAt: Date(timeIntervalSince1970: 1_786_708_801)
         ))
+        try seed?(session)
         try session.modelContext.save()
         let destination = root.appendingPathComponent(
             "\(name)-export",
@@ -1046,6 +1048,265 @@ private final class C31LightingAnchorS64AtomicRestoreTests: XCTestCase {
 
 extension S6_4AtomicRestoreTests {
     @MainActor
+    func testC32RealBackupRestorePreservesImmutableAcceptanceAndRebindsOnlyTargetFacts() async throws {
+        for (offset, mode) in [
+            BackupRestoreMode.emptyInstall,
+            .clone,
+            .fork
+        ].enumerated() {
+            let harness = try makeHarness("c32-real-restore-\(offset)")
+            defer { try? fileManager.removeItem(at: harness.root) }
+            var sourceReceipt: AssistanceAcceptanceReceiptV1?
+            var sourceAcceptanceBytes: Data?
+            var sourceEnvelopeBytes: Data?
+            var sourceMutationReceiptBytes: Data?
+            let package = try makeSourcePackage(
+                in: harness.root,
+                name: "c32-source-\(offset)",
+                seed: { sourceSession in
+                    let receipt = try C32AssistanceTestSupport.commitPersistentAcceptance(
+                        in: sourceSession,
+                        slot: 620 + offset
+                    )
+                    sourceReceipt = receipt
+                    sourceAcceptanceBytes = try XCTUnwrap(
+                        sourceSession.modelContext.fetch(
+                            FetchDescriptor<AssistanceAcceptanceReceiptRow>()
+                        ).first
+                    ).canonicalData
+                    let mutationRow = try XCTUnwrap(
+                        sourceSession.modelContext.fetch(FetchDescriptor<MutationReceiptRow>())
+                            .first { $0.mutationID == receipt.mutationID.rawValue }
+                    )
+                    sourceEnvelopeBytes = mutationRow.envelopeData
+                    sourceMutationReceiptBytes = mutationRow.receiptData
+                }
+            )
+            let expectedReceipt = try XCTUnwrap(sourceReceipt)
+            let expectedAcceptanceBytes = try XCTUnwrap(sourceAcceptanceBytes)
+            let expectedEnvelopeBytes = try XCTUnwrap(sourceEnvelopeBytes)
+            let expectedMutationReceiptBytes = try XCTUnwrap(sourceMutationReceiptBytes)
+            let validated = try importPackage(package, into: harness.session)
+            XCTAssertEqual(validated.records.assistanceAcceptanceReceipts.count, 1)
+            XCTAssertEqual(validated.records.mutationHistory?.receipts.count, 1)
+            let restored = try await BackupRestoreService(
+                applicationSupportURL: harness.support,
+                storagePreflight: StoragePreflightService(capacityProvider: { _ in .max })
+            ).restore(
+                validatedPackage: validated,
+                currentModelContext: harness.session.modelContext,
+                currentGenerationID: harness.session.generationID,
+                currentGenerationRootURL: harness.session.generationRootURL,
+                mode: mode
+            )
+            let acceptanceRows = try restored.modelContext.fetch(
+                FetchDescriptor<AssistanceAcceptanceReceiptRow>()
+            )
+            XCTAssertEqual(acceptanceRows.count, 1)
+            let restoredReceipt = try XCTUnwrap(acceptanceRows.first).value()
+            XCTAssertEqual(restoredReceipt, expectedReceipt)
+            XCTAssertEqual(acceptanceRows[0].canonicalData, expectedAcceptanceBytes)
+            XCTAssertEqual(restoredReceipt.receiptSHA256, expectedReceipt.receiptSHA256)
+            XCTAssertEqual(restoredReceipt.workspaceID, expectedReceipt.workspaceID)
+
+            let mutationRow = try XCTUnwrap(
+                restored.modelContext.fetch(FetchDescriptor<MutationReceiptRow>())
+                    .first { $0.mutationID == expectedReceipt.mutationID.rawValue }
+            )
+            XCTAssertEqual(mutationRow.envelopeData, expectedEnvelopeBytes)
+            XCTAssertEqual(mutationRow.receiptData, expectedMutationReceiptBytes)
+
+            let restoredFact = try XCTUnwrap(
+                restored.modelContext.fetch(FetchDescriptor<FactCaptureRow>()).first
+            ).value()
+            XCTAssertEqual(restoredFact.value, expectedReceipt.acceptedValue)
+            XCTAssertEqual(restoredFact.workspaceID, restored.workspaceID)
+
+            let restoredJournal = try MutationJournalStoreV1(
+                modelContext: restored.modelContext,
+                identity: restored.workspaceIdentity,
+                generationID: restored.generationID,
+                allowStateBootstrap: false
+            )
+            try restoredJournal.validateAll()
+            if mode == .clone || mode == .fork {
+                XCTAssertNotEqual(restored.workspaceID, expectedReceipt.workspaceID)
+                XCTAssertNil(try restoredJournal.assistanceAcceptanceReceipt(
+                    mutationID: expectedReceipt.mutationID
+                ))
+            } else {
+                XCTAssertEqual(restored.workspaceID, expectedReceipt.workspaceID)
+                XCTAssertEqual(
+                    try restoredJournal.assistanceAcceptanceReceipt(
+                        mutationID: expectedReceipt.mutationID
+                    ),
+                    expectedReceipt
+                )
+            }
+            XCTAssertFalse(AssistancePersistenceEnrollmentV1.proposalIsPersistent)
+            XCTAssertFalse(AssistancePersistenceEnrollmentV1.rejectedProposalCorpusIsPersistent)
+        }
+
+        let chainHarness = try makeHarness("c32-historic-chain")
+        defer { try? fileManager.removeItem(at: chainHarness.root) }
+        var originalReceipt: AssistanceAcceptanceReceiptV1?
+        var originalAcceptanceBytes: Data?
+        var originalEnvelopeBytes: Data?
+        var originalMutationReceiptBytes: Data?
+        let sourcePackage = try makeSourcePackage(
+            in: chainHarness.root,
+            name: "c32-historic-source",
+            seed: { sourceSession in
+                let receipt = try C32AssistanceTestSupport.commitPersistentAcceptance(
+                    in: sourceSession,
+                    slot: 630
+                )
+                originalReceipt = receipt
+                originalAcceptanceBytes = try XCTUnwrap(
+                    sourceSession.modelContext.fetch(
+                        FetchDescriptor<AssistanceAcceptanceReceiptRow>()
+                    ).first
+                ).canonicalData
+                let mutationRow = try XCTUnwrap(
+                    sourceSession.modelContext.fetch(FetchDescriptor<MutationReceiptRow>())
+                        .first { $0.mutationID == receipt.mutationID.rawValue }
+                )
+                originalEnvelopeBytes = mutationRow.envelopeData
+                originalMutationReceiptBytes = mutationRow.receiptData
+            }
+        )
+        let expectedReceipt = try XCTUnwrap(originalReceipt)
+        let expectedAcceptanceBytes = try XCTUnwrap(originalAcceptanceBytes)
+        let expectedEnvelopeBytes = try XCTUnwrap(originalEnvelopeBytes)
+        let expectedMutationReceiptBytes = try XCTUnwrap(originalMutationReceiptBytes)
+
+        func assertHistoricSourceProvenance(
+            in session: StoreGenerationSession,
+            expectedCurrentWorkspaceID: WorkspaceID? = nil
+        ) throws {
+            let acceptanceRows = try session.modelContext.fetch(
+                FetchDescriptor<AssistanceAcceptanceReceiptRow>()
+            )
+            XCTAssertEqual(acceptanceRows.count, 1)
+            let receipt = try XCTUnwrap(acceptanceRows.first).value()
+            XCTAssertEqual(receipt, expectedReceipt)
+            XCTAssertEqual(acceptanceRows[0].canonicalData, expectedAcceptanceBytes)
+            XCTAssertEqual(receipt.receiptSHA256, expectedReceipt.receiptSHA256)
+            XCTAssertEqual(receipt.workspaceID, expectedReceipt.workspaceID)
+            XCTAssertNotEqual(session.workspaceID, expectedReceipt.workspaceID)
+            if let expectedCurrentWorkspaceID {
+                XCTAssertEqual(session.workspaceID, expectedCurrentWorkspaceID)
+            }
+
+            let mutationRow = try XCTUnwrap(
+                session.modelContext.fetch(FetchDescriptor<MutationReceiptRow>())
+                    .first { $0.mutationID == expectedReceipt.mutationID.rawValue }
+            )
+            XCTAssertEqual(mutationRow.envelopeData, expectedEnvelopeBytes)
+            XCTAssertEqual(mutationRow.receiptData, expectedMutationReceiptBytes)
+
+            let fact = try XCTUnwrap(
+                session.modelContext.fetch(FetchDescriptor<FactCaptureRow>()).first
+            ).value()
+            XCTAssertEqual(fact.value, expectedReceipt.acceptedValue)
+            XCTAssertEqual(fact.workspaceID, session.workspaceID)
+
+            let journal = try MutationJournalStoreV1(
+                modelContext: session.modelContext,
+                identity: session.workspaceIdentity,
+                generationID: session.generationID,
+                allowStateBootstrap: false
+            )
+            try journal.validateAll()
+            XCTAssertNil(try journal.assistanceAcceptanceReceipt(
+                mutationID: expectedReceipt.mutationID
+            ))
+        }
+
+        let cloned = try await BackupRestoreService(
+            applicationSupportURL: chainHarness.support,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max })
+        ).restore(
+            validatedPackage: try importPackage(sourcePackage, into: chainHarness.session),
+            currentModelContext: chainHarness.session.modelContext,
+            currentGenerationID: chainHarness.session.generationID,
+            currentGenerationRootURL: chainHarness.session.generationRootURL,
+            mode: .clone
+        )
+        try assertHistoricSourceProvenance(in: cloned)
+
+        let cloneExportDirectory = chainHarness.root.appendingPathComponent(
+            "c32-historic-clone-export",
+            isDirectory: true
+        )
+        try fileManager.createDirectory(
+            at: cloneExportDirectory,
+            withIntermediateDirectories: true
+        )
+        let cloneExporter = BackupExportService(
+            modelContext: cloned.modelContext,
+            generationRootURL: cloned.generationRootURL,
+            now: { Date(timeIntervalSince1970: 1_786_709_000) }
+        )
+        let clonePreview = try cloneExporter.prepare()
+        let clonePackage = try cloneExporter.export(
+            previewID: clonePreview.id,
+            to: cloneExportDirectory
+        )
+
+        let forked = try await BackupRestoreService(
+            applicationSupportURL: chainHarness.support,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max })
+        ).restore(
+            validatedPackage: try importPackage(clonePackage, into: cloned),
+            currentModelContext: cloned.modelContext,
+            currentGenerationID: cloned.generationID,
+            currentGenerationRootURL: cloned.generationRootURL,
+            mode: .fork
+        )
+        XCTAssertNotEqual(forked.workspaceID, cloned.workspaceID)
+        try assertHistoricSourceProvenance(in: forked)
+
+        let forkExportDirectory = chainHarness.root.appendingPathComponent(
+            "c32-historic-fork-export",
+            isDirectory: true
+        )
+        try fileManager.createDirectory(
+            at: forkExportDirectory,
+            withIntermediateDirectories: true
+        )
+        let forkExporter = BackupExportService(
+            modelContext: forked.modelContext,
+            generationRootURL: forked.generationRootURL,
+            now: { Date(timeIntervalSince1970: 1_786_709_100) }
+        )
+        let forkPreview = try forkExporter.prepare()
+        let forkPackage = try forkExporter.export(
+            previewID: forkPreview.id,
+            to: forkExportDirectory
+        )
+
+        let ordinaryHarness = try makeHarness("c32-historic-chain-empty-install")
+        defer { try? fileManager.removeItem(at: ordinaryHarness.root) }
+        let ordinaryRestored = try await BackupRestoreService(
+            applicationSupportURL: ordinaryHarness.support,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max })
+        ).restore(
+            validatedPackage: try importPackage(forkPackage, into: ordinaryHarness.session),
+            currentModelContext: ordinaryHarness.session.modelContext,
+            currentGenerationID: ordinaryHarness.session.generationID,
+            currentGenerationRootURL: ordinaryHarness.session.generationRootURL,
+            mode: .emptyInstall
+        )
+        try assertHistoricSourceProvenance(
+            in: ordinaryRestored,
+            expectedCurrentWorkspaceID: forked.workspaceID
+        )
+    }
+}
+
+extension S6_4AtomicRestoreTests {
+    @MainActor
     func testV23P03C42AtomicRestorePublishesACompleteTypedReceipt() async throws {
         let receipts = [
             try CompositeAreaSafetyArchetypeV1.run(),
@@ -1086,5 +1347,26 @@ extension S6_4AtomicRestoreTests {
             XCTAssertNotEqual(restoredSession.generationID, harness.session.generationID)
             XCTAssertNil(try RestoreIntentStore(applicationSupportURL: harness.support).load())
         }
+    }
+}
+
+private final class C32AssistanceAnchorS64AtomicRestore: XCTestCase {
+    func testC32S64AtomicRestoreCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .site,
+            fieldID: "restore.atomic-receipt",
+            value: .text("restored accepted value")
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .site,
+            fieldID: "restore.atomic-receipt",
+            valueKind: .text
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
     }
 }

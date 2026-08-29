@@ -1,0 +1,38 @@
+{
+  "artifactDigest": "8fdd48e989fef2b81bc95ce63ffcd84696911c0cf18eb7854f5c674a6ef56de8",
+  "cardID": "V23-P03-C32",
+  "durableFamilies": [
+    "AssistanceAcceptanceReceiptV1"
+  ],
+  "evidenceIDs": [
+    "V23-P03-C32-G01",
+    "V23-P03-C32-A01",
+    "V23-P03-C32-H01",
+    "V23-P03-C32-I01",
+    "V23-P03-C32-R01"
+  ],
+  "proposalPersistenceDisposition": "NONPERSISTENT",
+  "requiredSemanticsDigest": "c4d0071aa674d1810051f04d12d5aad5bf1dfb41161d9fe68a675343f1eb1e8b",
+  "schema": "V23P03C32AssistanceProposalEvidenceReceiptV1",
+  "schemaVersion": 1,
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "testSelectors": [
+    "testV23P03C32G01ProposalReviewAcceptanceUsesOneCanonicalMutation",
+    "testV23P03C32A01RejectCancelExpireDeleteScratchAndPreserveManualText",
+    "testV23P03C32H01StaleTargetsInvalidValuesAndForbiddenCapabilityPathsFailClosed",
+    "testV23P03C32I01InterruptedAcceptanceRecoversIdempotentlyWithoutDirectWrites",
+    "testV23P03C32R01RestoreReplayAndCapabilityRollbackRemainExact"
+  ]
+}

@@ -725,3 +725,24 @@ private final class C31LightingAnchorV915ContentReferenceProvenanceTests: XCTest
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
     }
 }
+
+private final class C32AssistanceAnchorV915ContentReferenceProvenance: XCTestCase {
+    func testC32V915ContentReferenceProvenanceCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .evidenceFile,
+            fieldID: "content.source-revision",
+            value: .text("source-provenance-bound value")
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .evidenceFile,
+            fieldID: "content.source-revision",
+            valueKind: .text
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

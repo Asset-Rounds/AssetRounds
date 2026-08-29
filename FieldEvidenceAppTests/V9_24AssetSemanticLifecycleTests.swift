@@ -712,3 +712,24 @@ private final class C31LightingAnchorV924AssetSemanticLifecycleTests: XCTestCase
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
     }
 }
+
+private final class C32AssistanceAnchorV924AssetSemanticLifecycle: XCTestCase {
+    func testC32V924AssetSemanticLifecycleCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .asset,
+            fieldID: "asset-semantics.no-auto-merge",
+            value: .singleOption("UNVERIFIED")
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .asset,
+            fieldID: "asset-semantics.no-auto-merge",
+            valueKind: .singleOption
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

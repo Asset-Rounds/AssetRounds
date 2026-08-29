@@ -1207,3 +1207,24 @@ private final class C31LightingAnchorV944PlacementPoseTests: XCTestCase {
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
     }
 }
+
+private final class C32AssistanceAnchorV944PlacementPose: XCTestCase {
+    func testC32V944PlacementPoseCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .assetPoseEvent,
+            fieldID: "pose.no-auto-promotion",
+            value: .text("one-shot location proposal only")
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .assetPoseEvent,
+            fieldID: "pose.no-auto-promotion",
+            valueKind: .text
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

@@ -784,3 +784,24 @@ private final class C31LightingAnchorV9LocationHierarchyPlacementCompositionTest
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
     }
 }
+
+private final class C32AssistanceAnchorV9LocationHierarchyPlacementComposition: XCTestCase {
+    func testC32V9LocationHierarchyPlacementCompositionCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .locationNode,
+            fieldID: "location.workspace-switch",
+            value: .text("manual location candidate")
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .locationNode,
+            fieldID: "location.workspace-switch",
+            valueKind: .text
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

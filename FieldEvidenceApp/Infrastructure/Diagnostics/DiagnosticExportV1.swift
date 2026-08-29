@@ -136,6 +136,29 @@ struct PlacementPoseDiagnosticMetadataV1: Codable, Equatable, Sendable {
     }
 }
 
+/// C32 diagnostics expose aggregate acceptance health only. Proposal values,
+/// target/source identities, canonical receipt bytes and digests, reviewers,
+/// and leased scratch never enter the export.
+struct AssistanceDiagnosticMetadataV1: Codable, Equatable, Sendable {
+    let acceptedCount: Int
+    let sensitiveWorkDataCount: Int
+    let preciseLocationCount: Int
+    let metadataOnly: Bool
+    let proposalPayloadExcluded: Bool
+    let canonicalReceiptPayloadExcluded: Bool
+    let actorIdentityExcluded: Bool
+
+    var isValid: Bool {
+        [acceptedCount, sensitiveWorkDataCount, preciseLocationCount]
+            .allSatisfy { $0 >= 0 && $0 <= 100_000 }
+            && sensitiveWorkDataCount + preciseLocationCount <= acceptedCount
+            && metadataOnly
+            && proposalPayloadExcluded
+            && canonicalReceiptPayloadExcluded
+            && actorIdentityExcluded
+    }
+}
+
 struct DiagnosticExportV1: Codable, Equatable, Sendable {
     let app: DiagnosticAppContextV1
     let counters: DiagnosticsV1
@@ -184,6 +207,8 @@ struct DiagnosticExportV1: Codable, Equatable, Sendable {
     /// Optional C37 aggregate-only pose health. Event/observation bytes,
     /// actors, asset identities, and spatial coordinates are excluded.
     var placementPose: PlacementPoseDiagnosticMetadataV1? = nil
+    /// Optional C32 aggregate-only assistance health.
+    var assistance: AssistanceDiagnosticMetadataV1? = nil
 
     /// Integration event payloads, subjects, cursors, and checkpoint bytes are
     /// never diagnostic material. Diagnostics may describe only the static
@@ -216,6 +241,7 @@ struct DiagnosticExportV1: Codable, Equatable, Sendable {
             && (schedule?.isValid ?? true)
             && (plan?.isValid ?? true)
             && (placementPose?.isValid ?? true)
+            && (assistance?.isValid ?? true)
             && integrationProjectionPayloadExcluded
     }
 
@@ -271,6 +297,11 @@ enum IntegrationProjectionDiagnosticExclusionV1 {
         "localizedText", "alternateText", "assessor", "assessorID",
         "privateEvidence", "originalBytes", "pdfUAClaimed", "wcagClaimed",
         "legalCertificationClaimed", "s10BrandReconciled",
+        // C32 review/acceptance content and provenance are private durable
+        // evidence, never diagnostic payload.
+        "proposalID", "proposalSHA256", "valueSHA256", "requestSHA256",
+        "targetMutationSHA256", "canonicalEffectIdentities", "acceptedValue",
+        "acceptedBy", "target", "source", "capability", "privacyClass",
     ]
 
     static func validate(_ data: Data) throws {
@@ -315,6 +346,7 @@ struct DiagnosticExportService {
     typealias ScheduleProvider = () -> ScheduleDiagnosticMetadataV1?
     typealias PlanProvider = () -> PlanDiagnosticMetadataV1?
     typealias PlacementPoseProvider = () -> PlacementPoseDiagnosticMetadataV1?
+    typealias AssistanceProvider = () -> AssistanceDiagnosticMetadataV1?
     typealias ContextProvider<Value> = () -> Value
     typealias Clock = () -> Date
 
@@ -329,6 +361,7 @@ struct DiagnosticExportService {
     private let scheduleProvider: ScheduleProvider
     private let planProvider: PlanProvider
     private let placementPoseProvider: PlacementPoseProvider
+    private let assistanceProvider: AssistanceProvider
     private let appProvider: ContextProvider<DiagnosticAppContextV1>
     private let deviceProvider: ContextProvider<DiagnosticDeviceContextV1>
     private let clock: Clock
@@ -347,7 +380,8 @@ struct DiagnosticExportService {
         accessibleDocument: @escaping AccessibleDocumentProvider = { nil },
         schedule: @escaping ScheduleProvider = { nil },
         plan: @escaping PlanProvider = { nil },
-        placementPose: @escaping PlacementPoseProvider = { nil }
+        placementPose: @escaping PlacementPoseProvider = { nil },
+        assistance: @escaping AssistanceProvider = { nil }
     ) {
         countersProvider = counters
         metricKitProvider = metricKit
@@ -360,6 +394,7 @@ struct DiagnosticExportService {
         scheduleProvider = schedule
         planProvider = plan
         placementPoseProvider = placementPose
+        assistanceProvider = assistance
         appProvider = app
         deviceProvider = device
         self.clock = clock
@@ -378,6 +413,7 @@ struct DiagnosticExportService {
         schedule: @escaping ScheduleProvider = { nil },
         plan: @escaping PlanProvider = { nil },
         placementPose: @escaping PlacementPoseProvider = { nil },
+        assistance: @escaping AssistanceProvider = { nil },
         bundle: Bundle = .main,
         device: UIDevice = .current,
         clock: @escaping Clock = Date.init
@@ -408,7 +444,8 @@ struct DiagnosticExportService {
             accessibleDocument: accessibleDocument,
             schedule: schedule,
             plan: plan,
-            placementPose: placementPose
+            placementPose: placementPose,
+            assistance: assistance
         )
     }
 
@@ -428,7 +465,8 @@ struct DiagnosticExportService {
             accessibleDocument: accessibleDocumentProvider(),
             schedule: scheduleProvider(),
             plan: planProvider(),
-            placementPose: placementPoseProvider()
+            placementPose: placementPoseProvider(),
+            assistance: assistanceProvider()
         )
         guard value.isValid else {
             throw DiagnosticExportError.invalidValue
@@ -493,6 +531,9 @@ enum DiagnosticExportCanonicalEncoderV1 {
         if let placementPose = value.placementPose {
             object["placementPose"] = placementPoseValue(placementPose)
         }
+        if let assistance = value.assistance {
+            object["assistance"] = assistanceValue(assistance)
+        }
         let data = try CanonicalJSONV1.encode(.object(object))
         try IntegrationProjectionDiagnosticExclusionV1.validate(data)
         return data
@@ -509,6 +550,20 @@ enum DiagnosticExportCanonicalEncoderV1 {
             "leasedItemCount": .integer(value.leasedItemCount),
             "packetCount": .integer(value.packetCount),
             "releasedItemCount": .integer(value.releasedItemCount),
+        ])
+    }
+
+    private static func assistanceValue(
+        _ value: AssistanceDiagnosticMetadataV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "acceptedCount": .integer(value.acceptedCount),
+            "actorIdentityExcluded": .bool(value.actorIdentityExcluded),
+            "canonicalReceiptPayloadExcluded": .bool(value.canonicalReceiptPayloadExcluded),
+            "metadataOnly": .bool(value.metadataOnly),
+            "preciseLocationCount": .integer(value.preciseLocationCount),
+            "proposalPayloadExcluded": .bool(value.proposalPayloadExcluded),
+            "sensitiveWorkDataCount": .integer(value.sensitiveWorkDataCount),
         ])
     }
 

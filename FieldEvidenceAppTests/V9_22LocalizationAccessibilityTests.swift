@@ -1946,3 +1946,24 @@ extension V9_22LocalizationAccessibilityTests {
         }
     }
 }
+
+private final class C32AssistanceAnchorV922LocalizationAccessibility: XCTestCase {
+    func testC32V922LocalizationAccessibilityCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .factCapture,
+            fieldID: "localization.unverified-label",
+            value: .text("localized manual value")
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .factCapture,
+            fieldID: "localization.unverified-label",
+            valueKind: .text
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

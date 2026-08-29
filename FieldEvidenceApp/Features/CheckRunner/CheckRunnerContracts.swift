@@ -753,3 +753,61 @@ enum C31LightingConsumerBoundary_Features_CheckRunner_CheckRunnerContracts {
         try C31LightingProjectionPolicyV1.validate(projection)
     }
 }
+
+// MARK: - C32 explicit assistance review boundary
+
+enum CheckRunnerAssistanceStateV1: Equatable, Sendable {
+    case unverifiedReviewRequired
+    case expired(AssistanceProposalExpiryReasonV1)
+    case manualEntryAvailable
+}
+
+/// CheckRunner keeps the independently entered manual value beside, never
+/// inside, an ephemeral proposal. Dismissing or expiring the proposal cannot
+/// discard or overwrite that user-authored value.
+struct CheckRunnerAssistanceReviewContextV1: Equatable, Sendable {
+    static let unverifiedLocalizationKey = "assistance.proposal.unverified"
+    static let manualLocalizationKey = "assistance.manual.available"
+
+    let proposal: AssistanceProposalV1
+    let evaluation: AssistanceProposalEvaluationContextV1
+    let manualValue: ResponseValueV1?
+
+    init(
+        proposal: AssistanceProposalV1,
+        evaluation: AssistanceProposalEvaluationContextV1,
+        manualValue: ResponseValueV1?
+    ) throws {
+        self.proposal = proposal
+        self.evaluation = evaluation
+        self.manualValue = manualValue
+        try validate()
+    }
+
+    func validate() throws {
+        try proposal.validate()
+        try evaluation.validate()
+        try manualValue?.validate()
+        guard proposal.target.workspaceID == evaluation.workspaceID,
+              evaluation.policy.manualFallback == .typeManually,
+              manualValue != .noValue else {
+            throw AssistanceContractFailureV1.invalidValue
+        }
+    }
+
+    func state() throws -> CheckRunnerAssistanceStateV1 {
+        try validate()
+        if let reason = try proposal.expiryReason(in: evaluation) {
+            return .expired(reason)
+        }
+        return .unverifiedReviewRequired
+    }
+
+    func useManualValue() throws -> ResponseValueV1 {
+        try validate()
+        guard let manualValue else {
+            throw AssistanceContractFailureV1.invalidValue
+        }
+        return manualValue
+    }
+}

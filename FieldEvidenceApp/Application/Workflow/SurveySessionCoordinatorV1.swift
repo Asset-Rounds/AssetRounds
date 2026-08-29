@@ -165,3 +165,38 @@ enum C31LightingConsumerBoundary_Application_Workflow_SurveySessionCoordinatorV1
         try C31LightingProjectionPolicyV1.validate(projection)
     }
 }
+
+// MARK: - C32 accepted survey-fact boundary
+
+extension SurveySessionCoordinatorV1 {
+    /// Rebinds an accepted C32 value to the existing survey definition only
+    /// after the canonical assistance receipt exists. This method is a
+    /// validator, not a writer: the acceptance transaction remains owned by
+    /// AssistanceCanonicalWorkspaceWritingV1 and its exact expected revision.
+    func acceptedAssistanceFactValue(
+        _ receipt: AssistanceAcceptanceReceiptV1,
+        for session: SurveySessionV1,
+        definition: SurveyDefinitionReleaseV1,
+        packageRelease: InspectionPackageReleaseV1
+    ) throws -> ResponseValueV1 {
+        try receipt.validate()
+        try session.authority.validate(
+            definition: definition,
+            packageRelease: packageRelease
+        )
+        guard receipt.workspaceID == session.workspaceID,
+              receipt.target.entity.kind == .surveySession,
+              receipt.target.entity.id == session.sessionID,
+              receipt.target.revision == session.revision,
+              let field = definition.sections.flatMap(\.facts).first(where: {
+                  $0.factID == receipt.target.fieldID
+              }),
+              SurveyDefinitionStaticValidationV1.response(
+                  receipt.acceptedValue,
+                  isCompatibleWith: field
+              ) else {
+            throw AssistanceContractFailureV1.staleTarget
+        }
+        return receipt.acceptedValue
+    }
+}

@@ -89,6 +89,27 @@ enum C31LightingBackupRestorePolicyV1 {
     }
 }
 
+enum C32AssistanceBackupRestorePolicyV1 {
+    static let proposalsRestored = false
+    static let cloneForkPreservesTransitiveHistoricSourceProvenance = true
+
+    static func validate(_ records: V4BackupRecordsV1, mode: BackupRestoreMode) throws {
+        do { try records.validateC32AssistanceAcceptanceReceipts() }
+        catch { throw BackupRestoreServiceError.invalidRestoreAuthority }
+        guard !proposalsRestored, cloneForkPreservesTransitiveHistoricSourceProvenance else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        do {
+            try C32AssistanceRestoreIdentityPolicyV1.validate(
+                records.assistanceAcceptanceReceipts,
+                mode: mode
+            )
+        } catch {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+    }
+}
+
 enum BackupRestoreServiceError: Error, Equatable {
     case contextHasChanges
     case currentGenerationInvalid
@@ -370,6 +391,9 @@ final class BackupRestoreService {
                 && modelContext.fetchCount(FetchDescriptor<DeletionLedgerRow>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<SavedSmartViewRowV1>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()) == 0
+                && modelContext.fetchCount(
+                    FetchDescriptor<AssistanceAcceptanceReceiptRow>()
+                ) == 0
                 && modelContext.fetchCount(FetchDescriptor<MutationQuarantineRow>()) == 0
                 && modelContext.fetchCount(
                     FetchDescriptor<EntityMutationRevisionRow>()
@@ -532,6 +556,7 @@ final class BackupRestoreService {
             validatedPackage.records,
             mode: mode
         )
+        try C32AssistanceBackupRestorePolicyV1.validate(validatedPackage.records, mode: mode)
         try storagePreflight.checkBackupImport(
             declaredPayloadByteCount: Int64(
                 validatedPackage.manifest.declaredPayloadByteCount
@@ -1758,7 +1783,8 @@ private extension BackupRestoreService {
             savedSmartViews: records.savedSmartViews,
             sites: records.sites,
             workflowRecords: records.workflowRecords,
-            lighting: records.lighting
+            lighting: records.lighting,
+            assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts
         )
     }
 
@@ -1824,7 +1850,8 @@ private extension BackupRestoreService {
             savedSmartViews: records.savedSmartViews,
             sites: records.sites,
             workflowRecords: records.workflowRecords,
-            lighting: records.lighting
+            lighting: records.lighting,
+            assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts
         )
     }
 
@@ -2086,7 +2113,8 @@ private extension BackupRestoreService {
             reports: records.reports, requirementAssurance: assurance,
             savedSmartViews: records.savedSmartViews, sites: records.sites,
             workflowRecords: records.workflowRecords,
-            lighting: records.lighting
+            lighting: records.lighting,
+            assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts
         )
     }
 
@@ -2377,7 +2405,8 @@ private extension BackupRestoreService {
                 requirementAssurance: requirementAssurance,
                 savedSmartViews: savedSmartViews,
                 workflowRecords: records.workflowRecords,
-                lighting: records.lighting
+                lighting: records.lighting,
+                assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts
             )
         }
         let receipt = try LocationPersistenceCodecV1.decode(
@@ -2457,7 +2486,8 @@ private extension BackupRestoreService {
             savedSmartViews: savedSmartViews,
             sites: records.sites,
             workflowRecords: records.workflowRecords,
-            lighting: records.lighting
+            lighting: records.lighting,
+            assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts
         )
     }
 
@@ -4684,7 +4714,8 @@ private extension BackupRestoreService {
                 || records.recordsSchemaVersion == 27
                 || records.recordsSchemaVersion == 28
                 || records.recordsSchemaVersion == 29
-                || records.recordsSchemaVersion == 30)
+                || records.recordsSchemaVersion == 30
+                || records.recordsSchemaVersion == 31)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -5454,6 +5485,35 @@ private extension BackupRestoreService {
                 throw BackupRestoreServiceError.invalidPackage
             }
         }
+        if records.recordsSchemaVersion >= 31 {
+            do {
+                try records.validateC32AssistanceAcceptanceReceipts()
+                let targetWorkspaceID = identityDecision?.targetPointer.workspaceID
+                    ?? legacyDestinationIdentity.workspaceID.rawValue
+                let restoreMode = identityDecision?.mode ?? .emptyInstall
+                let values = try records.assistanceAcceptanceReceipts.map { try $0.value() }
+                for value in values {
+                    _ = try C32AssistanceRestoreIdentityPolicyV1.provenanceDisposition(
+                        receiptWorkspaceID: value.workspaceID.rawValue,
+                        targetWorkspaceID: targetWorkspaceID,
+                        mode: restoreMode
+                    )
+                }
+                for value in values.sorted(by: {
+                    $0.receiptID.uuidString.lowercased() < $1.receiptID.uuidString.lowercased()
+                }) {
+                    context.insert(try AssistanceAcceptanceReceiptRow(value))
+                }
+            } catch let error as BackupRestoreServiceError {
+                throw error
+            } catch {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+        } else {
+            guard records.assistanceAcceptanceReceipts.isEmpty else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+        }
         if let mutationHistory = records.mutationHistory {
             guard records.recordsSchemaVersion == 3
                     || records.recordsSchemaVersion == 4
@@ -5482,7 +5542,8 @@ private extension BackupRestoreService {
                     || records.recordsSchemaVersion == 27
                     || records.recordsSchemaVersion == 28
                     || records.recordsSchemaVersion == 29
-                    || records.recordsSchemaVersion == 30 else {
+                    || records.recordsSchemaVersion == 30
+                    || records.recordsSchemaVersion == 31 else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {
@@ -6872,6 +6933,9 @@ private extension BackupRestoreService {
         let lightingClaimStateRows = try context.fetch(
             FetchDescriptor<LightingClaimStateRow>()
         )
+        let assistanceAcceptanceReceiptRows = try context.fetch(
+            FetchDescriptor<AssistanceAcceptanceReceiptRow>()
+        )
         let recoverabilityVerificationReceipts=try context.fetch(FetchDescriptor<RecoverabilityVerificationReceiptRow>())
         let clientCapabilityProfiles=try context.fetch(FetchDescriptor<ClientCapabilityProfileRow>()),packageLifecyclePolicies=try context.fetch(FetchDescriptor<PackageLifecyclePolicyRow>()),packageLifecycleDispositions=try context.fetch(FetchDescriptor<PackageLifecycleDispositionRow>()),clientCapabilityAdmissionDecisions=try context.fetch(FetchDescriptor<ClientCapabilityAdmissionDecisionRow>())
         let privacyTransformPolicies=try context.fetch(FetchDescriptor<PrivacyTransformPolicyRow>()),privacyRegions=try context.fetch(FetchDescriptor<PrivacyRegionRow>()),privacyTransformManifests=try context.fetch(FetchDescriptor<PrivacyTransformManifestRow>()),privacyReviewReceipts=try context.fetch(FetchDescriptor<PrivacyReviewReceiptRow>())
@@ -7093,6 +7157,9 @@ private extension BackupRestoreService {
                     < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
             }
         _ = try LightingBackupRecordSetV1.decode(lightingRecords)
+        let assistanceAcceptanceReceiptRecords = try assistanceAcceptanceReceiptRows
+            .map { try V32BackupAssistanceAcceptanceRecordV1($0.value()) }
+            .sorted { $0.receiptID.uuidString.lowercased() < $1.receiptID.uuidString.lowercased() }
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveyRecords,
             assetLocators: assetLocatorRecords,
@@ -7299,7 +7366,8 @@ private extension BackupRestoreService {
                 "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
                     < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
             },
-            recordsSchemaVersion: !lightingRecords.isEmpty ? 30
+            recordsSchemaVersion: !assistanceAcceptanceReceiptRecords.isEmpty ? 31
+                : !lightingRecords.isEmpty ? 30
                 : !planArchiveRecords.isEmpty ? 27
                 : mutationHistory != nil && !(surveySessions.isEmpty
                 && factCaptures.isEmpty && provisionalSubjects.isEmpty
@@ -7373,7 +7441,8 @@ private extension BackupRestoreService {
                 }
                 return workflowDTO(record, observationAndTime: companion)
             }.sorted { canonical($0.id) < canonical($1.id) },
-            lighting: lightingRecords
+            lighting: lightingRecords,
+            assistanceAcceptanceReceipts: assistanceAcceptanceReceiptRecords
         )
     }
 

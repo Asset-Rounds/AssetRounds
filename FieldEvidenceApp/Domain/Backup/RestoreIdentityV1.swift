@@ -596,3 +596,56 @@ enum C31LightingRestoreIdentityPolicyV1 {
         _ = try LightingBackupRecordSetV1.decode(rows)
     }
 }
+
+/// C32 receipts are immutable canonical-mutation provenance. Same-workspace
+/// restore preserves them as active history. Clone/fork preserves the exact
+/// source receipt and its outer journal receipt as historic source provenance;
+/// neither row is rebound or made authoritative for the destination workspace.
+enum C32AssistanceRestoreProvenanceDispositionV1: String, Equatable, Sendable {
+    case activeWorkspace = "ACTIVE_WORKSPACE_ACCEPTANCE_PROVENANCE"
+    case historicSource = "TRANSITIVE_HISTORIC_SOURCE_ACCEPTANCE_PROVENANCE"
+}
+
+enum C32AssistanceRestoreIdentityPolicyV1 {
+    static let persistentSchemaVersion = 32
+    static let recordsSchemaVersion = 31
+    static let durableFamilyCount = 1
+    static let proposalPersistence = "NONPERSISTENT"
+    static let historicSourceProvenanceIsTransitivelyPortable = true
+
+    static func disposition(for mode: BackupRestoreMode) -> String {
+        switch mode {
+        case .emptyInstall, .replaceExisting: return "PRESERVE_CANONICAL_ACCEPTANCE_PROVENANCE"
+        case .clone, .fork: return "PRESERVE_TRANSITIVE_HISTORIC_SOURCE_ACCEPTANCE_PROVENANCE"
+        }
+    }
+
+    /// The immutable receipt/journal pair carries its original workspace
+    /// identity through every descendant. Equality with the destination is
+    /// the only condition that can make the provenance active there.
+    static func provenanceDisposition(
+        receiptWorkspaceID: UUID,
+        targetWorkspaceID: UUID,
+        mode: BackupRestoreMode
+    ) throws -> C32AssistanceRestoreProvenanceDispositionV1 {
+        if receiptWorkspaceID == targetWorkspaceID {
+            guard mode != .clone && mode != .fork else {
+                throw AssistanceContractFailureV1.invalidReceipt
+            }
+            return .activeWorkspace
+        }
+        return .historicSource
+    }
+
+    static func validate(_ records: [V32BackupAssistanceAcceptanceRecordV1],
+                         mode: BackupRestoreMode) throws {
+        guard persistentSchemaVersion == AssistancePersistenceEnrollmentV1.persistentSchemaVersion,
+              recordsSchemaVersion == AssistancePersistenceEnrollmentV1.recordsSchemaVersion,
+              durableFamilyCount == AssistancePersistenceEnrollmentV1.durableModelCount,
+              proposalPersistence == "NONPERSISTENT",
+              historicSourceProvenanceIsTransitivelyPortable else {
+            throw AssistanceContractFailureV1.invalidReceipt
+        }
+        for record in records { _ = try record.value() }
+    }
+}

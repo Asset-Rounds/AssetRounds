@@ -43,6 +43,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             .applyPlacementPose,
             .applyEvidenceContext,
             .applyLighting,
+            .applyAssistanceAcceptance,
         ])
 
     /// C22 receipts are appended by the existing fenced journal authority;
@@ -174,6 +175,12 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         case let .applyPlacementPose(value):return try applyPlacementPose(value,temporaryRelativePath:temporaryRelativePath)
         case let .applyEvidenceContext(value):return try applyEvidenceContext(value,temporaryRelativePath:temporaryRelativePath)
         case let .applyLighting(value):return try applyLighting(value,temporaryRelativePath:temporaryRelativePath)
+        case let .applyAssistanceAcceptance(request):
+            try request.validate()
+            switch request.targetMutation {
+            case let .surveySession(mutation):
+                return try applySurveySession(mutation, temporaryRelativePath: temporaryRelativePath)
+            }
         case .deleteAsset,
              .deleteSite,
              .eraseWorkspace,

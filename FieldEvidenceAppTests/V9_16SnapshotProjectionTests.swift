@@ -866,3 +866,24 @@ extension V9_16SnapshotProjectionTests {
         }
     }
 }
+
+private final class C32AssistanceAnchorV916SnapshotProjection: XCTestCase {
+    func testC32V916SnapshotProjectionCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .surveyPublicationSnapshot,
+            fieldID: "snapshot.exclude-proposal",
+            value: .text("accepted snapshot value only")
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .surveyPublicationSnapshot,
+            fieldID: "snapshot.exclude-proposal",
+            valueKind: .text
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

@@ -1438,3 +1438,28 @@ extension LocalSearchIndexStoreV1 {
     static let c31LightingIndexIsDisposableAndRebuildable = true
     static let c31LightingIndexExcludesBytesActorsAndPrivateLocators = true
 }
+
+// MARK: - C32 assistance index exclusion
+
+enum AssistanceSearchIndexBoundaryV1 {
+    /// A rebuilt index contains neither ephemeral proposals nor durable
+    /// acceptance metadata. The accepted target's existing projection owner
+    /// remains the only route into search.
+    static func validateExcludedAssistanceRows(
+        proposals: [AssistanceProposalV1],
+        receipts: [AssistanceAcceptanceReceiptV1]
+    ) throws {
+        for proposal in proposals {
+            let mayIndex = try AssistanceSearchIsolationPolicyV1.mayIndex(proposal)
+            guard !mayIndex else {
+                throw SearchContractFailureV1.forbiddenField
+            }
+        }
+        for receipt in receipts {
+            let mayIndex = try AssistanceSearchIsolationPolicyV1.mayIndex(receipt)
+            guard !mayIndex else {
+                throw SearchContractFailureV1.forbiddenField
+            }
+        }
+    }
+}

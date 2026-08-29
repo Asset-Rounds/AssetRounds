@@ -116,5 +116,14 @@
   "persistentSchemaVersion": 31,
   "recordsSchemaVersion": 30,
   "schema": "V22P03C31LightingPackageCorpusV1",
-  "schemaVersion": 1
+  "schemaVersion": 1,
+  "c32AssistanceProposalCompatibility": {
+    "compatibilityCardID": "V23-P03-C32",
+    "proposalLifecycle": "NONPERSISTENT",
+    "acceptanceReceiptPersistentSchemaVersion": 32,
+    "measurementProposalNeverCreatesComplianceClaim": true,
+    "photoOrExifProposalNeverBecomesMeasurement": true,
+    "confidencePolicyIsCapabilityLocal": true,
+    "manualLightingPathRemainsEquivalent": true
+  }
 }

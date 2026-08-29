@@ -2319,3 +2319,22 @@ enum C31LightingReportProjectionRegistryV1 {
         return projection
     }
 }
+
+
+// MARK: - C32 assistance report exclusion
+
+enum AssistanceReportProjectionBoundaryV1 {
+    static let proposalProjectionVersion: Int? = nil
+    static let acceptanceReceiptProjectionVersion: Int? = nil
+    static let acceptedTargetUsesExistingProjection = true
+
+    static func mayProject(_ proposal: AssistanceProposalV1) throws -> Bool {
+        try proposal.validate()
+        return false
+    }
+
+    static func mayProject(_ receipt: AssistanceAcceptanceReceiptV1) throws -> Bool {
+        try receipt.validate()
+        return false
+    }
+}

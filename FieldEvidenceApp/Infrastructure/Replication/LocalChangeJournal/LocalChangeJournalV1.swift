@@ -585,6 +585,7 @@ final class LocalChangeJournalV1 {
             try PlacementPoseJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)
             try EvidenceContextJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)
             try LightingJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)
+            try AssistanceLocalChangeJournalPolicyV1.validate(change)
             let disposition: MutationReplayDispositionV1
             if blocked {
                 disposition = try .init(mutationID: change.envelope.mutationID, disposition: .deferredGap, reasonCode: "PRIOR_CAUSAL_GAP")
@@ -1700,3 +1701,35 @@ extension StoreSessionCoordinator {
 }
 
 enum LightingLocalChangeJournalPolicyV1 { static let commandKind:WorkspaceCommandKindV1 = .applyLighting;static let durableEntityKinds:Set<WorkspaceEntityKindV1>=[.lightingSystem,.lightingObservation,.lightingIssue,.lightingMeasurementPlan,.lightingClaimState];static func validate(_ envelope:MutationEnvelopeV1)throws{guard case let .applyLighting(operation)=envelope.command else{return};try operation.validate();guard envelope.commandKind==commandKind,envelope.mutationID==operation.mutationID else{throw ChangeJournalFailureV1.tamperedBatch}} }
+
+enum AssistanceLocalChangeJournalPolicyV1 {
+    static let commandKind: WorkspaceCommandKindV1 = .applyAssistanceAcceptance
+    static let proposalJournalPersistence = "OUTER_ACCEPTANCE_ENVELOPE_ONLY"
+
+    static func validate(_ change: JournalChangeV1) throws {
+        guard case let .applyAssistanceAcceptance(request) = change.envelope.command else { return }
+        do {
+            try request.validate()
+            let affected = try request.targetMutation.affectedIdentities.sorted {
+                $0.stableKey < $1.stableKey
+            }
+            let imageIdentities = try change.receipt.postImages.map(\.identity).sorted {
+                $0.stableKey < $1.stableKey
+            }
+            let projected = try AssistanceAcceptanceReceiptV1(
+                request: request,
+                canonicalMutationReceipt: change.receipt
+            )
+            guard proposalJournalPersistence == "OUTER_ACCEPTANCE_ENVELOPE_ONLY",
+                  change.envelope.commandKind == commandKind,
+                  change.envelope.mutationID == request.mutationID,
+                  change.receipt.mutationID == request.mutationID,
+                  affected == imageIdentities,
+                  Set(affected) == Set(change.entityChanges.map(\.identity)),
+                  projected.mutationID == request.mutationID else {
+                throw ChangeJournalFailureV1.tamperedBatch
+            }
+        } catch let failure as ChangeJournalFailureV1 { throw failure }
+        catch { throw ChangeJournalFailureV1.tamperedBatch }
+    }
+}

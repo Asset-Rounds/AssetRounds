@@ -1245,3 +1245,24 @@ extension V9_ChangeJournalCheckpointReplayTests {
         }
     }
 }
+
+private final class C32AssistanceAnchorV9ChangeJournalCheckpointReplay: XCTestCase {
+    func testC32V9ChangeJournalCheckpointReplayCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .factCapture,
+            fieldID: "journal.effect-before-receipt",
+            value: .integer(8)
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .factCapture,
+            fieldID: "journal.effect-before-receipt",
+            valueKind: .integer
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

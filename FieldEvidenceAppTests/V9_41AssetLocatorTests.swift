@@ -1048,3 +1048,24 @@ private final class C31LightingAnchorV941AssetLocatorTests: XCTestCase {
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
     }
 }
+
+private final class C32AssistanceAnchorV941AssetLocator: XCTestCase {
+    func testC32V941AssetLocatorCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .assetLocator,
+            fieldID: "asset-locator.no-auto-merge",
+            value: .text("one-shot location candidate")
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .assetLocator,
+            fieldID: "asset-locator.no-auto-merge",
+            valueKind: .text
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

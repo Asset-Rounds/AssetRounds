@@ -2302,3 +2302,56 @@ enum C31LightingAccessibilityPolicyV1 {
         }
     }
 }
+
+// MARK: - C32 assistance review accessibility
+
+enum C32AssistanceAccessibilityIDV1: String, CaseIterable, Codable, Sendable {
+    case unverified = "assistance.proposal.unverified"
+    case review = "assistance.proposal.review"
+    case accept = "assistance.proposal.accept"
+    case reject = "assistance.proposal.reject"
+    case expired = "assistance.proposal.expired"
+    case manualAvailable = "assistance.manual.available"
+    case permissionDenied = "assistance.permission.denied"
+    case interrupted = "assistance.interrupted"
+
+    var localizationKey: LocalizationKeyV1 {
+        // Accessibility semantics reuse the exact visible C32 review labels.
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+}
+
+enum C32AssistanceAccessibilityPolicyV1 {
+    static let proposalStateHasSpokenUnverifiedText = true
+    static let explicitReviewControlRequired = true
+    static let acceptAndRejectAreDistinctActions = true
+    static let manualFallbackRemainsFocusable = true
+    static let permissionAndInterruptionHaveText = true
+    static let colorOnlyStateAllowed = false
+    static let motionOnlyStateAllowed = false
+
+    static func requiresActionableNextStep(
+        for id: C32AssistanceAccessibilityIDV1
+    ) -> Bool {
+        [.expired, .permissionDenied, .interrupted].contains(id)
+    }
+
+    static func validate() throws {
+        let values = C32AssistanceAccessibilityIDV1.allCases
+        guard values.map(\.rawValue).count == Set(values.map(\.rawValue)).count,
+              values.allSatisfy({ !$0.localizationKey.rawValue.isEmpty }),
+              proposalStateHasSpokenUnverifiedText,
+              explicitReviewControlRequired,
+              acceptAndRejectAreDistinctActions,
+              manualFallbackRemainsFocusable,
+              permissionAndInterruptionHaveText,
+              !colorOnlyStateAllowed,
+              !motionOnlyStateAllowed,
+              requiresActionableNextStep(for: .expired),
+              requiresActionableNextStep(for: .permissionDenied),
+              requiresActionableNextStep(for: .interrupted) else {
+            throw LocalizationContractFailureV1.invalidAccessibilityBinding
+        }
+    }
+}

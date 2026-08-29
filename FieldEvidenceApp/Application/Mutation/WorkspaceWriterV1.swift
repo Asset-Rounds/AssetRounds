@@ -567,6 +567,19 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             do{try value.validate();guard value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,sourceKind == .importedHistory || occurredAtOverride != nil || request.expectedRevision.entityRevisions.first(where:{$0.identity==(try value.concurrencyIdentity)})?.revision==value.expectedRevision else{throw WorkspaceMutationFailureV1.invalidCommand}}catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
         case .applyLighting(let value):
             do{try value.validate();guard value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,sourceKind == .importedHistory || occurredAtOverride != nil || request.expectedRevision.entityRevisions.first(where:{$0.identity==(try value.concurrencyIdentity)})?.revision==value.expectedRevision else{throw WorkspaceMutationFailureV1.invalidCommand}}catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
+        case .applyAssistanceAcceptance(let acceptance):
+            do {
+                try acceptance.validate()
+                guard acceptance.proposal.target.workspaceID == identity.workspaceID,
+                      acceptance.mutationID == request.mutationID,
+                      acceptance.expectedRevision == request.expectedRevision else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            } catch let failure as WorkspaceMutationFailureV1 {
+                throw failure
+            } catch {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
         default:
             break
         }
@@ -794,6 +807,13 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             entityRevisions[try operation.affectedIdentity]=operation.revision
         } else if case let .applyLighting(operation) = request.command {
             entityRevisions[try operation.affectedIdentity]=operation.revision
+        } else if case let .applyAssistanceAcceptance(acceptance) = request.command {
+            switch acceptance.targetMutation {
+            case .surveySession(let mutation):
+                for image in try mutation.mutationPostImages {
+                    entityRevisions[try image.identity] = image.revision
+                }
+            }
         } else {
             for target in targets { entityRevisions[target, default: 0] += 1 }
         }
@@ -1286,6 +1306,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             try value.validate();values=[try value.affectedIdentity]
         case let .applyLighting(value):
             try value.validate();values=[try value.affectedIdentity]
+        case let .applyAssistanceAcceptance(value):
+            try value.validate();values=try value.targetMutation.affectedIdentities
         }
         guard Set(values).count == values.count else {
             throw WorkspaceMutationFailureV1.invalidCommand
@@ -1337,6 +1359,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         if case let .applyPlacementPose(value)=command{try value.validate();return try value.concurrencyIdentities}
         if case let .applyEvidenceContext(value)=command{try value.validate();return[try value.concurrencyIdentity]}
         if case let .applyLighting(value)=command{try value.validate();return[try value.concurrencyIdentity]}
+        if case let .applyAssistanceAcceptance(value)=command{try value.validate();return try value.targetMutation.concurrencyIdentities}
         return try targetIdentities(for: command)
     }
 
@@ -1389,7 +1412,7 @@ extension WorkspaceWriterV1: PlanRebaseWorkspaceWritingV1 {
     }
 }
 
-extension WorkspaceWriterV1 {
+extension WorkspaceWriterV1: PlacementPoseCanonicalWorkspaceWritingV1 {
     func commitPlacementPose(_ mutation: PlacementPoseMutationV1) throws -> MutationReceiptV1 {
         try mutation.validate()
         let current = try currentRevision()
@@ -1431,4 +1454,69 @@ extension WorkspaceWriterV1:EvidenceContextCanonicalWorkspaceWritingV1{
 
 extension WorkspaceWriterV1:LightingCanonicalWorkspaceWritingV1{
     func commitLighting(_ operation:LightingWriteOperationV1)throws->MutationReceiptV1{try operation.validate();let current=try currentRevision(),target=try operation.concurrencyIdentity,known=Dictionary(uniqueKeysWithValues:current.entityRevisions.map{($0.identity,$0.revision)});guard known[target,default:0]==operation.expectedRevision else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision};let expected=try WorkspaceExpectedRevisionV1(workspaceID:current.workspaceID,generationID:current.generationID,writerInstanceID:current.writerInstanceID,workspaceRevision:current.revision,entityRevisions:[.init(identity:target,revision:operation.expectedRevision)]);_ = try execute(.init(mutationID:operation.mutationID,expectedRevision:expected,command:.applyLighting(operation)));guard let receipt=try journalStore?.receipt(mutationID:operation.mutationID)else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};_ = try LightingMutationReceiptV1(operation:operation,mutationReceipt:receipt);return receipt}
+}
+
+
+// MARK: - C32 expected-revision acceptance preflight
+
+extension WorkspaceWriterV1: AssistanceCanonicalWorkspaceWritingV1 {
+    /// Proves the consumer-supplied request is still at the exact target
+    /// revision before its typed command delegate calls the sole writer. It
+    /// does not invent a generic WorkspaceCommandV1 for an arbitrary field.
+    func validateAssistanceAcceptanceRequest(
+        _ request: AssistanceAcceptanceRequestV1
+    ) throws {
+        try request.validate()
+        let current = try currentRevision()
+        let expected = request.expectedRevision
+        let targetRows = expected.entityRevisions.filter {
+            $0.identity == request.proposal.target.entity
+        }
+        let currentRows = current.entityRevisions.filter {
+            $0.identity == request.proposal.target.entity
+        }
+        guard current.workspaceID == expected.workspaceID,
+              current.generationID == expected.generationID,
+              current.writerInstanceID == expected.writerInstanceID,
+              current.revision == expected.workspaceRevision,
+              targetRows.count == 1,
+              currentRows.count == 1,
+              targetRows[0].revision == request.proposal.target.revision,
+              currentRows[0].revision == request.proposal.target.revision else {
+            throw WorkspaceMutationFailureV1.staleWorkspaceRevision
+        }
+    }
+
+    func commitAssistanceAcceptance(
+        _ request: AssistanceAcceptanceRequestV1
+    ) throws -> AssistanceAcceptanceReceiptV1 {
+        try request.validate()
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
+
+        if let existing = try journalStore.assistanceAcceptanceReceipt(
+            mutationID: request.mutationID
+        ) {
+            try existing.validate(request: request)
+            return existing
+        }
+
+        try validateAssistanceAcceptanceRequest(request)
+        _ = try execute(request.canonicalWorkspaceMutationRequest())
+        guard let committed = try journalStore.assistanceAcceptanceReceipt(
+            mutationID: request.mutationID
+        ) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        try committed.validate(request: request)
+        return committed
+    }
+
+    func acceptedAssistanceReceipt(
+        mutationID: MutationIDV1
+    ) throws -> AssistanceAcceptanceReceiptV1? {
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        return try journalStore.assistanceAcceptanceReceipt(mutationID: mutationID)
+    }
 }

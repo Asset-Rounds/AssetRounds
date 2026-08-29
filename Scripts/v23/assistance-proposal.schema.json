@@ -1,0 +1,251 @@
+{
+  "$id": "https://assetrounds.invalid/v23/assistance-proposal.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "capabilities": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "locale": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "manualFallback": {
+            "const": "MANUAL_TYPED_FIELD_ENTRY"
+          },
+          "modelVersion": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "permission": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "version": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "locale",
+          "modelVersion",
+          "permission",
+          "manualFallback"
+        ],
+        "type": "object"
+      },
+      "minItems": 4,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "cardID": {
+      "const": "V23-P03-C32"
+    },
+    "durableFamilies": {
+      "const": [
+        "AssistanceAcceptanceReceiptV1"
+      ]
+    },
+    "evidenceIDs": {
+      "const": [
+        "V23-P03-C32-G01",
+        "V23-P03-C32-A01",
+        "V23-P03-C32-H01",
+        "V23-P03-C32-I01",
+        "V23-P03-C32-R01"
+      ]
+    },
+    "expiryTriggers": {
+      "const": [
+        "TARGET_REVISION_CHANGED",
+        "CAPABILITY_REVOKED",
+        "PACKAGE_CHANGED",
+        "DEFINITION_CHANGED",
+        "TIMEOUT",
+        "WORKSPACE_SWITCHED",
+        "SOURCE_DELETED"
+      ]
+    },
+    "hostileCases": {
+      "const": [
+        "PROPOSAL_AFTER_USER_EDIT",
+        "CONFIDENCE_ABSENT_WHEN_REQUIRED",
+        "CONFIDENCE_OUT_OF_RANGE",
+        "WRONG_LOCALE",
+        "WRONG_MODEL_VERSION",
+        "SOURCE_REMOVED",
+        "PERMISSION_REVOKED",
+        "WORKSPACE_SWITCHED",
+        "APP_KILLED_DURING_REVIEW",
+        "TARGET_REVISION_STALE",
+        "TYPED_VALUE_INVALID_FOR_FIELD"
+      ]
+    },
+    "invariants": {
+      "const": {
+        "capabilitiesRollbackIndependently": true,
+        "expectedRevisionRequired": true,
+        "explicitReviewRequired": true,
+        "manualPathEquivalent": true,
+        "noDiagnosisOrComplianceSuggestion": true,
+        "noDirectMutation": true,
+        "noHiddenNetworkFallback": true,
+        "noSharedGlobalConfidenceThreshold": true,
+        "proposalNeverBackedUp": true,
+        "proposalNeverCanonical": true,
+        "proposalNeverPersistent": true,
+        "proposalNeverReported": true,
+        "proposalNeverSearched": true,
+        "rejectedProposalCorpusRetained": false
+      }
+    },
+    "lifecycle": {
+      "const": {
+        "acceptanceReceipt": "PERSISTENT_V32_RECORDS31",
+        "backup": "ACCEPTANCE_RECEIPT_ONLY",
+        "deleteErase": "WORKSPACE_SCOPED_RECEIPT_REMOVAL",
+        "diagnostics": "BOUNDED_COUNTS_ONLY",
+        "proposal": "NONPERSISTENT",
+        "replication": "ACCEPTED_CANONICAL_EFFECT_ONLY",
+        "report": "EXCLUDED",
+        "restore": "ACCEPTANCE_RECEIPT_ONLY",
+        "scratch": "NONPERSISTENT_DELETE_ON_TERMINAL_DISPOSITION",
+        "search": "EXCLUDED"
+      }
+    },
+    "persistentSchemaVersion": {
+      "const": 32
+    },
+    "proposalPersistenceDisposition": {
+      "const": "NONPERSISTENT"
+    },
+    "recordsSchemaVersion": {
+      "const": 31
+    },
+    "recovery": {
+      "const": {
+        "effectBeforeReceipt": "RECOVER_SAME_ACCEPTED_EFFECT_AND_RECEIPT",
+        "receiptBeforeEffect": "FORBIDDEN",
+        "relaunchDuringReview": "EXPIRE_AND_DELETE_SCRATCH",
+        "retryMutationID": "RETURNS_SAME_RECEIPT",
+        "userEnteredText": "PRESERVED_INDEPENDENTLY"
+      }
+    },
+    "requiredContractNames": {
+      "const": [
+        "AssistanceCapabilityReferenceV1",
+        "AssistanceTargetV1",
+        "AssistanceSourceReferenceV1",
+        "AssistanceProposalV1",
+        "AssistanceCapabilityPolicyV1",
+        "AssistanceProposalEvaluationContextV1",
+        "AssistanceProposalExpiryReasonV1",
+        "AssistanceAcceptanceRequestV1",
+        "AssistanceAcceptanceReceiptV1"
+      ]
+    },
+    "schema": {
+      "const": "V22P03C32AssistanceProposalCorpusV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "statusFlags": {
+      "additionalProperties": {
+        "const": false
+      },
+      "type": "object"
+    },
+    "transitionMatrix": {
+      "const": [
+        {
+          "action": "ACCEPT",
+          "canonicalMutationCount": 1,
+          "durableAcceptanceReceiptCount": 1,
+          "proposalDisposition": "REMOVED",
+          "scratchDisposition": "DELETED"
+        },
+        {
+          "action": "REJECT",
+          "canonicalMutationCount": 0,
+          "durableAcceptanceReceiptCount": 0,
+          "proposalDisposition": "REMOVED",
+          "scratchDisposition": "DELETED"
+        },
+        {
+          "action": "CANCEL",
+          "canonicalMutationCount": 0,
+          "durableAcceptanceReceiptCount": 0,
+          "proposalDisposition": "REMOVED",
+          "scratchDisposition": "DELETED"
+        },
+        {
+          "action": "EXPIRE",
+          "canonicalMutationCount": 0,
+          "durableAcceptanceReceiptCount": 0,
+          "proposalDisposition": "REMOVED",
+          "scratchDisposition": "DELETED"
+        }
+      ]
+    },
+    "typedValueCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "kind": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "unit": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "value"
+        ],
+        "type": "object"
+      },
+      "minItems": 8,
+      "type": "array",
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "persistentSchemaVersion",
+    "recordsSchemaVersion",
+    "proposalPersistenceDisposition",
+    "durableFamilies",
+    "requiredContractNames",
+    "evidenceIDs",
+    "capabilities",
+    "typedValueCases",
+    "transitionMatrix",
+    "expiryTriggers",
+    "hostileCases",
+    "recovery",
+    "lifecycle",
+    "invariants",
+    "statusFlags"
+  ],
+  "title": "V23 P03 C32 Assistance Proposal Corpus",
+  "type": "object"
+}

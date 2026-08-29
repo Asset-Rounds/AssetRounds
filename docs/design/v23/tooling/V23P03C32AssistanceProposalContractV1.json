@@ -1,0 +1,90 @@
+{
+  "artifactDigest": "3ba06aee2b72261e740c8a0fd3d29247ba90ae1da12619c5ca84a06b62492151",
+  "authority": {
+    "allowedPathCount": 214,
+    "appBaseHead": "6e1c6b1fc07d0a6a5886379b3aa2407844b6dc4a",
+    "appBaseTree": "943c09f17e948d2ebd212dbfeb090efb584b231e",
+    "attemptID": 1,
+    "authorizedOverlapCount": 2753,
+    "cardID": "V23-P03-C32",
+    "contextDigest": "b704c099d91a8067ea066b0ce2b4d8a62e5bd9ac156ec14480dea9afb0827776",
+    "coordinationCASSequence": 302,
+    "coordinationHead": "01009bd3ed27babfd718d078c2bc24b47cbade29",
+    "coordinationLedgerDigest": "b677fda49e7859993988e08c9955289a4587597714be0f255dfcce244d48ad43",
+    "coordinationProjectionDigest": "ce5614921210ac6c4b8aea8fb9f0b32ae47c5fb0027f0666037dd1406da5de92",
+    "coordinationTree": "8531395d5468c157eccccc3cb047c9efedb0194f",
+    "digestPinsPending": false,
+    "directPrerequisiteCards": [
+      "V23-P03-C26"
+    ],
+    "existingPathCount": 200,
+    "fenceDigest": "8eee1494434e2bb6e82f7c86cf1d34595b76b86ba47c64b0367e0de65e68cdaa",
+    "hydrationRevision": 1,
+    "hydrationTransitionDigest": "493629c43c059919f4d01bbb5d62e4811dded9f335bb854e354b76ce20dc0933",
+    "newPathCount": 14,
+    "nextCard": "V23-P03-C33",
+    "prerequisiteDigest": "ec0e665bf000b709837652776b1c7dcb2db54bbb9cca5b6a4e36df9e99922c11",
+    "registerOrdinal": 71,
+    "title": "Capability-gated assistance proposals, explicit review, acceptance mutation, and expiry",
+    "unauthorizedOverlapCount": 0
+  },
+  "persistence": {
+    "backupRestoreRequired": true,
+    "cloneForkRequired": true,
+    "deleteEraseRequired": true,
+    "downgrade": "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_FIRST_V32_WRITE",
+    "durableFamilyCount": 1,
+    "exportReportRequired": true,
+    "interruptionRecoveryRequired": true,
+    "migrationRequired": true,
+    "mode": "NEW_SCHEMA_VERSION",
+    "nonpersistentFamilies": [
+      "AssistanceProposalV1",
+      "AssistanceCapabilityScratchV1"
+    ],
+    "persistedFamilies": [
+      "AssistanceAcceptanceReceiptRow"
+    ],
+    "persistentKindLifecycleModelCount": 110,
+    "persistentSchemaVersion": 32,
+    "recordsSchemaVersion": 31,
+    "replayRequired": true,
+    "schemaRelease": "ASSISTANCE_ACCEPTANCE_V1",
+    "searchRebuildRequired": true
+  },
+  "requiredSemantics": {
+    "acceptanceReceiptIsOnlyDurableFamily": true,
+    "allSixExpirySourcesAreCovered": true,
+    "backupRestoreCloneForkDeleteEraseExportSearchReplayClosure": true,
+    "capabilitiesAreIndependentlyEnabledLocalizedAndRolledBack": true,
+    "contractNames": [
+      "AssistanceCapabilityReferenceV1",
+      "AssistanceTargetV1",
+      "AssistanceSourceReferenceV1",
+      "AssistanceProposalV1",
+      "AssistanceCapabilityPolicyV1",
+      "AssistanceProposalEvaluationContextV1",
+      "AssistanceProposalExpiryReasonV1",
+      "AssistanceAcceptanceRequestV1",
+      "AssistanceAcceptanceReceiptV1"
+    ],
+    "effectBeforeReceiptRecoveryIsIdempotent": true,
+    "expectedRevisionAndMutationIDBound": true,
+    "explicitReviewBeforeOneCanonicalMutation": true,
+    "fiveSelectors": [
+      "testV23P03C32G01ProposalReviewAcceptanceUsesOneCanonicalMutation",
+      "testV23P03C32A01RejectCancelExpireDeleteScratchAndPreserveManualText",
+      "testV23P03C32H01StaleTargetsInvalidValuesAndForbiddenCapabilityPathsFailClosed",
+      "testV23P03C32I01InterruptedAcceptanceRecoversIdempotentlyWithoutDirectWrites",
+      "testV23P03C32R01RestoreReplayAndCapabilityRollbackRemainExact"
+    ],
+    "manualUserTextAndFallbackRemainIndependent": true,
+    "noDirectWriteAutomaticMergeOrRejectedAnalytics": true,
+    "noNetworkFallbackGenerativeDiagnosisOrComplianceSuggestion": true,
+    "proposalAndCapabilityScratchAreNonpersistent": true,
+    "rejectCancelExpireDeleteScratchWithoutCorpus": true,
+    "typedValueSourceLocalePrivacyAndVersionChecksFailClosed": true
+  },
+  "schema": "V23P03C32AssistanceProposalContractV1",
+  "schemaVersion": 1
+}

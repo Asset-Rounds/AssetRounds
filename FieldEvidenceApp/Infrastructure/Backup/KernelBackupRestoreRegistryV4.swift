@@ -49,6 +49,26 @@ enum C31LightingBackupRestoreRegistryV1 {
     }
 }
 
+enum C32AssistanceBackupRestoreRegistryV1 {
+    static let persistentSchemaVersion = 32
+    static let recordsSchemaVersion = 31
+    static let durableFamilyCount = 1
+    static let archiveDisposition = "IMMUTABLE_ACCEPTANCE_RECEIPT_ONLY"
+    static let proposalDisposition = "EXCLUDED_NONPERSISTENT"
+    static let cloneForkDisposition = "PRESERVE_TRANSITIVE_HISTORIC_SOURCE_PROVENANCE"
+
+    static func validate() throws {
+        guard persistentSchemaVersion == AssistancePersistenceEnrollmentV1.persistentSchemaVersion,
+              recordsSchemaVersion == AssistancePersistenceEnrollmentV1.recordsSchemaVersion,
+              durableFamilyCount == AssistancePersistenceEnrollmentV1.durableModelCount,
+              archiveDisposition == "IMMUTABLE_ACCEPTANCE_RECEIPT_ONLY",
+              proposalDisposition == "EXCLUDED_NONPERSISTENT",
+              cloneForkDisposition == "PRESERVE_TRANSITIVE_HISTORIC_SOURCE_PROVENANCE" else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}
+
 /// C28 schedule backup/restore is a two-family closure: immutable definition
 /// releases plus append-only occurrence history. Projection queues and
 /// reminders are rebuilt after restore and never enter the kernel archive.
@@ -515,6 +535,7 @@ enum KernelBackupRestoreRegistryV4 {
         try validatePlanLifecycle()
         try validatePlacementPoseLifecycle()
         try validateLightingLifecycle()
+        try C32AssistanceBackupRestoreRegistryV1.validate()
         try validatePrivacyTransformLifecycle()
         try validateMeasurementIntegrityLifecycle()
         try validatePackageEvolutionLifecycle()

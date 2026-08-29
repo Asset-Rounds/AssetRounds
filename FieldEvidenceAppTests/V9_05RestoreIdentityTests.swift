@@ -1109,3 +1109,24 @@ extension V9_05RestoreIdentityTests {
         XCTAssertNil(try RestoreIntentStore(applicationSupportURL: scenario.target.support).load())
     }
 }
+
+private final class C32AssistanceAnchorV905RestoreIdentity: XCTestCase {
+    func testC32V905RestoreIdentityCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .site,
+            fieldID: "restore.identity",
+            value: .text("restore-stable accepted value")
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .site,
+            fieldID: "restore.identity",
+            valueKind: .text
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

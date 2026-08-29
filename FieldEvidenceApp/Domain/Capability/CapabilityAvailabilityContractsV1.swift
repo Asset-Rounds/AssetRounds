@@ -852,3 +852,91 @@ enum C31LightingCapabilityBoundaryV1 {
     static let unsupportedMeasurementPathsRemainVisibleAsUnknown = true
     static let capabilityDoesNotClaimInstalledOrOperationalStatus = true
 }
+
+// MARK: - C32 assistance capability policy binding
+
+/// Binds each C32 proposal provider to the already released feature-policy
+/// vocabulary. The binding carries no runtime provider: OCR, speech, and
+/// one-shot location remain prepared-disabled until their own consumer cards.
+struct AssistanceFeaturePolicyBindingV1: Equatable, Sendable {
+    let assistanceCapabilityID: String
+    let featureID: String?
+    let requiredCapabilities: [CapabilityIDV1]
+    let confidenceRequirement: AssistanceMetadataRequirementV1
+    let qualityRequirement: AssistanceMetadataRequirementV1
+
+    static func binding(
+        for capability: AssistanceCapabilityReferenceV1
+    ) throws -> Self {
+        try capability.validate()
+        switch capability.capabilityID {
+        case "OCR_FIELD_PROPOSAL":
+            return .init(
+                assistanceCapabilityID: capability.capabilityID,
+                featureID: "scanOCR",
+                requiredCapabilities: [.scanOCR],
+                confidenceRequirement: .required,
+                qualityRequirement: .optional
+            )
+        case "DICTATION_FIELD_PROPOSAL":
+            return .init(
+                assistanceCapabilityID: capability.capabilityID,
+                featureID: "speechDictation",
+                requiredCapabilities: [.microphone, .speechDictation],
+                confidenceRequirement: .optional,
+                qualityRequirement: .optional
+            )
+        case "ONE_SHOT_LOCATION_PROPOSAL":
+            return .init(
+                assistanceCapabilityID: capability.capabilityID,
+                featureID: "locationCapture",
+                requiredCapabilities: [.location],
+                confidenceRequirement: .optional,
+                qualityRequirement: .optional
+            )
+        case "DETERMINISTIC_HELPER_PROPOSAL":
+            // Closed helpers have no OS/runtime capability. No bundle entry
+            // exists yet, so the released loader must resolve them disabled.
+            return .init(
+                assistanceCapabilityID: capability.capabilityID,
+                featureID: nil,
+                requiredCapabilities: [],
+                confidenceRequirement: .notApplicable,
+                qualityRequirement: .notApplicable
+            )
+        default:
+            throw AssistanceContractFailureV1.incompatibleCapability
+        }
+    }
+
+    func makePolicy(
+        capability: AssistanceCapabilityReferenceV1,
+        resolution: FeaturePolicyResolutionV1?
+    ) throws -> AssistanceCapabilityPolicyV1 {
+        guard assistanceCapabilityID == capability.capabilityID else {
+            throw AssistanceContractFailureV1.incompatibleCapability
+        }
+        let enabled: Bool
+        if let featureID {
+            guard let resolution,
+                  resolution.featureID == featureID,
+                  resolution.requiredCapabilities == requiredCapabilities,
+                  resolution.safeFallback == .typeManually else {
+                throw AssistanceContractFailureV1.incompatibleCapability
+            }
+            enabled = resolution.policyState == .enabled
+        } else {
+            guard resolution == nil, requiredCapabilities.isEmpty else {
+                throw AssistanceContractFailureV1.incompatibleCapability
+            }
+            enabled = false
+        }
+        return try AssistanceCapabilityPolicyV1(
+            capability: capability,
+            enabled: enabled,
+            confidenceRequirement: confidenceRequirement,
+            qualityRequirement: qualityRequirement,
+            manualFallback: .typeManually
+        )
+    }
+}

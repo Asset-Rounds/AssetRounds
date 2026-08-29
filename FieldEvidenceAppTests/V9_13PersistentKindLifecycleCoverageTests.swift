@@ -1506,3 +1506,24 @@ private final class C31LightingAnchorV913PersistentKindLifecycleCoverageTests: X
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
     }
 }
+
+private final class C32AssistanceAnchorV913PersistentKindLifecycleCoverage: XCTestCase {
+    func testC32V913PersistentKindLifecycleCoverageCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .asset,
+            fieldID: "lifecycle.nonpersistent-proposal",
+            value: .boolean(false)
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .asset,
+            fieldID: "lifecycle.nonpersistent-proposal",
+            valueKind: .boolean
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

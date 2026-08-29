@@ -851,3 +851,24 @@ extension S4_4HistoryComparisonTests {
         XCTAssertEqual(staleRevision.expectedDisposition, .rejectedPrecondition)
     }
 }
+
+private final class C32AssistanceAnchorS44HistoryComparison: XCTestCase {
+    func testC32S44HistoryComparisonCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .report,
+            fieldID: "history.accepted-fact-only",
+            value: .text("historic report stays immutable")
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .report,
+            fieldID: "history.accepted-fact-only",
+            valueKind: .text
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

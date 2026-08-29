@@ -733,3 +733,24 @@ extension V9_20KernelConformanceTests {
         XCTAssertFalse(controller.acceptanceCredit)
     }
 }
+
+private final class C32AssistanceAnchorV920KernelConformance: XCTestCase {
+    func testC32V920KernelConformanceCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .factCapture,
+            fieldID: "kernel.typed-proposal",
+            value: .triState(.notObserved)
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .factCapture,
+            fieldID: "kernel.typed-proposal",
+            valueKind: .triState
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

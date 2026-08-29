@@ -14,7 +14,7 @@ private final class C30EvidenceContextAnchorV9_40SurveySession: XCTestCase {
     }
 }
 
-private enum C26SurveySessionTestSupport {
+enum C26SurveySessionTestSupport {
     static let fixedDate = Date(timeIntervalSince1970: 1_800_001_000)
 
     static func id(_ slot: Int) -> UUID {
@@ -1546,5 +1546,26 @@ private final class C31LightingAnchorV940SurveySessionTests: XCTestCase {
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
         XCTAssertTrue(LightingIssueKindV1.allCases.contains(.cameraBandingOnly))
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
+    }
+}
+
+private final class C32AssistanceAnchorV940SurveySession: XCTestCase {
+    func testC32V940SurveySessionCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .factCapture,
+            fieldID: "survey-session.typed-fact",
+            value: .triState(.notObserved)
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .factCapture,
+            fieldID: "survey-session.typed-fact",
+            valueKind: .triState
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
     }
 }

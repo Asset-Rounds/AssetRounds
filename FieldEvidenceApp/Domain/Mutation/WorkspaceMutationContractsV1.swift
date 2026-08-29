@@ -1621,6 +1621,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyPlacementPose(PlacementPoseMutationV1)
     case applyEvidenceContext(EvidenceContextWriteOperationV1)
     case applyLighting(LightingWriteOperationV1)
+    case applyAssistanceAcceptance(AssistanceAcceptanceRequestV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -1663,6 +1664,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyPlacementPose:.applyPlacementPose
         case .applyEvidenceContext:.applyEvidenceContext
         case .applyLighting:.applyLighting
+        case .applyAssistanceAcceptance:.applyAssistanceAcceptance
         }
     }
 }
@@ -1707,6 +1709,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyPlacementPose="apply_placement_pose"
     case applyEvidenceContext="apply_evidence_context"
     case applyLighting="apply_lighting"
+    case applyAssistanceAcceptance="apply_assistance_acceptance"
 }
 
 extension WorkspaceCommandV1 {
@@ -2500,6 +2503,7 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind:.applyPlacementPose,disposition:.compensatable,stableReason:"append_pose_history_successor_only"),
         .init(commandKind:.applyEvidenceContext,disposition:.compensatable,stableReason:"append_evidence_context_history_successor_only"),
         .init(commandKind:.applyLighting,disposition:.compensatable,stableReason:"append_lighting_history_successor_only"),
+        .init(commandKind:.applyAssistanceAcceptance,disposition:.compensatable,stableReason:"explicit_review_expected_revision_target_mutation"),
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {

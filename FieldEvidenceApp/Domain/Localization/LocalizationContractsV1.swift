@@ -4723,3 +4723,45 @@ enum C31LightingLocalizationPolicyV1 {
         }
     }
 }
+
+// MARK: - C32 assistance review localization
+
+enum C32AssistanceLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
+    case unverified = "assistance.proposal.unverified"
+    case review = "assistance.proposal.review"
+    case accept = "assistance.proposal.accept"
+    case reject = "assistance.proposal.reject"
+    case expired = "assistance.proposal.expired"
+    case manualAvailable = "assistance.manual.available"
+    case permissionDenied = "assistance.permission.denied"
+    case interrupted = "assistance.interrupted"
+
+    var localizationKey: LocalizationKeyV1 {
+        // The closed raw values are validated by C32AssistanceLocalizationPolicyV1.
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+}
+
+enum C32AssistanceLocalizationPolicyV1 {
+    static let englishOnly = true
+    static let proposalAlwaysLabeledUnverified = true
+    static let explicitReviewActionRequired = true
+    static let manualPathAlwaysNamed = true
+    static let permissionAndInterruptionStatesAreTruthful = true
+    static let stateIsNotColorOnly = true
+
+    static func validate() throws {
+        let keys = C32AssistanceLocalizationKeyV1.allCases.map(\.localizationKey)
+        guard keys.count == 8,
+              Set(keys).count == keys.count,
+              englishOnly,
+              proposalAlwaysLabeledUnverified,
+              explicitReviewActionRequired,
+              manualPathAlwaysNamed,
+              permissionAndInterruptionStatesAreTruthful,
+              stateIsNotColorOnly else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}

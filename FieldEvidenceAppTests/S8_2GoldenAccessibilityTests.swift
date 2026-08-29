@@ -233,3 +233,24 @@ extension S8_2GoldenAccessibilityTests {
         }
     }
 }
+
+private final class C32AssistanceAnchorS82GoldenAccessibility: XCTestCase {
+    func testC32S82GoldenAccessibilityCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .factCapture,
+            fieldID: "accessibility.manual-fallback",
+            value: .text("VoiceOver editable manual value")
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .factCapture,
+            fieldID: "accessibility.manual-fallback",
+            valueKind: .text
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

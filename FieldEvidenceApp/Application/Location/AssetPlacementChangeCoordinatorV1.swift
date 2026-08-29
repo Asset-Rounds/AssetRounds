@@ -231,3 +231,45 @@ enum C31LightingConsumerBoundary_Application_Location_AssetPlacementChangeCoordi
         try C31LightingProjectionPolicyV1.validate(projection)
     }
 }
+
+// MARK: - C32 one-shot location proposal boundary
+
+enum AssistanceLocationProposalBoundaryV1 {
+    static let capabilityID = "ONE_SHOT_LOCATION_PROPOSAL"
+    static let manualFallback: ManualFallbackActionV1 = .typeManually
+
+    /// Location observations remain unverified proposal input. They do not
+    /// create a placement, hierarchy node, or sensor truth before the shared
+    /// expected-revision acceptance transaction succeeds.
+    static func validateUnverified(
+        _ proposal: AssistanceProposalV1,
+        context: AssistanceProposalEvaluationContextV1
+    ) throws {
+        try proposal.validate()
+        try context.validate()
+        guard proposal.capability.capabilityID == capabilityID,
+              proposal.privacyClass == .preciseLocation,
+              proposal.source.kind == .deviceObservation,
+              context.policy.manualFallback == manualFallback,
+              proposal.target.workspaceID == context.workspaceID,
+              try proposal.expiryReason(in: context) == nil else {
+            throw AssistanceContractFailureV1.incompatibleCapability
+        }
+    }
+
+    static func validateAccepted(
+        _ receipt: AssistanceAcceptanceReceiptV1,
+        for proposal: AssistanceProposalV1
+    ) throws -> ResponseValueV1 {
+        try receipt.validate()
+        try proposal.validate()
+        guard proposal.capability.capabilityID == capabilityID,
+              receipt.proposalID == proposal.proposalID,
+              receipt.target == proposal.target,
+              receipt.acceptedValue == proposal.value,
+              receipt.privacyClass == .preciseLocation else {
+            throw AssistanceContractFailureV1.invalidReceipt
+        }
+        return receipt.acceptedValue
+    }
+}

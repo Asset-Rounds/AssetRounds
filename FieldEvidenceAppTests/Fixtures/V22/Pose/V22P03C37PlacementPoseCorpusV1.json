@@ -129,5 +129,13 @@
     "exactFootcandleLuxConversion": "10.76391",
     "sharedSupportNoClones": true,
     "safetyStopKinds": ["ELECTRICAL", "TRAFFIC"]
+  },
+  "c32AssistanceProposalCompatibility": {
+    "compatibilityCardID": "V23-P03-C32",
+    "proposalLifecycle": "NONPERSISTENT",
+    "acceptanceReceiptPersistentSchemaVersion": 32,
+    "oneShotLocationProposalNeverPromotesPose": true,
+    "workspaceSwitchAndSourceDeletionExpireProposal": true,
+    "manualPlacementPathRemainsEquivalent": true
   }
 }

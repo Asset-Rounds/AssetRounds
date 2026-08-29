@@ -539,3 +539,31 @@ enum C31LightingConsumerBoundary_Application_Search_SearchCoordinatorV1 {
         try C31LightingProjectionPolicyV1.validate(projection)
     }
 }
+
+// MARK: - C32 assistance search isolation boundary
+
+enum C32AssistanceSearchBoundaryV1_Application_Search_SearchCoordinatorV1 {
+    static let proposalPersistenceDisposition = "NONPERSISTENT"
+    static let durableFamily = "AssistanceAcceptanceReceiptV1"
+    static let acceptedMutationKind: WorkspaceCommandKindV1 = .applyAssistanceAcceptance
+    static let proposalsAreExcludedFromIndex = true
+
+    static func validateProposal(
+        _ proposal: AssistanceProposalV1,
+        in context: AssistanceProposalEvaluationContextV1
+    ) throws {
+        try proposal.validate()
+        try context.validate()
+        guard proposal.verificationState.rawValue == AssistanceProposalVerificationStateV1.unverified.rawValue,
+              context.policy.manualFallback == .typeManually else {
+            throw AssistanceContractFailureV1.incompatibleCapability
+        }
+        if let reason = try proposal.expiryReason(in: context) {
+            throw AssistanceContractFailureV1.expired(reason)
+        }
+    }
+
+    static func validateAcceptanceReceipt(_ receipt: AssistanceAcceptanceReceiptV1) throws {
+        try receipt.validate()
+    }
+}

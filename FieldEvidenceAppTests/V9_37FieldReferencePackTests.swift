@@ -1085,3 +1085,24 @@ private final class C31LightingAnchorV937FieldReferencePackTests: XCTestCase {
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
     }
 }
+
+private final class C32AssistanceAnchorV937FieldReferencePack: XCTestCase {
+    func testC32V937FieldReferencePackCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .fieldReferenceBinding,
+            fieldID: "field-reference.package-expiry",
+            value: .text("pack-bound field proposal")
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .fieldReferenceBinding,
+            fieldID: "field-reference.package-expiry",
+            valueKind: .text
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

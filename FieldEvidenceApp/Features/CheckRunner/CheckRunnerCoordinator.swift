@@ -2398,3 +2398,229 @@ enum C31LightingConsumerBoundary_Features_CheckRunner_CheckRunnerCoordinator {
         try C31LightingProjectionPolicyV1.validate(projection)
     }
 }
+
+// MARK: - C32 assistance review and acceptance
+
+@MainActor
+extension CheckRunnerCoordinator {
+    /// Presents an explicitly unverified proposal. This does not complete a
+    /// check or write a fact; the shared lifecycle owns only memory/scratch.
+    func presentAssistance(
+        _ context: CheckRunnerAssistanceReviewContextV1,
+        using assistance: AssistanceCoordinatorV1
+    ) async throws {
+        try context.validate()
+        try await assistance.present(context.proposal, context: context.evaluation)
+    }
+
+    func reviewAssistance(
+        _ context: CheckRunnerAssistanceReviewContextV1,
+        using assistance: AssistanceCoordinatorV1
+    ) async throws -> AssistanceReviewDecisionV1 {
+        try context.validate()
+        return try await assistance.review(
+            proposalID: context.proposal.proposalID,
+            context: context.evaluation
+        )
+    }
+
+    /// Acceptance remains a normal expected-revision writer operation. The
+    /// runner re-reviews immediately before delegation and never applies the
+    /// proposed ResponseValue directly to model state.
+    func acceptReviewedAssistance(
+        _ context: CheckRunnerAssistanceReviewContextV1,
+        targetMutation: AssistanceCanonicalTargetMutationV1,
+        expectedRevision: WorkspaceExpectedRevisionV1,
+        mutationID: MutationIDV1,
+        acceptedBy: ActorSnapshotV1,
+        acceptedAt: Date,
+        using assistance: AssistanceCoordinatorV1
+    ) async throws -> AssistanceAcceptanceReceiptV1 {
+        try context.validate()
+        switch try await reviewAssistance(context, using: assistance) {
+        case let .ready(current):
+            guard current == context.proposal else {
+                throw AssistanceContractFailureV1.staleTarget
+            }
+        case let .expired(disposition):
+            throw AssistanceContractFailureV1.expired(disposition.reason)
+        }
+        return try await assistance.accept(
+            proposalID: context.proposal.proposalID,
+            targetMutation: targetMutation,
+            expectedRevision: expectedRevision,
+            mutationID: mutationID,
+            acceptedBy: acceptedBy,
+            acceptedAt: acceptedAt,
+            context: context.evaluation
+        )
+    }
+
+    /// Manual entry is always sourced from the independent user-authored
+    /// value, never copied from a rejected or expired proposal.
+    func manualAssistanceFallback(
+        _ context: CheckRunnerAssistanceReviewContextV1
+    ) throws -> ResponseValueV1 {
+        try context.useManualValue()
+    }
+
+    /// Constructs C32 only on the canonical live package lifecycle. The
+    /// compatibility adapter has no journal-owned receipt or authoritative
+    /// revision projection and therefore fails closed.
+    func makeAssistanceRuntime(
+        scratchLeases: any CapabilityScratchLeasePortV1
+    ) throws -> CheckRunnerAssistanceRuntimeV1 {
+        guard case let .live(dependencies, _) = mutationRoute else {
+            throw CheckRunnerCoordinatorError.packageLifecycleMismatch
+        }
+        let scratch = AssistanceCapabilityScratchLifecycleAdapterV1(
+            leases: scratchLeases
+        )
+        let reader = CheckRunnerAssistanceAuthoritativeStateReaderV1(
+            modelContext: modelContext,
+            dependencies: dependencies,
+            scratchSource: scratch
+        )
+        let currentState = AssistanceTrustedSnapshotAuthorityV1(reader: reader)
+        let lifecycle = AssistanceLifecycleAdapterV1(
+            writer: dependencies.writer,
+            scratch: scratch,
+            currentState: currentState
+        )
+        return CheckRunnerAssistanceRuntimeV1(
+            coordinator: AssistanceCoordinatorV1(lifecycle: lifecycle),
+            scratch: scratch
+        )
+    }
+}
+
+/// Keeps the sole scratch binding adapter reachable by a future authorized
+/// proposal producer while the coordinator owns the same adapter for terminal
+/// cleanup. C32 itself adds no capture/runtime provider.
+@MainActor
+struct CheckRunnerAssistanceRuntimeV1 {
+    let coordinator: AssistanceCoordinatorV1
+    let scratch: AssistanceCapabilityScratchLifecycleAdapterV1
+}
+
+/// Live, read-only C32 authority. It composes the existing workspace writer,
+/// released feature-policy loader, exact C26 session release rows, package
+/// promotion rows, scratch binding authority, and application clock. It never
+/// captures OCR, speech, location, or other device observations.
+@MainActor
+private final class CheckRunnerAssistanceAuthoritativeStateReaderV1:
+    AssistanceAuthoritativeStateReadingV1 {
+    private let modelContext: ModelContext
+    private let dependencies: WorkspacePackageLifecycleDependenciesV1
+    private let scratchSource: any AssistanceCurrentSourceReadingV1
+    private let policyLoader: FeaturePolicyLoaderV1
+
+    init(
+        modelContext: ModelContext,
+        dependencies: WorkspacePackageLifecycleDependenciesV1,
+        scratchSource: any AssistanceCurrentSourceReadingV1,
+        policyLoader: FeaturePolicyLoaderV1 = FeaturePolicyLoaderV1(
+            provider: BundleFeaturePolicyDataProviderV1()
+        )
+    ) {
+        self.modelContext = modelContext
+        self.dependencies = dependencies
+        self.scratchSource = scratchSource
+        self.policyLoader = policyLoader
+    }
+
+    func readCurrentAssistanceState(
+        proposalID: UUID,
+        capability: AssistanceCapabilityReferenceV1,
+        target: AssistanceTargetV1,
+        source: AssistanceSourceReferenceV1
+    ) async throws -> AssistanceAuthoritativeStateV1 {
+        try capability.validate()
+        try target.validate()
+        try source.validate()
+        guard target.workspaceID == dependencies.workspaceID,
+              target.entity.kind == .surveySession else {
+            throw AssistanceContractFailureV1.staleTarget
+        }
+
+        let workspaceRevision = try dependencies.writer.currentRevision()
+        let currentTargetRows = workspaceRevision.entityRevisions.filter {
+            $0.identity == target.entity
+        }
+        guard workspaceRevision.workspaceID == dependencies.workspaceID,
+              workspaceRevision.generationID == dependencies.generationID,
+              currentTargetRows.count == 1 else {
+            throw AssistanceContractFailureV1.staleTarget
+        }
+
+        let binding = try AssistanceFeaturePolicyBindingV1.binding(for: capability)
+        let resolution = try binding.featureID.map {
+            try policyLoader.resolve(featureID: $0)
+        }
+        let policy = try binding.makePolicy(
+            capability: capability,
+            resolution: resolution
+        )
+
+        let sessionID = target.entity.id
+        let sessionRows = try modelContext.fetch(FetchDescriptor<SurveySessionRow>(
+            predicate: #Predicate { $0.sessionID == sessionID }
+        ))
+        guard sessionRows.count == 1, let sessionRow = sessionRows.first else {
+            throw AssistanceContractFailureV1.staleTarget
+        }
+        let session = try sessionRow.value()
+        guard session.workspaceID == dependencies.workspaceID,
+              session.sessionID == sessionID,
+              session.revision == currentTargetRows[0].revision else {
+            throw AssistanceContractFailureV1.staleTarget
+        }
+
+        let definitionReleaseID = session.authority.definitionRelease.releaseID
+        let definitionRows = try modelContext.fetch(
+            FetchDescriptor<SurveyDefinitionReleaseRow>(
+                predicate: #Predicate { $0.releaseID == definitionReleaseID }
+            )
+        )
+        let promoted = try modelContext.fetch(FetchDescriptor<PromotedPackageReleaseRow>())
+            .map { try $0.value() }
+            .filter {
+                $0.workspaceID == dependencies.workspaceID
+                    && $0.packageRelease.packageReleaseID
+                        == session.authority.packageRelease.packageReleaseID
+            }
+        guard definitionRows.count == 1,
+              let definitionRow = definitionRows.first,
+              promoted.count == 1,
+              let packageRelease = promoted.first?.packageRelease else {
+            throw AssistanceContractFailureV1.staleTarget
+        }
+        let definition = try definitionRow.value(
+            pinnedBy: session.authority,
+            packageRelease: packageRelease
+        )
+        guard definition.releaseSHA256
+                == session.authority.definitionRelease.releaseSHA256 else {
+            throw AssistanceContractFailureV1.staleTarget
+        }
+
+        let currentSource: AssistanceSourceReferenceV1?
+        if source.kind == .leasedScratch {
+            currentSource = try scratchSource.currentSource(
+                proposalID: proposalID,
+                expected: source
+            )
+        } else {
+            // C32 ships no immutable/deterministic/device source provider.
+            currentSource = nil
+        }
+        return try AssistanceAuthoritativeStateV1(
+            workspaceRevision: workspaceRevision,
+            policy: policy,
+            packageReleaseSHA256: packageRelease.packageSHA256,
+            definitionReleaseSHA256: definition.releaseSHA256,
+            currentSource: currentSource,
+            evaluatedAt: dependencies.clock.now()
+        )
+    }
+}

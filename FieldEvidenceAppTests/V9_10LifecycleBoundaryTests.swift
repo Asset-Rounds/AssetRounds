@@ -1534,3 +1534,24 @@ extension V9_10LifecycleBoundaryTests {
         }
     }
 }
+
+private final class C32AssistanceAnchorV910LifecycleBoundary: XCTestCase {
+    func testC32V910LifecycleBoundaryCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .asset,
+            fieldID: "lifecycle.relaunch-expiry",
+            value: .text("review-only until relaunch")
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .asset,
+            fieldID: "lifecycle.relaunch-expiry",
+            valueKind: .text
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

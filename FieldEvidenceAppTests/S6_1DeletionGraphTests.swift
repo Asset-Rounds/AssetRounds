@@ -972,3 +972,24 @@ private final class C31LightingAnchorS61DeletionGraphTests: XCTestCase {
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
     }
 }
+
+private final class C32AssistanceAnchorS61DeletionGraph: XCTestCase {
+    func testC32S61DeletionGraphCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .evidenceFile,
+            fieldID: "deletion.source-expiry",
+            value: .text("source-bound candidate")
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .evidenceFile,
+            fieldID: "deletion.source-expiry",
+            valueKind: .text
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}

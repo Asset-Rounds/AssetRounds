@@ -40,25 +40,54 @@ enum C31LightingBackupImportPolicyV1 {
     static func validate(_ package: ValidatedV4BackupPackageV1) throws {
         let manifest = package.manifest.source
         let records = package.records
-        guard records.recordsSchemaVersion == recordsSchemaVersion
-                || manifest.persistentSchemaVersion == persistentSchemaVersion else {
+        guard records.recordsSchemaVersion >= recordsSchemaVersion
+                || manifest.persistentSchemaVersion >= persistentSchemaVersion else {
             return
         }
         guard acceptsOnlyCanonicalRows,
               !acceptsInferredLighting,
               !acceptsCrossWorkspaceRows,
               restoresHistoryBeforeProjection,
-              manifest.persistentSchemaVersion == persistentSchemaVersion,
-              records.recordsSchemaVersion == recordsSchemaVersion else {
+              ((manifest.persistentSchemaVersion == persistentSchemaVersion && records.recordsSchemaVersion == recordsSchemaVersion)
+                || (manifest.persistentSchemaVersion == 32 && records.recordsSchemaVersion == 31)) else {
             throw BackupImportServiceError.invalidGeneration
         }
         do {
-            try V31LightingImportBoundaryV1.validate(
-                persistent: persistentSchemaVersion,
-                records: recordsSchemaVersion,
-                rows: records.lighting
-            )
+            if records.recordsSchemaVersion == recordsSchemaVersion {
+                try V31LightingImportBoundaryV1.validate(
+                    persistent: persistentSchemaVersion,
+                    records: recordsSchemaVersion,
+                    rows: records.lighting
+                )
+            }
             try records.validateC31LightingClosure()
+        } catch {
+            throw BackupImportServiceError.invalidGeneration
+        }
+    }
+}
+
+enum C32AssistanceBackupImportPolicyV1 {
+    static let proposalImportDisposition = "EXCLUDED_NONPERSISTENT"
+
+    static func validate(_ package: ValidatedV4BackupPackageV1) throws {
+        guard package.records.recordsSchemaVersion >= 31
+                || package.manifest.source.persistentSchemaVersion >= 32 else {
+            guard package.records.assistanceAcceptanceReceipts.isEmpty else {
+                throw BackupImportServiceError.invalidGeneration
+            }
+            return
+        }
+        do {
+            guard proposalImportDisposition == "EXCLUDED_NONPERSISTENT" else {
+                throw BackupImportServiceError.invalidGeneration
+            }
+            try V32AssistanceImportBoundaryV1.validate(
+                persistent: package.manifest.source.persistentSchemaVersion,
+                records: package.records.recordsSchemaVersion,
+                receipts: package.records.assistanceAcceptanceReceipts
+            )
+            try package.records.validateC32AssistanceAcceptanceReceipts()
         } catch {
             throw BackupImportServiceError.invalidGeneration
         }
@@ -541,6 +570,7 @@ private extension BackupImportService {
                 cancellation: cancellation
             )
             try C31LightingBackupImportPolicyV1.validate(temporaryValue)
+            try C32AssistanceBackupImportPolicyV1.validate(temporaryValue)
             guard temporaryValue.manifest == source.manifest,
                   try BackupPackageAnchoredFile.rootIdentity(at: sourceURL)
                     == source.rootIdentity else {
@@ -578,6 +608,7 @@ private extension BackupImportService {
                 cancellation: cancellation
             )
             try C31LightingBackupImportPolicyV1.validate(value)
+            try C32AssistanceBackupImportPolicyV1.validate(value)
             guard value.manifest == source.manifest else {
                 throw BackupImportServiceError.invalidSource
             }
@@ -688,6 +719,7 @@ private extension BackupImportService {
                 cancellation: cancellation
             )
             try C31LightingBackupImportPolicyV1.validate(temporaryValue)
+            try C32AssistanceBackupImportPolicyV1.validate(temporaryValue)
             let indexByPath = Dictionary(
                 uniqueKeysWithValues: extraction.index.entries.map { ($0.path, $0) }
             )
@@ -728,6 +760,7 @@ private extension BackupImportService {
                 cancellation: cancellation
             )
             try C31LightingBackupImportPolicyV1.validate(value)
+            try C32AssistanceBackupImportPolicyV1.validate(value)
             guard value.manifest == temporaryValue.manifest,
                   value.records == temporaryValue.records,
                   value.members.keys == temporaryValue.members.keys else {
@@ -945,6 +978,11 @@ private extension BackupImportService {
             schemaPairIsValid = (try? V31LightingImportBoundaryV1.validate(
                 persistent: 31,
                 records: 30
+            )) != nil
+        case (4,32,31):
+            schemaPairIsValid = (try? V32AssistanceImportBoundaryV1.validate(
+                persistent: 32,
+                records: 31
             )) != nil
         default:
             schemaPairIsValid = false

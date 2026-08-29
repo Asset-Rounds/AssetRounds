@@ -443,3 +443,24 @@ private final class C31LightingAnchorV929WorkPacketManifestTests: XCTestCase {
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
     }
 }
+
+private final class C32AssistanceAnchorV929WorkPacketManifest: XCTestCase {
+    func testC32V929WorkPacketManifestCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .workPacketManifest,
+            fieldID: "work-packet.expected-revision",
+            value: .singleOption("REVIEW_REQUIRED")
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .workPacketManifest,
+            fieldID: "work-packet.expected-revision",
+            valueKind: .singleOption
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}
