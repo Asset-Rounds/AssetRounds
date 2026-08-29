@@ -7755,10 +7755,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 multilineHelperStartRange.lowerBound..<multilinePassiveKeyboardHelperStartRange.lowerBound
             ]
         )
-        XCTAssertEqual(multilineHelperSource.utf8.count, 12_570)
+        XCTAssertEqual(multilineHelperSource.utf8.count, 17_643)
         XCTAssertEqual(
             Data(multilineHelperSource.utf8).sha256,
-            "404DCD18FA4C14089461716B33FCBDD85EDBD49231124377831ABB36E2A08BB5"
+            "22E3264285A10550EF149AB06044A642EC15556C3A3AB044AE03AA60FE3B9BF8"
         )
         let multilineHelperLocks = [
             "afterEditing field: XCUIElement",
@@ -7782,11 +7782,27 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "let fieldScrollView = fieldScrollViews.firstMatch",
             "guard fieldScrollView.exists, fieldScrollView.isHittable else {",
             "fieldScrollView.swipeUp()",
+            "let keyboardDismissed =",
             "keyboard.waitForNonExistence(timeout: 10)",
             "|| keyboardIsAbsentOrInertOffApp(in: app)",
+            "let contentRouteAndForegroundArePreserved =",
+            "if keyboardDismissed && contentRouteAndForegroundArePreserved {",
+            "guard !keyboardDismissed,",
+            #"== "iphone-se-3-ios-18.0-minimum","#,
+            "field.elementType == .textView,",
+            "fieldFocusPredicate.evaluate(with: field),",
             #"String(describing: field.value ?? "") == expectedValue"#,
             "route.exists == expectedRouteExists",
             "app.state == expectedApplicationState",
+            "let beforeCandidateAction: [String: Any] = [",
+            "fieldScrollView.swipeDown()",
+            "let afterCandidateAction: [String: Any] = [",
+            #""candidateAction": "fieldScrollView.swipeDown""#,
+            "S10_4_MINIMUM_OS_MULTILINE_SWIPE_DOWN_DIAGNOSTIC",
+            "S10.4 minimum-OS multiline swipe-down diagnostic app",
+            "S10.4 minimum-OS multiline swipe-down diagnostic tree",
+            "S10.4 minimum-OS multiline swipe-down diagnostic context",
+            "S10.4 minimum-OS multiline swipe-down diagnostic completed nonaccepting",
             "Multiline dismissal changed content, route, or foreground state.",
         ]
         for lock in multilineHelperLocks {
@@ -7941,6 +7957,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
               ),
               let multilineSwipeRange = multilineHelperSource.range(
                 of: "fieldScrollView.swipeUp()"
+              ),
+              let minimumOSActionDiagnosticRange = multilineHelperSource.range(
+                of: "fieldScrollView.swipeDown()",
+                range: multilineSwipeRange.upperBound..<multilineHelperSource.endIndex
               ) else {
             XCTFail("Missing ordered multiline QuickPath handling")
             return
@@ -7952,39 +7972,48 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertLessThan(quickPathBranchRange.lowerBound, quickPathTapRange.lowerBound)
         XCTAssertLessThan(quickPathTapRange.lowerBound, quickPathWaitRange.lowerBound)
         XCTAssertLessThan(quickPathWaitRange.lowerBound, multilineSwipeRange.lowerBound)
+        XCTAssertLessThan(
+            multilineSwipeRange.lowerBound,
+            minimumOSActionDiagnosticRange.lowerBound
+        )
         XCTAssertEqual(
             multilineHelperSource.components(separatedBy: "fieldScrollView.swipeUp()").count - 1,
             1
         )
         XCTAssertEqual(
+            multilineHelperSource.components(separatedBy: "fieldScrollView.swipeDown()").count - 1,
+            1
+        )
+        XCTAssertEqual(
             multilineHelperSource.components(separatedBy: "timeout: 10").count - 1,
-            3
+            4
         )
         for (fragment, count) in [
-            ("field.exists", 3),
-            ("route.exists", 4),
-            ("app.state", 4),
-            ("expectedRouteExists", 5),
-            ("expectedApplicationState", 5),
-            (#"String(describing: field.value ?? "")"#, 4),
-            ("keyboard.waitForNonExistence(timeout: 10)", 1),
+            ("field.exists", 6),
+            ("route.exists", 7),
+            ("app.state", 7),
+            ("expectedRouteExists", 6),
+            ("expectedApplicationState", 6),
+            (#"String(describing: field.value ?? "")"#, 7),
+            ("keyboard.waitForNonExistence(timeout: 10)", 2),
             ("fieldScrollViews.count == 1", 3),
-            ("field.elementType", 5),
+            ("field.elementType", 8),
             ("field.elementType,", 1),
             (".textField", 1),
-            (".textView", 3),
+            (".textView", 4),
             ("quickPathIntroductionViews.count", 2),
             ("quickPathButtons.count", 2),
             ("quickPathStaticTexts.count", 2),
             ("quickPathIntroductionView.descendants(", 2),
             ("element(boundBy:", 2),
-            ("fieldFocusPredicate.evaluate(with: field)", 2),
+            ("fieldFocusPredicate.evaluate(with: field)", 5),
             ("quickPathContinueButton.tap()", 1),
             (".tap()", 1),
-            ("XCTFail(", 7),
+            ("XCTFail(", 8),
             ("\n                return\n", 1),
-            ("\n            return\n", 4),
+            ("\n            return\n", 5),
             ("\n                    return\n", 2),
+            ("\n        return\n", 1),
         ] {
             XCTAssertEqual(
                 multilineHelperSource.components(separatedBy: fragment).count - 1,
@@ -8014,8 +8043,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "CGRect(",
             "tolerance",
             "epsilon",
-            "automationShard",
-            "deviceProfileID",
             "locale",
             #""Speed up your typing by sliding your finger across the letters to compose a word.""#,
             #"let quickPathContinueLabel = "Continue""#,
@@ -8032,17 +8059,48 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "decomposedStringWithCanonicalMapping",
             "label CONTAINS",
             "label BEGINSWITH",
-            ".swipeDown()",
             "app.swipeUp()",
             "for _ in",
             "while ",
             "performAccessibilityAudit",
-            "printJSONLine",
             "S10_4_CANDIDATE",
             "S10_4_AX",
             "S10_4_CONTRAST",
         ] {
             XCTAssertFalse(multilineHelperSource.contains(prohibited), prohibited)
+        }
+        for (diagnosticToken, count) in [
+            ("automationShard", 3),
+            ("deviceProfileID", 3),
+            ("printJSONLine(", 1),
+            ("XCTAttachment(", 3),
+            ("lifetime = .keepAlways", 3),
+            ("add(", 3),
+            ("try? JSONSerialization.data(", 1),
+            (#""schemaVersion": 1"#, 1),
+            (#""acceptanceEligible": false"#, 1),
+            (#""before": beforeCandidateAction"#, 1),
+            (#""after": afterCandidateAction"#, 1),
+            ("performAccessibilityAudit", 0),
+            ("captureBaseline(", 0),
+            ("attachCandidate(", 0),
+            ("S10_MIGRATION_STATE", 0),
+            ("S10_4_AX_STATE", 0),
+            ("S10_4_CONTRAST", 0),
+            ("S10_4_CANDIDATE", 0),
+            ("S10_4_TASK", 0),
+            ("S10_4_SHARD_RECEIPT", 0),
+            (".press(", 0),
+            ("coordinate(", 0),
+            ("Thread.sleep", 0),
+            ("Task.sleep", 0),
+            ("sleep(", 0),
+        ] {
+            XCTAssertEqual(
+                multilineHelperSource.components(separatedBy: diagnosticToken).count - 1,
+                count,
+                diagnosticToken
+            )
         }
         XCTAssertFalse(uiSource.contains("returnKeyDismissesKeyboard"))
         XCTAssertFalse(uiSource.contains("key.exists ? key.tap() : app.swipeDown()"))

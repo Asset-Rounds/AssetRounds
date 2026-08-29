@@ -15748,15 +15748,121 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             }
         }
         fieldScrollView.swipeUp()
-        guard keyboard.waitForNonExistence(timeout: 10)
-                || keyboardIsAbsentOrInertOffApp(in: app),
+        let keyboardDismissed =
+            keyboard.waitForNonExistence(timeout: 10)
+            || keyboardIsAbsentOrInertOffApp(in: app)
+        let contentRouteAndForegroundArePreserved =
+            field.exists
+            && String(describing: field.value ?? "") == expectedValue
+            && route.exists == expectedRouteExists
+            && app.state == expectedApplicationState
+        if keyboardDismissed && contentRouteAndForegroundArePreserved {
+            return
+        }
+        let fieldFocusPredicate = NSPredicate(
+            format: "hasKeyboardFocus == true"
+        )
+        guard !keyboardDismissed,
+              automationShard?.deviceProfileID
+                == "iphone-se-3-ios-18.0-minimum",
+              field.elementType == .textView,
+              keyboard.exists,
               field.exists,
+              fieldFocusPredicate.evaluate(with: field),
               String(describing: field.value ?? "") == expectedValue,
               route.exists == expectedRouteExists,
               app.state == expectedApplicationState else {
             XCTFail("Multiline dismissal changed content, route, or foreground state.")
             return
         }
+        let beforeCandidateAction: [String: Any] = [
+            "applicationStateRawValue": app.state.rawValue,
+            "applicationFrame": auditFrameObject(app.frame),
+            "keyboardCount": app.keyboards.count,
+            "keyboardExists": keyboard.exists,
+            "keyboardFrame": auditFrameObject(keyboard.frame),
+            "fieldExists": field.exists,
+            "fieldIdentifier": field.identifier,
+            "fieldTypeRawValue": field.elementType.rawValue,
+            "fieldLabel": field.label,
+            "fieldValue": String(describing: field.value ?? ""),
+            "fieldFrame": auditFrameObject(field.frame),
+            "fieldHasKeyboardFocus": fieldFocusPredicate.evaluate(with: field),
+            "fieldScrollViewCount": fieldScrollViews.count,
+            "fieldScrollViewExists": fieldScrollView.exists,
+            "fieldScrollViewFrame": auditFrameObject(fieldScrollView.frame),
+            "routeExists": route.exists,
+            "routeIdentifier": route.identifier,
+            "routeLabel": route.label,
+            "routeFrame": auditFrameObject(route.frame),
+            "clearedValidationExists": clearedValidation?.exists ?? false,
+        ]
+        fieldScrollView.swipeDown()
+        _ = keyboard.waitForNonExistence(timeout: 10)
+        let afterCandidateAction: [String: Any] = [
+            "applicationStateRawValue": app.state.rawValue,
+            "applicationFrame": auditFrameObject(app.frame),
+            "keyboardCount": app.keyboards.count,
+            "keyboardExists": keyboard.exists,
+            "keyboardFrame": auditFrameObject(keyboard.frame),
+            "keyboardAbsentOrInertOffApp":
+                keyboardIsAbsentOrInertOffApp(in: app),
+            "fieldExists": field.exists,
+            "fieldIdentifier": field.identifier,
+            "fieldTypeRawValue": field.elementType.rawValue,
+            "fieldLabel": field.label,
+            "fieldValue": String(describing: field.value ?? ""),
+            "fieldFrame": auditFrameObject(field.frame),
+            "fieldHasKeyboardFocus": fieldFocusPredicate.evaluate(with: field),
+            "fieldScrollViewCount": fieldScrollViews.count,
+            "fieldScrollViewExists": fieldScrollView.exists,
+            "fieldScrollViewFrame": auditFrameObject(fieldScrollView.frame),
+            "routeExists": route.exists,
+            "routeIdentifier": route.identifier,
+            "routeLabel": route.label,
+            "routeFrame": auditFrameObject(route.frame),
+            "clearedValidationExists": clearedValidation?.exists ?? false,
+        ]
+        let diagnosticContext: [String: Any] = [
+            "schemaVersion": 1,
+            "acceptanceEligible": false,
+            "shardID": automationShard?.shardID ?? "",
+            "deviceProfileID": automationShard?.deviceProfileID ?? "",
+            "candidateAction": "fieldScrollView.swipeDown",
+            "before": beforeCandidateAction,
+            "after": afterCandidateAction,
+        ]
+        printJSONLine(
+            prefix: "S10_4_MINIMUM_OS_MULTILINE_SWIPE_DOWN_DIAGNOSTIC",
+            object: diagnosticContext
+        )
+        let appAttachment = XCTAttachment(screenshot: app.screenshot())
+        appAttachment.name =
+            "S10.4 minimum-OS multiline swipe-down diagnostic app"
+        appAttachment.lifetime = .keepAlways
+        add(appAttachment)
+        let treeAttachment = XCTAttachment(string: app.debugDescription)
+        treeAttachment.name =
+            "S10.4 minimum-OS multiline swipe-down diagnostic tree"
+        treeAttachment.lifetime = .keepAlways
+        add(treeAttachment)
+        let contextData = try? JSONSerialization.data(
+            withJSONObject: diagnosticContext,
+            options: [.prettyPrinted, .sortedKeys]
+        )
+        let contextAttachment = XCTAttachment(
+            string: contextData.map {
+                String(decoding: $0, as: UTF8.self)
+            } ?? "S10.4 minimum-OS multiline swipe-down diagnostic context encoding failed"
+        )
+        contextAttachment.name =
+            "S10.4 minimum-OS multiline swipe-down diagnostic context"
+        contextAttachment.lifetime = .keepAlways
+        add(contextAttachment)
+        XCTFail(
+            "S10.4 minimum-OS multiline swipe-down diagnostic completed nonaccepting"
+        )
+        return
     }
 
     @MainActor
