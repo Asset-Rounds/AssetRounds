@@ -121,7 +121,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         try assertFile(
             workflowPath,
             byteCount: 227_055,
-            sha256: "473DF9E38FC99F4E574EE6CAABEEF27AA1A7C7CA762F96FDFAF325A10759324A"
+            sha256: "F36C9000DBD1B717238FD6CD865DB5439509705F9EA84D13B74234A1D5CFE3D8"
         )
         let workflowSource = try text(workflowPath)
         let currentF25WatchdogTuple = "] == [300, 900, 1200, 1920, 4500]"
@@ -18906,10 +18906,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "contrast_exception_authority_path=",
             #"if .result == "PASS" then"#,
             #"elif .result == "EXCEPTION" then"#,
-            #"length == 24"#,
+            #"length == 23"#,
             #"and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 21"#,
-            #"and ([.[].exceptionIssueID] | unique | length) == 24"#,
-            #"and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 19"#,
+            #"and ([.[].exceptionIssueID] | unique | length) == 23"#,
+            #"and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 18"#,
             #"| select(.exceptionIssueID | IN("#,
             #""S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER","#,
             #""S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER","#,
@@ -19084,10 +19084,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
         let workflowAuthorityCardinality =
-            "            length == 24\n" +
+            "            length == 23\n" +
                 "            and ([.[] | [.shardID, .stateID] | join(\"|\")] | unique | length) == 21\n" +
-                "            and ([.[].exceptionIssueID] | unique | length) == 24\n" +
-                "            and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 19"
+                "            and ([.[].exceptionIssueID] | unique | length) == 23\n" +
+                "            and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 18"
         XCTAssertEqual(
             workflowSource.components(
                 separatedBy: workflowAuthorityCardinality
@@ -19098,8 +19098,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             (
                 "authority count contraction",
                 workflowAuthorityCardinality.replacingOccurrences(
-                    of: "length == 24",
-                    with: "length == 23"
+                    of: "length == 23",
+                    with: "length == 22"
                 )
             ),
             (
@@ -19112,15 +19112,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             (
                 "authority issue contraction",
                 workflowAuthorityCardinality.replacingOccurrences(
-                    of: "exceptionIssueID] | unique | length) == 24",
-                    with: "exceptionIssueID] | unique | length) == 23"
+                    of: "exceptionIssueID] | unique | length) == 23",
+                    with: "exceptionIssueID] | unique | length) == 22"
                 )
             ),
             (
                 "authority signature contraction",
                 workflowAuthorityCardinality.replacingOccurrences(
-                    of: "tojson)] | unique | length) == 19",
-                    with: "tojson)] | unique | length) == 18"
+                    of: "tojson)] | unique | length) == 18",
+                    with: "tojson)] | unique | length) == 17"
                 )
             ),
         ] {

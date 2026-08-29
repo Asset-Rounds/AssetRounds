@@ -2568,10 +2568,10 @@ jobs:
             ]
           ' > "$contrast_exception_authority_path"
           jq -e --arg today "$(date -u +%F)" '
-            length == 24
+            length == 23
             and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 21
-            and ([.[].exceptionIssueID] | unique | length) == 24
-            and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 19
+            and ([.[].exceptionIssueID] | unique | length) == 23
+            and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 18
             and ([.[]
               | select(.exceptionIssueID | IN(
                   "S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER",
