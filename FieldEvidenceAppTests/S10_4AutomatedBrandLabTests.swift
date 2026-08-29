@@ -7755,10 +7755,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 multilineHelperStartRange.lowerBound..<multilinePassiveKeyboardHelperStartRange.lowerBound
             ]
         )
-        XCTAssertEqual(multilineHelperSource.utf8.count, 18_188)
+        XCTAssertEqual(multilineHelperSource.utf8.count, 18_190)
         XCTAssertEqual(
             Data(multilineHelperSource.utf8).sha256,
-            "D25B10D220E2A033CBBBD4E333801A3D99AEBEA720F48A5107E3E2A193C60693"
+            "55D967B089A82DACDE24706137AE550D87EACFB80043B15C91EEBF0ED87825CB"
         )
         let multilineHelperLocks = [
             "afterEditing field: XCUIElement",
