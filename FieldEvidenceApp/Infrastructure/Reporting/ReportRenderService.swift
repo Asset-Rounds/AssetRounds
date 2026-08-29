@@ -1672,3 +1672,29 @@ extension ReportRenderService {
         return try DeterministicPDFRendererV1.placementPoseTextLines(projection)
     }
 }
+// MARK: - C30 operating-context rendering
+
+extension ReportRenderService {
+    static func renderOperatingContextOpenJSON(
+        _ projection: C30EvidenceContextReportReferenceV1,
+        locale: String = "en"
+    ) throws -> ReportProjectionOutputV1 {
+        try DeterministicOpenJSONRendererV1.renderOperatingContext(
+            projection,
+            locale: locale
+        )
+    }
+
+    static func renderOperatingContextPDFLines(
+        _ projection: C30EvidenceContextReportReferenceV1
+    ) throws -> [String] {
+        try DeterministicPDFRendererV1.operatingContextTextLines(projection)
+    }
+
+    static let c30OperatingContextRenderingIsLocalOnly = true
+    static let c30OperatingContextUsesFrozenProjection = true
+}
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Infrastructure_Reporting_ReportRenderService {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Reporting/ReportRenderService.swift", role: .report)
+}

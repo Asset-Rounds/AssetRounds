@@ -1,4 +1,5 @@
 import Foundation
+enum EvidenceContextAssetLocatorBoundaryV1{static let locatorLookupNeverSubstitutesForExactAssetRevision=true;static let contextRowsOwnNoLocatorProjection=true}
 enum PlacementPoseAssetLocatorPersistenceBoundaryV1{static let locatorIdentityNeverReplacesAssetIdentity=true;static let poseEventsBindAssetIDDirectly=true}
 import SwiftData
 

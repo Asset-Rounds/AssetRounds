@@ -1,6 +1,21 @@
 import Foundation
 
 enum SurveySessionKernelDeletionEnrollmentV1{static let persistentRowNames=Set(["SurveySessionRow","FactCaptureRow","ProvisionalSubjectRow","SubjectPromotionReceiptRow","SurveyPublicationSnapshotRow"]);static func validate()throws{guard persistentRowNames.count==5 else{throw KernelPersistenceV4Failure.incompleteCoverage};try SurveySessionEraseAllEnrollmentV1.validate()}}
+
+enum C30EvidenceContextKernelDeletionEnrollmentV1 {
+    static let persistentRowNames: Set<String> = ["EvidenceContextRow", "PairedObservationLinkRow"]
+    static let derivedNames: Set<String> = ["DerivedSolarContextV1", "PairedObservationMismatchPreviewV1"]
+    static let ordinaryDeletionRetainsImmutableHistory = true
+    static let workspaceEraseClearsRows = true
+
+    static func validate() throws {
+        guard persistentRowNames.count == 2, derivedNames.count == 2,
+              persistentRowNames.isDisjoint(with: derivedNames),
+              ordinaryDeletionRetainsImmutableHistory, workspaceEraseClearsRows else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}
 enum AssetLocatorKernelDeletionEnrollmentV1 {
     static let persistentRowNames: Set<String> = [
         "AssetLocatorRow", "LocatorBindingReceiptRow"

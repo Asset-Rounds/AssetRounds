@@ -3,6 +3,24 @@ import Foundation
 
 enum SurveySessionOrphanCleanupEnrollmentV1{static let surveyRowsOwnNoExternalFiles=true;static let cleanupMustNotInventPromotionOrPublication=true}
 
+enum C30EvidenceContextOrphanCleanupPolicyV1 {
+    static let contextRowsOwnNoExternalFiles = true
+    static let canonicalRowsAreProtected = true
+    static let derivedProjectionMayRebuild = true
+    static let unknownContextBytesAreRemovable = false
+
+    static func protectedIDs(contexts: [EvidenceContextV1],
+                             links: [PairedObservationLinkV1]) throws -> Set<UUID> {
+        try contexts.forEach { try $0.validateIntrinsic() }
+        try links.forEach { try $0.validateIntrinsic() }
+        guard contextRowsOwnNoExternalFiles, canonicalRowsAreProtected,
+              derivedProjectionMayRebuild, !unknownContextBytesAreRemovable else {
+            throw EvidenceContextFailureV1.invalidValue
+        }
+        return Set(contexts.map(\.contextID) + links.map(\.linkID))
+    }
+}
+
 struct OrphanFileCleanupSummary: Equatable, Sendable {
     let inspectedFileCount: Int
     let removedFileCount: Int

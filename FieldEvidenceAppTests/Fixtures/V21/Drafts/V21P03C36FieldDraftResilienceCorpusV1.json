@@ -131,5 +131,12 @@
     }
   },
   "boundaryRefs": ["V23-P03-C36-G01", "V23-P03-C36-A01", "V23-P03-C36-H01", "V23-P03-C36-I01", "V23-P03-C36-R01"],
-  "provisionalFlags": { "native": false, "hosted": false, "adoption": false, "acceptance": false, "release": false }
+  "provisionalFlags": { "native": false, "hosted": false, "adoption": false, "acceptance": false, "release": false },
+  "c30EvidenceContextCompatibility": {
+    "persistentSchemaVersion": 30,
+    "recordsSchemaVersion": 29,
+    "durableFamilies": ["EvidenceContextV1", "PairedObservationLinkV1"],
+    "providerFreeSolar": true,
+    "pairMismatchReasonCount": 8
+  }
 }

@@ -933,6 +933,21 @@ extension LocalSearchIndexStoreV1 {
     }
 }
 
+// MARK: - C30 operating-context search adapter
+
+extension LocalSearchIndexStoreV1 {
+    static func operatingContextSearchRecord(
+        from projection: C30EvidenceContextReportReferenceV1
+    ) throws -> C30OperatingContextSearchRecordV1 {
+        let record = try C30OperatingContextSearchRecordV1(projection)
+        try C30OperatingContextSearchPersistencePolicyV1.validate()
+        return record
+    }
+
+    static let c30OperatingContextIndexIsLocalOnly = true
+    static let c30OperatingContextRowsAreRebuiltFromCanonicalContext = true
+}
+
 // MARK: - C25 survey-definition adapter
 
 extension LocalSearchIndexStoreV1 {
@@ -1394,4 +1409,8 @@ extension LocalSearchIndexStoreV1 {
         try C37PoseSearchPersistencePolicyV1().validate()
         return record
     }
+}
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Infrastructure_Search_LocalSearchIndexStoreV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Search/LocalSearchIndexStoreV1.swift", role: .search)
 }

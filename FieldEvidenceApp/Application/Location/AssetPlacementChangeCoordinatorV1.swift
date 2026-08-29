@@ -218,3 +218,7 @@ enum C37PoseIntegration_FieldEvidenceApp_Application_Location_AssetPlacementChan
         }
     }
 }
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Application_Location_AssetPlacementChangeCoordinatorV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Application/Location/AssetPlacementChangeCoordinatorV1.swift", role: .location)
+}

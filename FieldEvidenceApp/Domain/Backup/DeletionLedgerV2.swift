@@ -370,6 +370,31 @@ enum AssetLocatorDeletionLedgerPolicyV1 {
     }
 }
 
+/// Ordinary asset/site deletion retains immutable context and comparison
+/// provenance; workspace Erase is the only operation that removes the rows.
+enum C30EvidenceContextDeletionLedgerPolicyV1 {
+    static let durableKinds = ["EvidenceContextRow", "PairedObservationLinkRow"]
+    static let ordinaryDeletionPreservesImmutableHistory = true
+    static let workspaceEraseRemovesRowsAndOwnedBytes = true
+    static let derivedProjectionIsNotDeletionTruth = true
+
+    static func validate(contexts: [EvidenceContextV1],
+                         links: [PairedObservationLinkV1]) throws {
+        guard durableKinds.count == 2,
+              ordinaryDeletionPreservesImmutableHistory,
+              workspaceEraseRemovesRowsAndOwnedBytes,
+              derivedProjectionIsNotDeletionTruth else {
+            throw DeletionLedgerFailureV2.invalidSchemaVersion
+        }
+        try contexts.forEach { try $0.validateIntrinsic() }
+        try links.forEach { try $0.validateIntrinsic() }
+        guard Set(contexts.map(\.contextID)).count == contexts.count,
+              Set(links.map(\.linkID)).count == links.count else {
+            throw DeletionLedgerFailureV2.duplicateIdentity
+        }
+    }
+}
+
 struct DeletionLedgerV2: Codable, Equatable, Sendable {
     static let maximumEntryCount = 100_000
 

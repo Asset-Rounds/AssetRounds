@@ -2605,3 +2605,20 @@ extension ReportDeliveryCoordinator {
         return try DeterministicOpenJSONRendererV1.renderPlacementPose(projection)
     }
 }
+// MARK: - C30 operating-context delivery boundary
+
+extension ReportDeliveryCoordinator {
+    static func localOperatingContextExport(
+        _ projection: C30EvidenceContextReportReferenceV1
+    ) throws -> ReportProjectionOutputV1 {
+        try ReportRenderService.renderOperatingContextOpenJSON(projection)
+    }
+
+    static let c30OperatingContextExportIsLocalProjection = true
+    static let c30OperatingContextHasNoDeliveryAcknowledgement = true
+    static let c30OperatingContextPreservesOriginalEvidence = true
+}
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Infrastructure_Reporting_ReportDeliveryCoordinator {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift", role: .report)
+}

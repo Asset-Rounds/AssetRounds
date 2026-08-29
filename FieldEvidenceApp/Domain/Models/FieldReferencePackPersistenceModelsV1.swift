@@ -1,4 +1,5 @@
 import Foundation
+enum EvidenceContextFieldReferenceBoundaryV1{static let referencePackContentDoesNotOwnObservedLightingOrSolarContext=true}
 enum PlacementPoseFieldReferencePersistenceBoundaryV1{static let fieldReferenceRowsOwnNoPoseAxesOrTips=true}
 import SwiftData
 

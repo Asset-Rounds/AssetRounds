@@ -1024,3 +1024,22 @@ enum C37PoseIntegration_FieldEvidenceApp_Domain_Workflow_WholeSignDeletionRule_s
         }
     }
 }
+
+enum C30EvidenceContextWholeSignDeletionRuleV1 {
+    static let contextRowsAreWorkspaceScoped = true
+    static let pairRowsAreWorkspaceScoped = true
+    static let immutableHistoryRetainedForOrdinaryDeletion = true
+
+    static func validate(workspaceID: WorkspaceID,
+                         contexts: [EvidenceContextV1],
+                         links: [PairedObservationLinkV1]) throws {
+        guard contextRowsAreWorkspaceScoped, pairRowsAreWorkspaceScoped,
+              immutableHistoryRetainedForOrdinaryDeletion,
+              contexts.allSatisfy({ $0.workspaceID == workspaceID }),
+              links.allSatisfy({ $0.workspaceID == workspaceID }) else {
+            throw EvidenceContextFailureV1.wrongWorkspace
+        }
+        try contexts.forEach { try $0.validateIntrinsic() }
+        try links.forEach { try $0.validateIntrinsic() }
+    }
+}

@@ -112,3 +112,7 @@ enum C37PoseIntegration_FieldEvidenceApp_Infrastructure_Camera_CameraAdapter_swi
         }
     }
 }
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Infrastructure_Camera_CameraAdapter {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Camera/CameraAdapter.swift", role: .camera)
+}

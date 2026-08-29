@@ -385,6 +385,33 @@ extension SearchCoordinatorV1 {
     }
 }
 
+// MARK: - C30 operating-context search
+
+extension SearchCoordinatorV1 {
+    static func searchOperatingContextMetadata(
+        query: String,
+        records: [C30OperatingContextSearchRecordV1],
+        maximumResults: Int = 100
+    ) throws -> [C30OperatingContextSearchRecordV1] {
+        guard maximumResults > 0,
+              maximumResults <= SearchContractLimitsV1.maximumCanonicalRecords else {
+            throw SearchContractFailureV1.limitExceeded
+        }
+        let tokens = normalizedTokens(query)
+        guard !tokens.isEmpty else { throw SearchContractFailureV1.invalidQuery }
+        try records.forEach { try C30OperatingContextSearchPolicyV1.validate($0) }
+        return Array(records.filter { record in
+            tokens.allSatisfy { queryToken in
+                record.normalizedTokens.contains {
+                    $0 == queryToken || $0.hasPrefix(queryToken)
+                }
+            }
+        }.sorted {
+            ($0.evidenceID, $0.contextRevision) < ($1.evidenceID, $1.contextRevision)
+        }.prefix(maximumResults))
+    }
+}
+
 // MARK: - C29 plan placement metadata search
 
 extension SearchCoordinatorV1 {
@@ -498,4 +525,8 @@ extension SearchCoordinatorV1 {
         }.sorted { $0.projectionIdentity < $1.projectionIdentity }
         return Array(matches.prefix(maximumResults))
     }
+}
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Application_Search_SearchCoordinatorV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Application/Search/SearchCoordinatorV1.swift", role: .search)
 }

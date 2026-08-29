@@ -324,3 +324,26 @@ enum C37PoseIntegration_FieldEvidenceApp_Domain_Workflow_DeletionIntentV1_swift 
         }
     }
 }
+
+enum C30EvidenceContextDeletionIntentPolicyV1 {
+    static let ordinaryAssetDeletionPreservesContextHistory = true
+    static let ordinarySiteDeletionPreservesPairingHistory = true
+    static let workspaceEraseOwnsContextRemoval = true
+    static let deletionInfersCompliance = false
+
+    static func validate(context: EvidenceContextV1,
+                         pairedLink: PairedObservationLinkV1? = nil) throws {
+        try context.validateIntrinsic()
+        if let pairedLink {
+            try pairedLink.validateIntrinsic()
+            guard pairedLink.workspaceID == context.workspaceID else {
+                throw EvidenceContextFailureV1.wrongWorkspace
+            }
+        }
+        guard ordinaryAssetDeletionPreservesContextHistory,
+              ordinarySiteDeletionPreservesPairingHistory,
+              workspaceEraseOwnsContextRemoval, !deletionInfersCompliance else {
+            throw EvidenceContextFailureV1.invalidValue
+        }
+    }
+}

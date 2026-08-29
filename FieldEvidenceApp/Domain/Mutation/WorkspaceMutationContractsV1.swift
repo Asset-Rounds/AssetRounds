@@ -103,6 +103,8 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case planRebaseReceipt
     case assetPoseEvent
     case spatialAnchorObservation
+    case evidenceContext
+    case pairedObservationLink
     case workflowRecord
     case evidenceFile
     case issue
@@ -1549,6 +1551,14 @@ struct PlacementPoseMutationV1:Codable,Equatable,Sendable{
     func expectedRevision(for identity:WorkspaceEntityIdentityV1)throws->UInt64{if identity.kind == .assetPoseEvent,let index=events.indices.first(where:{(eventPredecessors[$0]?.eventID ?? events[$0].eventID)==identity.id}){return eventPredecessors[index]?.revision ?? 0};if identity.kind == .spatialAnchorObservation,let index=observations.indices.first(where:{(observationPredecessors[$0]?.observationID ?? observations[$0].observationID)==identity.id}){return observationPredecessors[index]?.revision ?? 0};throw WorkspaceMutationContractFailureV1.invalidPlan}}
 }
 
+extension EvidenceContextWriteOperationV1{
+    var affectedIdentity:WorkspaceEntityIdentityV1{get throws{switch self{case let .appendContext(value,_):return try .init(kind:.evidenceContext,id:value.contextID);case let .appendPair(value,_):return try .init(kind:.pairedObservationLink,id:value.linkID)}}}
+    var concurrencyIdentity:WorkspaceEntityIdentityV1{get throws{switch self{case let .appendContext(value,predecessor):return try .init(kind:.evidenceContext,id:predecessor?.contextID ?? value.contextID);case let .appendPair(value,predecessor):return try .init(kind:.pairedObservationLink,id:predecessor?.linkID ?? value.linkID)}}}
+    var revision:UInt64{switch self{case .appendContext(let value,_):return value.revision;case .appendPair(let value,_):return value.revision}}
+    var semanticSHA256:String{switch self{case .appendContext(let value,_):return value.contextSHA256;case .appendPair(let value,_):return value.linkSHA256}}
+    var expectedRevision:UInt64{switch self{case .appendContext(_,let predecessor):return predecessor?.revision ?? 0;case .appendPair(_,let predecessor):return predecessor?.revision ?? 0}}
+}
+
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
     case createCheckDraft(CheckDraftMutationV1)
@@ -1587,6 +1597,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applySchedule(ScheduleMutationV1)
     case applyPlan(PlanMutationV1)
     case applyPlacementPose(PlacementPoseMutationV1)
+    case applyEvidenceContext(EvidenceContextWriteOperationV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -1627,6 +1638,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applySchedule:.applySchedule
         case .applyPlan:.applyPlan
         case .applyPlacementPose:.applyPlacementPose
+        case .applyEvidenceContext:.applyEvidenceContext
         }
     }
 }
@@ -1669,6 +1681,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applySchedule="apply_schedule"
     case applyPlan="apply_plan"
     case applyPlacementPose="apply_placement_pose"
+    case applyEvidenceContext="apply_evidence_context"
 }
 
 extension WorkspaceCommandV1 {
@@ -2460,6 +2473,7 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind:.applySchedule,disposition:.compensatable,stableReason:"append_schedule_successor_only"),
         .init(commandKind:.applyPlan,disposition:.compensatable,stableReason:"append_plan_history_successor_only"),
         .init(commandKind:.applyPlacementPose,disposition:.compensatable,stableReason:"append_pose_history_successor_only"),
+        .init(commandKind:.applyEvidenceContext,disposition:.compensatable,stableReason:"append_evidence_context_history_successor_only"),
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {

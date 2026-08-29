@@ -1,4 +1,5 @@
 import Foundation
+enum EvidenceContextPlanBoundaryV1{static let planFramesDoNotOwnEvidenceContext=true;static let pairedObservationLinksRemainSeparateHistory=true}
 enum PlacementPosePlanPersistenceBoundaryV1{static let anchorObservationsBindExactEmbeddedFrames=true;static let framesRemainEmbeddedInPlanRevision=true}
 import SwiftData
 

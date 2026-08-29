@@ -152,3 +152,7 @@ enum C37PoseIntegration_FieldEvidenceApp_Application_Workflow_SurveySessionCoord
         }
     }
 }
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Application_Workflow_SurveySessionCoordinatorV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Application/Workflow/SurveySessionCoordinatorV1.swift", role: .survey)
+}

@@ -1307,3 +1307,7 @@ enum C37PoseIntegration_FieldEvidenceApp_Infrastructure_Jobs_ResumableLocalJobRu
         }
     }
 }
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Infrastructure_Jobs_ResumableLocalJobRunnerV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Jobs/ResumableLocalJobRunnerV1.swift", role: .job)
+}

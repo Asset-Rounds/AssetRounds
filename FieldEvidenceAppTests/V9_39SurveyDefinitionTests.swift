@@ -3,6 +3,17 @@ import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C30EvidenceContextAnchorV9_39SurveyDefinition: XCTestCase {
+    func testTypedEvidenceContextContractAnchor() throws {
+        XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
+        XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
+        XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.durableModelCount, 2)
+        XCTAssertEqual(EvidenceLightingConditionV1.allCases.count, 6)
+        XCTAssertTrue(WorkspaceWriterAdapterV1.activeSupportedCommandKinds.contains(.applyEvidenceContext))
+        try EvidenceContextLimitsV1.digest(String(repeating: "a", count: 64))
+    }
+}
+
 private enum C25SurveyDefinitionTestSupport {
     static let fixedDate = Date(timeIntervalSince1970: 1_800_000_500)
 

@@ -4448,3 +4448,144 @@ enum C37PoseLocalizationPolicyV1 {
         }
     }
 }
+// MARK: - C30 operating-context localization
+
+/// Closed English-only keys for the C30 context projection.  The observed
+/// condition, optional solar calculation, expected control state, and paired
+/// comparison disposition are deliberately labelled as separate facts.
+enum C30OperatingContextLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
+    case heading = "evidence.context.heading"
+    case condition = "evidence.context.condition"
+    case daylight = "evidence.context.condition.daylight"
+    case civilTwilight = "evidence.context.condition.civil_twilight"
+    case night = "evidence.context.condition.night"
+    case coveredDay = "evidence.context.condition.covered_day"
+    case coveredNight = "evidence.context.condition.covered_night"
+    case conditionUnknown = "evidence.context.condition.unknown"
+    case userObserved = "evidence.context.source.user_observed"
+    case solarDerived = "evidence.context.source.solar_derived"
+    case temporalBasis = "evidence.context.temporal_basis"
+    case expectedControl = "evidence.context.expected_control"
+    case expectedOperating = "evidence.context.expected_control.operating"
+    case expectedNotOperating = "evidence.context.expected_control.not_operating"
+    case expectedNone = "evidence.context.expected_control.none"
+    case pairedComparison = "evidence.context.paired_comparison"
+    case pairedComparable = "evidence.context.paired_comparison.comparable"
+    case pairedMismatch = "evidence.context.paired_comparison.mismatch"
+    case pairedNotLinked = "evidence.context.paired_comparison.not_linked"
+    case pairedMismatchReason = "evidence.context.paired_comparison.reason"
+    case historyFrozen = "evidence.context.history.frozen"
+    case claimBoundary = "evidence.context.claim_boundary"
+    case nextStep = "evidence.context.next_step"
+    case manualOffline = "evidence.context.manual_offline"
+    case derivedCondition = "evidence.context.derived_condition"
+
+    var localizationKey: LocalizationKeyV1 {
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+
+    var englishDefaultValue: String {
+        switch self {
+        case .heading: return "Operating context"
+        case .condition: return "Recorded condition"
+        case .daylight: return "Daylight recorded"
+        case .civilTwilight: return "Civil twilight recorded"
+        case .night: return "Night recorded"
+        case .coveredDay: return "Covered-day condition recorded"
+        case .coveredNight: return "Covered-night condition recorded"
+        case .conditionUnknown: return "Condition unknown"
+        case .userObserved: return "User-observed condition"
+        case .solarDerived: return "Solar calculation (separate)"
+        case .temporalBasis: return "Recorded time basis"
+        case .expectedControl: return "Expected control state"
+        case .expectedOperating: return "Expected operating"
+        case .expectedNotOperating: return "Expected not operating"
+        case .expectedNone: return "No expectation recorded"
+        case .pairedComparison: return "Paired comparison"
+        case .pairedComparable: return "Comparable references recorded"
+        case .pairedMismatch: return "Paired references differ"
+        case .pairedNotLinked: return "No paired reference"
+        case .pairedMismatchReason: return "Comparison difference"
+        case .historyFrozen: return "Historic display is frozen"
+        case .claimBoundary: return "Recorded context only; no operational conclusion"
+        case .nextStep: return "Review the recorded context and comparison differences"
+        case .manualOffline: return "Manual/offline path remains available"
+        case .derivedCondition: return "Derived condition (separate fact)"
+        }
+    }
+
+    var translatorComment: String {
+        "English-only C30 label for separately recorded evidence context facts; do not infer lighting, control state, measurement, failure, or compliance."
+    }
+
+    static func conditionKey(
+        _ value: EvidenceLightingConditionV1
+    ) -> Self {
+        switch value {
+        case .daylight: return .daylight
+        case .civilTwilight: return .civilTwilight
+        case .night: return .night
+        case .coveredDayCondition: return .coveredDay
+        case .coveredNightCondition: return .coveredNight
+        case .unknown: return .conditionUnknown
+        }
+    }
+
+    static func expectedControlKey(
+        _ value: ExpectedControlStateV1?
+    ) -> Self {
+        switch value {
+        case .some(.expectedOperating): return .expectedOperating
+        case .some(.expectedNotOperating): return .expectedNotOperating
+        case .some(.noExpectation), .none: return .expectedNone
+        }
+    }
+
+    static let keys = allCases.map(\.rawValue).sorted()
+    static let sourceLocale = "en"
+    static let shippingRuntimeLocales = ["en"]
+    static let metadataLocale = "en-US"
+    static let pseudoLocalesAreTestOnly = true
+    static let denyByDefault = true
+    static let historicDisplayFrozen = true
+    static let manualOfflinePathPreserved = true
+}
+
+enum C30OperatingContextLocalizationPolicyV1 {
+    static let prohibitedClaimPhrases = [
+        "actual control", "control failure", "darkness inferred", "derived darkness",
+        "measurement", "compliance", "accurate", "verified", "approved",
+        "authorized", "secure", "delivered", "customer data", "work data",
+        "sensor stream", "photo proves", "timestamp proves",
+    ]
+
+    static func containsProhibitedClaim(_ values: [String]) -> Bool {
+        values.contains { value in
+            let normalized = value.lowercased()
+                .replacingOccurrences(of: "_", with: " ")
+                .replacingOccurrences(of: "-", with: " ")
+            return prohibitedClaimPhrases.contains { normalized.contains($0) }
+        }
+    }
+
+    static func validate() throws {
+        let values = C30OperatingContextLocalizationKeyV1.allCases
+        guard values.map(\.rawValue).sorted() == C30OperatingContextLocalizationKeyV1.keys,
+              Set(C30OperatingContextLocalizationKeyV1.keys).count == values.count,
+              C30OperatingContextLocalizationKeyV1.sourceLocale == "en",
+              C30OperatingContextLocalizationKeyV1.shippingRuntimeLocales == ["en"],
+              C30OperatingContextLocalizationKeyV1.metadataLocale == "en-US",
+              C30OperatingContextLocalizationKeyV1.pseudoLocalesAreTestOnly,
+              C30OperatingContextLocalizationKeyV1.denyByDefault,
+              C30OperatingContextLocalizationKeyV1.historicDisplayFrozen,
+              C30OperatingContextLocalizationKeyV1.manualOfflinePathPreserved,
+              !containsProhibitedClaim(values.map(\.englishDefaultValue)) else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Domain_Localization_LocalizationContractsV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift", role: .localization)
+}

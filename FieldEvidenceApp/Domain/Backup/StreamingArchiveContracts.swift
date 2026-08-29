@@ -193,6 +193,22 @@ enum PlacementPoseStreamingArchivePolicyV1 {
     }
 }
 
+enum C30EvidenceContextStreamingArchivePolicyV1 {
+    static let archiveKinds = V30BackupEvidenceContextRecordV1.Kind.allCases
+    static let canonicalRowsOnly = true
+    static let derivedProjectionDisposition = "DROP_AND_REBUILD"
+    static let externalProviderStateIncluded = false
+
+    static func validate(records: [V30BackupEvidenceContextRecordV1]) throws {
+        guard archiveKinds.count == 2, canonicalRowsOnly,
+              derivedProjectionDisposition == "DROP_AND_REBUILD",
+              !externalProviderStateIncluded else {
+            throw StreamingArchiveFailureV1.invalidArchive
+        }
+        _ = try EvidenceContextBackupRecordSetV1.decode(records)
+    }
+}
+
 enum StreamingArchiveCompressionV1: String, Codable, CaseIterable, Sendable {
     case stored
     case zlib

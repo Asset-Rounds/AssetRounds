@@ -83,3 +83,7 @@ final class PlacementPoseCoordinatorV1 {
                                                         admissionClosure: admissionClosure)
     }
 }
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Application_Pose_PlacementPoseCoordinatorV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Application/Pose/PlacementPoseCoordinatorV1.swift", role: .pose)
+}

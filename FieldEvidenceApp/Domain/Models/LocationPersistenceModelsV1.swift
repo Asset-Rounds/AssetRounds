@@ -1,4 +1,5 @@
 import Foundation
+enum EvidenceContextLocationBoundaryV1{static let derivedSolarContextUsesFrozenLocationInput=true;static let locationHistoryIsNotRewritten=true}
 enum PlacementPoseLocationPersistenceBoundaryV1{static let poseEventsMustBindAnExactAssetPlacementEvent=true;static let poseHistoryNeverRewritesPlacementHistory=true}
 import SwiftData
 

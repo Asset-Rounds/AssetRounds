@@ -614,3 +614,18 @@ enum C37PoseIntegration_FieldEvidenceApp_Domain_Workflow_FinalizationContracts_s
         }
     }
 }
+
+enum C30EvidenceContextFinalizationBoundaryV1 {
+    static let finalizedReportCarriesRecordedContext = true
+    static let finalizationDoesNotRecalculateHistory = true
+    static let contextIsNotNonRepudiation = true
+
+    static func validate(context: EvidenceContextV1,
+                         link: PairedObservationLinkV1? = nil) throws {
+        try C30EvidenceContextWorkflowBoundaryV1.validate(context: context, pairedLink: link)
+        guard finalizedReportCarriesRecordedContext,
+              finalizationDoesNotRecalculateHistory, contextIsNotNonRepudiation else {
+            throw EvidenceContextFailureV1.invalidValue
+        }
+    }
+}

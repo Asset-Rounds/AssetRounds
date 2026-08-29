@@ -282,6 +282,27 @@ enum IntegrationProjectionDiagnosticExclusionV1 {
     }
 }
 
+struct C30EvidenceContextDiagnosticMetadataV1: Codable, Equatable, Sendable {
+    let contextCount: Int
+    let pairedLinkCount: Int
+    let workspaceCount: Int
+    let canonicalBytesIncluded: Bool
+    let inferredContextIncluded: Bool
+}
+
+enum C30EvidenceContextDiagnosticPrivacyV1 {
+    static func metadata(contexts: [EvidenceContextV1],
+                         links: [PairedObservationLinkV1]) throws
+        -> C30EvidenceContextDiagnosticMetadataV1 {
+        try contexts.forEach { try $0.validateIntrinsic() }
+        try links.forEach { try $0.validateIntrinsic() }
+        let workspaces = Set(contexts.map(\.workspaceID) + links.map(\.workspaceID))
+        return .init(contextCount: contexts.count, pairedLinkCount: links.count,
+                     workspaceCount: workspaces.count, canonicalBytesIncluded: false,
+                     inferredContextIncluded: false)
+    }
+}
+
 struct DiagnosticExportService {
     typealias CountersProvider = () async -> DiagnosticsV1
     typealias MetricKitProvider = () -> MetricKitSummaryV1?

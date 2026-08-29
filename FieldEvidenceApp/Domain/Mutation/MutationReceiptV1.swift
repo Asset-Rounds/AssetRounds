@@ -138,6 +138,8 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
     case planRebaseReceipt(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case assetPoseEvent(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case spatialAnchorObservation(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case evidenceContext(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case pairedObservationLink(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case workflowRecord(id: UUID, revision: UInt64, semanticSHA256: String)
     case evidenceFile(id: UUID, revision: UInt64, semanticSHA256: String)
     case issue(id: UUID, revision: UInt64, semanticSHA256: String)
@@ -229,6 +231,8 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
             case let .planRebaseReceipt(id,_,_,_):return try .init(kind:.planRebaseReceipt,id:id)
             case let .assetPoseEvent(id,_,_,_):return try .init(kind:.assetPoseEvent,id:id)
             case let .spatialAnchorObservation(id,_,_,_):return try .init(kind:.spatialAnchorObservation,id:id)
+            case let .evidenceContext(id,_,_,_):return try .init(kind:.evidenceContext,id:id)
+            case let .pairedObservationLink(id,_,_,_):return try .init(kind:.pairedObservationLink,id:id)
             case let .workflowRecord(id, _, _): return try .init(kind: .workflowRecord, id: id)
             case let .evidenceFile(id, _, _): return try .init(kind: .evidenceFile, id: id)
             case let .issue(id, _, _): return try .init(kind: .issue, id: id)
@@ -242,7 +246,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
 
     var semanticSHA256: String {
         switch self {
-        case let .accessibleDocumentAssessmentReceipt(_,_,_,value),let .surveyDefinitionIdentity(_,_,_,value),let .surveyDefinitionRelease(_,_,_,value),let .surveySession(_,_,_,value),let .factCapture(_,_,_,value),let .provisionalSubject(_,_,_,value),let .subjectPromotionReceipt(_,_,_,value),let .surveyPublicationSnapshot(_,_,_,value),let .assetLocator(_,_,_,value),let .locatorBindingReceipt(_,_,_,value),let .scheduleDefinitionRelease(_,_,_,value),let .occurrenceHistoryEvent(_,_,_,value),let .planDocument(_,_,_,value),let .planRevision(_,_,_,value),let .planPlacement(_,_,_,value),let .planRebaseReceipt(_,_,_,value),let .assetPoseEvent(_,_,_,value),let .spatialAnchorObservation(_,_,_,value):return value
+        case let .accessibleDocumentAssessmentReceipt(_,_,_,value),let .surveyDefinitionIdentity(_,_,_,value),let .surveyDefinitionRelease(_,_,_,value),let .surveySession(_,_,_,value),let .factCapture(_,_,_,value),let .provisionalSubject(_,_,_,value),let .subjectPromotionReceipt(_,_,_,value),let .surveyPublicationSnapshot(_,_,_,value),let .assetLocator(_,_,_,value),let .locatorBindingReceipt(_,_,_,value),let .scheduleDefinitionRelease(_,_,_,value),let .occurrenceHistoryEvent(_,_,_,value),let .planDocument(_,_,_,value),let .planRevision(_,_,_,value),let .planPlacement(_,_,_,value),let .planRebaseReceipt(_,_,_,value),let .assetPoseEvent(_,_,_,value),let .spatialAnchorObservation(_,_,_,value),let .evidenceContext(_,_,_,value),let .pairedObservationLink(_,_,_,value):return value
         case let .site(_, _, value), let .asset(_, _, value), let .locationNode(_, _, value),
              let .assetPlacementEvent(_, _, value), let .assetCompositionEdge(_, _, value),
              let .assetCompositionEvent(_, _, value), let .savedSmartView(_, _, value),
@@ -350,6 +354,8 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
             case let .planRebaseReceipt(_,v,_,_):guard v.kind == .planRebaseReceipt else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             case let .assetPoseEvent(_,v,_,_):guard v.kind == .assetPoseEvent else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             case let .spatialAnchorObservation(_,v,_,_):guard v.kind == .spatialAnchorObservation else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+            case let .evidenceContext(_,v,_,_):guard v.kind == .evidenceContext else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+            case let .pairedObservationLink(_,v,_,_):guard v.kind == .pairedObservationLink else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             default:
                 return try identity
             }
@@ -358,7 +364,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
 
     var revision: UInt64 {
         switch self {
-        case let .accessibleDocumentAssessmentReceipt(_,_,value,_),let .surveyDefinitionIdentity(_,_,value,_),let .surveyDefinitionRelease(_,_,value,_),let .surveySession(_,_,value,_),let .factCapture(_,_,value,_),let .provisionalSubject(_,_,value,_),let .subjectPromotionReceipt(_,_,value,_),let .surveyPublicationSnapshot(_,_,value,_),let .assetLocator(_,_,value,_),let .locatorBindingReceipt(_,_,value,_),let .scheduleDefinitionRelease(_,_,value,_),let .occurrenceHistoryEvent(_,_,value,_),let .planDocument(_,_,value,_),let .planRevision(_,_,value,_),let .planPlacement(_,_,value,_),let .planRebaseReceipt(_,_,value,_),let .assetPoseEvent(_,_,value,_),let .spatialAnchorObservation(_,_,value,_):return value
+        case let .accessibleDocumentAssessmentReceipt(_,_,value,_),let .surveyDefinitionIdentity(_,_,value,_),let .surveyDefinitionRelease(_,_,value,_),let .surveySession(_,_,value,_),let .factCapture(_,_,value,_),let .provisionalSubject(_,_,value,_),let .subjectPromotionReceipt(_,_,value,_),let .surveyPublicationSnapshot(_,_,value,_),let .assetLocator(_,_,value,_),let .locatorBindingReceipt(_,_,value,_),let .scheduleDefinitionRelease(_,_,value,_),let .occurrenceHistoryEvent(_,_,value,_),let .planDocument(_,_,value,_),let .planRevision(_,_,value,_),let .planPlacement(_,_,value,_),let .planRebaseReceipt(_,_,value,_),let .assetPoseEvent(_,_,value,_),let .spatialAnchorObservation(_,_,value,_),let .evidenceContext(_,_,value,_),let .pairedObservationLink(_,_,value,_):return value
         case let .site(_, value, _), let .asset(_, value, _),
              let .locationNode(_, value, _), let .assetPlacementEvent(_, value, _),
              let .assetCompositionEdge(_, value, _), let .assetCompositionEvent(_, value, _),
@@ -1159,3 +1165,8 @@ extension PlacementPoseMutationV1{
     }
 }
 struct PlacementPoseMutationReceiptV1:Codable,Equatable,Sendable{let mutationSHA256:String;let mutationReceipt:MutationReceiptV1;let affectedIdentities:[WorkspaceEntityIdentityV1];let concurrencyIdentities:[WorkspaceEntityIdentityV1];init(mutation:PlacementPoseMutationV1,mutationReceipt:MutationReceiptV1)throws{try mutation.validate();try mutationReceipt.validate();let affected=try mutation.affectedIdentities,concurrency=try mutation.concurrencyIdentities,images=try mutation.mutationPostImages;guard mutationReceipt.mutationID==mutation.mutationID,mutationReceipt.identity.workspaceID==mutation.workspaceID,mutationReceipt.commandBodySHA256==(try WorkspaceMutationCanonicalV1.sha256(WorkspaceCommandV1.applyPlacementPose(mutation))),mutationReceipt.postImages==images,try concurrency.allSatisfy({identity in mutationReceipt.expectedRevision.entityRevisions.first(where:{$0.identity==identity})?.revision == (try mutation.expectedRevision(for:identity))}),try images.allSatisfy({image in mutationReceipt.resultingRevision.entityRevisions.first(where:{$0.identity==(try image.identity)})?.revision==image.revision})else{throw WorkspaceMutationFailureV1.invalidReceipt};mutationSHA256=try WorkspaceMutationCanonicalV1.sha256(mutation);self.mutationReceipt=mutationReceipt;affectedIdentities=affected;concurrencyIdentities=concurrency}}
+
+extension EvidenceContextWriteOperationV1{
+    var mutationPostImage:MutationPostImageV1{get throws{switch self{case let .appendContext(value,predecessor):return .evidenceContext(id:value.contextID,concurrencyIdentity:try .init(kind:.evidenceContext,id:predecessor?.contextID ?? value.contextID),revision:value.revision,semanticSHA256:value.contextSHA256);case let .appendPair(value,predecessor):return .pairedObservationLink(id:value.linkID,concurrencyIdentity:try .init(kind:.pairedObservationLink,id:predecessor?.linkID ?? value.linkID),revision:value.revision,semanticSHA256:value.linkSHA256)}}}
+}
+struct EvidenceContextMutationReceiptV1:Codable,Equatable,Sendable{let operationSHA256:String;let mutationReceipt:MutationReceiptV1;init(operation:EvidenceContextWriteOperationV1,mutationReceipt:MutationReceiptV1)throws{try operation.validate();try mutationReceipt.validate();let image=try operation.mutationPostImage;guard mutationReceipt.mutationID==operation.mutationID,mutationReceipt.identity.workspaceID==operation.workspaceID,mutationReceipt.commandBodySHA256==(try WorkspaceMutationCanonicalV1.sha256(WorkspaceCommandV1.applyEvidenceContext(operation))),mutationReceipt.postImages==[image],mutationReceipt.expectedRevision.entityRevisions.first(where:{$0.identity==(try operation.concurrencyIdentity)})?.revision==operation.expectedRevision,mutationReceipt.resultingRevision.entityRevisions.first(where:{$0.identity==(try operation.affectedIdentity)})?.revision==operation.revision else{throw WorkspaceMutationFailureV1.invalidReceipt};operationSHA256=try EvidenceContextCanonicalCodecV1.sha256(operation);self.mutationReceipt=mutationReceipt}}

@@ -4414,3 +4414,394 @@ enum C37PoseReportProjectionPolicyV1 {
         try projection.validate()
     }
 }
+
+// MARK: - C30 operating-context consumer projection
+
+/// A report-safe view of the C30 durable evidence context.  It deliberately
+/// preserves the user-observed lighting condition and the optional solar
+/// calculation as separate facts.  Consumers must never derive a lighting
+/// condition from a timestamp, image, or calculation, and an expected control
+/// state is not an observation of the control.
+struct C30EvidenceContextReportReferenceV1: Codable, Equatable, Sendable {
+    static let schemaVersion = "C30_EVIDENCE_CONTEXT_REPORT_V1"
+
+    let schemaVersion: String
+    let contextID: UUID
+    let workspaceID: WorkspaceID
+    let evidenceID: String
+    let evidenceSHA256: String
+    let evidenceRevision: UInt64
+    let assetID: UUID
+    let assetRevision: UInt64
+    let contextRevision: UInt64
+    let temporalContext: TemporalContextV1
+    let observedCondition: EvidenceLightingConditionV1
+    let derivedCondition: DerivedSolarConditionV1?
+    let derivedPolarDisposition: SolarPolarDispositionV1?
+    let expectedControlState: ExpectedControlStateV1?
+    let pairedObservation: C30PairedObservationReportReferenceV1?
+    let contextSHA256: String
+    let frozenDisplay: Bool
+
+    init(
+        context: EvidenceContextV1,
+        pairedObservation: PairedObservationLinkV1? = nil
+    ) throws {
+        try context.validateIntrinsic()
+        if let pairedObservation {
+            try pairedObservation.validateIntrinsic()
+            guard pairedObservation.first.evidenceID == context.evidenceID
+                    || pairedObservation.second.evidenceID == context.evidenceID else {
+                throw C30ConsumerProjectionFailureV1.referenceMismatch
+            }
+        }
+        schemaVersion = Self.schemaVersion
+        contextID = context.contextID
+        workspaceID = context.workspaceID
+        evidenceID = context.evidenceID
+        evidenceSHA256 = context.evidenceSHA256
+        evidenceRevision = context.evidenceRevision
+        assetID = context.assetID
+        assetRevision = context.assetRevision
+        contextRevision = context.revision
+        temporalContext = context.temporalContext
+        observedCondition = context.userObserved.condition
+        derivedCondition = context.derivedSolar?.derivedCondition
+        derivedPolarDisposition = context.derivedSolar?.polarDisposition
+        expectedControlState = context.controlExpectation?.expectedState
+        self.pairedObservation = try pairedObservation.map {
+            try C30PairedObservationReportReferenceV1($0, context: context)
+        }
+        contextSHA256 = context.contextSHA256
+        frozenDisplay = true
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              workspaceID.rawValue != SearchContractValidationV1.zeroUUID,
+              contextID != SearchContractValidationV1.zeroUUID,
+              assetID != SearchContractValidationV1.zeroUUID,
+              SearchContractValidationV1.validID(evidenceID),
+              KernelCanonicalHashV1.validSHA256(evidenceSHA256),
+              evidenceRevision > 0, assetRevision > 0,
+              contextRevision > 0, frozenDisplay,
+              KernelCanonicalHashV1.validSHA256(contextSHA256),
+              (derivedCondition == nil) == (derivedPolarDisposition == nil) else {
+            throw C30ConsumerProjectionFailureV1.invalidValue
+        }
+        try temporalContext.validate()
+        try pairedObservation?.validate(boundTo: self)
+        try C30OperatingContextConsumerPolicyV1.validate(self)
+    }
+}
+
+/// The endpoint facts needed to re-bind a decoded pair without carrying
+/// actor, mutation, or source-byte data into a report.  Link compatibility
+/// depends on these fields, so they remain part of the frozen projection.
+struct C30PairedObservationEndpointBindingV1: Codable, Equatable, Sendable {
+    let workspaceID: WorkspaceID
+    let evidenceID: String
+    let evidenceSHA256: String
+    let evidenceRevision: UInt64
+    let assetID: UUID
+    let assetRevision: UInt64
+    let controlGroupID: String
+    let purpose: PairedObservationPurposeV1
+    let purposeRevision: UInt64
+    let planReferenceSHA256: String?
+    let viewpointReferenceSHA256: String
+    let temporalBucketID: String
+    let surfaceWeatherBasisSHA256: String
+    let measurementMethodID: String
+
+    init(_ reference: PairedObservationReferenceV1) {
+        workspaceID = reference.workspaceID
+        evidenceID = reference.evidenceID
+        evidenceSHA256 = reference.evidenceSHA256
+        evidenceRevision = reference.evidenceRevision
+        assetID = reference.assetID
+        assetRevision = reference.assetRevision
+        controlGroupID = reference.controlGroupID
+        purpose = reference.purpose
+        purposeRevision = reference.purposeRevision
+        planReferenceSHA256 = reference.planReferenceSHA256
+        viewpointReferenceSHA256 = reference.viewpointReferenceSHA256
+        temporalBucketID = reference.temporalBucketID
+        surfaceWeatherBasisSHA256 = reference.surfaceWeatherBasisSHA256
+        measurementMethodID = reference.measurementMethodID
+    }
+
+    func coreReference() -> PairedObservationReferenceV1 {
+        PairedObservationReferenceV1(
+            workspaceID: workspaceID,
+            evidenceID: evidenceID,
+            evidenceSHA256: evidenceSHA256,
+            evidenceRevision: evidenceRevision,
+            assetID: assetID,
+            assetRevision: assetRevision,
+            controlGroupID: controlGroupID,
+            purpose: purpose,
+            purposeRevision: purposeRevision,
+            planReferenceSHA256: planReferenceSHA256,
+            viewpointReferenceSHA256: viewpointReferenceSHA256,
+            temporalBucketID: temporalBucketID,
+            surfaceWeatherBasisSHA256: surfaceWeatherBasisSHA256,
+            measurementMethodID: measurementMethodID
+        )
+    }
+
+    func validate() throws {
+        guard workspaceID.rawValue != SearchContractValidationV1.zeroUUID,
+              assetID != SearchContractValidationV1.zeroUUID else {
+            throw C30ConsumerProjectionFailureV1.invalidValue
+        }
+        try coreReference().validate()
+    }
+}
+
+struct C30PairedObservationReportReferenceV1: Codable, Equatable, Sendable {
+    let workspaceID: WorkspaceID
+    let contextID: UUID
+    let contextSHA256: String
+    let contextRevision: UInt64
+    let evidenceID: String
+    let evidenceSHA256: String
+    let evidenceRevision: UInt64
+    let assetID: UUID
+    let assetRevision: UInt64
+    let linkID: UUID
+    let firstEvidenceID: String
+    let secondEvidenceID: String
+    let firstEndpoint: C30PairedObservationEndpointBindingV1
+    let secondEndpoint: C30PairedObservationEndpointBindingV1
+    let purpose: PairedObservationPurposeV1
+    let mismatchReasons: [PairedObservationMismatchReasonV1]
+    let revision: UInt64
+    let linkSHA256: String
+
+    init(_ link: PairedObservationLinkV1, context: EvidenceContextV1) throws {
+        try link.validateIntrinsic()
+        let matchingEndpoints = [link.first, link.second]
+            .filter { $0.evidenceID == context.evidenceID }
+        guard matchingEndpoints.count == 1,
+              let matchingEndpoint = matchingEndpoints.first,
+              matchingEndpoint.workspaceID == context.workspaceID,
+              matchingEndpoint.evidenceSHA256 == context.evidenceSHA256,
+              matchingEndpoint.evidenceRevision == context.evidenceRevision,
+              matchingEndpoint.assetID == context.assetID,
+              matchingEndpoint.assetRevision == context.assetRevision else {
+            throw C30ConsumerProjectionFailureV1.referenceMismatch
+        }
+        workspaceID = context.workspaceID
+        contextID = context.contextID
+        contextSHA256 = context.contextSHA256
+        contextRevision = context.revision
+        evidenceID = context.evidenceID
+        evidenceSHA256 = context.evidenceSHA256
+        evidenceRevision = context.evidenceRevision
+        assetID = context.assetID
+        assetRevision = context.assetRevision
+        linkID = link.linkID
+        firstEvidenceID = link.first.evidenceID
+        secondEvidenceID = link.second.evidenceID
+        firstEndpoint = C30PairedObservationEndpointBindingV1(link.first)
+        secondEndpoint = C30PairedObservationEndpointBindingV1(link.second)
+        purpose = link.first.purpose
+        mismatchReasons = link.mismatchReasons
+        revision = link.revision
+        linkSHA256 = link.linkSHA256
+        try validate(boundTo: context)
+    }
+
+    var isComparable: Bool { mismatchReasons.isEmpty }
+
+    var disposition: C30PairedComparisonDispositionV1 {
+        isComparable ? .comparable : .mismatch
+    }
+
+    func validate() throws {
+        guard workspaceID.rawValue != SearchContractValidationV1.zeroUUID,
+              contextID != SearchContractValidationV1.zeroUUID,
+              KernelCanonicalHashV1.validSHA256(contextSHA256),
+              SearchContractValidationV1.validID(evidenceID),
+              KernelCanonicalHashV1.validSHA256(evidenceSHA256),
+              evidenceRevision > 0, assetID != SearchContractValidationV1.zeroUUID,
+              assetRevision > 0,
+              linkID != SearchContractValidationV1.zeroUUID,
+              firstEvidenceID == firstEndpoint.evidenceID,
+              secondEvidenceID == secondEndpoint.evidenceID,
+              firstEvidenceID != secondEvidenceID,
+              firstEndpoint.workspaceID == workspaceID,
+              secondEndpoint.workspaceID == workspaceID,
+              firstEndpoint.assetID == assetID,
+              secondEndpoint.assetID == assetID,
+              firstEndpoint.evidenceID != secondEndpoint.evidenceID,
+              purpose == firstEndpoint.purpose,
+              revision > 0, mismatchReasons == mismatchReasons.sorted(),
+              Set(mismatchReasons).count == mismatchReasons.count,
+              KernelCanonicalHashV1.validSHA256(linkSHA256) else {
+            throw C30ConsumerProjectionFailureV1.invalidValue
+        }
+        try firstEndpoint.validate()
+        try secondEndpoint.validate()
+        let first = firstEndpoint.coreReference()
+        let second = secondEndpoint.coreReference()
+        guard PairedObservationLinkV1.mismatches(first, second) == mismatchReasons else {
+            throw C30ConsumerProjectionFailureV1.referenceMismatch
+        }
+    }
+
+    func validate(boundTo context: EvidenceContextV1) throws {
+        try validate()
+        let bound = [firstEndpoint, secondEndpoint]
+            .filter { $0.evidenceID == evidenceID }
+        guard bound.count == 1,
+              workspaceID == context.workspaceID,
+              contextID == context.contextID,
+              contextSHA256 == context.contextSHA256,
+              contextRevision == context.revision,
+              evidenceID == context.evidenceID,
+              evidenceSHA256 == context.evidenceSHA256,
+              evidenceRevision == context.evidenceRevision,
+              assetID == context.assetID,
+              assetRevision == context.assetRevision,
+              let endpoint = bound.first,
+              endpoint.workspaceID == context.workspaceID,
+              endpoint.evidenceID == context.evidenceID,
+              endpoint.evidenceSHA256 == context.evidenceSHA256,
+              endpoint.evidenceRevision == context.evidenceRevision,
+              endpoint.assetID == context.assetID,
+              endpoint.assetRevision == context.assetRevision else {
+            throw C30ConsumerProjectionFailureV1.referenceMismatch
+        }
+    }
+
+    func validate(boundTo projection: C30EvidenceContextReportReferenceV1) throws {
+        try validate()
+        let bound = [firstEndpoint, secondEndpoint]
+            .filter { $0.evidenceID == evidenceID }
+        guard bound.count == 1,
+              workspaceID == projection.workspaceID,
+              contextID == projection.contextID,
+              contextSHA256 == projection.contextSHA256,
+              contextRevision == projection.contextRevision,
+              evidenceID == projection.evidenceID,
+              evidenceSHA256 == projection.evidenceSHA256,
+              evidenceRevision == projection.evidenceRevision,
+              assetID == projection.assetID,
+              assetRevision == projection.assetRevision,
+              let endpoint = bound.first,
+              endpoint.workspaceID == projection.workspaceID,
+              endpoint.evidenceID == projection.evidenceID,
+              endpoint.evidenceSHA256 == projection.evidenceSHA256,
+              endpoint.evidenceRevision == projection.evidenceRevision,
+              endpoint.assetID == projection.assetID,
+              endpoint.assetRevision == projection.assetRevision else {
+            throw C30ConsumerProjectionFailureV1.referenceMismatch
+        }
+    }
+}
+
+enum C30PairedComparisonDispositionV1: String, Codable, CaseIterable, Sendable {
+    case comparable = "COMPARABLE"
+    case mismatch = "MISMATCH"
+    case notLinked = "NOT_LINKED"
+}
+
+enum C30ConsumerProjectionFailureV1: Error, Equatable, Sendable {
+    case invalidValue
+    case referenceMismatch
+    case unsupportedClaim
+    case privacyViolation
+}
+
+enum C30OperatingContextConsumerPolicyV1 {
+    static let metadataOnly = true
+    static let userObservedConditionRemainsSeparate = true
+    static let solarCalculationRemainsSeparate = true
+    static let timestampDoesNotInferCondition = true
+    static let photoDoesNotInferCondition = true
+    static let expectedControlIsNotActualControl = true
+    static let pairedComparisonCarriesReasons = true
+    static let historicDisplayIsFrozen = true
+    static let originalsAndManualOfflinePathPreserved = true
+    static let noSensorOrNetworkCollection = true
+    static let noOperationalFailureOrComplianceClaims = true
+
+    static func validate(_ projection: C30EvidenceContextReportReferenceV1) throws {
+        guard metadataOnly, userObservedConditionRemainsSeparate,
+              solarCalculationRemainsSeparate, timestampDoesNotInferCondition,
+              photoDoesNotInferCondition, expectedControlIsNotActualControl,
+              pairedComparisonCarriesReasons, historicDisplayIsFrozen,
+              originalsAndManualOfflinePathPreserved, noSensorOrNetworkCollection,
+              noOperationalFailureOrComplianceClaims else {
+            throw C30ConsumerProjectionFailureV1.privacyViolation
+        }
+        guard projection.frozenDisplay else {
+            throw C30ConsumerProjectionFailureV1.unsupportedClaim
+        }
+        try projection.pairedObservation?.validate()
+    }
+}
+
+enum C30ConsumerRoleV1: String, Codable, CaseIterable, Sendable {
+    case evidence = "EVIDENCE"
+    case report = "REPORT"
+    case search = "SEARCH"
+    case localization = "LOCALIZATION"
+    case accessibility = "ACCESSIBILITY"
+    case content = "CONTENT"
+    case camera = "CAMERA"
+    case feature = "FEATURE"
+    case asset = "ASSET"
+    case draft = "DRAFT"
+    case location = "LOCATION"
+    case pack = "PACK"
+    case plan = "PLAN"
+    case pose = "POSE"
+    case workPacket = "WORK_PACKET"
+    case survey = "SURVEY"
+    case checkRunner = "CHECK_RUNNER"
+    case job = "JOB"
+    case port = "PORT"
+    case lifecycle = "LIFECYCLE"
+    case finalization = "FINALIZATION"
+    case compatibility = "COMPATIBILITY"
+    case media = "MEDIA"
+}
+
+/// Registration used by consumer seams.  It is intentionally a projection
+/// contract rather than a second evidence-context writer or persistence model.
+struct C30ConsumerRegistrationV1: Codable, Equatable, Sendable {
+    let ownerPath: String
+    let role: C30ConsumerRoleV1
+    let readsFrozenContextProjection: Bool
+    let preservesOriginalEvidence: Bool
+    let preservesManualOfflinePath: Bool
+    let forbidsTimestampPhotoSolarInference: Bool
+    let forbidsActualControlFailureComplianceClaims: Bool
+
+    init(ownerPath: String, role: C30ConsumerRoleV1) {
+        self.ownerPath = ownerPath
+        self.role = role
+        readsFrozenContextProjection = true
+        preservesOriginalEvidence = true
+        preservesManualOfflinePath = true
+        forbidsTimestampPhotoSolarInference = true
+        forbidsActualControlFailureComplianceClaims = true
+    }
+
+    func validate() throws {
+        guard !ownerPath.isEmpty, readsFrozenContextProjection,
+              preservesOriginalEvidence, preservesManualOfflinePath,
+              forbidsTimestampPhotoSolarInference,
+              forbidsActualControlFailureComplianceClaims else {
+            throw C30ConsumerProjectionFailureV1.invalidValue
+        }
+    }
+}
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Domain_Reporting_ReportProjectionContractsV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/Reporting/ReportProjectionContractsV1.swift", role: .report)
+}

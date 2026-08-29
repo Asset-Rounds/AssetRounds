@@ -1,4 +1,5 @@
 import Foundation
+enum EvidenceContextSurveyDefinitionBoundaryV1{static let controlExpectationsRemainFrozenDefinitionInputs=true;static let capturedContextHistoryIsSeparate=true}
 enum PlacementPoseSurveyDefinitionPersistenceBoundaryV1{static let definitionsOwnAxisRequirementsNotPoseEvents=true}
 import SwiftData
 

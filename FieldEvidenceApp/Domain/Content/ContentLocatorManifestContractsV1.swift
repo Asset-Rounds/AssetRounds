@@ -318,3 +318,7 @@ enum C37PoseIntegration_FieldEvidenceApp_Domain_Content_ContentLocatorManifestCo
         }
     }
 }
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Domain_Content_ContentLocatorManifestContractsV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/Content/ContentLocatorManifestContractsV1.swift", role: .content)
+}

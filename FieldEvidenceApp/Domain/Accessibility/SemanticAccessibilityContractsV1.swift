@@ -2118,3 +2118,111 @@ enum C37PoseAccessibilityPolicyV1 {
         }
     }
 }
+// MARK: - C30 operating-context accessibility
+
+/// Stable semantic IDs for the C30 context projection.  Condition and
+/// comparison states are spoken as text and are never conveyed by color,
+/// glyph, motion, or a claim about actual equipment behavior.
+enum C30OperatingContextAccessibilityIDV1: String, Codable, CaseIterable, Sendable {
+    case screen = "evidence.context.screen"
+    case heading = "evidence.context.heading"
+    case condition = "evidence.context.condition"
+    case daylight = "evidence.context.condition.daylight"
+    case civilTwilight = "evidence.context.condition.civil_twilight"
+    case night = "evidence.context.condition.night"
+    case coveredDay = "evidence.context.condition.covered_day"
+    case coveredNight = "evidence.context.condition.covered_night"
+    case conditionUnknown = "evidence.context.condition.unknown"
+    case userObserved = "evidence.context.source.user_observed"
+    case solarDerived = "evidence.context.source.solar_derived"
+    case temporalBasis = "evidence.context.temporal_basis"
+    case expectedControl = "evidence.context.expected_control"
+    case expectedOperating = "evidence.context.expected_control.operating"
+    case expectedNotOperating = "evidence.context.expected_control.not_operating"
+    case expectedNone = "evidence.context.expected_control.none"
+    case pairedComparison = "evidence.context.paired_comparison"
+    case pairedComparable = "evidence.context.paired_comparison.comparable"
+    case pairedMismatch = "evidence.context.paired_comparison.mismatch"
+    case pairedNotLinked = "evidence.context.paired_comparison.not_linked"
+    case pairedMismatchReason = "evidence.context.paired_comparison.reason"
+    case historyFrozen = "evidence.context.history.frozen"
+    case claimBoundary = "evidence.context.claim_boundary"
+    case nextStep = "evidence.context.next_step"
+    case manualOffline = "evidence.context.manual_offline"
+    case derivedCondition = "evidence.context.derived_condition"
+
+    var localizationKey: LocalizationKeyV1 {
+        switch self {
+        case .screen, .heading: return C30OperatingContextLocalizationKeyV1.heading.localizationKey
+        case .condition: return C30OperatingContextLocalizationKeyV1.condition.localizationKey
+        case .daylight: return C30OperatingContextLocalizationKeyV1.daylight.localizationKey
+        case .civilTwilight: return C30OperatingContextLocalizationKeyV1.civilTwilight.localizationKey
+        case .night: return C30OperatingContextLocalizationKeyV1.night.localizationKey
+        case .coveredDay: return C30OperatingContextLocalizationKeyV1.coveredDay.localizationKey
+        case .coveredNight: return C30OperatingContextLocalizationKeyV1.coveredNight.localizationKey
+        case .conditionUnknown: return C30OperatingContextLocalizationKeyV1.conditionUnknown.localizationKey
+        case .userObserved: return C30OperatingContextLocalizationKeyV1.userObserved.localizationKey
+        case .solarDerived: return C30OperatingContextLocalizationKeyV1.solarDerived.localizationKey
+        case .temporalBasis: return C30OperatingContextLocalizationKeyV1.temporalBasis.localizationKey
+        case .expectedControl: return C30OperatingContextLocalizationKeyV1.expectedControl.localizationKey
+        case .expectedOperating: return C30OperatingContextLocalizationKeyV1.expectedOperating.localizationKey
+        case .expectedNotOperating: return C30OperatingContextLocalizationKeyV1.expectedNotOperating.localizationKey
+        case .expectedNone: return C30OperatingContextLocalizationKeyV1.expectedNone.localizationKey
+        case .pairedComparison: return C30OperatingContextLocalizationKeyV1.pairedComparison.localizationKey
+        case .pairedComparable: return C30OperatingContextLocalizationKeyV1.pairedComparable.localizationKey
+        case .pairedMismatch: return C30OperatingContextLocalizationKeyV1.pairedMismatch.localizationKey
+        case .pairedNotLinked: return C30OperatingContextLocalizationKeyV1.pairedNotLinked.localizationKey
+        case .pairedMismatchReason: return C30OperatingContextLocalizationKeyV1.pairedMismatchReason.localizationKey
+        case .historyFrozen: return C30OperatingContextLocalizationKeyV1.historyFrozen.localizationKey
+        case .claimBoundary: return C30OperatingContextLocalizationKeyV1.claimBoundary.localizationKey
+        case .nextStep: return C30OperatingContextLocalizationKeyV1.nextStep.localizationKey
+        case .manualOffline: return C30OperatingContextLocalizationKeyV1.manualOffline.localizationKey
+        case .derivedCondition: return C30OperatingContextLocalizationKeyV1.derivedCondition.localizationKey
+        }
+    }
+}
+
+enum C30OperatingContextAccessibilityPolicyV1 {
+    static let textAndIconRequired = true
+    static let stateIsNotColorOnly = true
+    static let nextStepIsActionable = true
+    static let screenUsesHeading = true
+    static let sensorAndNetworkClaimsExcluded = true
+    static let operationalFailureAndComplianceClaimsExcluded = true
+
+    static let stateSemanticIDs: Set<String> = [
+        C30OperatingContextAccessibilityIDV1.daylight.rawValue,
+        C30OperatingContextAccessibilityIDV1.civilTwilight.rawValue,
+        C30OperatingContextAccessibilityIDV1.night.rawValue,
+        C30OperatingContextAccessibilityIDV1.coveredDay.rawValue,
+        C30OperatingContextAccessibilityIDV1.coveredNight.rawValue,
+        C30OperatingContextAccessibilityIDV1.conditionUnknown.rawValue,
+        C30OperatingContextAccessibilityIDV1.pairedComparable.rawValue,
+        C30OperatingContextAccessibilityIDV1.pairedMismatch.rawValue,
+        C30OperatingContextAccessibilityIDV1.pairedNotLinked.rawValue,
+    ]
+
+    static func requiresActionableNextStep(for id: String) -> Bool {
+        id == C30OperatingContextAccessibilityIDV1.nextStep.rawValue
+            || id == C30OperatingContextAccessibilityIDV1.pairedMismatch.rawValue
+            || id == C30OperatingContextAccessibilityIDV1.conditionUnknown.rawValue
+    }
+
+    static func validate() throws {
+        guard textAndIconRequired, stateIsNotColorOnly, nextStepIsActionable,
+              screenUsesHeading, sensorAndNetworkClaimsExcluded,
+              operationalFailureAndComplianceClaimsExcluded,
+              C30OperatingContextAccessibilityIDV1.allCases.contains(where: {
+                  $0 == .screen
+              }),
+              C30OperatingContextAccessibilityIDV1.allCases
+                .filter({ $0 != .screen })
+                .allSatisfy({ !$0.localizationKey.rawValue.isEmpty }) else {
+            throw LocalizationContractFailureV1.invalidAccessibilityBinding
+        }
+    }
+}
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Domain_Accessibility_SemanticAccessibilityContractsV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/Accessibility/SemanticAccessibilityContractsV1.swift", role: .accessibility)
+}

@@ -16,6 +16,24 @@ extension ReportSnapshotV1 {
     }
 }
 
+enum C30EvidenceContextReportSnapshotBoundaryV1 {
+    static let snapshotCarriesRecordedContextOnly = true
+    static let historicSnapshotImmutable = true
+    static let solarProjectionMayImplyCompliance = false
+
+    static func validate(context: EvidenceContextV1,
+                         pairedLink: PairedObservationLinkV1? = nil,
+                         workspaceID: WorkspaceID) throws {
+        try C30EvidenceContextWorkflowBoundaryV1.validate(context: context,
+                                                           pairedLink: pairedLink)
+        guard context.workspaceID == workspaceID,
+              snapshotCarriesRecordedContextOnly, historicSnapshotImmutable,
+              !solarProjectionMayImplyCompliance else {
+            throw EvidenceContextFailureV1.wrongWorkspace
+        }
+    }
+}
+
 struct ReportSnapshotV1: Codable, Equatable, Sendable {
     let acknowledgements: [AcknowledgementSnapshotV1]
     let asset: AssetSnapshotV1

@@ -763,6 +763,21 @@ enum BackupOffMainWorkV1 {
     }
 }
 
+enum C30EvidenceContextStreamingArchiveServiceV1 {
+    static let archivesCanonicalContextRows = true
+    static let rebuildsDerivedPairProjection = true
+    static let rejectsCrossWorkspaceRows = true
+    static let sourceBytesRemainImmutable = true
+
+    static func validate(_ records: [V30BackupEvidenceContextRecordV1]) throws {
+        guard archivesCanonicalContextRows, rebuildsDerivedPairProjection,
+              rejectsCrossWorkspaceRows, sourceBytesRemainImmutable else {
+            throw StreamingArchiveFailureV1.invalidArchive
+        }
+        try C30EvidenceContextStreamingArchivePolicyV1.validate(records: records)
+    }
+}
+
 private extension StreamingArchiveService {
     static func canonical(_ value: UUID) -> String {
         value.uuidString.lowercased()

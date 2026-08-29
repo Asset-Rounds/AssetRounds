@@ -3365,6 +3365,106 @@
     "pose.missing" : {
       "comment" : "English-only C37 label for recorded reference-framed pose facts; it must not imply alignment, accuracy, compliance, or a sensor stream.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Pose not recorded" } } }
+    },
+    "evidence.context.heading" : {
+      "comment" : "English-only C30 label for separately recorded evidence context facts; do not infer lighting, control state, measurement, failure, or compliance.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Operating context" } } }
+    },
+    "evidence.context.condition" : {
+      "comment" : "English-only C30 label for separately recorded evidence context facts; do not infer lighting, control state, measurement, failure, or compliance.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recorded condition" } } }
+    },
+    "evidence.context.condition.daylight" : {
+      "comment" : "English-only C30 label for separately recorded evidence context facts; do not infer lighting, control state, measurement, failure, or compliance.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Daylight recorded" } } }
+    },
+    "evidence.context.condition.civil_twilight" : {
+      "comment" : "English-only C30 label for separately recorded evidence context facts; do not infer lighting, control state, measurement, failure, or compliance.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Civil twilight recorded" } } }
+    },
+    "evidence.context.condition.night" : {
+      "comment" : "English-only C30 label for separately recorded evidence context facts; do not infer lighting, control state, measurement, failure, or compliance.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Night recorded" } } }
+    },
+    "evidence.context.condition.covered_day" : {
+      "comment" : "English-only C30 label for separately recorded evidence context facts; do not infer lighting, control state, measurement, failure, or compliance.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Covered-day condition recorded" } } }
+    },
+    "evidence.context.condition.covered_night" : {
+      "comment" : "English-only C30 label for separately recorded evidence context facts; do not infer lighting, control state, measurement, failure, or compliance.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Covered-night condition recorded" } } }
+    },
+    "evidence.context.condition.unknown" : {
+      "comment" : "English-only C30 label for separately recorded evidence context facts; do not infer lighting, control state, measurement, failure, or compliance.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Condition unknown" } } }
+    },
+    "evidence.context.source.user_observed" : {
+      "comment" : "English-only C30 label for separately recorded evidence context facts; do not infer lighting, control state, measurement, failure, or compliance.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "User-observed condition" } } }
+    },
+    "evidence.context.source.solar_derived" : {
+      "comment" : "English-only C30 label for separately recorded evidence context facts; do not infer lighting, control state, measurement, failure, or compliance.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Solar calculation (separate)" } } }
+    },
+    "evidence.context.temporal_basis" : {
+      "comment" : "English-only C30 label for separately recorded evidence context facts; do not infer lighting, control state, measurement, failure, or compliance.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recorded time basis" } } }
+    },
+    "evidence.context.expected_control" : {
+      "comment" : "English-only C30 label for separately recorded evidence context facts; do not infer lighting, control state, measurement, failure, or compliance.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Expected control state" } } }
+    },
+    "evidence.context.expected_control.operating" : {
+      "comment" : "English-only C30 label for separately recorded evidence context facts; do not infer lighting, control state, measurement, failure, or compliance.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Expected operating" } } }
+    },
+    "evidence.context.expected_control.not_operating" : {
+      "comment" : "English-only C30 label for separately recorded evidence context facts; do not infer lighting, control state, measurement, failure, or compliance.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Expected not operating" } } }
+    },
+    "evidence.context.expected_control.none" : {
+      "comment" : "English-only C30 label for separately recorded evidence context facts; do not infer lighting, control state, measurement, failure, or compliance.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "No expectation recorded" } } }
+    },
+    "evidence.context.paired_comparison" : {
+      "comment" : "English-only C30 label for separately recorded evidence context facts; do not infer lighting, control state, measurement, failure, or compliance.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Paired comparison" } } }
+    },
+    "evidence.context.paired_comparison.comparable" : {
+      "comment" : "English-only C30 label for separately recorded evidence context facts; do not infer lighting, control state, measurement, failure, or compliance.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Comparable references recorded" } } }
+    },
+    "evidence.context.paired_comparison.mismatch" : {
+      "comment" : "English-only C30 label for separately recorded evidence context facts; do not infer lighting, control state, measurement, failure, or compliance.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Paired references differ" } } }
+    },
+    "evidence.context.paired_comparison.not_linked" : {
+      "comment" : "English-only C30 label for separately recorded evidence context facts; do not infer lighting, control state, measurement, failure, or compliance.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "No paired reference" } } }
+    },
+    "evidence.context.paired_comparison.reason" : {
+      "comment" : "English-only C30 label for separately recorded evidence context facts; do not infer lighting, control state, measurement, failure, or compliance.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Comparison difference" } } }
+    },
+    "evidence.context.history.frozen" : {
+      "comment" : "English-only C30 label for separately recorded evidence context facts; do not infer lighting, control state, measurement, failure, or compliance.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Historic display is frozen" } } }
+    },
+    "evidence.context.claim_boundary" : {
+      "comment" : "English-only C30 label for separately recorded evidence context facts; do not infer lighting, control state, measurement, failure, or compliance.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recorded context only; no operational conclusion" } } }
+    },
+    "evidence.context.next_step" : {
+      "comment" : "English-only C30 label for separately recorded evidence context facts; do not infer lighting, control state, measurement, failure, or compliance.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review the recorded context and comparison differences" } } }
+    },
+    "evidence.context.manual_offline" : {
+      "comment" : "English-only C30 label for separately recorded evidence context facts; do not infer lighting, control state, measurement, failure, or compliance.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Manual/offline path remains available" } } }
+    },
+    "evidence.context.derived_condition" : {
+      "comment" : "English-only C30 label for separately recorded evidence context facts; do not infer lighting, control state, measurement, failure, or compliance.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Derived condition (separate fact)" } } }
     }
   },
   "version" : "1.0"

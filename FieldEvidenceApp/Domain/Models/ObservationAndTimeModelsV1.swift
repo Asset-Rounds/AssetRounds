@@ -1,4 +1,5 @@
 import Foundation
+enum EvidenceContextObservationTimeBoundaryV1{static let observedAndCalculatedTimesAreCanonicalReceiptInputs=true;static let derivedSolarPreviewIsNotPersistedSeparately=true}
 enum PlacementPoseObservationTimeBoundaryV1{static let poseTimesUseCanonicalMilliseconds=true;static let deviceHeadingProposalsAreNotDurableUntilAccepted=true}
 
 enum ObservationScheduleBoundaryV1 { static let scheduleTimeBasisIsFrozen = true }

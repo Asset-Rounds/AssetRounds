@@ -1790,6 +1790,32 @@ extension SearchIndexRebuildCoordinatorV1 {
         "DROP_AND_REBUILD_FROM_FROZEN_FIELD_REFERENCE_BINDING"
 }
 
+// MARK: - C30 operating-context rebuild
+
+extension SearchIndexRebuildCoordinatorV1 {
+    static func rebuildOperatingContextRecords(
+        from projections: [C30EvidenceContextReportReferenceV1]
+    ) throws -> [C30OperatingContextSearchRecordV1] {
+        try C30OperatingContextSearchPersistencePolicyV1.validate()
+        let records = try projections.map {
+            try LocalSearchIndexStoreV1.operatingContextSearchRecord(from: $0)
+        }.sorted {
+            ($0.evidenceID, $0.contextRevision) < ($1.evidenceID, $1.contextRevision)
+        }
+        guard Set(records.map(\.contextID)).count == records.count,
+              records.count <= SearchContractLimitsV1.maximumCanonicalRecords else {
+            throw SearchContractFailureV1.duplicateProjection
+        }
+        try records.forEach { try C30OperatingContextSearchPolicyV1.validate($0) }
+        return records
+    }
+
+    static let c30OperatingContextRestoreDisposition =
+        "DROP_AND_REBUILD_FROM_CANONICAL_CONTEXT"
+    static let c30OperatingContextReplayDisposition =
+        "DROP_AND_REBUILD_FROM_CANONICAL_CONTEXT"
+}
+
 // MARK: - C24 accessible-document search rebuild
 
 extension SearchIndexRebuildCoordinatorV1 {
@@ -2188,4 +2214,8 @@ extension SearchIndexRebuildCoordinatorV1 {
         "EXCLUDE_POSE_ROWS_AND_REBUILD_AFTER_CANONICAL_RESTORE"
     static let placementPoseEraseDisposition =
         "DROP_AND_REBUILD_AFTER_POSE_ERASE"
+}
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Infrastructure_Search_SearchIndexRebuildCoordinatorV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Search/SearchIndexRebuildCoordinatorV1.swift", role: .search)
 }

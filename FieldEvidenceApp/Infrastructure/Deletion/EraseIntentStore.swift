@@ -2,6 +2,20 @@ import Darwin
 import Foundation
 
 enum SurveySessionEraseIntentEnrollmentV1{static let schemaVersion=25;static let removesAllFiveFamilies=true;static func validate()throws{guard schemaVersion==25,removesAllFiveFamilies else{throw EraseIntentStoreError.invalidAuthority};try SurveySessionDeletionLedgerPolicyV1.validate()}}
+
+enum C30EvidenceContextEraseIntentStorePolicyV1 {
+    static let durableRowNames: Set<String> = ["EvidenceContextRow", "PairedObservationLinkRow"]
+    static let workspaceEraseClearsRowsAndOwnedBytes = true
+    static let ordinaryDeletionPreservesRows = true
+    static let stagingOrProjectionIsNonPersistent = true
+
+    static func validate() throws {
+        guard durableRowNames.count == 2, workspaceEraseClearsRowsAndOwnedBytes,
+              ordinaryDeletionPreservesRows, stagingOrProjectionIsNonPersistent else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+    }
+}
 enum AssetLocatorEraseIntentEnrollmentV1 {
     static let recordsSchemaVersion = 25
     static let persistentSchemaVersion = 26

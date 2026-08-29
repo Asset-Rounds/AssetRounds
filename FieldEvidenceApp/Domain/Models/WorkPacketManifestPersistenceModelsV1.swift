@@ -1,4 +1,5 @@
 import Foundation
+enum EvidenceContextWorkPacketBoundaryV1{static let manifestsMayReferenceEvidenceRevisionButDoNotEmbedContextRows=true}
 enum PlacementPoseWorkPacketPersistenceBoundaryV1{static let packetsReferencePoseResultsWithoutOwningTips=true}
 import SwiftData
 

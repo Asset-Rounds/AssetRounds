@@ -49,4 +49,5 @@ final class MutationReceiptRecoveryServiceV1 {
     /// spatial frames stay embedded and rebase previews are rebuilt.
     func recoverPlanEffectsBeforeWriterActivation()throws{try recoverBeforeWriterActivation()}
     func recoverPlacementPoseEffectsBeforeWriterActivation()throws{try recoverBeforeWriterActivation()}
+    func recoverEvidenceContextEffectsBeforeWriterActivation()throws{try recoverBeforeWriterActivation()}
 }

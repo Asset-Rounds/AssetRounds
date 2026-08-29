@@ -4,6 +4,17 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private final class C30EvidenceContextAnchorV10_01WorkspaceWriter: XCTestCase {
+    func testTypedEvidenceContextContractAnchor() throws {
+        XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
+        XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
+        XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.durableModelCount, 2)
+        XCTAssertEqual(EvidenceLightingConditionV1.allCases.count, 6)
+        XCTAssertTrue(WorkspaceWriterAdapterV1.activeSupportedCommandKinds.contains(.applyEvidenceContext))
+        try EvidenceContextLimitsV1.digest(String(repeating: "a", count: 64))
+    }
+}
+
 final class V10_01WorkspaceWriterTests: XCTestCase {
     func testV23P03C37TypedPoseContractAnchor() throws {
         let axis = try PoseAxisDescriptorV1(

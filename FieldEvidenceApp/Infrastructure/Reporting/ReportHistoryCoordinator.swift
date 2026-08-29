@@ -841,3 +841,24 @@ extension ReportHistoryCoordinator {
         return projection
     }
 }
+// MARK: - C30 operating-context history
+
+extension ReportHistoryCoordinator {
+    static func validateOperatingContextHistory(
+        _ history: [C30EvidenceContextReportReferenceV1]
+    ) throws -> [C30EvidenceContextReportReferenceV1] {
+        guard history == history.sorted(by: { $0.contextRevision < $1.contextRevision }),
+              Set(history.map(\.contextID)).count == history.count else {
+            throw C30ConsumerProjectionFailureV1.invalidValue
+        }
+        try history.forEach { try $0.validate() }
+        return history
+    }
+
+    static let c30OperatingContextHistoryIsAppendOnly = true
+    static let c30OperatingContextHistoricReportsAreNotRewritten = true
+}
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Infrastructure_Reporting_ReportHistoryCoordinator {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Reporting/ReportHistoryCoordinator.swift", role: .report)
+}

@@ -1,4 +1,5 @@
 import Foundation
+enum EvidenceContextSiteBoundaryV1{static let solarLocationIsFrozenInContextBytes=true;static let siteRowsDoNotCacheDerivedSolarValues=true}
 enum PlacementPoseSitePersistenceBoundaryV1{static let workspaceAndPlacementEpisodeAdmissionIsExternalToSiteRows=true}
 import SwiftData
 

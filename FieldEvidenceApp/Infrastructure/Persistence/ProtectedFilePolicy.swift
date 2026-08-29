@@ -1,6 +1,8 @@
 import Darwin
 import Foundation
 
+enum EvidenceContextProtectedFilePolicyV1{static let durableRowNames:Set<String>=["EvidenceContextRow","PairedObservationLinkRow"];static let ownsExternalFiles=false;static let canonicalBytesRemainInProtectedDatabase=true}
+
 /// The closed set of app-owned file classes that may be passed to the
 /// persistence protection policy.  Keeping this list closed prevents a new
 /// writer from silently inheriting the wrong backup disposition.

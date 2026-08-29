@@ -537,3 +537,27 @@ enum SurveyDefinitionRestoreIdentityPolicyV1 {
         }
     }
 }
+
+/// Restore keeps context bytes immutable in the same workspace and makes a
+/// clone/fork explicitly historic until a user records a new successor.
+enum C30EvidenceContextRestoreIdentityPolicyV1 {
+    static let persistentSchemaVersion = 30
+    static let recordsSchemaVersion = 29
+    static let durableFamilyCount = 2
+    static let cloneForkSourceContextAutomaticallyActive = false
+    static let preservesImmutableBytes = true
+
+    static func disposition(for mode: BackupRestoreMode) -> String {
+        switch mode {
+        case .clone, .fork: return "REBOUND_HISTORIC_SOURCE_EVIDENCE"
+        case .emptyInstall, .replaceExisting: return "PRESERVE_ACCEPTED_SOURCE_BINDING"
+        }
+    }
+
+    static func validate(_ rows: [V30BackupEvidenceContextRecordV1]) throws {
+        guard persistentSchemaVersion == 30, recordsSchemaVersion == 29,
+              durableFamilyCount == 2, !cloneForkSourceContextAutomaticallyActive,
+              preservesImmutableBytes else { throw EvidenceContextFailureV1.invalidValue }
+        _ = try EvidenceContextBackupRecordSetV1.decode(rows)
+    }
+}

@@ -67,3 +67,7 @@ enum C37PoseIntegration_FieldEvidenceApp_Application_Ports_ApplicationRuntimePor
         }
     }
 }
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Application_Ports_ApplicationRuntimePorts {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Application/Ports/ApplicationRuntimePorts.swift", role: .port)
+}

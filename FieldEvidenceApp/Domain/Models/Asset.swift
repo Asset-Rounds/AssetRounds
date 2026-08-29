@@ -1,4 +1,5 @@
 import Foundation
+enum EvidenceContextAssetBoundaryV1{static let evidenceContextsReferenceAssetIdentity=true;static let assetRowsDoNotCacheLightingOrSolarContext=true}
 enum PlacementPoseAssetPersistenceBoundaryV1{static let assetIdentityIsReferenced=true;static let poseHistoryIsStoredSeparately=true}
 
 enum AssetScheduleOwnershipBoundaryV1 { static let assetRowsStoreScheduleState = false }

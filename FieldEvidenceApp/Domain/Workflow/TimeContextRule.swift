@@ -137,3 +137,18 @@ enum C37PoseIntegration_FieldEvidenceApp_Domain_Workflow_TimeContextRule_swift {
         }
     }
 }
+
+enum C30EvidenceContextTimeContextRuleV1 {
+    static let daylightConditionIsUserObservedOrOfflineDerived = true
+    static let timezoneAndOffsetMustBeRecorded = true
+    static let timeDoesNotInferControlCompliance = true
+
+    static func validate(_ value: EvidenceContextV1) throws {
+        try value.validateIntrinsic()
+        try value.temporalContext.validate()
+        guard daylightConditionIsUserObservedOrOfflineDerived,
+              timezoneAndOffsetMustBeRecorded, timeDoesNotInferControlCompliance else {
+            throw EvidenceContextFailureV1.invalidValue
+        }
+    }
+}

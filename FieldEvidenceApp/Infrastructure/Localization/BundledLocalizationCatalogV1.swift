@@ -3467,6 +3467,98 @@ extension BundledLocalizationCatalogV1 {
     }
 }
 
+// MARK: - C30 operating-context labels
+
+extension BundledLocalizationCatalogV1 {
+    /// C30 adds closed English-only labels to the sole source catalog.  The
+    /// registry carries typed core values and never localizes a raw digest,
+    /// actor, location, sensor, or control result.
+    static func operatingContextRegistry() throws -> LocalizationKeyRegistryV1 {
+        try C30OperatingContextLocalizationPolicyV1.validate()
+        let base = try accessibleDocumentRegistry()
+        let additions = C30OperatingContextLocalizationKeyV1.allCases.map {
+            LocalizationKeyDefinitionV1(
+                key: $0.localizationKey,
+                meaningID: $0.rawValue,
+                translatorComment: $0.translatorComment,
+                englishDefaultValue: $0.englishDefaultValue,
+                arguments: [],
+                requiredEnglishPluralCategories: [],
+                state: .active,
+                deprecatedFallbackKey: nil
+            )
+        }
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+
+    static func operatingContextAccessibilityRegistry(
+        localization: LocalizationKeyRegistryV1
+    ) throws -> SemanticAccessibilityIDRegistryV1 {
+        try C30OperatingContextAccessibilityPolicyV1.validate()
+        let base = try accessibleDocumentAccessibilityRegistry(localization: localization)
+        let entries = try C30OperatingContextAccessibilityIDV1.allCases.map {
+            id -> AccessibilityContractV1 in
+            let role: SemanticAccessibilityRoleV1
+            switch id {
+            case .screen: role = .screen
+            case .heading: role = .heading
+            case .nextStep: role = .button
+            default:
+                role = C30OperatingContextAccessibilityPolicyV1.stateSemanticIDs
+                    .contains(id.rawValue) ? .status : .group
+            }
+            let hintKey: LocalizationKeyV1? =
+                C30OperatingContextAccessibilityPolicyV1.requiresActionableNextStep(
+                    for: id.rawValue
+                ) ? C30OperatingContextLocalizationKeyV1.nextStep.localizationKey : nil
+            return AccessibilityContractV1(
+                semanticID: id.rawValue,
+                role: role,
+                reachability: .whenAvailable,
+                labelKey: id.localizationKey,
+                hintKey: hintKey,
+                valueKey: nil,
+                dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            )
+        }
+        return try base.appending(entries, localization: localization)
+    }
+
+    static func operatingContextDisplayLabel(
+        for key: C30OperatingContextLocalizationKeyV1,
+        bundle: Bundle = .main
+    ) -> String {
+        String(
+            localized: key.rawValue,
+            defaultValue: key.englishDefaultValue,
+            bundle: bundle,
+            locale: Locale(identifier: runtimeLanguage),
+            comment: key.translatorComment
+        )
+    }
+
+    static func operatingContextConditionDisplayLabel(
+        _ condition: EvidenceLightingConditionV1,
+        bundle: Bundle = .main
+    ) -> String {
+        operatingContextDisplayLabel(
+            for: C30OperatingContextLocalizationKeyV1.conditionKey(condition),
+            bundle: bundle
+        )
+    }
+
+    static func operatingContextExpectedControlDisplayLabel(
+        _ state: ExpectedControlStateV1?,
+        bundle: Bundle = .main
+    ) -> String {
+        operatingContextDisplayLabel(
+            for: C30OperatingContextLocalizationKeyV1.expectedControlKey(state),
+            bundle: bundle
+        )
+    }
+}
+
 // MARK: - C29 versioned plan and rebase labels
 
 extension BundledLocalizationCatalogV1 {
@@ -4235,4 +4327,8 @@ extension BundledLocalizationCatalogV1 {
     ) -> String {
         localized(C37PoseLocalizationKeyV1.notObservedReasonKey(value))
     }
+}
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Infrastructure_Localization_BundledLocalizationCatalogV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift", role: .localization)
 }

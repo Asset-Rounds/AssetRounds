@@ -110,5 +110,12 @@
     "phase10PollingDuringParallelExecution": false,
     "release": false,
     "releaseReadiness": false
+  },
+  "c30EvidenceContextCompatibility": {
+    "persistentSchemaVersion": 30,
+    "recordsSchemaVersion": 29,
+    "durableFamilies": ["EvidenceContextV1", "PairedObservationLinkV1"],
+    "providerFreeSolar": true,
+    "pairMismatchReasonCount": 8
   }
 }

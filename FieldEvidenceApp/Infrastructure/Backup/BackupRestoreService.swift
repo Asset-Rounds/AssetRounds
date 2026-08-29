@@ -21,6 +21,25 @@ enum IntegrationProjectionBackupRestoreExclusionV1 {
     }
 }
 
+enum C30EvidenceContextBackupRestorePolicyV1 {
+    static let persistentSchemaVersion = 30
+    static let recordsSchemaVersion = 29
+    static let restoresCanonicalRowsBeforeDerivedState = true
+    static let cloneForkRequiresHistoricRebind = true
+    static let sourceBytesRemainImmutable = true
+
+    static func validate(_ rows: [V30BackupEvidenceContextRecordV1],
+                         mode: BackupRestoreMode) throws {
+        guard persistentSchemaVersion == 30, recordsSchemaVersion == 29,
+              restoresCanonicalRowsBeforeDerivedState,
+              cloneForkRequiresHistoricRebind, sourceBytesRemainImmutable else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        _ = C30EvidenceContextRestoreIdentityPolicyV1.disposition(for: mode)
+        _ = try EvidenceContextBackupRecordSetV1.decode(rows)
+    }
+}
+
 enum BackupRestoreServiceError: Error, Equatable {
     case contextHasChanges
     case currentGenerationInvalid

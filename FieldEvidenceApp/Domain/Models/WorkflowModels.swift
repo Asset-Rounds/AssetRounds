@@ -1,4 +1,5 @@
 import Foundation
+enum EvidenceContextWorkflowBoundaryV1{static let workflowRowsDoNotOwnEvidenceContext=true;static let pairedObservationStateIsDerivedFromImmutableLinks=true}
 enum PlacementPoseWorkflowPersistenceBoundaryV1{static let workflowRowsOwnNoPoseHistory=true;static let completedPoseSnapshotsAreDerived=true}
 import SwiftData
 

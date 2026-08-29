@@ -2287,3 +2287,24 @@ actor FinalizationIntentStore {
         }
     }
 }
+// MARK: - C30 operating-context finalization boundary
+
+extension FinalizationIntentStore {
+    static func validateOperatingContextBeforeFinalization(
+        _ projection: C30EvidenceContextReportReferenceV1
+    ) throws -> C30EvidenceContextReportReferenceV1 {
+        try projection.validate()
+        guard projection.frozenDisplay,
+              C30OperatingContextConsumerPolicyV1.originalsAndManualOfflinePathPreserved else {
+            throw C30ConsumerProjectionFailureV1.invalidValue
+        }
+        return projection
+    }
+
+    static let c30OperatingContextFinalizationIsAmendOnly = true
+    static let c30OperatingContextDoesNotPromoteDerivedFacts = true
+}
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Infrastructure_Finalization_FinalizationIntentStore {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Finalization/FinalizationIntentStore.swift", role: .finalization)
+}

@@ -172,3 +172,7 @@ enum C37PoseIntegration_FieldEvidenceApp_Application_Plans_PlanRebaseCoordinator
         }
     }
 }
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Application_Plans_PlanRebaseCoordinatorV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Application/Plans/PlanRebaseCoordinatorV1.swift", role: .plan)
+}

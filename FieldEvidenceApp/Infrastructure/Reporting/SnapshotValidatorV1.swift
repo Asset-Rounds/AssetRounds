@@ -1777,3 +1777,23 @@ extension SnapshotValidatorV1 {
     static let placementPoseBareDirectionClaimsAreRejected = true
     static let placementPoseSensorStreamIsExcluded = true
 }
+// MARK: - C30 operating-context validation
+
+extension SnapshotValidatorV1 {
+    static func validateOperatingContext(
+        _ projection: C30EvidenceContextReportReferenceV1
+    ) throws -> C30EvidenceContextReportReferenceV1 {
+        try projection.validate()
+        return try ReportProjectionRegistryV1.validateOperatingContextProjection(
+            projection
+        )
+    }
+
+    static let c30OperatingContextHistoricDisplayIsImmutable = true
+    static let c30OperatingContextDoesNotInferFromTimePhotoOrSolar = true
+    static let c30OperatingContextExpectedControlIsNotActual = true
+}
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Infrastructure_Reporting_SnapshotValidatorV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Reporting/SnapshotValidatorV1.swift", role: .report)
+}

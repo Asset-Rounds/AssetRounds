@@ -1,6 +1,20 @@
 import Foundation
 
 enum SurveySessionDeletionLedgerStoreEnrollmentV1{static let retainedFrozenKind="SurveyPublicationSnapshotRow";static let workspaceEraseKinds=SurveySessionKernelDeletionEnrollmentV1.persistentRowNames}
+
+enum C30EvidenceContextDeletionLedgerStorePolicyV1 {
+    static let retainedFrozenKinds: Set<String> = ["EvidenceContextRow", "PairedObservationLinkRow"]
+    static let ordinaryDeletionRetainsKinds = true
+    static let workspaceEraseKinds = C30EvidenceContextKernelDeletionEnrollmentV1.persistentRowNames
+    static let projectionIsNotLedgerTruth = true
+
+    static func validate() throws {
+        guard retainedFrozenKinds.count == 2,
+              ordinaryDeletionRetainsKinds,
+              workspaceEraseKinds == retainedFrozenKinds,
+              projectionIsNotLedgerTruth else { throw DeletionLedgerFailureV2.invalidIdentity }
+    }
+}
 import SwiftData
 
 enum FieldReferenceDeletionLedgerStorePolicyV1{static func validate()throws{guard FieldReferenceDeletionLedgerPolicyV1.immutableKinds==["FieldReferenceReleaseV1","FieldReferenceBindingV1"],FieldReferenceDeletionLedgerPolicyV1.ordinaryDeletionRetainsBoundAndFinalizedBytes,FieldReferenceDeletionLedgerPolicyV1.workspaceEraseRemovesRowsAndOwnedBytes else{throw DeletionLedgerFailureV2.invalidIdentity}}}

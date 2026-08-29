@@ -3,6 +3,17 @@ import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C30EvidenceContextAnchorV9_35ClientCapabilityPackageLifecycle: XCTestCase {
+    func testTypedEvidenceContextContractAnchor() throws {
+        XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
+        XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
+        XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.durableModelCount, 2)
+        XCTAssertEqual(EvidenceLightingConditionV1.allCases.count, 6)
+        XCTAssertTrue(WorkspaceWriterAdapterV1.activeSupportedCommandKinds.contains(.applyEvidenceContext))
+        try EvidenceContextLimitsV1.digest(String(repeating: "a", count: 64))
+    }
+}
+
 /// C21's tests use the portable capability and package-lifecycle contracts as
 /// the source of truth.  The fixture contains no client identity, endpoint,
 /// account, provider, or network state.

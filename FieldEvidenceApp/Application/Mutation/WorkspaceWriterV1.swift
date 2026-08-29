@@ -563,6 +563,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             do{try value.validate();let targets=try value.concurrencyIdentities,expected=Dictionary(uniqueKeysWithValues:request.expectedRevision.entityRevisions.map{($0.identity,$0.revision)});guard value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,sourceKind == .importedHistory || occurredAtOverride != nil || (try targets.allSatisfy({expected[$0]==(try value.expectedRevision(for:$0))}))else{throw WorkspaceMutationFailureV1.invalidCommand}}catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
         case .applyPlacementPose(let value):
             do{try value.validate();let targets=try value.concurrencyIdentities,expected=Dictionary(uniqueKeysWithValues:request.expectedRevision.entityRevisions.map{($0.identity,$0.revision)});guard value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,sourceKind == .importedHistory || occurredAtOverride != nil || (try targets.allSatisfy({expected[$0]==(try value.expectedRevision(for:$0))}))else{throw WorkspaceMutationFailureV1.invalidCommand}}catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
+        case .applyEvidenceContext(let value):
+            do{try value.validate();guard value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,sourceKind == .importedHistory || occurredAtOverride != nil || request.expectedRevision.entityRevisions.first(where:{$0.identity==(try value.concurrencyIdentity)})?.revision==value.expectedRevision else{throw WorkspaceMutationFailureV1.invalidCommand}}catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
         default:
             break
         }
@@ -786,6 +788,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             for image in try mutation.mutationPostImages{entityRevisions[try image.identity]=image.revision}
         } else if case let .applyPlacementPose(mutation) = request.command {
             for image in try mutation.mutationPostImages{entityRevisions[try image.identity]=image.revision}
+        } else if case let .applyEvidenceContext(operation) = request.command {
+            entityRevisions[try operation.affectedIdentity]=operation.revision
         } else {
             for target in targets { entityRevisions[target, default: 0] += 1 }
         }
@@ -1274,6 +1278,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             try value.validate();values=try value.affectedIdentities
         case let .applyPlacementPose(value):
             try value.validate();values=try value.affectedIdentities
+        case let .applyEvidenceContext(value):
+            try value.validate();values=[try value.affectedIdentity]
         }
         guard Set(values).count == values.count else {
             throw WorkspaceMutationFailureV1.invalidCommand
@@ -1323,6 +1329,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         if case let .applySchedule(value)=command{try value.validate();return try value.concurrencyIdentities}
         if case let .applyPlan(value)=command{try value.validate();return try value.concurrencyIdentities}
         if case let .applyPlacementPose(value)=command{try value.validate();return try value.concurrencyIdentities}
+        if case let .applyEvidenceContext(value)=command{try value.validate();return[try value.concurrencyIdentity]}
         return try targetIdentities(for: command)
     }
 
@@ -1409,4 +1416,8 @@ enum C37PoseIntegration_FieldEvidenceApp_Application_Mutation_WorkspaceWriterV1_
             throw PlacementPoseFailureV1.wrongWorkspace
         }
     }
+}
+
+extension WorkspaceWriterV1:EvidenceContextCanonicalWorkspaceWritingV1{
+    func commitEvidenceContext(_ operation:EvidenceContextWriteOperationV1)throws->MutationReceiptV1{try operation.validate();let current=try currentRevision(),target=try operation.concurrencyIdentity,known=Dictionary(uniqueKeysWithValues:current.entityRevisions.map{($0.identity,$0.revision)});guard known[target,default:0]==operation.expectedRevision else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision};let expected=try WorkspaceExpectedRevisionV1(workspaceID:current.workspaceID,generationID:current.generationID,writerInstanceID:current.writerInstanceID,workspaceRevision:current.revision,entityRevisions:[.init(identity:target,revision:operation.expectedRevision)]);_ = try execute(.init(mutationID:operation.mutationID,expectedRevision:expected,command:.applyEvidenceContext(operation)));guard let receipt=try journalStore?.receipt(mutationID:operation.mutationID)else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};_ = try EvidenceContextMutationReceiptV1(operation:operation,mutationReceipt:receipt);return receipt}
 }

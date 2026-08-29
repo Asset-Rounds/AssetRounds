@@ -1941,3 +1941,7 @@ enum EvidenceDetailPlanProjectionGuardV1 {
         }
     }
 }
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Domain_Reporting_EvidenceDetailCardContractsV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/Reporting/EvidenceDetailCardContractsV1.swift", role: .report)
+}

@@ -1752,3 +1752,48 @@ extension ReportSnapshotEncoderV1 {
         return snapshot
     }
 }
+// MARK: - C30 operating-context encoding
+
+extension ReportSnapshotEncoderV1 {
+    func encodeOperatingContextReference(
+        _ projection: C30EvidenceContextReportReferenceV1
+    ) throws -> EncodedReportSnapshotV1 {
+        try projection.validate()
+        var encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .millisecondsSince1970
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let data = try encoder.encode(projection)
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        return EncodedReportSnapshotV1(
+            data: data,
+            sha256: KernelCanonicalHashV1.sha256(data)
+        )
+    }
+
+    func decodeOperatingContextReference(
+        _ data: Data
+    ) throws -> C30EvidenceContextReportReferenceV1 {
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .millisecondsSince1970
+        let value = try decoder.decode(C30EvidenceContextReportReferenceV1.self, from: data)
+        try value.validate()
+        guard try encodeOperatingContextReference(value).data == data else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return value
+    }
+
+    static let c30OperatingContextEncodingIsStandalone = true
+    static let c30OperatingContextEncodingExcludesActorAndSourceBytes = true
+}
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Infrastructure_Finalization_ReportSnapshotEncoderV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Finalization/ReportSnapshotEncoderV1.swift", role: .finalization)
+}

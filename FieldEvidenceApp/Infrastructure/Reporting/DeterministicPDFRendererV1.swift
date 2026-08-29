@@ -679,3 +679,55 @@ extension DeterministicPDFRendererV1 {
         try placementPoseTextLines(projection)
     }
 }
+// MARK: - C30 operating-context PDF projection
+
+extension DeterministicPDFRendererV1 {
+    /// Returns localized, qualified lines for a frozen C30 report section.
+    /// The display states that the condition was recorded and keeps a solar
+    /// calculation or expected control state visibly separate from it.
+    static func operatingContextTextLines(
+        _ projection: C30EvidenceContextReportReferenceV1
+    ) throws -> [String] {
+        try projection.validate()
+        try C30OperatingContextLocalizationPolicyV1.validate()
+        let condition = C30OperatingContextLocalizationKeyV1.conditionKey(
+            projection.observedCondition
+        ).englishDefaultValue
+        let expected = C30OperatingContextLocalizationKeyV1.expectedControlKey(
+            projection.expectedControlState
+        ).englishDefaultValue
+        var lines = [
+            C30OperatingContextLocalizationKeyV1.heading.englishDefaultValue,
+            "\(C30OperatingContextLocalizationKeyV1.condition.englishDefaultValue): \(condition)",
+            "\(C30OperatingContextLocalizationKeyV1.temporalBasis.englishDefaultValue): recorded",
+            "\(C30OperatingContextLocalizationKeyV1.expectedControl.englishDefaultValue): \(expected)",
+            C30OperatingContextLocalizationKeyV1.historyFrozen.englishDefaultValue,
+            C30OperatingContextLocalizationKeyV1.claimBoundary.englishDefaultValue,
+        ]
+        if projection.derivedCondition != nil {
+            lines.append(C30OperatingContextLocalizationKeyV1.derivedCondition.englishDefaultValue)
+        }
+        if let pair = projection.pairedObservation {
+            lines.append(
+                pair.isComparable
+                    ? C30OperatingContextLocalizationKeyV1.pairedComparable.englishDefaultValue
+                    : C30OperatingContextLocalizationKeyV1.pairedMismatch.englishDefaultValue
+            )
+            if !pair.mismatchReasons.isEmpty {
+                lines.append(C30OperatingContextLocalizationKeyV1.pairedMismatchReason.englishDefaultValue)
+            }
+        } else {
+            lines.append(C30OperatingContextLocalizationKeyV1.pairedNotLinked.englishDefaultValue)
+        }
+        lines.append(C30OperatingContextLocalizationKeyV1.nextStep.englishDefaultValue)
+        guard lines.allSatisfy({ !$0.isEmpty }),
+              !C30OperatingContextLocalizationPolicyV1.containsProhibitedClaim(lines) else {
+            throw SnapshotProjectionFailureV1.hostileText
+        }
+        return lines
+    }
+}
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Infrastructure_Reporting_DeterministicPDFRendererV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Reporting/DeterministicPDFRendererV1.swift", role: .report)
+}

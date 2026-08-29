@@ -10,6 +10,21 @@ enum BackupImportServiceError: Error, Equatable {
     case cleanupFailed
 }
 
+enum C30EvidenceContextBackupImportPolicyV1 {
+    static let acceptsOnlyCanonicalRows = true
+    static let acceptsInferredContext = false
+    static let acceptsCrossWorkspaceRows = false
+    static let restoresHistoryBeforeProjection = true
+
+    static func validate(_ rows: [V30BackupEvidenceContextRecordV1]) throws {
+        guard acceptsOnlyCanonicalRows, !acceptsInferredContext,
+              !acceptsCrossWorkspaceRows, restoresHistoryBeforeProjection else {
+            throw BackupImportServiceError.invalidGeneration
+        }
+        _ = try EvidenceContextBackupRecordSetV1.decode(rows)
+    }
+}
+
 struct BackupSecurityScopedAccessV1: Sendable {
     let start: @Sendable (URL) -> Bool
     let stop: @Sendable (URL) -> Void

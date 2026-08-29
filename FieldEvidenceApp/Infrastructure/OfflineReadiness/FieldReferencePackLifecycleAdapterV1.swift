@@ -151,3 +151,7 @@ enum C37PoseIntegration_FieldEvidenceApp_Infrastructure_OfflineReadiness_FieldRe
         }
     }
 }
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Infrastructure_OfflineReadiness_FieldReferencePackLifecycleAdapterV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/OfflineReadiness/FieldReferencePackLifecycleAdapterV1.swift", role: .pack)
+}

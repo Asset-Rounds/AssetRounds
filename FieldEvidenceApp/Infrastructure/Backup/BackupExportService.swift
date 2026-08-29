@@ -48,6 +48,21 @@ enum BackupPackageLifecycleRouteV1 {
     case expiringCompatibility(BackupPackageCompatibilityPostureV1)
 }
 
+enum C30EvidenceContextBackupExportPolicyV1 {
+    static let exportsCanonicalRows = true
+    static let exportsDerivedProjection = false
+    static let exportsProviderOwnedState = false
+    static let preservesHistoricReports = true
+
+    static func validate(_ values: EvidenceContextBackupRecordSetV1) throws {
+        guard exportsCanonicalRows, !exportsDerivedProjection,
+              !exportsProviderOwnedState, preservesHistoricReports else {
+            throw BackupExportServiceError.invalidGeneration
+        }
+        _ = try C30EvidenceContextBackupEncoderV1.encode(values)
+    }
+}
+
 @MainActor
 final class BackupExportService {
     private static let checkpointBasisPreviewID = UUID(uuid: (

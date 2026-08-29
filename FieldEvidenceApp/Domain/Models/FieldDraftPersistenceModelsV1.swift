@@ -1,4 +1,5 @@
 import Foundation
+enum EvidenceContextFieldDraftBoundaryV1{static let draftContextPreviewsAreDisposable=true;static let acceptedContextUsesSoleWorkspaceWriter=true}
 enum PlacementPoseFieldDraftPersistenceBoundaryV1{static let draftPoseProposalsRemainDisposable=true;static let acceptedPoseWritesUseTheWorkspaceWriter=true}
 import SwiftData
 

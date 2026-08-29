@@ -46,6 +46,7 @@ struct IntegrationEventProjectionV1: Sendable {
             try Self.validateScheduleReceiptShape(receipt)
             try Self.validatePlanReceiptShape(receipt)
             try Self.validatePlacementPoseReceiptShape(receipt)
+            try Self.validateEvidenceContextReceiptShape(receipt)
             guard receipt.identity.workspaceID == workspaceID,
                   receipt.resultingRevision.workspaceID == workspaceID else {
                 throw IntegrationEventFailureV1.wrongWorkspace
@@ -152,6 +153,9 @@ struct IntegrationEventProjectionV1: Sendable {
     static let placementPoseKinds:Set<WorkspaceEntityKindV1>=[.assetPoseEvent,.spatialAnchorObservation]
     static func validatePlacementPoseReceiptShape(_ receipt:MutationReceiptV1)throws{let identities=try receipt.postImages.map{$0.identity};let present=Set(identities.map(\.kind)).intersection(placementPoseKinds);guard !present.isEmpty else{return};guard Set(identities).count==identities.count,identities.allSatisfy({placementPoseKinds.contains($0.kind)}),identities.count<=MutationReceiptV1.maximumPostImageCount else{throw IntegrationEventFailureV1.divergentEvent};for image in receipt.postImages{let concurrency=try image.concurrencyIdentity;guard let expected=receipt.expectedRevision.entityRevisions.first(where:{$0.identity==concurrency})?.revision,expected<UInt64.max,image.revision==expected+1 else{throw IntegrationEventFailureV1.divergentEvent}}}
     func validatePlacementPoseReplay(_ receipts:[MutationReceiptV1])throws{var found=false;for receipt in receipts{for image in receipt.postImages where Self.placementPoseKinds.contains(try image.identity.kind){found=true}};if found{try PlacementPoseIntegrationContractV1.validate(registry:registry)};try receipts.forEach{try Self.validatePlacementPoseReceiptShape($0)}}
+    static let evidenceContextKinds:Set<WorkspaceEntityKindV1>=[.evidenceContext,.pairedObservationLink]
+    static func validateEvidenceContextReceiptShape(_ receipt:MutationReceiptV1)throws{let identities=try receipt.postImages.map{$0.identity};let present=Set(identities.map(\.kind)).intersection(evidenceContextKinds);guard !present.isEmpty else{return};guard identities.count==1,let image=receipt.postImages.first,evidenceContextKinds.contains(try image.identity.kind)else{throw IntegrationEventFailureV1.divergentEvent};let concurrency=try image.concurrencyIdentity;guard let expected=receipt.expectedRevision.entityRevisions.first(where:{$0.identity==concurrency})?.revision,expected<UInt64.max,image.revision==expected+1 else{throw IntegrationEventFailureV1.divergentEvent}}
+    func validateEvidenceContextReplay(_ receipts:[MutationReceiptV1])throws{var found=false;for receipt in receipts{for image in receipt.postImages where Self.evidenceContextKinds.contains(try image.identity.kind){found=true}};if found{try EvidenceContextIntegrationContractV1.validate(registry:registry)};try receipts.forEach{try Self.validateEvidenceContextReceiptShape($0)}}
 
     func validateProjectedStream(_ events: [IntegrationEventV1], workspaceID: WorkspaceID) throws -> [IntegrationEventV1] {
         let ordered = events.sorted { $0.order < $1.order }

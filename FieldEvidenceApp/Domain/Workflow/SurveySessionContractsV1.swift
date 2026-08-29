@@ -233,3 +233,18 @@ enum C37PoseIntegration_FieldEvidenceApp_Domain_Workflow_SurveySessionContractsV
         }
     }
 }
+
+enum C30EvidenceContextSurveySessionBoundaryV1 {
+    static let sessionContextBindingIsWorkspaceScoped = true
+    static let pairedEvidenceIsReferenceOnly = true
+    static let sessionCreatesNoInferredContext = true
+
+    static func validate(context: EvidenceContextV1,
+                         link: PairedObservationLinkV1? = nil,
+                         workspaceID: WorkspaceID) throws {
+        try C30EvidenceContextWorkflowBoundaryV1.validate(context: context, pairedLink: link)
+        guard context.workspaceID == workspaceID,
+              sessionContextBindingIsWorkspaceScoped, pairedEvidenceIsReferenceOnly,
+              sessionCreatesNoInferredContext else { throw EvidenceContextFailureV1.wrongWorkspace }
+    }
+}

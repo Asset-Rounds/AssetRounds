@@ -536,3 +536,23 @@ enum C37PoseIntegration_FieldEvidenceApp_Domain_Workflow_EraseIntentV1_swift {
         }
     }
 }
+
+enum C30EvidenceContextEraseIntentPolicyV1 {
+    static let removesBothDurableFamilies = true
+    static let removesOnlyRequestedWorkspace = true
+    static let derivedSolarProjectionIsDisposable = true
+    static let externalCopyAvailabilityClaimed = false
+
+    static func validate(workspaceID: WorkspaceID,
+                         contexts: [EvidenceContextV1],
+                         links: [PairedObservationLinkV1]) throws {
+        try contexts.forEach { try $0.validateIntrinsic() }
+        try links.forEach { try $0.validateIntrinsic() }
+        guard contexts.allSatisfy({ $0.workspaceID == workspaceID }),
+              links.allSatisfy({ $0.workspaceID == workspaceID }),
+              removesBothDurableFamilies, removesOnlyRequestedWorkspace,
+              derivedSolarProjectionIsDisposable, !externalCopyAvailabilityClaimed else {
+            throw EvidenceContextFailureV1.wrongWorkspace
+        }
+    }
+}

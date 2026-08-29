@@ -2282,3 +2282,22 @@ extension ReportProjectionRegistryV1 {
         return try validatePlacementPoseProjection(projection)
     }
 }
+// MARK: - C30 operating-context registry
+
+extension ReportProjectionRegistryV1 {
+    static let c30OperatingContextProjectionVersion =
+        C30EvidenceContextReportReferenceV1.schemaVersion
+    static let c30OperatingContextProjectionIsFrozen = true
+    static let c30OperatingContextPreservesOriginals = true
+
+    static func validateOperatingContextProjection(
+        _ projection: C30EvidenceContextReportReferenceV1
+    ) throws -> C30EvidenceContextReportReferenceV1 {
+        try C30OperatingContextConsumerPolicyV1.validate(projection)
+        return projection
+    }
+}
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Infrastructure_Reporting_ReportProjectionRegistryV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Reporting/ReportProjectionRegistryV1.swift", role: .report)
+}

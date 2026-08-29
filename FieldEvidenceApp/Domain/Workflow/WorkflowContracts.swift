@@ -312,3 +312,25 @@ enum C37PoseIntegration_FieldEvidenceApp_Domain_Workflow_WorkflowContracts_swift
         }
     }
 }
+
+enum C30EvidenceContextWorkflowBoundaryV1 {
+    static let contextIsEvidenceNotCompliance = true
+    static let temporalAndControlValuesAreExplicit = true
+    static let automaticInferenceAllowed = false
+
+    static func validate(context: EvidenceContextV1,
+                         pairedLink: PairedObservationLinkV1? = nil) throws {
+        try context.validateIntrinsic()
+        if let pairedLink {
+            try pairedLink.validateIntrinsic()
+            guard pairedLink.workspaceID == context.workspaceID else {
+                throw EvidenceContextFailureV1.wrongWorkspace
+            }
+        }
+        guard contextIsEvidenceNotCompliance,
+              temporalAndControlValuesAreExplicit,
+              !automaticInferenceAllowed else {
+            throw EvidenceContextFailureV1.invalidValue
+        }
+    }
+}

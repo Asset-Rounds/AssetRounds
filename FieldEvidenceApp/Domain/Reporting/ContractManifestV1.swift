@@ -891,3 +891,7 @@ extension ContractManifestV1 {
         return self
     }
 }
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Domain_Reporting_ContractManifestV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/Reporting/ContractManifestV1.swift", role: .report)
+}

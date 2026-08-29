@@ -1,0 +1,63 @@
+{
+  "cardID": "V23-P03-C30",
+  "correctionHostiles": [
+    "INVALID_TIME_ZONE",
+    "OFFSET_CONFLICT",
+    "EXTREME_FINITE_DATE",
+    "INT64_CONVERSION_OVERFLOW",
+    "DANGLING_PAIRED_ENDPOINT",
+    "REPORT_ZERO_UUID",
+    "REPORT_LINK_IDENTITY_MISMATCH",
+    "CONFLICTING_COMPARISON_PURPOSE"
+  ],
+  "durableFamilies": [
+    "EvidenceContextV1",
+    "PairedObservationLinkV1"
+  ],
+  "durableFamilyCount": 2,
+  "exclusions": [
+    "TIMESTAMP_ONLY_CLASSIFICATION",
+    "ONE_PHOTO_TWO_PURPOSES",
+    "AUTOMATIC_FAILURE_OR_COMPLIANCE_INFERENCE",
+    "WEATHER_PROVIDER",
+    "CLOUD_OR_TELEMETRY",
+    "REMOTE_IDENTITY"
+  ],
+  "lifecycleDimensions": [
+    "APPEND",
+    "SUCCESSOR",
+    "INTERRUPTION",
+    "IDEMPOTENT_RETRY",
+    "BACKUP_RESTORE_REPLAY",
+    "SEARCH_REBUILD",
+    "DELETE_ERASE"
+  ],
+  "lightingConditions": [
+    "DAYLIGHT",
+    "CIVIL_TWILIGHT",
+    "NIGHT",
+    "COVERED_DAY_CONDITION",
+    "COVERED_NIGHT_CONDITION",
+    "UNKNOWN"
+  ],
+  "mismatchReasons": [
+    "ASSET_REVISION_MISMATCH",
+    "CONTROL_MISMATCH",
+    "MEASUREMENT_METHOD_MISMATCH",
+    "PLAN_MISMATCH",
+    "PURPOSE_MISMATCH",
+    "SURFACE_WEATHER_MISMATCH",
+    "TIME_MISMATCH",
+    "VIEWPOINT_MISMATCH"
+  ],
+  "persistentSchemaVersion": 30,
+  "polarDispositions": [
+    "ORDINARY",
+    "POLAR_DAY",
+    "POLAR_NIGHT",
+    "INDETERMINATE"
+  ],
+  "recordsSchemaVersion": 29,
+  "schema": "V22P03C30EvidenceContextCorpusV1",
+  "schemaVersion": 1
+}

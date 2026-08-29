@@ -928,3 +928,7 @@ enum PlacementPoseCanonicalCodecV1 {
         return value
     }
 }
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Domain_Pose_PlacementPoseContractsV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/Pose/PlacementPoseContractsV1.swift", role: .pose)
+}

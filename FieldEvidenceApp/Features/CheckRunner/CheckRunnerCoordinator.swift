@@ -2385,3 +2385,7 @@ enum C37PoseIntegration_FieldEvidenceApp_Features_CheckRunner_CheckRunnerCoordin
         }
     }
 }
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Features_CheckRunner_CheckRunnerCoordinator {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift", role: .checkRunner)
+}

@@ -1587,7 +1587,7 @@ struct MeasurementIntegritySearchRecordV1: Codable, Equatable, Sendable {
 
     func validate() throws {
         guard schemaVersion == Self.schemaVersion,
-              workspaceID != SearchContractValidationV1.zeroUUID,
+              workspaceID.rawValue != SearchContractValidationV1.zeroUUID,
               captureID != SearchContractValidationV1.zeroUUID,
               boundedFieldValues.keys.allSatisfy(MeasurementIntegritySearchProjectionPolicyV1.accepts),
               boundedFieldValues.keys.contains(.captureIdentifier),
@@ -3400,4 +3400,108 @@ private extension C37PoseSearchRecordV1 {
             throw SearchContractFailureV1.invalidField
         }
     }
+}
+
+// MARK: - C30 operating-context search projection
+
+/// Disposable search metadata for a frozen C30 projection.  It contains only
+/// bounded identity/state tokens; context notes, coordinates, timestamps,
+/// images, actor references, and source bytes remain outside the index.
+struct C30OperatingContextSearchRecordV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let workspaceID: WorkspaceID
+    let assetID: UUID
+    let evidenceID: String
+    let contextID: UUID
+    let contextRevision: UInt64
+    let observedCondition: EvidenceLightingConditionV1
+    let expectedControlState: ExpectedControlStateV1?
+    let pairedDisposition: C30PairedComparisonDispositionV1
+    let pairedMismatchReasons: [PairedObservationMismatchReasonV1]
+    let normalizedTokens: [String]
+    let projectionSHA256: String
+
+    init(_ projection: C30EvidenceContextReportReferenceV1) throws {
+        try projection.validate()
+        schemaVersion = Self.schemaVersion
+        workspaceID = projection.workspaceID
+        assetID = projection.assetID
+        evidenceID = projection.evidenceID
+        contextID = projection.contextID
+        contextRevision = projection.contextRevision
+        observedCondition = projection.observedCondition
+        expectedControlState = projection.expectedControlState
+        pairedDisposition = projection.pairedObservation?.disposition ?? .notLinked
+        pairedMismatchReasons = projection.pairedObservation?.mismatchReasons ?? []
+        normalizedTokens = Self.tokens(for: projection)
+        projectionSHA256 = projection.contextSHA256
+        try validate()
+    }
+
+    private static func tokens(
+        for projection: C30EvidenceContextReportReferenceV1
+    ) -> [String] {
+        var values = [
+            projection.evidenceID,
+            projection.contextID.uuidString,
+            projection.assetID.uuidString,
+            projection.observedCondition.rawValue,
+            projection.pairedObservation?.purpose.rawValue ?? "NOT_LINKED",
+        ]
+        if let expected = projection.expectedControlState {
+            values.append(expected.rawValue)
+        }
+        values.append(contentsOf: projection.pairedObservation?.mismatchReasons.map(\.rawValue) ?? [])
+        return Array(Set(values.flatMap { token in
+            SearchContractValidationV1.normalizeSearchText(token)
+                .split { !CharacterSet.alphanumerics.contains($0) }
+                .map(String.init)
+                .filter(SearchContractValidationV1.isCanonicalSearchToken)
+        })).sorted()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              workspaceID != SearchContractValidationV1.zeroUUID,
+              assetID != SearchContractValidationV1.zeroUUID,
+              contextID != SearchContractValidationV1.zeroUUID,
+              SearchContractValidationV1.validID(evidenceID),
+              contextRevision > 0,
+              SearchContractValidationV1.normalizedTokensAreCanonical(normalizedTokens),
+              KernelCanonicalHashV1.validSHA256(projectionSHA256),
+              pairedMismatchReasons == pairedMismatchReasons.sorted(),
+              Set(pairedMismatchReasons).count == pairedMismatchReasons.count else {
+            throw SearchContractFailureV1.invalidField
+        }
+    }
+}
+
+enum C30OperatingContextSearchPolicyV1 {
+    static let metadataOnly = true
+    static let currentFrozenProjectionOnly = true
+    static let timestampsAndNotesExcluded = true
+    static let imageAndSourceBytesExcluded = true
+    static let actorAndLocationExcluded = true
+    static let expectedControlIsNotActual = true
+    static let dropAndRebuildAfterRestoreReplayDelete = true
+    static let searchableFields = [
+        "evidence_id", "asset_id", "context_id", "condition",
+        "expected_control_state", "paired_disposition", "paired_mismatch_reason",
+        "context_revision", "projection_sha256",
+    ]
+
+    static func validate(_ record: C30OperatingContextSearchRecordV1) throws {
+        guard metadataOnly, currentFrozenProjectionOnly,
+              timestampsAndNotesExcluded, imageAndSourceBytesExcluded,
+              actorAndLocationExcluded, expectedControlIsNotActual,
+              dropAndRebuildAfterRestoreReplayDelete else {
+            throw SearchContractFailureV1.forbiddenField
+        }
+        try record.validate()
+    }
+}
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Domain_Search_SearchContractsV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/Search/SearchContractsV1.swift", role: .search)
 }

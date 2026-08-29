@@ -1070,3 +1070,22 @@ extension ReportRecoveryService {
         try C37PoseReportRecoveryPolicyV1.validate(projection)
     }
 }
+// MARK: - C30 operating-context recovery
+
+extension ReportRecoveryService {
+    static func recoverOperatingContextProjection(
+        _ projection: C30EvidenceContextReportReferenceV1
+    ) throws -> C30EvidenceContextReportReferenceV1 {
+        // Recovery revalidates the frozen projection; it never recomputes a
+        // condition from a timestamp, photo, or solar input.
+        try SnapshotValidatorV1.validateOperatingContext(projection)
+    }
+
+    static let c30OperatingContextRecoveryIsValidationOnly = true
+    static let c30OperatingContextManualOfflineFallback = true
+    static let c30OperatingContextDoesNotRewriteHistory = true
+}
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Infrastructure_Reporting_ReportRecoveryService {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Reporting/ReportRecoveryService.swift", role: .report)
+}

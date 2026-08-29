@@ -214,3 +214,25 @@ enum V29PlacementPoseImportBoundaryV1 {
         }
     }
 }
+
+/// C30 imports only canonical context/link rows. Derived projections and any
+/// provider-owned solar result are rebuilt from these immutable bytes.
+enum V30EvidenceContextImportBoundaryV1 {
+    static let persistentSchemaVersion = 30
+    static let recordsSchemaVersion = 29
+    static let durableFamilyCount = 2
+    static let lifecycleHistoryStorage = "MUTATION_HISTORY_ONLY"
+    static let inferredContextImport = false
+
+    static func validate(persistent: Int, records: Int,
+                         rows: [V30BackupEvidenceContextRecordV1] = []) throws {
+        guard persistent == persistentSchemaVersion,
+              records == recordsSchemaVersion,
+              durableFamilyCount == V30BackupEvidenceContextRecordV1.Kind.allCases.count,
+              lifecycleHistoryStorage == "MUTATION_HISTORY_ONLY",
+              !inferredContextImport else {
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
+        }
+        _ = try EvidenceContextBackupRecordSetV1.decode(rows)
+    }
+}

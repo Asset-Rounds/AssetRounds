@@ -3,6 +3,24 @@ import CryptoKit
 import Foundation
 
 enum SurveySessionEraseAllEnrollmentV1{static func validate()throws{try SurveySessionDeletionLedgerPolicyV1.validate();guard SurveySessionEraseIntentEnrollmentV1.schemaVersion==25,SurveySessionEraseIntentEnrollmentV1.removesAllFiveFamilies else{throw DeletionLedgerFailureV2.invalidSchemaVersion}}}
+
+enum C30EvidenceContextEraseAllPolicyV1 {
+    static let persistentSchemaVersion = 30
+    static let recordsSchemaVersion = 29
+    static let durableRowCount = 2
+    static let clearsOnlyWorkspaceRows = true
+    static let clearsDerivedProjection = true
+
+    static func validatePublishedEmptyGeneration(_ context: ModelContext) throws {
+        guard persistentSchemaVersion == 30, recordsSchemaVersion == 29,
+              durableRowCount == 2, clearsOnlyWorkspaceRows,
+              clearsDerivedProjection else { throw EraseAllServiceError.invalidAuthority }
+        guard try context.fetchCount(FetchDescriptor<EvidenceContextRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<PairedObservationLinkRow>()) == 0 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+}
 import SwiftData
 
 enum IntegrationProjectionEraseAllPolicyV1 {

@@ -500,6 +500,32 @@ extension SearchPersistenceReleaseV1 {
     static let packageEvolutionPolicy = PackageEvolutionSearchPersistencePolicyV1()
 }
 
+// MARK: - C30 operating-context persistence boundary
+
+enum C30OperatingContextSearchPersistencePolicyV1 {
+    static let sourceSemanticLabel = "C30_OPERATING_CONTEXT_SEARCH_PROJECTION_V1"
+    static let storageIsDisposableDerivedMetadata = true
+    static let sourceOfTruth = "EvidenceContextV1"
+    static let pairedSourceOfTruth = "PairedObservationLinkV1"
+    static let indexesFrozenCurrentProjectionOnly = true
+    static let excludesTemporalNotesCoordinatesAndImages = true
+    static let excludesActorAndControlResultClaims = true
+    static let backupDisposition = "EXCLUDED_DERIVED_REBUILD"
+    static let replayDisposition = "DROP_AND_REBUILD_FROM_C30_CONTEXT"
+    static let deleteDisposition = "DROP_AND_REBUILD_AFTER_C30_ERASE"
+
+    static func validate() throws {
+        guard storageIsDisposableDerivedMetadata,
+              indexesFrozenCurrentProjectionOnly,
+              excludesTemporalNotesCoordinatesAndImages,
+              excludesActorAndControlResultClaims,
+              sourceOfTruth == "EvidenceContextV1",
+              pairedSourceOfTruth == "PairedObservationLinkV1" else {
+            throw SearchContractFailureV1.forbiddenField
+        }
+    }
+}
+
 /// C19 measurement rows are disposable derived metadata. The V7 search
 /// schema remains unchanged; restore, replay, delete, and Erase drop these
 /// rows and rebuild them from canonical measurement snapshots.
@@ -1179,4 +1205,8 @@ struct C37PoseSearchPersistencePolicyV1: Codable, Equatable, Sendable {
 
 extension SearchPersistenceReleaseV1 {
     static let placementPosePolicy = C37PoseSearchPersistencePolicyV1()
+}
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Domain_Search_SearchPersistenceModelsV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/Search/SearchPersistenceModelsV1.swift", role: .search)
 }

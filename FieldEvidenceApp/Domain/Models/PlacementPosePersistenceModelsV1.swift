@@ -1,4 +1,5 @@
 import Foundation
+enum EvidenceContextPlacementPoseBoundaryV1{static let poseHistoryDoesNotOwnEvidenceContext=true;static let contextAssetRevisionMustRemainExact=true}
 import SwiftData
 
 enum PlacementPosePersistenceFailureV1: Error { case corruptRow }

@@ -1906,3 +1906,7 @@ enum C37PoseIntegration_FieldEvidenceApp_Infrastructure_Media_EvidenceBundleStor
         }
     }
 }
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Infrastructure_Media_EvidenceBundleStore {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Media/EvidenceBundleStore.swift", role: .media)
+}

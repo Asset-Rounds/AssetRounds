@@ -230,6 +230,182 @@ struct ReportProjectionOutputV1: Equatable, Sendable {
     let taggedPDFAccessibilityEvidence: Bool
 }
 
+// MARK: - C30 operating-context report output
+
+/// Deterministic, frozen C30 output.  Only the consumer projection is
+/// serialized; the durable context remains the sole source of truth and no
+/// timestamp, image, solar calculation, or expected control value is promoted
+/// into an operational conclusion.
+struct C30OperatingContextOpenJSONEnvelopeV1: Codable, Equatable, Sendable {
+    static let schemaVersion = "C30_OPERATING_CONTEXT_OPEN_JSON_V1"
+    let schemaVersion: String
+    let projection: C30EvidenceContextReportReferenceV1
+    let labels: [String: String]
+
+    init(
+        projection: C30EvidenceContextReportReferenceV1,
+        labels: [String: String]
+    ) throws {
+        try projection.validate()
+        guard !labels.isEmpty,
+              labels.keys.sorted() == Array(labels.keys).sorted(),
+              labels.keys.allSatisfy(C30OperatingContextOpenJSONLabelsV1.isAllowedKey),
+              labels.values.allSatisfy({ !$0.isEmpty }),
+              !C30OperatingContextLocalizationPolicyV1.containsProhibitedClaim(
+                Array(labels.values)
+              ) else {
+            throw SnapshotProjectionFailureV1.hostileText
+        }
+        schemaVersion = Self.schemaVersion
+        self.projection = projection
+        self.labels = labels
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion else {
+            throw SnapshotProjectionFailureV1.invalidValue
+        }
+        try projection.validate()
+        guard !labels.isEmpty,
+              labels.keys.allSatisfy(C30OperatingContextOpenJSONLabelsV1.isAllowedKey),
+              labels.values.allSatisfy({ !$0.isEmpty }),
+              !C30OperatingContextLocalizationPolicyV1.containsProhibitedClaim(
+                Array(labels.values)
+              ) else {
+            throw SnapshotProjectionFailureV1.hostileText
+        }
+    }
+}
+
+extension DeterministicOpenJSONRendererV1 {
+    static func renderOperatingContext(
+        _ projection: C30EvidenceContextReportReferenceV1,
+        locale: String = "en"
+    ) throws -> ReportProjectionOutputV1 {
+        guard locale == C30OperatingContextLocalizationKeyV1.sourceLocale else {
+            throw SnapshotProjectionFailureV1.invalidValue
+        }
+        let labels = try C30OperatingContextOpenJSONLabelsV1.labels(
+            for: projection
+        )
+        let envelope = try C30OperatingContextOpenJSONEnvelopeV1(
+            projection: projection,
+            labels: labels
+        )
+        var encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .millisecondsSince1970
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let data = try encoder.encode(envelope)
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        let decoded = try reopenOperatingContext(data)
+        guard decoded.projection == projection else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return ReportProjectionOutputV1(
+            format: .openJSON,
+            data: data,
+            sha256: KernelCanonicalHashV1.sha256(data),
+            semanticSHA256: KernelCanonicalHashV1.sha256(data),
+            orderedSemanticIDs: [
+                "evidence.context.\(projection.contextID.uuidString.lowercased())"
+            ],
+            taggedPDFAccessibilityEvidence: false
+        )
+    }
+
+    static func reopenOperatingContext(
+        _ data: Data
+    ) throws -> C30OperatingContextOpenJSONEnvelopeV1 {
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .millisecondsSince1970
+        let envelope = try decoder.decode(
+            C30OperatingContextOpenJSONEnvelopeV1.self,
+            from: data
+        )
+        try envelope.validate()
+        var encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .millisecondsSince1970
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        guard try encoder.encode(envelope) == data else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return envelope
+    }
+}
+
+private enum C30OperatingContextOpenJSONLabelsV1 {
+    private static let allowedKeys: Set<String> = [
+        "claimBoundary", "condition", "conditionValue", "derivedCondition",
+        "expectedControl", "heading", "historyFrozen", "manualOffline",
+        "nextStep", "pairedComparison", "pairedReason", "pairedState",
+        "temporalBasis",
+    ]
+
+    static func isAllowedKey(_ key: String) -> Bool {
+        allowedKeys.contains(key)
+    }
+
+    static func labels(
+        for projection: C30EvidenceContextReportReferenceV1
+    ) throws -> [String: String] {
+        try C30OperatingContextLocalizationPolicyV1.validate()
+        var labels: [String: String] = [
+            "claimBoundary": C30OperatingContextLocalizationKeyV1.claimBoundary
+                .englishDefaultValue,
+            "condition": C30OperatingContextLocalizationKeyV1.condition
+                .englishDefaultValue,
+            "conditionValue": C30OperatingContextLocalizationKeyV1.conditionKey(
+                projection.observedCondition
+            ).englishDefaultValue,
+            "heading": C30OperatingContextLocalizationKeyV1.heading
+                .englishDefaultValue,
+            "historyFrozen": C30OperatingContextLocalizationKeyV1.historyFrozen
+                .englishDefaultValue,
+            "manualOffline": C30OperatingContextLocalizationKeyV1.manualOffline
+                .englishDefaultValue,
+            "nextStep": C30OperatingContextLocalizationKeyV1.nextStep
+                .englishDefaultValue,
+            "pairedComparison": C30OperatingContextLocalizationKeyV1.pairedComparison
+                .englishDefaultValue,
+            "temporalBasis": C30OperatingContextLocalizationKeyV1.temporalBasis
+                .englishDefaultValue,
+        ]
+        if projection.derivedCondition != nil {
+            labels["derivedCondition"] = C30OperatingContextLocalizationKeyV1
+                .derivedCondition.englishDefaultValue
+        }
+        if let expected = projection.expectedControlState {
+            labels["expectedControl"] = C30OperatingContextLocalizationKeyV1
+                .expectedControlKey(expected).englishDefaultValue
+        } else {
+            labels["expectedControl"] = C30OperatingContextLocalizationKeyV1
+                .expectedNone.englishDefaultValue
+        }
+        if let pair = projection.pairedObservation {
+            labels["pairedState"] = pair.isComparable
+                ? C30OperatingContextLocalizationKeyV1.pairedComparable
+                    .englishDefaultValue
+                : C30OperatingContextLocalizationKeyV1.pairedMismatch
+                    .englishDefaultValue
+            if !pair.mismatchReasons.isEmpty {
+                labels["pairedReason"] = C30OperatingContextLocalizationKeyV1
+                    .pairedMismatchReason.englishDefaultValue
+            }
+        } else {
+            labels["pairedState"] = C30OperatingContextLocalizationKeyV1
+                .pairedNotLinked.englishDefaultValue
+        }
+        return labels
+    }
+}
+
 enum ReportSemanticProjectorV1 {
     static let rendererVersion = "report-semantic-projector-v1"
 
@@ -2907,4 +3083,8 @@ extension DeterministicOpenJSONRendererV1 {
         }
         return envelope.projection
     }
+}
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Infrastructure_Reporting_DeterministicOpenJSONRendererV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Reporting/DeterministicOpenJSONRendererV1.swift", role: .report)
 }

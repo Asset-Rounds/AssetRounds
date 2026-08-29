@@ -247,6 +247,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
         let c65=TemporalOriginV1(card:"V23_P03_C28",ordinal:65)
         let c66=TemporalOriginV1(card:"V23_P03_C29",ordinal:66)
         let c67=TemporalOriginV1(card:"V23_P03_C37",ordinal:67)
+        let c68=TemporalOriginV1(card:"V23_P03_C30",ordinal:68)
         let groups: [(TemporalOriginV1, [String])] = [
             (c16, [
                 "JOURNAL:CurrentGenerationPointerV2",
@@ -411,6 +412,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
             (c65,["PERSISTENT_MODEL:ScheduleDefinitionReleaseRow","PERSISTENT_MODEL:OccurrenceHistoryEventRow","PROJECTION:ScheduleDefinitionReleaseV1","PROJECTION:OccurrenceHistoryEventV1","PROJECTION:OccurrenceGenerationPlanV1","PROJECTION:DueQueueProjectionV1","PROJECTION:ReminderProjectionV1","PROJECTION:StoreSemanticEnvelopeV27"]),
             (c66,["PERSISTENT_MODEL:PlanDocumentRow","PERSISTENT_MODEL:PlanRevisionRow","PERSISTENT_MODEL:PlanPlacementRow","PERSISTENT_MODEL:RebaseReceiptRow","PROJECTION:PlanDocumentV1","PROJECTION:PlanRevisionV1","PROJECTION:SpatialReferenceFrameV1","PROJECTION:PlanPlacementV1","PROJECTION:RebasePreviewV1","PROJECTION:RebaseReceiptV1","PROJECTION:StoreSemanticEnvelopeV28"]),
             (c67,["PERSISTENT_MODEL:AssetPoseEventRow","PERSISTENT_MODEL:SpatialAnchorObservationRow","PROJECTION:PoseAxisDescriptorRegistryV1","PROJECTION:AssetPoseCurrentTipV1","PROJECTION:CompletedPlacementPoseSnapshotV1","PROJECTION:StoreSemanticEnvelopeV29"]),
+            (c68,["PERSISTENT_MODEL:EvidenceContextRow","PERSISTENT_MODEL:PairedObservationLinkRow","PROJECTION:EvidenceContextV1","PROJECTION:PairedObservationLinkV1","PROJECTION:StoreSemanticEnvelopeV30"]),
         ]
         return groups.reduce(into: [:]) { result, group in
             for kindID in group.1 {

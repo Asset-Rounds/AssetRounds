@@ -197,3 +197,7 @@ enum C37PoseIntegration_FieldEvidenceApp_Application_Drafts_FieldDraftCoordinato
         }
     }
 }
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Application_Drafts_FieldDraftCoordinatorV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Application/Drafts/FieldDraftCoordinatorV1.swift", role: .draft)
+}

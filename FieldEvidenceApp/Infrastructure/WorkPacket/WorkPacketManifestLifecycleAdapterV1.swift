@@ -120,3 +120,7 @@ enum C37PoseIntegration_FieldEvidenceApp_Infrastructure_WorkPacket_WorkPacketMan
         }
     }
 }
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Infrastructure_WorkPacket_WorkPacketManifestLifecycleAdapterV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/WorkPacket/WorkPacketManifestLifecycleAdapterV1.swift", role: .workPacket)
+}

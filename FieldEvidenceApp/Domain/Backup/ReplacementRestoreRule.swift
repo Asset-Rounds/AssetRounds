@@ -1066,3 +1066,25 @@ enum PlacementPoseReplacementRestorePolicyV1 {
         catch { throw ReplacementRestoreRuleError.invalidAuthority }
     }
 }
+
+/// Replacement restore cannot overwrite context history or silently accept a
+/// different paired-comparison basis. Incoming rows are checked as one
+/// canonical closure before the ordinary packet merge runs.
+enum C30EvidenceContextReplacementRestorePolicyV1 {
+    static let ordinaryReplacementPreservesHistoricContexts = true
+    static let cloneForkRequiresExplicitRebind = true
+    static let ambiguousPairingIsRejected = true
+
+    static func validate(current: [V30BackupEvidenceContextRecordV1],
+                         incoming: [V30BackupEvidenceContextRecordV1]) throws {
+        let currentSet = try EvidenceContextBackupRecordSetV1.decode(current)
+        let incomingSet = try EvidenceContextBackupRecordSetV1.decode(incoming)
+        guard ordinaryReplacementPreservesHistoricContexts,
+              cloneForkRequiresExplicitRebind,
+              ambiguousPairingIsRejected,
+              Set(currentSet.contexts.map(\.contextID)).count == currentSet.contexts.count,
+              Set(incomingSet.contexts.map(\.contextID)).count == incomingSet.contexts.count else {
+            throw EvidenceContextFailureV1.duplicateIdentity
+        }
+    }
+}

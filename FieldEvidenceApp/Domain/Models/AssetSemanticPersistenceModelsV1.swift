@@ -1,4 +1,5 @@
 import Foundation
+enum EvidenceContextAssetSemanticBoundaryV1{static let contextsBindExactAssetRevision=true;static let semanticRowsNeverOwnContextHistory=true}
 enum PlacementPoseAssetSemanticPersistenceBoundaryV1{static let poseAxisDescriptorsAreEmbedded=true;static let assetSemanticRowsOwnNoPoseTips=true}
 import SwiftData
 

@@ -510,3 +510,7 @@ enum C37PoseIntegration_FieldEvidenceApp_Domain_InspectionKernel_InspectionPacka
         }
     }
 }
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Domain_InspectionKernel_InspectionPackageReleaseV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/InspectionKernel/InspectionPackageReleaseV1.swift", role: .lifecycle)
+}

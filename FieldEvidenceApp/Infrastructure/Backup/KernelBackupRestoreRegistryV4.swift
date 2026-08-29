@@ -6,6 +6,23 @@ enum GuidedSurveyBackupRegistryV1 {
     static let canonicalKinds = Set(V25BackupGuidedSurveyRecordV1.Kind.allCases)
 }
 
+enum C30EvidenceContextBackupRestoreRegistryV1 {
+    static let persistentSchemaVersion = 30
+    static let recordsSchemaVersion = 29
+    static let archiveKinds = V30BackupEvidenceContextRecordV1.Kind.allCases
+    static let derivedProjectionDisposition = "DROP_AND_REBUILD"
+    static let providerStateIsTruth = false
+
+    static func validate() throws {
+        guard persistentSchemaVersion == 30, recordsSchemaVersion == 29,
+              archiveKinds.count == 2,
+              derivedProjectionDisposition == "DROP_AND_REBUILD",
+              !providerStateIsTruth else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}
+
 /// C28 schedule backup/restore is a two-family closure: immutable definition
 /// releases plus append-only occurrence history. Projection queues and
 /// reminders are rebuilt after restore and never enter the kernel archive.

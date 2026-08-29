@@ -3,6 +3,24 @@ import Darwin
 import Foundation
 
 enum SurveySessionWholeSignDeletionEnrollmentV1{static func validate()throws{try SurveySessionDeletionLedgerPolicyV1.validate();guard SurveySessionDeletionLedgerPolicyV1.ordinaryAssetOrSiteDeleteRetainsFrozenPublications else{throw DeletionLedgerFailureV2.invalidSchemaVersion}}}
+
+enum C30EvidenceContextWholeSignDeletionServiceV1 {
+    static let ordinaryDeletionRetainsContexts = true
+    static let ordinaryDeletionRetainsPairedLinks = true
+    static let workspaceEraseClearsBothFamilies = true
+    static let deletionUsesRecordedRowsOnly = true
+
+    static func validateClosure(contexts: [EvidenceContextV1],
+                                links: [PairedObservationLinkV1],
+                                workspaceID: WorkspaceID) throws {
+        try C30EvidenceContextWholeSignDeletionRuleV1.validate(
+            workspaceID: workspaceID, contexts: contexts, links: links)
+        guard ordinaryDeletionRetainsContexts, ordinaryDeletionRetainsPairedLinks,
+              workspaceEraseClearsBothFamilies, deletionUsesRecordedRowsOnly else {
+            throw EvidenceContextFailureV1.invalidValue
+        }
+    }
+}
 import SwiftData
 
 private enum DeletionDescriptorRead {

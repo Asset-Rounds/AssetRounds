@@ -327,3 +327,7 @@ enum C37PoseIntegration_FieldEvidenceApp_Application_AssetSemantics_AssetSemanti
         }
     }
 }
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Application_AssetSemantics_AssetSemanticsCoordinatorV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Application/AssetSemantics/AssetSemanticsCoordinatorV1.swift", role: .asset)
+}

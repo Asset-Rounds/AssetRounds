@@ -343,3 +343,15 @@ enum C37PoseIntegration_FieldEvidenceApp_Domain_Workflow_WorkRule_swift {
         }
     }
 }
+
+enum C30EvidenceContextWorkRuleV1 {
+    static let pairedComparisonsRequireExplicitBasis = true
+    static let mismatchReasonsAreOrdered = true
+    static let pairMayClaimCompliance = false
+
+    static func validate(_ value: PairedObservationLinkV1) throws {
+        try value.validateIntrinsic()
+        guard pairedComparisonsRequireExplicitBasis, mismatchReasonsAreOrdered,
+              !pairMayClaimCompliance else { throw EvidenceContextFailureV1.invalidValue }
+    }
+}

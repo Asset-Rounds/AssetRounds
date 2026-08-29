@@ -1,4 +1,5 @@
 import Foundation
+enum EvidenceContextSurveySessionBoundaryV1{static let factsReferenceEvidenceWithoutDuplicatingContextRows=true;static let pairingUsesCanonicalEvidenceRevision=true}
 enum PlacementPoseSurveySessionPersistenceBoundaryV1{static let promotionUsesTheCanonicalPoseWriter=true;static let sessionsOwnNoDuplicatePoseReceipt=true}
 import SwiftData
 
