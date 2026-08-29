@@ -404,3 +404,5 @@ enum C32AssistanceCompatibility_Replication_IntegrationEventProjectionV1 {
     static let interruptionNeverPromotesAProposal = true
     static let createsParallelStoreOrWriter = false
 }
+
+enum C45AcceptedLabelIntegrationProjectionBoundaryV1 { static let excludesShortCodeAndLocatorPayload=true;static let preservesSnapshotIdentity=true }

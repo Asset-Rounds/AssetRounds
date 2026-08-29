@@ -176,3 +176,9 @@ enum TemporalEvidenceCaptureRuntimeBoundaryV1 {
     static let explicitCaptureIntentRequired = true
     static let manualFileImportFallbackPreserved = true
 }
+
+/// C45 camera input may resolve an opaque QR payload but never mutates workspace state.
+enum C45AssetLabelBoundary_CameraAdapterV1 {
+    static func validate(_ plan: AssetLabelGenerationPlanV1) throws { try plan.validate() }
+    static let providesScannerUIOrMutation = false
+}

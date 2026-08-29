@@ -8,6 +8,15 @@ import UniformTypeIdentifiers
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C45DeterministicRendererCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityReusesSoleDeterministicRendererPolicy() {
+        XCTAssertEqual(DeterministicPDFRendererV1.assetLabelRendererID, "deterministic-pdf-renderer-v1")
+        XCTAssertEqual(DeterministicPDFRendererV1.assetLabelQuietZoneModules, 4)
+        XCTAssertFalse(DeterministicPDFRendererV1.assetLabelInterpolationEnabled)
+        XCTAssertFalse(DeterministicPDFRendererV1.assetLabelOverlaidLogoEnabled)
+    }
+}
+
 private final class C30EvidenceContextAnchorS4_1DeterministicRenderer: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

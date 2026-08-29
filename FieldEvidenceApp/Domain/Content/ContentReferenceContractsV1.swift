@@ -374,3 +374,9 @@ enum TemporalEvidenceContentReferenceBoundaryV1 {
         try derivatives.forEach { try $0.validate(clip: clip) }
     }
 }
+
+/// C45 generated label artifacts reuse canonical local content references.
+enum C45AssetLabelBoundary_ContentReferenceContractsV1 {
+    static func validate(_ plan: AssetLabelGenerationPlanV1) throws { try plan.validate() }
+    static let createsSecondByteStore = false
+}

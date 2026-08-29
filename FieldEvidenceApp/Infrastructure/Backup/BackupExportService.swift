@@ -93,6 +93,7 @@ final class BackupExportService {
         let assistanceAcceptanceReceipts: [AssistanceAcceptanceReceiptRow]
         let temporalEvidenceClips: [TemporalEvidenceClipRow]
         let timecodedEvidenceAnchors: [TimecodedEvidenceAnchorRow]
+        let acceptedLabelGenerationSnapshots: [AcceptedLabelGenerationSnapshotRow]
         let fieldReferenceReleases:[FieldReferenceReleaseRow]
         let fieldReferenceBindings:[FieldReferenceBindingRow]
         let recoverabilityVerificationReceipts:[RecoverabilityVerificationReceiptRow]
@@ -775,6 +776,7 @@ private extension BackupExportService {
                 lighting: records.lighting,
                 assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
                 temporalEvidence: records.temporalEvidence,
+                acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots,
                 fieldReferences:records.fieldReferences,
                 fieldDrafts: records.fieldDrafts,
                 workPackets: records.workPackets,
@@ -1051,9 +1053,9 @@ private extension BackupExportService {
             source: .init(
                 appBuild: appBuild(),
                 appVersion: appVersion(),
-                persistentSchemaVersion: TemporalEvidencePersistenceEnrollmentV1.persistentSchemaVersion,
+                persistentSchemaVersion: AssetLabelPersistenceEnrollmentV1.persistentSchemaVersion,
                 replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: TemporalEvidencePersistenceEnrollmentV1.recordsSchemaVersion,
+                recordsSchemaVersion: AssetLabelPersistenceEnrollmentV1.recordsSchemaVersion,
                 sourceGenerationID: generationID,
                 workspaceID: sourceIdentity.workspaceID.rawValue
             )
@@ -1603,6 +1605,7 @@ private extension BackupExportService {
                  assistanceAcceptanceReceipts: try modelContext.fetch(FetchDescriptor<AssistanceAcceptanceReceiptRow>()),
                  temporalEvidenceClips: try modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>()),
                  timecodedEvidenceAnchors: try modelContext.fetch(FetchDescriptor<TimecodedEvidenceAnchorRow>()),
+                 acceptedLabelGenerationSnapshots: try modelContext.fetch(FetchDescriptor<AcceptedLabelGenerationSnapshotRow>()),
                  fieldReferenceReleases:try modelContext.fetch(FetchDescriptor<FieldReferenceReleaseRow>()),
                 fieldReferenceBindings:try modelContext.fetch(FetchDescriptor<FieldReferenceBindingRow>()),
                 recoverabilityVerificationReceipts:try modelContext.fetch(FetchDescriptor<RecoverabilityVerificationReceiptRow>()),
@@ -2209,6 +2212,9 @@ private extension BackupExportService {
             rows.temporalEvidenceClips.map { try V33BackupTemporalEvidenceRecordV1($0.value()) }
             + rows.timecodedEvidenceAnchors.map { try V33BackupTemporalEvidenceRecordV1($0.value()) }
         ).sorted { ($0.kind.rawValue, $0.id.uuidString) < ($1.kind.rawValue, $1.id.uuidString) }
+        let acceptedLabelGenerationSnapshots = mutationHistory == nil ? [] : try rows.acceptedLabelGenerationSnapshots
+            .map { try V34BackupAcceptedLabelSnapshotRecordV1($0.value()) }
+            .sorted { ($0.workspaceID.uuidString, $0.snapshotID.uuidString) < ($1.workspaceID.uuidString, $1.snapshotID.uuidString) }
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveys,
             assetLocators: assetLocators,
@@ -2218,6 +2224,7 @@ private extension BackupExportService {
             lighting: lighting,
             assistanceAcceptanceReceipts: assistanceAcceptanceReceipts,
             temporalEvidence: temporalEvidence,
+            acceptedLabelGenerationSnapshots: acceptedLabelGenerationSnapshots,
             accessibleDocumentAssessments:accessibleDocumentAssessments,
             surveyDefinitions:surveyDefinitions,
             fieldReferences:fieldReferences,
@@ -2281,7 +2288,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : TemporalEvidencePersistenceEnrollmentV1.recordsSchemaVersion,
+                : AssetLabelPersistenceEnrollmentV1.recordsSchemaVersion,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,

@@ -1195,3 +1195,5 @@ enum C32AssistanceReplacementRestorePolicyV1 {
         }
     }
 }
+
+enum C45AcceptedLabelReplacementBoundaryV1 { static let snapshotFollowsWorkspaceReplacement=true;static let projectionScratchIsRestored=false }

@@ -326,6 +326,12 @@ enum IntegrationProjectionDiagnosticExclusionV1 {
         // private work evidence and never diagnostic payload.
         "manualTranscript", "accessibleDescription", "offsetMilliseconds",
         "note", "clipSHA256", "anchorSHA256", "sourceSHA256",
+        // C45 accepted label plans, locator bindings, manifest/output receipts,
+        // printable text, and renderer artifacts are canonical/private or
+        // leased output and never diagnostic material.
+        "snapshotID", "snapshotSHA256", "plan", "manifest", "outputReceipt",
+        "shortCode", "displayName", "labelText", "artifactSHA256",
+        "publicationBinding", "templateRelease",
     ]
 
     static func validate(_ data: Data) throws {
@@ -2105,3 +2111,5 @@ extension DiagnosticExportV1 {
         try C31LightingDiagnosticMetadataV1(projection)
     }
 }
+
+enum C45AcceptedLabelDiagnosticPrivacyBoundaryV1 { static let mayExposeCountsAndDisposition=true;static let excludesLabelTextLocatorTokensAndArtifactBytes=true }

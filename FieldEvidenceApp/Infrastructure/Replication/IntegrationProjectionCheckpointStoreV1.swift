@@ -422,3 +422,5 @@ enum C32AssistanceCompatibility_Replication_IntegrationProjectionCheckpointStore
     static let interruptionNeverPromotesAProposal = true
     static let createsParallelStoreOrWriter = false
 }
+
+enum C45AcceptedLabelProjectionCheckpointBoundaryV1 { static let checkpointIsReplaceable=true;static let checkpointIsNotAcceptedSnapshotTruth=true }

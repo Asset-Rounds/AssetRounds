@@ -25,6 +25,7 @@ struct DeletionLedgerProofV2: Codable, Equatable, Sendable {
         try AccessibleDocumentDeletionLedgerPolicyV1.validate()
         try PlanDeletionLedgerPolicyV1.validate()
         try PlacementPoseDeletionLedgerPolicyV1.validate()
+        try AssetLabelDeletionLedgerPolicyV1.validate()
         let allowed = CharacterSet(charactersIn: "0123456789abcdef")
         guard entryCount >= 0,
               canonicalSHA256.utf8.count == 64,
@@ -122,6 +123,25 @@ enum DeletionRecordKindV2: String, CaseIterable, Codable, Equatable, Sendable {
     case issue = "issue"
     case packet = "packet"
     case report = "report"
+    case acceptedLabelGenerationSnapshot = "acceptedLabelGenerationSnapshot"
+}
+
+enum AssetLabelDeletionLedgerPolicyV1 {
+    static let durableFamily = "AcceptedLabelGenerationSnapshotRow"
+    static let matchingBatchSnapshotIsDeletedWhole = true
+    static let unrelatedAssetAndLocatorRowsRemain = true
+    static let publishedOutputCleanupIsReceiptBound = true
+    static let committedLedgerAuthorizesIdempotentCleanupRetry = true
+
+    static func validate() throws {
+        guard AssetLabelPersistenceEnrollmentV1.persistentFamilies == [durableFamily],
+              matchingBatchSnapshotIsDeletedWhole,
+              unrelatedAssetAndLocatorRowsRemain,
+              publishedOutputCleanupIsReceiptBound,
+              committedLedgerAuthorizesIdempotentCleanupRetry else {
+            throw DeletionLedgerFailureV2.invalidSchemaVersion
+        }
+    }
 }
 
 enum PartyAccountabilityDeletionDispositionV1: String, Codable, Equatable, Sendable {
@@ -294,6 +314,7 @@ struct DeletionLedgerEntryV2: Codable, Equatable, Hashable, Sendable {
         try FunctionalRelationshipDeletionLedgerPolicyV1.validate()
         try EvidenceAssuranceDeletionLedgerPolicyV1.validate()
         try ScheduleDeletionLedgerPolicyV1.validate()
+        try AssetLabelDeletionLedgerPolicyV1.validate()
         guard schemaVersion == 2 else {
             throw DeletionLedgerFailureV2.invalidSchemaVersion
         }
@@ -525,3 +546,5 @@ struct DeletionLedgerV2: Codable, Equatable, Sendable {
         return try encoder.encode(self)
     }
 }
+
+enum C45AcceptedLabelDeletionLedgerBoundaryV1 { static let snapshotDeletionRequiresWorkspaceGraphClosure=true;static let outputPossessionIsNeverInferred=true }

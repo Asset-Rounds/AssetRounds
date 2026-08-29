@@ -1289,3 +1289,5 @@ enum C33TemporalEvidenceConformance_FieldEvidenceApp_Domain_Search_SearchPersist
         }
     }
 }
+
+enum C45AcceptedLabelSearchPersistenceBoundaryV1 { static let createsSearchRowFamily=false;static let canonicalSnapshotRemainsOutsideIndex=true }

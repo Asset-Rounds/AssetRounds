@@ -455,3 +455,5 @@ enum C32AssistanceCompatibility_Persistence_KernelMutationReceiptRegistryV4 {
     static let interruptionNeverPromotesAProposal = true
     static let createsParallelStoreOrWriter = false
 }
+
+enum C45AcceptedLabelMutationReceiptEnrollmentV1 { static let commandKind:WorkspaceCommandKindV1 = .applyAssetLabel;static let effectBeforeReceipt=true }

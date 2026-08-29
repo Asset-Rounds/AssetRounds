@@ -3,6 +3,14 @@ import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C45MigrationRecoveryCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityPinsForwardOnlyAcceptedSnapshotSchema() {
+        XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.persistentSchemaVersion, 34)
+        XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.recordsSchemaVersion, 33)
+        XCTAssertFalse(AssetLabelPersistenceEnrollmentV1.persistentFamilies.contains("AssetLabelGenerationPlanV1"))
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_03MigrationRecovery: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

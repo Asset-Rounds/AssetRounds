@@ -3,6 +3,14 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private final class C45SettingsCapabilityCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityKeepsOutputActivationExplicitAndBounded() {
+        XCTAssertEqual(Set(LabelOutputActivationDecisionV1.allCases), [.enabledBoundedLocalOnly, .disabledOrDeferred])
+        XCTAssertEqual(LabelOutputActivationDecisionV1.enabledBoundedLocalOnly.rawValue, "ENABLED_BOUNDED_LOCAL_ONLY")
+        XCTAssertEqual(LabelOutputActivationDecisionV1.disabledOrDeferred.rawValue, "DISABLED_OR_DEFERRED")
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_14SettingsCapabilityLifecycle: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

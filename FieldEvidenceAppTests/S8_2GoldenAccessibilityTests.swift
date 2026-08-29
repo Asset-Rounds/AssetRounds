@@ -1,6 +1,14 @@
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C45GoldenAccessibilityCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityOwnsAccessibleStructuredTextArtifact() {
+        XCTAssertTrue(LabelArtifactKindV1.allCases.contains(.structuredText))
+        XCTAssertEqual(LabelDisclosureProfileV1.shortCodeOnly.rawValue, "SHORT_CODE_ONLY")
+        XCTAssertFalse(DeterministicPDFRendererV1.assetLabelPhysicalScanAcceptanceClaimed)
+    }
+}
+
 private final class C30EvidenceContextAnchorS8_2GoldenAccessibility: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

@@ -50,7 +50,8 @@ enum C31LightingBackupImportPolicyV1 {
               restoresHistoryBeforeProjection,
               ((manifest.persistentSchemaVersion == persistentSchemaVersion && records.recordsSchemaVersion == recordsSchemaVersion)
                 || (manifest.persistentSchemaVersion == 32 && records.recordsSchemaVersion == 31)
-                || (manifest.persistentSchemaVersion == 33 && records.recordsSchemaVersion == 32)) else {
+                || (manifest.persistentSchemaVersion == 33 && records.recordsSchemaVersion == 32)
+                || (manifest.persistentSchemaVersion == 34 && records.recordsSchemaVersion == 33)) else {
             throw BackupImportServiceError.invalidGeneration
         }
         do {
@@ -1529,3 +1530,5 @@ private struct FileIdentity: Hashable {
         inode = UInt64(value.st_ino)
     }
 }
+
+enum C45AcceptedLabelBackupImportPolicyV1 { static let persistentSchemaVersion=AssetLabelPersistenceEnrollmentV1.persistentSchemaVersion;static let recordsSchemaVersion=AssetLabelPersistenceEnrollmentV1.recordsSchemaVersion;static func validate(_ records:V4BackupRecordsV1)throws{_ = try records.validateC45AcceptedLabelSnapshots()} }

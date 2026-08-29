@@ -4,6 +4,14 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private final class C45DeletionArchiveCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilitySeparatesGeneratedFromSystemHandoffReceipts() {
+        XCTAssertEqual(LabelOutputDispositionV1.generated.rawValue, "GENERATED")
+        XCTAssertEqual(LabelOutputDispositionV1.handedOffToSystem.rawValue, "HANDED_OFF_TO_SYSTEM")
+        XCTAssertNotEqual(LabelOutputDispositionV1.generated, .handedOffToSystem)
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_06DeletionArchiveIntegration: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

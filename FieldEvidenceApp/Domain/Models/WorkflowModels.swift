@@ -545,3 +545,9 @@ enum C33TemporalEvidenceBoundary_Domain_Models_WorkflowModels_V1 {
     static let persistentSchemaVersion: Int =
         TemporalEvidencePersistenceEnrollmentV1.persistentSchemaVersion
 }
+
+/// C45 label lifecycle state is not inferred from report or workflow state.
+enum C45AssetLabelBoundary_WorkflowModelsV1 {
+    static func validate(_ snapshot: AcceptedLabelGenerationSnapshotV1) throws { try snapshot.validate() }
+    static let infersLabelDelivery = false
+}

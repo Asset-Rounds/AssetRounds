@@ -579,3 +579,9 @@ enum TemporalEvidenceProvenanceBoundaryV1 {
         )
     }
 }
+
+/// C45 label output provenance binds the frozen plan, renderer, and template releases.
+enum C45AssetLabelBoundary_ContentProvenanceContractsV1 {
+    static func validate(_ plan: AssetLabelGenerationPlanV1) throws { try plan.validate() }
+    static let claimsPhysicalScanAcceptance = false
+}

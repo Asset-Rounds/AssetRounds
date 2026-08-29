@@ -2359,3 +2359,19 @@ enum TemporalEvidenceReportProjectionRegistryV1 {
         return link
     }
 }
+
+/// C45 the existing report registry delegates C45 bytes to its sole deterministic renderer.
+enum C45AssetLabelBoundary_ReportProjectionRegistryV1 {
+    static func validate(_ snapshot: AcceptedLabelGenerationSnapshotV1) throws { try snapshot.validate() }
+    static func validateRendererRelease(_ template: AssetLabelTemplateReleaseV1) throws {
+        try template.validate()
+        try template.rendererRelease.validate()
+        guard template.rendererID == DeterministicPDFRendererV1.assetLabelRendererID,
+              template.rendererVersion == DeterministicPDFRendererV1.assetLabelRendererVersion,
+              template.rendererSHA256 == DeterministicPDFRendererV1.assetLabelRendererSHA256,
+              template.rendererRelease.nativeTextLayoutReleaseID == DeterministicPDFRendererV1.assetLabelNativeTextLayoutReleaseID else {
+            throw AssetLabelContractFailureV1.missingRelease
+        }
+    }
+    static let createsParallelRenderer = false
+}

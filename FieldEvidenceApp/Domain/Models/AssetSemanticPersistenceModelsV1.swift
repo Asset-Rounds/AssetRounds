@@ -327,3 +327,9 @@ enum C33TemporalEvidenceBoundary_Domain_Models_AssetSemanticPersistenceModelsV1_
     static let persistentSchemaVersion: Int =
         TemporalEvidencePersistenceEnrollmentV1.persistentSchemaVersion
 }
+
+/// C45 labels retain only accepted manifest metadata; plans and bytes remain derived.
+enum C45AssetLabelBoundary_AssetSemanticPersistenceModelsV1 {
+    static func validate(_ plan: AssetLabelGenerationPlanV1) throws { try plan.validate() }
+    static let persistsPlanOrArtifactBytes = false
+}

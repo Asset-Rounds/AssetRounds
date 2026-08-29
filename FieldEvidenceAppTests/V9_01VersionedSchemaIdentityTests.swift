@@ -3,6 +3,14 @@ import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C45SchemaIdentityCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityEnrollsExactlyOneV34SnapshotFamily() {
+        XCTAssertEqual(PersistentSchemaV34.versionIdentifier, Schema.Version(34, 0, 0))
+        XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.persistentFamilies, ["AcceptedLabelGenerationSnapshotRow"])
+        XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.durableModelCount, 1)
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_01VersionedSchemaIdentity: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
@@ -574,7 +582,10 @@ final class V9_01VersionedSchemaIdentityTests: XCTestCase {
     func testDeletionLedgerV2IsClosedSortedTypedAndAppendOnlyByUnion() throws {
         XCTAssertEqual(
             DeletionRecordKindV2.allCases,
-            [.site, .asset, .workflowRecord, .evidenceFile, .issue, .packet, .report]
+            [
+                .site, .asset, .workflowRecord, .evidenceFile, .issue, .packet, .report,
+                .acceptedLabelGenerationSnapshot,
+            ]
         )
         XCTAssertEqual(DeletionLedgerV2.maximumEntryCount, 100_000)
         XCTAssertNil(DeletionRecordKindV2(rawValue: "tag"))

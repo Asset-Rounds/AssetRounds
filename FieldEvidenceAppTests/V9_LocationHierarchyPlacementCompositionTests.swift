@@ -2,6 +2,14 @@ import Foundation
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C45LocationPlacementCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityDisclosesLocationOnlyInExplicitProfile() {
+        XCTAssertNotEqual(LabelDisclosureProfileV1.assetAndShortCode, .assetLocationAndShortCode)
+        XCTAssertEqual(LabelDisclosureProfileV1.assetLocationAndShortCode.rawValue, "ASSET_LOCATION_AND_SHORT_CODE")
+        XCTAssertEqual(LabelDisclosureProfileV1.shortCodeOnly.rawValue, "SHORT_CODE_ONLY")
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_LocationHierarchyPlacementComposition: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
@@ -199,7 +207,10 @@ final class V9_LocationHierarchyPlacementCompositionTests: XCTestCase {
         let corpus = try loadCorpus()
         XCTAssertEqual(
             Set(DeletionRecordKindV2.allCases.map(\.rawValue)),
-            ["site", "asset", "workflowRecord", "evidenceFile", "issue", "packet", "report"]
+            [
+                "site", "asset", "workflowRecord", "evidenceFile", "issue", "packet", "report",
+                "acceptedLabelGenerationSnapshot",
+            ]
         )
         XCTAssertEqual(try deletionCase("active-component-parent", in: corpus)["expected"] as? String,
                        "REJECT_EXPLICIT_RETIREMENT_REQUIRED")

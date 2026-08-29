@@ -1,0 +1,603 @@
+{
+  "$id": "https://assetrounds.invalid/v23/asset-label.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifactCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "accessibleStructuredText": {
+            "const": true
+          },
+          "caseID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "csvSHA256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "filenamesExcludeCustomerSiteAndAssetNames": {
+            "const": true
+          },
+          "formats": {
+            "const": [
+              "PDF",
+              "CSV",
+              "ACCESSIBLE_STRUCTURED_TEXT"
+            ]
+          },
+          "formulaSafeCSV": {
+            "const": true
+          },
+          "pdfSHA256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "samePlanByteIdentical": {
+            "const": true
+          },
+          "structuredTextSHA256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "caseID",
+          "formats",
+          "samePlanByteIdentical",
+          "formulaSafeCSV",
+          "accessibleStructuredText",
+          "filenamesExcludeCustomerSiteAndAssetNames",
+          "pdfSHA256",
+          "csvSHA256",
+          "structuredTextSHA256"
+        ],
+        "type": "object"
+      },
+      "minItems": 3,
+      "type": "array"
+    },
+    "cardID": {
+      "const": "V23-P03-C45"
+    },
+    "classification": {
+      "const": "IMPLEMENT_NOW"
+    },
+    "contractNames": {
+      "const": [
+        "ManualShortCodeV1",
+        "AssetLabelTemplateReleaseV1",
+        "LabelDisclosureProfileV1",
+        "AssetLabelItemSnapshotV1",
+        "AssetLabelGenerationPlanV1",
+        "AcceptedLabelGenerationSnapshotV1",
+        "LabelReprintEligibilityV1",
+        "LabelProjectionResultV1",
+        "LabelOutputReceiptV1",
+        "LabelOutputActivationDecisionV1"
+      ]
+    },
+    "disclosureProfiles": {
+      "const": [
+        "SHORT_CODE_ONLY",
+        "ASSET_AND_SHORT_CODE",
+        "ASSET_LOCATION_AND_SHORT_CODE"
+      ]
+    },
+    "durableFamilies": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "evidenceIDs": {
+      "const": [
+        "V23-P03-C45-G01",
+        "V23-P03-C45-A01",
+        "V23-P03-C45-H01",
+        "V23-P03-C45-I01",
+        "V23-P03-C45-R01"
+      ]
+    },
+    "generationPlans": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "assetIDTieBreak": {
+            "const": true
+          },
+          "expectedDisposition": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "explicitUserOrder": {
+            "type": "boolean"
+          },
+          "generatedTimeDisposition": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maximumItemCount": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "orderedAssetIDs": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "planID": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "planID",
+          "orderedAssetIDs",
+          "explicitUserOrder",
+          "assetIDTieBreak",
+          "maximumItemCount",
+          "generatedTimeDisposition",
+          "expectedDisposition"
+        ],
+        "type": "object"
+      },
+      "minItems": 4,
+      "type": "array"
+    },
+    "hostileCases": {
+      "const": [
+        "MALFORMED_PAYLOAD",
+        "FOREIGN_PAYLOAD",
+        "PARTIAL_PAYLOAD",
+        "OVERSIZED_PAYLOAD",
+        "COPIED_PAYLOAD",
+        "REVOKED_PAYLOAD",
+        "REPLACED_PAYLOAD",
+        "DUPLICATE_SELECTION",
+        "STALE_ASSET_REVISION",
+        "STALE_LOCATOR_REVISION",
+        "UNSUPPORTED_TEMPLATE_GEOMETRY",
+        "CONTENT_DOES_NOT_FIT",
+        "UNICODE_RTL_CONTROL_OR_BIDI_INPUT",
+        "FORMULA_UNSAFE_CSV_INPUT",
+        "LOW_STORAGE",
+        "PROTECTED_DATA",
+        "RENDERER_FAILURE",
+        "DIGEST_FAILURE",
+        "CANCELLATION",
+        "CROP_RESCALE_GLARE_ABRASION_CURVATURE_LOW_CONTRAST_OBLIQUE_OR_DISTANCE"
+      ]
+    },
+    "interruptionBoundaries": {
+      "const": [
+        "BEFORE_LOCATOR_ISSUANCE_RECEIPT",
+        "AFTER_LOCATOR_ISSUANCE_RECEIPT",
+        "EACH_RENDER_CHECKPOINT",
+        "AFTER_FINAL_BYTES_BEFORE_PUBLICATION"
+      ]
+    },
+    "invariants": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptedSnapshotCanonical": {
+          "const": true
+        },
+        "accessibleStructuredText": {
+          "const": true
+        },
+        "activeReprintRequiresUnchangedActiveLocator": {
+          "const": true
+        },
+        "formulaSafeCSV": {
+          "const": true
+        },
+        "historicExportWarnsAndCannotDeploy": {
+          "const": true
+        },
+        "missingReleaseBlocks": {
+          "const": true
+        },
+        "noHostedResolver": {
+          "const": true
+        },
+        "noNetworkProvider": {
+          "const": true
+        },
+        "noSecondIdentifierStore": {
+          "const": true
+        },
+        "noSecondRenderer": {
+          "const": true
+        },
+        "physicalEvidenceOwnerPending": {
+          "const": true
+        },
+        "previewAndExplicitStartRequired": {
+          "const": true
+        },
+        "qrContainsOnlyOpaqueLocatorAndCheck": {
+          "const": true
+        },
+        "receiptDoesNotClaimExternalPossession": {
+          "const": true
+        },
+        "samePlanByteIdenticalArtifacts": {
+          "const": true
+        },
+        "shortCodeIsConvenienceNotAuthorization": {
+          "const": true
+        },
+        "soleLocatorAuthority": {
+          "const": true
+        },
+        "soleRendererAuthority": {
+          "const": true
+        },
+        "stableSelectionOrder": {
+          "const": true
+        },
+        "unacceptedPlansAreScratch": {
+          "const": true
+        }
+      },
+      "required": [
+        "soleLocatorAuthority",
+        "soleRendererAuthority",
+        "shortCodeIsConvenienceNotAuthorization",
+        "qrContainsOnlyOpaqueLocatorAndCheck",
+        "previewAndExplicitStartRequired",
+        "stableSelectionOrder",
+        "acceptedSnapshotCanonical",
+        "unacceptedPlansAreScratch",
+        "samePlanByteIdenticalArtifacts",
+        "formulaSafeCSV",
+        "accessibleStructuredText",
+        "activeReprintRequiresUnchangedActiveLocator",
+        "historicExportWarnsAndCannotDeploy",
+        "missingReleaseBlocks",
+        "receiptDoesNotClaimExternalPossession",
+        "noSecondRenderer",
+        "noSecondIdentifierStore",
+        "noHostedResolver",
+        "noNetworkProvider",
+        "physicalEvidenceOwnerPending"
+      ],
+      "type": "object"
+    },
+    "lifecycle": {
+      "additionalProperties": false,
+      "properties": {
+        "backup": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "cloneFork": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "deleteErase": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "downgradeForwardFix": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "export": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "migration": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "receipts": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "restore": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "scratch": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "searchReplay": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "templateRendererReleases": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "migration",
+        "backup",
+        "restore",
+        "cloneFork",
+        "deleteErase",
+        "export",
+        "searchReplay",
+        "scratch",
+        "receipts",
+        "templateRendererReleases",
+        "downgradeForwardFix"
+      ],
+      "type": "object"
+    },
+    "manualShortCodeCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "canonical": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "canonicalAlphabet": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "caseID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "checkCharacter": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "disposition": {
+            "enum": [
+              "VALID",
+              "INVALID_CHECK",
+              "CONFUSABLE_REJECTED",
+              "COLLISION_RETRY"
+            ]
+          },
+          "entered": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "caseID",
+          "version",
+          "canonicalAlphabet",
+          "entered",
+          "canonical",
+          "checkCharacter",
+          "disposition"
+        ],
+        "type": "object"
+      },
+      "minItems": 4,
+      "type": "array"
+    },
+    "persistentSchemaVersion": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "qrPayloadCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "caseID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "containsURL": {
+            "const": false
+          },
+          "expectedDisposition": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "grantsAuthorization": {
+            "const": false
+          },
+          "payload": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "requiresExplicitStart": {
+            "const": true
+          },
+          "requiresPreview": {
+            "const": true
+          }
+        },
+        "required": [
+          "caseID",
+          "payload",
+          "expectedDisposition",
+          "requiresPreview",
+          "requiresExplicitStart",
+          "containsURL",
+          "grantsAuthorization"
+        ],
+        "type": "object"
+      },
+      "minItems": 6,
+      "type": "array"
+    },
+    "recordsSchemaVersion": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "reprintCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "caseID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "expectedEligibility": {
+            "enum": [
+              "ACTIVE_EXACT_REPRINT",
+              "HISTORIC_EXPORT_ONLY",
+              "BLOCKED_MISSING_RELEASE"
+            ]
+          },
+          "historicWarningRequired": {
+            "type": "boolean"
+          },
+          "locatorState": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "releaseAvailable": {
+            "type": "boolean"
+          },
+          "snapshotState": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "caseID",
+          "snapshotState",
+          "locatorState",
+          "releaseAvailable",
+          "expectedEligibility",
+          "historicWarningRequired"
+        ],
+        "type": "object"
+      },
+      "minItems": 3,
+      "type": "array"
+    },
+    "schema": {
+      "const": "V22P03C45AssetLabelCorpusV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "statusFlags": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance": {
+          "const": false
+        },
+        "adoption": {
+          "const": false
+        },
+        "hosted": {
+          "const": false
+        },
+        "native": {
+          "const": false
+        },
+        "physical": {
+          "const": false
+        },
+        "release": {
+          "const": false
+        }
+      },
+      "required": [
+        "native",
+        "hosted",
+        "physical",
+        "adoption",
+        "acceptance",
+        "release"
+      ],
+      "type": "object"
+    },
+    "templateReleases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "digest": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "immutable": {
+            "const": true
+          },
+          "integralModuleScaling": {
+            "const": true
+          },
+          "interpolationDisabled": {
+            "const": true
+          },
+          "pageProfile": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "quietZoneModules": {
+            "minimum": 4,
+            "type": "integer"
+          },
+          "rendererReleaseID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "templateID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "templateID",
+          "version",
+          "pageProfile",
+          "rendererReleaseID",
+          "digest",
+          "integralModuleScaling",
+          "interpolationDisabled",
+          "quietZoneModules",
+          "immutable"
+        ],
+        "type": "object"
+      },
+      "minItems": 4,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "classification",
+    "persistentSchemaVersion",
+    "recordsSchemaVersion",
+    "durableFamilies",
+    "contractNames",
+    "templateReleases",
+    "manualShortCodeCases",
+    "disclosureProfiles",
+    "generationPlans",
+    "artifactCases",
+    "qrPayloadCases",
+    "reprintCases",
+    "hostileCases",
+    "interruptionBoundaries",
+    "lifecycle",
+    "invariants",
+    "evidenceIDs",
+    "statusFlags"
+  ],
+  "title": "V23 P03 C45 Asset Label Corpus",
+  "type": "object"
+}

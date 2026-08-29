@@ -4,6 +4,14 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private final class C45CompatibilityCorpusTypedTests: XCTestCase {
+    func testV23P03C45CompatibilityClosesDisclosureProfiles() {
+        XCTAssertEqual(LabelDisclosureProfileV1.allCases.map(\.rawValue), [
+            "SHORT_CODE_ONLY", "ASSET_AND_SHORT_CODE", "ASSET_LOCATION_AND_SHORT_CODE",
+        ])
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_07CompatibilityCorpusIntegration: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

@@ -391,3 +391,9 @@ enum TemporalEvidenceLocatorBoundaryV1 {
         }
     }
 }
+
+/// C45 published label files use neutral filenames and digest-bound locators.
+enum C45AssetLabelBoundary_ContentLocatorManifestContractsV1 {
+    static func validate(_ plan: AssetLabelGenerationPlanV1) throws { try plan.validate() }
+    static let usesNeutralFilenames = true
+}

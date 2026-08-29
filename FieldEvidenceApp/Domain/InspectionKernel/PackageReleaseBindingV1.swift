@@ -400,3 +400,11 @@ enum C33TemporalEvidenceBoundary_Domain_InspectionKernel_PackageReleaseBindingV1
     static let persistentSchemaVersion: Int =
         TemporalEvidencePersistenceEnrollmentV1.persistentSchemaVersion
 }
+
+// MARK: - C45 canonical asset-label integration
+enum C45AssetLabelBoundary_Row142 {
+    static let reusesCanonicalAssetLocatorAndWriter = true
+    static func validateAcceptedSnapshot(_ snapshot: AcceptedLabelGenerationSnapshotV1) throws {
+        try snapshot.validate()
+    }
+}

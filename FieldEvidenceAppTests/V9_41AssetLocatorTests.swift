@@ -5,6 +5,16 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private final class C45AssetLocatorCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityShortCodeUsesExistingExternalKeyAuthority() throws {
+        let code = try ManualShortCodeV1(randomBody: "23456789AB")
+        let key = try code.externalKey()
+        XCTAssertEqual(key.namespaceID, ManualShortCodeV1.externalKeyNamespace)
+        XCTAssertEqual(key.normalization, .asciiCaseInsensitive)
+        XCTAssertFalse(AssetLabelPersistenceEnrollmentV1.createsSecondLocatorStore)
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_41AssetLocator: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

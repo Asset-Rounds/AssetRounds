@@ -4,6 +4,14 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private final class C45StreamingArchiveCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityBoundsCanonicalSnapshotBytes() {
+        XCTAssertEqual(AssetLabelCanonicalCodecV1.maximumCanonicalByteCount, 16 * 1_024 * 1_024)
+        XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.recordsSchemaVersion, 33)
+        XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.persistentFamilies.count, 1)
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_04StreamingArchive: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

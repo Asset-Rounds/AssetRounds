@@ -112,6 +112,7 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case lightingClaimState
     case temporalEvidenceClip
     case timecodedEvidenceAnchor
+    case acceptedLabelGenerationSnapshot
     case workflowRecord
     case evidenceFile
     case issue
@@ -1494,9 +1495,21 @@ struct AssetLocatorMutationV1:Codable,Equatable,Sendable{
     let workspaceID:WorkspaceID;let mutationID:MutationIDV1;let payload:AssetLocatorMutationPayloadV1
     init(workspaceID:WorkspaceID,mutationID:MutationIDV1,payload:AssetLocatorMutationPayloadV1)throws{self.workspaceID=workspaceID;self.mutationID=mutationID;self.payload=payload;try validate()}
     func validate()throws{switch payload{
-    case let .bind(value,receipt,predecessorReceipt):let preview=try receipt.reconstructedPreview;try value.validate();try preview.validate(before:nil,after:value,replacement:nil);try receipt.validate(preview:preview,predecessor:predecessorReceipt);guard predecessorReceipt == nil,value.workspaceID==workspaceID,value.mutationID==mutationID,value.state == .active,value.revision==1,receipt.mutationID==mutationID,receipt.revision==1 else{throw WorkspaceMutationContractFailureV1.invalidPlan}
-    case let .transition(value,receipt,prior,predecessorReceipt):let preview=try receipt.reconstructedPreview;try value.validateSuccessor(of:prior);try preview.validate(before:prior,after:value,replacement:nil);try receipt.validate(preview:preview,predecessor:predecessorReceipt);let expectedState:AssetLocatorStateV1;switch preview.action{case .rebind,.rotateSigningKey:expectedState = .active;case .retire:expectedState = .retired;case .revoke:expectedState = .revoked;case .bind,.replace:throw WorkspaceMutationContractFailureV1.invalidPlan};guard value.workspaceID==workspaceID,value.mutationID==mutationID,value.state==expectedState,receipt.mutationID==mutationID else{throw WorkspaceMutationContractFailureV1.invalidPlan}
-    case let .replace(value,replacement,receipt,prior,predecessorReceipt):let preview=try receipt.reconstructedPreview;try value.validateSuccessor(of:prior);try replacement.validate();try preview.validate(before:prior,after:value,replacement:replacement);try receipt.validate(preview:preview,predecessor:predecessorReceipt);guard value.workspaceID==workspaceID,replacement.workspaceID==workspaceID,value.mutationID==mutationID,replacement.mutationID==mutationID,value.state == .replaced,value.replacedByLocatorID==replacement.locatorID,replacement.locatorID != value.locatorID,replacement.state == .active,replacement.revision==1,receipt.mutationID==mutationID else{throw WorkspaceMutationContractFailureV1.invalidPlan}}
+    case let .bind(value,receipt,predecessorReceipt):let preview=try receipt.reconstructedPreview;try value.validate();try preview.validate(before:nil,after:value,replacement:nil);try receipt.validate(preview:preview,predecessor:predecessorReceipt);try Self.validateManualShortCodeNamespace(target:value,receipt:receipt);guard predecessorReceipt == nil,value.workspaceID==workspaceID,value.mutationID==mutationID,value.state == .active,value.revision==1,receipt.workspaceID==workspaceID,receipt.mutationID==mutationID,receipt.revision==1 else{throw WorkspaceMutationContractFailureV1.invalidPlan}
+    case let .transition(value,receipt,prior,predecessorReceipt):let preview=try receipt.reconstructedPreview;try value.validateSuccessor(of:prior);try preview.validate(before:prior,after:value,replacement:nil);try receipt.validate(preview:preview,predecessor:predecessorReceipt);let expectedState:AssetLocatorStateV1;switch preview.action{case .rebind:try Self.validateManualShortCodeNamespace(target:value,receipt:receipt);expectedState = .active;case .rotateSigningKey:expectedState = .active;case .retire:expectedState = .retired;case .revoke:expectedState = .revoked;case .bind,.replace:throw WorkspaceMutationContractFailureV1.invalidPlan};guard value.workspaceID==workspaceID,value.mutationID==mutationID,value.state==expectedState,receipt.mutationID==mutationID else{throw WorkspaceMutationContractFailureV1.invalidPlan}
+    case let .replace(value,replacement,receipt,prior,predecessorReceipt):let preview=try receipt.reconstructedPreview;try value.validateSuccessor(of:prior);try replacement.validate();try preview.validate(before:prior,after:value,replacement:replacement);try receipt.validate(preview:preview,predecessor:predecessorReceipt);try Self.validateManualShortCodeNamespace(target:replacement,receipt:receipt);guard value.workspaceID==workspaceID,replacement.workspaceID==workspaceID,value.mutationID==mutationID,replacement.mutationID==mutationID,value.state == .replaced,value.replacedByLocatorID==replacement.locatorID,replacement.locatorID != value.locatorID,replacement.state == .active,replacement.revision==1,receipt.mutationID==mutationID else{throw WorkspaceMutationContractFailureV1.invalidPlan}}
+    }
+    private static func validateManualShortCodeNamespace(target:AssetLocatorV1,receipt:LocatorBindingReceiptV1)throws{
+        let reserved:Bool
+        if case .externalKey(let key)=target.representation { reserved=key.namespaceID==ManualShortCodeV1.externalKeyNamespace } else { reserved=false }
+        if reserved {
+            guard let code=receipt.manualShortCodeIssuance,
+                  target.representation == .externalKey(try code.externalKey()) else {
+                throw WorkspaceMutationContractFailureV1.invalidPlan
+            }
+        } else if receipt.manualShortCodeIssuance != nil {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
     }
     var affectedIdentities:[WorkspaceEntityIdentityV1]{get throws{let values:[WorkspaceEntityIdentityV1];switch payload{case let .bind(value,receipt,_),let .transition(value,receipt,_,_):values=[try .init(kind:.assetLocator,id:value.locatorID),try .init(kind:.locatorBindingReceipt,id:receipt.receiptID)];case let .replace(value,replacement,receipt,_,_):values=[try .init(kind:.assetLocator,id:value.locatorID),try .init(kind:.assetLocator,id:replacement.locatorID),try .init(kind:.locatorBindingReceipt,id:receipt.receiptID)]};return values.sorted{$0.stableKey<$1.stableKey}}}
     var concurrencyIdentities:[WorkspaceEntityIdentityV1]{get throws{let values:[WorkspaceEntityIdentityV1];switch payload{case let .bind(value,receipt,predecessorReceipt):values=[try .init(kind:.assetLocator,id:value.locatorID),try .init(kind:.locatorBindingReceipt,id:predecessorReceipt?.receiptID ?? receipt.receiptID)];case let .transition(_,receipt,prior,predecessorReceipt):values=[try .init(kind:.assetLocator,id:prior.locatorID),try .init(kind:.locatorBindingReceipt,id:predecessorReceipt?.receiptID ?? receipt.receiptID)];case let .replace(_,replacement,receipt,prior,predecessorReceipt):values=[try .init(kind:.assetLocator,id:prior.locatorID),try .init(kind:.assetLocator,id:replacement.locatorID),try .init(kind:.locatorBindingReceipt,id:predecessorReceipt?.receiptID ?? receipt.receiptID)]};return values.sorted{$0.stableKey<$1.stableKey}}}
@@ -1615,6 +1628,49 @@ struct TemporalEvidenceMutationV1: Codable, Equatable, Sendable {
     func canonicalWorkspaceMutationRequest()throws->WorkspaceMutationRequestV1{try validate();return .init(mutationID:mutationID,expectedRevision:expectedRevision,command:.applyTemporalEvidence(self))}
 }
 
+extension AssetLabelMutationV1 {
+    var affectedIdentity: WorkspaceEntityIdentityV1 {
+        get throws {
+            try WorkspaceEntityIdentityV1(
+                kind: .acceptedLabelGenerationSnapshot,
+                id: snapshot.snapshotID
+            )
+        }
+    }
+
+    func validateForCanonicalMutation() throws {
+        try validate()
+        let identity = try affectedIdentity
+        guard expectedRevision.entityRevisions.first(where: {
+            $0.identity == identity
+        })?.revision == 0 else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+    }
+
+    var mutationPostImage: MutationPostImageV1 {
+        get throws {
+            try validateForCanonicalMutation()
+            let identity = try affectedIdentity
+            return .acceptedLabelGenerationSnapshot(
+                id: snapshot.snapshotID,
+                concurrencyIdentity: identity,
+                revision: snapshot.revision,
+                semanticSHA256: snapshot.snapshotSHA256
+            )
+        }
+    }
+
+    func canonicalWorkspaceMutationRequest() throws -> WorkspaceMutationRequestV1 {
+        try validateForCanonicalMutation()
+        return try WorkspaceMutationRequestV1(
+            mutationID: mutationID,
+            expectedRevision: expectedRevision,
+            command: .applyAssetLabel(self)
+        )
+    }
+}
+
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
     case createCheckDraft(CheckDraftMutationV1)
@@ -1657,6 +1713,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyLighting(LightingWriteOperationV1)
     case applyAssistanceAcceptance(AssistanceAcceptanceRequestV1)
     case applyTemporalEvidence(TemporalEvidenceMutationV1)
+    case applyAssetLabel(AssetLabelMutationV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -1701,6 +1758,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyLighting:.applyLighting
         case .applyAssistanceAcceptance:.applyAssistanceAcceptance
         case .applyTemporalEvidence:.applyTemporalEvidence
+        case .applyAssetLabel:.applyAssetLabel
         }
     }
 }
@@ -1747,6 +1805,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyLighting="apply_lighting"
     case applyAssistanceAcceptance="apply_assistance_acceptance"
     case applyTemporalEvidence="apply_temporal_evidence"
+    case applyAssetLabel="apply_asset_label"
 }
 
 extension WorkspaceCommandV1 {

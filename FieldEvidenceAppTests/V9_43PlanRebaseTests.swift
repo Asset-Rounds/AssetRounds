@@ -3,6 +3,15 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private final class C45PlanRebaseCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityFreezesPlanOrderAndBoundedMaximum() {
+        XCTAssertEqual(AssetLabelGenerationPlanV1.maximumItemCount, 1_000)
+        XCTAssertEqual(LabelGenerationStartDecisionV1.allCases, [.explicitStartRequired])
+        XCTAssertEqual(AssetLabelItemOrderingPolicyV1.allCases, [.explicitSelectionOrderThenAssetID])
+        XCTAssertEqual(AssetLabelGenerationPlanV1.schemaVersion, 1)
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_43PlanRebase: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

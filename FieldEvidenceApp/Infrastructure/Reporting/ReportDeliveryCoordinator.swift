@@ -2684,3 +2684,9 @@ enum C33TemporalEvidenceConformance_FieldEvidenceApp_Infrastructure_Reporting_Re
         }
     }
 }
+
+/// C45 system handoff is recorded without claiming print, delivery, or receipt by a person.
+enum C45AssetLabelBoundary_ReportDeliveryCoordinatorV1 {
+    static func validate(_ snapshot: AcceptedLabelGenerationSnapshotV1) throws { try snapshot.validate() }
+    static let claimsPrintOrDelivery = false
+}

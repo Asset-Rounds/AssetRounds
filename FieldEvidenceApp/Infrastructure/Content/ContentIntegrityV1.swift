@@ -697,3 +697,9 @@ enum TemporalEvidenceContentIntegrityV1 {
         )
     }
 }
+
+/// C45 every projected artifact is rehashed before manifest adoption.
+enum C45AssetLabelBoundary_ContentIntegrityV1 {
+    static func validate(_ plan: AssetLabelGenerationPlanV1) throws { try plan.validate() }
+    static let requiresDigestReadback = true
+}

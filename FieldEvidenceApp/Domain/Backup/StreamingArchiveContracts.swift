@@ -219,7 +219,8 @@ enum C31LightingStreamingArchivePolicyV1 {
 
     static func validate(records: V4BackupRecordsV1) throws {
         guard records.recordsSchemaVersion == 30 || records.recordsSchemaVersion == 31
-                || records.recordsSchemaVersion == 32,
+                || records.recordsSchemaVersion == 32
+                || records.recordsSchemaVersion == 33,
               archiveKinds.count == durableFamilyCount,
               canonicalRowsOnly,
               derivedProjectionDisposition == "DROP_AND_REBUILD",
@@ -463,3 +464,5 @@ enum StreamingArchiveFormatV1 {
         prefix.count >= magic.count && prefix.prefix(magic.count) == magic
     }
 }
+
+enum C45AcceptedLabelStreamingArchiveBoundaryV1 { static let canonicalSnapshotIsStreamed=true;static let projectionOutputMembersAreExcluded=true }

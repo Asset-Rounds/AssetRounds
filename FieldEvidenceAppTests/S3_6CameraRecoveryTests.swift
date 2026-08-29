@@ -7,6 +7,14 @@ import UniformTypeIdentifiers
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C45CameraRecoveryCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityCameraAndManualConsumeSameOpaqueGrammar() {
+        XCTAssertEqual(Set(LocatorInputSourceV1.allCases), [.camera, .manual, .imported])
+        XCTAssertEqual(AssetLabelOpaqueQRPayloadV1.prefix, "AR1")
+        XCTAssertEqual(LabelGenerationStartDecisionV1.allCases, [.explicitStartRequired])
+    }
+}
+
 private final class C30EvidenceContextAnchorS3_6CameraRecovery: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

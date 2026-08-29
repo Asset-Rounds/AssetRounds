@@ -3,6 +3,14 @@ import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C45LightingPackageCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityForbidsInterpolationAndOverlayInQRRendering() {
+        XCTAssertFalse(DeterministicPDFRendererV1.assetLabelInterpolationEnabled)
+        XCTAssertFalse(DeterministicPDFRendererV1.assetLabelOverlaidLogoEnabled)
+        XCTAssertEqual(DeterministicPDFRendererV1.assetLabelQuietZoneModules, 4)
+    }
+}
+
 private enum C31LightingTestError: Error {
     case interrupted
     case invalidFixture

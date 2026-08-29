@@ -3,6 +3,14 @@ import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C45AssistanceCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityNeverTreatsDerivedProposalOrPlanAsAcceptedSnapshot() {
+        XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.persistentFamilies, ["AcceptedLabelGenerationSnapshotRow"])
+        XCTAssertFalse(AssetLabelPersistenceEnrollmentV1.persistentFamilies.contains("AssetLabelGenerationPlanV1"))
+        XCTAssertEqual(LabelOutputActivationDecisionV1.disabledOrDeferred.rawValue, "DISABLED_OR_DEFERRED")
+    }
+}
+
 enum C32AssistanceTestSupport {
     static let fixedDate = Date(timeIntervalSince1970: 1_810_003_200)
     static let packageDigest = String(repeating: "a", count: 64)

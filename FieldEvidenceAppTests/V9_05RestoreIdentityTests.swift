@@ -4,6 +4,14 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private final class C45RestoreIdentityCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityMakesCloneForkSnapshotsHistoricOnly() {
+        XCTAssertEqual(AcceptedLabelSnapshotDispositionV1.activeSourceWorkspace.rawValue, "ACTIVE_SOURCE_WORKSPACE")
+        XCTAssertEqual(AcceptedLabelSnapshotDispositionV1.historicCloneOrFork.rawValue, "HISTORIC_CLONE_OR_FORK")
+        XCTAssertEqual(LabelReprintEligibilityV1.historicExportOnly.rawValue, "HISTORIC_EXPORT_ONLY")
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_05RestoreIdentity: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

@@ -807,3 +807,9 @@ enum C33TemporalEvidenceConformance_FieldEvidenceApp_Infrastructure_AssetSemanti
         }
     }
 }
+
+/// C45 restore and reprint revalidate the frozen asset and locator binding.
+enum C45AssetLabelBoundary_AssetSemanticLifecycleAdapterV1 {
+    static func validate(_ plan: AssetLabelGenerationPlanV1) throws { try plan.validate() }
+    static let reprintRevalidatesCurrentBinding = true
+}

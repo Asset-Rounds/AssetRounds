@@ -1477,3 +1477,9 @@ extension LocalSearchIndexStoreV1 {
         return record
     }
 }
+
+enum C45AcceptedLabelIndexStoreBoundaryV1 {
+    static let storesSnapshotDigest=true
+    static let storesShortCode=false
+    static func metadata(_ snapshot:AcceptedLabelGenerationSnapshotV1)throws->AcceptedLabelSearchMetadataV1{try .init(snapshot)}
+}

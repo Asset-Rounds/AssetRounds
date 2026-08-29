@@ -400,3 +400,9 @@ enum C33TemporalEvidenceConformance_FieldEvidenceApp_Domain_Workflow_WorkflowCon
         }
     }
 }
+
+/// C45 label preview and generation remain outside survey answer mutation.
+enum C45AssetLabelBoundary_WorkflowContractsV1 {
+    static func validate(_ snapshot: AcceptedLabelGenerationSnapshotV1) throws { try snapshot.validate() }
+    static let writesSurveyFactsDuringPreview = false
+}

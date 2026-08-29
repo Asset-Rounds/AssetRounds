@@ -438,6 +438,9 @@ private enum WholeSignDeletionLifecycleRouteV1 {
 
 @MainActor
 final class WholeSignDeletionService {
+    typealias AssetLabelPublishedOutputRemovalV1 = @MainActor (
+        AssetLabelRenderPublicationBindingV1
+    ) async throws -> Void
     private static let maximumSnapshotByteCount = 32 * 1_024 * 1_024
     private static let maximumPDFByteCount = 128 * 1_024 * 1_024
     private let modelContext: ModelContext
@@ -455,6 +458,7 @@ final class WholeSignDeletionService {
     private let lifecycleRoute: WholeSignDeletionLifecycleRouteV1
     private let searchIndexStore: LocalSearchIndexStoreV1
     private let fileManager: FileManager
+    private let assetLabelPublishedOutputRemoval: AssetLabelPublishedOutputRemovalV1
 
     convenience init(
         modelContext: ModelContext,
@@ -463,6 +467,7 @@ final class WholeSignDeletionService {
         now: @escaping () -> Date = Date.init,
         makeUUID: @escaping () -> UUID = UUID.init,
         failureInjection: WholeSignDeletionFailureInjection? = nil,
+        assetLabelPublishedOutputRemoval: AssetLabelPublishedOutputRemovalV1? = nil,
         signPack: SignPack = .illuminatedSignV1
     ) {
         self.init(
@@ -472,6 +477,7 @@ final class WholeSignDeletionService {
             now: now,
             makeUUID: makeUUID,
             failureInjection: failureInjection,
+            assetLabelPublishedOutputRemoval: assetLabelPublishedOutputRemoval,
             lifecycleRoute: .expiringCompatibility(
                 package: signPack,
                 posture: WorkspacePackageLifecycleCompatibilityV1.expiration
@@ -483,7 +489,8 @@ final class WholeSignDeletionService {
         modelContext: ModelContext,
         lifecycleDependencies dependencies: WorkspacePackageLifecycleDependenciesV1,
         fileManager: FileManager = .default,
-        failureInjection: WholeSignDeletionFailureInjection? = nil
+        failureInjection: WholeSignDeletionFailureInjection? = nil,
+        assetLabelPublishedOutputRemoval: AssetLabelPublishedOutputRemovalV1? = nil
     ) {
         self.init(
             modelContext: modelContext,
@@ -492,6 +499,7 @@ final class WholeSignDeletionService {
             now: dependencies.clock.now,
             makeUUID: dependencies.idSource.makeID,
             failureInjection: failureInjection,
+            assetLabelPublishedOutputRemoval: assetLabelPublishedOutputRemoval,
             lifecycleRoute: .live(dependencies: dependencies)
         )
     }
@@ -503,6 +511,7 @@ final class WholeSignDeletionService {
         now: @escaping () -> Date = Date.init,
         makeUUID: @escaping () -> UUID = UUID.init,
         failureInjection: WholeSignDeletionFailureInjection? = nil,
+        assetLabelPublishedOutputRemoval: AssetLabelPublishedOutputRemovalV1?,
         lifecycleRoute: WholeSignDeletionLifecycleRouteV1
     ) {
         self.modelContext = modelContext
@@ -515,6 +524,14 @@ final class WholeSignDeletionService {
         self.fileManager = fileManager
 
         let root = generationRootURL.standardizedFileURL
+        let canonicalContentStore = EvidenceBundleStore(
+            generationRootURL: root,
+            fileManager: fileManager
+        )
+        self.assetLabelPublishedOutputRemoval = assetLabelPublishedOutputRemoval
+            ?? { binding in
+                try canonicalContentStore.removeAssetLabelPublishedOutput(binding)
+            }
         let generations = root.deletingLastPathComponent()
         let dataRoot = generations.deletingLastPathComponent()
         let applicationSupport = dataRoot.deletingLastPathComponent()
@@ -629,10 +646,17 @@ final class WholeSignDeletionService {
         } catch {
             throw WholeSignDeletionServiceError.graphInvalid
         }
+        let acceptedLabelSnapshots = try acceptedLabelSnapshots(
+            referencing: assetID, rows: rows
+        )
+        let augmentedIntent = try addingAcceptedLabelSnapshotLedgerEntries(
+            to: rulePlan.intent,
+            snapshots: acceptedLabelSnapshots
+        )
         let canonicalIntent: DeletionIntentV1
         do {
             canonicalIntent = try DeletionIntentDecoderV1().decode(
-                DeletionIntentEncoderV1().encode(rulePlan.intent).data
+                DeletionIntentEncoderV1().encode(augmentedIntent).data
             )
         } catch {
             throw WholeSignDeletionServiceError.graphInvalid
@@ -687,7 +711,7 @@ final class WholeSignDeletionService {
         do {
             try inject(.committedPhase)
             try journal.replace(plan.intent.withPhase(.databaseCommitted))
-            try cleanup(plan.intent)
+            try await cleanup(plan.intent.withPhase(.databaseCommitted))
         } catch let error as WholeSignDeletionServiceError {
             throw error
         } catch {
@@ -850,7 +874,7 @@ final class WholeSignDeletionService {
             )
             try inject(.fileCleanup)
             for plan in preview.assetPlans {
-                try cleanup(plan.intent)
+                try await cleanup(plan.intent.withPhase(.databaseCommitted))
             }
         } catch let error as WholeSignDeletionServiceError {
             throw error
@@ -1014,7 +1038,7 @@ final class WholeSignDeletionService {
                 }
                 try inject(.committedPhase)
                 try journal.replace(intent.withPhase(.databaseCommitted))
-                try cleanup(intent)
+                try await cleanup(intent.withPhase(.databaseCommitted))
                 try await purgeSearchProjectionAfterDeletion()
                 try await purgeIntegrationProjectionAfterDeletion()
                 try inject(.journalRemoval)
@@ -1028,7 +1052,7 @@ final class WholeSignDeletionService {
             if intent.phase == .prepared {
                 try journal.replace(intent.withPhase(.databaseCommitted))
             }
-            try cleanup(intent)
+            try await cleanup(intent.withPhase(.databaseCommitted))
             try await purgeSearchProjectionAfterDeletion()
             try await purgeIntegrationProjectionAfterDeletion()
             try journal.remove(intent.withPhase(.databaseCommitted))
@@ -1156,7 +1180,41 @@ final class WholeSignDeletionService {
         }
     }
 
-    private func cleanup(_ intent: DeletionIntentV1) throws {
+    private func cleanup(_ intent: DeletionIntentV1) async throws {
+        if !intent.acceptedLabelOutputCleanups.isEmpty {
+            let snapshotIdentities = try Set(intent.acceptedLabelOutputCleanups.map {
+                try DeletionIdentityV2(
+                    kind: .acceptedLabelGenerationSnapshot,
+                    id: $0.snapshotID
+                )
+            })
+            let liveSnapshotIDs = Set(try modelContext.fetch(
+                FetchDescriptor<AcceptedLabelGenerationSnapshotRow>()
+            ).map(\.snapshotID))
+            guard intent.phase == .databaseCommitted,
+                  snapshotIdentities.allSatisfy({ !liveSnapshotIDs.contains($0.id) }) else {
+                throw WholeSignDeletionServiceError.cleanupFailed
+            }
+            do {
+                try ledgerStore.requireContains(snapshotIdentities)
+            } catch {
+                throw WholeSignDeletionServiceError.cleanupFailed
+            }
+            var removedJobs = Set<UUID>()
+            for cleanup in intent.acceptedLabelOutputCleanups {
+                let binding = try cleanup.value(containingAssetID: intent.assetID)
+                guard try cleanup.requiresPublishedOutputRemoval(
+                    containingAssetID: intent.assetID
+                ) else { continue }
+                guard removedJobs.insert(cleanup.jobID).inserted else { continue }
+                do {
+                    try inject(.fileCleanup)
+                    try await assetLabelPublishedOutputRemoval(binding)
+                } catch {
+                    throw WholeSignDeletionServiceError.cleanupFailed
+                }
+            }
+        }
         for path in intent.relativePaths {
             try inject(.fileCleanup)
             do {
@@ -1173,6 +1231,14 @@ final class WholeSignDeletionService {
         for id in evidenceIDs {
             do { try files.removeEvidenceBundleIfEmpty(id: id) }
             catch { throw WholeSignDeletionServiceError.cleanupFailed }
+        }
+        do {
+            try AssetLabelDerivedScratchCleanupV1(
+                generationRootURL: generationRootURL,
+                fileManager: fileManager
+            ).removeAttempts(referencing: intent.assetID)
+        } catch {
+            throw WholeSignDeletionServiceError.cleanupFailed
         }
     }
 }
@@ -1567,9 +1633,14 @@ private extension WholeSignDeletionService {
         catch { throw WholeSignDeletionServiceError.graphInvalid }
         do {
             for kind in DeletionRecordKindV2.allCases {
-                let registration = try KernelDeletionEraseRegistryV4.registration(
-                    for: kernelKind(for: kind)
-                )
+                guard let kernelKind = kernelKind(for: kind) else {
+                    guard kind == .acceptedLabelGenerationSnapshot else {
+                        throw WholeSignDeletionServiceError.graphInvalid
+                    }
+                    try C45AcceptedLabelKernelDeletionEnrollmentV1.validate()
+                    continue
+                }
+                let registration = try KernelDeletionEraseRegistryV4.registration(for: kernelKind)
                 guard !registration.clearsTombstonesOnDelete else {
                     throw WholeSignDeletionServiceError.graphInvalid
                 }
@@ -1595,7 +1666,7 @@ private extension WholeSignDeletionService {
         }
     }
 
-    func kernelKind(for kind: DeletionRecordKindV2) -> KernelPersistenceV4RecordKind {
+    func kernelKind(for kind: DeletionRecordKindV2) -> KernelPersistenceV4RecordKind? {
         switch kind {
         case .site: .site
         case .asset: .asset
@@ -1604,6 +1675,7 @@ private extension WholeSignDeletionService {
         case .issue: .issue
         case .packet: .packet
         case .report: .report
+        case .acceptedLabelGenerationSnapshot: nil
         }
     }
 
@@ -1769,6 +1841,7 @@ private extension WholeSignDeletionService {
         let issues: [Issue]
         let packets: [Packet]
         let reports: [Report]
+        let acceptedLabelSnapshots: [AcceptedLabelGenerationSnapshotRow]
     }
 
     func fetchRows() throws -> Rows {
@@ -1838,7 +1911,8 @@ private extension WholeSignDeletionService {
                 evidence: try boundedFetch(EvidenceFile.self),
                 issues: try boundedFetch(Issue.self),
                 packets: try boundedFetch(Packet.self),
-                reports: try boundedFetch(Report.self)
+                reports: try boundedFetch(Report.self),
+                acceptedLabelSnapshots: try boundedFetch(AcceptedLabelGenerationSnapshotRow.self)
             )
         } catch {
             throw WholeSignDeletionServiceError.graphInvalid
@@ -2479,7 +2553,7 @@ private extension WholeSignDeletionService {
         _ intent: DeletionIntentV1,
         rows: Rows
     ) throws -> WholeSignDeletionPlan? {
-        guard intent.schemaVersion == 2 else { return nil }
+        guard intent.schemaVersion == 2 || intent.schemaVersion == 3 else { return nil }
         let dates = Set(intent.countedPacketTombstones.compactMap(\.contentDeletedAt))
         let ledgerDates = Set(intent.ledgerEntries.map(\.deletedAt))
         guard dates.count <= 1,
@@ -2490,8 +2564,24 @@ private extension WholeSignDeletionService {
             deletionID: intent.deletionID,
             deletedAt: dates.first ?? ledgerDate
         )
-        guard let plan = try? WholeSignDeletionRule.makePlan(input),
-              plan.intent == intent else { return nil }
+        guard let basePlan = try? WholeSignDeletionRule.makePlan(input),
+              let augmentedIntent = try? addingAcceptedLabelSnapshotLedgerEntries(
+                  to: basePlan.intent,
+                  snapshots: acceptedLabelSnapshots(
+                      referencing: intent.assetID, rows: rows
+                  )
+              ),
+              augmentedIntent == intent else { return nil }
+        let plan = WholeSignDeletionPlan(
+            assetID: basePlan.assetID,
+            evidenceIDs: basePlan.evidenceIDs,
+            intent: augmentedIntent,
+            issueIDs: basePlan.issueIDs,
+            packetIDsToDelete: basePlan.packetIDsToDelete,
+            reportIDs: basePlan.reportIDs,
+            siteIDToDelete: basePlan.siteIDToDelete,
+            workflowRecordIDs: basePlan.workflowRecordIDs
+        )
         if case .live = lifecycleRoute {
             try validateDeleteCommand(for: plan)
         }
@@ -2634,7 +2724,7 @@ private extension WholeSignDeletionService {
                   }
                   return !contains(entry.identity, rows: rows)
               }) else { return false }
-        if intent.schemaVersion == 2 {
+        if intent.schemaVersion == 2 || intent.schemaVersion == 3 {
             do {
                 try ledgerStore.requireContains(Set(intent.ledgerEntries.map(\.identity)))
             } catch {
@@ -2646,6 +2736,52 @@ private extension WholeSignDeletionService {
 
     func unique<T: Hashable>(_ values: [T]) -> Bool {
         Set(values).count == values.count
+    }
+
+    func acceptedLabelSnapshots(
+        referencing assetID: UUID,
+        rows: Rows
+    ) throws -> [AcceptedLabelGenerationSnapshotV1] {
+        try rows.acceptedLabelSnapshots.compactMap { row in
+            let snapshot = try row.value()
+            return snapshot.plan.items.contains(where: { $0.assetID == assetID })
+                ? snapshot : nil
+        }.sorted { $0.snapshotID.uuidString < $1.snapshotID.uuidString }
+    }
+
+    func addingAcceptedLabelSnapshotLedgerEntries(
+        to intent: DeletionIntentV1,
+        snapshots: [AcceptedLabelGenerationSnapshotV1]
+    ) throws -> DeletionIntentV1 {
+        guard intent.schemaVersion == 2,
+              let deletedAt = intent.ledgerEntries.first?.deletedAt,
+              intent.ledgerEntries.allSatisfy({ $0.deletedAt == deletedAt }) else {
+            throw WholeSignDeletionServiceError.graphInvalid
+        }
+        let additions = try snapshots.map {
+            try DeletionLedgerEntryV2(
+                identity: DeletionIdentityV2(
+                    kind: .acceptedLabelGenerationSnapshot, id: $0.snapshotID
+                ),
+                deletedAt: deletedAt
+            )
+        }
+        let cleanups = try snapshots.map {
+            try AssetLabelPublishedOutputCleanupV1(snapshot: $0)
+        }
+        return DeletionIntentV1(
+            acceptedLabelOutputCleanups: cleanups,
+            assetID: intent.assetID,
+            countedPacketTombstones: intent.countedPacketTombstones,
+            deletionID: intent.deletionID,
+            generationID: intent.generationID,
+            ledgerEntries: (intent.ledgerEntries + additions).sorted {
+                $0.identity < $1.identity
+            },
+            phase: intent.phase,
+            relativePaths: intent.relativePaths,
+            schemaVersion: cleanups.isEmpty ? intent.schemaVersion : 3
+        )
     }
 
     func contains(_ identity: DeletionIdentityV2, rows: Rows) -> Bool {
@@ -2664,6 +2800,8 @@ private extension WholeSignDeletionService {
             return rows.packets.contains { $0.id == identity.id }
         case .report:
             return rows.reports.contains { $0.id == identity.id }
+        case .acceptedLabelGenerationSnapshot:
+            return rows.acceptedLabelSnapshots.contains { $0.snapshotID == identity.id }
         }
     }
 
@@ -2676,6 +2814,14 @@ private extension WholeSignDeletionService {
         let tombstones = Dictionary(uniqueKeysWithValues:
             plan.intent.countedPacketTombstones.map { ($0.id, $0) }
         )
+        let labelSnapshots = try rows.acceptedLabelSnapshots.compactMap {
+            row -> AcceptedLabelGenerationSnapshotRow? in
+            let snapshot = try row.value()
+            guard snapshot.plan.items.contains(where: { $0.assetID == plan.assetID }) else {
+                return nil
+            }
+            return row
+        }
         let deletedLocatorIDs = Set(rows.assetLocators.filter {
             $0.assetID == plan.assetID
         }.map(\.locatorID))
@@ -2711,6 +2857,7 @@ private extension WholeSignDeletionService {
         for row in rows.fieldReferenceReleases where !boundFieldReferenceReleaseIDs.contains(row.releaseID){_ = try row.value();modelContext.delete(row)}
         rows.records.filter { recordIDs.contains($0.id) }.forEach { modelContext.delete($0) }
         rows.packets.filter { packetDeleteIDs.contains($0.id) }.forEach { modelContext.delete($0) }
+        labelSnapshots.forEach { modelContext.delete($0) }
         for packet in rows.packets {
             if let tombstone = tombstones[packet.id] {
                 packet.currentRecordID = nil
@@ -4106,3 +4253,5 @@ enum TemporalEvidenceWholeSignDeletionBoundaryV1 {
         }
     }
 }
+
+enum C45AcceptedLabelDeletionServiceBoundaryV1 { static let resolvesSnapshotLocatorReferences=true;static let removesDerivedOutputScratch=true }

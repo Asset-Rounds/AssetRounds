@@ -2390,3 +2390,29 @@ enum TemporalEvidenceAccessibilityPolicyV1 {
         }
     }
 }
+
+enum AssetLabelAccessibilityIDV1: String, CaseIterable, Sendable {
+    case preview = "asset_label.preview"
+    case shortCode = "asset_label.short_code"
+    case position = "asset_label.position"
+    case start = "asset_label.start"
+    case status = "asset_label.status"
+    case structuredText = "asset_label.structured_text"
+}
+
+enum AssetLabelAccessibilityPolicyV1 {
+    static let shortCodeIsSpokenCharacterByCharacter = true
+    static let rowAndColumnAreSpoken = true
+    static let stateIsNotColorOnly = true
+    static let previewHasTextCompanion = true
+    static let explicitStartIsFocusable = true
+    static let qrImageHasNoStandaloneMeaning = true
+    static func validate() throws {
+        let ids = AssetLabelAccessibilityIDV1.allCases.map(\.rawValue)
+        guard ids.count == Set(ids).count, shortCodeIsSpokenCharacterByCharacter,
+              rowAndColumnAreSpoken, stateIsNotColorOnly, previewHasTextCompanion,
+              explicitStartIsFocusable, qrImageHasNoStandaloneMeaning else {
+            throw LocalizationContractFailureV1.invalidAccessibilityBinding
+        }
+    }
+}

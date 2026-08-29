@@ -856,3 +856,28 @@ struct CheckRunnerAssistanceReviewContextV1: Equatable, Sendable {
         return manualValue
     }
 }
+
+enum CheckRunnerAssetLabelInputV1: Equatable, Sendable {
+    case manual(ManualShortCodeV1)
+    case camera(AssetLabelOpaqueQRPayloadV1)
+
+    var shortCode: ManualShortCodeV1 {
+        switch self { case .manual(let value): return value; case .camera(let value): return value.shortCode }
+    }
+}
+
+struct CheckRunnerAssetLabelPreviewV1: Equatable, Sendable {
+    let plan: AssetLabelGenerationPlanV1
+    let input: CheckRunnerAssetLabelInputV1
+    let item: AssetLabelItemSnapshotV1
+    let requiresExplicitStart = true
+    let manualEntryAvailable = true
+
+    init(plan: AssetLabelGenerationPlanV1, input: CheckRunnerAssetLabelInputV1) throws {
+        try plan.validate()
+        try input.shortCode.validate()
+        guard let item = plan.items.first(where: { $0.shortCode == input.shortCode }),
+              item.locatorState == .active else { throw AssetLabelContractFailureV1.staleBinding }
+        self.plan = plan; self.input = input; self.item = item
+    }
+}

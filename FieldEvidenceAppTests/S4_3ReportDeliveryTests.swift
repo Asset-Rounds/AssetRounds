@@ -8,6 +8,14 @@ import UniformTypeIdentifiers
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C45ReportDeliveryCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityDoesNotEquateGenerationWithExternalHandoff() {
+        XCTAssertEqual(LabelOutputDispositionV1.generated.rawValue, "GENERATED")
+        XCTAssertEqual(LabelOutputDispositionV1.handedOffToSystem.rawValue, "HANDED_OFF_TO_SYSTEM")
+        XCTAssertFalse(DeterministicPDFRendererV1.assetLabelPhysicalScanAcceptanceClaimed)
+    }
+}
+
 private final class C30EvidenceContextAnchorS4_3ReportDelivery: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

@@ -373,3 +373,9 @@ enum C33TemporalEvidenceBoundary_Application_AssetSemantics_AssetSemanticsCoordi
     static let persistentSchemaVersion: Int =
         TemporalEvidencePersistenceEnrollmentV1.persistentSchemaVersion
 }
+
+/// C45 label preview consumes exact current semantic state before explicit Start.
+enum C45AssetLabelBoundary_AssetSemanticsCoordinatorV1 {
+    static func validate(_ plan: AssetLabelGenerationPlanV1) throws { try plan.validate() }
+    static let previewRequiresExplicitStart = true
+}

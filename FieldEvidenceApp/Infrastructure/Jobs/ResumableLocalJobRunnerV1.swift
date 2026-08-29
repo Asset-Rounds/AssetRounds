@@ -46,6 +46,9 @@ actor ResumableLocalJobRunnerV1:
     private var publishers: [
         ResumableLocalJobKindV1: ResumableLocalJobPublisherV1
     ] = [:]
+    private var terminalCleanups: [
+        ResumableLocalJobKindV1: ResumableLocalJobTerminalCleanupV1
+    ] = [:]
     private var activeTasks: [LocalJobIDV1: Task<Void, Never>] = [:]
     private var suppressedPublicationRetries: Set<LocalJobIDV1> = []
     private var lifecycleSuspensions: Set<LocalJobLifecycleSuspensionReasonV1> = []
@@ -112,6 +115,13 @@ actor ResumableLocalJobRunnerV1:
         publishers.removeValue(forKey: kind)
     }
 
+    func registerTerminalCleanup(
+        _ kind: ResumableLocalJobKindV1,
+        cleanup: @escaping ResumableLocalJobTerminalCleanupV1
+    ) {
+        terminalCleanups[kind] = cleanup
+    }
+
     @discardableResult
     func enqueue(_ job: ResumableLocalJobV1) async throws -> ResumableLocalJobV1 {
         try beginMutation(workspaceID: job.workspaceID)
@@ -151,6 +161,7 @@ actor ResumableLocalJobRunnerV1:
             try await scheduleAvailableWork()
             return requested
         }
+        try await performRegisteredTerminalCleanup(for: requested)
         try cleanupStaging(for: requested)
         return try await store.markCancelled(
             id: requested.id,
@@ -168,6 +179,7 @@ actor ResumableLocalJobRunnerV1:
             $0.state == .cancellationRequested
         }
         for job in interrupted {
+            try await performRegisteredTerminalCleanup(for: job)
             try cleanupStaging(for: job)
             _ = try await store.markCancelled(
                 id: job.id,
@@ -184,6 +196,7 @@ actor ResumableLocalJobRunnerV1:
         guard let job = try await store.job(id: id) else { return }
         try beginMutation(workspaceID: job.workspaceID)
         defer { endMutation(workspaceID: job.workspaceID) }
+        try await performRegisteredTerminalCleanup(for: job)
         try cleanupStaging(for: job)
         try await store.removeTerminal(id: id)
     }
@@ -204,6 +217,7 @@ actor ResumableLocalJobRunnerV1:
             throw LocalJobStoreFailureV1.invalidTransition
         }
         for job in terminal {
+            try await performRegisteredTerminalCleanup(for: job)
             try cleanupStaging(for: job)
         }
         try await store.removeJobs(workspaceID: workspaceID)
@@ -225,6 +239,7 @@ actor ResumableLocalJobRunnerV1:
             throw LocalJobStoreFailureV1.invalidTransition
         }
         for job in terminal {
+            try await performRegisteredTerminalCleanup(for: job)
             try cleanupStaging(for: job)
         }
         try await store.eraseAll()
@@ -382,6 +397,20 @@ extension ResumableLocalJobRunnerV1 {
         _ publisher: @escaping ResumableLocalJobPublisherV1
     ) {
         registerPublisher(.draftAttachmentProcessing, publisher: publisher)
+    }
+}
+
+extension ResumableLocalJobRunnerV1 {
+    func registerAssetLabelRenderOperation(
+        _ operation: @escaping ResumableLocalJobOperationV1
+    ) {
+        register(.render, operation: operation)
+    }
+
+    func registerAssetLabelRenderPublisher(
+        _ publisher: @escaping ResumableLocalJobPublisherV1
+    ) {
+        registerPublisher(.render, publisher: publisher)
     }
 }
 
@@ -618,6 +647,7 @@ private extension ResumableLocalJobRunnerV1 {
         } else if operationFailure is CancellationError,
                   userCancellationRequests.remove(job.id) != nil {
             do {
+                try await performRegisteredTerminalCleanup(for: job)
                 try cleanupStaging(for: job)
                 _ = try await store.markCancelled(
                     id: job.id,
@@ -676,6 +706,7 @@ private extension ResumableLocalJobRunnerV1 {
             }
         } else if operationFailure is CancellationError {
             do {
+                try await performRegisteredTerminalCleanup(for: job)
                 try cleanupStaging(for: job)
                 _ = try await store.markCancelled(
                     id: job.id,
@@ -793,22 +824,26 @@ private extension ResumableLocalJobRunnerV1 {
             }
             switch outcome {
             case .completed(let receipt):
+                // Publication/adoption readback is already complete. Remove
+                // attempt scratch before recording SUCCEEDED so no terminal
+                // job can strand customer-data output. If interruption lands
+                // here, the awaiting-publication replay adopts the exact
+                // external effect and retries this cleanup.
+                try await performRegisteredTerminalCleanup(for: current)
+                try cleanupStaging(for: current)
                 _ = try await store.markPublicationSucceeded(
                     id: current.id,
                     expectedAttemptCount: current.attemptCount,
                     receipt: receipt
                 )
                 completedTerminalTransition = true
-                do { try cleanupStaging(for: current) }
-                catch {
-                    lastInfrastructureFailureCode = "staging_cleanup_failed"
-                }
             case .absent:
                 guard mode == .adoptOnly else {
                     throw ResumableLocalJobRunnerFailureV1
                         .publicationAbsentWithoutCancellation
                 }
                 // Cleanup is proved before the durable CANCELLED transition.
+                try await performRegisteredTerminalCleanup(for: current)
                 try cleanupStaging(for: current)
                 _ = try await store.markPublicationAbsentAndCancelled(
                     id: current.id,
@@ -866,22 +901,33 @@ private extension ResumableLocalJobRunnerV1 {
         classification: LocalJobRetryClassificationV1,
         code: String
     ) async {
-        var finalClassification = classification
-        var finalCode = code
-        do { try cleanupStaging(for: job) }
-        catch {
-            finalClassification = .retryable
-            finalCode = "staging_cleanup_failed"
+        do {
+            try await performRegisteredTerminalCleanup(for: job)
+            try cleanupStaging(for: job)
+        } catch {
+            // Keep the durable RUNNING/checkpoint row as relaunch authority.
+            // A terminal FAILED row must never coexist with undeleted
+            // customer-data scratch.
+            lastInfrastructureFailureCode = "staging_cleanup_failed"
+            return
         }
         do {
             _ = try await store.markFailed(
                 id: job.id,
                 expectedAttemptCount: attempt,
-                classification: finalClassification,
-                failureCode: finalCode
+                classification: classification,
+                failureCode: code
             )
         } catch {
             lastInfrastructureFailureCode = normalizedCode(error)
+        }
+    }
+
+    func performRegisteredTerminalCleanup(
+        for job: ResumableLocalJobV1
+    ) async throws {
+        if let cleanup = terminalCleanups[job.kind] {
+            try await cleanup(job)
         }
     }
 

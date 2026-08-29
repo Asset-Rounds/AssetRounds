@@ -1,4 +1,13 @@
 import Foundation
+import CryptoKit
+import Darwin
+#if canImport(CoreImage)
+import CoreGraphics
+import CoreImage
+#endif
+#if canImport(CoreText)
+import CoreText
+#endif
 
 enum GuidedSurveyDeterministicPDFBoundaryV1 {
     static func validate(_ projection: SurveyPublicationReportProjectionV1) throws {
@@ -818,5 +827,756 @@ enum C33TemporalEvidenceConformance_FieldEvidenceApp_Infrastructure_Reporting_De
         guard durableFamilyCount == 2 else {
             throw TemporalEvidenceContractFailureV1.invalidValue
         }
+    }
+}
+
+// MARK: - C45 sole-renderer label projection
+
+enum AssetLabelRenderFailureV1: Error, Equatable, Sendable {
+    case nativeQRCodeUnavailable
+    case nativeUnicodeTextUnavailable
+    case invalidQRCode
+    case outputLimitExceeded
+    case contentDoesNotFit
+    case projectionMismatch
+}
+
+struct AssetLabelRenderedQRV1: Equatable, Sendable {
+    let canonicalPayload: Data
+    let moduleCountIncludingQuietZone: Int
+    let monochromeBytes: Data
+
+    func decodeCanonicalPayload() throws -> AssetLabelOpaqueQRPayloadV1 {
+        try AssetLabelOpaqueQRPayloadV1(canonicalBytes: canonicalPayload)
+    }
+}
+
+struct AssetLabelRenderedTextV1: Equatable, Sendable {
+    let isolatedLines: [String]
+    let pixelWidth: Int
+    let pixelHeight: Int
+    let grayscaleBytes: Data
+    let fontPostScriptName: String
+}
+
+struct AssetLabelPDFTextInspectionV1: Equatable, Sendable {
+    let isolatedLinesByItem: [[String]]
+    let usesType1TextOperators: Bool
+}
+
+/// Test/host integration hook for an actually independent decoder. Supplying
+/// this hook is evidence about the projected matrix only; static code does not
+/// claim a physical scan or native acceptance result.
+protocol AssetLabelQRIndependentDecodingV1: Sendable {
+    func decode(monochromeBytes: Data, moduleCount: Int) throws -> Data
+}
+
+extension DeterministicPDFRendererV1 {
+    static let assetLabelRendererID = AssetLabelRendererReleaseCatalogV1.rendererID
+    static let assetLabelRendererVersion = AssetLabelRendererReleaseCatalogV1.rendererVersion
+    static let assetLabelRendererSHA256 = AssetLabelRendererReleaseCatalogV1.rendererSHA256
+    static let assetLabelNativeTextLayoutReleaseID = AssetLabelRendererReleaseCatalogV1.nativeTextLayoutReleaseID
+    static let assetLabelQuietZoneModules = 4
+    static let assetLabelInterpolationEnabled = false
+    static let assetLabelOverlaidLogoEnabled = false
+    static let assetLabelPhysicalScanAcceptanceClaimed = false
+    static let assetLabelBidiIsolationPrefix = "\u{2068}" // FSI
+    static let assetLabelBidiIsolationSuffix = "\u{2069}" // PDI
+    static let assetLabelNativeFontPostScriptName = "Helvetica"
+    static let assetLabelMaximumSourceToVisibleGraphemeFactor = 4
+
+    /// C45 is an additive projection profile on the existing renderer. It
+    /// produces one reconciled PDF/CSV/text result and never publishes bytes,
+    /// mutates a locator, or claims that a label was printed or delivered.
+    static func renderAssetLabels(
+        _ plan: AssetLabelGenerationPlanV1
+    ) throws -> LabelProjectionResultV1 {
+        try plan.validate()
+        guard plan.template.rendererID == assetLabelRendererID,
+              plan.template.rendererVersion == assetLabelRendererVersion,
+              plan.template.rendererSHA256 == assetLabelRendererSHA256,
+              plan.template.rendererRelease.nativeTextLayoutReleaseID == assetLabelNativeTextLayoutReleaseID,
+              plan.template.rendererRelease == (try AssetLabelRendererReleaseReferenceV1.current),
+              plan.template.qrCorrectionLevel == .medium,
+              !plan.template.interpolationEnabled,
+              !plan.template.overlaidLogoEnabled else {
+            throw AssetLabelContractFailureV1.unsupportedTemplate
+        }
+
+        let nativeTextEnvironment = try assetLabelNativeTextEnvironment(for: plan)
+        let renderedQRs = try plan.items.map { try renderAssetLabelQR($0.qrPayload) }
+        for (item, rendered) in zip(plan.items, renderedQRs) {
+            guard try rendered.decodeCanonicalPayload() == item.qrPayload else {
+                throw AssetLabelRenderFailureV1.projectionMismatch
+            }
+        }
+        let pdf = try assetLabelPDF(
+            plan: plan,
+            renderedQRs: renderedQRs,
+            nativeTextEnvironment: nativeTextEnvironment
+        )
+        let csv = try assetLabelFormulaSafeCSV(plan)
+        let text = try assetLabelAccessibleStructuredText(plan)
+        let artifacts = try [
+            LabelProjectedArtifactV1(
+                kind: .pdf,
+                safeFilename: "asset-labels.pdf",
+                mediaType: "application/pdf",
+                bytes: pdf,
+                itemCount: plan.items.count
+            ),
+            LabelProjectedArtifactV1(
+                kind: .formulaSafeCSV,
+                safeFilename: "asset-labels.csv",
+                mediaType: "text/csv",
+                bytes: csv,
+                itemCount: plan.items.count
+            ),
+            LabelProjectedArtifactV1(
+                kind: .structuredText,
+                safeFilename: "asset-labels.txt",
+                mediaType: "text/plain",
+                bytes: text,
+                itemCount: plan.items.count
+            ),
+        ]
+        let result = try LabelProjectionResultV1(
+            plan: plan,
+            artifacts: artifacts,
+            nativeTextEnvironment: nativeTextEnvironment
+        )
+        try result.validate(plan: plan)
+        return result
+    }
+
+    static func renderAssetLabelQR(
+        _ payload: AssetLabelOpaqueQRPayloadV1
+    ) throws -> AssetLabelRenderedQRV1 {
+        try payload.validate()
+        #if canImport(CoreImage)
+        guard let filter = CIFilter(name: "CIQRCodeGenerator") else {
+            throw AssetLabelRenderFailureV1.nativeQRCodeUnavailable
+        }
+        filter.setValue(payload.canonicalBytes, forKey: "inputMessage")
+        filter.setValue(AssetLabelQRCorrectionLevelV1.medium.rawValue, forKey: "inputCorrectionLevel")
+        guard let image = filter.outputImage else {
+            throw AssetLabelRenderFailureV1.invalidQRCode
+        }
+        let extent = image.extent.integral
+        let width = Int(extent.width)
+        let height = Int(extent.height)
+        guard width > 0, width == height, width <= 177 else {
+            throw AssetLabelRenderFailureV1.invalidQRCode
+        }
+        var rgba = [UInt8](repeating: 0, count: width * height * 4)
+        CIContext(options: [.cacheIntermediates: false]).render(
+            image,
+            toBitmap: &rgba,
+            rowBytes: width * 4,
+            bounds: extent,
+            format: .RGBA8,
+            colorSpace: CGColorSpaceCreateDeviceRGB()
+        )
+        let quiet = assetLabelQuietZoneModules
+        let boundedWidth = width + quiet * 2
+        var monochrome = [UInt8](repeating: 255, count: boundedWidth * boundedWidth)
+        for row in 0..<height {
+            for column in 0..<width {
+                let source = (row * width + column) * 4
+                let average = (Int(rgba[source]) + Int(rgba[source + 1]) + Int(rgba[source + 2])) / 3
+                monochrome[(row + quiet) * boundedWidth + column + quiet] = average < 128 ? 0 : 255
+            }
+        }
+        let quietZoneIsWhite = (0..<boundedWidth).allSatisfy { index in
+            monochrome[index] == 255
+                && monochrome[(boundedWidth - 1) * boundedWidth + index] == 255
+                && monochrome[index * boundedWidth] == 255
+                && monochrome[index * boundedWidth + boundedWidth - 1] == 255
+        }
+        guard quietZoneIsWhite else {
+            throw AssetLabelRenderFailureV1.invalidQRCode
+        }
+        return AssetLabelRenderedQRV1(
+            canonicalPayload: payload.canonicalBytes,
+            moduleCountIncludingQuietZone: boundedWidth,
+            monochromeBytes: Data(monochrome)
+        )
+        #else
+        throw AssetLabelRenderFailureV1.nativeQRCodeUnavailable
+        #endif
+    }
+
+    static func validateIndependentAssetLabelQRDecode(
+        _ rendered: AssetLabelRenderedQRV1,
+        decoder: any AssetLabelQRIndependentDecodingV1
+    ) throws -> AssetLabelOpaqueQRPayloadV1 {
+        let decoded = try decoder.decode(
+            monochromeBytes: rendered.monochromeBytes,
+            moduleCount: rendered.moduleCountIncludingQuietZone
+        )
+        let payload = try AssetLabelOpaqueQRPayloadV1(canonicalBytes: decoded)
+        guard decoded == rendered.canonicalPayload else {
+            throw AssetLabelRenderFailureV1.projectionMismatch
+        }
+        return payload
+    }
+
+    static func assetLabelFormulaSafeCSV(
+        _ plan: AssetLabelGenerationPlanV1
+    ) throws -> Data {
+        try plan.validate()
+        let header = assetLabelCSVHeader(for: plan.disclosure).joined(separator: ",")
+        let rows = try plan.items.map { item in
+            try assetLabelCSVValues(item).map(assetLabelCSVField).joined(separator: ",")
+        }
+        let bytes = Data(([header] + rows).joined(separator: "\r\n").appending("\r\n").utf8)
+        guard bytes.count <= AssetLabelCanonicalCodecV1.maximumCanonicalByteCount else {
+            throw AssetLabelRenderFailureV1.outputLimitExceeded
+        }
+        return bytes
+    }
+
+    static func assetLabelAccessibleStructuredText(
+        _ plan: AssetLabelGenerationPlanV1
+    ) throws -> Data {
+        try plan.validate()
+        var lines = [
+            "ASSETROUNDS-ASSET-LABELS-V1",
+            "plan-sha256\t\(plan.planSHA256)",
+            "item-count\t\(plan.items.count)",
+            "claim-boundary\tGenerated locally; not printed, affixed, delivered, or authorization.",
+        ]
+        for item in plan.items {
+            let spoken = item.shortCode.displayValue.map(String.init).joined(separator: " ")
+            lines.append("item\t\(item.orderIndex + 1)\tof\t\(plan.items.count)")
+            lines.append("short-code\t\(spoken)")
+            lines.append("locator-state\t\(item.locatorState.rawValue)")
+            if !disclosedAsset(item).isEmpty { lines.append("asset\t\(disclosedAsset(item))") }
+            if !disclosedLocation(item).isEmpty { lines.append("location\t\(disclosedLocation(item))") }
+        }
+        lines.append("END-ASSETROUNDS-ASSET-LABELS-V1")
+        let bytes = Data(lines.joined(separator: "\n").appending("\n").utf8)
+        guard bytes.count <= AssetLabelCanonicalCodecV1.maximumCanonicalByteCount else {
+            throw AssetLabelRenderFailureV1.outputLimitExceeded
+        }
+        return bytes
+    }
+
+    private static func disclosedAsset(_ item: AssetLabelItemSnapshotV1) -> String {
+        item.disclosure == .shortCodeOnly ? "" : item.assetDisplay
+    }
+
+    private static func disclosedLocation(_ item: AssetLabelItemSnapshotV1) -> String {
+        item.disclosure == .assetLocationAndShortCode ? (item.locationDisplay ?? "") : ""
+    }
+
+    private static func assetLabelCSVHeader(
+        for disclosure: LabelDisclosureProfileV1
+    ) -> [String] {
+        switch disclosure {
+        case .shortCodeOnly:
+            return ["schema_version", "order", "short_code", "qr_payload", "disclosure"]
+        case .assetAndShortCode:
+            return ["schema_version", "order", "short_code", "qr_payload", "asset_display", "disclosure"]
+        case .assetLocationAndShortCode:
+            return ["schema_version", "order", "short_code", "qr_payload", "asset_display", "location_display", "disclosure"]
+        }
+    }
+
+    private static func assetLabelCSVValues(
+        _ item: AssetLabelItemSnapshotV1
+    ) throws -> [String] {
+        try item.validate()
+        var values = [
+            "1", String(item.orderIndex + 1), item.shortCode.displayValue,
+            item.qrPayload.canonicalString,
+        ]
+        switch item.disclosure {
+        case .shortCodeOnly:
+            break
+        case .assetAndShortCode:
+            values.append(try assetLabelSafeDisplay(item.assetDisplay))
+        case .assetLocationAndShortCode:
+            values.append(try assetLabelSafeDisplay(item.assetDisplay))
+            guard let location = item.locationDisplay else {
+                throw AssetLabelContractFailureV1.invalidValue
+            }
+            values.append(try assetLabelSafeDisplay(location))
+        }
+        values.append(item.disclosure.rawValue)
+        return values
+    }
+
+    private static func assetLabelCSVField(_ value: String) -> String {
+        let guarded: String
+        let formulaCandidate = value.drop(while: { $0 == " " || $0 == "\t" })
+        if let first = formulaCandidate.unicodeScalars.first,
+           "=+-@".unicodeScalars.contains(first) {
+            guarded = "'" + value
+        } else {
+            guarded = value
+        }
+        return "\"" + guarded.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+    }
+
+    private static func assetLabelPDF(
+        plan: AssetLabelGenerationPlanV1,
+        renderedQRs: [AssetLabelRenderedQRV1],
+        nativeTextEnvironment: AssetLabelNativeTextEnvironmentV1
+    ) throws -> Data {
+        guard renderedQRs.count == plan.items.count else {
+            throw AssetLabelRenderFailureV1.projectionMismatch
+        }
+        let geometry = plan.template.geometry
+        // `textBoundMicrometres` is the frozen horizontal disclosure bound.
+        // Vertical space is derived solely from the closed disclosure line set;
+        // treating the horizontal bound as a height can consume the entire cell
+        // and leave no integral module scale for the QR image.
+        let textPixelWidth = Int(assetLabelPointsInteger(geometry.textBoundMicrometres))
+        let renderedTexts = try plan.items.map {
+            try renderAssetLabelText(
+                $0,
+                pixelWidth: textPixelWidth,
+                pixelHeight: assetLabelTextPixelHeight(for: $0.disclosure),
+                nativeTextEnvironment: nativeTextEnvironment
+            )
+        }
+        let capacity = geometry.capacity
+        let slotCount = plan.startOffset + plan.items.count
+        let pageCount = (slotCount + capacity - 1) / capacity
+        guard pageCount > 0, pageCount <= 1_000 else {
+            throw AssetLabelRenderFailureV1.outputLimitExceeded
+        }
+
+        var nextObject = 3
+        var pageObjects: [Int] = []
+        var objects: [Int: Data] = [:]
+        for pageIndex in 0..<pageCount {
+            let pageObject = nextObject; nextObject += 1
+            let contentObject = nextObject; nextObject += 1
+            pageObjects.append(pageObject)
+            let itemIndexes = plan.items.indices.filter {
+                (plan.startOffset + $0) / capacity == pageIndex
+            }
+            var imageNames: [(String, Int)] = []
+            for itemIndex in itemIndexes {
+                let imageObject = nextObject; nextObject += 1
+                let name = "Q\(itemIndex)"
+                imageNames.append((name, imageObject))
+                let qr = renderedQRs[itemIndex]
+                var imageBody = Data("<< /Type /XObject /Subtype /Image /Width \(qr.moduleCountIncludingQuietZone) /Height \(qr.moduleCountIncludingQuietZone) /ColorSpace /DeviceGray /BitsPerComponent 8 /Length \(qr.monochromeBytes.count) >>\nstream\n".utf8)
+                imageBody.append(qr.monochromeBytes)
+                imageBody.append(Data("\nendstream".utf8))
+                objects[imageObject] = imageBody
+                let textObject = nextObject; nextObject += 1
+                let textName = "T\(itemIndex)"
+                imageNames.append((textName, textObject))
+                let text = renderedTexts[itemIndex]
+                var textBody = Data("<< /Type /XObject /Subtype /Image /Width \(text.pixelWidth) /Height \(text.pixelHeight) /ColorSpace /DeviceGray /BitsPerComponent 8 /Length \(text.grayscaleBytes.count) >>\nstream\n".utf8)
+                textBody.append(text.grayscaleBytes)
+                textBody.append(Data("\nendstream".utf8))
+                objects[textObject] = textBody
+            }
+            let content = try assetLabelPageContent(
+                plan: plan,
+                pageIndex: pageIndex,
+                renderedQRs: renderedQRs,
+                renderedTexts: renderedTexts
+            )
+            objects[contentObject] = Data("<< /Length \(content.count) >>\nstream\n".utf8) + content + Data("\nendstream".utf8)
+            let xObjects = imageNames.map { "/\($0.0) \($0.1) 0 R" }.joined(separator: " ")
+            objects[pageObject] = Data("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 \(assetLabelPoints(geometry.pageWidthMicrometres)) \(assetLabelPoints(geometry.pageHeightMicrometres))] /Resources << /XObject << \(xObjects) >> >> /Contents \(contentObject) 0 R >>".utf8)
+        }
+        objects[1] = Data("<< /Type /Catalog /Pages 2 0 R >>".utf8)
+        objects[2] = Data("<< /Type /Pages /Count \(pageObjects.count) /Kids [\(pageObjects.map { "\($0) 0 R" }.joined(separator: " "))] >>".utf8)
+
+        var pdf = Data("%PDF-1.4\n%AssetRounds-Asset-Labels-V1\n".utf8)
+        for rendered in renderedTexts {
+            let canonicalLines = try AssetLabelCanonicalCodecV1.encode(rendered.isolatedLines)
+            pdf.append(Data("%AR-LABEL-TEXT:\(canonicalLines.base64EncodedString())\n".utf8))
+        }
+        var offsets = [Int](repeating: 0, count: nextObject)
+        for objectID in 1..<nextObject {
+            guard let body = objects[objectID] else {
+                throw AssetLabelRenderFailureV1.projectionMismatch
+            }
+            offsets[objectID] = pdf.count
+            pdf.append(Data("\(objectID) 0 obj\n".utf8)); pdf.append(body); pdf.append(Data("\nendobj\n".utf8))
+        }
+        let xref = pdf.count
+        pdf.append(Data("xref\n0 \(nextObject)\n0000000000 65535 f \n".utf8))
+        for objectID in 1..<nextObject {
+            pdf.append(Data(String(format: "%010d 00000 n \n", offsets[objectID]).utf8))
+        }
+        pdf.append(Data("trailer\n<< /Size \(nextObject) /Root 1 0 R >>\nstartxref\n\(xref)\n%%EOF\n".utf8))
+        guard pdf.count <= AssetLabelCanonicalCodecV1.maximumCanonicalByteCount else {
+            throw AssetLabelRenderFailureV1.outputLimitExceeded
+        }
+        return pdf
+    }
+
+    private static func assetLabelPageContent(
+        plan: AssetLabelGenerationPlanV1,
+        pageIndex: Int,
+        renderedQRs: [AssetLabelRenderedQRV1],
+        renderedTexts: [AssetLabelRenderedTextV1]
+    ) throws -> Data {
+        let geometry = plan.template.geometry
+        let capacity = geometry.capacity
+        var commands: [String] = []
+        for itemIndex in plan.items.indices {
+            let absoluteSlot = plan.startOffset + itemIndex
+            guard absoluteSlot / capacity == pageIndex else { continue }
+            let slot = absoluteSlot % capacity
+            let row = slot / geometry.columns
+            let column = slot % geometry.columns
+            let cellX = geometry.originXMicrometres + Int64(column) * (geometry.cellWidthMicrometres + geometry.horizontalGapMicrometres)
+            let cellTop = geometry.originYMicrometres + Int64(row) * (geometry.cellHeightMicrometres + geometry.verticalGapMicrometres)
+            let pageHeight = Int(assetLabelPointsInteger(geometry.pageHeightMicrometres))
+            let cellXPoints = Int(assetLabelPointsInteger(cellX))
+            let cellYPoints = pageHeight - Int(assetLabelPointsInteger(cellTop + geometry.cellHeightMicrometres))
+            let cellWidth = Int(assetLabelPointsInteger(geometry.cellWidthMicrometres))
+            let cellHeight = Int(assetLabelPointsInteger(geometry.cellHeightMicrometres))
+            let textWidth = Int(assetLabelPointsInteger(geometry.textBoundMicrometres))
+            let textHeight = assetLabelTextPixelHeight(for: plan.items[itemIndex].disclosure)
+            let matrixCount = renderedQRs[itemIndex].moduleCountIncludingQuietZone
+            let moduleScale = min(cellWidth / matrixCount, (cellHeight - textHeight) / matrixCount)
+            guard moduleScale >= 1 else { throw AssetLabelContractFailureV1.unsupportedTemplate }
+            let imageSize = moduleScale * matrixCount
+            let imageX = cellXPoints + max(0, (cellWidth - imageSize) / 2)
+            let imageY = cellYPoints + textHeight
+            commands.append("q \(imageSize) 0 0 \(imageSize) \(imageX) \(imageY) cm /Q\(itemIndex) Do Q")
+            guard renderedTexts[itemIndex].pixelWidth == textWidth,
+                  renderedTexts[itemIndex].pixelHeight == textHeight else {
+                throw AssetLabelRenderFailureV1.projectionMismatch
+            }
+            let textX = cellXPoints + max(0, (cellWidth - textWidth) / 2)
+            commands.append("q \(textWidth) 0 0 \(textHeight) \(textX) \(cellYPoints) cm /T\(itemIndex) Do Q")
+        }
+        return Data(commands.joined(separator: "\n").utf8)
+    }
+
+    private static func assetLabelTextPixelHeight(
+        for disclosure: LabelDisclosureProfileV1
+    ) -> Int {
+        switch disclosure {
+        case .shortCodeOnly:
+            return 18
+        case .assetAndShortCode:
+            return 20
+        case .assetLocationAndShortCode:
+            return 30
+        }
+    }
+
+    static func renderAssetLabelText(
+        _ item: AssetLabelItemSnapshotV1,
+        pixelWidth: Int,
+        pixelHeight: Int
+    ) throws -> AssetLabelRenderedTextV1 {
+        try renderAssetLabelText(
+            item,
+            pixelWidth: pixelWidth,
+            pixelHeight: pixelHeight,
+            nativeTextEnvironment: nil
+        )
+    }
+
+    private static func renderAssetLabelText(
+        _ item: AssetLabelItemSnapshotV1,
+        pixelWidth: Int,
+        pixelHeight: Int,
+        nativeTextEnvironment: AssetLabelNativeTextEnvironmentV1?
+    ) throws -> AssetLabelRenderedTextV1 {
+        try item.validate()
+        guard pixelWidth >= 24, pixelHeight >= 18,
+              pixelWidth <= 4_096, pixelHeight <= 1_024 else {
+            throw AssetLabelRenderFailureV1.contentDoesNotFit
+        }
+        let maximumGraphemes = max(8, min(96, (pixelWidth - 8) / 5))
+        let lines = try assetLabelPDFDisclosureLines(
+            item,
+            maximumGraphemes: maximumGraphemes
+        )
+        guard lines.count * 10 <= pixelHeight else {
+            throw AssetLabelRenderFailureV1.contentDoesNotFit
+        }
+        let isolated = lines.map {
+            assetLabelBidiIsolationPrefix + $0 + assetLabelBidiIsolationSuffix
+        }
+        #if canImport(CoreText)
+        var pixels = [UInt8](repeating: 255, count: pixelWidth * pixelHeight)
+        guard let context = CGContext(
+            data: &pixels,
+            width: pixelWidth,
+            height: pixelHeight,
+            bitsPerComponent: 8,
+            bytesPerRow: pixelWidth,
+            space: CGColorSpaceCreateDeviceGray(),
+            bitmapInfo: 0
+        ) else { throw AssetLabelRenderFailureV1.nativeUnicodeTextUnavailable }
+        context.setShouldAntialias(false)
+        context.setAllowsAntialiasing(false)
+        context.setShouldSmoothFonts(false)
+        context.setAllowsFontSmoothing(false)
+        context.setShouldSubpixelPositionFonts(false)
+        context.setAllowsFontSubpixelPositioning(false)
+        context.setShouldSubpixelQuantizeFonts(false)
+        context.setAllowsFontSubpixelQuantization(false)
+        context.textMatrix = .identity
+        context.setFillColor(gray: 1, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: pixelWidth, height: pixelHeight))
+        context.setFillColor(gray: 0, alpha: 1)
+        let baseFont = CTFontCreateWithName(
+            assetLabelNativeFontPostScriptName as CFString,
+            7,
+            nil
+        )
+        if let nativeTextEnvironment {
+            try nativeTextEnvironment.validate(planSHA256: nativeTextEnvironment.planSHA256)
+            guard try assetLabelNativeFontIdentity(baseFont) == nativeTextEnvironment.baseFont else {
+                throw AssetLabelRenderFailureV1.nativeUnicodeTextUnavailable
+            }
+        }
+        for (index, value) in isolated.enumerated() {
+            let (line, actualFonts) = try assetLabelCoreTextLine(value, baseFont: baseFont)
+            if let nativeTextEnvironment,
+               !actualFonts.allSatisfy({ nativeTextEnvironment.selectedFonts.contains($0) }) {
+                throw AssetLabelRenderFailureV1.nativeUnicodeTextUnavailable
+            }
+            var ascent: CGFloat = 0
+            var descent: CGFloat = 0
+            let width = CTLineGetTypographicBounds(line, &ascent, &descent, nil)
+            guard width <= Double(pixelWidth - 8),
+                  ascent + descent <= 10 else {
+                throw AssetLabelRenderFailureV1.contentDoesNotFit
+            }
+            let lineBoxBottom = CGFloat(pixelHeight - (index + 1) * 10)
+            let baseline = lineBoxBottom + descent + 1
+            guard baseline - descent >= lineBoxBottom + 1,
+                  baseline + ascent <= lineBoxBottom + 9 else {
+                throw AssetLabelRenderFailureV1.contentDoesNotFit
+            }
+            context.textPosition = CGPoint(
+                x: 4,
+                y: baseline
+            )
+            CTLineDraw(line, context)
+        }
+        return AssetLabelRenderedTextV1(
+            isolatedLines: isolated,
+            pixelWidth: pixelWidth,
+            pixelHeight: pixelHeight,
+            grayscaleBytes: Data(pixels),
+            fontPostScriptName: assetLabelNativeFontPostScriptName
+        )
+        #else
+        throw AssetLabelRenderFailureV1.nativeUnicodeTextUnavailable
+        #endif
+    }
+
+    static func assetLabelNativeTextEnvironment(
+        for plan: AssetLabelGenerationPlanV1
+    ) throws -> AssetLabelNativeTextEnvironmentV1 {
+        try plan.validate()
+        #if canImport(CoreText)
+        let baseFont = CTFontCreateWithName(
+            assetLabelNativeFontPostScriptName as CFString,
+            7,
+            nil
+        )
+        let baseIdentity = try assetLabelNativeFontIdentity(baseFont)
+        var identities = Set([baseIdentity])
+        let pixelWidth = Int(assetLabelPointsInteger(plan.template.geometry.textBoundMicrometres))
+        let maximumGraphemes = max(8, min(96, (pixelWidth - 8) / 5))
+        for item in plan.items {
+            let lines = try assetLabelPDFDisclosureLines(item, maximumGraphemes: maximumGraphemes)
+            for line in lines {
+                let isolated = assetLabelBidiIsolationPrefix + line + assetLabelBidiIsolationSuffix
+                let (_, actualFonts) = try assetLabelCoreTextLine(isolated, baseFont: baseFont)
+                identities.formUnion(actualFonts)
+            }
+        }
+        return try AssetLabelNativeTextEnvironmentV1(
+            planSHA256: plan.planSHA256,
+            nativeTextLayoutReleaseID: assetLabelNativeTextLayoutReleaseID,
+            coreTextVersion: CTGetCoreTextVersion(),
+            operatingSystemBuild: try assetLabelOperatingSystemBuild(),
+            baseFont: baseIdentity,
+            selectedFonts: Array(identities)
+        )
+        #else
+        throw AssetLabelRenderFailureV1.nativeUnicodeTextUnavailable
+        #endif
+    }
+
+    #if canImport(CoreText)
+    private static func assetLabelCoreTextLine(
+        _ value: String,
+        baseFont: CTFont
+    ) throws -> (CTLine, Set<AssetLabelNativeFontIdentityV1>) {
+        let range = CFRange(location: 0, length: (value as NSString).length)
+        let selected = CTFontCreateForString(baseFont, value as CFString, range)
+        let attributed = NSAttributedString(
+            string: value,
+            attributes: [
+                NSAttributedString.Key(kCTFontAttributeName as String): selected,
+                NSAttributedString.Key(kCTForegroundColorAttributeName as String): CGColor(gray: 0, alpha: 1),
+            ]
+        )
+        let line = CTLineCreateWithAttributedString(attributed)
+        guard let runs = CTLineGetGlyphRuns(line) as? [CTRun], !runs.isEmpty else {
+            throw AssetLabelRenderFailureV1.nativeUnicodeTextUnavailable
+        }
+        var identities = Set<AssetLabelNativeFontIdentityV1>()
+        for run in runs {
+            let attributes = CTRunGetAttributes(run) as NSDictionary
+            guard let font = attributes[kCTFontAttributeName as String] as? CTFont else {
+                throw AssetLabelRenderFailureV1.nativeUnicodeTextUnavailable
+            }
+            identities.insert(try assetLabelNativeFontIdentity(font))
+        }
+        return (line, identities)
+    }
+
+    private static func assetLabelNativeFontIdentity(
+        _ font: CTFont
+    ) throws -> AssetLabelNativeFontIdentityV1 {
+        let postScriptName = CTFontCopyPostScriptName(font) as String
+        guard let fontURL = CTFontCopyAttribute(font, kCTFontURLAttribute) as? URL,
+              fontURL.isFileURL else {
+            throw AssetLabelRenderFailureV1.nativeUnicodeTextUnavailable
+        }
+        let values = try fontURL.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+        guard values.isRegularFile == true,
+              let byteCount = values.fileSize,
+              byteCount > 0,
+              byteCount <= 256 * 1_024 * 1_024 else {
+            throw AssetLabelRenderFailureV1.nativeUnicodeTextUnavailable
+        }
+        let handle = try FileHandle(forReadingFrom: fontURL)
+        defer { try? handle.close() }
+        var observed = 0
+        var hasher = SHA256()
+        while let bytes = try handle.read(upToCount: 1_048_576), !bytes.isEmpty {
+            observed += bytes.count
+            guard observed <= byteCount else {
+                throw AssetLabelRenderFailureV1.nativeUnicodeTextUnavailable
+            }
+            hasher.update(data: bytes)
+        }
+        guard observed == byteCount else {
+            throw AssetLabelRenderFailureV1.nativeUnicodeTextUnavailable
+        }
+        let digest = hasher.finalize().map { String(format: "%02x", $0) }.joined()
+        return try AssetLabelNativeFontIdentityV1(
+            postScriptName: postScriptName,
+            fontFileSHA256: digest
+        )
+    }
+
+    private static func assetLabelOperatingSystemBuild() throws -> String {
+        var byteCount = 0
+        guard sysctlbyname("kern.osversion", nil, &byteCount, nil, 0) == 0,
+              byteCount > 1,
+              byteCount <= 256 else {
+            throw AssetLabelRenderFailureV1.nativeUnicodeTextUnavailable
+        }
+        var bytes = [CChar](repeating: 0, count: byteCount)
+        guard sysctlbyname("kern.osversion", &bytes, &byteCount, nil, 0) == 0 else {
+            throw AssetLabelRenderFailureV1.nativeUnicodeTextUnavailable
+        }
+        let value = String(cString: bytes)
+        guard !value.isEmpty else {
+            throw AssetLabelRenderFailureV1.nativeUnicodeTextUnavailable
+        }
+        return value
+    }
+    #endif
+
+    static func inspectAssetLabelPDFText(
+        _ data: Data
+    ) throws -> AssetLabelPDFTextInspectionV1 {
+        let marker = Data("%AR-LABEL-TEXT:".utf8)
+        let newline = Data("\n".utf8)
+        var searchStart = data.startIndex
+        var values: [[String]] = []
+        while searchStart < data.endIndex,
+              let markerRange = data.range(of: marker, in: searchStart..<data.endIndex),
+              let lineEnd = data.range(of: newline, in: markerRange.upperBound..<data.endIndex)?.lowerBound {
+            guard lineEnd - markerRange.upperBound <= AssetLabelCanonicalCodecV1.maximumCanonicalByteCount,
+                  let encoded = String(data: data[markerRange.upperBound..<lineEnd], encoding: .ascii),
+                  let decoded = Data(base64Encoded: encoded) else {
+                throw AssetLabelRenderFailureV1.projectionMismatch
+            }
+            let lines = try AssetLabelCanonicalCodecV1.decode([String].self, from: decoded)
+            guard !lines.isEmpty,
+                  lines.allSatisfy({
+                      $0.hasPrefix(assetLabelBidiIsolationPrefix)
+                          && $0.hasSuffix(assetLabelBidiIsolationSuffix)
+                  }) else { throw AssetLabelRenderFailureV1.projectionMismatch }
+            values.append(lines)
+            searchStart = lineEnd + 1
+        }
+        guard !values.isEmpty else { throw AssetLabelRenderFailureV1.projectionMismatch }
+        let type1 = data.range(of: Data("/Subtype /Type1".utf8)) != nil
+            || data.range(of: Data(" Tf ".utf8)) != nil
+        return AssetLabelPDFTextInspectionV1(
+            isolatedLinesByItem: values,
+            usesType1TextOperators: type1
+        )
+    }
+
+    private static func assetLabelPDFDisclosureLines(
+        _ item: AssetLabelItemSnapshotV1,
+        maximumGraphemes: Int
+    ) throws -> [String] {
+        try item.validate()
+        var lines = ["Code: \(item.shortCode.displayValue)"]
+        switch item.disclosure {
+        case .shortCodeOnly:
+            break
+        case .assetAndShortCode:
+            lines.append("Asset: \(try assetLabelSafeDisplay(item.assetDisplay))")
+        case .assetLocationAndShortCode:
+            lines.append("Asset: \(try assetLabelSafeDisplay(item.assetDisplay))")
+            guard let location = item.locationDisplay else {
+                throw AssetLabelContractFailureV1.invalidValue
+            }
+            lines.append("Location: \(try assetLabelSafeDisplay(location))")
+        }
+        guard lines.allSatisfy({
+            $0.count <= maximumGraphemes * assetLabelMaximumSourceToVisibleGraphemeFactor
+        }) else { throw AssetLabelRenderFailureV1.contentDoesNotFit }
+        return lines.map { assetLabelTruncated($0, maximumGraphemes: maximumGraphemes) }
+    }
+
+    private static func assetLabelSafeDisplay(_ value: String) throws -> String {
+        let canonical = value.precomposedStringWithCanonicalMapping
+        guard value == canonical,
+              !value.unicodeScalars.contains(where: {
+                  $0.properties.isBidiControl
+                      || $0.value < 0x20
+                      || (0x7f...0x9f).contains($0.value)
+              }) else { throw AssetLabelContractFailureV1.invalidValue }
+        return canonical
+    }
+
+    private static func assetLabelTruncated(
+        _ value: String,
+        maximumGraphemes: Int
+    ) -> String {
+        guard value.count > maximumGraphemes else { return value }
+        let prefixCount = max(1, maximumGraphemes - 3)
+        return String(value.prefix(prefixCount)) + "..."
+    }
+
+    private static func assetLabelPointsInteger(_ micrometres: Int64) -> Int64 {
+        micrometres * 72 / 25_400
+    }
+
+    private static func assetLabelPoints(_ micrometres: Int64) -> String {
+        let thousandths = micrometres * 72_000 / 25_400
+        return "\(thousandths / 1_000).\(String(format: "%03lld", abs(thousandths % 1_000)))"
     }
 }

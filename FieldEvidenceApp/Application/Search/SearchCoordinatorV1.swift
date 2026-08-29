@@ -574,3 +574,5 @@ enum C33TemporalEvidenceBoundary_Application_Search_SearchCoordinatorV1_V1 {
     static let persistentSchemaVersion: Int =
         TemporalEvidencePersistenceEnrollmentV1.persistentSchemaVersion
 }
+
+enum C45AcceptedLabelSearchCoordinatorBoundaryV1 { static let acceptedSnapshotMetadataIsProjected=true;static let forbiddenCustomerTextIsProjected=false;static let reprintUsesTypedQuery=true }

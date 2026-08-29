@@ -1207,3 +1207,32 @@ enum TemporalEvidencePersistentKindPolicyV1 {
         }
     }
 }
+
+enum AssetLabelPersistentKindPolicyV1 {
+    static let durableKindIDs = Set(["PERSISTENT_MODEL:AcceptedLabelGenerationSnapshotRow"])
+    static let existingLocatorTruthKindIDs = Set([
+        "PERSISTENT_MODEL:AssetLocatorRow", "PERSISTENT_MODEL:LocatorBindingReceiptRow",
+    ])
+    static let nonpersistentKindIDs = Set([
+        "PROJECTION:AssetLabelGenerationPlanV1", "PROJECTION:AssetLabelGenerationResultV1",
+        "PROJECTION:AssetLabelBatchCheckpointV1", "PROJECTION:AssetLabelOutputArtifactV1",
+    ])
+    static let derivedKindIDs = Set(["PROJECTION:StoreSemanticEnvelopeV34"])
+
+    static func validateDeclaration() throws {
+        guard durableKindIDs.count == AssetLabelPersistenceEnrollmentV1.durableModelCount,
+              AssetLabelPersistenceEnrollmentV1.persistentFamilies
+                == ["AcceptedLabelGenerationSnapshotRow"],
+              existingLocatorTruthKindIDs.count == 2,
+              nonpersistentKindIDs.count == 4,
+              durableKindIDs.isDisjoint(with: nonpersistentKindIDs),
+              durableKindIDs.isDisjoint(with: derivedKindIDs),
+              durableKindIDs.union(existingLocatorTruthKindIDs)
+                .union(nonpersistentKindIDs).union(derivedKindIDs)
+                .allSatisfy(PersistentKindLifecycleValidationV1.validKindID) else {
+            throw PersistentKindLifecycleFailureV1.invalidLifecyclePolicy
+        }
+    }
+}
+
+enum C45AcceptedLabelPersistentKindEnrollmentV1 { static let kind:WorkspaceEntityKindV1 = .acceptedLabelGenerationSnapshot;static let durableFamilyCount=AssetLabelPersistenceEnrollmentV1.durableModelCount }

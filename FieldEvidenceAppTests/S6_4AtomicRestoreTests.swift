@@ -3,6 +3,14 @@ import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C45AtomicRestoreCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityRestoresActiveOrHistoricDispositionExactly() {
+        XCTAssertEqual(Set(AcceptedLabelSnapshotDispositionV1.allCases), [.activeSourceWorkspace, .historicCloneOrFork])
+        XCTAssertEqual(LabelReprintEligibilityV1.activeExactReprint.rawValue, "ACTIVE_EXACT_REPRINT")
+        XCTAssertEqual(LabelReprintEligibilityV1.blockedMissingRelease.rawValue, "BLOCKED_MISSING_RELEASE")
+    }
+}
+
 private final class C30EvidenceContextAnchorS6_4AtomicRestore: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

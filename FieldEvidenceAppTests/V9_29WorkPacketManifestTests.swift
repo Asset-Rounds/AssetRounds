@@ -3,6 +3,14 @@ import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C45WorkPacketManifestCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityBoundsBatchPlansAndManifestKinds() {
+        XCTAssertEqual(AssetLabelGenerationPlanV1.maximumItemCount, 1_000)
+        XCTAssertEqual(LabelArtifactKindV1.allCases.count, 3)
+        XCTAssertEqual(Set(LabelArtifactKindV1.allCases), [.pdf, .formulaSafeCSV, .structuredText])
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_29WorkPacketManifest: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

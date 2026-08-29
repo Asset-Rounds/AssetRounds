@@ -7,6 +7,14 @@ import UniformTypeIdentifiers
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C45BackupValidationCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityValidatesCanonicalMutationAndSnapshotDigests() {
+        XCTAssertEqual(AssetLabelMutationV1.schemaVersion, 1)
+        XCTAssertEqual(AcceptedLabelGenerationSnapshotV1.schemaVersion, 1)
+        XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.recordsSchemaVersion, 33)
+    }
+}
+
 private final class C30EvidenceContextAnchorS6_3BackupValidation: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

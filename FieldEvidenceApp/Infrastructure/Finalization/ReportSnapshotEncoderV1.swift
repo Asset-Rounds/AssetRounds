@@ -1934,3 +1934,5 @@ enum C32AssistanceCompatibility_Finalization_ReportSnapshotEncoderV1 {
     static let interruptionNeverPromotesAProposal = true
     static let createsParallelStoreOrWriter = false
 }
+
+enum C45AcceptedLabelReportSnapshotBoundaryV1 { static let acceptedLabelSnapshotIsNotEmbeddedInReport=true;static let reprintAuthorityRemainsTypedPersistence=true }

@@ -87,6 +87,25 @@ enum C33TemporalEvidenceBackupRestoreRegistryV1 {
     }
 }
 
+enum C45AcceptedLabelBackupRestoreRegistryV1 {
+    static let persistentSchemaVersion = AssetLabelPersistenceEnrollmentV1.persistentSchemaVersion
+    static let recordsSchemaVersion = AssetLabelPersistenceEnrollmentV1.recordsSchemaVersion
+    static let durableFamilies = AssetLabelPersistenceEnrollmentV1.persistentFamilies
+    static let archiveDisposition = "CANONICAL_ACCEPTED_SNAPSHOT_AND_IMMUTABLE_MUTATION_HISTORY"
+    static let cloneForkDisposition = "TARGET_SCOPED_HISTORIC_EXPORT_ONLY"
+    static let derivedScratchDisposition = "EXCLUDED_REGENERABLE"
+
+    static func validate() throws {
+        guard persistentSchemaVersion == 34, recordsSchemaVersion == 33,
+              durableFamilies == ["AcceptedLabelGenerationSnapshotRow"],
+              archiveDisposition == "CANONICAL_ACCEPTED_SNAPSHOT_AND_IMMUTABLE_MUTATION_HISTORY",
+              cloneForkDisposition == "TARGET_SCOPED_HISTORIC_EXPORT_ONLY",
+              derivedScratchDisposition == "EXCLUDED_REGENERABLE" else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}
+
 /// C28 schedule backup/restore is a two-family closure: immutable definition
 /// releases plus append-only occurrence history. Projection queues and
 /// reminders are rebuilt after restore and never enter the kernel archive.
@@ -555,6 +574,7 @@ enum KernelBackupRestoreRegistryV4 {
         try validateLightingLifecycle()
         try C32AssistanceBackupRestoreRegistryV1.validate()
         try C33TemporalEvidenceBackupRestoreRegistryV1.validate()
+        try C45AcceptedLabelBackupRestoreRegistryV1.validate()
         try validatePrivacyTransformLifecycle()
         try validateMeasurementIntegrityLifecycle()
         try validatePackageEvolutionLifecycle()
@@ -624,3 +644,5 @@ enum KernelBackupRestoreRegistryV4 {
         }
     }
 }
+
+enum C45AcceptedLabelBackupRegistryEnrollmentV1 { static let durableFamily="AcceptedLabelGenerationSnapshotRow";static let recordsSchemaVersion=AssetLabelPersistenceEnrollmentV1.recordsSchemaVersion;static let includesDerivedScratch=false }

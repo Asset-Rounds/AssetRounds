@@ -4,6 +4,14 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private final class C45DeletionRightsCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityDeletesOnlyDurableAcceptedSnapshotState() {
+        XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.persistentFamilies, ["AcceptedLabelGenerationSnapshotRow"])
+        XCTAssertEqual(Set(AssetLabelPersistenceEnrollmentV1.derivedFamilies), ["AssetLabelGenerationPlanV1", "LabelProjectionResultV1"])
+        XCTAssertFalse(AssetLabelPersistenceEnrollmentV1.persistentFamilies.contains("LabelProjectionResultV1"))
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_06DeletionRights: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
@@ -213,6 +221,7 @@ final class V9_06DeletionRightsTests: XCTestCase {
         XCTAssertNil(DeletionRecordKindV2(rawValue: "tag"))
         XCTAssertEqual(Set(DeletionRecordKindV2.allCases.map(\.rawValue)), [
             "site", "asset", "workflowRecord", "evidenceFile", "issue", "packet", "report",
+            "acceptedLabelGenerationSnapshot",
         ])
 
         let malformedRecords = try V906Integration.injectUnknownLedgerKind(

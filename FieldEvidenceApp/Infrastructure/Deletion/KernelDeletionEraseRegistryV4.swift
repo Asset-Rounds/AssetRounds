@@ -665,3 +665,22 @@ enum KernelDeletionEraseRegistryV4 {
         }
     }
 }
+
+enum C45AcceptedLabelKernelDeletionEnrollmentV1 {
+    static let durableFamily = "AcceptedLabelGenerationSnapshotRow"
+    static let ordinaryDeleteRule = "DELETE_WHOLE_SNAPSHOT_WHEN_ANY_BOUND_ASSET_IS_DELETED"
+    static let deletionLedgerKind = DeletionRecordKindV2.acceptedLabelGenerationSnapshot
+    static let scratchOwner = "jobs/asset-label-render/<jobID>"
+    static let eraseOwner = "WORKSPACE_ERASE"
+
+    static func validate() throws {
+        guard AssetLabelPersistenceEnrollmentV1.durableModelCount == 1,
+              AssetLabelPersistenceEnrollmentV1.persistentFamilies == [durableFamily],
+              deletionLedgerKind.rawValue == "acceptedLabelGenerationSnapshot",
+              ordinaryDeleteRule == "DELETE_WHOLE_SNAPSHOT_WHEN_ANY_BOUND_ASSET_IS_DELETED",
+              scratchOwner == "jobs/asset-label-render/<jobID>",
+              eraseOwner == "WORKSPACE_ERASE" else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}

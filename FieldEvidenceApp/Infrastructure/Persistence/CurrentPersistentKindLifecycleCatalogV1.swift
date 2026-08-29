@@ -24,6 +24,7 @@ struct CurrentPersistentKindLifecycleCatalogV1: Sendable {
         try AssetLocatorPersistentKindPolicyV1.validateDeclaration()
         try SchedulePersistentKindPolicyV1.validateDeclaration()
         try TemporalEvidencePersistentKindPolicyV1.validateDeclaration()
+        try AssetLabelPersistentKindPolicyV1.validateDeclaration()
         let compatibility = ReleasedDataCompatibilityPolicyV1.exactHead(
             candidateHead: candidateHead
         )
@@ -1013,3 +1014,5 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
         }
     }
 }
+
+enum C45AcceptedLabelPersistentLifecycleEnrollmentV1 { static let durableKind:WorkspaceEntityKindV1 = .acceptedLabelGenerationSnapshot;static let derivedPlansAreDurable=false }

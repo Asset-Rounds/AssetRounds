@@ -2,6 +2,14 @@ import Foundation
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C45KernelPersistenceCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityPinsV34Records33AndOneRow() {
+        XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.persistentSchemaVersion, 34)
+        XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.recordsSchemaVersion, 33)
+        XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.persistentFamilies, ["AcceptedLabelGenerationSnapshotRow"])
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_17KernelPersistence: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

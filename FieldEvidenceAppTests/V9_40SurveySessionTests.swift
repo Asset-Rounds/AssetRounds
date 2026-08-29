@@ -3,6 +3,14 @@ import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C45SurveySessionCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityRequiresExplicitBoundedPlanStart() {
+        XCTAssertEqual(AssetLabelGenerationPlanV1.schemaVersion, 1)
+        XCTAssertEqual(AssetLabelGenerationPlanV1.maximumItemCount, 1_000)
+        XCTAssertEqual(LabelGenerationStartDecisionV1.explicitStartRequired.rawValue, "EXPLICIT_START_REQUIRED")
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_40SurveySession: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

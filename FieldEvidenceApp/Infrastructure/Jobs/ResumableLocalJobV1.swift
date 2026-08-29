@@ -444,6 +444,36 @@ struct ResumableLocalJobV1: Codable, Equatable, Sendable {
     }
 }
 
+extension ResumableLocalJobV1 {
+    static func assetLabelRender(
+        plan: AssetLabelGenerationPlanV1,
+        generationEpoch: GenerationEpochV1,
+        createdAt: Date
+    ) throws -> Self {
+        try plan.validate()
+        try generationEpoch.validate()
+        let jobID = LocalJobIDV1.deterministic(
+            kind: .render,
+            workspaceID: plan.workspaceID.rawValue,
+            immutableInputSHA256: plan.planSHA256
+        )
+        return try Self(
+            id: jobID,
+            workspaceID: plan.workspaceID.rawValue,
+            kind: .render,
+            immutableInputSHA256: plan.planSHA256,
+            stagingRelativePath: "asset-label-render/\(jobID.rawValue.uuidString.lowercased())",
+            generationEpoch: generationEpoch,
+            createdAt: createdAt,
+            checkpoint: LocalJobCheckpointV1(
+                nextChunkIndex: 0,
+                completedUnitCount: 0,
+                totalUnitCount: AssetLabelRenderCheckpointV1.totalUnitCount
+            )
+        )
+    }
+}
+
 // MARK: - C36 attachment processing jobs
 
 struct DraftAttachmentJobRequestV1: Codable, Equatable, Sendable {

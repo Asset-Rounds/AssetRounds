@@ -394,6 +394,9 @@ final class BackupRestoreService {
                 && modelContext.fetchCount(
                     FetchDescriptor<AssistanceAcceptanceReceiptRow>()
                 ) == 0
+                && modelContext.fetchCount(
+                    FetchDescriptor<AcceptedLabelGenerationSnapshotRow>()
+                ) == 0
                 && modelContext.fetchCount(FetchDescriptor<MutationQuarantineRow>()) == 0
                 && modelContext.fetchCount(
                     FetchDescriptor<EntityMutationRevisionRow>()
@@ -1785,7 +1788,8 @@ private extension BackupRestoreService {
             workflowRecords: records.workflowRecords,
             lighting: records.lighting,
             assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
-            temporalEvidence: records.temporalEvidence
+            temporalEvidence: records.temporalEvidence,
+            acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots
         )
     }
 
@@ -1854,7 +1858,8 @@ private extension BackupRestoreService {
             workflowRecords: records.workflowRecords,
             lighting: records.lighting,
             assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
-            temporalEvidence: records.temporalEvidence
+            temporalEvidence: records.temporalEvidence,
+            acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots
         )
     }
 
@@ -1891,6 +1896,19 @@ private extension BackupRestoreService {
                     normalized.placementPoses
                 )
             }
+        }
+        if normalized.recordsSchemaVersion
+            >= AssetLabelPersistenceEnrollmentV1.recordsSchemaVersion {
+            _ = try normalized.validateC45AcceptedLabelSnapshots()
+        }
+        if let identityDecision,
+           identityDecision.mode == .clone || identityDecision.mode == .fork {
+            normalized = normalized.replacingAcceptedLabelGenerationSnapshots(
+                try rebindingAcceptedLabelSnapshots(
+                    normalized.acceptedLabelGenerationSnapshots,
+                    identity: identityDecision
+                )
+            )
         }
         if normalized.recordsSchemaVersion >= 5,
            let identityDecision {
@@ -1933,6 +1951,52 @@ private extension BackupRestoreService {
                 entityRevisions: history.entityRevisions
             )
         )
+    }
+
+    func rebindingAcceptedLabelSnapshots(
+        _ records: [V34BackupAcceptedLabelSnapshotRecordV1],
+        identity: RestoreIdentityV1
+    ) throws -> [V34BackupAcceptedLabelSnapshotRecordV1] {
+        let workspaceID = WorkspaceID(rawValue: identity.targetPointer.workspaceID)
+        return try records.map { record in
+            let source = try record.value()
+            let localActor = try LocalActorReferenceV1(
+                actorReferenceID: source.recordedBy.actor.actorReferenceID,
+                workspaceID: workspaceID,
+                partyID: source.recordedBy.actor.partyID,
+                displayName: source.recordedBy.actor.displayName
+            )
+            let actor = try ActorSnapshotV1(
+                snapshotID: source.recordedBy.snapshotID,
+                workspaceID: workspaceID,
+                actor: localActor,
+                responsibility: source.recordedBy.responsibility,
+                displayNameAtTime: source.recordedBy.displayNameAtTime,
+                capturedAt: source.recordedBy.capturedAt
+            )
+            let target = try WorkspaceEntityIdentityV1(
+                kind: .acceptedLabelGenerationSnapshot,
+                id: source.snapshotID
+            )
+            let expected = try WorkspaceExpectedRevisionV1(
+                workspaceID: workspaceID,
+                generationID: identity.targetPointer.generationID,
+                writerInstanceID: identity.targetPointer.replicaID,
+                workspaceRevision: source.expectedRevision.workspaceRevision,
+                entityRevisions: [.init(identity: target, revision: 0)]
+            )
+            let rebound = try source.rebound(
+                to: workspaceID,
+                expectedRevision: expected,
+                mutationID: try identity.destinationAcceptedLabelMutationID(for: source.mutationID),
+                recordedBy: actor,
+                recordedAt: source.recordedAt
+            )
+            guard rebound.disposition == .historicCloneOrFork else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            return try V34BackupAcceptedLabelSnapshotRecordV1(rebound)
+        }.sorted { ($0.workspaceID.uuidString, $0.snapshotID.uuidString) < ($1.workspaceID.uuidString, $1.snapshotID.uuidString) }
     }
 
     func rebindingPlacementPoses(
@@ -2118,7 +2182,8 @@ private extension BackupRestoreService {
             workflowRecords: records.workflowRecords,
             lighting: records.lighting,
             assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
-            temporalEvidence: records.temporalEvidence
+            temporalEvidence: records.temporalEvidence,
+            acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots
         )
     }
 
@@ -4938,7 +5003,8 @@ private extension BackupRestoreService {
                 || records.recordsSchemaVersion == 29
                 || records.recordsSchemaVersion == 30
                 || records.recordsSchemaVersion == 31
-                || records.recordsSchemaVersion == 32)
+                || records.recordsSchemaVersion == 32
+                || records.recordsSchemaVersion == 33)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -4959,7 +5025,9 @@ private extension BackupRestoreService {
              (21, let ledger?, _), (22, let ledger?, _), (23, let ledger?, _),
              (24, let ledger?, _), (25, let ledger?, _), (26, let ledger?, _),
              (27, let ledger?, _), (28, let ledger?, _),
-             (29, let ledger?, _), (30, let ledger?, _):
+             (29, let ledger?, _), (30, let ledger?, _),
+             (31, let ledger?, _), (32, let ledger?, _),
+             (33, let ledger?, _):
             do {
                 try ledger.validate()
                 try DeletionLedgerStore(context: context).stageUnion(ledger.entries)
@@ -5771,6 +5839,27 @@ private extension BackupRestoreService {
                 throw BackupRestoreServiceError.invalidPackage
             }
         }
+        if records.recordsSchemaVersion >= AssetLabelPersistenceEnrollmentV1.recordsSchemaVersion {
+            do {
+                let values = try records.acceptedLabelGenerationSnapshots.map { try $0.value() }
+                let targetWorkspaceID = identityDecision?.targetPointer.workspaceID
+                    ?? legacyDestinationIdentity.workspaceID.rawValue
+                let historic = identityDecision.map { $0.mode == .clone || $0.mode == .fork } ?? false
+                guard values.allSatisfy({
+                    $0.workspaceID.rawValue == targetWorkspaceID
+                        && (!historic || $0.disposition == .historicCloneOrFork)
+                }) else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+                for value in values.sorted(by: {
+                    ($0.workspaceID.rawValue.uuidString, $0.snapshotID.uuidString)
+                        < ($1.workspaceID.rawValue.uuidString, $1.snapshotID.uuidString)
+                }) {
+                    context.insert(try AcceptedLabelGenerationSnapshotRow(value))
+                }
+            } catch let error as BackupRestoreServiceError { throw error }
+            catch { throw BackupRestoreServiceError.invalidPackage }
+        } else if !records.acceptedLabelGenerationSnapshots.isEmpty {
+            throw BackupRestoreServiceError.invalidPackage
+        }
         if let mutationHistory = records.mutationHistory {
             guard records.recordsSchemaVersion == 3
                     || records.recordsSchemaVersion == 4
@@ -5801,7 +5890,8 @@ private extension BackupRestoreService {
                     || records.recordsSchemaVersion == 29
                     || records.recordsSchemaVersion == 30
                     || records.recordsSchemaVersion == 31
-                    || records.recordsSchemaVersion == 32 else {
+                    || records.recordsSchemaVersion == 32
+                    || records.recordsSchemaVersion == 33 else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {
@@ -6574,6 +6664,11 @@ private extension BackupRestoreService {
         )
         try validateGenerationTree(
             generationAuthority.stagingTree(id: id),
+            records: expected,
+            generationRootURL: session.generationRootURL
+        )
+        try requireAbsentAssetLabelPublications(
+            generationAuthority.stagingTree(id: id),
             records: expected
         )
     }
@@ -6638,7 +6733,14 @@ private extension BackupRestoreService {
         } else {
             tree = try generationAuthority.installedTree(id: session.generationID)
         }
-        try validateGenerationTree(tree, records: expected)
+        try validateGenerationTree(
+            tree,
+            records: expected,
+            generationRootURL: session.generationRootURL
+        )
+        if staging {
+            try requireAbsentAssetLabelPublications(tree, records: expected)
+        }
     }
 
     func validateLiveSession(
@@ -6691,23 +6793,104 @@ private extension BackupRestoreService {
         }
         try validateGenerationTree(
             generationAuthority.installedTree(id: session.generationID),
-            records: frozenRecords
+            records: frozenRecords,
+            generationRootURL: session.generationRootURL
         )
     }
 
     func validateGenerationTree(
         _ tree: StoreRestoreGenerationAuthority.Tree,
-        records: V4BackupRecordsV1
+        records: V4BackupRecordsV1,
+        generationRootURL: URL
     ) throws {
         let expected = try expectedGenerationTree(records: records)
         let allowedDirectories = expected.directories.union(
             allowedEmptyStagingDirectories
-        )
+        ).union(expected.optionalDirectories)
         guard expected.directories.isSubset(of: tree.directories),
               tree.directories.isSubset(of: allowedDirectories),
               expected.files.isSubset(of: tree.files),
               tree.files.isSubset(of: expected.files.union(expected.optionalFiles)) else {
             throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        try validateOptionalAssetLabelPublications(
+            tree,
+            records: records,
+            generationRootURL: generationRootURL
+        )
+    }
+
+    func validateOptionalAssetLabelPublications(
+        _ tree: StoreRestoreGenerationAuthority.Tree,
+        records: V4BackupRecordsV1,
+        generationRootURL: URL
+    ) throws {
+        let store = EvidenceBundleStore(
+            generationRootURL: generationRootURL,
+            fileManager: fileManager
+        )
+        for record in records.acceptedLabelGenerationSnapshots {
+            let snapshot = try record.value()
+            guard snapshot.disposition == .activeSourceWorkspace else { continue }
+            let binding = snapshot.outputReceipt.publicationBinding
+            let workspace = snapshot.workspaceID.rawValue.uuidString.lowercased()
+            var ownedDirectories: Set<String> = [
+                "content/\(workspace)/.asset-label-publications/\(binding.jobID.rawValue.uuidString.lowercased())",
+            ]
+            var ownedFiles: Set<String> = [
+                "content/\(workspace)/.asset-label-publications/\(binding.jobID.rawValue.uuidString.lowercased())/publication.json",
+            ]
+            for artifact in binding.publishedArtifacts {
+                let directory = "content/\(workspace)/\(artifact.reference.contentID)"
+                ownedDirectories.insert(directory)
+                ownedFiles.insert("\(directory)/original.bin")
+            }
+            let isPresent = !ownedDirectories.isDisjoint(with: tree.directories)
+                || !ownedFiles.isDisjoint(with: tree.files)
+            guard !isPresent
+                    || (ownedDirectories.isSubset(of: tree.directories)
+                        && ownedFiles.isSubset(of: tree.files)) else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            if isPresent {
+                guard let readback = try store.readAssetLabelArtifacts(
+                    jobID: binding.jobID
+                ),
+                      readback.plan == snapshot.plan,
+                      readback.projection.manifest == snapshot.manifest,
+                      readback.publishedArtifacts == binding.publishedArtifacts else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+            }
+        }
+    }
+
+    func requireAbsentAssetLabelPublications(
+        _ tree: StoreRestoreGenerationAuthority.Tree,
+        records: V4BackupRecordsV1
+    ) throws {
+        for record in records.acceptedLabelGenerationSnapshots {
+            let snapshot = try record.value()
+            guard snapshot.disposition == .activeSourceWorkspace else { continue }
+            let binding = snapshot.outputReceipt.publicationBinding
+            let workspace = snapshot.workspaceID.rawValue.uuidString.lowercased()
+            let markerRoot = "content/\(workspace)/.asset-label-publications"
+            var forbiddenDirectories: Set<String> = [
+                markerRoot,
+                "\(markerRoot)/\(binding.jobID.rawValue.uuidString.lowercased())",
+            ]
+            var forbiddenFiles: Set<String> = [
+                "\(markerRoot)/\(binding.jobID.rawValue.uuidString.lowercased())/publication.json",
+            ]
+            for artifact in binding.publishedArtifacts {
+                let directory = "content/\(workspace)/\(artifact.reference.contentID)"
+                forbiddenDirectories.insert(directory)
+                forbiddenFiles.insert("\(directory)/original.bin")
+            }
+            guard forbiddenDirectories.isDisjoint(with: tree.directories),
+                  forbiddenFiles.isDisjoint(with: tree.files) else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
         }
     }
 
@@ -6726,10 +6909,16 @@ private extension BackupRestoreService {
         let expected = try expectedGenerationTree(records: frozenRecords)
         guard tree.directories.isSubset(
                   of: expected.directories.union(allowedEmptyStagingDirectories)
+                    .union(expected.optionalDirectories)
               ),
               tree.files.isSubset(of: expected.files.union(expected.optionalFiles)) else {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
+        try validateOptionalAssetLabelPublications(
+            tree,
+            records: frozenRecords,
+            generationRootURL: session.generationRootURL
+        )
     }
 
     func requireNoUnexpectedStagingBytes(id: UUID) throws {
@@ -6747,10 +6936,12 @@ private extension BackupRestoreService {
         let expected = try expectedGenerationTree(records: frozenRecords)
         guard tree.directories.isSubset(
                   of: expected.directories.union(allowedEmptyStagingDirectories)
+                    .union(expected.optionalDirectories)
               ),
               tree.files.isSubset(of: expected.files.union(expected.optionalFiles)) else {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
+        try requireAbsentAssetLabelPublications(tree, records: frozenRecords)
     }
 
     func expectedGenerationTree(
@@ -6758,10 +6949,13 @@ private extension BackupRestoreService {
     ) throws -> (
         directories: Set<String>,
         files: Set<String>,
+        optionalDirectories: Set<String>,
         optionalFiles: Set<String>
     ) {
         var expectedFiles: Set<String> = ["model.sqlite"]
         var expectedDirectories = Set<String>()
+        var optionalDirectories = Set<String>()
+        var optionalFiles = Set<String>()
         if !records.evidenceFiles.isEmpty {
             expectedDirectories.insert("evidence")
         }
@@ -6779,6 +6973,30 @@ private extension BackupRestoreService {
             expectedDirectories.insert("content/\(workspace)/\(contentID)")
             expectedFiles.insert("content/\(workspace)/\(contentID)/original.bin")
         }
+        for record in records.acceptedLabelGenerationSnapshots {
+            let snapshot = try record.value()
+            guard snapshot.disposition == .activeSourceWorkspace else { continue }
+            let binding = snapshot.outputReceipt.publicationBinding
+            try binding.validate(manifest: snapshot.manifest)
+            let workspace = snapshot.workspaceID.rawValue.uuidString.lowercased()
+            guard binding.workspaceID == snapshot.workspaceID else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            optionalDirectories.insert("content")
+            optionalDirectories.insert("content/\(workspace)")
+            optionalDirectories.insert("content/\(workspace)/.asset-label-publications")
+            optionalDirectories.insert(
+                "content/\(workspace)/.asset-label-publications/\(binding.jobID.rawValue.uuidString.lowercased())"
+            )
+            optionalFiles.insert(
+                "content/\(workspace)/.asset-label-publications/\(binding.jobID.rawValue.uuidString.lowercased())/publication.json"
+            )
+            for artifact in binding.publishedArtifacts {
+                let directory = "content/\(workspace)/\(artifact.reference.contentID)"
+                optionalDirectories.insert(directory)
+                optionalFiles.insert("\(directory)/original.bin")
+            }
+        }
         if !records.reports.isEmpty {
             expectedDirectories.insert("snapshots")
         }
@@ -6793,14 +7011,15 @@ private extension BackupRestoreService {
                 expectedFiles.insert(path)
             }
         }
-        let optionalSQLiteSidecars: Set<String> = [
+        optionalFiles.formUnion([
             "model.sqlite-shm",
             "model.sqlite-wal",
-        ]
+        ])
         return (
             expectedDirectories,
             expectedFiles,
-            optionalSQLiteSidecars
+            optionalDirectories,
+            optionalFiles
         )
     }
 
@@ -6903,6 +7122,11 @@ private extension BackupRestoreService {
                 }
             )
             try validateGenerationTree(
+                generationAuthority.stagingTree(id: id),
+                records: frozenRecords,
+                generationRootURL: session.generationRootURL
+            )
+            try requireAbsentAssetLabelPublications(
                 generationAuthority.stagingTree(id: id),
                 records: frozenRecords
             )
@@ -7228,6 +7452,7 @@ private extension BackupRestoreService {
         let surveySessions=try context.fetch(FetchDescriptor<SurveySessionRow>()),factCaptures=try context.fetch(FetchDescriptor<FactCaptureRow>()),provisionalSubjects=try context.fetch(FetchDescriptor<ProvisionalSubjectRow>()),subjectPromotionReceipts=try context.fetch(FetchDescriptor<SubjectPromotionReceiptRow>()),surveyPublicationSnapshots=try context.fetch(FetchDescriptor<SurveyPublicationSnapshotRow>())
         let temporalEvidenceClipRows = try context.fetch(FetchDescriptor<TemporalEvidenceClipRow>())
         let timecodedEvidenceAnchorRows = try context.fetch(FetchDescriptor<TimecodedEvidenceAnchorRow>())
+        let acceptedLabelSnapshotRows = try context.fetch(FetchDescriptor<AcceptedLabelGenerationSnapshotRow>())
         let assetLocatorRows = try context.fetch(FetchDescriptor<AssetLocatorRow>())
         let locatorBindingReceiptRows = try context.fetch(FetchDescriptor<LocatorBindingReceiptRow>())
         let planDocumentRows = try context.fetch(FetchDescriptor<PlanDocumentRow>())
@@ -7488,6 +7713,10 @@ private extension BackupRestoreService {
                 "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
                     < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
             }
+        let acceptedLabelSnapshotRecords: [V34BackupAcceptedLabelSnapshotRecordV1] =
+            mutationHistory == nil ? [] : try acceptedLabelSnapshotRows
+                .map { try V34BackupAcceptedLabelSnapshotRecordV1($0.value()) }
+                .sorted { ($0.workspaceID.uuidString, $0.snapshotID.uuidString) < ($1.workspaceID.uuidString, $1.snapshotID.uuidString) }
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveyRecords,
             assetLocators: assetLocatorRecords,
@@ -7694,7 +7923,8 @@ private extension BackupRestoreService {
                 "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
                     < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
             },
-            recordsSchemaVersion: !temporalEvidenceRecords.isEmpty ? 32
+            recordsSchemaVersion: !acceptedLabelSnapshotRecords.isEmpty ? 33
+                : !temporalEvidenceRecords.isEmpty ? 32
                 : !assistanceAcceptanceReceiptRecords.isEmpty ? 31
                 : !lightingRecords.isEmpty ? 30
                 : !planArchiveRecords.isEmpty ? 27
@@ -7772,7 +8002,8 @@ private extension BackupRestoreService {
             }.sorted { canonical($0.id) < canonical($1.id) },
             lighting: lightingRecords,
             assistanceAcceptanceReceipts: assistanceAcceptanceReceiptRecords,
-            temporalEvidence: temporalEvidenceRecords
+            temporalEvidence: temporalEvidenceRecords,
+            acceptedLabelGenerationSnapshots: acceptedLabelSnapshotRecords
         )
     }
 
@@ -8092,3 +8323,5 @@ private extension BackupRestoreService {
         value.uuidString.lowercased()
     }
 }
+
+enum C45AcceptedLabelRestoreMaterializationBoundaryV1 { static let exactReleaseMissingBlocks=true;static let cloneForkDisposition:AcceptedLabelSnapshotDispositionV1 = .historicCloneOrFork;static let outputBytesAreMaterialized=false }

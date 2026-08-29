@@ -3838,3 +3838,9 @@ enum C33TemporalEvidenceBoundary_Domain_InspectionKernel_CompletedActivitySnapsh
     static let persistentSchemaVersion: Int =
         TemporalEvidencePersistenceEnrollmentV1.persistentSchemaVersion
 }
+
+/// C45 accepted label generation is operational history, not a completed inspection fact.
+enum C45AssetLabelBoundary_CompletedActivitySnapshotContractsV1 {
+    static func validate(_ snapshot: AcceptedLabelGenerationSnapshotV1) throws { try snapshot.validate() }
+    static let becomesInspectionOutcome = false
+}

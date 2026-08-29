@@ -3658,3 +3658,24 @@ enum TemporalEvidenceSearchProjectionPolicyV1 {
               excludesTranscriptBody else { throw SearchContractFailureV1.forbiddenField }
     }
 }
+
+struct AcceptedLabelSearchMetadataV1: Equatable, Sendable {
+    let workspaceID: UUID
+    let snapshotID: UUID
+    let planID: UUID
+    let assetIDs: [UUID]
+    let snapshotSHA256: String
+    let disposition: AcceptedLabelSnapshotDispositionV1
+
+    init(_ snapshot: AcceptedLabelGenerationSnapshotV1) throws {
+        try snapshot.validate()
+        workspaceID = snapshot.workspaceID.rawValue
+        snapshotID = snapshot.snapshotID
+        planID = snapshot.plan.planID
+        assetIDs = snapshot.plan.items.map(\.assetID).sorted { $0.uuidString < $1.uuidString }
+        snapshotSHA256 = snapshot.snapshotSHA256
+        disposition = snapshot.disposition
+    }
+}
+
+enum C45AcceptedLabelSearchBoundaryV1 { static let acceptedSnapshotMetadataIsSearchSource=true;static let labelTextAndShortCodesAreExcluded=true }

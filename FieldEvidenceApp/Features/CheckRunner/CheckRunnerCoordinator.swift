@@ -15,6 +15,17 @@ extension CheckRunnerCoordinator {
         )
     }
 }
+
+extension CheckRunnerCoordinator {
+    /// Resolution/preview only. The caller must invoke the existing explicit
+    /// Start action before any render job is enqueued or workspace mutation made.
+    func prepareAssetLabelPreview(
+        plan: AssetLabelGenerationPlanV1,
+        input: CheckRunnerAssetLabelInputV1
+    ) throws -> CheckRunnerAssetLabelPreviewV1 {
+        try CheckRunnerAssetLabelPreviewV1(plan: plan, input: input)
+    }
+}
 import SwiftData
 
 @MainActor

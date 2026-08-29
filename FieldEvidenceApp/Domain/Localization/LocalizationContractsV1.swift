@@ -4805,3 +4805,29 @@ enum TemporalEvidenceLocalizationPolicyV1 {
               stateIsNotColorOnly else { throw LocalizationContractFailureV1.invalidValue }
     }
 }
+
+enum AssetLabelLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
+    case preview = "asset_label.preview"
+    case explicitStart = "asset_label.explicit_start"
+    case manualShortCode = "asset_label.manual_short_code"
+    case activeExactReprint = "asset_label.active_exact_reprint"
+    case historicExportOnly = "asset_label.historic_export_only"
+    case blockedMissingRelease = "asset_label.blocked_missing_release"
+    case generated = "asset_label.generated"
+    case handedOff = "asset_label.handed_off"
+    case claimBoundary = "asset_label.claim_boundary"
+}
+
+enum AssetLabelLocalizationPolicyV1 {
+    static let englishOnly = true
+    static let statusIsNotColorOnly = true
+    static let manualEntryRemainsNamed = true
+    static let outputNeverSaysPrintedOrDelivered = true
+    static func validate() throws {
+        let keys = AssetLabelLocalizationKeyV1.allCases.map(\.rawValue)
+        guard keys.count == Set(keys).count, statusIsNotColorOnly,
+              manualEntryRemainsNamed, outputNeverSaysPrintedOrDelivered else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}

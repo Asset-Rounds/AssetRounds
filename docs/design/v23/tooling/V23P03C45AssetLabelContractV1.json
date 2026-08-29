@@ -1,0 +1,93 @@
+{
+  "artifactDigest": "a030e83420b35801230cbd0e36fc392a52ab4e3ca9bac75d9740ba6af79ae99e",
+  "authority": {
+    "allowedPathCount": 226,
+    "appBaseHead": "e02e729e88031ad24db141708cd0da73268683a2",
+    "appBaseTree": "81e28dc812d35eb27f2be18d5960602558d11c38",
+    "attemptID": 1,
+    "authorizedOverlapCount": 3171,
+    "cardID": "V23-P03-C45",
+    "classification": "IMPLEMENT_NOW",
+    "contextDigest": "eb9fa861680052a951381147ef002d36441424e0e16be360bc22ccddd5dc4fa6",
+    "coordinationCASSequence": 318,
+    "coordinationHead": "3272a0b9288c86bc66fec3e6448b8c33d2cd20c3",
+    "coordinationLedgerDigest": "e514597db130194bd524008921c88ca185326a3fb5003a45b09bcba2c01af01e",
+    "coordinationProjectionDigest": "55c539dbbc31c7a8b74e6fdc79df689a7d4c213be69380ed81089e446d3c644b",
+    "coordinationTree": "572f33e362e2f4136d095ef6a9585c39f41947d4",
+    "directPrerequisiteCards": [
+      "V23-P03-C24",
+      "V23-P03-C27"
+    ],
+    "existingPathCount": 212,
+    "fenceDigest": "97601b20a277b7c1cc811b6fc8276008e766077279ed52af0f10d276b04123c1",
+    "hydrationRevision": 1,
+    "hydrationTransitionDigest": "1a884e6ccfbc5ab2326030a2c9424c52a73096163aeb655b5a2026f9ca39afbb",
+    "newPathCount": 14,
+    "nextCard": "V23-P03-C46",
+    "nextRegisterOrdinal": 76,
+    "planningStatus": "NOT_STARTED",
+    "prerequisiteDigest": "7a7f689054ac3af86d90bd236def07ef46dba3c7d629536e0862328f91ee0cab",
+    "registerOrdinal": 75,
+    "s10ReservationOverlapCount": 0,
+    "title": "Deterministic label templates, opaque QR payloads, visible short codes, batch plans, and artifact manifests",
+    "unauthorizedOverlapCount": 0
+  },
+  "persistence": {
+    "acceptedGenerationSnapshotPersistent": true,
+    "durableFamilyCount": 1,
+    "locatorAndShortCodeBindingUsesExistingP03C27Writer": true,
+    "mode": "PERSISTENT_ACCEPTED_SNAPSHOT_AND_EXISTING_LOCATOR_BINDING_TRUTH",
+    "outputReceiptClaimsExternalPossession": false,
+    "persistedFamilies": [
+      "AcceptedLabelGenerationSnapshotRow"
+    ],
+    "persistentSchemaVersion": 34,
+    "recordsSchemaVersion": 33,
+    "templateAndRendererReleasesImmutableCompatibilityInputs": true,
+    "unacceptedPlanAndProjectionResultPersistent": false
+  },
+  "requiredSemantics": {
+    "acceptedGenerationSnapshotIsMinimalImmutableCanonicalRegenerationTruth": true,
+    "acceptedOutputAndReprintBindCoreTextOSBuildAndFontFileDigests": true,
+    "activeHistoricAndBlockedReprintStatesRemainExactAndTruthful": true,
+    "contentAndLocatorIDsAreGloballyUniqueAcrossActiveSnapshots": true,
+    "contractNames": [
+      "ManualShortCodeV1",
+      "AssetLabelTemplateReleaseV1",
+      "LabelDisclosureProfileV1",
+      "AssetLabelItemSnapshotV1",
+      "AssetLabelGenerationPlanV1",
+      "AcceptedLabelGenerationSnapshotV1",
+      "LabelReprintEligibilityV1",
+      "LabelProjectionResultV1",
+      "LabelOutputReceiptV1",
+      "LabelOutputActivationDecisionV1"
+    ],
+    "durableLifecycleCoversMigrationBackupRestoreCloneForkDeleteEraseExportSearchReplayAndForwardFix": true,
+    "existingDocumentRendererExclusivelyProducesDeterministicPDFCSVAndAccessibleText": true,
+    "existingLocatorAuthorityExclusivelyIssuesRebindsAndRevokes": true,
+    "fiveSelectors": [
+      "testV23P03C45G01AcceptedPlanGeneratesByteIdenticalPDFCSVTextAndIndependentQRDecode",
+      "testV23P03C45A01ManualShortCodeAndCameraResolutionParityPreserveExplicitStart",
+      "testV23P03C45H01MalformedStaleRevokedAndOversizedInputsFailClosedWithoutWrongEntity",
+      "testV23P03C45I01LocatorIssuanceAndRenderPublicationRecoverZeroOrCompleteWithoutPartialOutput",
+      "testV23P03C45R01BackupRestoreReplayDeleteEraseReprintAndScratchCleanupRemainExact"
+    ],
+    "historicSnapshotsAreExcludedFromActivePublicationOwnership": true,
+    "manualShortCodeNamespaceRejectsCurrentAndCanonicalHistoryReuse": true,
+    "manualShortCodeUsesFrozenCaseInsensitiveConfusableResistantAlphabetAndCheck": true,
+    "noSecondRendererIdentifierStoreHostedResolverProviderNetworkOrLabelAuthorization": true,
+    "outputReceiptPreservesDigestsWithoutClaimingExternalPossession": true,
+    "physicalPrintScanEvidenceRemainsOwnerPendingUntilP05C02": true,
+    "productionScratchAndDeletionShareExactGenerationJobsNamespace": true,
+    "publishedArtifactsUseExactJobDerivedSoleEvidenceBundleStoreNamespace": true,
+    "qrGrammarIsAR1OpaqueLocatorCheckWithNoURLIdentitySecretOrAutomaticStart": true,
+    "sameJobRequiresIdenticalCanonicalPublicationBinding": true,
+    "shortCodeAndQRRemainLocatorConvenienceNotAuthorization": true,
+    "stableOrderNFCBidiIsolationFixedLayoutAndMetadataProduceRepeatBytes": true,
+    "templateAndRendererReleasesAreImmutableCompatibilityInputs": true,
+    "unacceptedPlansAndResultsAreLeasedDerivedScratchExcludedFromBackup": true
+  },
+  "schema": "V23P03C45AssetLabelContractV1",
+  "schemaVersion": 1
+}

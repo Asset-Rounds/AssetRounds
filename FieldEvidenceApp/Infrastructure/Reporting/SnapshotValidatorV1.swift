@@ -1866,3 +1866,9 @@ enum C33TemporalEvidenceConformance_FieldEvidenceApp_Infrastructure_Reporting_Sn
         }
     }
 }
+
+/// C45 reopened accepted snapshots validate exact plan and artifact manifest digests.
+enum C45AssetLabelBoundary_SnapshotValidatorV1 {
+    static func validate(_ snapshot: AcceptedLabelGenerationSnapshotV1) throws { try snapshot.validate() }
+    static let requiresManifestDigest = true
+}

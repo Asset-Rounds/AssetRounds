@@ -112,3 +112,5 @@ enum C32AssistanceCompatibility_Persistence_MutationJournal_MutationReceiptRecov
     static let interruptionNeverPromotesAProposal = true
     static let createsParallelStoreOrWriter = false
 }
+
+enum C45AcceptedLabelRecoveryBoundaryV1 { static let commandKind:WorkspaceCommandKindV1 = .applyAssetLabel;static let effectBeforeReceiptRecoveryIsIdempotent=true }

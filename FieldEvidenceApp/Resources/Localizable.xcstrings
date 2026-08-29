@@ -3645,6 +3645,42 @@
     "temporal_evidence.manual_import" : {
       "comment" : "C33 manual/offline fallback while live recording remains deferred.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Attach an audio or video file manually" } } }
+    },
+    "asset_label.preview" : {
+      "comment" : "C45 accessible preview heading; preview does not start generation.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Label preview" } } }
+    },
+    "asset_label.explicit_start" : {
+      "comment" : "C45 explicit Start action required after preview.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Start label generation" } } }
+    },
+    "asset_label.manual_short_code" : {
+      "comment" : "C45 manual entry remains available beside camera resolution.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter short code manually" } } }
+    },
+    "asset_label.active_exact_reprint" : {
+      "comment" : "C45 exact-current binding state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Exact current reprint" } } }
+    },
+    "asset_label.historic_export_only" : {
+      "comment" : "C45 historic state after identity or locator drift.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Historic export only" } } }
+    },
+    "asset_label.blocked_missing_release" : {
+      "comment" : "C45 fail-closed state when immutable rendering inputs are unavailable.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Required renderer or template release is unavailable" } } }
+    },
+    "asset_label.generated" : {
+      "comment" : "C45 local generation state; no print or delivery claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Generated on this device" } } }
+    },
+    "asset_label.handed_off" : {
+      "comment" : "C45 system handoff state; no print or delivery claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Handed off to the system" } } }
+    },
+    "asset_label.claim_boundary" : {
+      "comment" : "C45 truthful output boundary.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "This does not confirm printing, delivery, or physical scanning" } } }
     }
   },
   "version" : "1.0"

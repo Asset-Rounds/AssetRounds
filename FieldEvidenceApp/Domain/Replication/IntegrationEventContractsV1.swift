@@ -596,3 +596,5 @@ enum C33TemporalEvidenceIntegrationEventBoundaryV1 {
         projectedKinds.contains(event.subject.kind)
     }
 }
+
+enum C45AcceptedLabelIntegrationEventBoundaryV1 { static let snapshotMayProjectMetadataOnly=true;static let artifactBytesNeverProject=true }

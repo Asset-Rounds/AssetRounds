@@ -1381,3 +1381,11 @@ enum C33TemporalEvidenceBoundary_Domain_AssetSemantics_AssetSemanticContractsV1_
     static let persistentSchemaVersion: Int =
         TemporalEvidencePersistenceEnrollmentV1.persistentSchemaVersion
 }
+
+/// C45 labels consume the existing asset/locator semantics; they never create
+/// a parallel asset identity or assert that a physical label was applied.
+enum C45AssetLabelBoundary_AssetSemanticContractsV1 {
+    static func validate(_ plan: AssetLabelGenerationPlanV1) throws { try plan.validate() }
+    static let createsAssetIdentity = false
+    static let claimsPhysicalApplication = false
+}

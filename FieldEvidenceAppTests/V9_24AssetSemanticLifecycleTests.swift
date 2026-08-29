@@ -3,6 +3,14 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private final class C45AssetSemanticLifecycleCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityDelegatesLocatorIdentityToC27() {
+        XCTAssertFalse(AssetLabelPersistenceEnrollmentV1.createsSecondLocatorStore)
+        XCTAssertEqual(ManualShortCodeV1.externalKeyNamespace, "assetrounds.asset-label.short-code.v1")
+        XCTAssertEqual(Set(AssetLocatorStateV1.allCases), [.active, .retired, .revoked, .replaced])
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_24AssetSemanticLifecycle: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

@@ -599,3 +599,5 @@ enum C32AssistanceCompatibility_Persistence_ProtectedFilePolicy {
     static let interruptionNeverPromotesAProposal = true
     static let createsParallelStoreOrWriter = false
 }
+
+enum C45AcceptedLabelProtectedFileBoundaryV1 { static let canonicalStoreRequiresCompleteProtection=true;static let leasedOutputScratchIsNotBackupAuthority=true }

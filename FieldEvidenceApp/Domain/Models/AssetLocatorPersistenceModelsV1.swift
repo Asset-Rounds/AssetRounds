@@ -52,6 +52,7 @@ private func assetLocatorDecoded<T:Codable & Equatable>(_ type:T.Type,data:Data,
     private let modelContext:ModelContext
     init(modelContext:ModelContext){self.modelContext=modelContext}
     func locator(id:UUID,workspaceID:WorkspaceID)async throws->AssetLocatorV1?{let workspace=workspaceID.rawValue,rows=try modelContext.fetch(FetchDescriptor<AssetLocatorRow>(predicate:#Predicate{$0.locatorID==id&&$0.workspaceID==workspace}));guard rows.count<=1 else{throw AssetLocatorPersistenceFailureV1.corruptRow};return try rows.first?.value()}
+    func bindingReceipt(id:UUID,workspaceID:WorkspaceID)async throws->LocatorBindingReceiptV1?{let workspace=workspaceID.rawValue,rows=try modelContext.fetch(FetchDescriptor<LocatorBindingReceiptRow>(predicate:#Predicate{$0.receiptID==id&&$0.workspaceID==workspace}));guard rows.count<=1 else{throw AssetLocatorPersistenceFailureV1.corruptRow};return try rows.first?.value()}
     func locators(lookupKey:String,workspaceID:WorkspaceID)async throws->[AssetLocatorV1]{let workspace=workspaceID.rawValue,rows=try modelContext.fetch(FetchDescriptor<AssetLocatorRow>(predicate:#Predicate{$0.lookupKey==lookupKey&&$0.workspaceID==workspace}));return try rows.map{$0.value()}.sorted{$0.locatorID.uuidString<$1.locatorID.uuidString}}
     func locatorExistsOutsideWorkspace(lookupKey:String,workspaceID:WorkspaceID)async throws->Bool{let workspace=workspaceID.rawValue,rows=try modelContext.fetch(FetchDescriptor<AssetLocatorRow>(predicate:#Predicate{$0.lookupKey==lookupKey&&$0.workspaceID != workspace}));return !rows.isEmpty}
 }
@@ -95,4 +96,12 @@ enum C33TemporalEvidenceBoundary_Domain_Models_AssetLocatorPersistenceModelsV1_V
     static let anchorType: TimecodedEvidenceAnchorV1.Type = TimecodedEvidenceAnchorV1.self
     static let persistentSchemaVersion: Int =
         TemporalEvidencePersistenceEnrollmentV1.persistentSchemaVersion
+}
+
+// MARK: - C45 canonical asset-label integration
+enum C45AssetLabelBoundary_Row138 {
+    static let reusesCanonicalAssetLocatorAndWriter = true
+    static func validateAcceptedSnapshot(_ snapshot: AcceptedLabelGenerationSnapshotV1) throws {
+        try snapshot.validate()
+    }
 }

@@ -22,6 +22,7 @@ struct LocatorResolutionInputV1: Equatable, Sendable {
 
 protocol AssetLocatorQueryingV1: Sendable {
     func locator(id: UUID, workspaceID: WorkspaceID) async throws -> AssetLocatorV1?
+    func bindingReceipt(id: UUID, workspaceID: WorkspaceID) async throws -> LocatorBindingReceiptV1?
     func locators(lookupKey: String, workspaceID: WorkspaceID) async throws -> [AssetLocatorV1]
     func locatorExistsOutsideWorkspace(
         lookupKey: String,
@@ -30,6 +31,7 @@ protocol AssetLocatorQueryingV1: Sendable {
 }
 
 extension AssetLocatorQueryingV1 {
+    func bindingReceipt(id: UUID, workspaceID: WorkspaceID) async throws -> LocatorBindingReceiptV1? { nil }
     func locatorExistsOutsideWorkspace(
         lookupKey: String,
         workspaceID: WorkspaceID
@@ -87,9 +89,166 @@ struct AssetLocatorCoordinatorV1: Sendable {
 
 protocol AssetLocatorMutationCommittingV1: AnyObject {
     func commitAssetLocator(_ mutation: AssetLocatorMutationV1) throws -> MutationReceiptV1
+    func durableReceipt(mutationID: MutationIDV1) throws -> MutationReceiptV1?
+    func manualShortCodeIsAvailable(_ code: ManualShortCodeV1, workspaceID: WorkspaceID) throws -> Bool
 }
 
 extension WorkspaceWriterV1: AssetLocatorMutationCommittingV1 {}
+
+/// Entropy is injected so tests remain deterministic; the live conformer uses
+/// the platform cryptographic random generator and never accepts caller bodies.
+protocol ManualShortCodeCryptographicEntropyV1: Sendable {
+    func randomBytes(count: Int) throws -> Data
+}
+
+struct ManualShortCodeIssuanceCoordinatorV1 {
+    static let maximumCollisionAttempts = 32
+    static let entropyBytesPerAttempt = 64
+    let query: any AssetLocatorQueryingV1
+    let writer: any AssetLocatorMutationCommittingV1
+    let entropy: any ManualShortCodeCryptographicEntropyV1
+
+    init(query: any AssetLocatorQueryingV1,
+         writer: any AssetLocatorMutationCommittingV1,
+         entropy: any ManualShortCodeCryptographicEntropyV1) {
+        self.query = query; self.writer = writer; self.entropy = entropy
+    }
+
+    /// Generates a workspace-unique candidate. Persist/retry this exact envelope
+    /// through the existing resumable operation boundary if the process can die.
+    func prepare(_ operation: ManualShortCodeIssuanceOperationV1) async throws
+        -> ManualShortCodeIssuanceRequestV1 {
+        try operation.validate()
+        if let durable = try writer.durableReceipt(mutationID: operation.mutationID) {
+            guard let locator = try await query.locator(id: operation.locatorID, workspaceID: operation.workspaceID),
+                  let binding = try await query.bindingReceipt(id: operation.bindingReceiptID, workspaceID: operation.workspaceID),
+                  let code = binding.manualShortCodeIssuance else {
+                throw AssetLabelContractFailureV1.shortCodeRecoveryRequiresPreparedRequest
+            }
+            let request = try ManualShortCodeIssuanceRequestV1(
+                operation: operation, issuerGeneratedShortCode: code
+            )
+            _ = try ManualShortCodeIssuanceReceiptV1(
+                request: request, locator: locator, bindingReceipt: binding,
+                mutationReceipt: durable
+            )
+            return request
+        }
+        if let locator = try await query.locator(id: operation.locatorID, workspaceID: operation.workspaceID) {
+            guard let binding = try await query.bindingReceipt(id: operation.bindingReceiptID, workspaceID: operation.workspaceID),
+                  let code = binding.manualShortCodeIssuance else {
+                throw AssetLabelContractFailureV1.shortCodeRecoveryRequiresPreparedRequest
+            }
+            let request = try ManualShortCodeIssuanceRequestV1(
+                operation: operation, issuerGeneratedShortCode: code
+            )
+            let exact = try bindingBundle(for: request)
+            guard exact.locator == locator, exact.bindingReceipt == binding else {
+                throw AssetLabelContractFailureV1.invalidReceipt
+            }
+            return request
+        }
+        for _ in 0..<Self.maximumCollisionAttempts {
+            let code = try candidate()
+            let key = try code.externalKey()
+            let matches = try await query.locators(lookupKey: key.lookupKey, workspaceID: operation.workspaceID)
+            guard matches.count <= AssetLocatorLimitsV1.maximumCandidates else {
+                throw AssetLocatorFailureV1.ambiguous
+            }
+            if matches.isEmpty,
+               try writer.manualShortCodeIsAvailable(code, workspaceID: operation.workspaceID) {
+                return try .init(operation: operation, issuerGeneratedShortCode: code)
+            }
+        }
+        throw AssetLabelContractFailureV1.shortCodeCollisionLimitReached
+    }
+
+    func issue(_ operation: ManualShortCodeIssuanceOperationV1) async throws
+        -> ManualShortCodeIssuanceReceiptV1 {
+        let request = try await prepare(operation)
+        return try await issue(request)
+    }
+
+    /// Idempotent prepared-request path. A durable matching C27 receipt wins;
+    /// mismatched MutationID reuse is rejected by the canonical receipt wrapper.
+    func issue(_ request: ManualShortCodeIssuanceRequestV1) async throws
+        -> ManualShortCodeIssuanceReceiptV1 {
+        try request.validate()
+        let bundle = try bindingBundle(for: request)
+        if let recovered = try writer.durableReceipt(mutationID: request.operation.mutationID) {
+            return try .init(request: request, locator: bundle.locator,
+                             bindingReceipt: bundle.bindingReceipt, mutationReceipt: recovered)
+        }
+        let key = try request.shortCode.externalKey()
+        let matches = try await query.locators(lookupKey: key.lookupKey,
+                                               workspaceID: request.operation.workspaceID)
+        let exactEffect = matches.count == 1 && matches[0] == bundle.locator
+        guard matches.isEmpty || exactEffect else {
+            throw AssetLabelContractFailureV1.shortCodeCollisionLimitReached
+        }
+        if matches.isEmpty,
+           try !writer.manualShortCodeIsAvailable(
+                request.shortCode, workspaceID: request.operation.workspaceID
+           ) {
+            throw AssetLabelContractFailureV1.shortCodeCollisionLimitReached
+        }
+        do {
+            let receipt = try writer.commitAssetLocator(bundle.mutation)
+            return try .init(request: request, locator: bundle.locator,
+                             bindingReceipt: bundle.bindingReceipt, mutationReceipt: receipt)
+        } catch {
+            // Covers effect-before-receipt interruption when the canonical writer
+            // recovered/committed the same MutationID before surfacing an error.
+            if let recovered = try writer.durableReceipt(mutationID: request.operation.mutationID) {
+                return try .init(request: request, locator: bundle.locator,
+                                 bindingReceipt: bundle.bindingReceipt, mutationReceipt: recovered)
+            }
+            throw error
+        }
+    }
+
+    private func candidate() throws -> ManualShortCodeV1 {
+        let alphabet = Array(ManualShortCodeV1.alphabet)
+        let bytes = try entropy.randomBytes(count: Self.entropyBytesPerAttempt)
+        guard bytes.count == Self.entropyBytesPerAttempt else {
+            throw AssetLabelContractFailureV1.insufficientCryptographicEntropy
+        }
+        let acceptanceLimit = (256 / alphabet.count) * alphabet.count
+        var body = ""
+        for byte in bytes where Int(byte) < acceptanceLimit {
+            body.append(alphabet[Int(byte) % alphabet.count])
+            if body.count == ManualShortCodeV1.randomBodyLength { return try .init(randomBody: body) }
+        }
+        throw AssetLabelContractFailureV1.insufficientCryptographicEntropy
+    }
+
+    private func bindingBundle(for request: ManualShortCodeIssuanceRequestV1) throws
+        -> (locator: AssetLocatorV1, bindingReceipt: LocatorBindingReceiptV1,
+            mutation: AssetLocatorMutationV1) {
+        let operation = request.operation
+        let locator = try AssetLocatorV1(
+            locatorID: operation.locatorID, workspaceID: operation.workspaceID,
+            assetID: operation.assetID, representation: .externalKey(request.shortCode.externalKey()),
+            state: .active, revision: 1, mutationID: operation.mutationID,
+            recordedAt: operation.requestedAt
+        )
+        let preview = try LocatorBindingPreviewV1(
+            workspaceID: operation.workspaceID, action: .bind, before: nil,
+            after: locator.reference, replacement: nil, generatedAt: operation.requestedAt
+        )
+        let bindingReceipt = try LocatorBindingReceiptV1(
+            receiptID: operation.bindingReceiptID, preview: preview,
+            recordedBy: operation.recordedBy, predecessor: nil, revision: 1,
+            mutationID: operation.mutationID, recordedAt: operation.requestedAt,
+            manualShortCodeIssuance: request.shortCode
+        )
+        let mutation = try AssetLocatorMutationV1(
+            workspaceID: operation.workspaceID, mutationID: operation.mutationID,
+            payload: .bind(locator, receipt: bindingReceipt, predecessorReceipt: nil)
+        )
+        return (locator, bindingReceipt, mutation)
+    }
+}
 
 /// C29 typed integration anchor: this owner consumes an exact immutable plan
 /// revision reference and may not reinterpret current plan state implicitly.
@@ -155,4 +314,12 @@ enum C33TemporalEvidenceBoundary_Application_AssetSemantics_AssetLocatorCoordina
     static let anchorType: TimecodedEvidenceAnchorV1.Type = TimecodedEvidenceAnchorV1.self
     static let persistentSchemaVersion: Int =
         TemporalEvidencePersistenceEnrollmentV1.persistentSchemaVersion
+}
+
+// MARK: - C45 canonical asset-label integration
+enum C45AssetLabelBoundary_Row139 {
+    static let reusesCanonicalAssetLocatorAndWriter = true
+    static func validateAcceptedSnapshot(_ snapshot: AcceptedLabelGenerationSnapshotV1) throws {
+        try snapshot.validate()
+    }
 }

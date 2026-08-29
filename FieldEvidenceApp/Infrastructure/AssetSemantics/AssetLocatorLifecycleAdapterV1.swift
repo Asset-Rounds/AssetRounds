@@ -1,5 +1,23 @@
 import CryptoKit
 import Foundation
+import Security
+
+struct SystemManualShortCodeCryptographicEntropyV1: ManualShortCodeCryptographicEntropyV1 {
+    func randomBytes(count: Int) throws -> Data {
+        guard count > 0, count <= ManualShortCodeIssuanceCoordinatorV1.entropyBytesPerAttempt else {
+            throw AssetLabelContractFailureV1.insufficientCryptographicEntropy
+        }
+        var data = Data(count: count)
+        let status = data.withUnsafeMutableBytes { bytes -> OSStatus in
+            guard let address = bytes.baseAddress else { return errSecParam }
+            return SecRandomCopyBytes(kSecRandomDefault, count, address)
+        }
+        guard status == errSecSuccess else {
+            throw AssetLabelContractFailureV1.insufficientCryptographicEntropy
+        }
+        return data
+    }
+}
 
 struct Ed25519LocalLocatorSignatureVerifierV1: LocalLocatorSignatureVerifyingV1 {
     func verify(payload:Data,signature:Data,key:LocatorSigningKeyReferenceV1)throws->Bool{try key.validate();guard signature.count==AssetLocatorLimitsV1.ed25519SignatureBytes else{return false};do{return try Curve25519.Signing.PublicKey(rawRepresentation:key.publicKeyData).isValidSignature(signature,for:payload)}catch{return false}}
@@ -16,6 +34,11 @@ struct AssetLocatorLifecycleAdapterV1{
     init(resolver:OfflineAssetLocatorResolverV1,writer:(any AssetLocatorMutationCommittingV1)?=nil){self.resolver=resolver;self.writer=writer}
     func resolve(_ input:LocatorResolutionInputV1,workspaceID:WorkspaceID,evaluatedAt:Date)async throws->LocatorResolutionV1{try await resolver.resolve(input,workspaceID:workspaceID,evaluatedAt:evaluatedAt)}
     func publish(_ mutation:AssetLocatorMutationV1)throws->AssetLocatorMutationReceiptV1{guard let writer else{throw WorkspaceMutationFailureV1.writerInvalidated};try mutation.validate();let receipt=try writer.commitAssetLocator(mutation);return try .init(mutation:mutation,mutationReceipt:receipt)}
+    func manualShortCodeIssuanceCoordinator() throws -> ManualShortCodeIssuanceCoordinatorV1 {
+        guard let writer else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        return .init(query: resolver.query, writer: writer,
+                     entropy: SystemManualShortCodeCryptographicEntropyV1())
+    }
     func validateClosure(locators:[AssetLocatorV1],receipts:[LocatorBindingReceiptV1])throws{_ = try AssetLocatorLifecycleClosureV1(locators:locators,receipts:receipts)}
     static let scanMutatesCanonicalState=false
     static let resolutionStartsWork=false
@@ -105,5 +128,13 @@ enum C33TemporalEvidenceConformance_FieldEvidenceApp_Infrastructure_AssetSemanti
         guard durableFamilyCount == 2 else {
             throw TemporalEvidenceContractFailureV1.invalidValue
         }
+    }
+}
+
+// MARK: - C45 canonical asset-label integration
+enum C45AssetLabelBoundary_Row140 {
+    static let reusesCanonicalAssetLocatorAndWriter = true
+    static func validateAcceptedSnapshot(_ snapshot: AcceptedLabelGenerationSnapshotV1) throws {
+        try snapshot.validate()
     }
 }

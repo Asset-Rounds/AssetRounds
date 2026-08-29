@@ -924,3 +924,9 @@ enum C33TemporalEvidenceConformance_FieldEvidenceApp_Infrastructure_Reporting_Re
         }
     }
 }
+
+/// C45 historic label snapshots remain export-only when bindings drift.
+enum C45AssetLabelBoundary_ReportHistoryCoordinatorV1 {
+    static func validate(_ snapshot: AcceptedLabelGenerationSnapshotV1) throws { try snapshot.validate() }
+    static let historicReprintIsActive = false
+}

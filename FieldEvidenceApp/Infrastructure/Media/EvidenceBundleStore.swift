@@ -89,6 +89,7 @@ enum EvidenceBundleStoreError: Error, Equatable {
 enum EvidenceBundleStoreFailurePoint: Equatable, Sendable {
     case stagingWrite
     case atomicPromotionMove
+    case assetLabelPublicationBeforeMarkerCommit
 }
 
 final class EvidenceBundleStoreFailureInjection: @unchecked Sendable {
@@ -114,6 +115,484 @@ final class EvidenceBundleStoreFailureInjection: @unchecked Sendable {
     }
 }
 
+struct AssetLabelPublishedContentReadbackV1: Equatable, Sendable {
+    let plan: AssetLabelGenerationPlanV1
+    let projection: LabelProjectionResultV1
+    let publishedArtifacts: [AssetLabelPublishedArtifactContentV1]
+}
+
+private struct AssetLabelContentPublicationMarkerV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let jobID: LocalJobIDV1
+    let plan: AssetLabelGenerationPlanV1
+    let manifest: LabelArtifactManifestV1
+    let nativeTextEnvironment: AssetLabelNativeTextEnvironmentV1
+    let publishedArtifacts: [AssetLabelPublishedArtifactContentV1]
+    let outputSHA256: String
+
+    init(
+        jobID: LocalJobIDV1,
+        plan: AssetLabelGenerationPlanV1,
+        projection: LabelProjectionResultV1,
+        publishedArtifacts: [AssetLabelPublishedArtifactContentV1]
+    ) throws {
+        schemaVersion = Self.schemaVersion
+        self.jobID = jobID
+        self.plan = plan
+        manifest = projection.manifest
+        nativeTextEnvironment = projection.nativeTextEnvironment
+        self.publishedArtifacts = publishedArtifacts.sorted { $0.kind.rawValue < $1.kind.rawValue }
+        outputSHA256 = projection.manifest.manifestSHA256
+        try validate()
+    }
+
+    func validate() throws {
+        try plan.validate()
+        try manifest.validate()
+        try nativeTextEnvironment.validate(planSHA256: plan.planSHA256)
+        try publishedArtifacts.forEach { $0.validate() }
+        let workspace = plan.workspaceID.rawValue.uuidString.lowercased()
+        guard schemaVersion == Self.schemaVersion,
+              manifest.planSHA256 == plan.planSHA256,
+              outputSHA256 == manifest.manifestSHA256,
+              publishedArtifacts.count == LabelArtifactKindV1.allCases.count,
+              publishedArtifacts.map(\.kind) == LabelArtifactKindV1.allCases.sorted(by: { $0.rawValue < $1.rawValue }),
+              Set(publishedArtifacts.map { $0.reference.contentID }).count == publishedArtifacts.count,
+              publishedArtifacts.allSatisfy({ $0.reference.workspaceID == workspace }) else {
+            throw EvidenceBundleStoreError.bundleShapeInvalid
+        }
+        for (published, entry) in zip(publishedArtifacts, manifest.entries) {
+            try published.validate(entry: entry, workspaceID: plan.workspaceID)
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, jobID, plan, manifest, nativeTextEnvironment, publishedArtifacts, outputSHA256
+    }
+
+    init(from decoder: Decoder) throws {
+        try KernelClosedCodingV1.require(decoder, keys: CodingKeys.allCases.map(\.stringValue))
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try c.decode(Int.self, forKey: .schemaVersion)
+        jobID = try c.decode(LocalJobIDV1.self, forKey: .jobID)
+        plan = try c.decode(AssetLabelGenerationPlanV1.self, forKey: .plan)
+        manifest = try c.decode(LabelArtifactManifestV1.self, forKey: .manifest)
+        nativeTextEnvironment = try c.decode(AssetLabelNativeTextEnvironmentV1.self, forKey: .nativeTextEnvironment)
+        publishedArtifacts = try c.decode([AssetLabelPublishedArtifactContentV1].self, forKey: .publishedArtifacts)
+        outputSHA256 = try c.decode(String.self, forKey: .outputSHA256)
+        try validate()
+    }
+}
+
+/// Synchronous marker authority retained by the one EvidenceBundleStore.
+/// The resumable job's generation fence surrounds these calls, while the
+/// marker rename is the atomic visibility point for the three immutable files.
+private final class EvidenceBundleStoreAssetLabelPublicationV1: @unchecked Sendable {
+    private let rootURL: URL
+    private let fileManager: FileManager
+    private let failureInjection: EvidenceBundleStoreFailureInjection?
+    private let lock = NSLock()
+
+    init(rootURL: URL, fileManager: FileManager, failureInjection: EvidenceBundleStoreFailureInjection?) {
+        self.rootURL = rootURL.standardizedFileURL
+        self.fileManager = fileManager
+        self.failureInjection = failureInjection
+    }
+
+    func publishOrAdopt(
+        job: ResumableLocalJobV1,
+        plan: AssetLabelGenerationPlanV1,
+        projection: LabelProjectionResultV1
+    ) throws -> AssetLabelPublishedContentReadbackV1 {
+        lock.lock(); defer { lock.unlock() }
+        try validate(job: job, plan: plan, projection: projection)
+        if let existing = try readbackLocked(jobID: job.id) {
+            guard existing.plan == plan, existing.projection == projection else {
+                throw EvidenceBundleStoreError.promotedBundleAlreadyExists
+            }
+            return existing
+        }
+
+        let published = try makeBindings(job: job, plan: plan, projection: projection)
+        let marker = try AssetLabelContentPublicationMarkerV1(
+            jobID: job.id, plan: plan, projection: projection, publishedArtifacts: published
+        )
+        var createdArtifacts: [AssetLabelPublishedArtifactContentV1] = []
+        do {
+            for (binding, artifact) in zip(published, projection.artifacts) {
+                let directory = contentDirectory(binding.reference)
+                let target = directory.appendingPathComponent("original.bin")
+                try ensureDirectory(directory, kind: .durableDirectory)
+                let components = ["content", binding.reference.workspaceID, binding.reference.contentID]
+                if let existing = try readFile(components: components, name: "original.bin",
+                                               maximumBytes: Int(binding.reference.byteLength)) {
+                    guard existing == artifact.bytes else {
+                        throw EvidenceBundleStoreError.promotedBundleAlreadyExists
+                    }
+                } else {
+                    try writeFileExclusively(artifact.bytes, components: components, name: "original.bin")
+                    try ProtectedFilePolicyV1.applyAndVerify(.mediaOriginal, at: target)
+                    createdArtifacts.append(binding)
+                }
+            }
+            if failureInjection?.consume(.assetLabelPublicationBeforeMarkerCommit) == true {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+            let markerURL = self.markerURL(jobID: job.id, workspaceID: plan.workspaceID)
+            try ensureDirectory(markerURL.deletingLastPathComponent(), kind: .durableDirectory)
+            try writeFileExclusively(
+                AssetLabelCanonicalCodecV1.encode(marker),
+                components: markerComponents(jobID: job.id, workspaceID: plan.workspaceID),
+                name: "publication.json"
+            )
+            try ProtectedFilePolicyV1.applyAndVerify(.reportSnapshot, at: markerURL)
+            guard let readback = try readbackLocked(jobID: job.id),
+                  readback.plan == plan, readback.projection == projection else {
+                throw EvidenceBundleStoreError.bundleFactsMismatch
+            }
+            return readback
+        } catch {
+            if !fileManager.fileExists(atPath: markerURL(jobID: job.id, workspaceID: plan.workspaceID).path) {
+                for published in createdArtifacts.reversed() {
+                    try? removeExact(published)
+                }
+            }
+            throw error
+        }
+    }
+
+    func adoptOnly(
+        jobID: LocalJobIDV1,
+        planSHA256: String,
+        outputSHA256: String
+    ) throws -> AssetLabelPublishedContentReadbackV1? {
+        lock.lock(); defer { lock.unlock() }
+        guard let value = try readbackLocked(jobID: jobID) else { return nil }
+        guard value.plan.planSHA256 == planSHA256,
+              value.projection.manifest.manifestSHA256 == outputSHA256 else {
+            throw EvidenceBundleStoreError.bundleFactsMismatch
+        }
+        return value
+    }
+
+    func readback(jobID: LocalJobIDV1) throws -> AssetLabelPublishedContentReadbackV1? {
+        lock.lock(); defer { lock.unlock() }
+        return try readbackLocked(jobID: jobID)
+    }
+
+    func remove(binding: AssetLabelRenderPublicationBindingV1) throws {
+        lock.lock(); defer { lock.unlock() }
+        try binding.validate()
+        if let marker = try markerLocked(jobID: binding.jobID, workspaceID: binding.workspaceID) {
+            guard marker.plan.workspaceID == binding.workspaceID,
+                  marker.plan.planSHA256 == binding.planSHA256,
+                  marker.manifest.manifestSHA256 == binding.manifestSHA256,
+                  marker.outputSHA256 == binding.outputSHA256,
+                  marker.publishedArtifacts == binding.publishedArtifacts else {
+                throw EvidenceBundleStoreError.promotedBundleNotOwned
+            }
+        }
+        for published in binding.publishedArtifacts {
+            try removeExact(published)
+        }
+        try removeMarker(jobID: binding.jobID, workspaceID: binding.workspaceID)
+    }
+
+    func discardUncommitted(
+        job: ResumableLocalJobV1,
+        plan: AssetLabelGenerationPlanV1,
+        projection: LabelProjectionResultV1
+    ) throws {
+        lock.lock(); defer { lock.unlock() }
+        try validate(job: job, plan: plan, projection: projection)
+        // A marker is the sole commit point. Once present, terminal cleanup
+        // must preserve the published output for acceptance/readback.
+        guard try markerLocked(jobID: job.id, workspaceID: plan.workspaceID) == nil else { return }
+        for published in try makeBindings(job: job, plan: plan, projection: projection) {
+            try removeExact(published)
+        }
+    }
+
+    func removeWorkspace(_ workspaceID: WorkspaceID) throws {
+        lock.lock(); defer { lock.unlock() }
+        let directory = markerWorkspaceURL(workspaceID)
+        guard fileManager.fileExists(atPath: directory.path) else { return }
+        for child in try fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) {
+            guard let raw = UUID(uuidString: child.lastPathComponent) else { continue }
+            let jobID = LocalJobIDV1(rawValue: raw)
+            if let marker = try markerLocked(jobID: jobID, workspaceID: workspaceID) {
+                for published in marker.publishedArtifacts { try removeExact(published) }
+                try removeMarker(jobID: jobID, workspaceID: workspaceID)
+            }
+        }
+    }
+
+    func eraseAll() throws {
+        lock.lock(); defer { lock.unlock() }
+        let content = rootURL.appendingPathComponent("content", isDirectory: true)
+        guard fileManager.fileExists(atPath: content.path) else { return }
+        for workspace in try fileManager.contentsOfDirectory(at: content, includingPropertiesForKeys: nil) {
+            let markerRoot = workspace.appendingPathComponent(".asset-label-publications", isDirectory: true)
+            guard fileManager.fileExists(atPath: markerRoot.path) else { continue }
+            for child in try fileManager.contentsOfDirectory(at: markerRoot, includingPropertiesForKeys: nil) {
+                guard let raw = UUID(uuidString: child.lastPathComponent),
+                      let workspaceRaw = UUID(uuidString: workspace.lastPathComponent) else { continue }
+                let workspaceID = WorkspaceID(rawValue: workspaceRaw)
+                let jobID = LocalJobIDV1(rawValue: raw)
+                if let marker = try markerLocked(jobID: jobID, workspaceID: workspaceID) {
+                    for published in marker.publishedArtifacts { try removeExact(published) }
+                    try removeMarker(jobID: jobID, workspaceID: workspaceID)
+                }
+            }
+        }
+    }
+
+    private func validate(job: ResumableLocalJobV1, plan: AssetLabelGenerationPlanV1,
+                          projection: LabelProjectionResultV1) throws {
+        try job.validate()
+        try projection.validate(plan: plan)
+        guard job.kind == .render, job.workspaceID == plan.workspaceID.rawValue,
+              job.immutableInputSHA256 == plan.planSHA256,
+              projection.manifest.manifestSHA256 == job.checkpoint.rollingOutputSHA256 else {
+            throw EvidenceBundleStoreError.bundleFactsMismatch
+        }
+    }
+
+    private func makeBindings(job: ResumableLocalJobV1, plan: AssetLabelGenerationPlanV1,
+                              projection: LabelProjectionResultV1) throws -> [AssetLabelPublishedArtifactContentV1] {
+        let workspace = plan.workspaceID.rawValue.uuidString.lowercased()
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let createdAt = formatter.string(from: job.createdAt)
+        return try projection.artifacts.map { artifact in
+            let suffix: String
+            switch artifact.entry.kind { case .pdf: suffix = "pdf"; case .formulaSafeCSV: suffix = "csv"; case .structuredText: suffix = "text" }
+            let contentID = "asset-label-\(job.id.rawValue.uuidString.lowercased())-\(suffix)"
+            let digest = try ContentDigestV1(algorithm: .sha256, hexadecimalValue: artifact.entry.sha256)
+            let reference = try ContentReferenceV1(
+                workspaceID: workspace, contentID: contentID, byteLength: artifact.entry.byteCount,
+                mediaType: artifact.entry.mediaType, digests: ContentDigestSetV1([digest]),
+                byteRole: .derivative, createdAt: createdAt
+            )
+            let locator = try ContentLocatorV1(
+                locatorID: "c05-\(contentID)", workspaceID: workspace, contentID: contentID,
+                locatorRevision: 1, contentDigest: digest, expectedByteLength: artifact.entry.byteCount
+            )
+            return try AssetLabelPublishedArtifactContentV1(kind: artifact.entry.kind, reference: reference, locator: locator)
+        }.sorted { $0.kind.rawValue < $1.kind.rawValue }
+    }
+
+    private func readbackLocked(jobID: LocalJobIDV1) throws -> AssetLabelPublishedContentReadbackV1? {
+        let content = rootURL.appendingPathComponent("content", isDirectory: true)
+        guard fileManager.fileExists(atPath: content.path) else { return nil }
+        let workspaces = try fileManager.contentsOfDirectory(at: content, includingPropertiesForKeys: nil)
+        let matches = workspaces.filter {
+            fileManager.fileExists(atPath: $0.appendingPathComponent(".asset-label-publications/\(jobID.rawValue.uuidString.lowercased())/publication.json").path)
+        }
+        guard matches.count <= 1 else { throw EvidenceBundleStoreError.bundleShapeInvalid }
+        guard let workspace = matches.first, let raw = UUID(uuidString: workspace.lastPathComponent) else { return nil }
+        let workspaceID = WorkspaceID(rawValue: raw)
+        guard let marker = try markerLocked(jobID: jobID, workspaceID: workspaceID) else { return nil }
+        let artifacts = try zip(marker.publishedArtifacts, marker.manifest.entries).map { published, entry in
+            guard let bytes = try readFile(
+                components: ["content", published.reference.workspaceID, published.reference.contentID],
+                name: "original.bin", maximumBytes: Int(published.reference.byteLength)
+            ) else { throw EvidenceBundleStoreError.bundleMissing }
+            return try LabelProjectedArtifactV1(kind: entry.kind, safeFilename: entry.safeFilename,
+                                                mediaType: entry.mediaType, bytes: bytes, itemCount: entry.itemCount)
+        }
+        let projection = try LabelProjectionResultV1(
+            plan: marker.plan,
+            artifacts: artifacts,
+            nativeTextEnvironment: marker.nativeTextEnvironment
+        )
+        guard projection.manifest == marker.manifest else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+        return AssetLabelPublishedContentReadbackV1(plan: marker.plan, projection: projection,
+                                                    publishedArtifacts: marker.publishedArtifacts)
+    }
+
+    private func markerLocked(jobID: LocalJobIDV1, workspaceID: WorkspaceID) throws -> AssetLabelContentPublicationMarkerV1? {
+        let url = markerURL(jobID: jobID, workspaceID: workspaceID)
+        guard fileManager.fileExists(atPath: url.path) else { return nil }
+        guard let bytes = try readFile(
+            components: markerComponents(jobID: jobID, workspaceID: workspaceID),
+            name: "publication.json", maximumBytes: AssetLabelCanonicalCodecV1.maximumCanonicalByteCount
+        ) else { return nil }
+        guard bytes.count <= AssetLabelCanonicalCodecV1.maximumCanonicalByteCount else { throw EvidenceBundleStoreError.bundleShapeInvalid }
+        let value = try AssetLabelCanonicalCodecV1.decode(AssetLabelContentPublicationMarkerV1.self, from: bytes)
+        try value.validate()
+        return value
+    }
+
+    private func removeExact(_ published: AssetLabelPublishedArtifactContentV1) throws {
+        try published.validate()
+        let url = contentURL(published.reference)
+        guard fileManager.fileExists(atPath: url.path) else { return }
+        guard let bytes = try readFile(
+            components: ["content", published.reference.workspaceID, published.reference.contentID],
+            name: "original.bin", maximumBytes: Int(published.reference.byteLength)
+        ) else { return }
+        guard Int64(bytes.count) == published.reference.byteLength,
+              KernelCanonicalHashV1.sha256(bytes) == published.reference.digests.digest(for: .sha256)?.hexadecimalValue else {
+            throw EvidenceBundleStoreError.promotedBundleNotOwned
+        }
+        try removeSingleFileDirectory(
+            parentComponents: ["content", published.reference.workspaceID],
+            directoryName: published.reference.contentID,
+            fileName: "original.bin"
+        )
+    }
+
+    private func removeMarker(jobID: LocalJobIDV1, workspaceID: WorkspaceID) throws {
+        let directory = markerURL(jobID: jobID, workspaceID: workspaceID).deletingLastPathComponent()
+        if fileManager.fileExists(atPath: directory.path) {
+            try removeSingleFileDirectory(
+                parentComponents: markerComponents(jobID: jobID, workspaceID: workspaceID).dropLast().map(String.init),
+                directoryName: jobID.rawValue.uuidString.lowercased(),
+                fileName: "publication.json"
+            )
+        }
+    }
+
+    private func contentDirectory(_ reference: ContentReferenceV1) -> URL {
+        rootURL.appendingPathComponent("content/\(reference.workspaceID)/\(reference.contentID)", isDirectory: true)
+    }
+    private func contentURL(_ reference: ContentReferenceV1) -> URL { contentDirectory(reference).appendingPathComponent("original.bin") }
+    private func markerWorkspaceURL(_ workspaceID: WorkspaceID) -> URL {
+        rootURL.appendingPathComponent("content/\(workspaceID.rawValue.uuidString.lowercased())/.asset-label-publications", isDirectory: true)
+    }
+    private func markerURL(jobID: LocalJobIDV1, workspaceID: WorkspaceID) -> URL {
+        markerWorkspaceURL(workspaceID).appendingPathComponent(jobID.rawValue.uuidString.lowercased(), isDirectory: true).appendingPathComponent("publication.json")
+    }
+    private func markerComponents(jobID: LocalJobIDV1, workspaceID: WorkspaceID) -> [String] {
+        ["content", workspaceID.rawValue.uuidString.lowercased(), ".asset-label-publications",
+         jobID.rawValue.uuidString.lowercased()]
+    }
+
+    private func withDirectoryDescriptor<T>(
+        components: [String],
+        create: Bool = false,
+        _ body: (Int32) throws -> T
+    ) throws -> T {
+        guard rootURL.isFileURL,
+              components.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." && !$0.contains("/") && !$0.contains("\\") }) else {
+            throw EvidenceBundleStoreError.unsafePath
+        }
+        var descriptor = Darwin.open(rootURL.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+        guard descriptor >= 0 else { throw EvidenceBundleStoreError.generationRootInvalid }
+        defer { _ = Darwin.close(descriptor) }
+        for component in components {
+            if create && Darwin.mkdirat(descriptor, component, 0o700) != 0 && errno != EEXIST {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+            let next = Darwin.openat(descriptor, component, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            guard next >= 0 else { throw EvidenceBundleStoreError.unsafePath }
+            var information = stat()
+            guard Darwin.fstat(next, &information) == 0,
+                  information.st_mode & S_IFMT == S_IFDIR else {
+                _ = Darwin.close(next)
+                throw EvidenceBundleStoreError.unsafePath
+            }
+            _ = Darwin.close(descriptor)
+            descriptor = next
+        }
+        return try body(descriptor)
+    }
+
+    private func readFile(components: [String], name: String, maximumBytes: Int) throws -> Data? {
+        try withDirectoryDescriptor(components: components) { parent in
+            let descriptor = Darwin.openat(parent, name, O_RDONLY | O_NOFOLLOW)
+            if descriptor < 0 && errno == ENOENT { return nil }
+            guard descriptor >= 0 else { throw EvidenceBundleStoreError.unsafePath }
+            defer { _ = Darwin.close(descriptor) }
+            var information = stat()
+            guard Darwin.fstat(descriptor, &information) == 0,
+                  information.st_mode & S_IFMT == S_IFREG,
+                  information.st_nlink == 1,
+                  information.st_size >= 0,
+                  information.st_size <= maximumBytes else {
+                throw EvidenceBundleStoreError.fileTypeInvalid
+            }
+            var result = Data()
+            result.reserveCapacity(Int(information.st_size))
+            var buffer = [UInt8](repeating: 0, count: 64 * 1_024)
+            while true {
+                let count = Darwin.read(descriptor, &buffer, buffer.count)
+                guard count >= 0 else { throw EvidenceBundleStoreError.fileOperationFailed }
+                if count == 0 { break }
+                result.append(contentsOf: buffer.prefix(count))
+                guard result.count <= maximumBytes else { throw EvidenceBundleStoreError.bundleShapeInvalid }
+            }
+            guard result.count == Int(information.st_size) else { throw EvidenceBundleStoreError.bundleFactsMismatch }
+            return result
+        }
+    }
+
+    private func writeFileExclusively(_ bytes: Data, components: [String], name: String) throws {
+        try withDirectoryDescriptor(components: components, create: true) { parent in
+            let temporary = ".asset-label-\(UUID().uuidString.lowercased()).tmp"
+            let descriptor = Darwin.openat(parent, temporary, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600)
+            guard descriptor >= 0 else { throw EvidenceBundleStoreError.fileOperationFailed }
+            var shouldUnlink = true
+            defer {
+                _ = Darwin.close(descriptor)
+                if shouldUnlink { _ = Darwin.unlinkat(parent, temporary, 0) }
+            }
+            try bytes.withUnsafeBytes { raw in
+                var offset = 0
+                while offset < raw.count {
+                    let count = Darwin.write(descriptor, raw.baseAddress!.advanced(by: offset), raw.count - offset)
+                    guard count > 0 else { throw EvidenceBundleStoreError.fileOperationFailed }
+                    offset += count
+                }
+            }
+            guard Darwin.fsync(descriptor) == 0,
+                  Darwin.linkat(parent, temporary, parent, name, 0) == 0,
+                  Darwin.unlinkat(parent, temporary, 0) == 0,
+                  Darwin.fsync(parent) == 0 else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+            shouldUnlink = false
+        }
+    }
+
+    private func removeSingleFileDirectory(
+        parentComponents: [String], directoryName: String, fileName: String
+    ) throws {
+        try withDirectoryDescriptor(components: parentComponents) { parent in
+            let child = Darwin.openat(parent, directoryName, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            if child < 0 && errno == ENOENT { return }
+            guard child >= 0 else { throw EvidenceBundleStoreError.unsafePath }
+            defer { _ = Darwin.close(child) }
+            let file = Darwin.openat(child, fileName, O_RDONLY | O_NOFOLLOW)
+            if file >= 0 {
+                var information = stat()
+                let valid = Darwin.fstat(file, &information) == 0
+                    && information.st_mode & S_IFMT == S_IFREG && information.st_nlink == 1
+                _ = Darwin.close(file)
+                guard valid, Darwin.unlinkat(child, fileName, 0) == 0 else {
+                    throw EvidenceBundleStoreError.promotedBundleNotOwned
+                }
+            } else if errno != ENOENT {
+                throw EvidenceBundleStoreError.unsafePath
+            }
+            guard Darwin.fsync(child) == 0,
+                  Darwin.unlinkat(parent, directoryName, AT_REMOVEDIR) == 0 || errno == ENOENT,
+                  Darwin.fsync(parent) == 0 else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+        }
+    }
+    private func ensureDirectory(_ url: URL, kind: OwnedFileKindV1) throws {
+        guard url.standardizedFileURL.path.hasPrefix(rootURL.path + "\\") || url.standardizedFileURL.path.hasPrefix(rootURL.path + "/") else {
+            throw EvidenceBundleStoreError.unsafePath
+        }
+        try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
+        try ProtectedFilePolicyV1.applyAndVerify(kind, at: url)
+    }
+}
+
 actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
     private struct FileIdentity: Equatable {
         let device: dev_t
@@ -123,6 +602,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
     private let generationRootURL: URL
     private let fileManager: FileManager
     private let failureInjection: EvidenceBundleStoreFailureInjection?
+    nonisolated private let assetLabelPublications: EvidenceBundleStoreAssetLabelPublicationV1
 
     init(
         generationRootURL: URL,
@@ -132,6 +612,51 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         self.generationRootURL = generationRootURL.standardizedFileURL
         self.fileManager = fileManager
         self.failureInjection = failureInjection
+        assetLabelPublications = EvidenceBundleStoreAssetLabelPublicationV1(
+            rootURL: generationRootURL,
+            fileManager: fileManager,
+            failureInjection: failureInjection
+        )
+    }
+
+    nonisolated func publishOrAdoptAssetLabelArtifacts(
+        job: ResumableLocalJobV1,
+        plan: AssetLabelGenerationPlanV1,
+        projection: LabelProjectionResultV1
+    ) throws -> AssetLabelPublishedContentReadbackV1 {
+        try assetLabelPublications.publishOrAdopt(job: job, plan: plan, projection: projection)
+    }
+
+    nonisolated func adoptAssetLabelArtifacts(
+        jobID: LocalJobIDV1,
+        planSHA256: String,
+        outputSHA256: String
+    ) throws -> AssetLabelPublishedContentReadbackV1? {
+        try assetLabelPublications.adoptOnly(jobID: jobID, planSHA256: planSHA256, outputSHA256: outputSHA256)
+    }
+
+    nonisolated func readAssetLabelArtifacts(jobID: LocalJobIDV1) throws -> AssetLabelPublishedContentReadbackV1? {
+        try assetLabelPublications.readback(jobID: jobID)
+    }
+
+    nonisolated func removeAssetLabelPublishedOutput(_ binding: AssetLabelRenderPublicationBindingV1) throws {
+        try assetLabelPublications.remove(binding: binding)
+    }
+
+    nonisolated func discardUncommittedAssetLabelArtifacts(
+        job: ResumableLocalJobV1,
+        plan: AssetLabelGenerationPlanV1,
+        projection: LabelProjectionResultV1
+    ) throws {
+        try assetLabelPublications.discardUncommitted(job: job, plan: plan, projection: projection)
+    }
+
+    nonisolated func removeAssetLabelPublishedWorkspace(_ workspaceID: WorkspaceID) throws {
+        try assetLabelPublications.removeWorkspace(workspaceID)
+    }
+
+    nonisolated func eraseAllAssetLabelPublishedArtifacts() throws {
+        try assetLabelPublications.eraseAll()
     }
 
     /// Persists a C36 immutable original through the existing C05 generation
@@ -1985,4 +2510,10 @@ enum C32AssistanceCompatibility_Media_EvidenceBundleStore {
     static let manualFallbackRemainsAvailable = true
     static let interruptionNeverPromotesAProposal = true
     static let createsParallelStoreOrWriter = false
+}
+
+/// C45 legacy evidence files never become label artifact identity.
+enum C45AssetLabelBoundary_EvidenceBundleStoreV1 {
+    static func validate(_ plan: AssetLabelGenerationPlanV1) throws { try plan.validate() }
+    static let legacyEvidenceFileIsLabelIdentity = false
 }

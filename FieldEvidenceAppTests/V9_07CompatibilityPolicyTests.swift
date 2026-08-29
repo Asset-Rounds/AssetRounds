@@ -3,6 +3,14 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private final class C45CompatibilityPolicyTypedTests: XCTestCase {
+    func testV23P03C45CompatibilityFreezesTemplateRenderingPolicies() {
+        XCTAssertEqual(AssetLabelLineBreakPolicyV1.allCases, [.fixedGraphemeTailTruncation])
+        XCTAssertEqual(AssetLabelQRCorrectionLevelV1.allCases, [.medium])
+        XCTAssertEqual(AssetLabelQRCorrectionLevelV1.medium.rawValue, "M")
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_07CompatibilityPolicy: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

@@ -1110,3 +1110,5 @@ enum C33TemporalEvidenceJournalBoundaryV1 {
         }
     }
 }
+
+enum C45AcceptedLabelChangeJournalBoundaryV1 { static let commandKind:WorkspaceCommandKindV1 = .applyAssetLabel;static let preservesCanonicalSnapshotDigest=true }

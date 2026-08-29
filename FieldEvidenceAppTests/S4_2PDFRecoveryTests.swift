@@ -7,6 +7,15 @@ import UniformTypeIdentifiers
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C45PDFRecoveryCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityFreezesQRGeometryForDeterministicPDFRecovery() {
+        XCTAssertEqual(DeterministicPDFRendererV1.assetLabelQuietZoneModules, 4)
+        XCTAssertFalse(DeterministicPDFRendererV1.assetLabelInterpolationEnabled)
+        XCTAssertFalse(DeterministicPDFRendererV1.assetLabelOverlaidLogoEnabled)
+        XCTAssertEqual(AssetLabelQRCorrectionLevelV1.medium.rawValue, "M")
+    }
+}
+
 private final class C30EvidenceContextAnchorS4_2PDFRecovery: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

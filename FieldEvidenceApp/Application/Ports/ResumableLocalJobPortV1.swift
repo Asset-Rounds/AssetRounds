@@ -20,6 +20,38 @@ protocol ResumableLocalJobPortV1: Sendable {
     func eraseAll() async throws
 }
 
+/// Exact durable phases for C45 output generation. Each phase is a bounded
+/// cancellation boundary; the final phase means bytes are staged, not printed.
+enum AssetLabelRenderCheckpointV1: Int, Codable, CaseIterable, Sendable {
+    case validatedPlan = 1
+    case renderedPDF = 2
+    case renderedFormulaSafeCSV = 3
+    case renderedStructuredText = 4
+    case sealedManifest = 5
+
+    static let totalUnitCount = 5
+    var completedUnitCount: Int { rawValue }
+
+    func localJobCheckpoint(
+        jobID: LocalJobIDV1,
+        rollingSHA256: String
+    ) -> LocalJobCheckpointV1 {
+        LocalJobCheckpointV1(
+            nextChunkIndex: rawValue,
+            completedUnitCount: rawValue,
+            totalUnitCount: Self.totalUnitCount,
+            lastChunkID: .deterministic(jobID: jobID, index: rawValue - 1),
+            rollingOutputSHA256: rollingSHA256
+        )
+    }
+}
+
+enum AssetLabelRenderJobBoundaryV1 {
+    static let kind: ResumableLocalJobKindV1 = .render
+    static let publishesLocallyOrAdoptsExactManifest = true
+    static let receiptClaimsPhysicalPrintOrDelivery = false
+}
+
 enum C33TemporalEvidenceJobBoundaryV1 { static let canonicalMediaCaptureIsResumableBackgroundWork=false;static let derivativeJobsMayBeRebuilt=true;static let immutableOriginalJobsMayOverwrite=false;static let canonicalMutationKind:WorkspaceCommandKindV1 = .applyTemporalEvidence }
 
 /// Narrow C36 adapter for bounded attachment-processing work.  The request
@@ -99,6 +131,12 @@ typealias ResumableLocalJobOperationV1 = @Sendable (
 typealias ResumableLocalJobPublisherV1 = @Sendable (
     ResumableLocalJobPublicationContextV1
 ) throws -> LocalJobPublicationOutcomeV1
+
+/// Idempotent customer-data scratch cleanup invoked before a terminal job row
+/// is recorded or removed. Throwing keeps the job recoverable/nonterminal.
+typealias ResumableLocalJobTerminalCleanupV1 = @Sendable (
+    ResumableLocalJobV1
+) async throws -> Void
 
 /// For a generation-bound job this wrapper is mandatory. It validates the
 /// accepted/current epoch and retains publication authority across the entire

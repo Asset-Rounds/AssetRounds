@@ -1562,3 +1562,5 @@ final class StoreMigrationFailureInjection {
     }
 }
 #endif
+
+enum C45AcceptedLabelMigrationBoundaryV1 { static let sourceVersion=33;static let targetVersion=AssetLabelPersistenceEnrollmentV1.persistentSchemaVersion;static let backfillCreatesSnapshots=false }

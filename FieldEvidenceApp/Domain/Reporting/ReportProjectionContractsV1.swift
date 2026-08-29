@@ -5150,3 +5150,9 @@ enum TemporalEvidenceReportProjectionPolicyV1 {
         }
     }
 }
+
+/// C45 report projections expose typed manifest metadata and accessible text only.
+enum C45AssetLabelBoundary_ReportProjectionContractsV1 {
+    static func validate(_ snapshot: AcceptedLabelGenerationSnapshotV1) throws { try snapshot.validate() }
+    static let embedsOriginalLabelPDF = false
+}

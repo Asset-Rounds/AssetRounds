@@ -5,6 +5,14 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private final class C45SystemHealthCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityDeclaresNoProviderOrSecondAuthority() {
+        XCTAssertFalse(AssetLabelPersistenceEnrollmentV1.createsSecondLocatorStore)
+        XCTAssertFalse(AssetLabelPersistenceEnrollmentV1.createsSecondRenderer)
+        XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.durableModelCount, 1)
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_12SystemHealthOperationalDiagnostics: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

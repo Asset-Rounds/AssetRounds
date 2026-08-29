@@ -2,6 +2,14 @@ import Foundation
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C45EvidenceContextCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityMakesDisclosurePurposeExplicit() {
+        XCTAssertEqual(Set(LabelDisclosureProfileV1.allCases), [.shortCodeOnly, .assetAndShortCode, .assetLocationAndShortCode])
+        XCTAssertNotEqual(LabelDisclosureProfileV1.shortCodeOnly, .assetAndShortCode)
+        XCTAssertNotEqual(LabelDisclosureProfileV1.assetAndShortCode, .assetLocationAndShortCode)
+    }
+}
+
 private enum C30EvidenceContextTestSupport {
     static let fixedDate = Date(timeIntervalSince1970: 1_785_000_000)
     static let zeroUUID = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))

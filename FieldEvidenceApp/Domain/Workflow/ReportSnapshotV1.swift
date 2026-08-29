@@ -447,3 +447,9 @@ enum C32AssistanceLifecycleBoundary_FieldEvidenceApp_Domain_Workflow_ReportSnaps
         try receipt.validate()
     }
 }
+
+/// C45 reports may link an accepted manifest but never embed mutable scratch bytes.
+enum C45AssetLabelBoundary_ReportSnapshotV1 {
+    static func validate(_ snapshot: AcceptedLabelGenerationSnapshotV1) throws { try snapshot.validate() }
+    static let embedsScratchArtifacts = false
+}

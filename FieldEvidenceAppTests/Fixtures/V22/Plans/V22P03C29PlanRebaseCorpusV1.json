@@ -147,5 +147,14 @@
     "planRebaseNeverRewritesImmutableOriginal": true,
     "anchorKeepsExactClipRevisionAndDigest": true,
     "stalePlanOrSessionRevisionFailsClosed": true
+  },
+  "c45AssetLabelCompatibility": {
+    "compatibilityCardID": "V23-P03-C45",
+    "soleLocatorAuthorityCardID": "V23-P03-C27",
+    "soleRendererAuthorityCardID": "V23-P03-C24",
+    "acceptedSnapshotsAreCanonical": true,
+    "unacceptedPlansAndResultsAreLeasedScratch": true,
+    "outputReceiptDoesNotClaimExternalPossession": true,
+    "physicalPrintScanEvidenceOwnerPending": true
   }
 }

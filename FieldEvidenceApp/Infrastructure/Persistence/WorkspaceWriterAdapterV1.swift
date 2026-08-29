@@ -45,6 +45,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             .applyLighting,
             .applyAssistanceAcceptance,
             .applyTemporalEvidence,
+            .applyAssetLabel,
         ])
 
     /// C22 receipts are appended by the existing fenced journal authority;
@@ -184,6 +185,8 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             }
         case let .applyTemporalEvidence(value):
             return try applyTemporalEvidence(value, temporaryRelativePath: temporaryRelativePath)
+        case let .applyAssetLabel(value):
+            return try applyAssetLabel(value, temporaryRelativePath: temporaryRelativePath)
         case .deleteAsset,
              .deleteSite,
              .eraseWorkspace,
@@ -193,6 +196,77 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
              .restoreWorkspace,
              .archiveEntities:
             throw WorkspaceMutationFailureV1.unsupportedCommand
+        }
+    }
+
+    private func applyAssetLabel(
+        _ mutation: AssetLabelMutationV1,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1 {
+        do {
+            try mutation.validate()
+            let snapshot = mutation.snapshot
+            let workspace = snapshot.workspaceID.rawValue
+            let snapshotID = snapshot.snapshotID
+            let mutationID = snapshot.mutationID.rawValue
+            guard try modelContext.fetch(FetchDescriptor<AcceptedLabelGenerationSnapshotRow>(
+                predicate: #Predicate { $0.workspaceID == workspace && $0.snapshotID == snapshotID }
+            )).isEmpty,
+            try modelContext.fetch(FetchDescriptor<AcceptedLabelGenerationSnapshotRow>(
+                predicate: #Predicate { $0.mutationID == mutationID }
+            )).isEmpty else {
+                throw WorkspaceMutationFailureV1.sequenceCollision
+            }
+            for item in snapshot.plan.items {
+                let assetID = item.assetID
+                let assets = try modelContext.fetch(FetchDescriptor<Asset>(
+                    predicate: #Predicate { $0.id == assetID }
+                ))
+                let assetIdentity = try WorkspaceEntityIdentityV1(kind: .asset, id: assetID)
+                let assetRevisionKey = assetIdentity.stableKey
+                let assetRevisions = try modelContext.fetch(
+                    FetchDescriptor<EntityMutationRevisionRow>(
+                        predicate: #Predicate { $0.stableIdentity == assetRevisionKey }
+                    )
+                )
+                guard assets.count == 1, assetRevisions.count == 1,
+                      let storedAssetRevision = assetRevisions.first?.revision,
+                      storedAssetRevision > 0,
+                      UInt64(storedAssetRevision) == item.assetRevision else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+                let locatorID = item.locator.locatorID
+                let locatorRows = try modelContext.fetch(FetchDescriptor<AssetLocatorRow>(
+                    predicate: #Predicate { $0.locatorID == locatorID }
+                ))
+                let receiptID = item.bindingReceiptID
+                let receiptRows = try modelContext.fetch(FetchDescriptor<LocatorBindingReceiptRow>(
+                    predicate: #Predicate { $0.receiptID == receiptID }
+                ))
+                guard locatorRows.count == 1, let locator = try locatorRows.first?.value(),
+                      locator.workspaceID == snapshot.workspaceID,
+                      locator.assetID == item.assetID,
+                      try locator.reference == item.locator,
+                      locator.state == item.locatorState,
+                      receiptRows.count == 1, let receipt = try receiptRows.first?.value(),
+                      receipt.workspaceID == snapshot.workspaceID,
+                      receipt.after == item.locator,
+                      receipt.revision == item.bindingReceiptRevision,
+                      receipt.receiptSHA256 == item.bindingReceiptSHA256 else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            }
+            modelContext.insert(try AcceptedLabelGenerationSnapshotRow(snapshot))
+            return try WorkspaceMutationEffectV1(
+                affectedEntities: [mutation.affectedIdentity],
+                temporaryRelativePath: temporaryRelativePath
+            )
+        } catch let failure as WorkspaceMutationFailureV1 {
+            modelContext.rollback()
+            throw failure
+        } catch {
+            modelContext.rollback()
+            throw WorkspaceMutationFailureV1.invalidCommand
         }
     }
 
@@ -405,13 +479,88 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             let all=try allRows.map{$0.value()}
             let receiptRows=try modelContext.fetch(FetchDescriptor<LocatorBindingReceiptRow>())
             let receipts=try receiptRows.map{$0.value()}
+            let mutationRows=try modelContext.fetch(FetchDescriptor<MutationReceiptRow>())
             func requireAsset(_ value:AssetLocatorV1)throws{let assetID=value.assetID,assets=try modelContext.fetch(FetchDescriptor<Asset>(predicate:#Predicate{$0.id==assetID}));guard assets.count==1 else{throw WorkspaceMutationFailureV1.invalidCommand}}
             func requireReceipt(_ expected:LocatorBindingReceiptV1?)throws{guard let expected else{return};let matches=receipts.filter{$0.receiptID==expected.receiptID};guard matches.count==1,matches[0]==expected,receipts.filter({$0.predecessorReceiptID==expected.receiptID}).isEmpty else{throw WorkspaceMutationFailureV1.invalidCommand}}
             func requireAvailable(_ value:AssetLocatorV1,excluding:UUID?=nil)throws{let matches=all.filter{$0.workspaceID==value.workspaceID&&$0.lookupKey==value.lookupKey&&$0.state == .active&&$0.locatorID != excluding};guard matches.isEmpty else{throw WorkspaceMutationFailureV1.sequenceCollision}}
+            func requireManualShortCodeProof(
+                target:AssetLocatorV1,
+                receipt:LocatorBindingReceiptV1
+            )throws{
+                let reserved:Bool
+                if case .externalKey(let key)=target.representation {
+                    reserved=key.namespaceID==ManualShortCodeV1.externalKeyNamespace
+                }else{reserved=false}
+                if reserved {
+                    let targetReference=try target.reference
+                    let receiptTarget=receipt.action == .replace
+                        ? receipt.replacement
+                        : Optional(receipt.after)
+                    guard let code=receipt.manualShortCodeIssuance,
+                          target.representation == .externalKey(try code.externalKey()),
+                          receipt.workspaceID==mutation.workspaceID,
+                          receipt.mutationID==mutation.mutationID,
+                          receiptTarget==targetReference else {
+                        throw WorkspaceMutationFailureV1.invalidCommand
+                    }
+                }else if receipt.manualShortCodeIssuance != nil {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            }
+            func historicalLocatorValues()throws->[AssetLocatorV1]{
+                var values:[AssetLocatorV1]=[]
+                for row in mutationRows {
+                    let envelope=try MutationEnvelopeV1.decodeCanonical(from:row.envelopeData)
+                    guard row.mutationID==envelope.mutationID.rawValue,
+                          row.workspaceID==envelope.workspaceID.rawValue,
+                          row.workspaceMutationKey==MutationWorkspaceKeyV1.value(
+                            workspaceID:envelope.workspaceID,
+                            mutationID:envelope.mutationID
+                          ),
+                          row.commandKind==envelope.commandKind.rawValue,
+                          row.envelopeSHA256==(try envelope.canonicalSHA256()) else {
+                        throw WorkspaceMutationFailureV1.persistenceFailed
+                    }
+                    guard case let .applyAssetLocator(historical)=envelope.command else{continue}
+                    let generic=try MutationReceiptV1.decodeCanonical(from:row.receiptData)
+                    try generic.validate()
+                    guard row.receiptIdentity==generic.identity.stableKey,
+                          row.replicaID==generic.identity.replicaID.rawValue,
+                          row.localSequence>=0,
+                          UInt64(row.localSequence)==generic.identity.localSequence,
+                          row.receiptSHA256==(try generic.canonicalSHA256()) else {
+                        throw WorkspaceMutationFailureV1.persistenceFailed
+                    }
+                    _=try AssetLocatorMutationReceiptV1(
+                        mutation:historical,
+                        mutationReceipt:generic
+                    )
+                    switch historical.payload {
+                    case let .bind(value,_,_):values.append(value)
+                    case let .transition(value,_,predecessor,_):values += [predecessor,value]
+                    case let .replace(value,replacement,_,predecessor,_):
+                        values += [predecessor,value,replacement]
+                    }
+                }
+                return values
+            }
+            func requireUnusedManualShortCode(_ value:AssetLocatorV1)throws{
+                guard case .externalKey(let key)=value.representation,
+                      key.namespaceID==ManualShortCodeV1.externalKeyNamespace else{return}
+                let currentCollision=all.contains{
+                    $0.workspaceID==value.workspaceID&&$0.lookupKey==value.lookupKey
+                }
+                let historicalCollision=try historicalLocatorValues().contains{
+                    $0.workspaceID==value.workspaceID&&$0.lookupKey==value.lookupKey
+                }
+                guard !currentCollision,!historicalCollision else{
+                    throw WorkspaceMutationFailureV1.sequenceCollision
+                }
+            }
             switch mutation.payload{
-            case let .bind(value,receipt,predecessorReceipt):guard all.filter({$0.locatorID==value.locatorID}).isEmpty,receipts.filter({$0.receiptID==receipt.receiptID}).isEmpty else{throw WorkspaceMutationFailureV1.sequenceCollision};try requireAsset(value);try requireReceipt(predecessorReceipt);try requireAvailable(value);try requireExactActor(receipt.recordedBy);modelContext.insert(try AssetLocatorRow(value));modelContext.insert(try LocatorBindingReceiptRow(receipt))
-            case let .transition(value,receipt,prior,predecessorReceipt):let id=prior.locatorID,rows=allRows.filter{$0.locatorID==id};guard rows.count==1,try rows[0].value()==prior,receipts.filter({$0.receiptID==receipt.receiptID}).isEmpty else{throw WorkspaceMutationFailureV1.staleEntityRevision(try .init(kind:.assetLocator,id:id))};try requireAsset(value);try requireReceipt(predecessorReceipt);if value.state == .active{try requireAvailable(value,excluding:id)};try requireExactActor(receipt.recordedBy);try rows[0].replace(with:value,expectedRevision:prior.revision);modelContext.insert(try LocatorBindingReceiptRow(receipt))
-            case let .replace(value,replacement,receipt,prior,predecessorReceipt):let id=prior.locatorID,rows=allRows.filter{$0.locatorID==id};guard rows.count==1,try rows[0].value()==prior,all.filter({$0.locatorID==replacement.locatorID}).isEmpty,receipts.filter({$0.receiptID==receipt.receiptID}).isEmpty else{throw WorkspaceMutationFailureV1.staleEntityRevision(try .init(kind:.assetLocator,id:id))};try requireAsset(value);try requireAsset(replacement);try requireReceipt(predecessorReceipt);try requireAvailable(replacement,excluding:id);try requireExactActor(receipt.recordedBy);try rows[0].replace(with:value,expectedRevision:prior.revision);modelContext.insert(try AssetLocatorRow(replacement));modelContext.insert(try LocatorBindingReceiptRow(receipt))
+            case let .bind(value,receipt,predecessorReceipt):try requireManualShortCodeProof(target:value,receipt:receipt);guard receipt.action == .bind,all.filter({$0.locatorID==value.locatorID}).isEmpty,receipts.filter({$0.receiptID==receipt.receiptID}).isEmpty else{throw WorkspaceMutationFailureV1.sequenceCollision};try requireAsset(value);try requireReceipt(predecessorReceipt);try requireAvailable(value);try requireUnusedManualShortCode(value);try requireExactActor(receipt.recordedBy);modelContext.insert(try AssetLocatorRow(value));modelContext.insert(try LocatorBindingReceiptRow(receipt))
+            case let .transition(value,receipt,prior,predecessorReceipt):let id=prior.locatorID,rows=allRows.filter{$0.locatorID==id};guard rows.count==1,try rows[0].value()==prior,receipts.filter({$0.receiptID==receipt.receiptID}).isEmpty else{throw WorkspaceMutationFailureV1.staleEntityRevision(try .init(kind:.assetLocator,id:id))};let isRebind=receipt.action == .rebind;if isRebind{try requireManualShortCodeProof(target:value,receipt:receipt)}else if receipt.manualShortCodeIssuance != nil{throw WorkspaceMutationFailureV1.invalidCommand};try requireAsset(value);try requireReceipt(predecessorReceipt);if value.state == .active{try requireAvailable(value,excluding:id)};if isRebind{try requireUnusedManualShortCode(value)};try requireExactActor(receipt.recordedBy);try rows[0].replace(with:value,expectedRevision:prior.revision);modelContext.insert(try LocatorBindingReceiptRow(receipt))
+            case let .replace(value,replacement,receipt,prior,predecessorReceipt):let id=prior.locatorID,rows=allRows.filter{$0.locatorID==id};guard rows.count==1,try rows[0].value()==prior,all.filter({$0.locatorID==replacement.locatorID}).isEmpty,receipts.filter({$0.receiptID==receipt.receiptID}).isEmpty else{throw WorkspaceMutationFailureV1.staleEntityRevision(try .init(kind:.assetLocator,id:id))};try requireManualShortCodeProof(target:replacement,receipt:receipt);try requireAsset(value);try requireAsset(replacement);try requireReceipt(predecessorReceipt);try requireAvailable(replacement,excluding:id);try requireUnusedManualShortCode(replacement);try requireExactActor(receipt.recordedBy);try rows[0].replace(with:value,expectedRevision:prior.revision);modelContext.insert(try AssetLocatorRow(replacement));modelContext.insert(try LocatorBindingReceiptRow(receipt))
             }
             return try WorkspaceMutationEffectV1(affectedEntities:mutation.affectedIdentities,temporaryRelativePath:temporaryRelativePath)
         }catch let failure as WorkspaceMutationFailureV1{modelContext.rollback();throw failure}catch{modelContext.rollback();throw WorkspaceMutationFailureV1.invalidCommand}

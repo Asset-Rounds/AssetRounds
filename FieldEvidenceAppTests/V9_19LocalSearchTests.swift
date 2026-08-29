@@ -3,6 +3,14 @@ import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C45LocalSearchCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityIndexesAcceptedSnapshotTruthNotScratchArtifacts() {
+        XCTAssertTrue(AssetLabelPersistenceEnrollmentV1.persistentFamilies.contains("AcceptedLabelGenerationSnapshotRow"))
+        XCTAssertFalse(AssetLabelPersistenceEnrollmentV1.persistentFamilies.contains("AssetLabelGenerationPlanV1"))
+        XCTAssertFalse(AssetLabelPersistenceEnrollmentV1.persistentFamilies.contains("LabelProjectedArtifactV1"))
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_19LocalSearch: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

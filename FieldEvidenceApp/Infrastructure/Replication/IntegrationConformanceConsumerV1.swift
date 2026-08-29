@@ -195,3 +195,5 @@ enum C32AssistanceCompatibility_Replication_IntegrationConformanceConsumerV1 {
     static let interruptionNeverPromotesAProposal = true
     static let createsParallelStoreOrWriter = false
 }
+
+enum C45AcceptedLabelIntegrationConsumerBoundaryV1 { static let cannotActivateHistoricCloneSnapshot=true;static let cannotInferHandoffPossession=true }

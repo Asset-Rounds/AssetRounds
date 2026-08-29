@@ -1222,6 +1222,9 @@ private extension EraseAllService {
             clock: Date.init
         )
         try await scratchDataLeaseStore.eraseScratchData()
+        // C45 render attempts live under each generation's jobs directory.
+        // `cleanupGenerations` above removes that complete generation-owned
+        // scratch namespace; there is no application-support-level C45 root.
         try auxiliary.removeFrozenTargets()
         userDefaults.removePersistentDomain(forName: bundleIdentifier)
         // Recreate through a fresh adapter after removing the old anchored
@@ -1457,8 +1460,13 @@ private extension EraseAllService {
         }
         let evidence = try modelContext.fetch(FetchDescriptor<EvidenceFile>())
         let reports = try modelContext.fetch(FetchDescriptor<Report>())
+        let acceptedLabelSnapshots = try modelContext.fetch(
+            FetchDescriptor<AcceptedLabelGenerationSnapshotRow>()
+        ).map { try $0.value() }
         var expectedDirectories = Set<String>()
         var expectedFiles: Set<String> = ["model.sqlite"]
+        var optionalDirectories = Set<String>()
+        var optionalFiles = Set<String>()
         if !evidence.isEmpty { expectedDirectories.insert("evidence") }
         for value in evidence {
             expectedDirectories.insert("evidence/\(Self.canonical(value.id))")
@@ -1473,20 +1481,81 @@ private extension EraseAllService {
             expectedFiles.insert(value.snapshotRelativePath)
             if let path = value.pdfRelativePath { expectedFiles.insert(path) }
         }
+        for snapshot in acceptedLabelSnapshots
+            where snapshot.disposition == .activeSourceWorkspace {
+            let binding = snapshot.outputReceipt.publicationBinding
+            try binding.validate(manifest: snapshot.manifest)
+            let workspace = snapshot.workspaceID.rawValue.uuidString.lowercased()
+            guard binding.workspaceID == snapshot.workspaceID else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            optionalDirectories.insert("content")
+            optionalDirectories.insert("content/\(workspace)")
+            optionalDirectories.insert("content/\(workspace)/.asset-label-publications")
+            optionalDirectories.insert(
+                "content/\(workspace)/.asset-label-publications/\(binding.jobID.rawValue.uuidString.lowercased())"
+            )
+            optionalFiles.insert(
+                "content/\(workspace)/.asset-label-publications/\(binding.jobID.rawValue.uuidString.lowercased())/publication.json"
+            )
+            for artifact in binding.publishedArtifacts {
+                let directory = "content/\(workspace)/\(artifact.reference.contentID)"
+                optionalDirectories.insert(directory)
+                optionalFiles.insert("\(directory)/original.bin")
+            }
+        }
         let allowedStagingDirectories: Set<String> = [
             ".staging",
             ".staging/evidence",
             ".staging/pdfs",
             ".staging/snapshots",
         ]
-        let optionalFiles: Set<String> = [
+        optionalFiles.formUnion([
             "model.sqlite-shm",
             "model.sqlite-wal",
-        ]
+        ])
         let tree = try authority.installedTree(id: id)
+        let contentStore = EvidenceBundleStore(
+            generationRootURL: generationRootURL,
+            fileManager: fileManager
+        )
+        for snapshot in acceptedLabelSnapshots
+            where snapshot.disposition == .activeSourceWorkspace {
+            let binding = snapshot.outputReceipt.publicationBinding
+            let workspace = snapshot.workspaceID.rawValue.uuidString.lowercased()
+            var ownedDirectories: Set<String> = [
+                "content/\(workspace)/.asset-label-publications/\(binding.jobID.rawValue.uuidString.lowercased())",
+            ]
+            var ownedFiles: Set<String> = [
+                "content/\(workspace)/.asset-label-publications/\(binding.jobID.rawValue.uuidString.lowercased())/publication.json",
+            ]
+            for artifact in binding.publishedArtifacts {
+                let directory = "content/\(workspace)/\(artifact.reference.contentID)"
+                ownedDirectories.insert(directory)
+                ownedFiles.insert("\(directory)/original.bin")
+            }
+            let isPresent = !ownedDirectories.isDisjoint(with: tree.directories)
+                || !ownedFiles.isDisjoint(with: tree.files)
+            guard !isPresent
+                    || (ownedDirectories.isSubset(of: tree.directories)
+                        && ownedFiles.isSubset(of: tree.files)) else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            if isPresent {
+                guard let readback = try contentStore.readAssetLabelArtifacts(
+                    jobID: binding.jobID
+                ),
+                      readback.plan == snapshot.plan,
+                      readback.projection.manifest == snapshot.manifest,
+                      readback.publishedArtifacts == binding.publishedArtifacts else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+            }
+        }
         guard expectedDirectories.isSubset(of: tree.directories),
               tree.directories.isSubset(
                 of: expectedDirectories.union(allowedStagingDirectories)
+                    .union(optionalDirectories)
               ),
               expectedFiles.isSubset(of: tree.files),
               tree.files.isSubset(of: expectedFiles.union(optionalFiles)),
@@ -2578,4 +2647,15 @@ extension EraseAllService {
         }
         try TemporalEvidenceEraseAllEnrollmentV1.validate()
     }
+
+    func validateAcceptedLabelEraseClosure(
+        session: StoreGenerationSession
+    ) throws {
+        guard try session.modelContext.fetchCount(
+            FetchDescriptor<AcceptedLabelGenerationSnapshotRow>()
+        ) == 0 else { throw EraseAllServiceError.invalidAuthority }
+        try C45AcceptedLabelKernelDeletionEnrollmentV1.validate()
+    }
 }
+
+enum C45AcceptedLabelEraseAllBoundaryV1 { static let deletesAcceptedSnapshotRows=true;static let deletesLeasedLabelScratch=true }

@@ -3,6 +3,14 @@ import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C45TemporalEvidenceCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityKeepsLabelArtifactsDerivedAndOutputClaimsBounded() {
+        XCTAssertEqual(Set(LabelArtifactKindV1.allCases), [.pdf, .formulaSafeCSV, .structuredText])
+        XCTAssertFalse(AssetLabelPersistenceEnrollmentV1.persistentFamilies.contains("LabelProjectedArtifactV1"))
+        XCTAssertFalse(DeterministicPDFRendererV1.assetLabelPhysicalScanAcceptanceClaimed)
+    }
+}
+
 enum C33TemporalEvidenceTestSupport {
     static let fixedDate = Date(timeIntervalSince1970: 1_820_001_600)
     static let fixedInstant = "2027-09-04T00:00:00Z"

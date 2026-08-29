@@ -947,3 +947,5 @@ enum C33TemporalEvidenceConformance_FieldEvidenceApp_Domain_Reporting_ContractMa
         }
     }
 }
+
+enum C45AcceptedLabelContractManifestBoundaryV1 { static let durableFamily="AcceptedLabelGenerationSnapshotRow";static let derivedOutputIsNotContractManifestTruth=true }

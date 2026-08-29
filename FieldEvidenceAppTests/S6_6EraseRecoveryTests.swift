@@ -3,6 +3,14 @@ import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C45EraseRecoveryCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityLeavesNoDurableRenderScratch() {
+        XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.persistentFamilies, ["AcceptedLabelGenerationSnapshotRow"])
+        XCTAssertTrue(AssetLabelPersistenceEnrollmentV1.derivedFamilies.contains("LabelProjectionResultV1"))
+        XCTAssertFalse(AssetLabelPersistenceEnrollmentV1.persistentFamilies.contains("LabelProjectedArtifactV1"))
+    }
+}
+
 private final class C30EvidenceContextAnchorS6_6EraseRecovery: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

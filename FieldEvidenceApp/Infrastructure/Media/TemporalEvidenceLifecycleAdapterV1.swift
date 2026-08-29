@@ -105,3 +105,11 @@ actor TemporalEvidencePromotionRecoveryFileAdapterV1:TemporalEvidencePromotionRe
     func recoverAfterInterruption()async throws->ScratchDataLeaseRecoverySummaryV1{try await coordinator.recoverAfterInterruption()}
     func recoverPendingRetentionCleanup()async throws->Int{try await coordinator.recoverPendingRetentionCleanup()}
 }
+
+// MARK: - C45 canonical asset-label integration
+enum C45AssetLabelBoundary_Row185 {
+    static let reusesCanonicalAssetLocatorAndWriter = true
+    static func validateAcceptedSnapshot(_ snapshot: AcceptedLabelGenerationSnapshotV1) throws {
+        try snapshot.validate()
+    }
+}

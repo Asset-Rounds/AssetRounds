@@ -947,3 +947,11 @@ enum C33TemporalEvidenceBoundary_Domain_Capability_CapabilityAvailabilityContrac
     static let persistentSchemaVersion: Int =
         TemporalEvidencePersistenceEnrollmentV1.persistentSchemaVersion
 }
+
+enum AssetLabelCapabilityBoundaryV1 {
+    static let cameraInputOnlyResolvesOpaquePayload = true
+    static let manualShortCodeHasFeatureParity = true
+    static let generationRequiresExplicitStart = true
+    static let labelAuthorizationIsProvided = false
+    static let printerOrHostedResolverCapabilityIsProvided = false
+}

@@ -822,6 +822,38 @@ enum TemporalEvidenceBackupMemberV1 {
     }
 }
 
+struct V34BackupAcceptedLabelSnapshotRecordV1: Codable, Equatable, Sendable {
+    let snapshotID: UUID
+    let workspaceID: UUID
+    let mutationID: UUID
+    let snapshotSHA256: String
+    let canonicalData: Data
+
+    init(_ value: AcceptedLabelGenerationSnapshotV1) throws {
+        try value.validate()
+        snapshotID = value.snapshotID
+        workspaceID = value.workspaceID.rawValue
+        mutationID = value.mutationID.rawValue
+        snapshotSHA256 = value.snapshotSHA256
+        canonicalData = try AssetLabelCanonicalCodecV1.encode(value)
+    }
+
+    func value() throws -> AcceptedLabelGenerationSnapshotV1 {
+        let value = try AssetLabelCanonicalCodecV1.decode(
+            AcceptedLabelGenerationSnapshotV1.self, from: canonicalData
+        )
+        try value.validate()
+        guard value.snapshotID == snapshotID,
+              value.workspaceID.rawValue == workspaceID,
+              value.mutationID.rawValue == mutationID,
+              value.snapshotSHA256 == snapshotSHA256,
+              try AssetLabelCanonicalCodecV1.encode(value) == canonicalData else {
+            throw AssetLabelContractFailureV1.invalidDigest
+        }
+        return value
+    }
+}
+
 struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     let guidedSurveys:[V25BackupGuidedSurveyRecordV1]
     let assetLocators: [V26BackupAssetLocatorRecordV1]
@@ -842,6 +874,9 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     /// C33 carries two durable metadata families. Immutable original bytes are
     /// direct archive members named by `TemporalEvidenceBackupMemberV1`.
     let temporalEvidence: [V33BackupTemporalEvidenceRecordV1]
+    /// C45 immutable accepted label truth. Projection bytes, plans-in-flight,
+    /// renderer checkpoints, and handoff staging are deliberately excluded.
+    let acceptedLabelGenerationSnapshots: [V34BackupAcceptedLabelSnapshotRecordV1]
     let surveyDefinitions:[V24BackupSurveyDefinitionRecordV1]
     let accessibleDocumentAssessments:[V23BackupAccessibleDocumentAssessmentRecordV1]
     let fieldReferences:[V22BackupFieldReferenceRecordV1]
@@ -921,7 +956,8 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         pairedObservationLinks: [V30BackupEvidenceContextRecordV1] = [],
         lighting: [V31BackupLightingRecordV1] = [],
         assistanceAcceptanceReceipts: [V32BackupAssistanceAcceptanceRecordV1] = [],
-        temporalEvidence: [V33BackupTemporalEvidenceRecordV1] = []
+        temporalEvidence: [V33BackupTemporalEvidenceRecordV1] = [],
+        acceptedLabelGenerationSnapshots: [V34BackupAcceptedLabelSnapshotRecordV1] = []
     ) {
         self.guidedSurveys=guidedSurveys
         self.assetLocators = assetLocators
@@ -933,6 +969,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         self.lighting = lighting
         self.assistanceAcceptanceReceipts = assistanceAcceptanceReceipts
         self.temporalEvidence = temporalEvidence
+        self.acceptedLabelGenerationSnapshots = acceptedLabelGenerationSnapshots
         self.surveyDefinitions=surveyDefinitions
         self.accessibleDocumentAssessments=accessibleDocumentAssessments
         self.fieldReferences=fieldReferences
@@ -975,7 +1012,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         case locationMigrationReceipts, locationNodes, mutationHistory, packets, partyAccountability
         case recordsSchemaVersion, reports, requirementAssurance, savedSmartViews, sites
          case workflowRecords, evidenceContexts, pairedObservationLinks, lighting
-         case assistanceAcceptanceReceipts, temporalEvidence
+         case assistanceAcceptanceReceipts, temporalEvidence, acceptedLabelGenerationSnapshots
     }
 
     init(from decoder: Decoder) throws {
@@ -1066,8 +1103,106 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
             temporalEvidence: try values.decodeIfPresent(
                 [V33BackupTemporalEvidenceRecordV1].self,
                 forKey: .temporalEvidence
+            ) ?? [],
+            acceptedLabelGenerationSnapshots: try values.decodeIfPresent(
+                [V34BackupAcceptedLabelSnapshotRecordV1].self,
+                forKey: .acceptedLabelGenerationSnapshots
             ) ?? []
         )
+    }
+}
+
+extension V4BackupRecordsV1 {
+    func validateC45AcceptedLabelSnapshots() throws -> [AcceptedLabelGenerationSnapshotV1] {
+        if recordsSchemaVersion < AssetLabelPersistenceEnrollmentV1.recordsSchemaVersion {
+            guard acceptedLabelGenerationSnapshots.isEmpty else {
+                throw AssetLabelContractFailureV1.invalidValue
+            }
+            return []
+        }
+        guard recordsSchemaVersion == AssetLabelPersistenceEnrollmentV1.recordsSchemaVersion,
+              Set(acceptedLabelGenerationSnapshots.map { "\($0.workspaceID.uuidString.lowercased()):\($0.snapshotID.uuidString.lowercased())" }).count
+                == acceptedLabelGenerationSnapshots.count else {
+            throw AssetLabelContractFailureV1.duplicateIdentity
+        }
+        let values = try acceptedLabelGenerationSnapshots.map { try $0.value() }
+        try Self.validateC45ActivePublicationOwnership(values)
+        let mutations = try mutationHistory?.receipts.compactMap { record -> AssetLabelMutationV1? in
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+            guard case let .applyAssetLabel(mutation) = envelope.command else { return nil }
+            let receipt = try MutationReceiptV1.decodeCanonical(from: record.receiptData)
+            _ = try AssetLabelAcceptanceReceiptV1(mutation: mutation, canonicalMutationReceipt: receipt)
+            return mutation
+        } ?? []
+        let mutationSnapshotIDs = Set(mutations.map { $0.snapshot.snapshotID })
+        let liveSnapshotIDs = Set(values.map(\.snapshotID))
+        let deletedSnapshotIDs = Set((deletionLedger?.entries ?? []).compactMap {
+            $0.identity.kind == .acceptedLabelGenerationSnapshot ? $0.identity.id : nil
+        })
+        guard mutationSnapshotIDs.count == mutations.count,
+              liveSnapshotIDs.isDisjoint(with: deletedSnapshotIDs),
+              mutationSnapshotIDs == liveSnapshotIDs.union(deletedSnapshotIDs),
+              values.allSatisfy({ value in
+                  mutations.contains(where: { mutation in
+                      let source = mutation.snapshot
+                      if value.disposition == .activeSourceWorkspace {
+                          return source == value
+                              && (try? AssetLabelCanonicalCodecV1.encode(source))
+                                  == acceptedLabelGenerationSnapshots.first(where: {
+                                      $0.mutationID == value.mutationID.rawValue
+                                  })?.canonicalData
+                      }
+                      // Clone/fork history intentionally has a new outer
+                      // workspace, expected token, actor, mutation and digest.
+                      // Its immutable source artifact truth must still join
+                      // one-to-one to the exact original accepted mutation.
+                      return source.disposition == .activeSourceWorkspace
+                          && source.snapshotID == value.snapshotID
+                          && source.workspaceID == value.plan.workspaceID
+                          && source.plan == value.plan
+                          && source.manifest == value.manifest
+                          && source.outputReceipt == value.outputReceipt
+                          && source.activationDecision == value.activationDecision
+                          && source.recordedAt == value.recordedAt
+                          && source.revision == value.revision
+                  })
+              }) else {
+            throw AssetLabelContractFailureV1.invalidReceipt
+        }
+        return values
+    }
+
+    private static func validateC45ActivePublicationOwnership(
+        _ values: [AcceptedLabelGenerationSnapshotV1]
+    ) throws {
+        var bindingByJobID: [LocalJobIDV1: Data] = [:]
+        var bindingByContentID: [String: Data] = [:]
+        var bindingByLocatorID: [String: Data] = [:]
+        for snapshot in values
+            where snapshot.disposition == .activeSourceWorkspace {
+            let binding = snapshot.outputReceipt.publicationBinding
+            try binding.validate(manifest: snapshot.manifest)
+            let canonicalBinding = try AssetLabelCanonicalCodecV1.encode(binding)
+            if let existing = bindingByJobID[binding.jobID],
+               existing != canonicalBinding {
+                throw AssetLabelContractFailureV1.duplicateIdentity
+            }
+            bindingByJobID[binding.jobID] = canonicalBinding
+            for artifact in binding.publishedArtifacts {
+                let contentID = artifact.reference.contentID
+                if let existing = bindingByContentID[contentID],
+                   existing != canonicalBinding {
+                    throw AssetLabelContractFailureV1.duplicateIdentity
+                }
+                bindingByContentID[contentID] = canonicalBinding
+                let locatorID = artifact.locator.locatorID
+                if let existing = bindingByLocatorID[locatorID],
+                   existing != canonicalBinding {
+                    throw AssetLabelContractFailureV1.duplicateIdentity
+                }
+                bindingByLocatorID[locatorID] = canonicalBinding
+            }
+        }
     }
 }
 
@@ -1079,7 +1214,8 @@ extension V4BackupRecordsV1{
             guard temporalEvidence.isEmpty else { throw TemporalEvidenceContractFailureV1.invalidValue }
             return ([], [])
         }
-        guard recordsSchemaVersion == TemporalEvidencePersistenceEnrollmentV1.recordsSchemaVersion,
+        guard (TemporalEvidencePersistenceEnrollmentV1.recordsSchemaVersion...
+            AssetLabelPersistenceEnrollmentV1.recordsSchemaVersion).contains(recordsSchemaVersion),
               Set(temporalEvidence.map(\.id)).count == temporalEvidence.count else {
             throw TemporalEvidenceContractFailureV1.invalidValue
         }
@@ -1236,7 +1372,7 @@ extension V4BackupRecordsV1{
             }
             return
         }
-        guard (31...32).contains(recordsSchemaVersion),
+        guard (31...33).contains(recordsSchemaVersion),
               Set(assistanceAcceptanceReceipts.map(\.receiptID)).count == assistanceAcceptanceReceipts.count,
               Set(assistanceAcceptanceReceipts.map(\.mutationID)).count == assistanceAcceptanceReceipts.count,
               Set(assistanceAcceptanceReceipts.map(\.proposalID)).count == assistanceAcceptanceReceipts.count else {
@@ -1298,7 +1434,7 @@ extension V4BackupRecordsV1{
             return
         }
         guard recordsSchemaVersion == 30 || recordsSchemaVersion == 31
-                || recordsSchemaVersion == 32 else {
+                || recordsSchemaVersion == 32 || recordsSchemaVersion == 33 else {
             throw LightingContractFailureV1.invalidValue
         }
         let decodedLighting = try LightingBackupRecordSetV1.decode(lighting)
@@ -1321,7 +1457,8 @@ extension V4BackupRecordsV1{
             return
         }
         guard recordsSchemaVersion == 29 || recordsSchemaVersion == 30
-                || recordsSchemaVersion == 31 || recordsSchemaVersion == 32 else {
+                || recordsSchemaVersion == 31 || recordsSchemaVersion == 32
+                || recordsSchemaVersion == 33 else {
             throw EvidenceContextFailureV1.incompatibleVersion
         }
         guard evidenceContexts.allSatisfy({ $0.kind == .evidenceContext }),
@@ -1376,7 +1513,7 @@ extension V4BackupRecordsV1{
              evidenceContexts: evidenceContexts,
              pairedObservationLinks: pairedObservationLinks,
              lighting: lighting,
-             assistanceAcceptanceReceipts: assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence)
+             assistanceAcceptanceReceipts: assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots)
     }
 
     func replacingSchedules(_ values: [V27BackupScheduleRecordV1]) -> Self {
@@ -1405,7 +1542,7 @@ extension V4BackupRecordsV1{
               evidenceContexts: evidenceContexts,
               pairedObservationLinks: pairedObservationLinks,
               lighting: lighting,
-              assistanceAcceptanceReceipts: assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence)
+              assistanceAcceptanceReceipts: assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots)
     }
 
     func replacingPlans(_ values: [V28BackupPlanRecordV1]) -> Self {
@@ -1435,7 +1572,7 @@ extension V4BackupRecordsV1{
               evidenceContexts: evidenceContexts,
               pairedObservationLinks: pairedObservationLinks,
               lighting: lighting,
-              assistanceAcceptanceReceipts: assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence)
+              assistanceAcceptanceReceipts: assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots)
     }
 
     func replacingPlacementPoses(_ values: [V29BackupPlacementPoseRecordV1]) -> Self {
@@ -1465,13 +1602,14 @@ extension V4BackupRecordsV1{
               evidenceContexts: evidenceContexts,
               pairedObservationLinks: pairedObservationLinks,
               lighting: lighting,
-              assistanceAcceptanceReceipts: assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence)
+              assistanceAcceptanceReceipts: assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots)
     }
 
-     func replacingAccessibleDocumentAssessments(_ values:[V23BackupAccessibleDocumentAssessmentRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:values,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence)}
-     func replacingSurveyDefinitions(_ values:[V24BackupSurveyDefinitionRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:values,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence)}
-     func replacingGuidedSurveys(_ values:[V25BackupGuidedSurveyRecordV1])->Self{Self(guidedSurveys:values,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence)}
-     func replacingTemporalEvidence(_ values:[V33BackupTemporalEvidenceRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts,temporalEvidence:values)}
+     func replacingAccessibleDocumentAssessments(_ values:[V23BackupAccessibleDocumentAssessmentRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:values,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots)}
+     func replacingSurveyDefinitions(_ values:[V24BackupSurveyDefinitionRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:values,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots)}
+     func replacingGuidedSurveys(_ values:[V25BackupGuidedSurveyRecordV1])->Self{Self(guidedSurveys:values,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots)}
+     func replacingTemporalEvidence(_ values:[V33BackupTemporalEvidenceRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts,temporalEvidence:values,acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots)}
+     func replacingAcceptedLabelGenerationSnapshots(_ values:[V34BackupAcceptedLabelSnapshotRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,acceptedLabelGenerationSnapshots:values)}
 }
 
 struct V4BackupEntryV1: Codable, Equatable, Sendable {

@@ -1143,3 +1143,39 @@ struct TemporalEvidenceCompatibilityPolicyV1: Codable, Equatable, Sendable {
 extension ReleasedDataCompatibilityPolicyV1 {
     static let temporalEvidenceCompatibility = TemporalEvidenceCompatibilityPolicyV1()
 }
+
+struct AssetLabelCompatibilityPolicyV1: Codable, Equatable, Sendable {
+    static let persistentSchemaVersion = 34
+    static let recordsSchemaVersion = 33
+    static let currentPersistentWriterVersion = "34.0.0"
+    static let currentBackupWriterVersion = "archive1-backup4-persistent34-records33"
+    static let downgradeDisposition = "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_FIRST_V34_WRITE"
+    static let readablePersistentWriterVersions = (1...34).map { "\($0).0.0" }
+    static let readableBackupWriterVersions = SurveySessionCompatibilityPolicyV1.readableBackupWriterVersions
+        + (26...33).map { "archive1-backup4-persistent\($0 + 1)-records\($0)" }
+
+    let durableFamilies = AssetLabelPersistenceEnrollmentV1.persistentFamilies
+    let existingLocatorBindingTruthRemainsCanonical = true
+    let derivedRendererStateIsReadableData = false
+    let historicSourcePlanRemainsImmutable = true
+    let unknownVersionsFailClosed = true
+
+    func validate() throws {
+        guard Self.persistentSchemaVersion == AssetLabelPersistenceEnrollmentV1.persistentSchemaVersion,
+              Self.recordsSchemaVersion == AssetLabelPersistenceEnrollmentV1.recordsSchemaVersion,
+              durableFamilies == ["AcceptedLabelGenerationSnapshotRow"],
+              existingLocatorBindingTruthRemainsCanonical,
+              !derivedRendererStateIsReadableData,
+              historicSourcePlanRemainsImmutable, unknownVersionsFailClosed,
+              Self.readablePersistentWriterVersions.last == Self.currentPersistentWriterVersion,
+              Self.readableBackupWriterVersions.last == Self.currentBackupWriterVersion else {
+            throw CompatibilityContractErrorV1.invalidSupportTable
+        }
+    }
+}
+
+extension ReleasedDataCompatibilityPolicyV1 {
+    static let assetLabelCompatibility = AssetLabelCompatibilityPolicyV1()
+}
+
+enum C45AcceptedLabelReleasedDataCompatibilityV1 { static let persistentSchemaVersion=34;static let recordsSchemaVersion=33;static let downgradeRequiresExplicitForwardFix=true }

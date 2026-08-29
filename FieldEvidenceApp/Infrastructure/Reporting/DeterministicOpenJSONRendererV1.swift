@@ -3255,3 +3255,9 @@ enum C33TemporalEvidenceConformance_FieldEvidenceApp_Infrastructure_Reporting_De
         }
     }
 }
+
+/// C45 OpenJSON describes manifest metadata and never becomes a second label renderer.
+enum C45AssetLabelBoundary_DeterministicOpenJSONRendererV1 {
+    static func validate(_ snapshot: AcceptedLabelGenerationSnapshotV1) throws { try snapshot.validate() }
+    static let rendersLabelArtifactBytes = false
+}

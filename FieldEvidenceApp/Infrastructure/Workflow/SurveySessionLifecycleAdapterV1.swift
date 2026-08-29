@@ -121,3 +121,11 @@ enum C33TemporalEvidenceConformance_FieldEvidenceApp_Infrastructure_Workflow_Sur
         }
     }
 }
+
+// MARK: - C45 canonical asset-label integration
+enum C45AssetLabelBoundary_Row135 {
+    static let reusesCanonicalAssetLocatorAndWriter = true
+    static func validateAcceptedSnapshot(_ snapshot: AcceptedLabelGenerationSnapshotV1) throws {
+        try snapshot.validate()
+    }
+}

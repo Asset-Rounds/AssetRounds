@@ -4,6 +4,14 @@ import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C45DeletionGraphCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityAddsOneWorkspaceScopedDurableLeaf() {
+        XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.persistentFamilies, ["AcceptedLabelGenerationSnapshotRow"])
+        XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.durableModelCount, 1)
+        XCTAssertFalse(AssetLabelPersistenceEnrollmentV1.persistentFamilies.contains("ManualShortCodeV1"))
+    }
+}
+
 private final class C30EvidenceContextAnchorS6_1DeletionGraph: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
@@ -402,7 +410,10 @@ final class S6_1DeletionGraphTests: XCTestCase {
         )
         XCTAssertEqual(
             Set(sitePreview.ledgerEntries.map(\.identity.kind)),
-            Set(DeletionRecordKindV2.allCases)
+            Set(DeletionRecordKindV2.allCases).subtracting([
+                .acceptedLabelGenerationSnapshot,
+            ]),
+            "This legacy preview has no accepted C45 snapshot to tombstone"
         )
 
         let legacy = DeletionIntentV1(

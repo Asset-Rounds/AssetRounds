@@ -747,3 +747,11 @@ enum C33TemporalEvidenceBoundary_Domain_Lighting_LightingContractsV1_V1 {
     static let persistentSchemaVersion: Int =
         TemporalEvidencePersistenceEnrollmentV1.persistentSchemaVersion
 }
+
+// MARK: - C45 canonical asset-label integration
+enum C45AssetLabelBoundary_Row174 {
+    static let reusesCanonicalAssetLocatorAndWriter = true
+    static func validateAcceptedSnapshot(_ snapshot: AcceptedLabelGenerationSnapshotV1) throws {
+        try snapshot.validate()
+    }
+}

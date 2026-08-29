@@ -363,3 +363,9 @@ enum TemporalEvidenceContentContractEnrollmentV1 {
         }
     }
 }
+
+/// C45 C45 enrolls three derived artifact kinds without a second content authority.
+enum C45AssetLabelBoundary_ContentContractRegistryV1 {
+    static func validate(_ plan: AssetLabelGenerationPlanV1) throws { try plan.validate() }
+    static let artifactKindCount = LabelArtifactKindV1.allCases.count
+}

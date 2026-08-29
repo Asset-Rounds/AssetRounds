@@ -1,0 +1,264 @@
+{
+  "schema": "V22P03C45AssetLabelCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P03-C45",
+  "classification": "IMPLEMENT_NOW",
+  "persistentSchemaVersion": 34,
+  "recordsSchemaVersion": 33,
+  "durableFamilies": [
+    "AcceptedLabelGenerationSnapshotRow"
+  ],
+  "contractNames": [
+    "ManualShortCodeV1",
+    "AssetLabelTemplateReleaseV1",
+    "LabelDisclosureProfileV1",
+    "AssetLabelItemSnapshotV1",
+    "AssetLabelGenerationPlanV1",
+    "AcceptedLabelGenerationSnapshotV1",
+    "LabelReprintEligibilityV1",
+    "LabelProjectionResultV1",
+    "LabelOutputReceiptV1",
+    "LabelOutputActivationDecisionV1"
+  ],
+  "templateReleases": [
+    {
+      "templateID": "LETTER_2X2_V1",
+      "version": 1,
+      "pageProfile": "NA_LETTER",
+      "rendererReleaseID": "deterministic-pdf-renderer-v1",
+      "digest": "fff853b43439cec3365bc5e00984bcf25eb70bdb1e54378d883da32d72708b9f",
+      "integralModuleScaling": true,
+      "interpolationDisabled": true,
+      "quietZoneModules": 4,
+      "immutable": true
+    },
+    {
+      "templateID": "LETTER_1X2_5_8_V1",
+      "version": 1,
+      "pageProfile": "NA_LETTER",
+      "rendererReleaseID": "deterministic-pdf-renderer-v1",
+      "digest": "e0f0523d7d156bb97886442acc8a164e059e71613b988848e5b8608fd35f8d88",
+      "integralModuleScaling": true,
+      "interpolationDisabled": true,
+      "quietZoneModules": 4,
+      "immutable": true
+    },
+    {
+      "templateID": "LETTER_1X4_V1",
+      "version": 1,
+      "pageProfile": "NA_LETTER",
+      "rendererReleaseID": "deterministic-pdf-renderer-v1",
+      "digest": "bce6380d3d92d27732e689ef122d4da2857d3e27cd3940b06d437a1ca2bac0dd",
+      "integralModuleScaling": true,
+      "interpolationDisabled": true,
+      "quietZoneModules": 4,
+      "immutable": true
+    },
+    {
+      "templateID": "A4_70X37_V1",
+      "version": 1,
+      "pageProfile": "ISO_A4",
+      "rendererReleaseID": "deterministic-pdf-renderer-v1",
+      "digest": "0b9a39514c48994cee3c1ed6e0dc1949239f000eff1978c682b0475e6e4f175a",
+      "integralModuleScaling": true,
+      "interpolationDisabled": true,
+      "quietZoneModules": 4,
+      "immutable": true
+    },
+    {
+      "templateID": "ROLL_50X25_V1",
+      "version": 1,
+      "pageProfile": "ROLL_50X25_MM",
+      "rendererReleaseID": "deterministic-pdf-renderer-v1",
+      "digest": "8b49f4f78cb1cb06a956d75240931b2ccaafccba0d8ccdab70d29c62677a26d3",
+      "integralModuleScaling": true,
+      "interpolationDisabled": true,
+      "quietZoneModules": 4,
+      "immutable": true
+    }
+  ],
+  "manualShortCodeCases": [
+    {
+      "caseID": "canonical-round-trip",
+      "version": 1,
+      "canonicalAlphabet": "23456789ABCDEFGHJKMNPQRSTUVWXYZ",
+      "entered": "AR-23456-789AB-A",
+      "canonical": "AR1:23456789AB:A",
+      "checkCharacter": "A",
+      "disposition": "VALID"
+    },
+    {
+      "caseID": "lowercase-folding",
+      "version": 1,
+      "canonicalAlphabet": "23456789ABCDEFGHJKMNPQRSTUVWXYZ",
+      "entered": "ar-cdefg-hjkmn-s",
+      "canonical": "AR1:CDEFGHJKMN:S",
+      "checkCharacter": "S",
+      "disposition": "VALID"
+    },
+    {
+      "caseID": "wrong-check",
+      "version": 1,
+      "canonicalAlphabet": "23456789ABCDEFGHJKMNPQRSTUVWXYZ",
+      "entered": "AR-23456-789AB-2",
+      "canonical": "AR1:23456789AB:2",
+      "checkCharacter": "2",
+      "disposition": "INVALID_CHECK"
+    },
+    {
+      "caseID": "confusable-zero",
+      "version": 1,
+      "canonicalAlphabet": "23456789ABCDEFGHJKMNPQRSTUVWXYZ",
+      "entered": "AR-23450-789AB-A",
+      "canonical": "AR1:23450789AB:A",
+      "checkCharacter": "A",
+      "disposition": "CONFUSABLE_REJECTED"
+    },
+    {
+      "caseID": "locator-collision",
+      "version": 1,
+      "canonicalAlphabet": "23456789ABCDEFGHJKMNPQRSTUVWXYZ",
+      "entered": "AR-23456-789AB-A",
+      "canonical": "AR1:23456789AB:A",
+      "checkCharacter": "A",
+      "disposition": "COLLISION_RETRY"
+    }
+  ],
+  "disclosureProfiles": [
+    "SHORT_CODE_ONLY",
+    "ASSET_AND_SHORT_CODE",
+    "ASSET_LOCATION_AND_SHORT_CODE"
+  ],
+  "generationPlans": [
+    {
+      "planID": "single-explicit",
+      "orderedAssetIDs": ["asset-001"],
+      "explicitUserOrder": true,
+      "assetIDTieBreak": true,
+      "maximumItemCount": 1000,
+      "generatedTimeDisposition": "FROZEN_OR_OMITTED",
+      "expectedDisposition": "ACCEPTED"
+    },
+    {
+      "planID": "thirty-explicit-offset",
+      "orderedAssetIDs": ["asset-030", "asset-001"],
+      "explicitUserOrder": true,
+      "assetIDTieBreak": true,
+      "maximumItemCount": 1000,
+      "generatedTimeDisposition": "FROZEN_OR_OMITTED",
+      "expectedDisposition": "ACCEPTED_WITH_START_OFFSET"
+    },
+    {
+      "planID": "five-hundred-tie-break",
+      "orderedAssetIDs": ["asset-001", "asset-002", "asset-500"],
+      "explicitUserOrder": false,
+      "assetIDTieBreak": true,
+      "maximumItemCount": 1000,
+      "generatedTimeDisposition": "FROZEN_OR_OMITTED",
+      "expectedDisposition": "ACCEPTED_DETERMINISTIC_TIE_BREAK"
+    },
+    {
+      "planID": "accepted-maximum",
+      "orderedAssetIDs": ["asset-0001", "asset-1000"],
+      "explicitUserOrder": false,
+      "assetIDTieBreak": true,
+      "maximumItemCount": 1000,
+      "generatedTimeDisposition": "FROZEN_OR_OMITTED",
+      "expectedDisposition": "ACCEPTED_AT_MAXIMUM"
+    }
+  ],
+  "artifactCases": [
+    {
+      "caseID": "single",
+      "formats": ["PDF", "CSV", "ACCESSIBLE_STRUCTURED_TEXT"],
+      "samePlanByteIdentical": true,
+      "formulaSafeCSV": true,
+      "accessibleStructuredText": true,
+      "filenamesExcludeCustomerSiteAndAssetNames": true,
+      "pdfSHA256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "csvSHA256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "structuredTextSHA256": "3333333333333333333333333333333333333333333333333333333333333333"
+    },
+    {
+      "caseID": "thirty",
+      "formats": ["PDF", "CSV", "ACCESSIBLE_STRUCTURED_TEXT"],
+      "samePlanByteIdentical": true,
+      "formulaSafeCSV": true,
+      "accessibleStructuredText": true,
+      "filenamesExcludeCustomerSiteAndAssetNames": true,
+      "pdfSHA256": "4444444444444444444444444444444444444444444444444444444444444444",
+      "csvSHA256": "5555555555555555555555555555555555555555555555555555555555555555",
+      "structuredTextSHA256": "6666666666666666666666666666666666666666666666666666666666666666"
+    },
+    {
+      "caseID": "five-hundred",
+      "formats": ["PDF", "CSV", "ACCESSIBLE_STRUCTURED_TEXT"],
+      "samePlanByteIdentical": true,
+      "formulaSafeCSV": true,
+      "accessibleStructuredText": true,
+      "filenamesExcludeCustomerSiteAndAssetNames": true,
+      "pdfSHA256": "7777777777777777777777777777777777777777777777777777777777777777",
+      "csvSHA256": "8888888888888888888888888888888888888888888888888888888888888888",
+      "structuredTextSHA256": "9999999999999999999999999999999999999999999999999999999999999999"
+    }
+  ],
+  "qrPayloadCases": [
+    {"caseID": "valid-camera", "payload": "AR1:23456789AB:A", "expectedDisposition": "PREVIEW_ONLY_VALID", "requiresPreview": true, "requiresExplicitStart": true, "containsURL": false, "grantsAuthorization": false},
+    {"caseID": "valid-manual", "payload": "AR1:CDEFGHJKMN:S", "expectedDisposition": "PREVIEW_ONLY_VALID", "requiresPreview": true, "requiresExplicitStart": true, "containsURL": false, "grantsAuthorization": false},
+    {"caseID": "wrong-prefix", "payload": "ZZ1:23456789AB:A", "expectedDisposition": "MALFORMED", "requiresPreview": true, "requiresExplicitStart": true, "containsURL": false, "grantsAuthorization": false},
+    {"caseID": "partial", "payload": "AR1:23456", "expectedDisposition": "PARTIAL", "requiresPreview": true, "requiresExplicitStart": true, "containsURL": false, "grantsAuthorization": false},
+    {"caseID": "wrong-check", "payload": "AR1:23456789AB:2", "expectedDisposition": "INVALID_CHECK", "requiresPreview": true, "requiresExplicitStart": true, "containsURL": false, "grantsAuthorization": false},
+    {"caseID": "oversized", "payload": "AR1:23456789AB:A-PADDING-BEYOND-THE-BOUNDED-CANONICAL-PAYLOAD-LIMIT", "expectedDisposition": "OVERSIZED", "requiresPreview": true, "requiresExplicitStart": true, "containsURL": false, "grantsAuthorization": false}
+  ],
+  "reprintCases": [
+    {"caseID": "active-exact", "snapshotState": "ACTIVE_SOURCE_WORKSPACE", "locatorState": "ACTIVE_UNCHANGED", "releaseAvailable": true, "expectedEligibility": "ACTIVE_EXACT_REPRINT", "historicWarningRequired": false},
+    {"caseID": "historic-clone", "snapshotState": "HISTORIC_CLONE_OR_FORK", "locatorState": "HISTORIC_SOURCE_BINDING", "releaseAvailable": true, "expectedEligibility": "HISTORIC_EXPORT_ONLY", "historicWarningRequired": true},
+    {"caseID": "missing-renderer", "snapshotState": "ACTIVE_SOURCE_WORKSPACE", "locatorState": "ACTIVE_UNCHANGED", "releaseAvailable": false, "expectedEligibility": "BLOCKED_MISSING_RELEASE", "historicWarningRequired": false}
+  ],
+  "hostileCases": [
+    "MALFORMED_PAYLOAD", "FOREIGN_PAYLOAD", "PARTIAL_PAYLOAD", "OVERSIZED_PAYLOAD", "COPIED_PAYLOAD", "REVOKED_PAYLOAD", "REPLACED_PAYLOAD", "DUPLICATE_SELECTION", "STALE_ASSET_REVISION", "STALE_LOCATOR_REVISION", "UNSUPPORTED_TEMPLATE_GEOMETRY", "CONTENT_DOES_NOT_FIT", "UNICODE_RTL_CONTROL_OR_BIDI_INPUT", "FORMULA_UNSAFE_CSV_INPUT", "LOW_STORAGE", "PROTECTED_DATA", "RENDERER_FAILURE", "DIGEST_FAILURE", "CANCELLATION", "CROP_RESCALE_GLARE_ABRASION_CURVATURE_LOW_CONTRAST_OBLIQUE_OR_DISTANCE"
+  ],
+  "interruptionBoundaries": [
+    "BEFORE_LOCATOR_ISSUANCE_RECEIPT",
+    "AFTER_LOCATOR_ISSUANCE_RECEIPT",
+    "EACH_RENDER_CHECKPOINT",
+    "AFTER_FINAL_BYTES_BEFORE_PUBLICATION"
+  ],
+  "lifecycle": {
+    "migration": "V34_ACCEPTED_SNAPSHOT_ONLY",
+    "backup": "CANONICAL_ACCEPTED_SNAPSHOT_AND_MATCHING_MUTATION_RECEIPT",
+    "restore": "ACTIVE_ONLY_FOR_MATCHING_SOURCE_WORKSPACE",
+    "cloneFork": "REBIND_AS_HISTORIC_EXPORT_ONLY",
+    "deleteErase": "WORKSPACE_SCOPED_ACCEPTED_SNAPSHOT_AND_SCRATCH_REMOVAL",
+    "export": "EXACT_ACCEPTED_MANIFEST_WITHOUT_EXTERNAL_POSSESSION_CLAIM",
+    "searchReplay": "ACCEPTED_METADATA_ONLY_AND_IDEMPOTENT_MUTATION_REPLAY",
+    "scratch": "LEASED_UNTIL_ACCEPT_CANCEL_FAILURE_OR_RECOVERY_CLEANUP",
+    "receipts": "ONE_CANONICAL_WORKSPACE_MUTATION_PER_ACCEPTED_SNAPSHOT",
+    "templateRendererReleases": "IMMUTABLE_RELEASES_REQUIRED_FOR_ACTIVE_REPRINT",
+    "downgradeForwardFix": "UNKNOWN_V34_ROWS_FAIL_CLOSED_WITHOUT_REWRITING_HISTORY"
+  },
+  "invariants": {
+    "soleLocatorAuthority": true,
+    "soleRendererAuthority": true,
+    "shortCodeIsConvenienceNotAuthorization": true,
+    "qrContainsOnlyOpaqueLocatorAndCheck": true,
+    "previewAndExplicitStartRequired": true,
+    "stableSelectionOrder": true,
+    "acceptedSnapshotCanonical": true,
+    "unacceptedPlansAreScratch": true,
+    "samePlanByteIdenticalArtifacts": true,
+    "formulaSafeCSV": true,
+    "accessibleStructuredText": true,
+    "activeReprintRequiresUnchangedActiveLocator": true,
+    "historicExportWarnsAndCannotDeploy": true,
+    "missingReleaseBlocks": true,
+    "receiptDoesNotClaimExternalPossession": true,
+    "noSecondRenderer": true,
+    "noSecondIdentifierStore": true,
+    "noHostedResolver": true,
+    "noNetworkProvider": true,
+    "physicalEvidenceOwnerPending": true
+  },
+  "evidenceIDs": ["V23-P03-C45-G01", "V23-P03-C45-A01", "V23-P03-C45-H01", "V23-P03-C45-I01", "V23-P03-C45-R01"],
+  "statusFlags": {"native": false, "hosted": false, "physical": false, "adoption": false, "acceptance": false, "release": false}
+}

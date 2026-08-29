@@ -3,6 +3,14 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private final class C45LifecycleBoundaryCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityClosesReprintLifecycleOutcomes() {
+        XCTAssertEqual(LabelReprintEligibilityV1.activeExactReprint.rawValue, "ACTIVE_EXACT_REPRINT")
+        XCTAssertEqual(LabelReprintEligibilityV1.historicExportOnly.rawValue, "HISTORIC_EXPORT_ONLY")
+        XCTAssertEqual(LabelReprintEligibilityV1.blockedMissingRelease.rawValue, "BLOCKED_MISSING_RELEASE")
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_10LifecycleBoundary: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

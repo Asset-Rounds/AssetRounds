@@ -3,6 +3,14 @@ import Foundation
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C45JournalReplayCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityUsesOneTypedWorkspaceCommand() {
+        XCTAssertEqual(WorkspaceCommandKindV1.applyAssetLabel.rawValue, "apply_asset_label")
+        XCTAssertTrue(WorkspaceWriterAdapterV1.activeSupportedCommandKinds.contains(.applyAssetLabel))
+        XCTAssertEqual(AssetLabelMutationV1.schemaVersion, 1)
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_ChangeJournalCheckpointReplay: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

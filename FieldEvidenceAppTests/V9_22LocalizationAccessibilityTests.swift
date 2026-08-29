@@ -2,6 +2,14 @@ import Foundation
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C45LocalizationAccessibilityCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityIncludesAccessibleTextAndClosedDisclosures() {
+        XCTAssertTrue(LabelArtifactKindV1.allCases.contains(.structuredText))
+        XCTAssertEqual(LabelDisclosureProfileV1.allCases.count, 3)
+        XCTAssertEqual(LabelDisclosureProfileV1.assetLocationAndShortCode.rawValue, "ASSET_LOCATION_AND_SHORT_CODE")
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_22LocalizationAccessibility: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

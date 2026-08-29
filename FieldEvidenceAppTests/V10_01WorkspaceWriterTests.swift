@@ -4,6 +4,14 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private final class C45WorkspaceWriterCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityWriterSupportsOnlyTypedAssetLabelCommand() {
+        XCTAssertTrue(WorkspaceWriterAdapterV1.activeSupportedCommandKinds.contains(.applyAssetLabel))
+        XCTAssertEqual(WorkspaceCommandKindV1.applyAssetLabel.rawValue, "apply_asset_label")
+        XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.durableModelCount, 1)
+    }
+}
+
 private final class C30EvidenceContextAnchorV10_01WorkspaceWriter: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

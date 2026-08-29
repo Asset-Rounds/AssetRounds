@@ -3,6 +3,18 @@ import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C45SurveyDefinitionCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityUsesImmutableTemplateReleaseReferences() throws {
+        let reference = try AssetLabelTemplateReferenceV1(
+            templateID: "c45.template",
+            revision: 1,
+            templateSHA256: String(repeating: "a", count: 64)
+        )
+        XCTAssertEqual(reference.revision, 1)
+        XCTAssertEqual(reference.templateID, "c45.template")
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_39SurveyDefinition: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

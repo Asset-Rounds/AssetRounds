@@ -3,6 +3,20 @@ import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C45PlacementPoseCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityUsesIntegralMicrometreTemplateGeometry() throws {
+        let geometry = try AssetLabelGeometryV1(
+            pageWidthMicrometres: 50_000, pageHeightMicrometres: 50_000,
+            rows: 1, columns: 1, originXMicrometres: 1_000, originYMicrometres: 1_000,
+            cellWidthMicrometres: 40_000, cellHeightMicrometres: 40_000,
+            horizontalGapMicrometres: 0, verticalGapMicrometres: 0,
+            quietZoneMicrometres: 2_000, textBoundMicrometres: 10_000
+        )
+        XCTAssertEqual(geometry.capacity, 1)
+        XCTAssertEqual(geometry.originXMicrometres, 1_000)
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_44PlacementPose: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

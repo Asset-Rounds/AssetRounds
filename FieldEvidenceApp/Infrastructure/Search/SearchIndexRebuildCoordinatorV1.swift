@@ -399,6 +399,29 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
                 display: display, summary: display, breadcrumb: [], status: $0.pdfState,
                 dueAt: nil, timestamp: $0.createdAt)
         }
+        values += try modelContext.fetch(FetchDescriptor<AcceptedLabelGenerationSnapshotRow>())
+            .filter { $0.workspaceID == workspaceID }
+            .map { row in
+                let snapshot = try row.value()
+                let metadata = try AcceptedLabelSearchMetadataV1(snapshot)
+                let display = metadata.snapshotID.uuidString.lowercased()
+                let summary = ([metadata.snapshotSHA256] + metadata.assetIDs.map {
+                    $0.uuidString.lowercased()
+                }).joined(separator: " ")
+                return CanonicalValue(
+                    kind: .report,
+                    stableID: try stableKey(
+                        kind: .acceptedLabelGenerationSnapshot,
+                        id: metadata.snapshotID
+                    ),
+                    display: display,
+                    summary: summary,
+                    breadcrumb: [],
+                    status: metadata.disposition.rawValue,
+                    dueAt: nil,
+                    timestamp: snapshot.recordedAt
+                )
+            }
         values += functionalRelationshipValues
         values += assuranceValues
         values += inspectionReviewValues
@@ -2280,4 +2303,9 @@ enum C33TemporalEvidenceConformance_FieldEvidenceApp_Infrastructure_Search_Searc
             throw TemporalEvidenceContractFailureV1.invalidValue
         }
     }
+}
+
+enum C45AcceptedLabelIndexRebuildBoundaryV1 {
+    static let rebuildsTypedMetadata=true
+    static func metadata(from rows:[AcceptedLabelGenerationSnapshotRow])throws->[AcceptedLabelSearchMetadataV1]{try rows.map{try .init($0.value())}.sorted{$0.snapshotID.uuidString<$1.snapshotID.uuidString}}
 }

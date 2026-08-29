@@ -2,6 +2,14 @@ import Foundation
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C45ContentProvenanceCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityQRPersistsOnlyOpaqueLocatorConvenience() {
+        XCTAssertEqual(AssetLabelOpaqueQRPayloadV1.prefix, "AR1")
+        XCTAssertEqual(ManualShortCodeV1.externalKeyNamespace, "assetrounds.asset-label.short-code.v1")
+        XCTAssertLessThan(ManualShortCodeV1.randomBodyLength, AssetLabelOpaqueQRPayloadV1.maximumPayloadBytes)
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_15ContentReferenceProvenance: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

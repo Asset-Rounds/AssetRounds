@@ -2,6 +2,14 @@ import Foundation
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C45DiagnosticPrivacyCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityKeepsArtifactKindsBoundedAndTyped() {
+        XCTAssertEqual(Set(LabelArtifactKindV1.allCases), [.pdf, .formulaSafeCSV, .structuredText])
+        XCTAssertFalse(AssetLabelPersistenceEnrollmentV1.createsSecondLocatorStore)
+        XCTAssertFalse(AssetLabelPersistenceEnrollmentV1.createsSecondRenderer)
+    }
+}
+
 private final class C30EvidenceContextAnchorS8_3DiagnosticPrivacy: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

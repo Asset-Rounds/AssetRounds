@@ -2016,3 +2016,9 @@ enum TemporalEvidenceDetailCardBoundaryV1 {
         }
     }
 }
+
+/// C45 label details preserve manual short code and non-color state wording.
+enum C45AssetLabelBoundary_EvidenceDetailCardContractsV1 {
+    static func validate(_ snapshot: AcceptedLabelGenerationSnapshotV1) throws { try snapshot.validate() }
+    static let manualShortCodeRemainsAvailable = true
+}

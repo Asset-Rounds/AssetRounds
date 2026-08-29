@@ -298,3 +298,10 @@ enum V32AssistanceImportBoundaryV1 {
         for receipt in receipts { _ = try receipt.value() }
     }
 }
+
+// MARK: - C45 accepted-label import boundary
+enum C45AcceptedLabelImportBoundaryV1 {
+    static let durableFamilyCount = AssetLabelPersistenceEnrollmentV1.durableModelCount
+    static let derivedProjectionBytesAreImportable = false
+    static let historicCloneForkSnapshotsAreReprintActive = false
+}

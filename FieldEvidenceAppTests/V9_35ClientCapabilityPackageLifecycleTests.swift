@@ -3,6 +3,14 @@ import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C45PackageLifecycleCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityBlocksReprintWhenTemplateOrRendererReleaseIsMissing() {
+        XCTAssertEqual(LabelReprintEligibilityV1.blockedMissingRelease.rawValue, "BLOCKED_MISSING_RELEASE")
+        XCTAssertEqual(AssetLabelLineBreakPolicyV1.fixedGraphemeTailTruncation.rawValue, "FIXED_GRAPHEME_TAIL_TRUNCATION_V1")
+        XCTAssertFalse(AssetLabelPersistenceEnrollmentV1.createsSecondRenderer)
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_35ClientCapabilityPackageLifecycle: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

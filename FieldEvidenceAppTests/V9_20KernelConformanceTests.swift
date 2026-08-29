@@ -3,6 +3,14 @@ import Foundation
 import SwiftData
 @testable import FieldEvidenceApp
 
+private final class C45KernelConformanceCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityUsesClosedChecksumAlphabetAndCanonicalLimit() {
+        XCTAssertEqual(ManualShortCodeV1.alphabet, "23456789ABCDEFGHJKMNPQRSTUVWXYZ")
+        XCTAssertEqual(ManualShortCodeV1.randomBodyLength, 10)
+        XCTAssertEqual(AssetLabelOpaqueQRPayloadV1.maximumPayloadBytes, 64)
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_20KernelConformance: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

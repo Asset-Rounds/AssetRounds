@@ -3,6 +3,14 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private final class C45PersistentKindCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityKeepsPlansAndProjectionResultsDerived() {
+        XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.durableModelCount, 1)
+        XCTAssertEqual(Set(AssetLabelPersistenceEnrollmentV1.derivedFamilies), ["AssetLabelGenerationPlanV1", "LabelProjectionResultV1"])
+        XCTAssertFalse(AssetLabelPersistenceEnrollmentV1.createsSecondRenderer)
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_13PersistentKindLifecycleCoverage: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

@@ -3,6 +3,18 @@ import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C45FieldReferenceCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityPinsTemplateIdentityByRevisionAndDigest() throws {
+        let value = try AssetLabelTemplateReferenceV1(
+            templateID: "reference-pack-label",
+            revision: 7,
+            templateSHA256: String(repeating: "b", count: 64)
+        )
+        XCTAssertEqual(value.revision, 7)
+        XCTAssertTrue(KernelCanonicalHashV1.validSHA256(value.templateSHA256))
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_37FieldReferencePack: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

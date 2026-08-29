@@ -1761,3 +1761,5 @@ enum TemporalEvidenceLocalChangeJournalPolicyV1 {
         catch { throw ChangeJournalFailureV1.tamperedBatch }
     }
 }
+
+enum C45AcceptedLabelLocalJournalBoundaryV1 { static let replaysAcceptedSnapshot=true;static let replaysProjectionScratch=false }

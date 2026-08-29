@@ -629,3 +629,5 @@ enum TemporalEvidenceEraseIntentBoundaryV1 {
         }
     }
 }
+
+enum C45AcceptedLabelEraseIntentBoundaryV1 { static let eraseRemovesAcceptedSnapshots=true;static let scratchCleanupIsRetryable=true }

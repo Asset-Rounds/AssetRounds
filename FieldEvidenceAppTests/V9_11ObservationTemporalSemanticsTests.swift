@@ -4,6 +4,14 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private final class C45TemporalSemanticsCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityFreezesGeneratedTimeInsideCanonicalPlan() {
+        XCTAssertEqual(AssetLabelGenerationPlanV1.schemaVersion, 1)
+        XCTAssertEqual(LabelOutputReceiptV1.schemaVersion, 1)
+        XCTAssertNotEqual(LabelOutputDispositionV1.generated, .handedOffToSystem)
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_11ObservationTemporalSemantics: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

@@ -106,3 +106,9 @@ enum C33TemporalEvidenceBoundary_Domain_Models_Asset_V1 {
     static let persistentSchemaVersion: Int =
         TemporalEvidencePersistenceEnrollmentV1.persistentSchemaVersion
 }
+
+/// C45 labels bind a frozen asset revision without changing asset identity.
+enum C45AssetLabelBoundary_AssetModelV1 {
+    static func validate(_ plan: AssetLabelGenerationPlanV1) throws { try plan.validate() }
+    static let mutatesAssetDuringPreview = false
+}

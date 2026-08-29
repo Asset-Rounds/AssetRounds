@@ -7,6 +7,13 @@ import UniformTypeIdentifiers
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C45HistoryComparisonCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityComparesActiveAndHistoricSnapshotsWithoutReinterpretation() {
+        XCTAssertEqual(Set(AcceptedLabelSnapshotDispositionV1.allCases), [.activeSourceWorkspace, .historicCloneOrFork])
+        XCTAssertEqual(Set(LabelReprintEligibilityV1.allCases), [.activeExactReprint, .historicExportOnly, .blockedMissingRelease])
+    }
+}
+
 private final class C30EvidenceContextAnchorS4_4HistoryComparison: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

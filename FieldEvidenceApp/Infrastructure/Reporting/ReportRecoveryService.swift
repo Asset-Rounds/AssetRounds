@@ -1158,3 +1158,9 @@ enum C33TemporalEvidenceConformance_FieldEvidenceApp_Infrastructure_Reporting_Re
         }
     }
 }
+
+/// C45 recovery adopts only exact complete manifests and deletes partial scratch.
+enum C45AssetLabelBoundary_ReportRecoveryServiceV1 {
+    static func validate(_ snapshot: AcceptedLabelGenerationSnapshotV1) throws { try snapshot.validate() }
+    static let adoptsPartialOutput = false
+}

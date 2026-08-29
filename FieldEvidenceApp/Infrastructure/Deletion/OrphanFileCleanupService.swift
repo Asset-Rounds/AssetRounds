@@ -1044,3 +1044,91 @@ enum TemporalEvidenceOrphanCleanupPolicyV1 {
         }
     }
 }
+
+struct AssetLabelDerivedScratchCleanupV1 {
+    private static let maximumAttemptCount = 10_000
+    private let rootURL: URL
+    private let fileManager: FileManager
+
+    init(generationRootURL: URL, fileManager: FileManager = .default) throws {
+        let generationRoot = generationRootURL.standardizedFileURL
+        guard generationRoot.isFileURL,
+              UUID(uuidString: generationRoot.lastPathComponent) != nil,
+              generationRoot.deletingLastPathComponent().lastPathComponent == "generations",
+              generationRoot.deletingLastPathComponent()
+                .deletingLastPathComponent().lastPathComponent == "FieldEvidenceData" else {
+            throw OrphanFileCleanupServiceError.invalidGeneration
+        }
+        rootURL = generationRoot
+            .appendingPathComponent("jobs", isDirectory: true)
+            .appendingPathComponent("asset-label-render", isDirectory: true)
+        self.fileManager = fileManager
+    }
+
+    /// Deletes only validated C45 attempt directories whose canonical plan
+    /// references the deleted asset. Unknown, corrupt, symlinked, or
+    /// over-limit scratch fails closed so canonical deletion can be retried.
+    func removeAttempts(referencing assetID: UUID) throws {
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: rootURL.path, isDirectory: &isDirectory) else { return }
+        guard isDirectory.boolValue else { throw OrphanFileCleanupServiceError.invalidGeneration }
+        let children = try fileManager.contentsOfDirectory(
+            at: rootURL,
+            includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
+            options: [.skipsHiddenFiles]
+        )
+        guard children.count <= Self.maximumAttemptCount else {
+            throw OrphanFileCleanupServiceError.invalidGeneration
+        }
+        for child in children.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
+            let values = try child.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+            guard values.isDirectory == true, values.isSymbolicLink != true,
+                  UUID(uuidString: child.lastPathComponent) != nil else {
+                throw OrphanFileCleanupServiceError.invalidGeneration
+            }
+            try ProtectedFilePolicyV1.verify(.scratch, at: child)
+            let planURL = child.appendingPathComponent("plan.json")
+            let attributes = try fileManager.attributesOfItem(atPath: planURL.path)
+            guard let byteCount = attributes[.size] as? NSNumber,
+                  byteCount.int64Value > 0,
+                  byteCount.int64Value <= Int64(AssetLabelCanonicalCodecV1.maximumCanonicalByteCount) else {
+                throw OrphanFileCleanupServiceError.invalidGeneration
+            }
+            let data = try Data(contentsOf: planURL, options: [.mappedIfSafe])
+            let plan = try AssetLabelCanonicalCodecV1.decode(
+                AssetLabelGenerationPlanV1.self, from: data
+            )
+            guard try AssetLabelCanonicalCodecV1.encode(plan) == data else {
+                throw OrphanFileCleanupServiceError.invalidGeneration
+            }
+            if plan.items.contains(where: { $0.assetID == assetID }) {
+                try fileManager.removeItem(at: child)
+            }
+        }
+    }
+
+    func removeAllAttempts() throws {
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: rootURL.path, isDirectory: &isDirectory) else { return }
+        guard isDirectory.boolValue else { throw OrphanFileCleanupServiceError.invalidGeneration }
+        let children = try fileManager.contentsOfDirectory(
+            at: rootURL,
+            includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
+            options: [.skipsHiddenFiles]
+        )
+        guard children.count <= Self.maximumAttemptCount else {
+            throw OrphanFileCleanupServiceError.invalidGeneration
+        }
+        for child in children {
+            let values = try child.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+            guard values.isDirectory == true, values.isSymbolicLink != true,
+                  UUID(uuidString: child.lastPathComponent) != nil else {
+                throw OrphanFileCleanupServiceError.invalidGeneration
+            }
+            try ProtectedFilePolicyV1.verify(.scratch, at: child)
+        }
+        try fileManager.removeItem(at: rootURL)
+    }
+}
+
+enum C45AcceptedLabelOrphanCleanupBoundaryV1 { static let cleansOnlyLeasedDerivedArtifacts=true;static let neverDeletesCanonicalLocatorTruth=true }

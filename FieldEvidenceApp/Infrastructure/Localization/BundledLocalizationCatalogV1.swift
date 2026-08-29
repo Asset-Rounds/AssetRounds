@@ -4494,3 +4494,19 @@ enum C33TemporalEvidenceConformance_FieldEvidenceApp_Infrastructure_Localization
         }
     }
 }
+
+extension BundledLocalizationCatalogV1 {
+    static func assetLabelEnglish(_ key: AssetLabelLocalizationKeyV1) -> String {
+        switch key {
+        case .preview: return "Label preview"
+        case .explicitStart: return "Start label generation"
+        case .manualShortCode: return "Enter short code manually"
+        case .activeExactReprint: return "Exact current reprint"
+        case .historicExportOnly: return "Historic export only"
+        case .blockedMissingRelease: return "Required renderer or template release is unavailable"
+        case .generated: return "Generated on this device"
+        case .handedOff: return "Handed off to the system"
+        case .claimBoundary: return "This does not confirm printing, delivery, or physical scanning"
+        }
+    }
+}

@@ -499,3 +499,9 @@ enum TemporalEvidenceIncrementalAdmissionEvaluatorV1 {
         return receipt
     }
 }
+
+/// C45 label outputs reuse the one local content store and atomic adoption.
+enum C45AssetLabelBoundary_LocalContentStoreContractsV1 {
+    static func validate(_ plan: AssetLabelGenerationPlanV1) throws { try plan.validate() }
+    static let createsSecondByteStore = false
+}

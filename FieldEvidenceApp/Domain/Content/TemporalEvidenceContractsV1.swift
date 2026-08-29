@@ -276,3 +276,11 @@ enum TemporalEvidenceCanonicalCodecV1 {
 }
 
 enum TemporalEvidencePersistenceEnrollmentV1{static let persistentSchemaVersion=33;static let recordsSchemaVersion=32;static let durableModelCount=2;static let persistentFamilies=["TemporalEvidenceClipRow","TimecodedEvidenceAnchorRow"];static let derivativePersistence="CANONICAL_MUTATION_JOURNAL_ENVELOPE_AND_EXISTING_CONTENT_STORE";static let retentionPersistence="CANONICAL_MUTATION_JOURNAL_ENVELOPE";static let scratchPersistence="NONPERSISTENT_BACKUP_EXCLUDED";static let writer="SOLE_CANONICAL_WORKSPACE_WRITER";static let immutableOriginalsAreRewritten=false;static let automaticTranscriptionEnabled=false;static let secondByteStoreAllowed=false}
+
+// MARK: - C45 canonical asset-label integration
+enum C45AssetLabelBoundary_Row182 {
+    static let reusesCanonicalAssetLocatorAndWriter = true
+    static func validateAcceptedSnapshot(_ snapshot: AcceptedLabelGenerationSnapshotV1) throws {
+        try snapshot.validate()
+    }
+}

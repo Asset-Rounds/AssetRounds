@@ -47,7 +47,133 @@ enum DeletionPhaseV1: String, Codable, Equatable, Sendable {
     case databaseCommitted = "database_committed"
 }
 
+/// Exact published-output authority captured before an accepted label snapshot
+/// row is removed. The canonical binding bytes make committed deletion cleanup
+/// retryable after relaunch without reconstructing output ownership from a row
+/// that no longer exists.
+struct AssetLabelPublishedOutputCleanupV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let snapshotID: UUID
+    let snapshotWorkspaceID: UUID
+    let snapshotDisposition: AcceptedLabelSnapshotDispositionV1
+    let snapshotSHA256: String
+    let jobID: UUID
+    let planSHA256: String
+    let manifestSHA256: String
+    let outputSHA256: String
+    let planData: Data
+    let manifestData: Data
+    let bindingData: Data
+    let cleanupSHA256: String
+
+    init(snapshot: AcceptedLabelGenerationSnapshotV1) throws {
+        try snapshot.validate()
+        let binding = snapshot.outputReceipt.publicationBinding
+        let canonicalPlan = try AssetLabelCanonicalCodecV1.encode(snapshot.plan)
+        let canonicalManifest = try AssetLabelCanonicalCodecV1.encode(snapshot.manifest)
+        let canonical = try AssetLabelCanonicalCodecV1.encode(binding)
+        let basis = Basis(
+            schemaVersion: Self.schemaVersion,
+            snapshotID: snapshot.snapshotID,
+            snapshotWorkspaceID: snapshot.workspaceID.rawValue,
+            snapshotDisposition: snapshot.disposition,
+            snapshotSHA256: snapshot.snapshotSHA256,
+            jobID: binding.jobID.rawValue,
+            planSHA256: binding.planSHA256,
+            manifestSHA256: binding.manifestSHA256,
+            outputSHA256: binding.outputSHA256,
+            planData: canonicalPlan,
+            manifestData: canonicalManifest,
+            bindingData: canonical
+        )
+        schemaVersion = Self.schemaVersion
+        snapshotID = snapshot.snapshotID
+        snapshotWorkspaceID = snapshot.workspaceID.rawValue
+        snapshotDisposition = snapshot.disposition
+        snapshotSHA256 = snapshot.snapshotSHA256
+        jobID = binding.jobID.rawValue
+        planSHA256 = binding.planSHA256
+        manifestSHA256 = binding.manifestSHA256
+        outputSHA256 = binding.outputSHA256
+        planData = canonicalPlan
+        manifestData = canonicalManifest
+        bindingData = canonical
+        cleanupSHA256 = try AssetLabelCanonicalCodecV1.sha256(basis)
+        guard let firstAssetID = snapshot.plan.items.first?.assetID else {
+            throw AssetLabelContractFailureV1.invalidValue
+        }
+        _ = try value(containingAssetID: firstAssetID)
+    }
+
+    func value(containingAssetID assetID: UUID) throws -> AssetLabelRenderPublicationBindingV1 {
+        let plan = try AssetLabelCanonicalCodecV1.decode(
+            AssetLabelGenerationPlanV1.self, from: planData
+        )
+        let manifest = try AssetLabelCanonicalCodecV1.decode(
+            LabelArtifactManifestV1.self, from: manifestData
+        )
+        let binding = try AssetLabelCanonicalCodecV1.decode(
+            AssetLabelRenderPublicationBindingV1.self, from: bindingData
+        )
+        let basis = Basis(
+            schemaVersion: schemaVersion, snapshotID: snapshotID,
+            snapshotWorkspaceID: snapshotWorkspaceID,
+            snapshotDisposition: snapshotDisposition,
+            snapshotSHA256: snapshotSHA256, jobID: jobID,
+            planSHA256: planSHA256, manifestSHA256: manifestSHA256,
+            outputSHA256: outputSHA256, planData: planData,
+            manifestData: manifestData, bindingData: bindingData
+        )
+        guard schemaVersion == Self.schemaVersion,
+              plan.items.contains(where: { $0.assetID == assetID }),
+              ((snapshotDisposition == .activeSourceWorkspace
+                    && snapshotWorkspaceID == plan.workspaceID.rawValue
+                    && binding.workspaceID.rawValue == snapshotWorkspaceID)
+                || (snapshotDisposition == .historicCloneOrFork
+                    && snapshotWorkspaceID != plan.workspaceID.rawValue
+                    && binding.workspaceID == plan.workspaceID)),
+              plan.planSHA256 == planSHA256,
+              manifest.planSHA256 == planSHA256,
+              manifest.manifestSHA256 == manifestSHA256,
+              jobID == binding.jobID.rawValue,
+              planSHA256 == binding.planSHA256,
+              manifestSHA256 == binding.manifestSHA256,
+              outputSHA256 == binding.outputSHA256,
+              planData == (try AssetLabelCanonicalCodecV1.encode(plan)),
+              manifestData == (try AssetLabelCanonicalCodecV1.encode(manifest)),
+              bindingData == (try AssetLabelCanonicalCodecV1.encode(binding)),
+              KernelCanonicalHashV1.validSHA256(snapshotSHA256),
+              cleanupSHA256 == (try AssetLabelCanonicalCodecV1.sha256(basis)) else {
+            throw AssetLabelContractFailureV1.invalidReceipt
+        }
+        return binding
+    }
+
+    func requiresPublishedOutputRemoval(containingAssetID assetID: UUID) throws -> Bool {
+        let binding = try value(containingAssetID: assetID)
+        return snapshotDisposition == .activeSourceWorkspace
+            && binding.workspaceID.rawValue == snapshotWorkspaceID
+    }
+
+    private struct Basis: Codable {
+        let schemaVersion: Int
+        let snapshotID: UUID
+        let snapshotWorkspaceID: UUID
+        let snapshotDisposition: AcceptedLabelSnapshotDispositionV1
+        let snapshotSHA256: String
+        let jobID: UUID
+        let planSHA256: String
+        let manifestSHA256: String
+        let outputSHA256: String
+        let planData: Data
+        let manifestData: Data
+        let bindingData: Data
+    }
+}
+
 struct DeletionIntentV1: Codable, Equatable, Sendable {
+    let acceptedLabelOutputCleanups: [AssetLabelPublishedOutputCleanupV1]
     let assetID: UUID
     let countedPacketTombstones: [PacketPayloadV1]
     let deletionID: UUID
@@ -57,8 +183,57 @@ struct DeletionIntentV1: Codable, Equatable, Sendable {
     let relativePaths: [String]
     let schemaVersion: Int
 
+    init(
+        acceptedLabelOutputCleanups: [AssetLabelPublishedOutputCleanupV1] = [],
+        assetID: UUID,
+        countedPacketTombstones: [PacketPayloadV1],
+        deletionID: UUID,
+        generationID: UUID,
+        ledgerEntries: [DeletionLedgerEntryV2],
+        phase: DeletionPhaseV1,
+        relativePaths: [String],
+        schemaVersion: Int
+    ) {
+        self.acceptedLabelOutputCleanups = acceptedLabelOutputCleanups
+        self.assetID = assetID
+        self.countedPacketTombstones = countedPacketTombstones
+        self.deletionID = deletionID
+        self.generationID = generationID
+        self.ledgerEntries = ledgerEntries
+        self.phase = phase
+        self.relativePaths = relativePaths
+        self.schemaVersion = schemaVersion
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case acceptedLabelOutputCleanups, assetID, countedPacketTombstones,
+             deletionID, generationID, ledgerEntries, phase, relativePaths,
+             schemaVersion
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        acceptedLabelOutputCleanups = try c.decodeIfPresent(
+            [AssetLabelPublishedOutputCleanupV1].self,
+            forKey: .acceptedLabelOutputCleanups
+        ) ?? []
+        assetID = try c.decode(UUID.self, forKey: .assetID)
+        countedPacketTombstones = try c.decode(
+            [PacketPayloadV1].self, forKey: .countedPacketTombstones
+        )
+        deletionID = try c.decode(UUID.self, forKey: .deletionID)
+        generationID = try c.decode(UUID.self, forKey: .generationID)
+        ledgerEntries = try c.decodeIfPresent(
+            [DeletionLedgerEntryV2].self, forKey: .ledgerEntries
+        ) ?? []
+        phase = try c.decode(DeletionPhaseV1.self, forKey: .phase)
+        relativePaths = try c.decode([String].self, forKey: .relativePaths)
+        schemaVersion = try c.decode(Int.self, forKey: .schemaVersion)
+    }
+
     func withPhase(_ phase: DeletionPhaseV1) -> DeletionIntentV1 {
         DeletionIntentV1(
+            acceptedLabelOutputCleanups: acceptedLabelOutputCleanups,
             assetID: assetID,
             countedPacketTombstones: countedPacketTombstones,
             deletionID: deletionID,
@@ -123,6 +298,41 @@ struct DeletionIntentEncoderV1 {
                 ])
             })
         }
+        if intent.schemaVersion == 3 {
+            fields["ledgerEntries"] = .array(intent.ledgerEntries.map { entry in
+                CanonicalJSONValueV1.object([
+                    "deletedAt": CanonicalJSONV1.date(entry.deletedAt),
+                    "identity": .object([
+                        "id": CanonicalJSONV1.uuid(entry.identity.id),
+                        "kind": .string(entry.identity.kind.rawValue),
+                    ]),
+                    "schemaVersion": .integer(entry.schemaVersion),
+                ])
+            })
+            fields["acceptedLabelOutputCleanups"] = .array(
+                intent.acceptedLabelOutputCleanups.map { cleanup in
+                    .object([
+                        "bindingData": .string(cleanup.bindingData.base64EncodedString()),
+                        "cleanupSHA256": .string(cleanup.cleanupSHA256),
+                        "jobID": CanonicalJSONV1.uuid(cleanup.jobID),
+                        "manifestSHA256": .string(cleanup.manifestSHA256),
+                        "manifestData": .string(cleanup.manifestData.base64EncodedString()),
+                        "outputSHA256": .string(cleanup.outputSHA256),
+                        "planData": .string(cleanup.planData.base64EncodedString()),
+                        "planSHA256": .string(cleanup.planSHA256),
+                        "schemaVersion": .integer(cleanup.schemaVersion),
+                        "snapshotID": CanonicalJSONV1.uuid(cleanup.snapshotID),
+                        "snapshotDisposition": .string(
+                            cleanup.snapshotDisposition.rawValue
+                        ),
+                        "snapshotSHA256": .string(cleanup.snapshotSHA256),
+                        "snapshotWorkspaceID": CanonicalJSONV1.uuid(
+                            cleanup.snapshotWorkspaceID
+                        ),
+                    ])
+                }
+            )
+        }
         let value = CanonicalJSONValueV1.object(fields)
         let data = try CanonicalJSONV1.encode(value)
         return EncodedDeletionIntentV1(
@@ -133,7 +343,7 @@ struct DeletionIntentEncoderV1 {
 
     static func valid(_ intent: DeletionIntentV1) -> Bool {
         guard AssetLocatorDeletionIntentBoundaryV1.validate(),
-              intent.schemaVersion == 1 || intent.schemaVersion == 2,
+              (1...3).contains(intent.schemaVersion),
               unique(intent.countedPacketTombstones.map(\.id)),
               unique(intent.countedPacketTombstones.map(\.stableRootID)),
               Set(intent.countedPacketTombstones.compactMap(\.contentDeletedAt)).count <= 1,
@@ -154,8 +364,9 @@ struct DeletionIntentEncoderV1 {
         }) else { return false }
         if intent.schemaVersion == 1 {
             return intent.ledgerEntries.isEmpty
+                && intent.acceptedLabelOutputCleanups.isEmpty
         }
-        return (try? DeletionLedgerV2(entries: intent.ledgerEntries)) != nil
+        let baseValid = (try? DeletionLedgerV2(entries: intent.ledgerEntries)) != nil
             && intent.ledgerEntries.map(\.identity)
                 == intent.ledgerEntries.map(\.identity).sorted()
             && intent.ledgerEntries.allSatisfy({
@@ -170,6 +381,32 @@ struct DeletionIntentEncoderV1 {
                     entry.identity.kind == .packet ? entry.identity.id : nil
                 })
             )
+        guard baseValid else { return false }
+        if intent.schemaVersion == 2 {
+            return intent.acceptedLabelOutputCleanups.isEmpty
+        }
+        let cleanups = intent.acceptedLabelOutputCleanups
+        let cleanupSnapshotIDs = cleanups.map(\.snapshotID)
+        let cleanupGroups = Dictionary(grouping: cleanups, by: \.jobID)
+        let ledgerSnapshotIDs = intent.ledgerEntries.compactMap { entry in
+            entry.identity.kind == .acceptedLabelGenerationSnapshot
+                ? entry.identity.id : nil
+        }
+        return !cleanups.isEmpty
+            && cleanups.count <= 100_000
+            && cleanupSnapshotIDs == cleanupSnapshotIDs.sorted {
+                $0.uuidString < $1.uuidString
+            }
+            && Set(cleanupSnapshotIDs).count == cleanupSnapshotIDs.count
+            && cleanupSnapshotIDs == ledgerSnapshotIDs.sorted {
+                $0.uuidString < $1.uuidString
+            }
+            && cleanupGroups.values.allSatisfy {
+                Set($0.map(\.bindingData)).count == 1
+            }
+            && cleanups.allSatisfy {
+                (try? $0.value(containingAssetID: intent.assetID)) != nil
+            }
     }
 
     private static func deletionTimestamp(_ intent: DeletionIntentV1) -> Date? {
@@ -416,3 +653,5 @@ enum TemporalEvidenceDeletionIntentBoundaryV1 {
         }
     }
 }
+
+enum C45AcceptedLabelDeletionIntentBoundaryV1 { static let ordinaryAssetDeletionRemovesWholeMatchingBatch=true;static let outputCleanupIsReceiptBoundAndRetryable=true }

@@ -510,3 +510,11 @@ enum C32AssistanceLifecycleBoundary_FieldEvidenceApp_Domain_Drafts_FieldDraftCon
         try receipt.validate()
     }
 }
+
+// MARK: - C45 canonical asset-label integration
+enum C45AssetLabelBoundary_Row160 {
+    static let reusesCanonicalAssetLocatorAndWriter = true
+    static func validateAcceptedSnapshot(_ snapshot: AcceptedLabelGenerationSnapshotV1) throws {
+        try snapshot.validate()
+    }
+}

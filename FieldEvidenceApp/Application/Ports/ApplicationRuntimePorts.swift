@@ -105,3 +105,11 @@ enum C32AssistanceLifecycleBoundary_FieldEvidenceApp_Application_Ports_Applicati
         try receipt.validate()
     }
 }
+
+enum AssetLabelRuntimeLimitsV1 {
+    static let maximumItems = AssetLabelGenerationPlanV1.maximumItemCount
+    static let maximumArtifacts = LabelArtifactKindV1.allCases.count
+    static let requiresProtectedLocalFiles = true
+    static let allowsProviderOrNetworkRuntime = false
+    static let claimsNativeAcceptanceOrPhysicalScan = false
+}
