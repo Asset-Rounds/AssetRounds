@@ -795,7 +795,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(warpExecutionSource.utf8.count, 36_998)
         XCTAssertEqual(
             Data(warpExecutionSource.utf8).sha256,
-            "9F065CA54D98829D380F0352B82B96429DB14866364C7C76CA6FFEBE1BA8836B"
+            "485C67267332D5203FA380F42C8009E6187AE55019DB9129FFDDC42660CC7C92"
         )
         XCTAssertEqual(
             warpExecutionSource.components(
@@ -955,7 +955,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let failStepSource = String(warpJobSource[failRange.lowerBound...])
         let tailIdentities: [(String, Int, String)] = [
             (recordStepSource, 4_502, "FCF665376837CD82D19B5A3070F6B5CE1060A3F69FD66544C03F792F0246C1D8"),
-            (hashStepSource, 3_308, "2536189FF7D9E3B0B70C9A7CFC0566C2468DE786D73031CB197E5E31EC95DB84"),
+            (hashStepSource, 3_308, "02DE4752C7BD3B1FA5C8A08B40FF28F3864E719C1E14B470B93FAE9AAB55FBD1"),
             (uploadStepSource, 471, "A126239E068B2667EDAC7818EFB3BCE2C13358A2428031BAC63A40E0B0C800D8"),
             (failStepSource, 299, "202F52098711873A5914ABE7694DA7E8183A77579A0EB39F898D2B4BAF8FA4FF"),
         ]
