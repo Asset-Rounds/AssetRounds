@@ -917,8 +917,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "                iphone-17-ios-26.2-current)",
             "                  CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION=26.2",
             "                iphone-se-3-ios-18.0-minimum)",
-            #"test "$CI_S10_4_PROVISION_RUNTIME" = "true""#,
-            #"test "$CI_S10_4_RUNTIME_DOWNLOAD_VERSION" = "18.0""#,
             "                  CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION=18.0",
             #""CI_S10_4_PROVISION_RUNTIME=$CI_S10_4_PROVISION_RUNTIME" \"#,
             #""CI_S10_4_RUNTIME_DOWNLOAD_VERSION=$CI_S10_4_RUNTIME_DOWNLOAD_VERSION" \"#,
@@ -931,6 +929,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ]
         for fragment in exactRuntimeOverlayFragments {
             XCTAssertEqual(workflowSource.components(separatedBy: fragment).count - 1, 1, fragment)
+        }
+        for fragment in [
+            #"test "$CI_S10_4_PROVISION_RUNTIME" = "true""#,
+            #"test "$CI_S10_4_RUNTIME_DOWNLOAD_VERSION" = "18.0""#,
+        ] {
+            XCTAssertEqual(workflowSource.components(separatedBy: fragment).count - 1, 2, fragment)
         }
         XCTAssertEqual(
             workflowSource.components(
@@ -950,7 +954,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"test "$CI_S10_4_PROVISION_RUNTIME" = "false""#,
             #"test -z "$CI_S10_4_RUNTIME_DOWNLOAD_VERSION""#,
         ] {
-            XCTAssertEqual(workflowSource.components(separatedBy: fragment).count - 1, 2, fragment)
+            XCTAssertEqual(workflowSource.components(separatedBy: fragment).count - 1, 3, fragment)
         }
         XCTAssertEqual(
             workflowSource.components(
