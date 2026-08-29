@@ -15,6 +15,7 @@ on:
           - getmac-xcode-26.6-development-only
           - warp-xcode-26.5-development-only
           - bitrise-build-hub-cache-probe-development-only
+          - bitrise-build-hub-xcode-26.6-development-only
           - bitrise-build-hub-xcode-26.6-segmented-development-only
       run_ui_smoke:
         description: Run the task-authorized XCUITest smoke after build and unit tests
@@ -47,7 +48,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ios-ci-dispatch-${{ github.ref }}-${{ inputs.s10_4_shard_id }}${{ (inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-segmented-development-only') && format('-{0}', github.sha) || '' }}
+  group: ios-ci-dispatch-${{ github.ref }}-${{ inputs.s10_4_shard_id }}${{ (inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-development-only' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-segmented-development-only') && format('-{0}', github.sha) || '' }}
   cancel-in-progress: false
 
 jobs:
@@ -78,6 +79,27 @@ jobs:
     if: ${{ inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only' && inputs.run_ui_smoke == false && inputs.s10_4_shard_id == 'none' }}
     uses: ./.github/workflows/bitrise-build-hub-probe.yml
     secrets: inherit
+
+  bitrise-shard:
+    name: Bitrise Build Hub Xcode 26.6 development-only · ${{ inputs.s10_4_shard_id }}
+    if: ${{ inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-development-only' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id != 'none' }}
+    uses: ./.github/workflows/ios-ci-worker.yml
+    with:
+      runner_label: bitrise-m4-pro
+      runner_provider: bitrise
+      run_ui_smoke: true
+      s10_4_shard_id: ${{ inputs.s10_4_shard_id }}
+      s10_4_segment_id: none
+    secrets: inherit
+
+  reject-invalid-bitrise-development-selection:
+    name: Reject invalid Bitrise development selection
+    if: ${{ inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-development-only' && (inputs.run_ui_smoke != true || inputs.s10_4_shard_id == 'none') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Reject invalid Bitrise shard or UI selection
+        shell: bash
+        run: exit 1
 
   reject-invalid-segmented-selection:
     name: Reject invalid segmented selection

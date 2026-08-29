@@ -35,7 +35,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ inputs.s10_4_segment_id == 'none' && format('ios-ci-{0}-{1}', github.ref, inputs.s10_4_shard_id) || format('ios-ci-{0}-{1}-{2}{3}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id, inputs.runner_provider == 'bitrise' && format('-{0}', github.sha) || '') }}
+  group: ${{ inputs.runner_provider == 'bitrise' && format('ios-ci-{0}-{1}-{2}-{3}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id, github.sha) || (inputs.s10_4_segment_id == 'none' && format('ios-ci-{0}-{1}', github.ref, inputs.s10_4_shard_id) || format('ios-ci-{0}-{1}-{2}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id)) }}
   cancel-in-progress: false
 
 jobs:
@@ -441,13 +441,28 @@ jobs:
             fi
             if test "$CI_RUNNER_PROVIDER" = "bitrise"; then
               test "$CI_RUNNER_LABEL" = "bitrise-m4-pro"
-              test "$CI_S10_4_SHARD_ID" = "s10.4.current.ax-text"
-              test "$CI_S10_4_SEGMENT_ID" != "none"
-              test "$CI_S10_4_DEVICE_PROFILE_ID" = "iphone-17-ios-26.2-current"
-              test "$CI_S10_4_PROVISION_RUNTIME" = "false"
-              test -z "$CI_S10_4_RUNTIME_DOWNLOAD_VERSION"
-              CI_S10_4_EFFECTIVE_PROVISION_RUNTIME=true
-              CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION="$SIMULATOR_RUNTIME_BUILD"
+              case "$CI_S10_4_SEGMENT_ID:$CI_S10_4_DEVICE_PROFILE_ID" in
+                none:iphone-17-ios-26.2-current)
+                  test "$CI_S10_4_PROVISION_RUNTIME" = "false"
+                  test -z "$CI_S10_4_RUNTIME_DOWNLOAD_VERSION"
+                  CI_S10_4_EFFECTIVE_PROVISION_RUNTIME=true
+                  CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION="$SIMULATOR_RUNTIME_BUILD"
+                  ;;
+                none:iphone-se-3-ios-18.0-minimum)
+                  test "$CI_S10_4_PROVISION_RUNTIME" = "true"
+                  test "$CI_S10_4_RUNTIME_DOWNLOAD_VERSION" = "18.0"
+                  ;;
+                segment-1:iphone-17-ios-26.2-current |
+                segment-2:iphone-17-ios-26.2-current |
+                segment-3:iphone-17-ios-26.2-current)
+                  test "$CI_S10_4_SHARD_ID" = "s10.4.current.ax-text"
+                  test "$CI_S10_4_PROVISION_RUNTIME" = "false"
+                  test -z "$CI_S10_4_RUNTIME_DOWNLOAD_VERSION"
+                  CI_S10_4_EFFECTIVE_PROVISION_RUNTIME=true
+                  CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION="$SIMULATOR_RUNTIME_BUILD"
+                  ;;
+                *) exit 1 ;;
+              esac
             fi
           else
             test "$DISPATCH_S10_4_SHARD_ID" = "none"
@@ -721,8 +736,15 @@ jobs:
         run: |
           set -euo pipefail
           test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" = "bitrise:bitrise-m4-pro"
-          test "$CI_S10_4_SHARD_ID" = "s10.4.current.ax-text"
-          case "$CI_S10_4_SEGMENT_ID" in segment-1 | segment-2 | segment-3) ;; *) exit 1 ;; esac
+          case "$CI_S10_4_SEGMENT_ID:$CI_S10_4_DEVICE_PROFILE_ID" in
+            none:iphone-17-ios-26.2-current | none:iphone-se-3-ios-18.0-minimum) ;;
+            segment-1:iphone-17-ios-26.2-current |
+            segment-2:iphone-17-ios-26.2-current |
+            segment-3:iphone-17-ios-26.2-current)
+              test "$CI_S10_4_SHARD_ID" = "s10.4.current.ax-text"
+              ;;
+            *) exit 1 ;;
+          esac
           test -n "$BITRISE_BUILD_CACHE_AUTH_TOKEN"
           test "$BITRISE_BUILD_CACHE_WORKSPACE_ID" = "c70b2962648b79fb"
           test "${RUNNER_ARCH:-}" = "ARM64"
@@ -936,8 +958,10 @@ jobs:
             bitrise_simulator_budget_start_epoch="$(date +%s)"
             printf 'CI_BITRISE_SIMULATOR_BUDGET_START_EPOCH=%s\n' \
               "$bitrise_simulator_budget_start_epoch" >> "$GITHUB_ENV"
-            test "$SIMULATOR_RUNTIME:$SIMULATOR_RUNTIME_BUILD:$CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION" = \
-              "iOS 26.2:23C54:23C54"
+            case "$SIMULATOR_RUNTIME:$SIMULATOR_RUNTIME_BUILD:$CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION" in
+              'iOS 26.2:23C54:23C54' | 'iOS 18.0:22A3351:18.0') ;;
+              *) exit 1 ;;
+            esac
             xcrun simctl list runtimes -j > "$CI_ARTIFACT_DIR/simulator-runtimes-before-provision.json"
             if jq -e --arg name "$SIMULATOR_RUNTIME" --arg build "$SIMULATOR_RUNTIME_BUILD" '
               any(.runtimes[];
@@ -1241,7 +1265,7 @@ jobs:
             bash Scripts/ui-smoke.sh 2>&1 | tee "$CI_ARTIFACT_DIR/ui-smoke.log"
 
       - name: Retain Bitrise development-only segment evidence
-        if: ${{ always() && inputs.runner_provider == 'bitrise' }}
+        if: ${{ always() && inputs.runner_provider == 'bitrise' && inputs.s10_4_segment_id != 'none' }}
         shell: bash
         env:
           BITRISE_PRIOR_JOB_STATUS: ${{ job.status }}
@@ -3353,7 +3377,7 @@ jobs:
           printf 'CI_ARTIFACT_START_EPOCH=%s\n' "$CI_ARTIFACT_START_EPOCH" >> "$GITHUB_ENV"
 
       - name: Validate required build and test evidence
-        if: ${{ always() && inputs.runner_provider != 'bitrise' }}
+        if: ${{ always() && (inputs.runner_provider != 'bitrise' || inputs.s10_4_segment_id == 'none') }}
         shell: bash
         run: |
           set -euo pipefail
@@ -3709,7 +3733,7 @@ jobs:
           fi
 
       - name: Validate Bitrise development-only segment evidence
-        if: ${{ always() && inputs.runner_provider == 'bitrise' }}
+        if: ${{ always() && inputs.runner_provider == 'bitrise' && inputs.s10_4_segment_id != 'none' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -3766,6 +3790,119 @@ jobs:
             and .feedsAcceptanceAssembler == false
             and .finalAcceptanceEligible == false
           ' "$CI_ARTIFACT_DIR/s10-4-segment-plan-development-binding-redacted.json" > /dev/null
+
+      - name: Finalize Bitrise development-only shard evidence
+        if: ${{ always() && inputs.runner_provider == 'bitrise' && inputs.s10_4_segment_id == 'none' }}
+        shell: bash
+        env:
+          BITRISE_DISPATCH_SHARD_ID: ${{ inputs.s10_4_shard_id }}
+          BITRISE_PRIOR_JOB_STATUS: ${{ job.status }}
+          BITRISE_RUNNER_NAME: ${{ runner.name }}
+          BITRISE_RUNNER_ARCHITECTURE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          artifact_dir="${CI_ARTIFACT_DIR:-$RUNNER_TEMP/FieldEvidenceCI}"
+          shard_evidence_path="$artifact_dir/s10-4/$BITRISE_DISPATCH_SHARD_ID"
+          development_record_path="$artifact_dir/bitrise-development/$BITRISE_DISPATCH_SHARD_ID/development-shard-record.json"
+          mkdir -p "$(dirname "$development_record_path")"
+          test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" = "bitrise:bitrise-m4-pro"
+          test "$CI_S10_4_SHARD_ID" = "$BITRISE_DISPATCH_SHARD_ID"
+          test "$CI_S10_4_SEGMENT_ID" = "none"
+          test -s "$artifact_dir/bitrise-build-cache-activation.log"
+          test -s "$artifact_dir/bitrise-build-cache-wrapper-paths.txt"
+          test -s "$artifact_dir/bitrise-build-cache-cli-verification.txt"
+          activation_count="$(cat "$RUNNER_TEMP/bitrise-build-cache-activation-counter.txt")"
+          case "$activation_count" in '' | *[!0-9]*) exit 1 ;; esac
+          test "$activation_count" -ge 1
+          test "$(grep -c '^benchmark_phase=established$' "$artifact_dir/bitrise-build-cache-activation.log")" \
+            -eq "$activation_count"
+          if grep -F 'cache disabled, analytics only' \
+            "$artifact_dir/bitrise-build-cache-activation.log" > /dev/null; then
+            exit 1
+          fi
+          full_shard_evidence_validated=false
+          if test "$BITRISE_PRIOR_JOB_STATUS" = "success"; then
+            test -s "$shard_evidence_path/shard-receipt.json"
+            test "$(find "$shard_evidence_path/candidates" -type f -name 'state.*.png' | wc -l | tr -d ' ')" -eq 67
+            full_shard_evidence_validated=true
+          fi
+          rm -f \
+            "$shard_evidence_path/shard-receipt.json" \
+            "$shard_evidence_path/segment-receipt.json" \
+            "$shard_evidence_path/segment-receipt.pending.json"
+          test ! -e "$shard_evidence_path/shard-receipt.json"
+          test ! -e "$shard_evidence_path/segment-receipt.json"
+          test ! -e "$shard_evidence_path/segment-receipt.pending.json"
+          jq -n \
+            --arg laneID "bitrise-build-hub-xcode-26.6-development-only" \
+            --arg provider "bitrise" \
+            --arg runnerLabel "$CI_RUNNER_LABEL" \
+            --arg runnerName "$BITRISE_RUNNER_NAME" \
+            --arg runnerArchitecture "$BITRISE_RUNNER_ARCHITECTURE" \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg ref "$GITHUB_REF" \
+            --arg headSHA "$GITHUB_SHA" \
+            --arg runID "$GITHUB_RUN_ID" \
+            --arg runAttempt "$GITHUB_RUN_ATTEMPT" \
+            --arg shardID "$BITRISE_DISPATCH_SHARD_ID" \
+            --arg segmentID "none" \
+            --arg simulatorRuntime "${SIMULATOR_RUNTIME:-}" \
+            --arg simulatorRuntimeBuild "${SIMULATOR_RUNTIME_BUILD:-}" \
+            --arg priorJobStatus "$BITRISE_PRIOR_JOB_STATUS" \
+            --argjson cacheActivationCount "$activation_count" \
+            --argjson fullShardEvidenceValidated "$full_shard_evidence_validated" '
+              {
+                schemaVersion: 1,
+                laneID: $laneID,
+                provider: $provider,
+                runnerLabel: $runnerLabel,
+                runnerName: $runnerName,
+                runnerArchitecture: $runnerArchitecture,
+                repository: $repository,
+                ref: $ref,
+                headSHA: $headSHA,
+                runID: $runID,
+                runAttempt: $runAttempt,
+                shardID: $shardID,
+                segmentID: $segmentID,
+                simulatorRuntime: $simulatorRuntime,
+                simulatorRuntimeBuild: $simulatorRuntimeBuild,
+                priorJobStatus: $priorJobStatus,
+                benchmarkPhase: "established",
+                cacheOperational: true,
+                cacheActivationCount: $cacheActivationCount,
+                fullShardEvidenceValidated: $fullShardEvidenceValidated,
+                acceptingShardReceipt: false,
+                feedsAcceptanceAssembler: false,
+                rawEvidenceOnly: true,
+                finalAcceptanceEligible: false
+              }
+            ' > "$development_record_path"
+          jq -e \
+            --arg shardID "$BITRISE_DISPATCH_SHARD_ID" \
+            --arg priorJobStatus "$BITRISE_PRIOR_JOB_STATUS" '
+              .schemaVersion == 1
+              and .laneID == "bitrise-build-hub-xcode-26.6-development-only"
+              and .provider == "bitrise"
+              and .runnerLabel == "bitrise-m4-pro"
+              and .runnerArchitecture == "ARM64"
+              and .repository == env.GITHUB_REPOSITORY
+              and .ref == env.GITHUB_REF
+              and .headSHA == env.GITHUB_SHA
+              and .runID == env.GITHUB_RUN_ID
+              and .runAttempt == env.GITHUB_RUN_ATTEMPT
+              and .shardID == $shardID
+              and .segmentID == "none"
+              and .priorJobStatus == $priorJobStatus
+              and .benchmarkPhase == "established"
+              and .cacheOperational == true
+              and (.cacheActivationCount | type == "number" and . >= 1)
+              and .fullShardEvidenceValidated == ($priorJobStatus == "success")
+              and .acceptingShardReceipt == false
+              and .feedsAcceptanceAssembler == false
+              and .rawEvidenceOnly == true
+              and .finalAcceptanceEligible == false
+            ' "$development_record_path" > /dev/null
 
       - name: Finalize successful S10.4 segment receipt
         if: ${{ success() && inputs.runner_provider == 'github' && inputs.s10_4_segment_id != 'none' }}
@@ -4066,7 +4203,7 @@ jobs:
         if: ${{ always() && inputs.runner_provider == 'bitrise' && steps.upload_evidence.outcome == 'success' }}
         shell: bash
         run: |
-          printf '%s\n' 'Bitrise Build Hub Xcode 26.6 segmented development-only evidence is not eligible for S10.4 final acceptance.' >&2
+          printf '%s\n' 'Bitrise Build Hub Xcode 26.6 development-only evidence is not eligible for S10.4 final acceptance.' >&2
           exit 1
 
       - name: Fail closed after GetMac development-only evidence

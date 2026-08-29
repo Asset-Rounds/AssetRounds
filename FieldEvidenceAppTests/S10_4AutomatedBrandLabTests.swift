@@ -106,8 +106,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let dispatcherPath = ".github/workflows/ios-ci.yml"
         try assertFile(
             dispatcherPath,
-            byteCount: 55_625,
-            sha256: "6E1E870DD84E353278ED639974A6DE805D2E6E08B42CAA76245912B6A5AE61CB"
+            byteCount: 56_665,
+            sha256: "2476143D95816002C9CF8D29FCD521B1804E79DBE44368223E56BF0C8F342908"
         )
         let dispatcherSource = try text(dispatcherPath)
         let bitriseProbePath = ".github/workflows/bitrise-build-hub-probe.yml"
@@ -120,8 +120,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 227_055,
-            sha256: "38FFECCBDDCD3DA6741E7277C96C31BE3E3BDC6A1E06C71F70069993608C482C"
+            byteCount: 234_174,
+            sha256: "1563212EE99FF76636B20358BE292384631A849F26101E957E2E6D51EEFEA180"
         )
         let workflowSource = try text(workflowPath)
         let currentF25WatchdogTuple = "] == [420, 900, 1200, 1920, 4500]"
@@ -275,7 +275,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
         XCTAssertEqual(executionLaneSource.components(separatedBy: "        type: choice").count - 1, 1)
-        XCTAssertEqual(executionLaneSource.components(separatedBy: "          - ").count - 1, 6)
+        XCTAssertEqual(executionLaneSource.components(separatedBy: "          - ").count - 1, 7)
         XCTAssertEqual(
             executionLaneSource.components(
                 separatedBy: "          - github-xcode-26.6-acceptance"
@@ -308,6 +308,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             executionLaneSource.components(
+                separatedBy: "          - bitrise-build-hub-xcode-26.6-development-only"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            executionLaneSource.components(
                 separatedBy: "          - bitrise-build-hub-xcode-26.6-segmented-development-only"
             ).count - 1,
             1
@@ -321,6 +327,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertFalse(
             executionLaneSource.contains(
+                "default: bitrise-build-hub-xcode-26.6-development-only"
+            )
+        )
+        XCTAssertFalse(
+            executionLaneSource.contains(
                 "default: bitrise-build-hub-xcode-26.6-segmented-development-only"
             )
         )
@@ -328,13 +339,19 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let dispatcherConcurrency =
             "concurrency:\n" +
-                #"  group: ios-ci-dispatch-${{ github.ref }}-${{ inputs.s10_4_shard_id }}${{ (inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-segmented-development-only') && format('-{0}', github.sha) || '' }}"# +
+                #"  group: ios-ci-dispatch-${{ github.ref }}-${{ inputs.s10_4_shard_id }}${{ (inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-development-only' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-segmented-development-only') && format('-{0}', github.sha) || '' }}"# +
                 "\n  cancel-in-progress: false"
         XCTAssertEqual(dispatcherSource.components(separatedBy: dispatcherConcurrency).count - 1, 1)
         XCTAssertEqual(dispatcherSource.components(separatedBy: "concurrency:").count - 1, 1)
         XCTAssertEqual(
             dispatcherConcurrency.components(
                 separatedBy: "inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only'"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            dispatcherConcurrency.components(
+                separatedBy: "inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-development-only'"
             ).count - 1,
             1
         )
@@ -517,6 +534,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let githubJobMarker = "  github-shard:\n"
         let getMacJobMarker = "  getmac-shard:\n"
         let bitriseProbeJobMarker = "  bitrise-build-hub-cache-probe:\n"
+        let bitriseJobMarker = "  bitrise-shard:\n"
+        let rejectBitriseJobMarker = "  reject-invalid-bitrise-development-selection:\n"
         let rejectSegmentedJobMarker = "  reject-invalid-segmented-selection:\n"
         let warpJobMarker = "  warpbuild-shard:\n"
         guard
@@ -533,9 +552,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 of: bitriseProbeJobMarker,
                 range: getMacJobRange.upperBound..<dispatcherSource.endIndex
             ),
+            let bitriseJobRange = dispatcherSource.range(
+                of: bitriseJobMarker,
+                range: bitriseProbeJobRange.upperBound..<dispatcherSource.endIndex
+            ),
+            let rejectBitriseJobRange = dispatcherSource.range(
+                of: rejectBitriseJobMarker,
+                range: bitriseJobRange.upperBound..<dispatcherSource.endIndex
+            ),
             let rejectSegmentedJobRange = dispatcherSource.range(
                 of: rejectSegmentedJobMarker,
-                range: bitriseProbeJobRange.upperBound..<dispatcherSource.endIndex
+                range: rejectBitriseJobRange.upperBound..<dispatcherSource.endIndex
             ),
             let warpJobRange = dispatcherSource.range(
                 of: warpJobMarker,
@@ -556,7 +583,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let bitriseProbeJobSource = String(
             dispatcherSource[
-                bitriseProbeJobRange.lowerBound..<rejectSegmentedJobRange.lowerBound
+                bitriseProbeJobRange.lowerBound..<bitriseJobRange.lowerBound
+            ]
+        )
+        let bitriseJobSource = String(
+            dispatcherSource[
+                bitriseJobRange.lowerBound..<rejectBitriseJobRange.lowerBound
+            ]
+        )
+        let rejectBitriseJobSource = String(
+            dispatcherSource[
+                rejectBitriseJobRange.lowerBound..<rejectSegmentedJobRange.lowerBound
             ]
         )
         let warpJobSource = String(dispatcherSource[warpJobRange.lowerBound...])
@@ -568,7 +605,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 in: jobsSource,
                 range: NSRange(location: 0, length: jobsSource.utf16.count)
             ),
-            8
+            10
         )
 
         let githubLaneGate =
@@ -579,6 +616,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"    if: ${{ inputs.execution_lane == 'warp-xcode-26.5-development-only' }}"#
         let bitriseProbeLaneGate =
             #"    if: ${{ inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only' && inputs.run_ui_smoke == false && inputs.s10_4_shard_id == 'none' }}"#
+        let bitriseLaneGate =
+            #"    if: ${{ inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-development-only' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id != 'none' }}"#
         XCTAssertEqual(githubJobSource.components(separatedBy: githubLaneGate).count - 1, 1)
         XCTAssertEqual(getMacJobSource.components(separatedBy: getMacLaneGate).count - 1, 1)
         XCTAssertEqual(warpJobSource.components(separatedBy: warpLaneGate).count - 1, 1)
@@ -586,6 +625,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             bitriseProbeJobSource.components(separatedBy: bitriseProbeLaneGate).count - 1,
             1
         )
+        XCTAssertEqual(bitriseJobSource.components(separatedBy: bitriseLaneGate).count - 1, 1)
         XCTAssertEqual(
             bitriseProbeJobSource.components(
                 separatedBy: "    uses: ./.github/workflows/bitrise-build-hub-probe.yml"
@@ -596,6 +636,26 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             bitriseProbeJobSource.components(separatedBy: "    secrets: inherit").count - 1,
             1
         )
+        for exact in [
+            "    uses: ./.github/workflows/ios-ci-worker.yml",
+            "      runner_label: bitrise-m4-pro",
+            "      runner_provider: bitrise",
+            "      run_ui_smoke: true",
+            #"      s10_4_shard_id: ${{ inputs.s10_4_shard_id }}"#,
+            "      s10_4_segment_id: none",
+            "    secrets: inherit",
+        ] {
+            XCTAssertEqual(bitriseJobSource.components(separatedBy: exact).count - 1, 1, exact)
+        }
+        for exact in [
+            "inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-development-only'",
+            "inputs.run_ui_smoke != true",
+            "inputs.s10_4_shard_id == 'none'",
+            "runs-on: ubuntu-24.04",
+            "run: exit 1",
+        ] {
+            XCTAssertTrue(rejectBitriseJobSource.contains(exact), exact)
+        }
         XCTAssertEqual(
             getMacJobSource.components(
                 separatedBy: #"    name: GetMac Xcode 26.6 development-only · ${{ inputs.s10_4_shard_id }}"#
@@ -612,7 +672,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             dispatcherSource.components(
                 separatedBy: "    uses: ./.github/workflows/ios-ci-worker.yml"
             ).count - 1,
-            4
+            5
         )
         XCTAssertEqual(
             githubJobSource.components(
@@ -764,10 +824,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workerExecutionSource = String(
             workflowSource[workerExecutionStart.lowerBound..<workerExecutionEnd.lowerBound]
         )
-        XCTAssertEqual(workerExecutionSource.utf8.count, 99_952)
+        XCTAssertEqual(workerExecutionSource.utf8.count, 101_073)
         XCTAssertEqual(
             Data(workerExecutionSource.utf8).sha256,
-            "FDF0497447C688CCC8C7E546CDE76E90C297BF5AB473763605A263722E3F7848"
+            "0147AF8E6E475F8595528E9CDA1E733C305F866C4B03B016E43A35EF6C1F5DA2"
         )
         let warpScopeSource = String(
             warpJobSource[warpScopeStart.lowerBound..<warpExecutionStart.lowerBound]
@@ -865,7 +925,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #""CI_S10_4_EFFECTIVE_PROVISION_RUNTIME=$CI_S10_4_EFFECTIVE_PROVISION_RUNTIME" \"#,
             #""CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION=$CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION" \"#,
             #"| tee "$CI_ARTIFACT_DIR/simulator-runtime-policy.txt""#,
-            #"case "$SIMULATOR_RUNTIME:$SIMULATOR_RUNTIME_BUILD:$CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION" in"#,
             #""iOS 18.0:22A3351:18.0" | "iOS 26.2:23C54:26.2") ;;"#,
             #"-buildVersion "$CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION" \"#,
             #"test -s "$CI_ARTIFACT_DIR/simulator-runtime-policy.txt""#,
@@ -873,6 +932,19 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for fragment in exactRuntimeOverlayFragments {
             XCTAssertEqual(workflowSource.components(separatedBy: fragment).count - 1, 1, fragment)
         }
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy:
+                    #"case "$SIMULATOR_RUNTIME:$SIMULATOR_RUNTIME_BUILD:$CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION" in"#
+            ).count - 1,
+            2
+        )
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: #"'iOS 26.2:23C54:23C54' | 'iOS 18.0:22A3351:18.0') ;;"#
+            ).count - 1,
+            1
+        )
         for fragment in [
             "              CI_S10_4_EFFECTIVE_PROVISION_RUNTIME=true",
             #"test "$CI_S10_4_PROVISION_RUNTIME" = "false""#,
@@ -1311,7 +1383,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         XCTAssertEqual(
             workflowSource.components(
-                separatedBy: #"  group: ${{ inputs.s10_4_segment_id == 'none' && format('ios-ci-{0}-{1}', github.ref, inputs.s10_4_shard_id) || format('ios-ci-{0}-{1}-{2}{3}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id, inputs.runner_provider == 'bitrise' && format('-{0}', github.sha) || '') }}"#
+                separatedBy: #"  group: ${{ inputs.runner_provider == 'bitrise' && format('ios-ci-{0}-{1}-{2}-{3}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id, github.sha) || (inputs.s10_4_segment_id == 'none' && format('ios-ci-{0}-{1}', github.ref, inputs.s10_4_shard_id) || format('ios-ci-{0}-{1}-{2}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id)) }}"#
             ).count - 1,
             1
         )
@@ -23368,7 +23440,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertFalse(matrixSource.contains("warp"))
         XCTAssertEqual(
             dispatcherSource.components(separatedBy: "      s10_4_segment_id: none").count - 1,
-            2
+            3
         )
         let rejectSource = try boundedSource(
             dispatcherSource,
@@ -23459,7 +23531,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(workerInputSource.contains("required: false"))
         XCTAssertTrue(
             workerSource.contains(
-                "inputs.s10_4_segment_id == 'none' && format('ios-ci-{0}-{1}', github.ref, inputs.s10_4_shard_id) || format('ios-ci-{0}-{1}-{2}{3}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id, inputs.runner_provider == 'bitrise' && format('-{0}', github.sha) || '')"
+                "inputs.runner_provider == 'bitrise' && format('ios-ci-{0}-{1}-{2}-{3}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id, github.sha) || (inputs.s10_4_segment_id == 'none' && format('ios-ci-{0}-{1}', github.ref, inputs.s10_4_shard_id) || format('ios-ci-{0}-{1}-{2}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id))"
             )
         )
         let workerSegmentSelection = try boundedSource(
@@ -23477,6 +23549,33 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "*) exit 1 ;;",
         ] {
             XCTAssertTrue(workerSegmentSelection.contains(exact), exact)
+        }
+        let workerTaskSelectionSource = try boundedSource(
+            workerSource,
+            from: "      - name: Validate task selection and timeout tier",
+            before: "\n\n      - name: Install pinned Bitrise Build Cache command wrappers"
+        )
+        let bitriseProfileSelection = try boundedSource(
+            workerTaskSelectionSource,
+            from:
+                "            if test \"$CI_RUNNER_PROVIDER\" = \"bitrise\"; then\n" +
+                "              test \"$CI_RUNNER_LABEL\" = \"bitrise-m4-pro\"\n" +
+                "              case \"$CI_S10_4_SEGMENT_ID:$CI_S10_4_DEVICE_PROFILE_ID\" in",
+            before: "          else\n            test \"$DISPATCH_S10_4_SHARD_ID\" = \"none\""
+        )
+        for exact in [
+            "test \"$CI_RUNNER_LABEL\" = \"bitrise-m4-pro\"",
+            "none:iphone-17-ios-26.2-current)",
+            "none:iphone-se-3-ios-18.0-minimum)",
+            "segment-1:iphone-17-ios-26.2-current |",
+            "segment-2:iphone-17-ios-26.2-current |",
+            "segment-3:iphone-17-ios-26.2-current)",
+            "test \"$CI_S10_4_RUNTIME_DOWNLOAD_VERSION\" = \"18.0\"",
+            "CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION=\"$SIMULATOR_RUNTIME_BUILD\"",
+            "test \"$CI_S10_4_SHARD_ID\" = \"s10.4.current.ax-text\"",
+            "*) exit 1 ;;",
+        ] {
+            XCTAssertTrue(bitriseProfileSelection.contains(exact), exact)
         }
         XCTAssertTrue(
             workerSource.contains(
@@ -23501,6 +23600,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "BITRISE_BUILD_CACHE_WORKSPACE_ID: ${{ vars.BITRISE_BUILD_CACHE_WORKSPACE_ID }}",
             "BITRISE_BUILD_CACHE_BENCHMARK_PHASE_XCODE: established",
             "bitrise:bitrise-m4-pro",
+            "case \"$CI_S10_4_SEGMENT_ID:$CI_S10_4_DEVICE_PROFILE_ID\" in",
+            "none:iphone-17-ios-26.2-current | none:iphone-se-3-ios-18.0-minimum) ;;",
+            "segment-1:iphone-17-ios-26.2-current |",
+            "segment-2:iphone-17-ios-26.2-current |",
+            "segment-3:iphone-17-ios-26.2-current)",
+            "test \"$CI_S10_4_SHARD_ID\" = \"s10.4.current.ax-text\"",
             "test \"${RUNNER_ARCH:-}\" = \"ARM64\"",
             "test \"$(uname -m)\" = \"arm64\"",
             "test \"$(sw_vers -productVersion)\" = \"26.6.1\"",
@@ -23541,6 +23646,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         for exact in [
             "inputs.runner_provider == 'bitrise'",
+            "inputs.s10_4_segment_id != 'none'",
             "bitrise-development/$CI_S10_4_SEGMENT_ID",
             "development-segment-record.json",
             "benchmarkPhase: $benchmarkPhase",
@@ -23564,9 +23670,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let bitriseDevelopmentValidationSource = try boundedSource(
             workerSource,
             from: "      - name: Validate Bitrise development-only segment evidence",
-            before: "\n\n      - name: Finalize successful S10.4 segment receipt"
+            before: "\n\n      - name: Finalize Bitrise development-only shard evidence"
         )
         for exact in [
+            "inputs.s10_4_segment_id != 'none'",
             "grep -c '^benchmark_phase=established$'",
             "cache disabled, analytics only",
             ".benchmarkPhase == \"established\"",
@@ -23574,6 +23681,43 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertTrue(bitriseDevelopmentValidationSource.contains(exact), exact)
         }
+        let bitriseShardFinalizationSource = try boundedSource(
+            workerSource,
+            from: "      - name: Finalize Bitrise development-only shard evidence",
+            before: "\n\n      - name: Finalize successful S10.4 segment receipt"
+        )
+        for exact in [
+            "inputs.runner_provider == 'bitrise' && inputs.s10_4_segment_id == 'none'",
+            "BITRISE_DISPATCH_SHARD_ID: ${{ inputs.s10_4_shard_id }}",
+            "BITRISE_PRIOR_JOB_STATUS: ${{ job.status }}",
+            "bitrise-build-hub-xcode-26.6-development-only",
+            "development-shard-record.json",
+            "test -s \"$shard_evidence_path/shard-receipt.json\"",
+            "find \"$shard_evidence_path/candidates\" -type f -name 'state.*.png'",
+            "-eq 67",
+            "rm -f \\",
+            "test ! -e \"$shard_evidence_path/shard-receipt.json\"",
+            "fullShardEvidenceValidated:",
+            "acceptingShardReceipt: false",
+            "feedsAcceptanceAssembler: false",
+            "rawEvidenceOnly: true",
+            "finalAcceptanceEligible: false",
+            ".fullShardEvidenceValidated == ($priorJobStatus == \"success\")",
+        ] {
+            XCTAssertTrue(bitriseShardFinalizationSource.contains(exact), exact)
+        }
+        XCTAssertFalse(bitriseShardFinalizationSource.contains("finalAcceptanceEligible: true"))
+        XCTAssertFalse(bitriseShardFinalizationSource.contains("acceptingShardReceipt: true"))
+        let requiredEvidenceValidationSource = try boundedSource(
+            workerSource,
+            from: "      - name: Validate required build and test evidence",
+            before: "\n\n      - name: Validate Bitrise development-only segment evidence"
+        )
+        XCTAssertTrue(
+            requiredEvidenceValidationSource.contains(
+                "inputs.runner_provider != 'bitrise' || inputs.s10_4_segment_id == 'none'"
+            )
+        )
 
         let retainSegmentSource = try boundedSource(
             workerSource,
