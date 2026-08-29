@@ -25,6 +25,23 @@ def strict_object(pairs):
     return result
 
 
+def changed_paths() -> set[str]:
+    status = subprocess.run(
+        ["git", "-C", str(ROOT), "status", "--porcelain=v1", "--untracked-files=all"],
+        check=True, capture_output=True, text=True,
+    ).stdout
+    paths = {
+        line[3:].split(" -> ", 1)[-1].replace("\\", "/")
+        for line in status.splitlines() if line
+    }
+    committed = subprocess.run(
+        ["git", "-C", str(ROOT), "diff", "--name-only", contracts.BASE_HEAD, "--"],
+        check=True, capture_output=True, text=True,
+    ).stdout
+    paths.update(path.replace("\\", "/") for path in committed.splitlines() if path)
+    return paths
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--complete", action="store_true")
@@ -65,8 +82,7 @@ def main() -> int:
             failures.append(f"persistence:{key}")
     if documents.get(contracts.MANIFEST_PATH, {}).get("statusFlags") != contracts.FLAGS or any(contracts.FLAGS.values()):
         failures.append("all static flags false")
-    status = subprocess.run(["git", "-C", str(ROOT), "status", "--porcelain=v1", "--untracked-files=all"], check=True, capture_output=True, text=True).stdout
-    changed = {line[3:].split(" -> ", 1)[-1].replace("\\", "/") for line in status.splitlines() if line}
+    changed = changed_paths()
     unowned = sorted(changed - set(contracts.PATH_FENCE))
     if unowned:
         failures.append("changed path outside C27 fence:" + ",".join(unowned))

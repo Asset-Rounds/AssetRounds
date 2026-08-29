@@ -1,6 +1,6 @@
 {
-  "artifactDigest": "679ec4c4b31e0f085ce41a592d7ffc364cf6288149794f60feaacf626fb8d765",
-  "artifactSetDigest": "9e12819c399a1c4e290a356fdebd11cacbb5eb63ed006a3dd94135b9f9725b97",
+  "artifactDigest": "1b824ac296bf14670ca1db3e3a9e81a1f0a3c439463a1c95de86381c4469a843",
+  "artifactSetDigest": "0bca3e213f9b50fedc1dac0ff29558ac4854e5125d386c7e26b19ecaea5c61b7",
   "artifacts": [
     {
       "byteCount": 35585,
@@ -623,9 +623,9 @@
       "sha256": "c15e644111e414969eaab48673f9819faca1ff64a6cb6a539aee481e3673469b"
     },
     {
-      "byteCount": 5012,
+      "byteCount": 5403,
       "path": "Scripts/v23/verify_p03_c27_contracts.py",
-      "sha256": "fab4787a944d1949ed06e1ebc3149957f086c342e9312cb8e67bb593b01abdfe"
+      "sha256": "6d3ee33557cce100947c093de8bd572c8877d053513716e6a7100c19eae726a1"
     },
     {
       "byteCount": 1669,
