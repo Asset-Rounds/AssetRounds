@@ -260,6 +260,14 @@ final class V9_07CompatibilityPolicyTests: XCTestCase {
     }
 }
 
+private final class C27V907PolicyTypedLocatorAnchorTests: XCTestCase {
+    func testAssetLocatorContractAnchor() throws {
+        XCTAssertEqual(ExternalKeyNormalizationV1.allCases, [.exactNFC, .asciiCaseInsensitive])
+        XCTAssertEqual(AssetLocatorStateV1.allCases.count, 4)
+        XCTAssertFalse(AssetLocatorLifecycleAdapterV1.resolutionStartsWork)
+    }
+}
+
 extension V9_07CompatibilityPolicyTests {
     func testC24AccessibleDocumentTypedAnchor() throws {
         XCTAssertEqual(AccessibleDocumentSemanticTreeV1.schemaVersion, 1)

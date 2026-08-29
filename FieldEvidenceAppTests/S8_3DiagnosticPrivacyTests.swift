@@ -620,6 +620,14 @@ final class S8_3DiagnosticPrivacyTests: XCTestCase {
     }
 }
 
+private final class C27S83TypedLocatorAnchorTests: XCTestCase {
+    func testAssetLocatorContractAnchor() throws {
+        XCTAssertEqual(ExternalKeyNormalizationV1.allCases.count, 2)
+        XCTAssertEqual(AssetLocatorLimitsV1.maximumNamespaceBytes, 128)
+        XCTAssertFalse(AssetLocatorLifecycleAdapterV1.scanMutatesCanonicalState)
+    }
+}
+
 extension S8_3DiagnosticPrivacyTests {
     func testC24AccessibleDocumentTypedAnchor() throws {
         XCTAssertEqual(AccessibleDocumentSemanticTreeV1.schemaVersion, 1)

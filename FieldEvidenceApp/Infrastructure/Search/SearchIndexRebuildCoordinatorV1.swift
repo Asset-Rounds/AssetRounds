@@ -1960,3 +1960,85 @@ extension SearchIndexRebuildCoordinatorV1 {
     static let surveySessionRestoreDisposition =
         "EXCLUDE_SESSION_ROWS_AND_REBUILD_AFTER_CANONICAL_RESTORE"
 }
+
+// MARK: - C27 asset-locator search rebuild
+
+extension SearchIndexRebuildCoordinatorV1 {
+    /// Rebuilds the disposable locator rows from canonical locator heads and
+    /// recorded resolution results.  It never accepts raw input bytes and it
+    /// never promotes a search row into canonical locator state.
+    static func assetLocatorSearchRecords(
+        from locators: [AssetLocatorV1],
+        resolutions: [LocatorResolutionV1] = []
+    ) throws -> [AssetLocatorSearchRecordV1] {
+        try AssetLocatorSearchPersistencePolicyV1().validate()
+        guard locators.count <= SearchContractLimitsV1.maximumCanonicalRecords,
+              resolutions.count <= SearchContractLimitsV1.maximumCanonicalRecords else {
+            throw SearchContractFailureV1.limitExceeded
+        }
+        try locators.forEach { try $0.validate() }
+        try resolutions.forEach { try $0.validate() }
+
+        let orderedLocators = locators.sorted {
+            if $0.locatorID != $1.locatorID {
+                return $0.locatorID.uuidString.lowercased()
+                    < $1.locatorID.uuidString.lowercased()
+            }
+            return $0.revision < $1.revision
+        }
+        var latestByLocatorID: [UUID: AssetLocatorV1] = [:]
+        for locator in orderedLocators {
+            if let prior = latestByLocatorID[locator.locatorID],
+               prior.revision == locator.revision {
+                throw SearchContractFailureV1.duplicateProjection
+            }
+            latestByLocatorID[locator.locatorID] = locator
+        }
+
+        let currentLocators = latestByLocatorID.values.sorted {
+            $0.locatorID.uuidString.lowercased() < $1.locatorID.uuidString.lowercased()
+        }
+        var records: [AssetLocatorSearchRecordV1] = []
+        for locator in currentLocators {
+            let matchingResolution = resolutions
+                .filter {
+                    $0.workspaceID == locator.workspaceID
+                        && $0.matchedLocator?.locatorID == locator.locatorID
+                        && $0.matchedLocator?.revision == locator.revision
+                }
+                .sorted {
+                    if $0.evaluatedAt != $1.evaluatedAt {
+                        return $0.evaluatedAt < $1.evaluatedAt
+                    }
+                    return $0.resolutionSHA256 < $1.resolutionSHA256
+                }
+                .last
+            records.append(try LocalSearchIndexStoreV1.assetLocatorSearchRecord(
+                from: locator,
+                resolution: matchingResolution
+            ))
+        }
+
+        // Keep bounded negative/ambiguous results searchable without copying
+        // the input digest or candidate locator references into the index.
+        for resolution in resolutions where resolution.matchedLocator == nil {
+            let projection = try AssetLocatorReportProjectionV1(resolution: resolution)
+            records.append(try LocalSearchIndexStoreV1.assetLocatorSearchRecord(
+                from: projection
+            ))
+        }
+
+        records.sort { $0.projectionIdentity < $1.projectionIdentity }
+        guard records.count <= SearchContractLimitsV1.maximumCanonicalRecords,
+              Set(records.map(\.projectionIdentity)).count == records.count else {
+            throw SearchContractFailureV1.duplicateProjection
+        }
+        try records.forEach { try AssetLocatorSearchProjectionPolicyV1.validate($0) }
+        return records
+    }
+
+    static let assetLocatorReplayDisposition =
+        "DROP_AND_REBUILD_FROM_CANONICAL_ASSET_LOCATORS_AND_RESOLUTION_HISTORY"
+    static let assetLocatorRestoreDisposition =
+        "EXCLUDE_LOCATOR_ROWS_AND_REBUILD_AFTER_CANONICAL_RESTORE"
+}

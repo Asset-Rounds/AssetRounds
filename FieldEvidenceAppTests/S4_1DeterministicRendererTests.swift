@@ -303,6 +303,14 @@ final class S4_1DeterministicRendererTests: XCTestCase {
     }
 }
 
+private final class C27S41TypedLocatorAnchorTests: XCTestCase {
+    func testAssetLocatorContractAnchor() throws {
+        XCTAssertEqual(LocatorResolutionOutcomeV1.allCases.count, 8)
+        XCTAssertEqual(ExternalKeyNormalizationV1.allCases.count, 2)
+        XCTAssertFalse(AssetLocatorLifecycleAdapterV1.resolutionGrantsAccess)
+    }
+}
+
 extension S4_1DeterministicRendererTests {
     func testC24AccessibleDocumentTypedAnchor() throws {
         XCTAssertEqual(AccessibleDocumentSemanticTreeV1.schemaVersion, 1)

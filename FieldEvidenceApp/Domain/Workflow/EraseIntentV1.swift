@@ -34,6 +34,21 @@ enum FieldReferenceEraseBoundaryV1{static let atomicFamilyCount=2;static let ord
 enum AccessibleDocumentEraseBoundaryV1{static let atomicFamilyCount=1;static let semanticTreeIsDerived=true;static let workspaceEraseClearsReceiptsAndOwnedOutputs=true;static let escapedOutputsCannotBeRecalled=true}
 enum SurveyDefinitionEraseBoundaryV1{static let atomicFamilyCount=2;static let lifecycleEventsAreMutationHistoryOnly=true;static let workspaceEraseClearsIdentityAndReleaseRows=true;static let quarantinedImportsAreNoncanonical=true}
 enum SurveySessionEraseBoundaryV1{static let atomicFamilyCount=5;static let ordinaryDeletionPreservesPublicationAndCaptureHistory=true;static let workspaceEraseClearsEntireLifecycleClosure=true;static let previewsAndCurrentProjectionsAreNonpersistent=true}
+enum AssetLocatorEraseBoundaryV1 {
+    static let atomicFamilyCount = 2
+    static let ordinaryDeletionRemovesAssetOwnedRows = true
+    static let workspaceEraseClearsEntireLifecycleClosure = true
+    static let cloneForkSourceSignatureActive = false
+    static let privateKeyMaterialExported = false
+
+    static func validate() -> Bool {
+        atomicFamilyCount == 2
+            && ordinaryDeletionRemovesAssetOwnedRows
+            && workspaceEraseClearsEntireLifecycleClosure
+            && !cloneForkSourceSignatureActive
+            && !privateKeyMaterialExported
+    }
+}
 
 enum EvidenceAssuranceEraseBoundaryV1 {
     static let immutableHistoryClearedOnlyByWorkspaceErase = true
@@ -278,6 +293,7 @@ enum EraseIntentCodecV1 {
     }
 
     static func valid(_ value: EraseIntentV1) -> Bool {
+        guard AssetLocatorEraseBoundaryV1.validate() else { return false }
         let generationIDs = value.generationIDsToDelete
         guard value.auxiliaryRoots == EraseIntentV1.canonicalAuxiliaryRoots
             && value.newGenerationID != value.oldGenerationID

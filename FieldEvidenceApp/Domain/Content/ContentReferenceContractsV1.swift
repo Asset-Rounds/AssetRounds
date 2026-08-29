@@ -1,5 +1,10 @@
 import Foundation
 
+enum AssetLocatorContentReferenceBoundaryV1 {
+    static let locatorPayloadIsContentReference = false
+    static let rawExternalKeyMayBePersisted = false
+}
+
 enum ContentContractFailureV1: Error, Equatable, Sendable {
     case invalidValue
     case limitExceeded

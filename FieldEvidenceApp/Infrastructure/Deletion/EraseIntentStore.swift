@@ -2,6 +2,22 @@ import Darwin
 import Foundation
 
 enum SurveySessionEraseIntentEnrollmentV1{static let schemaVersion=25;static let removesAllFiveFamilies=true;static func validate()throws{guard schemaVersion==25,removesAllFiveFamilies else{throw EraseIntentStoreError.invalidAuthority};try SurveySessionDeletionLedgerPolicyV1.validate()}}
+enum AssetLocatorEraseIntentEnrollmentV1 {
+    static let recordsSchemaVersion = 25
+    static let persistentSchemaVersion = 26
+    static let durableFamilyCount = 2
+    static let sourceSignatureIsActiveAfterCloneOrFork = false
+
+    static func validate() throws {
+        guard recordsSchemaVersion == 25,
+              persistentSchemaVersion == 26,
+              durableFamilyCount == 2,
+              !sourceSignatureIsActiveAfterCloneOrFork else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        try AssetLocatorDeletionLedgerPolicyV1.validate()
+    }
+}
 
 enum FunctionalRelationshipEraseIntentStorePolicyV1 {
     static func validate() throws {
@@ -446,6 +462,7 @@ final class EraseIntentStore {
     }
 
     func load() throws -> EraseIntentV1? {
+        try AssetLocatorEraseIntentEnrollmentV1.validate()
         try verifyAuthority()
         try verifyExistingPolicy(.journal, name: Self.intentName)
         try verifyExistingPolicy(.journalTemporary, name: Self.nextName)
@@ -707,6 +724,7 @@ final class EraseIntentStore {
     }
 
     func create(_ value: EraseIntentV1) throws {
+        try AssetLocatorEraseIntentEnrollmentV1.validate()
         try verifyAuthority()
         try verifyExistingPolicy(.journal, name: Self.intentName)
         try verifyExistingPolicy(.journalTemporary, name: Self.nextName)

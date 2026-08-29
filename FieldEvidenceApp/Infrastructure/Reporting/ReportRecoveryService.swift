@@ -929,3 +929,30 @@ enum SurveyDefinitionReportRecoveryPolicyV1 {
         return projection
     }
 }
+
+// MARK: - C27 asset-locator recovery boundary
+
+enum AssetLocatorReportRecoveryPolicyV1 {
+    static let recoverySource = "CANONICAL_ASSET_LOCATOR_AND_RESOLUTION_HISTORY"
+    static let resolutionPreviewsAreDiscarded = true
+    static let derivedSearchIsRebuilt = true
+    static let historicInterpretationIsFrozen = true
+    static let currentPointerCannotRewriteHistory = true
+    static let excludesOpaqueInput = true
+    static let excludesPrivateKeyMaterial = true
+    static let excludesSecrets = true
+    static let excludesVendorIdentifiers = true
+
+    static func validateRecoveredProjection(
+        _ projection: AssetLocatorReportProjectionV1
+    ) throws -> AssetLocatorReportProjectionV1 {
+        try projection.validate(format: .openJSON)
+        guard resolutionPreviewsAreDiscarded, derivedSearchIsRebuilt,
+              historicInterpretationIsFrozen, currentPointerCannotRewriteHistory,
+              excludesOpaqueInput, excludesPrivateKeyMaterial,
+              excludesSecrets, excludesVendorIdentifiers else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+        return projection
+    }
+}

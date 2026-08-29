@@ -93,6 +93,8 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case provisionalSubject
     case subjectPromotionReceipt
     case surveyPublicationSnapshot
+    case assetLocator
+    case locatorBindingReceipt
     case workflowRecord
     case evidenceFile
     case issue
@@ -1466,6 +1468,24 @@ struct SurveySessionMutationV1: Codable, Equatable, Sendable {
     throw WorkspaceMutationContractFailureV1.invalidPlan}
 }
 
+enum AssetLocatorMutationPayloadV1:Codable,Equatable,Sendable{
+    case bind(AssetLocatorV1,receipt:LocatorBindingReceiptV1,predecessorReceipt:LocatorBindingReceiptV1?)
+    case transition(AssetLocatorV1,receipt:LocatorBindingReceiptV1,predecessorLocator:AssetLocatorV1,predecessorReceipt:LocatorBindingReceiptV1?)
+    case replace(AssetLocatorV1,replacement:AssetLocatorV1,receipt:LocatorBindingReceiptV1,predecessorLocator:AssetLocatorV1,predecessorReceipt:LocatorBindingReceiptV1?)
+}
+struct AssetLocatorMutationV1:Codable,Equatable,Sendable{
+    let workspaceID:WorkspaceID;let mutationID:MutationIDV1;let payload:AssetLocatorMutationPayloadV1
+    init(workspaceID:WorkspaceID,mutationID:MutationIDV1,payload:AssetLocatorMutationPayloadV1)throws{self.workspaceID=workspaceID;self.mutationID=mutationID;self.payload=payload;try validate()}
+    func validate()throws{switch payload{
+    case let .bind(value,receipt,predecessorReceipt):let preview=try receipt.reconstructedPreview;try value.validate();try preview.validate(before:nil,after:value,replacement:nil);try receipt.validate(preview:preview,predecessor:predecessorReceipt);guard predecessorReceipt == nil,value.workspaceID==workspaceID,value.mutationID==mutationID,value.state == .active,value.revision==1,receipt.mutationID==mutationID,receipt.revision==1 else{throw WorkspaceMutationContractFailureV1.invalidPlan}
+    case let .transition(value,receipt,prior,predecessorReceipt):let preview=try receipt.reconstructedPreview;try value.validateSuccessor(of:prior);try preview.validate(before:prior,after:value,replacement:nil);try receipt.validate(preview:preview,predecessor:predecessorReceipt);let expectedState:AssetLocatorStateV1;switch preview.action{case .rebind,.rotateSigningKey:expectedState = .active;case .retire:expectedState = .retired;case .revoke:expectedState = .revoked;case .bind,.replace:throw WorkspaceMutationContractFailureV1.invalidPlan};guard value.workspaceID==workspaceID,value.mutationID==mutationID,value.state==expectedState,receipt.mutationID==mutationID else{throw WorkspaceMutationContractFailureV1.invalidPlan}
+    case let .replace(value,replacement,receipt,prior,predecessorReceipt):let preview=try receipt.reconstructedPreview;try value.validateSuccessor(of:prior);try replacement.validate();try preview.validate(before:prior,after:value,replacement:replacement);try receipt.validate(preview:preview,predecessor:predecessorReceipt);guard value.workspaceID==workspaceID,replacement.workspaceID==workspaceID,value.mutationID==mutationID,replacement.mutationID==mutationID,value.state == .replaced,value.replacedByLocatorID==replacement.locatorID,replacement.locatorID != value.locatorID,replacement.state == .active,replacement.revision==1,receipt.mutationID==mutationID else{throw WorkspaceMutationContractFailureV1.invalidPlan}}
+    }
+    var affectedIdentities:[WorkspaceEntityIdentityV1]{get throws{let values:[WorkspaceEntityIdentityV1];switch payload{case let .bind(value,receipt,_),let .transition(value,receipt,_,_):values=[try .init(kind:.assetLocator,id:value.locatorID),try .init(kind:.locatorBindingReceipt,id:receipt.receiptID)];case let .replace(value,replacement,receipt,_,_):values=[try .init(kind:.assetLocator,id:value.locatorID),try .init(kind:.assetLocator,id:replacement.locatorID),try .init(kind:.locatorBindingReceipt,id:receipt.receiptID)]};return values.sorted{$0.stableKey<$1.stableKey}}}
+    var concurrencyIdentities:[WorkspaceEntityIdentityV1]{get throws{let values:[WorkspaceEntityIdentityV1];switch payload{case let .bind(value,receipt,predecessorReceipt):values=[try .init(kind:.assetLocator,id:value.locatorID),try .init(kind:.locatorBindingReceipt,id:predecessorReceipt?.receiptID ?? receipt.receiptID)];case let .transition(_,receipt,prior,predecessorReceipt):values=[try .init(kind:.assetLocator,id:prior.locatorID),try .init(kind:.locatorBindingReceipt,id:predecessorReceipt?.receiptID ?? receipt.receiptID)];case let .replace(_,replacement,receipt,prior,predecessorReceipt):values=[try .init(kind:.assetLocator,id:prior.locatorID),try .init(kind:.assetLocator,id:replacement.locatorID),try .init(kind:.locatorBindingReceipt,id:predecessorReceipt?.receiptID ?? receipt.receiptID)]};return values.sorted{$0.stableKey<$1.stableKey}}}
+    func expectedRevision(for identity:WorkspaceEntityIdentityV1)throws->UInt64{switch payload{case let .bind(value,_,predecessorReceipt):if identity.kind == .assetLocator&&identity.id==value.locatorID{return 0};if identity.kind == .locatorBindingReceipt{return predecessorReceipt?.revision ?? 0};case let .transition(_,_,prior,predecessorReceipt):if identity.kind == .assetLocator&&identity.id==prior.locatorID{return prior.revision};if identity.kind == .locatorBindingReceipt{return predecessorReceipt?.revision ?? 0};case let .replace(_,replacement,_,prior,predecessorReceipt):if identity.kind == .assetLocator&&identity.id==prior.locatorID{return prior.revision};if identity.kind == .assetLocator&&identity.id==replacement.locatorID{return 0};if identity.kind == .locatorBindingReceipt{return predecessorReceipt?.revision ?? 0}};throw WorkspaceMutationContractFailureV1.invalidPlan}
+}
+
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
     case createCheckDraft(CheckDraftMutationV1)
@@ -1500,6 +1520,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyAccessibleDocumentAssessment(AccessibleDocumentMutationV1)
     case applySurveyDefinition(SurveyDefinitionMutationV1)
     case applySurveySession(SurveySessionMutationV1)
+    case applyAssetLocator(AssetLocatorMutationV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -1536,6 +1557,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyAccessibleDocumentAssessment:.applyAccessibleDocumentAssessment
         case .applySurveyDefinition:.applySurveyDefinition
         case .applySurveySession:.applySurveySession
+        case .applyAssetLocator:.applyAssetLocator
         }
     }
 }
@@ -1574,6 +1596,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyAccessibleDocumentAssessment="apply_accessible_document_assessment"
     case applySurveyDefinition="apply_survey_definition"
     case applySurveySession="apply_survey_session"
+    case applyAssetLocator="apply_asset_locator"
 }
 
 extension WorkspaceCommandV1 {

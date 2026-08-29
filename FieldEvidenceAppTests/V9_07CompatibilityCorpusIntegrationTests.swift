@@ -580,6 +580,14 @@ final class V9_07CompatibilityCorpusIntegrationTests: XCTestCase {
     }
 }
 
+private final class C27V907CorpusTypedLocatorAnchorTests: XCTestCase {
+    func testAssetLocatorContractAnchor() throws {
+        XCTAssertEqual(LocatorResolutionOutcomeV1.allCases.count, 8)
+        XCTAssertEqual(LocatorBindingActionV1.allCases.count, 6)
+        XCTAssertFalse(AssetLocatorLifecycleAdapterV1.resolutionGrantsAccess)
+    }
+}
+
 extension V9_07CompatibilityCorpusIntegrationTests {
     func testC24AccessibleDocumentTypedAnchor() throws {
         XCTAssertEqual(AccessibleDocumentSemanticTreeV1.schemaVersion, 1)

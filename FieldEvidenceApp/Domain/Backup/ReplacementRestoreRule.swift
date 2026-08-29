@@ -233,6 +233,7 @@ private extension ReplacementRestoreRule {
         through ledger: DeletionLedgerV2
     ) throws -> V4BackupRecordsV1 {
         try ledger.validate()
+        try AssetLocatorReplacementRestorePolicyV1.validate(records.assetLocators)
         let deleted = Dictionary(
             uniqueKeysWithValues: ledger.entries.map { ($0.identity, $0) }
         )
@@ -274,6 +275,7 @@ private extension ReplacementRestoreRule {
 
         let result = V4BackupRecordsV1(
             guidedSurveys:records.guidedSurveys,
+            assetLocators: records.assetLocators,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
@@ -321,6 +323,7 @@ private extension ReplacementRestoreRule {
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
             guidedSurveys:records.guidedSurveys,
+            assetLocators: records.assetLocators,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
@@ -361,6 +364,7 @@ private extension ReplacementRestoreRule {
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
             guidedSurveys:records.guidedSurveys,
+            assetLocators: records.assetLocators,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
@@ -403,6 +407,7 @@ private extension ReplacementRestoreRule {
     ) throws -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
             guidedSurveys:records.guidedSurveys,
+            assetLocators: records.assetLocators,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
@@ -831,5 +836,71 @@ private extension ReplacementRestoreRule {
 
     static func validDate(_ date: Date) -> Bool {
         date.timeIntervalSinceReferenceDate.isFinite
+    }
+}
+
+/// Replacement restore treats locator records as immutable public history.
+/// Their canonical bytes are checked before any deletion-ledger filtering so a
+/// forged lookup row cannot become an active destination binding.
+enum AssetLocatorReplacementRestorePolicyV1 {
+    static let durableRecordKinds: Set<V26BackupAssetLocatorRecordV1.Kind> = [
+        .locator, .bindingReceipt
+    ]
+    static let cloneForkSourceSignatureActive = false
+    static let privateKeyMaterialExported = false
+
+    static func validate(_ records: [V26BackupAssetLocatorRecordV1]) throws {
+        guard records == records.sorted(by: {
+            "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
+                < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
+        }),
+        Set(records.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())" }).count
+            == records.count else {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+        var locators: [AssetLocatorV1] = []
+        var receipts: [LocatorBindingReceiptV1] = []
+        for record in records {
+            guard durableRecordKinds.contains(record.kind),
+                  record.revision > 0,
+                  !record.canonicalData.isEmpty else {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+            do {
+                switch record.kind {
+                case .locator:
+                    let value = try AssetLocatorCanonicalCodecV1.decode(
+                        AssetLocatorV1.self, from: record.canonicalData
+                    )
+                    guard value.locatorID == record.id,
+                          value.workspaceID.rawValue == record.workspaceID,
+                          value.revision == record.revision else {
+                        throw ReplacementRestoreRuleError.invalidAuthority
+                    }
+                    locators.append(value)
+                case .bindingReceipt:
+                    let value = try AssetLocatorCanonicalCodecV1.decode(
+                        LocatorBindingReceiptV1.self, from: record.canonicalData
+                    )
+                    guard value.receiptID == record.id,
+                          value.workspaceID.rawValue == record.workspaceID,
+                          value.revision == record.revision else {
+                        throw ReplacementRestoreRuleError.invalidAuthority
+                    }
+                    receipts.append(value)
+                }
+            } catch let error as ReplacementRestoreRuleError {
+                throw error
+            } catch {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+        }
+        do {
+            try AssetLocatorLifecycleClosureV1(
+                locators: locators, receipts: receipts
+            ).validate()
+        } catch {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
     }
 }

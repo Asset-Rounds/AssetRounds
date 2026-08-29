@@ -234,6 +234,14 @@ final class V9_04StreamingArchiveTests: XCTestCase {
     }
 }
 
+private final class C27V904StreamingTypedLocatorAnchorTests: XCTestCase {
+    func testAssetLocatorContractAnchor() throws {
+        XCTAssertEqual(AssetLocatorLimitsV1.maximumInputBytes, 1_024)
+        XCTAssertEqual(LocatorResolutionOutcomeV1.allCases.count, 8)
+        XCTAssertFalse(AssetLocatorLifecycleAdapterV1.resolutionStartsWork)
+    }
+}
+
 extension V9_04StreamingArchiveTests {
     func testC22RecoverabilityVerificationAnchor() throws {
         XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)

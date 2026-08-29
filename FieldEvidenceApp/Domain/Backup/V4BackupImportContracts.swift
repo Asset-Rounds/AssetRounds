@@ -113,3 +113,20 @@ enum V22FieldReferenceImportBoundaryV1{static let persistentSchemaVersion=22;sta
 enum V23AccessibleDocumentImportBoundaryV1{static let persistentSchemaVersion=23;static let recordsSchemaVersion=22;static let durableFamilyCount=1;static let semanticTreePersistence="DERIVED_ONLY";static func validate(persistent:Int,records:Int)throws{guard persistent==23,records==22,durableFamilyCount==1,semanticTreePersistence==AccessibleDocumentLifecycleV1.semanticTreePersistence else{throw BackupImportServiceError.unsupportedSchemaVersion}}}
 enum V24SurveyDefinitionImportBoundaryV1{static let persistentSchemaVersion=24;static let recordsSchemaVersion=23;static let durableFamilyCount=2;static let lifecycleEventStorage="MUTATION_HISTORY_ONLY";static func validate(persistent:Int,records:Int)throws{guard persistent==persistentSchemaVersion,records==recordsSchemaVersion,durableFamilyCount==V24BackupSurveyDefinitionRecordV1.Kind.allCases.count,lifecycleEventStorage=="MUTATION_HISTORY_ONLY" else{throw BackupImportServiceError.unsupportedSchemaVersion}}}
 enum V25GuidedSurveyImportBoundaryV1{static let persistentSchemaVersion=25;static let recordsSchemaVersion=24;static let durableFamilyCount=5;static let lifecycleHistoryStorage="MUTATION_HISTORY_ONLY";static func validate(persistent:Int,records:Int)throws{guard persistent==persistentSchemaVersion,records==recordsSchemaVersion,durableFamilyCount==V25BackupGuidedSurveyRecordV1.Kind.allCases.count,lifecycleHistoryStorage=="MUTATION_HISTORY_ONLY" else{throw BackupImportServiceError.unsupportedSchemaVersion}}}
+enum V26AssetLocatorImportBoundaryV1 {
+    static let persistentSchemaVersion = 26
+    static let recordsSchemaVersion = 25
+    static let durableFamilyCount = 2
+    static let lifecycleHistoryStorage = "MUTATION_HISTORY_ONLY"
+    static let cloneForkBindingPolicy = "HISTORIC_REBIND_SOURCE_SIGNATURE_INACTIVE"
+
+    static func validate(persistent: Int, records: Int) throws {
+        guard persistent == persistentSchemaVersion,
+              records == recordsSchemaVersion,
+              durableFamilyCount == V26BackupAssetLocatorRecordV1.Kind.allCases.count,
+              lifecycleHistoryStorage == "MUTATION_HISTORY_ONLY",
+              cloneForkBindingPolicy == "HISTORIC_REBIND_SOURCE_SIGNATURE_INACTIVE" else {
+            throw BackupImportServiceError.unsupportedSchemaVersion
+        }
+    }
+}

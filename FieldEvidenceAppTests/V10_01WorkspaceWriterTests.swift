@@ -552,6 +552,14 @@ final class V10_01WorkspaceWriterTests: XCTestCase {
     }
 }
 
+private final class C27V1001TypedLocatorAnchorTests: XCTestCase {
+    func testAssetLocatorContractAnchor() throws {
+        XCTAssertEqual(LocatorBindingActionV1.allCases.count, 6)
+        XCTAssertEqual(AssetLocatorLimitsV1.maximumCandidates, 32)
+        XCTAssertFalse(AssetLocatorLifecycleAdapterV1.scanMutatesCanonicalState)
+    }
+}
+
 extension V10_01WorkspaceWriterTests {
     func testC22RecoverabilityVerificationAnchor() throws {
         XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)

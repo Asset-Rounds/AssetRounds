@@ -306,6 +306,8 @@ final class BackupRestoreService {
                 && modelContext.fetchCount(
                     FetchDescriptor<EntityMutationRevisionRow>()
                 ) == 0
+                && modelContext.fetchCount(FetchDescriptor<AssetLocatorRow>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<LocatorBindingReceiptRow>()) == 0
                 && hasNoObservationAndTime
         } catch {
             return false
@@ -1645,6 +1647,7 @@ private extension BackupRestoreService {
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
             guidedSurveys:records.guidedSurveys,
+            assetLocators: records.assetLocators,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
@@ -1704,6 +1707,7 @@ private extension BackupRestoreService {
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
             guidedSurveys:records.guidedSurveys,
+            assetLocators: records.assetLocators,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
@@ -1827,6 +1831,7 @@ private extension BackupRestoreService {
         }.sorted { canonical($0.workflowRecordID) < canonical($1.workflowRecordID) }
         return V4BackupRecordsV1(
             guidedSurveys:records.guidedSurveys,
+            assetLocators: records.assetLocators,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
@@ -2089,9 +2094,15 @@ private extension BackupRestoreService {
             workspaceID: workspaceID
         )
         let guidedSurveys = try rebindingGuidedSurveys(records.guidedSurveys,surveyDefinitions:surveyDefinitions,packageEvolution:packageEvolution,history:records.mutationHistory,workspaceID:workspaceID)
+        let assetLocators = try rebindingAssetLocators(
+            records.assetLocators,
+            identity: identity,
+            workspaceID: workspaceID
+        )
         guard let archived = records.locationMigrationReceipts.first else {
             return V4BackupRecordsV1(
                 guidedSurveys:guidedSurveys,
+                assetLocators: assetLocators,
                 accessibleDocumentAssessments:records.accessibleDocumentAssessments,
                 surveyDefinitions: surveyDefinitions,
                 fieldReferences:fieldReferences,
@@ -2143,6 +2154,7 @@ private extension BackupRestoreService {
            surveyDefinitions == records.surveyDefinitions,
            clientCapabilities == records.clientCapabilities,
            workPackets == records.workPackets,
+           assetLocators == records.assetLocators,
            reports == records.reports {
             return records
         }
@@ -2156,6 +2168,7 @@ private extension BackupRestoreService {
         )
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveys,
+            assetLocators: assetLocators,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: surveyDefinitions,
             fieldReferences:fieldReferences,
@@ -2575,6 +2588,183 @@ private extension BackupRestoreService {
         var output=try releases.values.map{V22BackupFieldReferenceRecordV1(kind:.release,id:$0.releaseID,workspaceID:workspaceID.rawValue,revision:$0.revision,canonicalData:try FieldReferencePackCanonicalCodecV1.encode($0))}
         output += try records.filter{$0.kind == .binding}.map{record in let source=try FieldReferencePackCanonicalCodecV1.decode(FieldReferenceBindingV1.self,from:record.canonicalData);guard let release=releases[source.releaseID]else{throw BackupRestoreServiceError.invalidPackage};let value=source.workspaceID == workspaceID ? source:try source.rebound(to:workspaceID,release:release);try value.validate(release:release);return .init(kind:.binding,id:value.bindingID,workspaceID:workspaceID.rawValue,revision:value.revision,canonicalData:try FieldReferencePackCanonicalCodecV1.encode(value))}
         return output.sorted{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"}
+    }
+
+    /// Rebinds the canonical locator families as part of restore. A same-
+    /// workspace replacement keeps the signed public representation byte-for-
+    /// byte. Clone/fork creates an explicit historic external-key projection;
+    /// this ensures a source-local signature can never become active in the
+    /// destination workspace while preserving the immutable locator history.
+    func rebindingAssetLocators(
+        _ records: [V26BackupAssetLocatorRecordV1],
+        identity: RestoreIdentityV1,
+        workspaceID: WorkspaceID
+    ) throws -> [V26BackupAssetLocatorRecordV1] {
+        guard !records.isEmpty else { return [] }
+        guard let sourceWorkspaceUUID = identity.source.workspaceID else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        let sourceWorkspaceID = WorkspaceID(rawValue: sourceWorkspaceUUID)
+        var sourceLocators: [UUID: AssetLocatorV1] = [:]
+        var sourceReceipts: [UUID: LocatorBindingReceiptV1] = [:]
+        for record in records {
+            guard record.workspaceID == sourceWorkspaceUUID,
+                  record.id != UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0)),
+                  record.revision > 0 else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            switch record.kind {
+            case .locator:
+                let value = try AssetLocatorCanonicalCodecV1.decode(
+                    AssetLocatorV1.self, from: record.canonicalData
+                )
+                try value.validate()
+                guard value.locatorID == record.id,
+                      value.workspaceID.rawValue == record.workspaceID,
+                      value.revision == record.revision,
+                      sourceLocators.updateValue(value, forKey: value.locatorID) == nil else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+            case .bindingReceipt:
+                let value = try AssetLocatorCanonicalCodecV1.decode(
+                    LocatorBindingReceiptV1.self, from: record.canonicalData
+                )
+                try value.validateIntrinsic()
+                guard value.receiptID == record.id,
+                      value.workspaceID.rawValue == record.workspaceID,
+                      value.revision == record.revision,
+                      sourceReceipts.updateValue(value, forKey: value.receiptID) == nil else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+            }
+        }
+        try AssetLocatorLifecycleClosureV1(
+            locators: Array(sourceLocators.values), receipts: Array(sourceReceipts.values)
+        ).validate()
+        guard sourceWorkspaceID != workspaceID || identity.mode == .replaceExisting || identity.mode == .emptyInstall else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        let crossWorkspace = sourceWorkspaceID != workspaceID
+            || identity.assetLocatorDisposition()
+                == .reboundAsHistoricSourceEvidence
+        var reboundLocators: [UUID: AssetLocatorV1] = [:]
+        for group in Dictionary(grouping: sourceLocators.values, by: \.locatorID).values {
+            for source in group.sorted(by: { $0.revision < $1.revision }) {
+                if !crossWorkspace {
+                    reboundLocators[source.locatorID] = source
+                    continue
+                }
+                let representation: AssetLocatorRepresentationV1
+                switch source.representation {
+                case .externalKey(let key):
+                    representation = .externalKey(key)
+                case .localSigned:
+                    let historicKey = try ExternalKeyV1(
+                        namespaceID: "historic.local-signed",
+                        normalization: .exactNFC,
+                        suppliedValue: "\(source.locatorID.uuidString.lowercased())|\(source.locatorSHA256)"
+                    )
+                    representation = .externalKey(historicKey)
+                }
+                let predecessorDigest: String?
+                if source.revision == 1 {
+                    predecessorDigest = nil
+                } else {
+                    guard let predecessor = reboundLocators[source.locatorID] else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                    predecessorDigest = predecessor.locatorSHA256
+                }
+                let rebound = try source.rebound(
+                    to: workspaceID,
+                    representation: representation,
+                    predecessorLocatorSHA256: predecessorDigest
+                )
+                reboundLocators[source.locatorID] = rebound
+            }
+        }
+        var referenceMap: [AssetLocatorReferenceV1: AssetLocatorReferenceV1] = [:]
+        for source in sourceLocators.values {
+            guard let rebound = reboundLocators[source.locatorID] else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            referenceMap[try source.reference] = try rebound.reference
+        }
+        let orderedReceipts = sourceReceipts.values.sorted {
+            $0.revision == $1.revision
+                ? $0.receiptID.uuidString < $1.receiptID.uuidString
+                : $0.revision < $1.revision
+        }
+        var reboundReceipts: [UUID: LocatorBindingReceiptV1] = [:]
+        for source in orderedReceipts {
+            guard let after = referenceMap[source.after],
+                  let before = source.before.map({ referenceMap[$0] }),
+                  source.before == nil || before != nil,
+                  let replacement = source.replacement.map({ referenceMap[$0] }),
+                  source.replacement == nil || replacement != nil else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            let preview = try LocatorBindingPreviewV1(
+                workspaceID: workspaceID,
+                action: source.action,
+                before: before,
+                after: after,
+                replacement: replacement,
+                generatedAt: source.previewGeneratedAt
+            )
+            let recordedBy: ActorSnapshotV1
+            if !crossWorkspace {
+                recordedBy = source.recordedBy
+            } else {
+                let actor = try LocalActorReferenceV1(
+                    actorReferenceID: source.recordedBy.actor.actorReferenceID,
+                    workspaceID: workspaceID,
+                    partyID: source.recordedBy.actor.partyID,
+                    displayName: source.recordedBy.actor.displayName
+                )
+                recordedBy = try ActorSnapshotV1(
+                    snapshotID: source.recordedBy.snapshotID,
+                    workspaceID: workspaceID,
+                    actor: actor,
+                    responsibility: source.recordedBy.responsibility,
+                    displayNameAtTime: source.recordedBy.displayNameAtTime,
+                    capturedAt: source.recordedBy.capturedAt
+                )
+            }
+            let predecessor = source.predecessorReceiptID.flatMap { reboundReceipts[$0] }
+            guard source.predecessorReceiptID == nil || predecessor != nil else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            let rebound = try source.rebound(
+                to: workspaceID,
+                preview: preview,
+                recordedBy: recordedBy,
+                predecessor: predecessor
+            )
+            reboundReceipts[rebound.receiptID] = rebound
+        }
+        try AssetLocatorLifecycleClosureV1(
+            locators: Array(reboundLocators.values),
+            receipts: Array(reboundReceipts.values)
+        ).validate()
+        let locatorRecords = try reboundLocators.values.map { value in
+            V26BackupAssetLocatorRecordV1(
+                kind: .locator, id: value.locatorID,
+                workspaceID: workspaceID.rawValue, revision: value.revision,
+                canonicalData: try AssetLocatorCanonicalCodecV1.encode(value)
+            )
+        }
+        let receiptRecords = try reboundReceipts.values.map { value in
+            V26BackupAssetLocatorRecordV1(
+                kind: .bindingReceipt, id: value.receiptID,
+                workspaceID: workspaceID.rawValue, revision: value.revision,
+                canonicalData: try AssetLocatorCanonicalCodecV1.encode(value)
+            )
+        }
+        return (locatorRecords + receiptRecords).sorted {
+            "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
+                < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
+        }
     }
 
     func preparedAccessibleDocumentAssessments(_ records:[V23BackupAccessibleDocumentAssessmentRecordV1],identityDecision:RestoreIdentityV1?)async throws->[V23BackupAccessibleDocumentAssessmentRecordV1]{
@@ -3785,7 +3975,8 @@ private extension BackupRestoreService {
                 || records.recordsSchemaVersion == 21
                 || records.recordsSchemaVersion == 22
                 || records.recordsSchemaVersion == 23
-                || records.recordsSchemaVersion == 24)
+                || records.recordsSchemaVersion == 24
+                || records.recordsSchemaVersion == 25)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -3803,7 +3994,8 @@ private extension BackupRestoreService {
              (12, let ledger?, _), (13, let ledger?, _), (14, let ledger?, _),
              (15, let ledger?, _), (16, let ledger?, _), (17, let ledger?, _),
              (18, let ledger?, _), (19, let ledger?, _), (20, let ledger?, _),
-             (21, let ledger?, _), (22, let ledger?, _), (23, let ledger?, _):
+             (21, let ledger?, _), (22, let ledger?, _), (23, let ledger?, _),
+             (24, let ledger?, _), (25, let ledger?, _):
             do {
                 try ledger.validate()
                 try DeletionLedgerStore(context: context).stageUnion(ledger.entries)
@@ -4369,6 +4561,53 @@ private extension BackupRestoreService {
                 }
             } catch { throw BackupRestoreServiceError.invalidPackage }
         }
+        if records.recordsSchemaVersion >= 25 {
+            do {
+                var locators: [AssetLocatorV1] = []
+                var receipts: [LocatorBindingReceiptV1] = []
+                for record in records.assetLocators {
+                    switch record.kind {
+                    case .locator:
+                        let value = try AssetLocatorCanonicalCodecV1.decode(
+                            AssetLocatorV1.self, from: record.canonicalData
+                        )
+                        guard value.locatorID == record.id,
+                              value.workspaceID.rawValue == record.workspaceID,
+                              value.revision == record.revision else {
+                            throw BackupRestoreServiceError.invalidPackage
+                        }
+                        locators.append(value)
+                    case .bindingReceipt:
+                        let value = try AssetLocatorCanonicalCodecV1.decode(
+                            LocatorBindingReceiptV1.self, from: record.canonicalData
+                        )
+                        guard value.receiptID == record.id,
+                              value.workspaceID.rawValue == record.workspaceID,
+                              value.revision == record.revision else {
+                            throw BackupRestoreServiceError.invalidPackage
+                        }
+                        receipts.append(value)
+                    }
+                }
+                try AssetLocatorLifecycleClosureV1(
+                    locators: locators, receipts: receipts
+                ).validate()
+                for value in locators.sorted(by: {
+                    $0.locatorID.uuidString < $1.locatorID.uuidString
+                }) {
+                    context.insert(try AssetLocatorRow(value))
+                }
+                for value in receipts.sorted(by: {
+                    $0.receiptID.uuidString < $1.receiptID.uuidString
+                }) {
+                    context.insert(try LocatorBindingReceiptRow(value))
+                }
+            } catch let error as BackupRestoreServiceError {
+                throw error
+            } catch {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+        }
         if let mutationHistory = records.mutationHistory {
             guard records.recordsSchemaVersion == 3
                     || records.recordsSchemaVersion == 4
@@ -4391,7 +4630,8 @@ private extension BackupRestoreService {
                     || records.recordsSchemaVersion == 21
                     || records.recordsSchemaVersion == 22
                     || records.recordsSchemaVersion == 23
-                    || records.recordsSchemaVersion == 24 else {
+                    || records.recordsSchemaVersion == 24
+                    || records.recordsSchemaVersion == 25 else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {
@@ -5503,6 +5743,7 @@ private extension BackupRestoreService {
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
             guidedSurveys:schemaVersion >= 24 ? records.guidedSurveys:[],
+            assetLocators: schemaVersion >= 25 ? records.assetLocators : [],
             accessibleDocumentAssessments:schemaVersion >= 22 ? records.accessibleDocumentAssessments:[],
             surveyDefinitions: schemaVersion >= 23 ? records.surveyDefinitions : [],
             fieldReferences:schemaVersion >= 21 ? records.fieldReferences:[],
@@ -5748,6 +5989,8 @@ private extension BackupRestoreService {
         let surveyDefinitionIdentities=try context.fetch(FetchDescriptor<SurveyDefinitionIdentityRow>())
         let surveyDefinitionReleases=try context.fetch(FetchDescriptor<SurveyDefinitionReleaseRow>())
         let surveySessions=try context.fetch(FetchDescriptor<SurveySessionRow>()),factCaptures=try context.fetch(FetchDescriptor<FactCaptureRow>()),provisionalSubjects=try context.fetch(FetchDescriptor<ProvisionalSubjectRow>()),subjectPromotionReceipts=try context.fetch(FetchDescriptor<SubjectPromotionReceiptRow>()),surveyPublicationSnapshots=try context.fetch(FetchDescriptor<SurveyPublicationSnapshotRow>())
+        let assetLocatorRows = try context.fetch(FetchDescriptor<AssetLocatorRow>())
+        let locatorBindingReceiptRows = try context.fetch(FetchDescriptor<LocatorBindingReceiptRow>())
         let recoverabilityVerificationReceipts=try context.fetch(FetchDescriptor<RecoverabilityVerificationReceiptRow>())
         let clientCapabilityProfiles=try context.fetch(FetchDescriptor<ClientCapabilityProfileRow>()),packageLifecyclePolicies=try context.fetch(FetchDescriptor<PackageLifecyclePolicyRow>()),packageLifecycleDispositions=try context.fetch(FetchDescriptor<PackageLifecycleDispositionRow>()),clientCapabilityAdmissionDecisions=try context.fetch(FetchDescriptor<ClientCapabilityAdmissionDecisionRow>())
         let privacyTransformPolicies=try context.fetch(FetchDescriptor<PrivacyTransformPolicyRow>()),privacyRegions=try context.fetch(FetchDescriptor<PrivacyRegionRow>()),privacyTransformManifests=try context.fetch(FetchDescriptor<PrivacyTransformManifestRow>()),privacyReviewReceipts=try context.fetch(FetchDescriptor<PrivacyReviewReceiptRow>())
@@ -5816,8 +6059,36 @@ private extension BackupRestoreService {
             + subjectPromotionReceipts.map{let v=try $0.value();return .init(kind:.subjectPromotionReceipt,id:v.receiptID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try SurveySessionCanonicalCodecV1.encode(v))}
             + surveyPublicationSnapshots.map{let v=try $0.value();return .init(kind:.publicationSnapshot,id:v.snapshotID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try SurveySessionCanonicalCodecV1.encode(v))}
         ).sorted{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"}
+        var assetLocatorRecords: [V26BackupAssetLocatorRecordV1] = []
+        if mutationHistory != nil {
+            let locatorValues = try assetLocatorRows.map { row -> V26BackupAssetLocatorRecordV1 in
+                let value = try row.value()
+                return .init(
+                    kind: .locator, id: value.locatorID,
+                    workspaceID: value.workspaceID.rawValue, revision: value.revision,
+                    canonicalData: try AssetLocatorCanonicalCodecV1.encode(value)
+                )
+            }
+            let receiptValues = try locatorBindingReceiptRows.map { row -> V26BackupAssetLocatorRecordV1 in
+                let value = try row.value()
+                return .init(
+                    kind: .bindingReceipt, id: value.receiptID,
+                    workspaceID: value.workspaceID.rawValue, revision: value.revision,
+                    canonicalData: try AssetLocatorCanonicalCodecV1.encode(value)
+                )
+            }
+            try AssetLocatorLifecycleClosureV1(
+                locators: try assetLocatorRows.map { try $0.value() },
+                receipts: try locatorBindingReceiptRows.map { try $0.value() }
+            ).validate()
+            assetLocatorRecords = (locatorValues + receiptValues).sorted {
+                "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
+                    < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
+            }
+        }
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveyRecords,
+            assetLocators: assetLocatorRecords,
             accessibleDocumentAssessments:accessibleDocumentAssessmentRecords,
             surveyDefinitions: surveyDefinitionRecords,
             fieldReferences:fieldReferenceRecords,

@@ -1277,3 +1277,40 @@ extension LocalSearchIndexStoreV1 {
         return record
     }
 }
+
+// MARK: - C27 asset-locator search adapter
+
+extension LocalSearchIndexStoreV1 {
+    /// Converts an already validated locator report into a disposable,
+    /// privacy-bounded row.  Resolution never mutates canonical locator
+    /// state and this adapter never receives the opaque input bytes.
+    static func assetLocatorSearchRecord(
+        from projection: AssetLocatorReportProjectionV1
+    ) throws -> AssetLocatorSearchRecordV1 {
+        let record = try AssetLocatorSearchRecordV1(projection: projection)
+        try AssetLocatorSearchProjectionPolicyV1.validate(record)
+        try AssetLocatorSearchPersistencePolicyV1().validate()
+        return record
+    }
+
+    static func assetLocatorSearchRecord(
+        from locator: AssetLocatorV1,
+        resolution: LocatorResolutionV1? = nil
+    ) throws -> AssetLocatorSearchRecordV1 {
+        let record = try AssetLocatorSearchRecordV1(
+            locator: locator,
+            resolution: resolution
+        )
+        try AssetLocatorSearchProjectionPolicyV1.validate(record)
+        try AssetLocatorSearchPersistencePolicyV1().validate()
+        return record
+    }
+
+    static func validateAssetLocatorSearchRecord(
+        _ record: AssetLocatorSearchRecordV1
+    ) throws -> AssetLocatorSearchRecordV1 {
+        try AssetLocatorSearchProjectionPolicyV1.validate(record)
+        try AssetLocatorSearchPersistencePolicyV1().validate()
+        return record
+    }
+}

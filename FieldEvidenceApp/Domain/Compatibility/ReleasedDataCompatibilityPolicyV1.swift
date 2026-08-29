@@ -1019,3 +1019,15 @@ struct SurveySessionCompatibilityPolicyV1:Codable,Equatable,Sendable{
     func validate()throws{guard Set(Self.readablePersistentWriterVersions).count==25,Self.readablePersistentWriterVersions.last==Self.currentPersistentWriterVersion,Set(Self.readableBackupWriterVersions).count==Self.readableBackupWriterVersions.count,Self.readableBackupWriterVersions.last==Self.currentBackupWriterVersion,stagingIsNonpersistent,publicationSnapshotsRemainFrozen,unknownVersionsFailClosed else{throw CompatibilityContractErrorV1.invalidSupportTable}}
 }
 extension ReleasedDataCompatibilityPolicyV1{static let surveySessionCompatibility=SurveySessionCompatibilityPolicyV1.current}
+
+struct AssetLocatorCompatibilityPolicyV1:Codable,Equatable,Sendable{
+    static let persistentSchemaVersion=26,recordsSchemaVersion=25
+    static let currentPersistentWriterVersion="26.0.0",currentBackupWriterVersion="archive1-backup4-persistent26-records25"
+    static let readablePersistentWriterVersions=(1...26).map{"\($0).0.0"}
+    static let readableBackupWriterVersions=SurveySessionCompatibilityPolicyV1.readableBackupWriterVersions+[currentBackupWriterVersion]
+    static let downgradeDisposition="PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_FIRST_V26_WRITE"
+    let resolutionAndPreviewPersistence="DERIVED_ONLY";let historicalLocatorEvidencePreserved=true;let unknownVersionsFailClosed=true
+    static let current=Self()
+    func validate()throws{guard Set(Self.readablePersistentWriterVersions).count==26,Self.readablePersistentWriterVersions.last==Self.currentPersistentWriterVersion,Set(Self.readableBackupWriterVersions).count==Self.readableBackupWriterVersions.count,Self.readableBackupWriterVersions.last==Self.currentBackupWriterVersion,resolutionAndPreviewPersistence=="DERIVED_ONLY",historicalLocatorEvidencePreserved,unknownVersionsFailClosed else{throw CompatibilityContractErrorV1.invalidSupportTable}}
+}
+extension ReleasedDataCompatibilityPolicyV1{static let assetLocatorCompatibility=AssetLocatorCompatibilityPolicyV1.current}

@@ -1392,4 +1392,48 @@ extension ReportSnapshotEncoderV1 {
         }
         return projection
     }
+
+    /// Encodes the bounded C27 locator report companion.  The canonical
+    /// locator codec preserves the recorded interpretation but never adds the
+    /// scanned input, key material, or private locator bytes to a report.
+    func encode(
+        _ projection: AssetLocatorReportProjectionV1
+    ) throws -> EncodedReportSnapshotV1 {
+        do {
+            try projection.validate(format: .openJSON)
+            let data = try AssetLocatorCanonicalCodecV1.encode(projection)
+            guard !data.isEmpty,
+                  data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+                throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+            }
+            return EncodedReportSnapshotV1(
+                data: data,
+                sha256: KernelCanonicalHashV1.sha256(data)
+            )
+        } catch let error as ReportSnapshotEncodingErrorV1 {
+            throw error
+        } catch {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+    }
+
+    func decodeAssetLocatorProjection(
+        _ data: Data
+    ) throws -> AssetLocatorReportProjectionV1 {
+        do {
+            let projection = try AssetLocatorCanonicalCodecV1.decode(
+                AssetLocatorReportProjectionV1.self,
+                from: data
+            )
+            try projection.validate(format: .openJSON)
+            guard try encode(projection).data == data else {
+                throw ReportSnapshotEncodingErrorV1.noncanonicalData
+            }
+            return projection
+        } catch let error as ReportSnapshotEncodingErrorV1 {
+            throw error
+        } catch {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+    }
 }

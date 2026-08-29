@@ -60,6 +60,15 @@ enum ProtectedFilePolicyError: Error, Equatable, Sendable {
 enum ProtectedFilePolicyV1 {
     static let requiredFileProtection: FileProtectionType = .complete
 
+    /// C27 adds database rows only. Locator representations are references,
+    /// never authority for creating a new app-owned file class.
+    static func validateAssetLocatorPersistencePosture() throws {
+        guard disposition(for: .database).isExcludedFromBackup == false,
+              disposition(for: .journal).isExcludedFromBackup else {
+            throw ProtectedFilePolicyError.resourceValueMismatch
+        }
+    }
+
     /// Recoverability verification stages only under the existing disposable
     /// staging policy. The opaque locator never creates a new durable file
     /// class or a second archive/store authority.

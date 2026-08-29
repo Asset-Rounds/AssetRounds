@@ -893,6 +893,14 @@ final class V9_01VersionedSchemaIdentityTests: XCTestCase {
     }
 }
 
+private final class C27V901TypedLocatorAnchorTests: XCTestCase {
+    func testAssetLocatorContractAnchor() throws {
+        XCTAssertEqual(AssetLocatorLimitsV1.maximumInputBytes, 1_024)
+        XCTAssertEqual(LocatorResolutionOutcomeV1.allCases.count, 8)
+        XCTAssertFalse(AssetLocatorLifecycleAdapterV1.resolutionGrantsAccess)
+    }
+}
+
 extension V9_01VersionedSchemaIdentityTests {
     func testC24AccessibleDocumentTypedAnchor() throws {
         XCTAssertEqual(AccessibleDocumentSemanticTreeV1.schemaVersion, 1)

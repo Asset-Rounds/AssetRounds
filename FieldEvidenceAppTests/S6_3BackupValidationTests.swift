@@ -323,6 +323,14 @@ final class S6_3BackupValidationTests: XCTestCase {
     }
 }
 
+private final class C27S63TypedLocatorAnchorTests: XCTestCase {
+    func testAssetLocatorContractAnchor() throws {
+        XCTAssertEqual(LocatorResolutionOutcomeV1.allCases.count, 8)
+        XCTAssertEqual(AssetLocatorLimitsV1.maximumCandidates, 32)
+        XCTAssertFalse(AssetLocatorLifecycleAdapterV1.scanMutatesCanonicalState)
+    }
+}
+
 extension S6_3BackupValidationTests {
     func testC24AccessibleDocumentTypedAnchor() throws {
         XCTAssertEqual(AccessibleDocumentSemanticTreeV1.schemaVersion, 1)

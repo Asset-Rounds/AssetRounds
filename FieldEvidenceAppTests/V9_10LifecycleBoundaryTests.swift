@@ -1082,6 +1082,14 @@ final class V9_10LifecycleBoundaryTests: XCTestCase {
     }
 }
 
+private final class C27V910TypedLocatorAnchorTests: XCTestCase {
+    func testAssetLocatorContractAnchor() throws {
+        XCTAssertEqual(LocatorBindingActionV1.allCases.count, 6)
+        XCTAssertEqual(LocatorResolutionOutcomeV1.allCases.count, 8)
+        XCTAssertFalse(AssetLocatorLifecycleAdapterV1.resolutionGrantsAccess)
+    }
+}
+
 private actor V910LifecyclePortProbe: ResumableLocalJobLifecyclePortV1 {
     private var observed: [DeviceLifecycleActionV1] = []
     func suspendForLifecycle(_ reason: LocalJobLifecycleSuspensionReasonV1) {

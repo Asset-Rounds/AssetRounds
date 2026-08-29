@@ -31,6 +31,42 @@ struct FieldReferenceDeletionInventoryV1:Equatable,Sendable{let releaseIDs:Set<U
 struct AccessibleDocumentDeletionInventoryV1:Equatable,Sendable{let receiptIDs:Set<UUID>;let outputSHA256:Set<String>;static let empty=Self(receiptIDs:[],outputSHA256:[])}
 struct SurveyDefinitionDeletionInventoryV1:Equatable,Sendable{let identityIDs:Set<UUID>;let releaseIDs:Set<UUID>;static let empty=Self(identityIDs:[],releaseIDs:[])}
 struct SurveySessionDeletionInventoryV1:Equatable,Sendable{let sessionIDs:Set<UUID>;let captureIDs:Set<UUID>;let provisionalSubjectIDs:Set<UUID>;let promotionReceiptIDs:Set<UUID>;let publicationSnapshotIDs:Set<UUID>;static let empty=Self(sessionIDs:[],captureIDs:[],provisionalSubjectIDs:[],promotionReceiptIDs:[],publicationSnapshotIDs:[])}
+struct AssetLocatorDeletionInventoryV1: Equatable, Sendable {
+    let locatorIDs: Set<UUID>
+    let receiptIDs: Set<UUID>
+    let assetIDs: Set<UUID>
+
+    static let empty = Self(locatorIDs: [], receiptIDs: [], assetIDs: [])
+
+    init(locators: [AssetLocatorV1], receipts: [LocatorBindingReceiptV1]) throws {
+        try AssetLocatorLifecycleClosureV1(
+            locators: locators, receipts: receipts
+        ).validate()
+        locatorIDs = Set(locators.map(\.locatorID))
+        receiptIDs = Set(receipts.map(\.receiptID))
+        assetIDs = Set(locators.map(\.assetID))
+    }
+}
+extension WholeSignDeletionRule {
+    static func validateAssetLocatorLifecycle(
+        before: AssetLocatorDeletionInventoryV1,
+        after: AssetLocatorDeletionInventoryV1,
+        workspaceErase: Bool
+    ) throws {
+        try AssetLocatorDeletionLedgerPolicyV1.validate()
+        if workspaceErase {
+            guard after == .empty else {
+                throw WholeSignDeletionRuleError.invalidGraph
+            }
+            return
+        }
+        guard after.locatorIDs.isSubset(of: before.locatorIDs),
+              after.receiptIDs.isSubset(of: before.receiptIDs),
+              after.assetIDs.isSubset(of: before.assetIDs) else {
+            throw WholeSignDeletionRuleError.invalidGraph
+        }
+    }
+}
 extension WholeSignDeletionRule{static func validateAccessibleDocumentLifecycle(before:AccessibleDocumentDeletionInventoryV1,after:AccessibleDocumentDeletionInventoryV1,workspaceErase:Bool,authorizedPrivacyRemoval:Bool=false)throws{if workspaceErase{guard after == .empty else{throw WholeSignDeletionRuleError.invalidGraph};return};if authorizedPrivacyRemoval{return};guard after==before else{throw WholeSignDeletionRuleError.invalidGraph}}}
 extension WholeSignDeletionRule{static func validateFieldReferenceLifecycle(before:FieldReferenceDeletionInventoryV1,after:FieldReferenceDeletionInventoryV1,workspaceErase:Bool)throws{if workspaceErase{guard after == .empty else{throw WholeSignDeletionRuleError.invalidGraph};return};guard after.bindingIDs==before.bindingIDs,after.retainedReleaseIDs==before.retainedReleaseIDs,before.retainedReleaseIDs.isSubset(of:after.releaseIDs)else{throw WholeSignDeletionRuleError.invalidGraph}}}
 extension WholeSignDeletionRule{static func validateSurveyDefinitionLifecycle(before:SurveyDefinitionDeletionInventoryV1,after:SurveyDefinitionDeletionInventoryV1,workspaceErase:Bool)throws{if workspaceErase{guard after == .empty else{throw WholeSignDeletionRuleError.invalidGraph};return};guard after==before else{throw WholeSignDeletionRuleError.invalidGraph}}}

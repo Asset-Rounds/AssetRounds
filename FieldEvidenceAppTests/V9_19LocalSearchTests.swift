@@ -672,6 +672,14 @@ final class V9_19LocalSearchTests: XCTestCase {
     }
 }
 
+private final class C27V919TypedLocatorAnchorTests: XCTestCase {
+    func testAssetLocatorContractAnchor() throws {
+        XCTAssertEqual(LocatorInputSourceV1.allCases.count, 3)
+        XCTAssertEqual(AssetLocatorLimitsV1.maximumInputBytes, 1_024)
+        XCTAssertFalse(AssetLocatorLifecycleAdapterV1.resolutionGrantsAccess)
+    }
+}
+
 extension V9_19LocalSearchTests {
     func testC24AccessibleDocumentTypedAnchor() throws {
         XCTAssertEqual(AccessibleDocumentSemanticTreeV1.schemaVersion, 1)

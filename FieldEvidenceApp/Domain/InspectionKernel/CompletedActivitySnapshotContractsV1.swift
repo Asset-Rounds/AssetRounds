@@ -1,5 +1,19 @@
 import Foundation
 
+enum CompletedActivityAssetLocatorBoundaryV1 {
+    /// Completed snapshots consume an already-frozen interpretation. They do
+    /// not re-run resolution against later locator lifecycle state.
+    static func validate(
+        _ interpretation: FrozenAssetLocatorInterpretationV1,
+        expectedAssetID: UUID
+    ) throws {
+        try interpretation.validate()
+        guard interpretation.assetIDAtCapture == expectedAssetID else {
+            throw AssetLocatorFailureV1.invalidValue
+        }
+    }
+}
+
 enum SnapshotProjectionFailureV1: Error, Equatable, Sendable {
     case invalidValue
     case limitExceeded

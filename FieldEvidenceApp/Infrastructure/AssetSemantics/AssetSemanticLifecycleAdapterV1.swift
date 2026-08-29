@@ -1,4 +1,10 @@
 import Foundation
+
+extension AssetSemanticLifecycleAdapterV1 {
+    func validateLocatorLifecycle(_ closure: AssetLocatorLifecycleClosureV1) throws {
+        try closure.validate()
+    }
+}
 import SwiftData
 
 /// Immutable, in-memory authority for the package-qualified semantic catalog

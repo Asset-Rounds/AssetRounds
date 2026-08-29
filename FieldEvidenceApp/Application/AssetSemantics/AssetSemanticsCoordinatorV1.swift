@@ -1,5 +1,18 @@
 import Foundation
 
+extension AssetSemanticsCoordinatorV1 {
+    /// Resolution is deliberately read-only and shares no semantic mutation
+    /// plan with the C39 coordinator.
+    func resolveLocator(
+        _ input: LocatorResolutionInputV1,
+        workspaceID: WorkspaceID,
+        evaluatedAt: Date,
+        using resolver: OfflineAssetLocatorResolverV1
+    ) async throws -> LocatorResolutionV1 {
+        try await resolver.resolve(input, workspaceID: workspaceID, evaluatedAt: evaluatedAt)
+    }
+}
+
 enum AssetSemanticsCoordinatorFailureV1: Error, Equatable, Sendable {
     case invalidPlan
     case staleRevision

@@ -1,6 +1,20 @@
 import Foundation
 import SwiftData
 
+enum WorkflowRecordAssetLocatorBoundaryV1 {
+    static let locatorCurrentProjectionStoredOnWorkflowRow = false
+
+    static func validateCapture(
+        _ interpretation: FrozenAssetLocatorInterpretationV1,
+        assetID: UUID
+    ) throws {
+        try interpretation.validate()
+        guard interpretation.assetIDAtCapture == assetID else {
+            throw AssetLocatorFailureV1.invalidValue
+        }
+    }
+}
+
 @Model
 final class DeletionLedgerRow {
     var schemaVersion: Int

@@ -1,5 +1,21 @@
 import Foundation
 
+extension ReportSnapshotV1 {
+    /// Report construction may copy a capture-time interpretation but must
+    /// never resolve it again against a later locator head.
+    func assetLocatorProjection(
+        resolution: LocatorResolutionV1,
+        locator: AssetLocatorV1? = nil,
+        interpretation: FrozenAssetLocatorInterpretationV1
+    ) throws -> AssetLocatorReportProjectionV1 {
+        try AssetLocatorReportProjectionV1(
+            resolution: resolution,
+            locator: locator,
+            frozenInterpretation: interpretation
+        )
+    }
+}
+
 struct ReportSnapshotV1: Codable, Equatable, Sendable {
     let acknowledgements: [AcknowledgementSnapshotV1]
     let asset: AssetSnapshotV1

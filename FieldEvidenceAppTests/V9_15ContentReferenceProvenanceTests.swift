@@ -645,6 +645,14 @@ final class V9_15ContentReferenceProvenanceTests: XCTestCase {
     }
 }
 
+private final class C27V915TypedLocatorAnchorTests: XCTestCase {
+    func testAssetLocatorContractAnchor() throws {
+        XCTAssertEqual(ExternalKeyNormalizationV1.allCases.count, 2)
+        XCTAssertEqual(LocatorResolutionOutcomeV1.allCases.count, 8)
+        XCTAssertFalse(AssetLocatorLifecycleAdapterV1.scanMutatesCanonicalState)
+    }
+}
+
 extension V9_15ContentReferenceProvenanceTests {
     func testC36MediaBoundaryHasNoEvidenceIDBeforeCanonicalCommit() {
         let staged = DraftMediaPromotionBoundaryV1.stagedWithoutEvidenceID(

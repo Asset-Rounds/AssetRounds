@@ -2861,6 +2861,94 @@
     "survey.session.next_step.review_subject_promotion" : {
       "comment" : "English-only C26 label for recorded survey-session metadata; do not imply inspection outcomes, compliance, authorization, identity, legal status, secure delivery, or automatic subject merging.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review the recorded subject promotion" } } }
+    },
+    "asset.locator.heading" : {
+      "comment" : "English-only C27 label for recorded locator metadata and offline resolution; do not expose opaque input, secrets, private key material, vendor identifiers, identity, access, or delivery claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Asset locator" } } }
+    },
+    "asset.locator.resolution" : {
+      "comment" : "English-only C27 label for recorded locator metadata and offline resolution; do not expose opaque input, secrets, private key material, vendor identifiers, identity, access, or delivery claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Locator resolution" } } }
+    },
+    "asset.locator.representation" : {
+      "comment" : "English-only C27 label for recorded locator metadata and offline resolution; do not expose opaque input, secrets, private key material, vendor identifiers, identity, access, or delivery claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Locator representation" } } }
+    },
+    "asset.locator.representation.local_signed" : {
+      "comment" : "English-only C27 label for recorded locator metadata and offline resolution; do not expose opaque input, secrets, private key material, vendor identifiers, identity, access, or delivery claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Local signed locator" } } }
+    },
+    "asset.locator.representation.external_key" : {
+      "comment" : "English-only C27 label for recorded locator metadata and offline resolution; do not expose opaque input, secrets, private key material, vendor identifiers, identity, access, or delivery claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "External key reference" } } }
+    },
+    "asset.locator.representation.unavailable" : {
+      "comment" : "English-only C27 label for recorded locator metadata and offline resolution; do not expose opaque input, secrets, private key material, vendor identifiers, identity, access, or delivery claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Representation unavailable" } } }
+    },
+    "asset.locator.outcome.matched" : {
+      "comment" : "English-only C27 label for recorded locator metadata and offline resolution; do not expose opaque input, secrets, private key material, vendor identifiers, identity, access, or delivery claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Locator matched" } } }
+    },
+    "asset.locator.outcome.no_match" : {
+      "comment" : "English-only C27 label for recorded locator metadata and offline resolution; do not expose opaque input, secrets, private key material, vendor identifiers, identity, access, or delivery claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "No locator match" } } }
+    },
+    "asset.locator.outcome.foreign_workspace" : {
+      "comment" : "English-only C27 label for recorded locator metadata and offline resolution; do not expose opaque input, secrets, private key material, vendor identifiers, identity, access, or delivery claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Locator belongs to another workspace" } } }
+    },
+    "asset.locator.outcome.ambiguous" : {
+      "comment" : "English-only C27 label for recorded locator metadata and offline resolution; do not expose opaque input, secrets, private key material, vendor identifiers, identity, access, or delivery claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Multiple locator candidates" } } }
+    },
+    "asset.locator.outcome.damaged_or_incomplete" : {
+      "comment" : "English-only C27 label for recorded locator metadata and offline resolution; do not expose opaque input, secrets, private key material, vendor identifiers, identity, access, or delivery claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Locator data incomplete" } } }
+    },
+    "asset.locator.outcome.retired" : {
+      "comment" : "English-only C27 label for recorded locator metadata and offline resolution; do not expose opaque input, secrets, private key material, vendor identifiers, identity, access, or delivery claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Locator is retired" } } }
+    },
+    "asset.locator.outcome.revoked" : {
+      "comment" : "English-only C27 label for recorded locator metadata and offline resolution; do not expose opaque input, secrets, private key material, vendor identifiers, identity, access, or delivery claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Locator is revoked" } } }
+    },
+    "asset.locator.outcome.replaced" : {
+      "comment" : "English-only C27 label for recorded locator metadata and offline resolution; do not expose opaque input, secrets, private key material, vendor identifiers, identity, access, or delivery claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Locator is replaced" } } }
+    },
+    "asset.locator.lifecycle" : {
+      "comment" : "English-only C27 label for recorded locator metadata and offline resolution; do not expose opaque input, secrets, private key material, vendor identifiers, identity, access, or delivery claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Locator lifecycle" } } }
+    },
+    "asset.locator.state.active" : {
+      "comment" : "English-only C27 label for recorded locator metadata and offline resolution; do not expose opaque input, secrets, private key material, vendor identifiers, identity, access, or delivery claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Active locator" } } }
+    },
+    "asset.locator.state.retired" : {
+      "comment" : "English-only C27 label for recorded locator metadata and offline resolution; do not expose opaque input, secrets, private key material, vendor identifiers, identity, access, or delivery claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Retired locator" } } }
+    },
+    "asset.locator.state.revoked" : {
+      "comment" : "English-only C27 label for recorded locator metadata and offline resolution; do not expose opaque input, secrets, private key material, vendor identifiers, identity, access, or delivery claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Revoked locator" } } }
+    },
+    "asset.locator.state.replaced" : {
+      "comment" : "English-only C27 label for recorded locator metadata and offline resolution; do not expose opaque input, secrets, private key material, vendor identifiers, identity, access, or delivery claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Replaced locator" } } }
+    },
+    "asset.locator.state.unavailable" : {
+      "comment" : "English-only C27 label for recorded locator metadata and offline resolution; do not expose opaque input, secrets, private key material, vendor identifiers, identity, access, or delivery claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Locator state unavailable" } } }
+    },
+    "asset.locator.claim_boundary" : {
+      "comment" : "English-only C27 label for recorded locator metadata and offline resolution; do not expose opaque input, secrets, private key material, vendor identifiers, identity, access, or delivery claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recorded locator metadata only" } } }
+    },
+    "asset.locator.next_step" : {
+      "comment" : "English-only C27 label for recorded locator metadata and offline resolution; do not expose opaque input, secrets, private key material, vendor identifiers, identity, access, or delivery claims.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review locator details" } } }
     }
   },
   "version" : "1.0"

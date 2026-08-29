@@ -1,4 +1,18 @@
 import Foundation
+
+extension CheckRunnerCoordinator {
+    /// Produces capture context only. The existing explicit draft/start path
+    /// remains the sole authority to start work.
+    func prepareResolvedAssetLocator(
+        resolution: LocatorResolutionV1,
+        locator: AssetLocatorV1,
+        receipt: LocatorBindingReceiptV1
+    ) throws -> CheckRunnerAssetLocatorContextV1 {
+        try CheckRunnerAssetLocatorContextV1(
+            resolution: resolution, locator: locator, receipt: receipt
+        )
+    }
+}
 import SwiftData
 
 @MainActor

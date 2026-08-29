@@ -1318,6 +1318,8 @@ private extension WholeSignDeletionService {
         let accessibleDocumentAssessmentReceipts:[AccessibleDocumentAssessmentReceiptRow]
         let surveyDefinitionIdentities:[SurveyDefinitionIdentityRow];let surveyDefinitionReleases:[SurveyDefinitionReleaseRow]
         let surveySessions:[SurveySessionRow];let factCaptures:[FactCaptureRow];let provisionalSubjects:[ProvisionalSubjectRow];let subjectPromotionReceipts:[SubjectPromotionReceiptRow];let surveyPublicationSnapshots:[SurveyPublicationSnapshotRow]
+        let assetLocators: [AssetLocatorRow]
+        let locatorBindingReceipts: [LocatorBindingReceiptRow]
         let observationAndTime: [UUID: ObservationAndTimeRow]
         let recordPayloads: [WorkflowRecordPayloadV1]
         let evidence: [EvidenceFile]
@@ -1377,7 +1379,9 @@ private extension WholeSignDeletionService {
                 fieldReferenceReleases:try boundedFetch(FieldReferenceReleaseRow.self),fieldReferenceBindings:try boundedFetch(FieldReferenceBindingRow.self),
                 accessibleDocumentAssessmentReceipts:try boundedFetch(AccessibleDocumentAssessmentReceiptRow.self),
                 surveyDefinitionIdentities:try boundedFetch(SurveyDefinitionIdentityRow.self),surveyDefinitionReleases:try boundedFetch(SurveyDefinitionReleaseRow.self),
-                surveySessions:try boundedFetch(SurveySessionRow.self),factCaptures:try boundedFetch(FactCaptureRow.self),provisionalSubjects:try boundedFetch(ProvisionalSubjectRow.self),subjectPromotionReceipts:try boundedFetch(SubjectPromotionReceiptRow.self),surveyPublicationSnapshots:try boundedFetch(SurveyPublicationSnapshotRow.self),
+                 surveySessions:try boundedFetch(SurveySessionRow.self),factCaptures:try boundedFetch(FactCaptureRow.self),provisionalSubjects:try boundedFetch(ProvisionalSubjectRow.self),subjectPromotionReceipts:try boundedFetch(SubjectPromotionReceiptRow.self),surveyPublicationSnapshots:try boundedFetch(SurveyPublicationSnapshotRow.self),
+                 assetLocators: try boundedFetch(AssetLocatorRow.self),
+                 locatorBindingReceipts: try boundedFetch(LocatorBindingReceiptRow.self),
                 observationAndTime: observationAndTime,
                 recordPayloads: recordPayloads,
                 evidence: try boundedFetch(EvidenceFile.self),
@@ -1400,6 +1404,18 @@ private extension WholeSignDeletionService {
         )
         try validateWorkPacketPreservation(
             rows, deletingAssetID: deletingAssetID, deletingSiteID: deletingSiteID
+        )
+        let locatorValues = try rows.assetLocators.map { try $0.value() }
+        let receiptValues = try rows.locatorBindingReceipts.map { try $0.value() }
+        try AssetLocatorOrphanCleanupPolicyV1.validate(
+            locators: locatorValues,
+            receipts: receiptValues
+        )
+        let locatorInventory = try AssetLocatorDeletionInventoryV1(
+            locators: locatorValues, receipts: receiptValues
+        )
+        try WholeSignDeletionRule.validateAssetLocatorLifecycle(
+            before: locatorInventory, after: locatorInventory, workspaceErase: false
         )
         let workPacketInventory=WorkPacketDeletionInventoryV1(manifestIDs:Set(rows.workPacketManifests.map(\.manifestID)),claimIDs:Set(rows.workItemClaims.map(\.claimID)),leaseIDs:Set(rows.workLeases.map(\.leaseID)),releaseIDs:Set(rows.workReleases.map(\.releaseID)),handoffIDs:Set(rows.workHandoffs.map(\.handoffID)))
         try WholeSignDeletionRule.validateWorkPacketLifecycle(authority:.ordinaryAssetOrSiteDelete,before:workPacketInventory,after:workPacketInventory)
@@ -2159,6 +2175,29 @@ private extension WholeSignDeletionService {
         let tombstones = Dictionary(uniqueKeysWithValues:
             plan.intent.countedPacketTombstones.map { ($0.id, $0) }
         )
+        let deletedLocatorIDs = Set(rows.assetLocators.filter {
+            $0.assetID == plan.assetID
+        }.map(\.locatorID))
+        if !deletedLocatorIDs.isEmpty {
+            rows.locatorBindingReceipts.filter {
+                deletedLocatorIDs.contains($0.afterLocatorID)
+                    || ($0.replacementLocatorID.map(deletedLocatorIDs.contains) ?? false)
+            }.forEach { modelContext.delete($0) }
+            rows.assetLocators.filter {
+                deletedLocatorIDs.contains($0.locatorID)
+            }.forEach { modelContext.delete($0) }
+        }
+        let remainingLocatorIDs = Set(rows.assetLocators.map(\.locatorID))
+            .subtracting(deletedLocatorIDs)
+        guard rows.locatorBindingReceipts.filter {
+            !deletedLocatorIDs.contains($0.afterLocatorID)
+                && !($0.replacementLocatorID.map(deletedLocatorIDs.contains) ?? false)
+        }.allSatisfy {
+            remainingLocatorIDs.contains($0.afterLocatorID)
+                && ($0.replacementLocatorID.map(remainingLocatorIDs.contains) ?? true)
+        } else {
+            throw WholeSignDeletionServiceError.graphInvalid
+        }
         rows.evidence.filter { evidenceIDs.contains($0.id) }.forEach { modelContext.delete($0) }
         rows.issues.filter { issueIDs.contains($0.id) }.forEach { modelContext.delete($0) }
         let retainedAccessibleOutputDigests=Set(try rows.accessibleDocumentAssessmentReceipts.map{try $0.value().outputSHA256})

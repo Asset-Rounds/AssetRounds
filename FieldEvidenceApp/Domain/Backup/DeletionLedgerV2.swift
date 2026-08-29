@@ -274,6 +274,28 @@ enum MeasurementIntegrityDeletionLedgerPolicyV1 {
     }
 }
 
+/// Locator lookup rows are asset-owned durable state.  An ordinary asset
+/// deletion removes the lookup/receipt rows together so no row can outlive its
+/// asset; workspace erase additionally requires the entire locator closure to
+/// be empty.  Lifecycle events themselves remain in the mutation journal.
+enum AssetLocatorDeletionLedgerPolicyV1 {
+    static let durableFamilies = ["AssetLocatorRow", "LocatorBindingReceiptRow"]
+    static let durableFamilyCount = 2
+    static let ordinaryDeletionRemovesAssetOwnedLookupRows = true
+    static let workspaceEraseRemovesEntireClosure = true
+    static let lifecycleEventsRemainInMutationHistory = true
+
+    static func validate() throws {
+        guard V26BackupAssetLocatorRecordV1.Kind.allCases.count == durableFamilyCount,
+              durableFamilies.count == durableFamilyCount,
+              ordinaryDeletionRemovesAssetOwnedLookupRows,
+              workspaceEraseRemovesEntireClosure,
+              lifecycleEventsRemainInMutationHistory else {
+            throw DeletionLedgerFailureV2.invalidSchemaVersion
+        }
+    }
+}
+
 struct DeletionLedgerV2: Codable, Equatable, Sendable {
     static let maximumEntryCount = 100_000
 
@@ -292,6 +314,7 @@ struct DeletionLedgerV2: Codable, Equatable, Sendable {
 
     func validate() throws {
         try AuthorityCriterionDeletionLedgerPolicyV1.validate()
+        try AssetLocatorDeletionLedgerPolicyV1.validate()
         guard schemaVersion == 2 else {
             throw DeletionLedgerFailureV2.invalidSchemaVersion
         }

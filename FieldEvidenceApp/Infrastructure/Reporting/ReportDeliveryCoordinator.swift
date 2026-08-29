@@ -1217,6 +1217,44 @@ final class ReportDeliveryCoordinator {
     }()
 }
 
+// MARK: - C27 local locator export boundary
+
+enum AssetLocatorReportDeliveryPolicyV1 {
+    static let localExportOnly = true
+    static let remoteDeliveryClaimed = false
+    static let acknowledgementClaimed = false
+    static let metadataOnly = true
+    static let historicInterpretationIsFrozen = true
+    static let excludesOpaqueInput = true
+    static let excludesPrivateKeyMaterial = true
+    static let excludesSecrets = true
+    static let excludesVendorIdentifiers = true
+    static let excludesPermissionClaims = true
+
+    static func validate(
+        _ projection: AssetLocatorReportProjectionV1
+    ) throws -> AssetLocatorReportProjectionV1 {
+        try projection.validate(format: .openJSON)
+        guard localExportOnly, !remoteDeliveryClaimed,
+              !acknowledgementClaimed, metadataOnly,
+              historicInterpretationIsFrozen, excludesOpaqueInput,
+              excludesPrivateKeyMaterial, excludesSecrets,
+              excludesVendorIdentifiers, excludesPermissionClaims else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+        return projection
+    }
+}
+
+extension ReportDeliveryCoordinator {
+    static func localAssetLocatorExport(
+        _ projection: AssetLocatorReportProjectionV1
+    ) throws -> Data {
+        try AssetLocatorReportDeliveryPolicyV1.validate(projection)
+        return try DeterministicOpenJSONRendererV1.renderAssetLocator(projection).data
+    }
+}
+
 // MARK: - C23 version-bound field-reference delivery
 
 enum FieldReferenceReportDeliveryPolicyV1 {

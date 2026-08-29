@@ -60,6 +60,8 @@ final class BackupExportService {
         let surveyDefinitionIdentities:[SurveyDefinitionIdentityRow]
         let surveyDefinitionReleases:[SurveyDefinitionReleaseRow]
         let accessibleDocumentAssessmentReceipts:[AccessibleDocumentAssessmentReceiptRow]
+        let assetLocators: [AssetLocatorRow]
+        let locatorBindingReceipts: [LocatorBindingReceiptRow]
         let fieldReferenceReleases:[FieldReferenceReleaseRow]
         let fieldReferenceBindings:[FieldReferenceBindingRow]
         let recoverabilityVerificationReceipts:[RecoverabilityVerificationReceiptRow]
@@ -735,6 +737,7 @@ private extension BackupExportService {
             recordsData = try BackupCanonicalEncoderV1().encodeRecords(records).data
             let semanticRecords = V4BackupRecordsV1(
                 guidedSurveys:[],
+                assetLocators: records.assetLocators,
                 fieldReferences:records.fieldReferences,
                 fieldDrafts: records.fieldDrafts,
                 workPackets: records.workPackets,
@@ -1509,8 +1512,10 @@ private extension BackupExportService {
                 surveySessions:try modelContext.fetch(FetchDescriptor<SurveySessionRow>()),factCaptures:try modelContext.fetch(FetchDescriptor<FactCaptureRow>()),provisionalSubjects:try modelContext.fetch(FetchDescriptor<ProvisionalSubjectRow>()),subjectPromotionReceipts:try modelContext.fetch(FetchDescriptor<SubjectPromotionReceiptRow>()),surveyPublicationSnapshots:try modelContext.fetch(FetchDescriptor<SurveyPublicationSnapshotRow>()),
                 surveyDefinitionIdentities:try modelContext.fetch(FetchDescriptor<SurveyDefinitionIdentityRow>()),
                 surveyDefinitionReleases:try modelContext.fetch(FetchDescriptor<SurveyDefinitionReleaseRow>()),
-                accessibleDocumentAssessmentReceipts:try modelContext.fetch(FetchDescriptor<AccessibleDocumentAssessmentReceiptRow>()),
-                fieldReferenceReleases:try modelContext.fetch(FetchDescriptor<FieldReferenceReleaseRow>()),
+                 accessibleDocumentAssessmentReceipts:try modelContext.fetch(FetchDescriptor<AccessibleDocumentAssessmentReceiptRow>()),
+                 assetLocators: try modelContext.fetch(FetchDescriptor<AssetLocatorRow>()),
+                 locatorBindingReceipts: try modelContext.fetch(FetchDescriptor<LocatorBindingReceiptRow>()),
+                 fieldReferenceReleases:try modelContext.fetch(FetchDescriptor<FieldReferenceReleaseRow>()),
                 fieldReferenceBindings:try modelContext.fetch(FetchDescriptor<FieldReferenceBindingRow>()),
                 recoverabilityVerificationReceipts:try modelContext.fetch(FetchDescriptor<RecoverabilityVerificationReceiptRow>()),
                 clientCapabilityProfiles:try modelContext.fetch(FetchDescriptor<ClientCapabilityProfileRow>()),packageLifecyclePolicies:try modelContext.fetch(FetchDescriptor<PackageLifecyclePolicyRow>()),packageLifecycleDispositions:try modelContext.fetch(FetchDescriptor<PackageLifecycleDispositionRow>()),clientCapabilityAdmissionDecisions:try modelContext.fetch(FetchDescriptor<ClientCapabilityAdmissionDecisionRow>()),
@@ -1662,6 +1667,7 @@ private extension BackupExportService {
               rows.workSubjectScopeSnapshots.allSatisfy({ (try? $0.value())?.workspaceID == sourceIdentity.workspaceID }) else {
             throw BackupExportServiceError.invalidAuthority
         }
+        _ = try assetLocatorRecords(rows)
         try validateAssetSemanticRows(rows, deletionLedger: deletionLedger)
         try validateFieldDraftRows(rows, workspaceID: sourceIdentity.workspaceID)
         let packageClosure = try PackageEvolutionLifecycleClosureV1(
@@ -2070,8 +2076,10 @@ private extension BackupExportService {
         let accessibleDocumentAssessments = mutationHistory == nil ? [] : try accessibleDocumentAssessmentRecords(rows)
         let surveyDefinitions=try mutationHistory.map{try surveyDefinitionRecords(rows,history:$0)} ?? []
         let guidedSurveys=try mutationHistory.map{_ in try guidedSurveyRecords(rows)} ?? []
+        let assetLocators = mutationHistory == nil ? [] : try assetLocatorRecords(rows)
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveys,
+            assetLocators: assetLocators,
             accessibleDocumentAssessments:accessibleDocumentAssessments,
             surveyDefinitions:surveyDefinitions,
             fieldReferences:fieldReferences,
@@ -2135,7 +2143,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : 23,
+                : 25,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -2298,6 +2306,41 @@ private extension BackupExportService {
             + rows.subjectPromotionReceipts.map{let v=try $0.value();return .init(kind:.subjectPromotionReceipt,id:v.receiptID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try SurveySessionCanonicalCodecV1.encode(v))}
             + rows.surveyPublicationSnapshots.map{let v=try $0.value();return .init(kind:.publicationSnapshot,id:v.snapshotID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try SurveySessionCanonicalCodecV1.encode(v))}
         ).sorted{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"}
+    }
+
+    private func assetLocatorRecords(_ rows: Rows) throws -> [V26BackupAssetLocatorRecordV1] {
+        let workspaceID = try currentStreamingWorkspaceIdentity().workspaceID
+        let locators = try rows.assetLocators.map { row in
+            let value = try row.value()
+            guard value.workspaceID == workspaceID else {
+                throw BackupExportServiceError.invalidAuthority
+            }
+            return V26BackupAssetLocatorRecordV1(
+                kind: .locator, id: value.locatorID,
+                workspaceID: value.workspaceID.rawValue, revision: value.revision,
+                canonicalData: try AssetLocatorCanonicalCodecV1.encode(value)
+            )
+        }
+        let receipts = try rows.locatorBindingReceipts.map { row in
+            let value = try row.value()
+            guard value.workspaceID == workspaceID else {
+                throw BackupExportServiceError.invalidAuthority
+            }
+            return V26BackupAssetLocatorRecordV1(
+                kind: .bindingReceipt, id: value.receiptID,
+                workspaceID: value.workspaceID.rawValue, revision: value.revision,
+                canonicalData: try AssetLocatorCanonicalCodecV1.encode(value)
+            )
+        }
+        let records = (locators + receipts).sorted {
+            "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
+                < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
+        }
+        try AssetLocatorLifecycleClosureV1(
+            locators: try rows.assetLocators.map { try $0.value() },
+            receipts: try rows.locatorBindingReceipts.map { try $0.value() }
+        ).validate()
+        return records
     }
 
     private func functionalRelationshipRecords(

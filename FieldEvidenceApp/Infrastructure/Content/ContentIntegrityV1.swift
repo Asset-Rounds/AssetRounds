@@ -1,6 +1,14 @@
 import Foundation
 import CryptoKit
 
+enum AssetLocatorIntegrityBoundaryV1 {
+    static func validateCanonicalDigest(_ digest: String) throws {
+        guard KernelCanonicalHashV1.validSHA256(digest) else {
+            throw AssetLocatorFailureV1.invalidDigest
+        }
+    }
+}
+
 enum ContentIntegrityFailureV1: Error, Equatable, Sendable {
     case wrongWorkspace
     case missingContent

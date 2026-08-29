@@ -390,6 +390,14 @@ final class V9_06DeletionArchiveIntegrationTests: XCTestCase {
     }
 }
 
+private final class C27V906ArchiveTypedLocatorAnchorTests: XCTestCase {
+    func testAssetLocatorContractAnchor() throws {
+        XCTAssertEqual(AssetLocatorLimitsV1.maximumCandidates, 32)
+        XCTAssertEqual(LocatorInputSourceV1.allCases.count, 3)
+        XCTAssertFalse(AssetLocatorLifecycleAdapterV1.scanMutatesCanonicalState)
+    }
+}
+
 extension V9_06DeletionArchiveIntegrationTests {
     func testC24AccessibleDocumentTypedAnchor() throws {
         XCTAssertEqual(AccessibleDocumentSemanticTreeV1.schemaVersion, 1)

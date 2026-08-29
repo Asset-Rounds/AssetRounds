@@ -2184,3 +2184,175 @@ extension DeterministicOpenJSONRendererV1 {
         return envelope.projection
     }
 }
+
+// MARK: - C27 asset-locator open JSON
+
+struct AssetLocatorOpenJSONLabelsV1: Codable, Equatable, Sendable {
+    let heading: String
+    let resolution: String
+    let representation: String
+    let representationValue: String
+    let outcome: String
+    let outcomeValue: String
+    let lifecycle: String
+    let stateValue: String
+    let claimBoundary: String
+    let nextStep: String
+
+    init(projection: AssetLocatorReportProjectionV1) {
+        heading = BundledLocalizationCatalogV1.localized(
+            AssetLocatorLocalizationKeyV1.heading
+        )
+        resolution = BundledLocalizationCatalogV1.localized(
+            AssetLocatorLocalizationKeyV1.resolution
+        )
+        representation = BundledLocalizationCatalogV1.localized(
+            AssetLocatorLocalizationKeyV1.representation
+        )
+        let representationKey: AssetLocatorLocalizationKeyV1
+        switch projection.metadata?.representation ?? "" {
+        case "LOCAL_SIGNED": representationKey = .representationLocalSigned
+        case "EXTERNAL_KEY": representationKey = .representationExternalKey
+        default: representationKey = .representationUnavailable
+        }
+        representationValue = BundledLocalizationCatalogV1.localized(representationKey)
+        outcome = BundledLocalizationCatalogV1.localized(
+            AssetLocatorLocalizationKeyV1.resolution
+        )
+        outcomeValue = BundledLocalizationCatalogV1.localized(
+            AssetLocatorLocalizationKeyV1.outcomeKey(projection.resolution.outcome)
+        )
+        lifecycle = BundledLocalizationCatalogV1.localized(
+            AssetLocatorLocalizationKeyV1.lifecycle
+        )
+        stateValue = BundledLocalizationCatalogV1.localized(
+            AssetLocatorLocalizationKeyV1.stateKey(projection.metadata?.state)
+        )
+        claimBoundary = BundledLocalizationCatalogV1.localized(
+            AssetLocatorLocalizationKeyV1.claimBoundary
+        )
+        nextStep = BundledLocalizationCatalogV1.localized(
+            AssetLocatorLocalizationKeyV1.nextStep
+        )
+    }
+
+    func validate(projection: AssetLocatorReportProjectionV1) throws {
+        let expected = AssetLocatorOpenJSONLabelsV1(projection: projection)
+        guard self == expected,
+              [heading, resolution, representation, representationValue,
+               outcome, outcomeValue, lifecycle, stateValue, claimBoundary,
+               nextStep].allSatisfy({ !$0.isEmpty }),
+              !AssetLocatorLocalizationPolicyV1.containsProhibitedClaim([
+                  heading, resolution, representation, representationValue,
+                  outcome, outcomeValue, lifecycle, stateValue, claimBoundary,
+                  nextStep,
+              ]) else {
+            throw SnapshotProjectionFailureV1.hostileText
+        }
+    }
+}
+
+struct AssetLocatorOpenJSONEnvelopeV1: Codable, Equatable, Sendable {
+    static let schema = "ASSET_LOCATOR_REPORT_OPEN_JSON_V1"
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let schema: String
+    let locale: String
+    let projection: AssetLocatorReportProjectionV1
+    let labels: AssetLocatorOpenJSONLabelsV1
+
+    init(
+        projection: AssetLocatorReportProjectionV1,
+        locale: String = "en"
+    ) throws {
+        try projection.validate(format: .openJSON)
+        guard locale == "en" else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        schemaVersion = Self.schemaVersion
+        schema = Self.schema
+        self.locale = locale
+        self.projection = projection
+        labels = AssetLocatorOpenJSONLabelsV1(projection: projection)
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              schema == Self.schema,
+              locale == "en" else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try projection.validate(format: .openJSON)
+        try labels.validate(projection: projection)
+    }
+}
+
+extension DeterministicOpenJSONRendererV1 {
+    static func renderAssetLocator(
+        _ projection: AssetLocatorReportProjectionV1,
+        locale: String = "en"
+    ) throws -> ReportProjectionOutputV1 {
+        try ReportProjectionRegistryV1.validateAssetLocatorProjection(projection)
+        let envelope = try AssetLocatorOpenJSONEnvelopeV1(
+            projection: projection,
+            locale: locale
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let data = try encoder.encode(envelope)
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes,
+              try reopenAssetLocator(data) == projection else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return ReportProjectionOutputV1(
+            format: .openJSON,
+            data: data,
+            sha256: KernelCanonicalHashV1.sha256(data),
+            semanticSHA256: try projection.semanticDigest(),
+            orderedSemanticIDs: [
+                AssetLocatorAccessibilityIDV1.screen.rawValue,
+                AssetLocatorAccessibilityIDV1.heading.rawValue,
+                AssetLocatorAccessibilityIDV1.resolution.rawValue,
+                AssetLocatorAccessibilityIDV1.representation.rawValue,
+                AssetLocatorAccessibilityIDV1.outcome.rawValue,
+                AssetLocatorAccessibilityIDV1.lifecycle.rawValue,
+                AssetLocatorAccessibilityPolicyV1.stateID(
+                    projection.metadata?.state
+                ).rawValue,
+                AssetLocatorAccessibilityIDV1.claimBoundary.rawValue,
+                AssetLocatorAccessibilityIDV1.nextStep.rawValue,
+            ],
+            taggedPDFAccessibilityEvidence: false
+        )
+    }
+
+    static func reopenAssetLocator(
+        _ data: Data
+    ) throws -> AssetLocatorReportProjectionV1 {
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        let envelope = try JSONDecoder().decode(
+            AssetLocatorOpenJSONEnvelopeV1.self,
+            from: data
+        )
+        try envelope.validate()
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        guard try encoder.encode(envelope) == data else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return envelope.projection
+    }
+
+    static func renderAssetLocatorOpenJSON(
+        _ projection: AssetLocatorReportProjectionV1,
+        locale: String = "en"
+    ) throws -> ReportProjectionOutputV1 {
+        try renderAssetLocator(projection, locale: locale)
+    }
+}

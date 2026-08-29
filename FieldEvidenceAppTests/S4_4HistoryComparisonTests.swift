@@ -354,6 +354,14 @@ final class S4_4HistoryComparisonTests: XCTestCase {
     }
 }
 
+private final class C27S44TypedLocatorAnchorTests: XCTestCase {
+    func testAssetLocatorContractAnchor() throws {
+        XCTAssertEqual(LocatorBindingActionV1.allCases.count, 6)
+        XCTAssertEqual(LocatorInputSourceV1.allCases.count, 3)
+        XCTAssertFalse(AssetLocatorLifecycleAdapterV1.resolutionStartsWork)
+    }
+}
+
 extension S4_4HistoryComparisonTests {
     func testC24AccessibleDocumentTypedAnchor() throws {
         XCTAssertEqual(AccessibleDocumentSemanticTreeV1.schemaVersion, 1)

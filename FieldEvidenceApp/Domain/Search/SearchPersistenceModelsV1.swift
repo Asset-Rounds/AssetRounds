@@ -926,3 +926,66 @@ struct SurveySessionSearchPersistencePolicyV1: Codable, Equatable, Sendable {
 extension SearchPersistenceReleaseV1 {
     static let surveySessionPolicy = SurveySessionSearchPersistencePolicyV1()
 }
+
+// MARK: - C27 asset-locator search persistence boundary
+
+/// Locator search rows are disposable metadata derivatives.  Restore and
+/// replay discard them and rebuild from canonical locators/resolution history;
+/// no opaque lookup input is included in the V7 search store.
+struct AssetLocatorSearchPersistencePolicyV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let sourceSchema: String
+    let searchPersistenceRelease: SearchPersistenceReleaseV1
+    let fieldIDs: [String]
+    let metadataOnly: Bool
+    let derivedOnly: Bool
+    let excludesOpaqueInput: Bool
+    let excludesPrivateKeyMaterial: Bool
+    let excludesSecrets: Bool
+    let excludesVendorIdentifiers: Bool
+    let excludesPrivateLocators: Bool
+    let excludesActorIdentity: Bool
+    let excludesUnsupportedClaims: Bool
+    let backupDisposition: String
+    let replayDisposition: String
+
+    init() {
+        schemaVersion = Self.schemaVersion
+        sourceSchema = AssetLocatorSearchProjectionPolicyV1.semanticLabel
+        searchPersistenceRelease = .v7
+        fieldIDs = AssetLocatorSearchProjectionPolicyV1.fieldIDs
+        metadataOnly = true
+        derivedOnly = true
+        excludesOpaqueInput = true
+        excludesPrivateKeyMaterial = true
+        excludesSecrets = true
+        excludesVendorIdentifiers = true
+        excludesPrivateLocators = true
+        excludesActorIdentity = true
+        excludesUnsupportedClaims = true
+        backupDisposition = "EXCLUDED_DERIVED_REBUILD"
+        replayDisposition = "DROP_AND_REBUILD_FROM_CANONICAL_ASSET_LOCATORS"
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              sourceSchema == AssetLocatorSearchProjectionPolicyV1.semanticLabel,
+              searchPersistenceRelease == .v7,
+              fieldIDs == AssetLocatorSearchProjectionPolicyV1.fieldIDs,
+              metadataOnly, derivedOnly,
+              excludesOpaqueInput, excludesPrivateKeyMaterial,
+              excludesSecrets, excludesVendorIdentifiers,
+              excludesPrivateLocators, excludesActorIdentity,
+              excludesUnsupportedClaims,
+              backupDisposition == "EXCLUDED_DERIVED_REBUILD",
+              replayDisposition == "DROP_AND_REBUILD_FROM_CANONICAL_ASSET_LOCATORS" else {
+            throw SearchContractFailureV1.invalidField
+        }
+    }
+}
+
+extension SearchPersistenceReleaseV1 {
+    static let assetLocatorPolicy = AssetLocatorSearchPersistencePolicyV1()
+}

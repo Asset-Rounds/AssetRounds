@@ -2934,3 +2934,348 @@ struct SurveyDefinitionReportProjectionV1: Codable, Equatable, Sendable {
         }
     }
 }
+
+// MARK: - C27 bounded asset-locator report projection
+
+enum AssetLocatorReportProjectionFailureV1: Error, Equatable, Sendable {
+    case invalidValue
+    case privacyViolation
+    case unsupportedFormat
+    case staleBinding
+    case limitExceeded
+}
+
+enum AssetLocatorReportProjectionPolicyV1 {
+    static let sectionID = "asset.locator"
+    static let projectionVersion = "ASSET_LOCATOR_REPORT_PROJECTION_V1"
+    static let supportedFormats: [ReportProjectionFormatV1] = [.openJSON]
+    static let metadataOnly = true
+    static let derivedOnly = true
+    static let historicDisplayFrozen = true
+    static let excludesOpaqueInput = true
+    static let excludesPrivateKeyMaterial = true
+    static let excludesSecrets = true
+    static let excludesVendorIdentifiers = true
+    static let excludesActorIdentity = true
+    static let excludesPermissionClaims = true
+    static let excludesNetworkResolutionClaims = true
+    static let excludesUnsupportedClaims = true
+
+    static func supports(_ format: ReportProjectionFormatV1) -> Bool {
+        supportedFormats.contains(format)
+    }
+
+    static func containsUnsupportedClaim(_ values: [String]) -> Bool {
+        AssetLocatorLocalizationPolicyV1.containsProhibitedClaim(values)
+    }
+
+    static func validate() throws {
+        guard supportedFormats == [.openJSON], metadataOnly, derivedOnly,
+              historicDisplayFrozen, excludesOpaqueInput,
+              excludesPrivateKeyMaterial, excludesSecrets,
+              excludesVendorIdentifiers, excludesActorIdentity,
+              excludesPermissionClaims, excludesNetworkResolutionClaims,
+              excludesUnsupportedClaims else {
+            throw AssetLocatorReportProjectionFailureV1.invalidValue
+        }
+    }
+}
+
+enum AssetLocatorReportProjectionValidationV1 {
+    static let zeroUUID = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+
+    static let selectedOutcomes: Set<LocatorResolutionOutcomeV1> = [
+        .matched, .retired, .revoked, .replaced,
+    ]
+
+    static func validWorkspace(_ value: WorkspaceID) -> Bool {
+        value.rawValue != zeroUUID
+    }
+}
+
+/// Metadata that may be copied into a report.  The representation is a
+/// closed kind rather than the external key or signed payload itself.
+struct AssetLocatorBoundedMetadataV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let workspaceID: WorkspaceID
+    let locatorID: UUID
+    let assetID: UUID
+    let representation: String
+    let state: AssetLocatorStateV1
+    let replacedByLocatorID: UUID?
+    let revision: UInt64
+    let locatorSHA256: String
+    let historicDisplayFrozen: Bool
+    let includesOpaqueInput: Bool
+    let includesPrivateKeyMaterial: Bool
+    let includesSecrets: Bool
+    let includesVendorIdentifiers: Bool
+    let includesActorIdentity: Bool
+
+    init(locator: AssetLocatorV1) throws {
+        try locator.validate()
+        schemaVersion = Self.schemaVersion
+        workspaceID = locator.workspaceID
+        locatorID = locator.locatorID
+        assetID = locator.assetID
+        switch locator.representation {
+        case .localSigned: representation = "LOCAL_SIGNED"
+        case .externalKey: representation = "EXTERNAL_KEY"
+        }
+        state = locator.state
+        replacedByLocatorID = locator.replacedByLocatorID
+        revision = locator.revision
+        locatorSHA256 = locator.locatorSHA256
+        historicDisplayFrozen = true
+        includesOpaqueInput = false
+        includesPrivateKeyMaterial = false
+        includesSecrets = false
+        includesVendorIdentifiers = false
+        includesActorIdentity = false
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              AssetLocatorReportProjectionValidationV1.validWorkspace(workspaceID),
+              locatorID != AssetLocatorReportProjectionValidationV1.zeroUUID,
+              assetID != AssetLocatorReportProjectionValidationV1.zeroUUID,
+              ["LOCAL_SIGNED", "EXTERNAL_KEY"].contains(representation),
+              revision > 0,
+              KernelCanonicalHashV1.validSHA256(locatorSHA256),
+              (state == .replaced) == (replacedByLocatorID != nil),
+              replacedByLocatorID != locatorID,
+              historicDisplayFrozen,
+              !includesOpaqueInput, !includesPrivateKeyMaterial,
+              !includesSecrets, !includesVendorIdentifiers,
+              !includesActorIdentity else {
+            throw AssetLocatorReportProjectionFailureV1.privacyViolation
+        }
+    }
+}
+
+struct AssetLocatorResolutionReportProjectionV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let workspaceID: WorkspaceID
+    let source: LocatorInputSourceV1
+    let inputSHA256: String
+    let outcome: LocatorResolutionOutcomeV1
+    let matchedLocator: AssetLocatorReferenceV1?
+    let matchedAssetID: UUID?
+    let replacementLocatorID: UUID?
+    let candidateCount: Int
+    let evaluatedAt: Date
+    let resolutionSHA256: String
+    let historicDisplayFrozen: Bool
+
+    init(resolution: LocatorResolutionV1) throws {
+        try resolution.validate()
+        schemaVersion = Self.schemaVersion
+        workspaceID = resolution.workspaceID
+        source = resolution.source
+        inputSHA256 = resolution.inputSHA256
+        outcome = resolution.outcome
+        matchedLocator = resolution.matchedLocator
+        matchedAssetID = resolution.matchedAssetID
+        replacementLocatorID = resolution.replacementLocatorID
+        candidateCount = resolution.candidateLocators.count
+        evaluatedAt = resolution.evaluatedAt
+        resolutionSHA256 = resolution.resolutionSHA256
+        historicDisplayFrozen = true
+        try validate()
+    }
+
+    func validate() throws {
+        try matchedLocator?.validate()
+        guard schemaVersion == Self.schemaVersion,
+              AssetLocatorReportProjectionValidationV1.validWorkspace(workspaceID),
+              KernelCanonicalHashV1.validSHA256(inputSHA256),
+              KernelCanonicalHashV1.validSHA256(resolutionSHA256),
+              matchedAssetID.map({ $0 != AssetLocatorReportProjectionValidationV1.zeroUUID }) ?? true,
+              replacementLocatorID.map({ $0 != AssetLocatorReportProjectionValidationV1.zeroUUID }) ?? true,
+              evaluatedAt.timeIntervalSinceReferenceDate.isFinite,
+              (0...AssetLocatorLimitsV1.maximumCandidates).contains(candidateCount),
+              historicDisplayFrozen else {
+            throw AssetLocatorReportProjectionFailureV1.invalidValue
+        }
+        let selected = matchedLocator != nil && matchedAssetID != nil
+        guard AssetLocatorReportProjectionValidationV1.selectedOutcomes.contains(outcome)
+            ? selected : !selected else {
+            throw AssetLocatorReportProjectionFailureV1.invalidValue
+        }
+        if outcome == .replaced {
+            guard replacementLocatorID != nil else {
+                throw AssetLocatorReportProjectionFailureV1.invalidValue
+            }
+        } else {
+            guard replacementLocatorID == nil else {
+                throw AssetLocatorReportProjectionFailureV1.invalidValue
+            }
+        }
+    }
+}
+
+/// The report projection contains only the already-recorded result.  It does
+/// not resolve a current locator, rewrite a finalized report, or retain the
+/// input bytes used by a resolver.
+struct AssetLocatorReportProjectionV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let projectionVersion: String
+    let metadata: AssetLocatorBoundedMetadataV1?
+    let resolution: AssetLocatorResolutionReportProjectionV1
+    let frozenInterpretation: FrozenAssetLocatorInterpretationV1?
+    let historicDisplayFrozen: Bool
+    let includesOpaqueInput: Bool
+    let includesPrivateKeyMaterial: Bool
+    let includesSecrets: Bool
+    let includesVendorIdentifiers: Bool
+    let includesActorIdentity: Bool
+
+    init(
+        resolution: LocatorResolutionV1,
+        locator: AssetLocatorV1? = nil,
+        frozenInterpretation: FrozenAssetLocatorInterpretationV1? = nil
+    ) throws {
+        try resolution.validate()
+        if let locator {
+            try locator.validate()
+            guard locator.workspaceID == resolution.workspaceID,
+                  resolution.matchedLocator.map({ $0.locatorID == locator.locatorID }) ?? true else {
+                throw AssetLocatorReportProjectionFailureV1.invalidValue
+            }
+            metadata = try AssetLocatorBoundedMetadataV1(locator: locator)
+        } else {
+            metadata = nil
+        }
+        self.resolution = try AssetLocatorResolutionReportProjectionV1(
+            resolution: resolution
+        )
+        self.frozenInterpretation = frozenInterpretation
+        schemaVersion = Self.schemaVersion
+        projectionVersion = AssetLocatorReportProjectionPolicyV1.projectionVersion
+        historicDisplayFrozen = true
+        includesOpaqueInput = false
+        includesPrivateKeyMaterial = false
+        includesSecrets = false
+        includesVendorIdentifiers = false
+        includesActorIdentity = false
+        try validate()
+    }
+
+    init(
+        locator: AssetLocatorV1,
+        resolution: LocatorResolutionV1? = nil,
+        frozenInterpretation: FrozenAssetLocatorInterpretationV1? = nil
+    ) throws {
+        try locator.validate()
+        let resolved: LocatorResolutionV1
+        if let resolution {
+            resolved = resolution
+        } else {
+            resolved = try Self.syntheticResolution(for: locator)
+        }
+        try self.init(
+            resolution: resolved,
+            locator: locator,
+            frozenInterpretation: frozenInterpretation
+        )
+    }
+
+    func validate(format: ReportProjectionFormatV1? = nil) throws {
+        try AssetLocatorReportProjectionPolicyV1.validate()
+        if let format, !AssetLocatorReportProjectionPolicyV1.supports(format) {
+            throw AssetLocatorReportProjectionFailureV1.unsupportedFormat
+        }
+        try resolution.validate()
+        try metadata?.validate()
+        try frozenInterpretation?.validate()
+        guard schemaVersion == Self.schemaVersion,
+              projectionVersion == AssetLocatorReportProjectionPolicyV1.projectionVersion,
+              historicDisplayFrozen,
+              !includesOpaqueInput, !includesPrivateKeyMaterial,
+              !includesSecrets, !includesVendorIdentifiers,
+              !includesActorIdentity else {
+            throw AssetLocatorReportProjectionFailureV1.privacyViolation
+        }
+
+        let requiresMetadata = AssetLocatorReportProjectionValidationV1
+            .selectedOutcomes.contains(resolution.outcome)
+        guard (metadata != nil) == requiresMetadata else {
+            throw AssetLocatorReportProjectionFailureV1.invalidValue
+        }
+        if let metadata {
+            guard metadata.workspaceID == resolution.workspaceID,
+                  resolution.matchedLocator?.locatorID == metadata.locatorID,
+                  resolution.matchedLocator?.revision == metadata.revision,
+                  resolution.matchedLocator?.locatorSHA256 == metadata.locatorSHA256,
+                  resolution.matchedAssetID == metadata.assetID else {
+                throw AssetLocatorReportProjectionFailureV1.invalidValue
+            }
+            if resolution.outcome == .replaced {
+                guard resolution.replacementLocatorID == metadata.replacedByLocatorID else {
+                    throw AssetLocatorReportProjectionFailureV1.invalidValue
+                }
+            }
+            let expectedOutcome: LocatorResolutionOutcomeV1
+            switch metadata.state {
+            case .active: expectedOutcome = .matched
+            case .retired: expectedOutcome = .retired
+            case .revoked: expectedOutcome = .revoked
+            case .replaced: expectedOutcome = .replaced
+            }
+            guard resolution.outcome == expectedOutcome else {
+                throw AssetLocatorReportProjectionFailureV1.invalidValue
+            }
+        }
+        if let frozenInterpretation {
+            guard resolution.outcome == .matched,
+                  let metadata,
+                  frozenInterpretation.locator.locatorID == metadata.locatorID,
+                  frozenInterpretation.locator.revision == metadata.revision,
+                  frozenInterpretation.locator.locatorSHA256 == metadata.locatorSHA256,
+                  frozenInterpretation.assetIDAtCapture == metadata.assetID else {
+                throw AssetLocatorReportProjectionFailureV1.staleBinding
+            }
+        }
+        guard !AssetLocatorReportProjectionPolicyV1.containsUnsupportedClaim([
+            AssetLocatorLocalizationKeyV1.heading.englishDefaultValue,
+            AssetLocatorLocalizationKeyV1.claimBoundary.englishDefaultValue,
+            AssetLocatorLocalizationKeyV1.nextStep.englishDefaultValue,
+        ]) else {
+            throw AssetLocatorReportProjectionFailureV1.privacyViolation
+        }
+    }
+
+    func semanticDigest() throws -> String {
+        try validate()
+        return KernelCanonicalHashV1.sha256(try AssetLocatorCanonicalCodecV1.encode(self))
+    }
+
+    private static func syntheticResolution(
+        for locator: AssetLocatorV1
+    ) throws -> LocatorResolutionV1 {
+        let outcome: LocatorResolutionOutcomeV1
+        switch locator.state {
+        case .active: outcome = .matched
+        case .retired: outcome = .retired
+        case .revoked: outcome = .revoked
+        case .replaced: outcome = .replaced
+        }
+        return try LocatorResolutionV1(
+            workspaceID: locator.workspaceID,
+            source: .manual,
+            inputSHA256: locator.locatorSHA256,
+            outcome: outcome,
+            matchedLocator: try locator.reference,
+            matchedAssetID: locator.assetID,
+            replacementLocatorID: locator.replacedByLocatorID,
+            evaluatedAt: locator.recordedAt
+        )
+    }
+}

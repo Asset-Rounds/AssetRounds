@@ -191,7 +191,10 @@ enum IntegrationProjectionDiagnosticExclusionV1 {
         "sourceReleaseIdentifier", "licenseNotice", "subjectID",
         "contentID", "locatorID", "releaseSHA256", "manifestSHA256",
         "readinessSHA256", "projectionSHA256", "canonicalData", "bytes",
-        "restrictedContent",
+        "restrictedContent", "assetID", "lookupKey", "namespaceID",
+        "normalizedValueSHA256", "publicKeyData", "publicKeySHA256",
+        "signatureData", "signatureSHA256", "externalKey", "signedPayload",
+        "signingKey", "rawBytes", "actorID", "actorIdentity",
         // C24 semantic-tree and assessment details are not diagnostics.
         "nodeID", "parentNodeID", "evidenceID", "evidenceSHA256",
         "localizedText", "alternateText", "assessor", "assessorID",
@@ -1584,6 +1587,98 @@ extension DiagnosticExportV1 {
         try AccessibleDocumentDiagnosticMetadataV1(
             trees: trees,
             assessments: assessments
+        )
+    }
+}
+
+// MARK: - C27 asset-locator diagnostic metadata
+
+/// Aggregate-only locator health. Lookup keys, external-key hashes, signed
+/// payloads, public/private key material, actor identity, and receipt bytes are
+/// deliberately absent from this diagnostic value.
+struct AssetLocatorDiagnosticMetadataV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let policyVersion = "ASSET_LOCATOR_DIAGNOSTIC_V1"
+    static let maximumValues = 200_000
+
+    let schemaVersion: Int
+    let locatorCount: Int
+    let activeCount: Int
+    let retiredCount: Int
+    let revokedCount: Int
+    let replacedCount: Int
+    let bindingReceiptCount: Int
+    let policyVersion: String
+    let metadataOnly: Bool
+    let excludesLocatorPayload: Bool
+    let excludesExternalKeyMaterial: Bool
+    let excludesSigningKeyMaterial: Bool
+    let excludesRawInput: Bool
+    let excludesIdentity: Bool
+
+    init(
+        locators: [AssetLocatorV1] = [],
+        receipts: [LocatorBindingReceiptV1] = []
+    ) throws {
+        guard locators.count <= Self.maximumValues,
+              receipts.count <= Self.maximumValues else {
+            throw DiagnosticExportError.invalidValue
+        }
+        do {
+            try AssetLocatorOrphanCleanupPolicyV1.validate(
+                locators: locators,
+                receipts: receipts
+            )
+        } catch {
+            throw DiagnosticExportError.invalidValue
+        }
+
+        schemaVersion = Self.schemaVersion
+        locatorCount = locators.count
+        activeCount = locators.filter { $0.state == .active }.count
+        retiredCount = locators.filter { $0.state == .retired }.count
+        revokedCount = locators.filter { $0.state == .revoked }.count
+        replacedCount = locators.filter { $0.state == .replaced }.count
+        bindingReceiptCount = receipts.count
+        policyVersion = Self.policyVersion
+        metadataOnly = true
+        excludesLocatorPayload = true
+        excludesExternalKeyMaterial = true
+        excludesSigningKeyMaterial = true
+        excludesRawInput = true
+        excludesIdentity = true
+        try validate()
+    }
+
+    var isValid: Bool { (try? validate()) != nil }
+
+    func validate() throws {
+        let stateTotal = activeCount + retiredCount + revokedCount + replacedCount
+        guard schemaVersion == Self.schemaVersion,
+              [locatorCount, activeCount, retiredCount, revokedCount,
+               replacedCount, bindingReceiptCount]
+                .allSatisfy { (0...Self.maximumValues).contains($0) },
+              stateTotal == locatorCount,
+              policyVersion == Self.policyVersion,
+              metadataOnly,
+              excludesLocatorPayload,
+              excludesExternalKeyMaterial,
+              excludesSigningKeyMaterial,
+              excludesRawInput,
+              excludesIdentity else {
+            throw DiagnosticExportError.invalidValue
+        }
+    }
+}
+
+extension DiagnosticExportV1 {
+    static func assetLocatorDiagnosticMetadata(
+        locators: [AssetLocatorV1] = [],
+        receipts: [LocatorBindingReceiptV1] = []
+    ) throws -> AssetLocatorDiagnosticMetadataV1 {
+        try AssetLocatorDiagnosticMetadataV1(
+            locators: locators,
+            receipts: receipts
         )
     }
 }

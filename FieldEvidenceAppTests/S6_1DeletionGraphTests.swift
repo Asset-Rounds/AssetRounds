@@ -568,6 +568,14 @@ final class S6_1DeletionGraphTests: XCTestCase {
     }
 }
 
+private final class C27S61TypedLocatorAnchorTests: XCTestCase {
+    func testAssetLocatorContractAnchor() throws {
+        XCTAssertEqual(PersistentSchemaV26.models.count, 94)
+        XCTAssertEqual(AssetLocatorLimitsV1.maximumCandidates, 32)
+        XCTAssertFalse(AssetLocatorLifecycleAdapterV1.resolutionGrantsAccess)
+    }
+}
+
 extension S6_1DeletionGraphTests {
     func testV23P03C18DeleteEraseBoundaryRemainsTyped() throws {
         XCTAssertTrue(PackageSandboxCheckKindV1.allCases.contains(.deleteErase))

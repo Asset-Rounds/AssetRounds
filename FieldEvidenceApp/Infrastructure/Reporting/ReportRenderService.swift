@@ -1497,3 +1497,48 @@ extension ReportRenderService {
     static let surveyDefinitionHistoricExportUsesPinnedRelease = true
     static let surveyDefinitionReportDoesNotUpgradeDrafts = true
 }
+
+// MARK: - C27 asset-locator rendering boundary
+
+enum AssetLocatorReportRenderPolicyV1 {
+    static let metadataOnly = true
+    static let historicDisplayUsesRecordedBinding = true
+    static let localOfflineResolutionOnly = true
+    static let excludesOpaqueInput = true
+    static let excludesPrivateKeyMaterial = true
+    static let excludesSecrets = true
+    static let excludesVendorIdentifiers = true
+    static let excludesPermissionClaims = true
+    static let excludesNetworkResolutionClaims = true
+
+    static func validate(
+        _ projection: AssetLocatorReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> AssetLocatorReportProjectionV1 {
+        try projection.validate(format: format)
+        guard metadataOnly, historicDisplayUsesRecordedBinding,
+              localOfflineResolutionOnly, excludesOpaqueInput,
+              excludesPrivateKeyMaterial, excludesSecrets,
+              excludesVendorIdentifiers, excludesPermissionClaims,
+              excludesNetworkResolutionClaims else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+        return projection
+    }
+}
+
+extension ReportRenderService {
+    static func renderAssetLocatorOpenJSON(
+        _ projection: AssetLocatorReportProjectionV1
+    ) throws -> ReportProjectionOutputV1 {
+        try AssetLocatorReportRenderPolicyV1.validate(projection)
+        return try DeterministicOpenJSONRendererV1.renderAssetLocator(projection)
+    }
+
+    static func validateAssetLocatorRenderInputs(
+        _ projection: AssetLocatorReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> AssetLocatorReportProjectionV1 {
+        try AssetLocatorReportRenderPolicyV1.validate(projection, format: format)
+    }
+}

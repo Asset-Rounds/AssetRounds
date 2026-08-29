@@ -1,5 +1,15 @@
 import Foundation
 
+enum AssetLocatorSemanticBoundaryV1 {
+    static let locatorMayInferProductIdentity = false
+    static let locatorMayInferLifecycleState = false
+
+    static func validate(_ locator: AssetLocatorV1, assetID: UUID) throws {
+        try locator.validate()
+        guard locator.assetID == assetID else { throw AssetLocatorFailureV1.invalidValue }
+    }
+}
+
 enum AssetSemanticContractFailureV1: Error, Equatable, Sendable {
     case invalidValue
     case duplicateValue

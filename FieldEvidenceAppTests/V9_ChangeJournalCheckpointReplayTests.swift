@@ -758,6 +758,14 @@ final class V9_ChangeJournalCheckpointReplayTests: XCTestCase {
     }
 }
 
+private final class C27ChangeJournalTypedLocatorAnchorTests: XCTestCase {
+    func testAssetLocatorContractAnchor() throws {
+        XCTAssertEqual(PersistentSchemaReleaseV1.v26.compatibilityID, "ASSET_LOCATOR_V1")
+        XCTAssertEqual(LocatorBindingActionV1.allCases.count, 6)
+        XCTAssertFalse(AssetLocatorLifecycleAdapterV1.scanMutatesCanonicalState)
+    }
+}
+
 extension V9_ChangeJournalCheckpointReplayTests {
     func testC22RecoverabilityVerificationAnchor() throws {
         XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)

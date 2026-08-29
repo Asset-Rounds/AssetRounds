@@ -197,6 +197,14 @@ final class V9_06DeletionRightsTests: XCTestCase {
     }
 }
 
+private final class C27V906RightsTypedLocatorAnchorTests: XCTestCase {
+    func testAssetLocatorContractAnchor() throws {
+        XCTAssertEqual(AssetLocatorStateV1.allCases, [.active, .retired, .revoked, .replaced])
+        XCTAssertEqual(LocatorResolutionOutcomeV1.allCases.count, 8)
+        XCTAssertFalse(AssetLocatorLifecycleAdapterV1.resolutionGrantsAccess)
+    }
+}
+
 extension V9_06DeletionRightsTests {
     func testC24AccessibleDocumentTypedAnchor() throws {
         XCTAssertEqual(AccessibleDocumentSemanticTreeV1.schemaVersion, 1)

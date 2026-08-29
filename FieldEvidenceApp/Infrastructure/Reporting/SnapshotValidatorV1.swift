@@ -1673,3 +1673,27 @@ extension SnapshotValidatorV1 {
     static let surveyDefinitionAnswersAreNeverReportInput = true
     static let surveyDefinitionMissingStateFailsClosed = true
 }
+
+// MARK: - C27 asset-locator validation boundary
+
+extension SnapshotValidatorV1 {
+    static func validateAssetLocatorProjection(
+        _ projection: AssetLocatorReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> AssetLocatorReportProjectionV1 {
+        try ReportProjectionRegistryV1.validateAssetLocatorProjection(
+            projection,
+            format: format
+        )
+    }
+
+    static func validateAssetLocatorOpenJSON(
+        _ data: Data
+    ) throws -> AssetLocatorReportProjectionV1 {
+        try DeterministicOpenJSONRendererV1.reopenAssetLocator(data)
+    }
+
+    static let assetLocatorHistoricDisplayIsImmutable = true
+    static let assetLocatorResolutionIsReadOnly = true
+    static let assetLocatorMissingStateFailsClosed = true
+}

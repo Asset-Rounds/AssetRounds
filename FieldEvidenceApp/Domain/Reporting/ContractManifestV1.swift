@@ -636,3 +636,42 @@ struct ContractSchemaDerivationReceiptV1: Codable, Equatable, Sendable {
         }
     }
 }
+
+// MARK: - C27 asset-locator consumer boundary
+
+/// The C27 report consumer binds to the canonical locator contracts without
+/// placing the opaque locator representation in a public report manifest.
+enum AssetLocatorContractManifestBoundaryV1 {
+    static let locatorTypeID = "AssetLocatorV1"
+    static let resolutionTypeID = "LocatorResolutionV1"
+    static let bindingReceiptTypeID = "LocatorBindingReceiptV1"
+    static let persistentSchemaCompatibilityID = "ASSET_LOCATOR_V1"
+    static let reportSectionID = "asset.locator"
+    static let resolutionIsDerivedOnly = true
+    static let historicInterpretationIsImmutable = true
+    static let opaqueInputExcluded = true
+    static let privateKeyMaterialExcluded = true
+    static let permissionClaimsExcluded = true
+    static let networkResolutionClaimsExcluded = true
+
+    static func validate() throws {
+        guard locatorTypeID == "AssetLocatorV1",
+              resolutionTypeID == "LocatorResolutionV1",
+              bindingReceiptTypeID == "LocatorBindingReceiptV1",
+              persistentSchemaCompatibilityID == "ASSET_LOCATOR_V1",
+              reportSectionID == "asset.locator",
+              resolutionIsDerivedOnly, historicInterpretationIsImmutable,
+              opaqueInputExcluded, privateKeyMaterialExcluded,
+              permissionClaimsExcluded, networkResolutionClaimsExcluded else {
+            throw SnapshotProjectionFailureV1.invalidValue
+        }
+    }
+}
+
+extension ContractManifestV1 {
+    func validateAssetLocatorConsumerContract() throws -> Self {
+        try validate()
+        try AssetLocatorContractManifestBoundaryV1.validate()
+        return self
+    }
+}

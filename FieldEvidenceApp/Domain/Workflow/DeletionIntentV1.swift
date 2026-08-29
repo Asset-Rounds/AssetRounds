@@ -4,6 +4,19 @@ enum FieldReferenceOrdinaryDeletionDispositionV1:Equatable,Sendable{case preserv
 enum AccessibleDocumentOrdinaryDeletionDispositionV1:Equatable,Sendable{case preserveSealedOutputAndAssessment(receiptIDs:Set<UUID>,outputSHA256:Set<String>);case removeAfterAuthorizedPrivacyExpiry(receiptID:UUID,tombstoneSHA256:String,redactionProofSHA256:String);case blockedMissingRetentionProof(receiptID:UUID)}
 enum SurveyDefinitionOrdinaryDeletionDispositionV1:Equatable,Sendable{case preserveImmutableHistory(identityIDs:Set<UUID>,releaseIDs:Set<UUID>)}
 enum SurveySessionOrdinaryDeletionDispositionV1:Equatable,Sendable{case preserveMutableHeadsAndImmutableHistory(sessionIDs:Set<UUID>,captureIDs:Set<UUID>,provisionalSubjectIDs:Set<UUID>,promotionReceiptIDs:Set<UUID>,publicationSnapshotIDs:Set<UUID>)}
+enum AssetLocatorDeletionIntentBoundaryV1 {
+    static let locatorRowsAreAssetOwned = true
+    static let bindingReceiptRowsMustBeRemovedWithTheirReferences = true
+    static let lifecycleEventsRemainInMutationHistory = true
+    static let privateKeyMaterialExported = false
+
+    static func validate() -> Bool {
+        locatorRowsAreAssetOwned
+            && bindingReceiptRowsMustBeRemovedWithTheirReferences
+            && lifecycleEventsRemainInMutationHistory
+            && !privateKeyMaterialExported
+    }
+}
 
 enum DeletionPhaseV1: String, Codable, Equatable, Sendable {
     case prepared
@@ -95,7 +108,8 @@ struct DeletionIntentEncoderV1 {
     }
 
     static func valid(_ intent: DeletionIntentV1) -> Bool {
-        guard intent.schemaVersion == 1 || intent.schemaVersion == 2,
+        guard AssetLocatorDeletionIntentBoundaryV1.validate(),
+              intent.schemaVersion == 1 || intent.schemaVersion == 2,
               unique(intent.countedPacketTombstones.map(\.id)),
               unique(intent.countedPacketTombstones.map(\.stableRootID)),
               Set(intent.countedPacketTombstones.compactMap(\.contentDeletedAt)).count <= 1,

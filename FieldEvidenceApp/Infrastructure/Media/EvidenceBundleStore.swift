@@ -2,6 +2,11 @@ import CryptoKit
 import Darwin
 import Foundation
 
+enum AssetLocatorEvidenceBundleBoundaryV1 {
+    static let locatorPayloadIsEvidenceMember = false
+    static let resolutionWritesEvidence = false
+}
+
 struct EvidenceBundleInput: Sendable {
     let originalJPEG: Data
     let thumbnailJPEG: Data

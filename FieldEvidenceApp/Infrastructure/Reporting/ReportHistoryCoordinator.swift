@@ -665,3 +665,75 @@ enum SurveyDefinitionReportHistoryPolicyV1 {
         return try SurveyDefinitionReportHistoryBindingV1(projection: projection)
     }
 }
+
+// MARK: - C27 frozen locator history
+
+/// A finalized report stores the exact locator binding interpretation that it
+/// displayed.  Later rebinding or retirement may create a new report, but
+/// cannot alter this value.
+struct AssetLocatorReportHistoryBindingV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let locator: AssetLocatorReferenceV1
+    let assetIDAtCapture: UUID
+    let bindingReceiptID: UUID
+    let bindingReceiptRevision: UInt64
+    let bindingReceiptSHA256: String
+    let resolutionOutcome: LocatorResolutionOutcomeV1
+    let historicInterpretationFrozen: Bool
+
+    init(interpretation: FrozenAssetLocatorInterpretationV1) throws {
+        try interpretation.validate()
+        schemaVersion = Self.schemaVersion
+        locator = interpretation.locator
+        assetIDAtCapture = interpretation.assetIDAtCapture
+        bindingReceiptID = interpretation.bindingReceiptID
+        bindingReceiptRevision = interpretation.bindingReceiptRevision
+        bindingReceiptSHA256 = interpretation.bindingReceiptSHA256
+        resolutionOutcome = interpretation.resolutionOutcome
+        historicInterpretationFrozen = true
+        try validate()
+    }
+
+    func validate() throws {
+        try locator.validate()
+        let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+        guard schemaVersion == Self.schemaVersion,
+              assetIDAtCapture != zero,
+              bindingReceiptID != zero,
+              bindingReceiptRevision > 0,
+              KernelCanonicalHashV1.validSHA256(bindingReceiptSHA256),
+              resolutionOutcome == .matched,
+              historicInterpretationFrozen else {
+            throw SnapshotProjectionFailureV1.staleBinding
+        }
+    }
+}
+
+enum AssetLocatorReportHistoryPolicyV1 {
+    static let finalizedArtifactsAreImmutable = true
+    static let laterBindingIsAmendOnly = true
+    static let currentPointerCannotRewriteHistory = true
+    static let resolutionPreviewIsNotHistory = true
+
+    static func binding(
+        from interpretation: FrozenAssetLocatorInterpretationV1
+    ) throws -> AssetLocatorReportHistoryBindingV1 {
+        guard finalizedArtifactsAreImmutable,
+              laterBindingIsAmendOnly,
+              currentPointerCannotRewriteHistory,
+              resolutionPreviewIsNotHistory else {
+            throw SnapshotProjectionFailureV1.staleBinding
+        }
+        return try AssetLocatorReportHistoryBindingV1(interpretation: interpretation)
+    }
+}
+
+extension ReportHistoryCoordinator {
+    static func assetLocatorHistoryBinding(
+        from interpretation: FrozenAssetLocatorInterpretationV1
+    ) throws -> AssetLocatorReportHistoryBindingV1 {
+        try AssetLocatorReportHistoryPolicyV1.binding(from: interpretation)
+    }
+}

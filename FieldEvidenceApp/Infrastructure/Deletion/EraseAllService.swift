@@ -107,6 +107,21 @@ enum FieldReferenceEraseAllPolicyV1{static func validatePublishedEmptyGeneration
 enum AccessibleDocumentEraseAllPolicyV1{static func validatePublishedEmptyGeneration(_ context:ModelContext)throws{guard try context.fetchCount(FetchDescriptor<AccessibleDocumentAssessmentReceiptRow>())==0 else{throw EraseAllServiceError.invalidAuthority}}}
 enum SurveyDefinitionEraseAllPolicyV1{static func validatePublishedEmptyGeneration(_ context:ModelContext)throws{guard try context.fetchCount(FetchDescriptor<SurveyDefinitionIdentityRow>())==0,try context.fetchCount(FetchDescriptor<SurveyDefinitionReleaseRow>())==0 else{throw EraseAllServiceError.invalidAuthority}}}
 enum SurveySessionEraseAllPolicyV1{static func validatePublishedEmptyGeneration(_ context:ModelContext)throws{guard try context.fetchCount(FetchDescriptor<SurveySessionRow>())==0,try context.fetchCount(FetchDescriptor<FactCaptureRow>())==0,try context.fetchCount(FetchDescriptor<ProvisionalSubjectRow>())==0,try context.fetchCount(FetchDescriptor<SubjectPromotionReceiptRow>())==0,try context.fetchCount(FetchDescriptor<SurveyPublicationSnapshotRow>())==0 else{throw EraseAllServiceError.invalidAuthority}}}
+enum AssetLocatorEraseAllPolicyV1 {
+    static let persistentSchemaVersion = 26
+    static let recordsSchemaVersion = 25
+    static let durableFamilyCount = 2
+    static let privateKeyMaterialExported = false
+    static let cloneForkSourceSignatureActive = false
+
+    static func validatePublishedEmptyGeneration(_ context: ModelContext) throws {
+        try AssetLocatorDeletionLedgerPolicyV1.validate()
+        guard try context.fetchCount(FetchDescriptor<AssetLocatorRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<LocatorBindingReceiptRow>()) == 0 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+}
 
 enum EraseAllServiceError: Error, Equatable {
     case contextHasChanges
@@ -1284,6 +1299,7 @@ private extension EraseAllService {
         try AccessibleDocumentEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try SurveyDefinitionEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try SurveySessionEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
+        try AssetLocatorEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         if let identity {
             let history = try MutationJournalStoreV1(
                 modelContext: session.modelContext,

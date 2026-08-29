@@ -1,5 +1,10 @@
 import Foundation
 
+enum AssetLocatorContentContractBoundaryV1 {
+    static let locatorContractIsRegisteredAsContent = false
+    static let locatorContractOwnsSeparateByteStore = false
+}
+
 enum ContentContractPublicationBoundaryV1: String, CaseIterable, Sendable {
     case beforeValidation = "BEFORE_VALIDATION"
     case afterValidationBeforePublication = "AFTER_VALIDATION_BEFORE_PUBLICATION"

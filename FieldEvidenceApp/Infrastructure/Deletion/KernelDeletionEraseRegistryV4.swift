@@ -1,6 +1,28 @@
 import Foundation
 
 enum SurveySessionKernelDeletionEnrollmentV1{static let persistentRowNames=Set(["SurveySessionRow","FactCaptureRow","ProvisionalSubjectRow","SubjectPromotionReceiptRow","SurveyPublicationSnapshotRow"]);static func validate()throws{guard persistentRowNames.count==5 else{throw KernelPersistenceV4Failure.incompleteCoverage};try SurveySessionEraseAllEnrollmentV1.validate()}}
+enum AssetLocatorKernelDeletionEnrollmentV1 {
+    static let persistentRowNames: Set<String> = [
+        "AssetLocatorRow", "LocatorBindingReceiptRow"
+    ]
+    static let derivedProjectionNames: Set<String> = [
+        "LocatorResolutionV1", "LocatorBindingPreviewV1",
+        "AssetLocatorLifecycleClosureV1"
+    ]
+    static let ordinaryAssetDeleteRemovesOwnedRows = true
+    static let workspaceEraseClearsRows = true
+
+    static func validate() throws {
+        guard persistentRowNames.count == 2,
+              derivedProjectionNames.count == 3,
+              persistentRowNames.isDisjoint(with: derivedProjectionNames),
+              ordinaryAssetDeleteRemovesOwnedRows,
+              workspaceEraseClearsRows else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+        try AssetLocatorDeletionLedgerPolicyV1.validate()
+    }
+}
 
 enum KernelDeleteDispositionV4: String, Codable, Sendable {
     case explicitOnly = "EXPLICIT_ONLY"
@@ -335,6 +357,7 @@ enum KernelDeletionEraseRegistryV4 {
     }
 
     static func validate() throws {
+        try AssetLocatorKernelDeletionEnrollmentV1.validate()
         try validateSurveyDefinitionLifecycle()
         try SurveySessionKernelDeletionEnrollmentV1.validate()
         try validateClientCapabilityLifecycle()

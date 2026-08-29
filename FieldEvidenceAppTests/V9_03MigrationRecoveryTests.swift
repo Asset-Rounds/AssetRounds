@@ -1433,6 +1433,14 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
     }
 }
 
+private final class C27V903TypedLocatorAnchorTests: XCTestCase {
+    func testAssetLocatorContractAnchor() throws {
+        XCTAssertEqual(Set(LocatorInputSourceV1.allCases), [.camera, .manual, .imported])
+        XCTAssertEqual(AssetLocatorStateV1.allCases.count, 4)
+        XCTAssertFalse(AssetLocatorLifecycleAdapterV1.scanMutatesCanonicalState)
+    }
+}
+
 extension V9_03MigrationRecoveryTests {
     func testC24AccessibleDocumentTypedAnchor() throws {
         XCTAssertEqual(AccessibleDocumentSemanticTreeV1.schemaVersion, 1)

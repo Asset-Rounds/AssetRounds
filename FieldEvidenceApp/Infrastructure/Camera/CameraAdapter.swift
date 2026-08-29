@@ -81,3 +81,12 @@ struct CameraAdapter {
         }
     }
 }
+
+enum AssetLocatorCameraBoundaryV1 {
+    static let cameraResolutionUsesOfflineResolver = true
+    static let successfulDecodeStartsWork = false
+
+    static func decodedInput(_ data: Data) -> LocatorDecodedInputV1 {
+        AssetLocatorInputDecoderV1.decode(data, source: .camera)
+    }
+}

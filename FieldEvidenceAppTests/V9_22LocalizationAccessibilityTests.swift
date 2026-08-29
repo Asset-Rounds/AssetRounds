@@ -1785,6 +1785,14 @@ final class V9_22LocalizationAccessibilityTests: XCTestCase {
     }
 }
 
+private final class C27V922TypedLocatorAnchorTests: XCTestCase {
+    func testAssetLocatorContractAnchor() throws {
+        XCTAssertEqual(ExternalKeyNormalizationV1.allCases, [.exactNFC, .asciiCaseInsensitive])
+        XCTAssertEqual(LocatorResolutionOutcomeV1.allCases.count, 8)
+        XCTAssertFalse(AssetLocatorLifecycleAdapterV1.scanMutatesCanonicalState)
+    }
+}
+
 extension V9_22LocalizationAccessibilityTests {
     func testC24AccessibleDocumentTypedAnchor() throws {
         XCTAssertEqual(AccessibleDocumentSemanticTreeV1.schemaVersion, 1)

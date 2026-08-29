@@ -36,6 +36,13 @@ final class Asset {
 }
 
 extension Asset {
+    /// A locator resolves to this stable asset identifier only. It never
+    /// changes the asset label, package binding, or workflow state.
+    func validateResolvedLocator(_ locator: AssetLocatorV1) throws {
+        try locator.validate()
+        guard locator.assetID == id else { throw AssetLocatorFailureV1.invalidValue }
+    }
+
     /// Existing values are the complete authority for the V9→V10 legacy
     /// semantic migration. No product identifier, installation date, lifecycle
     /// event, condition, recall, warranty, or operational disposition is

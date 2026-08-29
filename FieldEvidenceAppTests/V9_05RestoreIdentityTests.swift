@@ -554,6 +554,14 @@ final class V9_05RestoreIdentityTests: XCTestCase {
     }
 }
 
+private final class C27V905TypedLocatorAnchorTests: XCTestCase {
+    func testAssetLocatorContractAnchor() throws {
+        XCTAssertEqual(ExternalKeyNormalizationV1.allCases.count, 2)
+        XCTAssertEqual(LocatorBindingActionV1.allCases.count, 6)
+        XCTAssertFalse(AssetLocatorLifecycleAdapterV1.resolutionStartsWork)
+    }
+}
+
 extension V9_05RestoreIdentityTests {
     func testC24AccessibleDocumentTypedAnchor() throws {
         XCTAssertEqual(AccessibleDocumentSemanticTreeV1.schemaVersion, 1)

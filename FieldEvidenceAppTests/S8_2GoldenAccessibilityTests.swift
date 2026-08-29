@@ -124,6 +124,14 @@ final class S8_2GoldenAccessibilityTests: XCTestCase {
     }
 }
 
+private final class C27S82TypedLocatorAnchorTests: XCTestCase {
+    func testAssetLocatorContractAnchor() throws {
+        XCTAssertEqual(ExternalKeyNormalizationV1.allCases.count, 2)
+        XCTAssertEqual(AssetLocatorLimitsV1.maximumCandidates, 32)
+        XCTAssertFalse(AssetLocatorLifecycleAdapterV1.resolutionGrantsAccess)
+    }
+}
+
 extension S8_2GoldenAccessibilityTests {
     func testC24AccessibleDocumentTypedAnchor() throws {
         XCTAssertEqual(AccessibleDocumentSemanticTreeV1.schemaVersion, 1)

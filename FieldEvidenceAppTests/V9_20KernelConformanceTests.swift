@@ -499,6 +499,14 @@ final class V9_20KernelConformanceTests: XCTestCase {
 
 }
 
+private final class C27V920TypedLocatorAnchorTests: XCTestCase {
+    func testAssetLocatorContractAnchor() throws {
+        XCTAssertEqual(PersistentSchemaV26.models.count, 94)
+        XCTAssertEqual(AssetLocatorStateV1.allCases.count, 4)
+        XCTAssertFalse(AssetLocatorLifecycleAdapterV1.resolutionGrantsAccess)
+    }
+}
+
 extension V9_20KernelConformanceTests {
     func testC24AccessibleDocumentTypedAnchor() throws {
         XCTAssertEqual(AccessibleDocumentSemanticTreeV1.schemaVersion, 1)

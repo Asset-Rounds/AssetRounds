@@ -690,6 +690,14 @@ final class S6_4AtomicRestoreTests: XCTestCase {
     }
 }
 
+private final class C27S64TypedLocatorAnchorTests: XCTestCase {
+    func testAssetLocatorContractAnchor() throws {
+        XCTAssertEqual(AssetLocatorStateV1.allCases.count, 4)
+        XCTAssertEqual(LocatorBindingActionV1.allCases.count, 6)
+        XCTAssertFalse(AssetLocatorLifecycleAdapterV1.resolutionStartsWork)
+    }
+}
+
 extension S6_4AtomicRestoreTests {
     func testC24AccessibleDocumentTypedAnchor() throws {
         XCTAssertEqual(AccessibleDocumentSemanticTreeV1.schemaVersion, 1)

@@ -20,6 +20,24 @@ enum AccessibleDocumentRestoreIdentityDispositionV1:String,Codable,Equatable,Sen
     static func resolve(_ mode:BackupRestoreMode)->Self{switch mode{case .emptyInstall,.replaceExisting:return .preserveAcceptedSourceBinding;case .clone,.fork:return .reboundAsIncompleteHistoricSourceEvidence}}
 }
 
+/// Locator restore identity is deliberately separate from the generic record
+/// disposition.  A replacement in the same workspace can retain a public
+/// signed payload, while a clone/fork must make the source signature historic
+/// and bind a destination-safe external representation.
+enum AssetLocatorRestoreIdentityDispositionV1: String, Codable, Equatable, Sendable {
+    case preservePublicSignedPayload = "PRESERVE_PUBLIC_SIGNED_PAYLOAD"
+    case reboundAsHistoricSourceEvidence = "REBOUND_AS_HISTORIC_SOURCE_EVIDENCE"
+
+    static func resolve(_ mode: BackupRestoreMode) -> Self {
+        switch mode {
+        case .emptyInstall, .replaceExisting:
+            return .preservePublicSignedPayload
+        case .clone, .fork:
+            return .reboundAsHistoricSourceEvidence
+        }
+    }
+}
+
 extension RestoreIdentityV1 {
     func destinationPackageEvolutionWorkspaceID() -> WorkspaceID {
         WorkspaceID(rawValue: targetPointer.workspaceID)
@@ -35,6 +53,12 @@ extension RestoreIdentityV1 {
     func destinationClientCapabilityWorkspaceID() -> WorkspaceID { WorkspaceID(rawValue: targetPointer.workspaceID) }
     func destinationRecoverabilityWorkspaceID() -> WorkspaceID { WorkspaceID(rawValue: targetPointer.workspaceID) }
     func destinationFieldReferenceWorkspaceID()->WorkspaceID{WorkspaceID(rawValue:targetPointer.workspaceID)}
+    func assetLocatorDisposition() -> AssetLocatorRestoreIdentityDispositionV1 {
+        AssetLocatorRestoreIdentityDispositionV1.resolve(mode)
+    }
+    func preservesAssetLocatorPublicSignedPayload() -> Bool {
+        assetLocatorDisposition() == .preservePublicSignedPayload
+    }
     static let packageEvolutionIdentityRule = "PRESERVE_RELEASE_RUN_RECEIPT_POINTER_IDS_REBIND_WORKSPACE_AND_DIGESTS"
 }
 

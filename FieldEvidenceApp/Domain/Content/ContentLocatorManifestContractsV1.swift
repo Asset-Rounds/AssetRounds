@@ -1,5 +1,10 @@
 import Foundation
 
+enum AssetLocatorManifestBoundaryV1 {
+    static let locatorLookupUsesContentLocatorManifest = false
+    static let locatorResolutionMayFetchBytes = false
+}
+
 struct ContentLocatorV1: Codable, Equatable, Hashable, Identifiable, Sendable {
     static let schemaVersion = 1
     let schemaVersion: Int

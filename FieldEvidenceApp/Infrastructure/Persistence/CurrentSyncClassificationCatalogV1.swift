@@ -109,10 +109,11 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
     static let v23PersistentModelNames=["AccessibleDocumentAssessmentReceiptRow"]
     static let v24PersistentModelNames=["SurveyDefinitionIdentityRow","SurveyDefinitionReleaseRow"]
     static let v25PersistentModelNames=["FactCaptureRow","ProvisionalSubjectRow","SubjectPromotionReceiptRow","SurveyPublicationSnapshotRow","SurveySessionRow"]
+    static let v26PersistentModelNames=["AssetLocatorRow","LocatorBindingReceiptRow"]
     static let activePersistentModelNames =
         (persistentModelNames + v6PersistentModelNames + v7PersistentModelNames
             + v8PersistentModelNames + v9PersistentModelNames + v10PersistentModelNames
-            + v11PersistentModelNames + v12PersistentModelNames + v13PersistentModelNames + v14PersistentModelNames + v15PersistentModelNames + v16PersistentModelNames + v17PersistentModelNames + v18PersistentModelNames + v19PersistentModelNames + v20PersistentModelNames + v21PersistentModelNames + v22PersistentModelNames + v23PersistentModelNames + v24PersistentModelNames + v25PersistentModelNames).sorted()
+            + v11PersistentModelNames + v12PersistentModelNames + v13PersistentModelNames + v14PersistentModelNames + v15PersistentModelNames + v16PersistentModelNames + v17PersistentModelNames + v18PersistentModelNames + v19PersistentModelNames + v20PersistentModelNames + v21PersistentModelNames + v22PersistentModelNames + v23PersistentModelNames + v24PersistentModelNames + v25PersistentModelNames + v26PersistentModelNames).sorted()
 
     static let ownedFileClassNames = [
         "cache", "commerceEntitlementCache", "database", "databaseSHM", "databaseWAL",
@@ -182,6 +183,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "AccessibleDocumentAssessmentReceiptV1",
         "SurveyDefinitionIdentityV1","SurveyDefinitionReleaseV1",
         "SurveySessionV1","FactCaptureV1","ProvisionalSubjectV1","SubjectPromotionReceiptV1","SurveyPublicationSnapshotV1","SurveySessionLifecycleClosureV1",
+        "AssetLocatorV1","LocatorBindingReceiptV1","AssetLocatorLifecycleClosureV1",
     ]
 
     static let derivedIndexNames = [
@@ -235,6 +237,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "StoreSemanticEnvelopeV23","AccessibleDocumentSemanticTreeV1","AccessibleDocumentLifecycleV1",
         "StoreSemanticEnvelopeV24","SurveyDefinitionSemanticDiffV1","SurveyDefinitionAdoptionPreviewV1","SurveyTemplateQuarantineAssessmentV1",
         "StoreSemanticEnvelopeV25",
+        "StoreSemanticEnvelopeV26","LocatorBindingPreviewV1","LocatorResolutionV1",
         "WorkspaceMutationStateSemanticV1",
         "entityMutationRevision",
         "workspaceMutationState",
@@ -757,6 +760,7 @@ private extension CurrentSyncClassificationCatalogV1 {
             ))
         }
         for name in v25PersistentModelNames{let dependencies:[SyncSubjectIdentityV1];switch name{case "FactCaptureRow","SurveyPublicationSnapshotRow":dependencies=[try subject(category:.persistentModel,name:"SurveySessionRow")];case "SubjectPromotionReceiptRow":dependencies=[try subject(category:.persistentModel,name:"ProvisionalSubjectRow")];default:dependencies=[]};specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:dependencies))}
+        for name in v26PersistentModelNames{let dependencies=name=="LocatorBindingReceiptRow" ? [try subject(category:.persistentModel,name:"AssetLocatorRow")]:[];specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:dependencies))}
 
         for name in portableContentProjectionNames {
             let profile: AdditionalProfile = name == "ReportSnapshotV1"
@@ -1166,6 +1170,9 @@ private extension CurrentSyncClassificationCatalogV1 {
         case "SubjectPromotionReceiptV1":return[try subject(category:.persistentModel,name:"SubjectPromotionReceiptRow")]
         case "SurveyPublicationSnapshotV1":return[try subject(category:.persistentModel,name:"SurveyPublicationSnapshotRow")]
         case "SurveySessionLifecycleClosureV1":return try subjects(category:.persistentModel,names:v25PersistentModelNames)
+        case "AssetLocatorV1":return[try subject(category:.persistentModel,name:"AssetLocatorRow")]
+        case "LocatorBindingReceiptV1":return[try subject(category:.persistentModel,name:"LocatorBindingReceiptRow")]
+        case "AssetLocatorLifecycleClosureV1":return try subjects(category:.persistentModel,names:v26PersistentModelNames)
         case "PackageSemanticDiffV1","DraftUpgradePlanV1":return []
         default:
             throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
@@ -1226,13 +1233,15 @@ private extension CurrentSyncClassificationCatalogV1 {
         case "StoreSemanticEnvelopeV17":return try subjects(category:.persistentModel,names:persistentModelNames+v6PersistentModelNames+v7PersistentModelNames+v8PersistentModelNames+v9PersistentModelNames+v10PersistentModelNames+v11PersistentModelNames+v12PersistentModelNames+v13PersistentModelNames+v14PersistentModelNames+v15PersistentModelNames+v16PersistentModelNames+v17PersistentModelNames)
         case "StoreSemanticEnvelopeV18":return try subjects(category:.persistentModel,names:persistentModelNames+v6PersistentModelNames+v7PersistentModelNames+v8PersistentModelNames+v9PersistentModelNames+v10PersistentModelNames+v11PersistentModelNames+v12PersistentModelNames+v13PersistentModelNames+v14PersistentModelNames+v15PersistentModelNames+v16PersistentModelNames+v17PersistentModelNames+v18PersistentModelNames)
         case "StoreSemanticEnvelopeV19":return try subjects(category:.persistentModel,names:(v1PersistentModelNames+v2PersistentModelNames+v3PersistentModelNames+v4PersistentModelNames+v5PersistentModelNames+v6PersistentModelNames+v7PersistentModelNames+v8PersistentModelNames+v9PersistentModelNames+v10PersistentModelNames+v11PersistentModelNames+v12PersistentModelNames+v13PersistentModelNames+v14PersistentModelNames+v15PersistentModelNames+v16PersistentModelNames+v17PersistentModelNames+v18PersistentModelNames+v19PersistentModelNames))
-        case "StoreSemanticEnvelopeV20":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v21PersistentModelNames+v22PersistentModelNames+v23PersistentModelNames+v24PersistentModelNames+v25PersistentModelNames).contains($0)})
-        case "StoreSemanticEnvelopeV21":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v22PersistentModelNames+v23PersistentModelNames+v24PersistentModelNames+v25PersistentModelNames).contains($0)})
+        case "StoreSemanticEnvelopeV20":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v21PersistentModelNames+v22PersistentModelNames+v23PersistentModelNames+v24PersistentModelNames+v25PersistentModelNames+v26PersistentModelNames).contains($0)})
+        case "StoreSemanticEnvelopeV21":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v22PersistentModelNames+v23PersistentModelNames+v24PersistentModelNames+v25PersistentModelNames+v26PersistentModelNames).contains($0)})
         case "RecoverabilityVerificationStagingV1","RecoverabilityFreshnessProjectionV1","RecoverabilityVerificationLifecycleV1":return[try subject(category:.persistentModel,name:"RecoverabilityVerificationReceiptRow")]
-        case "StoreSemanticEnvelopeV22":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v23PersistentModelNames+v24PersistentModelNames+v25PersistentModelNames).contains($0)})
-        case "StoreSemanticEnvelopeV23":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v24PersistentModelNames+v25PersistentModelNames).contains($0)})
-        case "StoreSemanticEnvelopeV24":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!v25PersistentModelNames.contains($0)})
-        case "StoreSemanticEnvelopeV25":return try subjects(category:.persistentModel,names:activePersistentModelNames)
+        case "StoreSemanticEnvelopeV22":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v23PersistentModelNames+v24PersistentModelNames+v25PersistentModelNames+v26PersistentModelNames).contains($0)})
+        case "StoreSemanticEnvelopeV23":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v24PersistentModelNames+v25PersistentModelNames+v26PersistentModelNames).contains($0)})
+        case "StoreSemanticEnvelopeV24":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v25PersistentModelNames+v26PersistentModelNames).contains($0)})
+        case "StoreSemanticEnvelopeV25":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!v26PersistentModelNames.contains($0)})
+        case "StoreSemanticEnvelopeV26":return try subjects(category:.persistentModel,names:activePersistentModelNames)
+        case "LocatorBindingPreviewV1","LocatorResolutionV1":return try subjects(category:.persistentModel,names:v26PersistentModelNames)
         case "AccessibleDocumentSemanticTreeV1","AccessibleDocumentLifecycleV1":return try subjects(category:.persistentModel,names:v23PersistentModelNames)
         case "SurveyDefinitionSemanticDiffV1":return[try subject(category:.persistentModel,name:"SurveyDefinitionReleaseRow")]
         case "SurveyDefinitionAdoptionPreviewV1":return try subjects(category:.persistentModel,names:v24PersistentModelNames)
@@ -1398,8 +1407,9 @@ private extension CurrentSyncClassificationCatalogV1 {
             AccessibleDocumentAssessmentReceiptRow.self,
             SurveyDefinitionIdentityRow.self,SurveyDefinitionReleaseRow.self,
             SurveySessionRow.self,FactCaptureRow.self,ProvisionalSubjectRow.self,SubjectPromotionReceiptRow.self,SurveyPublicationSnapshotRow.self,
+            AssetLocatorRow.self,LocatorBindingReceiptRow.self,
         ]
-        let runtimeNames = PersistentSchemaV25.models.map { modelType in
+        let runtimeNames = PersistentSchemaV26.models.map { modelType in
             String(describing: modelType)
                 .split(separator: ".")
                 .last
@@ -1412,9 +1422,9 @@ private extension CurrentSyncClassificationCatalogV1 {
               Set(PersistentSchemaV5.models.map { ObjectIdentifier($0) })
                 == Set(frozenV5.map { ObjectIdentifier($0) }),
               frozenNames == persistentModelNames,
-              PersistentSchemaV25.models.count == 92,
-              PersistentSchemaV25.models.count == expected.count,
-              Set(PersistentSchemaV25.models.map { ObjectIdentifier($0) })
+              PersistentSchemaV26.models.count == 94,
+              PersistentSchemaV26.models.count == expected.count,
+              Set(PersistentSchemaV26.models.map { ObjectIdentifier($0) })
                 == Set(expected.map { ObjectIdentifier($0) }),
               runtimeNames.count == Set(runtimeNames).count,
               runtimeNames.allSatisfy(ReplicationContractValidationV1.validToken),

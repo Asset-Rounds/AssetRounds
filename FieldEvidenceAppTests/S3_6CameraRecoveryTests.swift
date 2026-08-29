@@ -280,6 +280,14 @@ final class S3_6CameraRecoveryTests: XCTestCase {
     }
 }
 
+private final class C27S36TypedLocatorAnchorTests: XCTestCase {
+    func testAssetLocatorContractAnchor() throws {
+        XCTAssertEqual(LocatorInputSourceV1.allCases, [.camera, .manual, .imported])
+        XCTAssertEqual(AssetLocatorLimitsV1.maximumInputBytes, 1_024)
+        XCTAssertFalse(AssetLocatorLifecycleAdapterV1.resolutionStartsWork)
+    }
+}
+
 private enum PermissionScenario: CaseIterable {
     case notDeterminedThenDenied
     case denied

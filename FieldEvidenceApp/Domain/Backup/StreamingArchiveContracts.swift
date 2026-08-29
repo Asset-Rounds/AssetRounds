@@ -6,6 +6,70 @@ enum GuidedSurveyStreamingArchivePolicyV1 {
     static let lifecycleEventsRemainInMutationHistory = true
 }
 
+/// C27 keeps locator rows in the same bounded archive stream as the other
+/// backup records.  The stream carries public locator material and immutable
+/// binding receipts only; resolution previews and private signing material are
+/// never archive members.
+enum AssetLocatorStreamingArchivePolicyV1 {
+    static let recordsSchemaVersion = 25
+    static let persistentSchemaVersion = 26
+    static let durableFamilyCount = 2
+    static let lifecycleEventsRemainInMutationHistory = true
+    static let sameWorkspacePreservesPublicSignedPayload = true
+    static let cloneForkSourceSignatureActive = false
+    static let privateKeyMaterialMayBeExported = false
+
+    static func validate(records: V4BackupRecordsV1) throws {
+        guard (1...recordsSchemaVersion).contains(records.recordsSchemaVersion) else {
+            throw StreamingArchiveFailureV1.invalidArchive
+        }
+        guard records.recordsSchemaVersion < recordsSchemaVersion else {
+            guard records.assetLocators.count <= 200_000 else {
+                throw StreamingArchiveFailureV1.entryLimitExceeded
+            }
+            var locators: [AssetLocatorV1] = []
+            var receipts: [LocatorBindingReceiptV1] = []
+            for record in records.assetLocators {
+                do {
+                    switch record.kind {
+                    case .locator:
+                        let value = try AssetLocatorCanonicalCodecV1.decode(
+                            AssetLocatorV1.self, from: record.canonicalData
+                        )
+                        guard value.locatorID == record.id,
+                              value.workspaceID.rawValue == record.workspaceID,
+                              value.revision == record.revision else {
+                            throw StreamingArchiveFailureV1.invalidArchive
+                        }
+                        locators.append(value)
+                    case .bindingReceipt:
+                        let value = try AssetLocatorCanonicalCodecV1.decode(
+                            LocatorBindingReceiptV1.self, from: record.canonicalData
+                        )
+                        guard value.receiptID == record.id,
+                              value.workspaceID.rawValue == record.workspaceID,
+                              value.revision == record.revision else {
+                            throw StreamingArchiveFailureV1.invalidArchive
+                        }
+                        receipts.append(value)
+                    }
+                } catch let error as StreamingArchiveFailureV1 {
+                    throw error
+                } catch {
+                    throw StreamingArchiveFailureV1.invalidArchive
+                }
+            }
+            do {
+                try AssetLocatorLifecycleClosureV1(
+                    locators: locators, receipts: receipts
+                ).validate()
+            } catch {
+                throw StreamingArchiveFailureV1.invalidArchive
+            }
+        }
+    }
+}
+
 enum StreamingArchiveCompressionV1: String, Codable, CaseIterable, Sendable {
     case stored
     case zlib

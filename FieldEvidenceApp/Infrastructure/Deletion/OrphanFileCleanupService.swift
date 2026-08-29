@@ -23,6 +23,38 @@ enum OrphanFileCleanupServiceError: Error, Equatable, Sendable {
 
 enum FieldReferenceOrphanCleanupPolicyV1{static func removableReleaseIDs(releases:[FieldReferenceReleaseV1],bindings:[FieldReferenceBindingV1])->Set<UUID>{Set(releases.map(\.releaseID)).subtracting(Set(bindings.map(\.releaseID)))}static func protectedContentIDs(releases:[FieldReferenceReleaseV1],bindings:[FieldReferenceBindingV1])->Set<String>{let retained=Set(bindings.map(\.releaseID));return Set(releases.filter{retained.contains($0.releaseID)}.flatMap{$0.manifest.entries.map(\.contentID)})}}
 enum AccessibleDocumentOrphanCleanupPolicyV1{static func protectedOutputDigests(_ receipts:[AccessibleDocumentAssessmentReceiptV1])->Set<String>{Set(receipts.map(\.outputSHA256))}static func mayRemove(outputSHA256:String,receipts:[AccessibleDocumentAssessmentReceiptV1],hasAuthorizedExpiryTombstoneAndRedactionProof:Bool)->Bool{hasAuthorizedExpiryTombstoneAndRedactionProof && !protectedOutputDigests(receipts).contains(outputSHA256)}}
+/// Asset-locator rows are canonical lookup/receipt state, not file-owned
+/// payloads. Orphan maintenance may never infer a row deletion from a missing
+/// file; callers must provide the complete immutable locator/receipt closure.
+enum AssetLocatorOrphanCleanupPolicyV1 {
+    static let locatorRowsOwnNoFilesystemPayload = true
+    static let bindingReceiptsRequireReferencedLocators = true
+    static let privateKeyMaterialIsNeverExportedOrCleaned = true
+    static let maximumValues = 200_000
+
+    static func validate(
+        locators: [AssetLocatorV1],
+        receipts: [LocatorBindingReceiptV1]
+    ) throws {
+        guard locatorRowsOwnNoFilesystemPayload,
+              bindingReceiptsRequireReferencedLocators,
+              privateKeyMaterialIsNeverExportedOrCleaned,
+              locators.count <= maximumValues,
+              receipts.count <= maximumValues,
+              Set(locators.map(\.locatorID)).count == locators.count,
+              Set(receipts.map(\.receiptID)).count == receipts.count else {
+            throw OrphanFileCleanupServiceError.invalidOwnedLayout
+        }
+        do {
+            try AssetLocatorLifecycleClosureV1(
+                locators: locators,
+                receipts: receipts
+            ).validate()
+        } catch {
+            throw OrphanFileCleanupServiceError.invalidOwnedLayout
+        }
+    }
+}
 enum SurveyTemplateOrphanCleanupPolicyV1 {
     /// Import archives are staging-only. Cleanup may remove only a quarantined
     /// archive that was never admitted as either canonical survey family.

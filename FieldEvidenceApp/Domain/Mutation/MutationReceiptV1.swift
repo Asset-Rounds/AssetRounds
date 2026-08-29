@@ -128,6 +128,8 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
     case provisionalSubject(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case subjectPromotionReceipt(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case surveyPublicationSnapshot(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case assetLocator(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case locatorBindingReceipt(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case workflowRecord(id: UUID, revision: UInt64, semanticSHA256: String)
     case evidenceFile(id: UUID, revision: UInt64, semanticSHA256: String)
     case issue(id: UUID, revision: UInt64, semanticSHA256: String)
@@ -209,6 +211,8 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
             case let .provisionalSubject(id,_,_,_):return try .init(kind:.provisionalSubject,id:id)
             case let .subjectPromotionReceipt(id,_,_,_):return try .init(kind:.subjectPromotionReceipt,id:id)
             case let .surveyPublicationSnapshot(id,_,_,_):return try .init(kind:.surveyPublicationSnapshot,id:id)
+            case let .assetLocator(id,_,_,_):return try .init(kind:.assetLocator,id:id)
+            case let .locatorBindingReceipt(id,_,_,_):return try .init(kind:.locatorBindingReceipt,id:id)
             case let .workflowRecord(id, _, _): return try .init(kind: .workflowRecord, id: id)
             case let .evidenceFile(id, _, _): return try .init(kind: .evidenceFile, id: id)
             case let .issue(id, _, _): return try .init(kind: .issue, id: id)
@@ -222,7 +226,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
 
     var semanticSHA256: String {
         switch self {
-        case let .accessibleDocumentAssessmentReceipt(_,_,_,value),let .surveyDefinitionIdentity(_,_,_,value),let .surveyDefinitionRelease(_,_,_,value),let .surveySession(_,_,_,value),let .factCapture(_,_,_,value),let .provisionalSubject(_,_,_,value),let .subjectPromotionReceipt(_,_,_,value),let .surveyPublicationSnapshot(_,_,_,value):return value
+        case let .accessibleDocumentAssessmentReceipt(_,_,_,value),let .surveyDefinitionIdentity(_,_,_,value),let .surveyDefinitionRelease(_,_,_,value),let .surveySession(_,_,_,value),let .factCapture(_,_,_,value),let .provisionalSubject(_,_,_,value),let .subjectPromotionReceipt(_,_,_,value),let .surveyPublicationSnapshot(_,_,_,value),let .assetLocator(_,_,_,value),let .locatorBindingReceipt(_,_,_,value):return value
         case let .site(_, _, value), let .asset(_, _, value), let .locationNode(_, _, value),
              let .assetPlacementEvent(_, _, value), let .assetCompositionEdge(_, _, value),
              let .assetCompositionEvent(_, _, value), let .savedSmartView(_, _, value),
@@ -320,6 +324,8 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
             case let .provisionalSubject(_,v,_,_):guard v.kind == .provisionalSubject else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             case let .subjectPromotionReceipt(_,v,_,_):guard v.kind == .subjectPromotionReceipt else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             case let .surveyPublicationSnapshot(_,v,_,_):guard v.kind == .surveyPublicationSnapshot else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+            case let .assetLocator(_,v,_,_):guard v.kind == .assetLocator else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+            case let .locatorBindingReceipt(_,v,_,_):guard v.kind == .locatorBindingReceipt else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             default:
                 return try identity
             }
@@ -328,7 +334,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
 
     var revision: UInt64 {
         switch self {
-        case let .accessibleDocumentAssessmentReceipt(_,_,value,_),let .surveyDefinitionIdentity(_,_,value,_),let .surveyDefinitionRelease(_,_,value,_),let .surveySession(_,_,value,_),let .factCapture(_,_,value,_),let .provisionalSubject(_,_,value,_),let .subjectPromotionReceipt(_,_,value,_),let .surveyPublicationSnapshot(_,_,value,_):return value
+        case let .accessibleDocumentAssessmentReceipt(_,_,value,_),let .surveyDefinitionIdentity(_,_,value,_),let .surveyDefinitionRelease(_,_,value,_),let .surveySession(_,_,value,_),let .factCapture(_,_,value,_),let .provisionalSubject(_,_,value,_),let .subjectPromotionReceipt(_,_,value,_),let .surveyPublicationSnapshot(_,_,value,_),let .assetLocator(_,_,value,_),let .locatorBindingReceipt(_,_,value,_):return value
         case let .site(_, value, _), let .asset(_, value, _),
              let .locationNode(_, value, _), let .assetPlacementEvent(_, value, _),
              let .assetCompositionEdge(_, value, _), let .assetCompositionEvent(_, value, _),
@@ -737,6 +743,9 @@ extension SurveySessionMutationV1 {
 }
 
 struct SurveySessionMutationReceiptV1:Codable,Equatable,Sendable{let mutationSHA256:String;let mutationReceipt:MutationReceiptV1;init(mutation:SurveySessionMutationV1,mutationReceipt:MutationReceiptV1)throws{try mutation.validate();try mutationReceipt.validate();let affected=try mutation.affectedIdentities,concurrency=try mutation.concurrencyIdentities,images=try mutation.mutationPostImages;guard mutationReceipt.mutationID==mutation.mutationID,mutationReceipt.identity.workspaceID==mutation.workspaceID,mutationReceipt.commandBodySHA256==(try WorkspaceMutationCanonicalV1.sha256(WorkspaceCommandV1.applySurveySession(mutation))),mutationReceipt.postImages==images,try concurrency.allSatisfy({identity in mutationReceipt.expectedRevision.entityRevisions.first(where:{row in row.identity==identity})?.revision == (try mutation.expectedRevision(for:identity))}),try images.allSatisfy({image in mutationReceipt.resultingRevision.entityRevisions.first(where:{$0.identity==(try image.identity)})?.revision==image.revision}),affected==images.compactMap{try? $0.identity} else{throw WorkspaceMutationFailureV1.invalidReceipt};mutationSHA256=try WorkspaceMutationCanonicalV1.sha256(mutation);self.mutationReceipt=mutationReceipt}}
+
+extension AssetLocatorMutationV1{var mutationPostImages:[MutationPostImageV1]{get throws{let concurrency=try concurrencyIdentities;func c(_ kind:WorkspaceEntityKindV1,_ id:UUID)throws->WorkspaceEntityIdentityV1{guard let value=concurrency.first(where:{$0.kind==kind&&$0.id==id}) ?? (kind == .locatorBindingReceipt ? concurrency.first(where:{$0.kind==kind}):nil)else{throw WorkspaceMutationFailureV1.invalidCommand};return value};let values:[MutationPostImageV1];switch payload{case let .bind(locator,receipt,_):values=[.assetLocator(id:locator.locatorID,concurrencyIdentity:try c(.assetLocator,locator.locatorID),revision:locator.revision,semanticSHA256:locator.locatorSHA256),.locatorBindingReceipt(id:receipt.receiptID,concurrencyIdentity:try c(.locatorBindingReceipt,receipt.receiptID),revision:receipt.revision,semanticSHA256:receipt.receiptSHA256)];case let .transition(locator,receipt,prior,_):values=[.assetLocator(id:locator.locatorID,concurrencyIdentity:try c(.assetLocator,prior.locatorID),revision:locator.revision,semanticSHA256:locator.locatorSHA256),.locatorBindingReceipt(id:receipt.receiptID,concurrencyIdentity:try c(.locatorBindingReceipt,receipt.receiptID),revision:receipt.revision,semanticSHA256:receipt.receiptSHA256)];case let .replace(locator,replacement,receipt,prior,_):values=[.assetLocator(id:locator.locatorID,concurrencyIdentity:try c(.assetLocator,prior.locatorID),revision:locator.revision,semanticSHA256:locator.locatorSHA256),.assetLocator(id:replacement.locatorID,concurrencyIdentity:try c(.assetLocator,replacement.locatorID),revision:replacement.revision,semanticSHA256:replacement.locatorSHA256),.locatorBindingReceipt(id:receipt.receiptID,concurrencyIdentity:try c(.locatorBindingReceipt,receipt.receiptID),revision:receipt.revision,semanticSHA256:receipt.receiptSHA256)]};return try values.sorted{try $0.identity.stableKey<$1.identity.stableKey}}}}
+struct AssetLocatorMutationReceiptV1:Codable,Equatable,Sendable{let mutationSHA256:String;let mutationReceipt:MutationReceiptV1;init(mutation:AssetLocatorMutationV1,mutationReceipt:MutationReceiptV1)throws{try mutation.validate();try mutationReceipt.validate();let affected=try mutation.affectedIdentities,concurrency=try mutation.concurrencyIdentities,images=try mutation.mutationPostImages,resulting=Dictionary(uniqueKeysWithValues:mutationReceipt.resultingRevision.entityRevisions.map{($0.identity,$0.revision)});guard mutationReceipt.mutationID==mutation.mutationID,mutationReceipt.identity.workspaceID==mutation.workspaceID,mutationReceipt.commandBodySHA256==(try WorkspaceMutationCanonicalV1.sha256(WorkspaceCommandV1.applyAssetLocator(mutation))),mutationReceipt.postImages==images,try concurrency.allSatisfy({identity in mutationReceipt.expectedRevision.entityRevisions.first(where:{row in row.identity==identity})?.revision == (try mutation.expectedRevision(for:identity))}),try images.allSatisfy({image in resulting[try image.identity]==image.revision}),affected==images.compactMap({try? $0.identity})else{throw WorkspaceMutationFailureV1.invalidReceipt};mutationSHA256=try WorkspaceMutationCanonicalV1.sha256(mutation);self.mutationReceipt=mutationReceipt}}
 
 /// Typed C40 receipt binding the journal-owned receipt to the exact canonical
 /// authority/criterion post-image. It does not introduce a second receipt

@@ -345,6 +345,7 @@ final class MutationJournalStoreV1 {
         if case let .applyAccessibleDocumentAssessment(value)=envelope.command{try value.validate();guard affectedEntities==[try value.affectedIdentity]else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applySurveyDefinition(value)=envelope.command{try value.validate();guard affectedEntities==(try value.affectedIdentities)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applySurveySession(value)=envelope.command{try value.validate();try validateSurveySessionReferences(value);guard affectedEntities==(try value.affectedIdentities)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyAssetLocator(value)=envelope.command{try value.validate();guard affectedEntities==(try value.affectedIdentities)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         let state = try requireState()
         let current = try currentRevision(writerInstanceID: writerInstanceID)
         let expected = envelope.expectedRevision
@@ -356,6 +357,7 @@ final class MutationJournalStoreV1 {
         let currentByIdentity = Dictionary(uniqueKeysWithValues: current.entityRevisions.map { ($0.identity, $0.revision) })
         let expectedByIdentity = Dictionary(uniqueKeysWithValues: expected.entityRevisions.map { ($0.identity, $0.revision) })
         if case let .applySurveySession(mutation)=envelope.command{for concurrency in try mutation.concurrencyIdentities{guard expectedByIdentity[concurrency]==(try mutation.expectedRevision(for:concurrency)),currentByIdentity[concurrency,default:0]==expectedByIdentity[concurrency] else{throw WorkspaceMutationFailureV1.staleEntityRevision(concurrency)}}}
+        if case let .applyAssetLocator(mutation)=envelope.command{for concurrency in try mutation.concurrencyIdentities{guard expectedByIdentity[concurrency]==(try mutation.expectedRevision(for:concurrency)),currentByIdentity[concurrency,default:0]==expectedByIdentity[concurrency]else{throw WorkspaceMutationFailureV1.staleEntityRevision(concurrency)}}}
         for identity in affectedEntities {
             let concurrencyIdentity: WorkspaceEntityIdentityV1
             if case let .applyAuthorityCriterion(mutation) = envelope.command,
@@ -376,6 +378,7 @@ final class MutationJournalStoreV1 {
             }else if case let .applyAccessibleDocumentAssessment(mutation)=envelope.command{concurrencyIdentity=try mutation.concurrencyIdentity
             }else if case let .applySurveyDefinition(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
             }else if case let .applySurveySession(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
+            }else if case let .applyAssetLocator(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
             } else {
                 concurrencyIdentity = identity
             }
@@ -426,6 +429,7 @@ final class MutationJournalStoreV1 {
                 }else if case let .applyAccessibleDocumentAssessment(mutation)=envelope.command{initialRevision=mutation.revision
                 }else if case let .applySurveyDefinition(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
                 }else if case let .applySurveySession(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
+                }else if case let .applyAssetLocator(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
                 } else {
                     initialRevision = 1
                 }
@@ -462,6 +466,7 @@ final class MutationJournalStoreV1 {
         if case let .applyAccessibleDocumentAssessment(mutation)=envelope.command{guard postImages==[try mutation.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applySurveyDefinition(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applySurveySession(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyAssetLocator(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         let after = try currentRevision(writerInstanceID: writerInstanceID)
         let receiptIdentity = MutationReceiptIdentityV1(
             workspaceID: identity.workspaceID,
@@ -551,6 +556,8 @@ final class MutationJournalStoreV1 {
     func acceptedSurveySessionMutation(_ mutation:SurveySessionMutationV1)throws->SurveySessionMutationReceiptV1?{try validateSurveySessionReferences(mutation);guard let receipt=try receipt(mutationID:mutation.mutationID)else{return nil};let stored=try surveySessionMutation(mutationID:mutation.mutationID);guard stored==mutation else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return try SurveySessionMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)}
 
     func surveySessionMutation(mutationID:MutationIDV1)throws->SurveySessionMutationV1?{let key=MutationWorkspaceKeyV1.value(workspaceID:identity.workspaceID,mutationID:mutationID);let rows=try modelContext.fetch(FetchDescriptor<MutationReceiptRow>(predicate:#Predicate{$0.workspaceMutationKey==key}));guard rows.count<=1 else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};guard let row=rows.first else{return nil};_ = try validate(row:row,expectedEnvelope:nil);let envelope=try MutationEnvelopeV1.decodeCanonical(from:row.envelopeData);guard case let .applySurveySession(mutation)=envelope.command else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};try mutation.validate();try validateSurveySessionReferences(mutation);return mutation}
+    func acceptedAssetLocatorMutation(_ mutation:AssetLocatorMutationV1)throws->AssetLocatorMutationReceiptV1?{guard let receipt=try receipt(mutationID:mutation.mutationID)else{return nil};guard try assetLocatorMutation(mutationID:mutation.mutationID)==mutation else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return try AssetLocatorMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)}
+    func assetLocatorMutation(mutationID:MutationIDV1)throws->AssetLocatorMutationV1?{let key=MutationWorkspaceKeyV1.value(workspaceID:identity.workspaceID,mutationID:mutationID),rows=try modelContext.fetch(FetchDescriptor<MutationReceiptRow>(predicate:#Predicate{$0.workspaceMutationKey==key}));guard rows.count<=1 else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};guard let row=rows.first else{return nil};_ = try validate(row:row,expectedEnvelope:nil);let envelope=try MutationEnvelopeV1.decodeCanonical(from:row.envelopeData);guard case let .applyAssetLocator(mutation)=envelope.command else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};try mutation.validate();return mutation}
     func validateSurveySessionReferences(_ mutation:SurveySessionMutationV1)throws{let binding:(SurveySessionV1,SurveyDefinitionReleaseV1)?;switch mutation.payload{case let .applySession(session,definition,_),let .captureFact(_,session,definition,_),let .publish(session,_,definition,_):binding=(session,definition);case .applyProvisionalSubject,.promoteSubject:binding=nil};guard let (session,definition)=binding else{return};let release=try surveyPackageRelease(session.authority.packageRelease.packageReleaseID);do{try session.authority.validate(definition:definition,packageRelease:release)}catch{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt}}
 
     func acceptedRecoverabilityVerificationReceipt(
@@ -1481,6 +1488,8 @@ final class MutationJournalStoreV1 {
         case .provisionalSubject:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<ProvisionalSubjectRow>(predicate:#Predicate{$0.provisionalSubjectID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .provisionalSubject(id:id,concurrencyIdentity:identity,revision:revision,semanticSHA256:v.subjectSHA256)
         case .subjectPromotionReceipt:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<SubjectPromotionReceiptRow>(predicate:#Predicate{$0.receiptID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .subjectPromotionReceipt(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.predecessorReceiptID),revision:revision,semanticSHA256:v.receiptSHA256)
         case .surveyPublicationSnapshot:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<SurveyPublicationSnapshotRow>(predicate:#Predicate{$0.snapshotID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .surveyPublicationSnapshot(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesSnapshotID),revision:revision,semanticSHA256:v.snapshotSHA256)
+        case .assetLocator:let id=identity.id,r=try modelContext.fetch(FetchDescriptor<AssetLocatorRow>(predicate:#Predicate{$0.locatorID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .assetLocator(id:id,concurrencyIdentity:identity,revision:revision,semanticSHA256:v.locatorSHA256)
+        case .locatorBindingReceipt:let id=identity.id,r=try modelContext.fetch(FetchDescriptor<LocatorBindingReceiptRow>(predicate:#Predicate{$0.receiptID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .locatorBindingReceipt(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.predecessorReceiptID),revision:revision,semanticSHA256:v.receiptSHA256)
         case .workflowRecord:
             let id = identity.id
             let rows = try modelContext.fetch(FetchDescriptor<WorkflowRecord>(predicate: #Predicate { $0.id == id }))
@@ -1873,6 +1882,8 @@ final class MutationJournalStoreV1 {
         case .provisionalSubject:return .provisionalSubject(id:identity.id,concurrencyIdentity:identity,revision:revision,semanticSHA256:digest)
         case .subjectPromotionReceipt:return .subjectPromotionReceipt(id:identity.id,concurrencyIdentity:identity,revision:revision,semanticSHA256:digest)
         case .surveyPublicationSnapshot:return .surveyPublicationSnapshot(id:identity.id,concurrencyIdentity:identity,revision:revision,semanticSHA256:digest)
+        case .assetLocator:return .assetLocator(id:identity.id,concurrencyIdentity:identity,revision:revision,semanticSHA256:digest)
+        case .locatorBindingReceipt:return .locatorBindingReceipt(id:identity.id,concurrencyIdentity:identity,revision:revision,semanticSHA256:digest)
         case .workflowRecord: return .workflowRecord(id: identity.id, revision: revision, semanticSHA256: digest)
         case .evidenceFile: return .evidenceFile(id: identity.id, revision: revision, semanticSHA256: digest)
         case .issue: return .issue(id: identity.id, revision: revision, semanticSHA256: digest)

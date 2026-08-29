@@ -1148,6 +1148,14 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
     }
 }
 
+private final class C27V913PersistentTypedLocatorAnchorTests: XCTestCase {
+    func testAssetLocatorContractAnchor() throws {
+        XCTAssertEqual(PersistentSchemaV26.models.count, 94)
+        XCTAssertEqual(AssetLocatorStateV1.allCases.count, 4)
+        XCTAssertFalse(AssetLocatorLifecycleAdapterV1.scanMutatesCanonicalState)
+    }
+}
+
 extension V9_13PersistentKindLifecycleCoverageTests {
     func testC22RecoverabilityVerificationAnchor() throws {
         XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)

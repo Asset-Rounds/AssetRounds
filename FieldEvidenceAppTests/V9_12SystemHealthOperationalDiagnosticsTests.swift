@@ -787,6 +787,14 @@ final class V9_12SystemHealthOperationalDiagnosticsTests: XCTestCase {
     }
 }
 
+private final class C27V912TypedLocatorAnchorTests: XCTestCase {
+    func testAssetLocatorContractAnchor() throws {
+        XCTAssertEqual(LocatorInputSourceV1.allCases.count, 3)
+        XCTAssertEqual(LocatorResolutionOutcomeV1.allCases.count, 8)
+        XCTAssertFalse(AssetLocatorLifecycleAdapterV1.resolutionStartsWork)
+    }
+}
+
 extension V9_12SystemHealthOperationalDiagnosticsTests {
     func testC22RecoverabilityVerificationAnchor() throws {
         XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)

@@ -229,3 +229,19 @@ final class WorkSubjectScopeSnapshotRow {
         return value
     }
 }
+
+/// C27 deliberately leaves the six C39 semantic rows unchanged. Locator
+/// identity and binding history live in their two dedicated row families.
+enum AssetSemanticLocatorPersistencePartitionV1 {
+    static func validate() throws {
+        let semantic = Set(PersistentSchemaV10.models.map { ObjectIdentifier($0) })
+        guard !semantic.contains(ObjectIdentifier(AssetLocatorRow.self)),
+              !semantic.contains(ObjectIdentifier(LocatorBindingReceiptRow.self)),
+              PersistentSchemaV26.models.suffix(2).map({ ObjectIdentifier($0) }) == [
+                ObjectIdentifier(AssetLocatorRow.self),
+                ObjectIdentifier(LocatorBindingReceiptRow.self),
+              ] else {
+            throw AssetSemanticContractFailureV1.nonCanonicalData
+        }
+    }
+}

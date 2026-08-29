@@ -639,6 +639,14 @@ final class V9_24AssetSemanticLifecycleTests: XCTestCase {
     }
 }
 
+private final class C27V924TypedLocatorAnchorTests: XCTestCase {
+    func testAssetLocatorContractAnchor() throws {
+        XCTAssertEqual(AssetLocatorStateV1.allCases.count, 4)
+        XCTAssertEqual(AssetLocatorLimitsV1.maximumCandidates, 32)
+        XCTAssertFalse(AssetLocatorLifecycleAdapterV1.resolutionStartsWork)
+    }
+}
+
 extension V9_24AssetSemanticLifecycleTests {
     func testV23P03C41AssetSemanticEndpointsBindRequiredCapabilities() throws {
         let fixture = try C41FunctionalRelationshipTestSupportV1.makeFixture(seed: 41_240)

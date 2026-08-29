@@ -256,6 +256,7 @@ enum KernelBackupRestoreRegistryV4 {
     static let privacyTransformArchiveKinds = V19BackupPrivacyTransformRecordV1.Kind.allCases
     static let clientCapabilityArchiveKinds=V20BackupClientCapabilityRecordV1.Kind.allCases
     static let fieldReferenceArchiveKinds=V22BackupFieldReferenceRecordV1.Kind.allCases
+    static let assetLocatorArchiveKinds = V26BackupAssetLocatorRecordV1.Kind.allCases
     static let accessibleDocumentPersistentFamilies=AccessibleDocumentLifecycleV1.persistentFamilies
     static let accessibleDocumentSemanticTreePersistence=AccessibleDocumentLifecycleV1.semanticTreePersistence
     static let recoverabilityVerificationArchiveKindCount=1
@@ -307,6 +308,19 @@ enum KernelBackupRestoreRegistryV4 {
     static func validateClientCapabilityLifecycle()throws{guard clientCapabilityArchiveKinds.count==4 else{throw KernelPersistenceV4Failure.incompleteCoverage}}
     static func validateRecoverabilityVerificationLifecycle()throws{guard recoverabilityVerificationArchiveKindCount==1,RecoverabilityVerificationReceiptV1.schemaVersion==1,RecoverabilityVerificationLifecycleV1.stagingPersistence=="DERIVED_ONLY_DROP_AND_REBUILD",RecoverabilityVerificationLifecycleV1.backupEligibility=="SUBSEQUENT_BACKUPS_ONLY",!RecoverabilityVerificationLifecycleV1.receiptInsideVerifiedArchive,!RecoverabilityVerificationLifecycleV1.externalCopyAvailabilityClaimed,!RecoverabilityVerificationLifecycleV1.liveRestorePermitted else{throw KernelPersistenceV4Failure.incompleteCoverage}}
     static func validateFieldReferenceLifecycle()throws{guard fieldReferenceArchiveKinds.count==2,Set(fieldReferenceArchiveKinds.map(\.rawValue)).count==2,FieldReferencePackLifecycleV1.persistentFamilies.count==2,FieldReferencePackLifecycleV1.stagingPersistence=="DERIVED_ONLY",!FieldReferencePackLifecycleV1.runtimeFetchingAllowed,!FieldReferencePackLifecycleV1.currentProjectionPersistent else{throw KernelPersistenceV4Failure.incompleteCoverage}}
+    static func validateAssetLocatorLifecycle() throws {
+        guard assetLocatorArchiveKinds.count == 2,
+              Set(assetLocatorArchiveKinds.map(\.rawValue)).count == 2,
+              AssetLocatorStreamingArchivePolicyV1.persistentSchemaVersion == 26,
+              AssetLocatorStreamingArchivePolicyV1.recordsSchemaVersion == 25,
+              AssetLocatorStreamingArchivePolicyV1.durableFamilyCount == 2,
+              AssetLocatorStreamingArchivePolicyV1.lifecycleEventsRemainInMutationHistory,
+              AssetLocatorStreamingArchivePolicyV1.sameWorkspacePreservesPublicSignedPayload,
+              !AssetLocatorStreamingArchivePolicyV1.cloneForkSourceSignatureActive,
+              !AssetLocatorStreamingArchivePolicyV1.privateKeyMaterialMayBeExported else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
     typealias Route = (
         archive: KernelArchiveDispositionV4,
         restore: KernelRestoreDispositionV4,
@@ -348,6 +362,7 @@ enum KernelBackupRestoreRegistryV4 {
         try validateClientCapabilityLifecycle()
         try validateRecoverabilityVerificationLifecycle()
         try validateFieldReferenceLifecycle()
+        try validateAssetLocatorLifecycle()
         try validatePrivacyTransformLifecycle()
         try validateMeasurementIntegrityLifecycle()
         try validatePackageEvolutionLifecycle()

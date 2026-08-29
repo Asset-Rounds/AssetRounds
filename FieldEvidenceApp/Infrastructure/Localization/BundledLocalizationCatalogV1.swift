@@ -3252,6 +3252,10 @@ enum BundledLocalizationCatalogV1 {
         // prompts, subject labels, actor identity, and publication payloads
         // remain outside the source catalog and its validation surface.
         supportedKeys.formUnion(SurveySessionLocalizationKeyV1.allCases.map(\.rawValue))
+        // C27 adds only the closed locator metadata/resolution vocabulary.
+        // Opaque input, key material, and lookup payloads never become
+        // catalog entries.
+        supportedKeys.formUnion(AssetLocatorLocalizationKeyV1.allCases.map(\.rawValue))
         guard registeredKeys.isSubset(of: Set(strings.keys)),
               Set(strings.keys).isSubset(of: supportedKeys) else {
             throw LocalizationContractFailureV1.invalidValue
@@ -3378,6 +3382,85 @@ extension BundledLocalizationCatalogV1 {
     static func packageEvolutionAccessibilityContracts()
         -> [PackageEvolutionAccessibilityContractV1] {
         PackageEvolutionAccessibilityPolicyV1.contracts
+    }
+}
+
+// MARK: - C27 asset-locator labels and accessibility registry
+
+extension BundledLocalizationCatalogV1 {
+    /// C27 extends the sole English source catalog with bounded locator
+    /// metadata and offline-resolution labels.  No opaque input or key
+    /// material is ever looked up as localized text.
+    static func assetLocatorRegistry() throws -> LocalizationKeyRegistryV1 {
+        try AssetLocatorLocalizationPolicyV1.validate()
+        let base = try surveySessionRegistry()
+        let additions = try AssetLocatorLocalizationKeyV1.allCases.map { key in
+            LocalizationKeyDefinitionV1(
+                key: try LocalizationKeyV1(key.rawValue),
+                meaningID: key.rawValue,
+                translatorComment: key.translatorComment,
+                englishDefaultValue: key.englishDefaultValue,
+                arguments: [],
+                requiredEnglishPluralCategories: [],
+                state: .active,
+                deprecatedFallbackKey: nil
+            )
+        }
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+
+    static func localized(
+        _ key: AssetLocatorLocalizationKeyV1,
+        bundle: Bundle = .main
+    ) -> String {
+        String(
+            localized: key.rawValue,
+            defaultValue: key.englishDefaultValue,
+            bundle: bundle,
+            locale: Locale(identifier: runtimeLanguage),
+            comment: key.translatorComment
+        )
+    }
+
+    static func assetLocatorAccessibilityRegistry(
+        localization: LocalizationKeyRegistryV1
+    ) throws -> SemanticAccessibilityIDRegistryV1 {
+        let base = try privacyTransformAccessibilityRegistry(localization: localization)
+        let entries = try AssetLocatorAccessibilityIDV1.allCases.map {
+            id -> AccessibilityContractV1 in
+            let role: SemanticAccessibilityRoleV1
+            switch id {
+            case .screen: role = .screen
+            case .heading, .resolution, .lifecycle: role = .heading
+            case .nextStep: role = .button
+            default:
+                role = AssetLocatorAccessibilityPolicyV1.statusSemanticIDs
+                    .contains(id.rawValue) ? .status : .group
+            }
+            let hintKey: LocalizationKeyV1? =
+                AssetLocatorAccessibilityPolicyV1.requiresActionableNextStep(
+                    for: id.rawValue
+                )
+                ? AssetLocatorLocalizationKeyV1.nextStep.localizationKey
+                : nil
+            return AccessibilityContractV1(
+                semanticID: id.rawValue,
+                role: role,
+                reachability: .whenAvailable,
+                labelKey: id.localizationKey,
+                hintKey: hintKey,
+                valueKey: nil,
+                dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            )
+        }
+        return try base.appending(entries, localization: localization)
+    }
+
+    static func assetLocatorDisplayLabel(
+        for key: AssetLocatorLocalizationKeyV1
+    ) -> String {
+        localized(key)
     }
 }
 

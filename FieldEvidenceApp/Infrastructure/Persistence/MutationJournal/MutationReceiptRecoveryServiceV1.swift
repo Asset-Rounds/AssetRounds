@@ -41,4 +41,7 @@ final class MutationReceiptRecoveryServiceV1 {
     /// C26's five post-image families and their generic receipt are repaired
     /// together; no projection or provisional staging is promoted to truth.
     func recoverSurveySessionEffectsBeforeWriterActivation()throws{try recoverBeforeWriterActivation()}
+    /// C27 locator and binding-receipt effects are recovered exclusively from
+    /// the canonical mutation journal; derived resolution previews are rebuilt.
+    func recoverAssetLocatorEffectsBeforeWriterActivation()throws{try recoverBeforeWriterActivation()}
 }

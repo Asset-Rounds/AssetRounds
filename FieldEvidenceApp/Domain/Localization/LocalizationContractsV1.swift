@@ -3759,3 +3759,166 @@ enum SurveySessionLocalizationPolicyV1 {
         }
     }
 }
+
+// MARK: - C27 asset-locator localization contract
+
+/// C27 is deliberately a closed, English-only presentation vocabulary.  The
+/// values describe recorded locator metadata and the result of an offline
+/// lookup; they never turn an opaque input, key digest, or lifecycle fact into
+/// a user/permission/identity claim.
+enum AssetLocatorLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
+    case heading = "asset.locator.heading"
+    case resolution = "asset.locator.resolution"
+    case representation = "asset.locator.representation"
+    case representationLocalSigned = "asset.locator.representation.local_signed"
+    case representationExternalKey = "asset.locator.representation.external_key"
+    case representationUnavailable = "asset.locator.representation.unavailable"
+    case outcomeMatched = "asset.locator.outcome.matched"
+    case outcomeNoMatch = "asset.locator.outcome.no_match"
+    case outcomeForeignWorkspace = "asset.locator.outcome.foreign_workspace"
+    case outcomeAmbiguous = "asset.locator.outcome.ambiguous"
+    case outcomeDamagedOrIncomplete = "asset.locator.outcome.damaged_or_incomplete"
+    case outcomeRetired = "asset.locator.outcome.retired"
+    case outcomeRevoked = "asset.locator.outcome.revoked"
+    case outcomeReplaced = "asset.locator.outcome.replaced"
+    case lifecycle = "asset.locator.lifecycle"
+    case stateActive = "asset.locator.state.active"
+    case stateRetired = "asset.locator.state.retired"
+    case stateRevoked = "asset.locator.state.revoked"
+    case stateReplaced = "asset.locator.state.replaced"
+    case stateUnavailable = "asset.locator.state.unavailable"
+    case claimBoundary = "asset.locator.claim_boundary"
+    case nextStep = "asset.locator.next_step"
+
+    var localizationKey: LocalizationKeyV1 {
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+
+    var englishDefaultValue: String {
+        switch self {
+        case .heading: return "Asset locator"
+        case .resolution: return "Locator resolution"
+        case .representation: return "Locator representation"
+        case .representationLocalSigned: return "Local signed locator"
+        case .representationExternalKey: return "External key reference"
+        case .representationUnavailable: return "Representation unavailable"
+        case .outcomeMatched: return "Locator matched"
+        case .outcomeNoMatch: return "No locator match"
+        case .outcomeForeignWorkspace: return "Locator belongs to another workspace"
+        case .outcomeAmbiguous: return "Multiple locator candidates"
+        case .outcomeDamagedOrIncomplete: return "Locator data incomplete"
+        case .outcomeRetired: return "Locator is retired"
+        case .outcomeRevoked: return "Locator is revoked"
+        case .outcomeReplaced: return "Locator is replaced"
+        case .lifecycle: return "Locator lifecycle"
+        case .stateActive: return "Active locator"
+        case .stateRetired: return "Retired locator"
+        case .stateRevoked: return "Revoked locator"
+        case .stateReplaced: return "Replaced locator"
+        case .stateUnavailable: return "Locator state unavailable"
+        case .claimBoundary: return "Recorded locator metadata only"
+        case .nextStep: return "Review locator details"
+        }
+    }
+
+    var translatorComment: String {
+        "English-only C27 label for recorded locator metadata and offline resolution; do not expose opaque input, secrets, private key material, vendor identifiers, identity, access, or delivery claims."
+    }
+
+    static func key(_ value: Self) throws -> LocalizationKeyV1 {
+        try LocalizationKeyV1(value.rawValue)
+    }
+
+    static func outcomeKey(_ value: LocatorResolutionOutcomeV1) -> Self {
+        switch value {
+        case .matched: return .outcomeMatched
+        case .noMatch: return .outcomeNoMatch
+        case .foreignWorkspace: return .outcomeForeignWorkspace
+        case .ambiguous: return .outcomeAmbiguous
+        case .damagedOrIncomplete: return .outcomeDamagedOrIncomplete
+        case .retired: return .outcomeRetired
+        case .revoked: return .outcomeRevoked
+        case .replaced: return .outcomeReplaced
+        }
+    }
+
+    static func stateKey(_ value: AssetLocatorStateV1?) -> Self {
+        guard let value else { return .stateUnavailable }
+        switch value {
+        case .active: return .stateActive
+        case .retired: return .stateRetired
+        case .revoked: return .stateRevoked
+        case .replaced: return .stateReplaced
+        }
+    }
+
+    static func representationKey(_ value: AssetLocatorRepresentationV1?) -> Self {
+        guard let value else { return .representationUnavailable }
+        switch value {
+        case .localSigned: return .representationLocalSigned
+        case .externalKey: return .representationExternalKey
+        }
+    }
+}
+
+enum AssetLocatorLocalizationPolicyV1 {
+    static let semanticNamespace = "asset.locator"
+    static let sourceLocale = "en"
+    static let shippingLocale = "en"
+    static let metadataLocale = "en-US"
+    static let testOnlyLocales = TestOnlyPseudoLocaleV1.allCases.map(\.rawValue).sorted()
+    static let keys = AssetLocatorLocalizationKeyV1.allCases.map(\.rawValue).sorted()
+    static let denyByDefault = true
+    static let englishOnly = true
+    static let requiresTextState = true
+    static let requiresTextAndIconForIndeterminateState = true
+    static let requiresActionableNextStep = true
+    static let allowsColorOnlyState = false
+    static let allowsIconOnlyState = false
+    static let allowsMotionOnlyState = false
+    static let excludesOpaqueInput = true
+    static let excludesPrivateKeyMaterial = true
+    static let excludesSecrets = true
+    static let excludesVendorIdentifiers = true
+    static let excludesActorIdentity = true
+    static let excludesPermissionClaims = true
+    static let excludesNetworkResolutionClaims = true
+    static let excludesUnsupportedClaims = true
+
+    static let prohibitedClaimPhrases = [
+        "approval", "approve", "approved", "authorization", "authorize", "authorized",
+        "permission", "identity verified", "verified identity", "verified", "authorship",
+        "compliance", "compliant", "certified", "professional", "legal signature",
+        "nonrepudiation", "non-repudiation", "tamperproof", "tamper-proof", "secure",
+        "sent", "delivered", "remote", "network", "telemetry", "private key", "secret",
+        "vendor", "customer data", "work data", "evidence bytes"
+    ]
+
+    static func containsProhibitedClaim(_ values: [String]) -> Bool {
+        values.contains { value in
+            let normalized = value.lowercased()
+                .replacingOccurrences(of: "_", with: " ")
+                .replacingOccurrences(of: "-", with: " ")
+            return prohibitedClaimPhrases.contains { normalized.contains($0) }
+        }
+    }
+
+    static func validate() throws {
+        let typed = try AssetLocatorLocalizationKeyV1.allCases.map { try key($0) }
+        guard typed.map(\.rawValue).sorted() == keys,
+              Set(keys).count == keys.count,
+              denyByDefault, englishOnly, requiresTextState,
+              requiresTextAndIconForIndeterminateState, requiresActionableNextStep,
+              !allowsColorOnlyState, !allowsIconOnlyState, !allowsMotionOnlyState,
+              excludesOpaqueInput, excludesPrivateKeyMaterial, excludesSecrets,
+              excludesVendorIdentifiers, excludesActorIdentity, excludesPermissionClaims,
+              excludesNetworkResolutionClaims, excludesUnsupportedClaims,
+              AssetLocatorLocalizationKeyV1.allCases.allSatisfy({
+                  !$0.englishDefaultValue.isEmpty
+                      && !containsProhibitedClaim([$0.englishDefaultValue])
+              }) else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}

@@ -1,5 +1,11 @@
 import Foundation
 
+enum AssetLocatorProvenanceBoundaryV1 {
+    static let signedPayloadProvesAuthorship = false
+    static let signedPayloadProvesAuthorization = false
+    static let signedPayloadRecordsLocalIntegrityOnly = true
+}
+
 enum OriginalContentOriginV1: String, CaseIterable, Codable, Hashable, Sendable {
     case humanCapture = "HUMAN_CAPTURE"
     case localImport = "LOCAL_IMPORT"

@@ -1,5 +1,31 @@
 import Foundation
 
+struct CheckRunnerAssetLocatorContextV1: Equatable, Sendable {
+    let resolution: LocatorResolutionV1
+    let frozenInterpretation: FrozenAssetLocatorInterpretationV1
+
+    init(
+        resolution: LocatorResolutionV1,
+        locator: AssetLocatorV1,
+        receipt: LocatorBindingReceiptV1
+    ) throws {
+        self.resolution = resolution
+        frozenInterpretation = try WorkflowAssetLocatorBoundaryV1.freeze(
+            resolution: resolution, locator: locator, receipt: receipt
+        )
+    }
+
+    func validate() throws {
+        try resolution.validate()
+        try frozenInterpretation.validate()
+        guard resolution.outcome == .matched,
+              resolution.matchedLocator == frozenInterpretation.locator,
+              resolution.matchedAssetID == frozenInterpretation.assetIDAtCapture else {
+            throw AssetLocatorFailureV1.invalidValue
+        }
+    }
+}
+
 struct CheckRunnerPreparation: Equatable, Sendable {
     let confirmedTimeZoneID: String?
     let existingDraftID: UUID?

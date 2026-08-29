@@ -1,5 +1,29 @@
 import Foundation
 
+enum WorkflowAssetLocatorBoundaryV1 {
+    static let resolutionStartsWorkflow = false
+    static let captureStoresFrozenInterpretation = true
+
+    static func freeze(
+        resolution: LocatorResolutionV1,
+        locator: AssetLocatorV1,
+        receipt: LocatorBindingReceiptV1
+    ) throws -> FrozenAssetLocatorInterpretationV1 {
+        try resolution.validate()
+        try locator.validate()
+        try receipt.validateIntrinsic()
+        guard resolution.outcome == .matched,
+              resolution.matchedLocator == locator.reference,
+              resolution.matchedAssetID == locator.assetID,
+              receipt.after == locator.reference else {
+            throw AssetLocatorFailureV1.invalidValue
+        }
+        return try FrozenAssetLocatorInterpretationV1(
+            locator: locator.reference, receipt: receipt, assetID: locator.assetID
+        )
+    }
+}
+
 enum WorkflowRevisionKind: String, CaseIterable, Codable, Sendable {
     case original
     case clericalCorrection = "clerical_correction"

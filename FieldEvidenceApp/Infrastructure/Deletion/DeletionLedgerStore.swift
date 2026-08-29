@@ -6,6 +6,22 @@ import SwiftData
 enum FieldReferenceDeletionLedgerStorePolicyV1{static func validate()throws{guard FieldReferenceDeletionLedgerPolicyV1.immutableKinds==["FieldReferenceReleaseV1","FieldReferenceBindingV1"],FieldReferenceDeletionLedgerPolicyV1.ordinaryDeletionRetainsBoundAndFinalizedBytes,FieldReferenceDeletionLedgerPolicyV1.workspaceEraseRemovesRowsAndOwnedBytes else{throw DeletionLedgerFailureV2.invalidIdentity}}}
 enum AccessibleDocumentDeletionLedgerStorePolicyV1{static func validate()throws{try AccessibleDocumentDeletionLedgerPolicyV1.validate()}}
 enum SurveyDefinitionDeletionLedgerStorePolicyV1{static func validate()throws{try SurveyDefinitionDeletionLedgerPolicyV1.validate()}}
+enum AssetLocatorDeletionLedgerStorePolicyV1 {
+    static let durableRowNames: Set<String> = [
+        "AssetLocatorRow", "LocatorBindingReceiptRow"
+    ]
+    static let noOrphanLookupOrReceiptRows = true
+    static let historySource = "MUTATION_HISTORY_ONLY"
+
+    static func validate() throws {
+        guard durableRowNames.count == 2,
+              noOrphanLookupOrReceiptRows,
+              historySource == "MUTATION_HISTORY_ONLY" else {
+            throw DeletionLedgerFailureV2.invalidIdentity
+        }
+        try AssetLocatorDeletionLedgerPolicyV1.validate()
+    }
+}
 
 @MainActor
 final class DeletionLedgerStore {
@@ -16,6 +32,7 @@ final class DeletionLedgerStore {
     }
 
     func snapshot() throws -> DeletionLedgerV2 {
+        try AssetLocatorDeletionLedgerStorePolicyV1.validate()
         try FieldReferenceDeletionLedgerStorePolicyV1.validate()
         try AccessibleDocumentDeletionLedgerStorePolicyV1.validate()
         try SurveyDefinitionDeletionLedgerStorePolicyV1.validate()

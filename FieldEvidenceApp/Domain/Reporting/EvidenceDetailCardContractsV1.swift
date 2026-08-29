@@ -1318,6 +1318,45 @@ extension EvidenceDetailCardV1 {
     }
 }
 
+// MARK: - C27 asset-locator report guard
+
+/// Locator reports are bounded metadata companions.  This guard keeps an
+/// evidence-card consumer from turning an opaque input, key digest, or local
+/// resolution state into a claim about access or identity.
+enum EvidenceDetailAssetLocatorProjectionGuardV1 {
+    static let metadataOnly = true
+    static let derivedOnly = true
+    static let historicDisplayFrozen = true
+    static let excludesOpaqueInput = true
+    static let excludesPrivateKeyMaterial = true
+    static let excludesSecrets = true
+    static let excludesVendorIdentifiers = true
+    static let excludesActorIdentity = true
+    static let excludesPermissionClaims = true
+    static let excludesNetworkResolutionClaims = true
+
+    static func validate(
+        _ projection: AssetLocatorReportProjectionV1,
+        audience: ReportAudienceV1 = .customerSafe
+    ) throws -> AssetLocatorReportProjectionV1 {
+        _ = audience
+        try projection.validate(format: .openJSON)
+        guard metadataOnly, derivedOnly, historicDisplayFrozen,
+              excludesOpaqueInput, excludesPrivateKeyMaterial,
+              excludesSecrets, excludesVendorIdentifiers,
+              excludesActorIdentity, excludesPermissionClaims,
+              excludesNetworkResolutionClaims,
+              !AssetLocatorReportProjectionPolicyV1.containsUnsupportedClaim([
+                  AssetLocatorLocalizationKeyV1.heading.englishDefaultValue,
+                  AssetLocatorLocalizationKeyV1.claimBoundary.englishDefaultValue,
+                  AssetLocatorLocalizationKeyV1.nextStep.englishDefaultValue,
+              ]) else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+        return projection
+    }
+}
+
 // MARK: - C23 field-reference report guard
 
 /// Evidence cards may carry the C23 projection as bounded report metadata.

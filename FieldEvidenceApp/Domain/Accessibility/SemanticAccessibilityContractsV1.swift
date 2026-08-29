@@ -1533,3 +1533,149 @@ enum AccessibleDocumentAccessibilityPolicyV1 {
         }
     }
 }
+
+// MARK: - C27 asset-locator semantics
+
+/// Stable semantic IDs for the C27 locator report companion.  These IDs
+/// identify recorded metadata and offline resolution states; they do not
+/// expose the opaque input or imply access, identity, or delivery.
+enum AssetLocatorAccessibilityIDV1: String, Codable, CaseIterable, Sendable {
+    case screen = "asset.locator.screen"
+    case heading = "asset.locator.heading"
+    case resolution = "asset.locator.resolution"
+    case representation = "asset.locator.representation"
+    case representationLocalSigned = "asset.locator.representation.local_signed"
+    case representationExternalKey = "asset.locator.representation.external_key"
+    case representationUnavailable = "asset.locator.representation.unavailable"
+    case outcome = "asset.locator.outcome"
+    case outcomeMatched = "asset.locator.outcome.matched"
+    case outcomeNoMatch = "asset.locator.outcome.no_match"
+    case outcomeForeignWorkspace = "asset.locator.outcome.foreign_workspace"
+    case outcomeAmbiguous = "asset.locator.outcome.ambiguous"
+    case outcomeDamagedOrIncomplete = "asset.locator.outcome.damaged_or_incomplete"
+    case outcomeRetired = "asset.locator.outcome.retired"
+    case outcomeRevoked = "asset.locator.outcome.revoked"
+    case outcomeReplaced = "asset.locator.outcome.replaced"
+    case lifecycle = "asset.locator.lifecycle"
+    case stateActive = "asset.locator.state.active"
+    case stateRetired = "asset.locator.state.retired"
+    case stateRevoked = "asset.locator.state.revoked"
+    case stateReplaced = "asset.locator.state.replaced"
+    case stateUnavailable = "asset.locator.state.unavailable"
+    case claimBoundary = "asset.locator.claim_boundary"
+    case nextStep = "asset.locator.next_step"
+
+    var localizationKey: LocalizationKeyV1 {
+        let rawValue: String
+        switch self {
+        case .screen, .heading: rawValue = AssetLocatorLocalizationKeyV1.heading.rawValue
+        case .resolution: rawValue = AssetLocatorLocalizationKeyV1.resolution.rawValue
+        case .representation: rawValue = AssetLocatorLocalizationKeyV1.representation.rawValue
+        case .representationLocalSigned: rawValue = AssetLocatorLocalizationKeyV1.representationLocalSigned.rawValue
+        case .representationExternalKey: rawValue = AssetLocatorLocalizationKeyV1.representationExternalKey.rawValue
+        case .representationUnavailable: rawValue = AssetLocatorLocalizationKeyV1.representationUnavailable.rawValue
+        case .outcome: rawValue = AssetLocatorLocalizationKeyV1.resolution.rawValue
+        case .outcomeMatched: rawValue = AssetLocatorLocalizationKeyV1.outcomeMatched.rawValue
+        case .outcomeNoMatch: rawValue = AssetLocatorLocalizationKeyV1.outcomeNoMatch.rawValue
+        case .outcomeForeignWorkspace: rawValue = AssetLocatorLocalizationKeyV1.outcomeForeignWorkspace.rawValue
+        case .outcomeAmbiguous: rawValue = AssetLocatorLocalizationKeyV1.outcomeAmbiguous.rawValue
+        case .outcomeDamagedOrIncomplete: rawValue = AssetLocatorLocalizationKeyV1.outcomeDamagedOrIncomplete.rawValue
+        case .outcomeRetired: rawValue = AssetLocatorLocalizationKeyV1.outcomeRetired.rawValue
+        case .outcomeRevoked: rawValue = AssetLocatorLocalizationKeyV1.outcomeRevoked.rawValue
+        case .outcomeReplaced: rawValue = AssetLocatorLocalizationKeyV1.outcomeReplaced.rawValue
+        case .lifecycle: rawValue = AssetLocatorLocalizationKeyV1.lifecycle.rawValue
+        case .stateActive: rawValue = AssetLocatorLocalizationKeyV1.stateActive.rawValue
+        case .stateRetired: rawValue = AssetLocatorLocalizationKeyV1.stateRetired.rawValue
+        case .stateRevoked: rawValue = AssetLocatorLocalizationKeyV1.stateRevoked.rawValue
+        case .stateReplaced: rawValue = AssetLocatorLocalizationKeyV1.stateReplaced.rawValue
+        case .stateUnavailable: rawValue = AssetLocatorLocalizationKeyV1.stateUnavailable.rawValue
+        case .claimBoundary: rawValue = AssetLocatorLocalizationKeyV1.claimBoundary.rawValue
+        case .nextStep: rawValue = AssetLocatorLocalizationKeyV1.nextStep.rawValue
+        }
+        // swiftlint:disable:next force_try
+        return try! LocalizationKeyV1(rawValue)
+    }
+}
+
+enum AssetLocatorAccessibilityPolicyV1 {
+    static let semanticIDs = AssetLocatorAccessibilityIDV1.allCases.map(\.rawValue)
+    static let stateSemanticIDs: Set<String> = Set([
+        AssetLocatorAccessibilityIDV1.stateActive,
+        AssetLocatorAccessibilityIDV1.stateRetired,
+        AssetLocatorAccessibilityIDV1.stateRevoked,
+        AssetLocatorAccessibilityIDV1.stateReplaced,
+        AssetLocatorAccessibilityIDV1.stateUnavailable,
+        AssetLocatorAccessibilityIDV1.outcomeMatched,
+        AssetLocatorAccessibilityIDV1.outcomeNoMatch,
+        AssetLocatorAccessibilityIDV1.outcomeForeignWorkspace,
+        AssetLocatorAccessibilityIDV1.outcomeAmbiguous,
+        AssetLocatorAccessibilityIDV1.outcomeDamagedOrIncomplete,
+        AssetLocatorAccessibilityIDV1.outcomeRetired,
+        AssetLocatorAccessibilityIDV1.outcomeRevoked,
+        AssetLocatorAccessibilityIDV1.outcomeReplaced,
+    ].map(\.rawValue))
+    static let indeterminateSemanticIDs: Set<String> = Set([
+        AssetLocatorAccessibilityIDV1.outcomeNoMatch,
+        AssetLocatorAccessibilityIDV1.outcomeForeignWorkspace,
+        AssetLocatorAccessibilityIDV1.outcomeAmbiguous,
+        AssetLocatorAccessibilityIDV1.outcomeDamagedOrIncomplete,
+        AssetLocatorAccessibilityIDV1.outcomeRetired,
+        AssetLocatorAccessibilityIDV1.outcomeRevoked,
+        AssetLocatorAccessibilityIDV1.outcomeReplaced,
+        AssetLocatorAccessibilityIDV1.stateUnavailable,
+    ].map(\.rawValue))
+    static let statusSemanticIDs = stateSemanticIDs
+    static let denyByDefault = true
+    static let nonColorStateTextRequired = true
+    static let textAlternativeRequired = true
+    static let textAndIconRequiredForIndeterminateStates = true
+    static let actionableNextStepRequiredForIndeterminateStates = true
+    static let colorOnlyStateAllowed = false
+    static let iconOnlyStateAllowed = false
+    static let motionOnlyStateAllowed = false
+    static let excludesOpaqueInput = true
+    static let excludesPrivateKeyMaterial = true
+    static let excludesSecrets = true
+    static let excludesVendorIdentifiers = true
+    static let excludesPermissionClaims = true
+    static let excludesNetworkResolutionClaims = true
+
+    static func requiresTextAndIcon(for semanticID: String) -> Bool {
+        indeterminateSemanticIDs.contains(semanticID)
+    }
+
+    static func requiresActionableNextStep(for semanticID: String) -> Bool {
+        indeterminateSemanticIDs.contains(semanticID)
+    }
+
+    static func outcomeID(_ value: LocatorResolutionOutcomeV1) -> AssetLocatorAccessibilityIDV1 {
+        switch value {
+        case .matched: return .outcomeMatched
+        case .noMatch: return .outcomeNoMatch
+        case .foreignWorkspace: return .outcomeForeignWorkspace
+        case .ambiguous: return .outcomeAmbiguous
+        case .damagedOrIncomplete: return .outcomeDamagedOrIncomplete
+        case .retired: return .outcomeRetired
+        case .revoked: return .outcomeRevoked
+        case .replaced: return .outcomeReplaced
+        }
+    }
+
+    static func stateID(_ value: AssetLocatorStateV1?) -> AssetLocatorAccessibilityIDV1 {
+        guard let value else { return .stateUnavailable }
+        switch value {
+        case .active: return .stateActive
+        case .retired: return .stateRetired
+        case .revoked: return .stateRevoked
+        case .replaced: return .stateReplaced
+        }
+    }
+
+    static func representationID(_ value: AssetLocatorRepresentationV1?) -> AssetLocatorAccessibilityIDV1 {
+        guard let value else { return .representationUnavailable }
+        switch value {
+        case .localSigned: return .representationLocalSigned
+        case .externalKey: return .representationExternalKey
+        }
+    }
+}

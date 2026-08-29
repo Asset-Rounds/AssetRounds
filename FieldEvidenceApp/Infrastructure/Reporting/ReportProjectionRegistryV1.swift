@@ -2122,3 +2122,44 @@ extension ReportProjectionRegistryV1 {
         return try validateSurveyDefinitionProjection(projection)
     }
 }
+
+// MARK: - C27 asset-locator report projection
+
+extension ReportProjectionRegistryV1 {
+    static let assetLocatorProjectionSectionID =
+        AssetLocatorReportProjectionPolicyV1.sectionID
+    static let assetLocatorProjectionVersion =
+        AssetLocatorReportProjectionPolicyV1.projectionVersion
+
+    func validateAssetLocatorProjection(
+        _ projection: AssetLocatorReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> AssetLocatorReportProjectionV1 {
+        try validate()
+        try AssetLocatorReportProjectionPolicyV1.validate()
+        guard AssetLocatorReportProjectionPolicyV1.supports(format) else {
+            throw AssetLocatorReportProjectionFailureV1.unsupportedFormat
+        }
+        return try EvidenceDetailAssetLocatorProjectionGuardV1.validate(projection)
+    }
+
+    static func validateAssetLocatorProjection(
+        _ projection: AssetLocatorReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> AssetLocatorReportProjectionV1 {
+        try Self().validateAssetLocatorProjection(projection, format: format)
+    }
+
+    static func assetLocatorProjection(
+        locator: AssetLocatorV1,
+        resolution: LocatorResolutionV1? = nil,
+        frozenInterpretation: FrozenAssetLocatorInterpretationV1? = nil
+    ) throws -> AssetLocatorReportProjectionV1 {
+        let projection = try AssetLocatorReportProjectionV1(
+            locator: locator,
+            resolution: resolution,
+            frozenInterpretation: frozenInterpretation
+        )
+        return try validateAssetLocatorProjection(projection)
+    }
+}

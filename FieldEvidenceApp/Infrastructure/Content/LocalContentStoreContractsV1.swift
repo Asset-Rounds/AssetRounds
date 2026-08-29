@@ -1,5 +1,10 @@
 import Foundation
 
+enum AssetLocatorLocalContentStoreBoundaryV1 {
+    static let locatorRowsBelongInContentStore = false
+    static let resolverPerformsRuntimeFetch = false
+}
+
 enum LocalContentStoreAvailabilityV1: Equatable, Sendable {
     case available(remainingByteCapacity: Int64)
     case protectedDataUnavailable

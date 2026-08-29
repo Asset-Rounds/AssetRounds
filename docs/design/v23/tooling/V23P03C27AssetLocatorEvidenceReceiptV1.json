@@ -1,0 +1,34 @@
+{
+  "artifactDigest": "48ef8cbfad25b60a139ab5534f3ca815fe492955bd2cdb64859a6f98776b74d9",
+  "cardID": "V23-P03-C27",
+  "evidenceIDs": [
+    "V23-P03-C27-G01",
+    "V23-P03-C27-A01",
+    "V23-P03-C27-H01",
+    "V23-P03-C27-I01",
+    "V23-P03-C27-R01"
+  ],
+  "requiredSemanticsDigest": "afc90060c4ec47cdb2bd0fb8df71aece9abb5b42f842ff8b4abe5e535f396500",
+  "schema": "V23P03C27AssetLocatorEvidenceReceiptV1",
+  "schemaVersion": 1,
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "testSelectors": [
+    "testV23P03C27G01StableLocatorResolutionHasEightClosedOutcomesAndSourceParity",
+    "testV23P03C27A01CanonicalKeysSignaturesBindingsAndRowsRemainImmutable",
+    "testV23P03C27H01ForeignRevokedPartialOversizedCollisionAndStaleInputsFailClosed",
+    "testV23P03C27I01CanonicalRowsRetryFromOnlyOldOrNewStateAndReplayDeterministically",
+    "testV23P03C27R01RetirementReplacementAndFrozenHistorySurviveOfflineRecovery"
+  ]
+}

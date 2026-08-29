@@ -2608,3 +2608,196 @@ enum SurveySessionSearchProjectionPolicyV1 {
         }
     }
 }
+
+// MARK: - C27 bounded asset-locator search projection
+
+/// Search stores only bounded identity/state fields from a locator report.
+/// Opaque input, external-key values, signed payloads, and private key
+/// material are never tokenized or persisted in this disposable index.
+enum AssetLocatorSearchFieldV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case workspaceID = "asset_locator_workspace_id"
+    case locatorID = "asset_locator_id"
+    case assetID = "asset_locator_asset_id"
+    case locatorRevision = "asset_locator_revision"
+    case locatorState = "asset_locator_state"
+    case replacementLocatorID = "asset_locator_replacement_locator_id"
+    case resolutionOutcome = "asset_locator_resolution_outcome"
+    case candidateCount = "asset_locator_candidate_count"
+}
+
+struct AssetLocatorSearchRecordV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let maximumSearchTokens = SearchContractLimitsV1.maximumQueryTokens
+
+    let schemaVersion: Int
+    let workspaceID: UUID
+    let locatorID: UUID?
+    let assetID: UUID?
+    let locatorRevision: UInt64?
+    let locatorState: AssetLocatorStateV1?
+    let replacementLocatorID: UUID?
+    let resolutionOutcome: LocatorResolutionOutcomeV1
+    let candidateCount: Int
+    let resolutionSHA256: String
+    let normalizedTokens: [String]
+
+    init(projection: AssetLocatorReportProjectionV1) throws {
+        try projection.validate(format: .openJSON)
+        schemaVersion = Self.schemaVersion
+        workspaceID = projection.resolution.workspaceID.rawValue
+        locatorID = projection.metadata?.locatorID
+        assetID = projection.metadata?.assetID
+        locatorRevision = projection.metadata?.revision
+        locatorState = projection.metadata?.state
+        replacementLocatorID = projection.resolution.replacementLocatorID
+        resolutionOutcome = projection.resolution.outcome
+        candidateCount = projection.resolution.candidateCount
+        resolutionSHA256 = projection.resolution.resolutionSHA256
+        normalizedTokens = Self.tokens(
+            workspaceID: workspaceID,
+            locatorID: locatorID,
+            assetID: assetID,
+            locatorRevision: locatorRevision,
+            locatorState: locatorState,
+            replacementLocatorID: replacementLocatorID,
+            resolutionOutcome: resolutionOutcome,
+            candidateCount: candidateCount
+        )
+        try validate()
+    }
+
+    init(
+        locator: AssetLocatorV1,
+        resolution: LocatorResolutionV1? = nil
+    ) throws {
+        let projection = try AssetLocatorReportProjectionV1(
+            locator: locator,
+            resolution: resolution
+        )
+        try self.init(projection: projection)
+    }
+
+    var projectionIdentity: String {
+        "asset-locator:\(workspaceID.uuidString.lowercased()):\(resolutionSHA256)"
+    }
+
+    var boundedFieldValues: [AssetLocatorSearchFieldV1: String] {
+        [
+            .workspaceID: workspaceID.uuidString.lowercased(),
+            .locatorID: locatorID?.uuidString.lowercased() ?? "none",
+            .assetID: assetID?.uuidString.lowercased() ?? "none",
+            .locatorRevision: locatorRevision.map(String.init) ?? "none",
+            .locatorState: locatorState?.rawValue ?? "NONE",
+            .replacementLocatorID: replacementLocatorID?.uuidString.lowercased() ?? "none",
+            .resolutionOutcome: resolutionOutcome.rawValue,
+            .candidateCount: String(candidateCount),
+        ]
+    }
+
+    func validate() throws {
+        let zero = SearchContractValidationV1.zeroUUID
+        guard schemaVersion == Self.schemaVersion,
+              workspaceID != zero,
+              KernelCanonicalHashV1.validSHA256(resolutionSHA256),
+              (0...AssetLocatorLimitsV1.maximumCandidates).contains(candidateCount),
+              normalizedTokens.count <= Self.maximumSearchTokens,
+              normalizedTokens == normalizedTokens.sorted(),
+              SearchContractValidationV1.normalizedTokensAreCanonical(normalizedTokens),
+              boundedFieldValues.count == AssetLocatorSearchFieldV1.allCases.count,
+              boundedFieldValues.values.allSatisfy({ value in
+                  let parts = SearchContractValidationV1.normalizeSearchText(value)
+                      .split { !CharacterSet.alphanumerics.contains($0) }
+                      .map(String.init)
+                  return !parts.isEmpty
+                      && parts.allSatisfy(SearchContractValidationV1.isCanonicalSearchToken)
+              }) else {
+            throw SearchContractFailureV1.invalidField
+        }
+        let selected = locatorID != nil && assetID != nil
+        switch resolutionOutcome {
+        case .matched, .retired, .revoked:
+            guard selected, replacementLocatorID == nil,
+                  locatorRevision != nil, locatorState != nil else {
+                throw SearchContractFailureV1.invalidField
+            }
+        case .replaced:
+            guard selected, replacementLocatorID != nil,
+                  locatorRevision != nil,
+                  locatorState.map({ $0 == .replaced }) == true else {
+                throw SearchContractFailureV1.invalidField
+            }
+        case .ambiguous:
+            guard !selected, replacementLocatorID == nil, candidateCount > 1 else {
+                throw SearchContractFailureV1.invalidField
+            }
+        case .noMatch, .foreignWorkspace, .damagedOrIncomplete:
+            guard !selected, replacementLocatorID == nil,
+                  locatorRevision == nil, locatorState == nil else {
+                throw SearchContractFailureV1.invalidField
+            }
+        }
+    }
+
+    private static func tokens(
+        workspaceID: UUID,
+        locatorID: UUID?,
+        assetID: UUID?,
+        locatorRevision: UInt64?,
+        locatorState: AssetLocatorStateV1?,
+        replacementLocatorID: UUID?,
+        resolutionOutcome: LocatorResolutionOutcomeV1,
+        candidateCount: Int
+    ) -> [String] {
+        let values = [
+            workspaceID.uuidString,
+            locatorID?.uuidString ?? "none",
+            assetID?.uuidString ?? "none",
+            locatorRevision.map(String.init) ?? "none",
+            locatorState?.rawValue ?? "NONE",
+            replacementLocatorID?.uuidString ?? "none",
+            resolutionOutcome.rawValue,
+            String(candidateCount),
+        ]
+        let tokens = values.flatMap { value in
+            SearchContractValidationV1.normalizeSearchText(value)
+                .split { !CharacterSet.alphanumerics.contains($0) }
+                .map(String.init)
+        }
+        return Array(Set(tokens)).sorted()
+    }
+}
+
+enum AssetLocatorSearchProjectionPolicyV1 {
+    static let sourceKind = "ASSET_LOCATOR"
+    static let semanticLabel = "ASSET_LOCATOR_METADATA_V1"
+    static let fieldIDs = AssetLocatorSearchFieldV1.allCases.map(\.rawValue).sorted()
+    static let metadataOnly = true
+    static let derivedOnly = true
+    static let boundedToLocatorAssetAndState = true
+    static let dropAndRebuildAfterRestore = true
+    static let dropAndRebuildOnReplay = true
+    static let dropAndRebuildAfterDelete = true
+    static let excludesOpaqueInput = true
+    static let excludesPrivateKeyMaterial = true
+    static let excludesSecrets = true
+    static let excludesVendorIdentifiers = true
+    static let excludesPrivateLocators = true
+    static let excludesActorIdentity = true
+    static let excludesUnsupportedClaims = true
+
+    static func accepts(_ field: AssetLocatorSearchFieldV1) -> Bool {
+        fieldIDs.contains(field.rawValue)
+    }
+
+    static func validate(_ record: AssetLocatorSearchRecordV1) throws {
+        try record.validate()
+        guard metadataOnly, derivedOnly, boundedToLocatorAssetAndState,
+              dropAndRebuildAfterRestore, dropAndRebuildOnReplay,
+              dropAndRebuildAfterDelete, excludesOpaqueInput,
+              excludesPrivateKeyMaterial, excludesSecrets,
+              excludesVendorIdentifiers, excludesPrivateLocators,
+              excludesActorIdentity, excludesUnsupportedClaims else {
+            throw SearchContractFailureV1.forbiddenField
+        }
+    }
+}
