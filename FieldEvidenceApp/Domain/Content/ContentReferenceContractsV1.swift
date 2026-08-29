@@ -307,3 +307,15 @@ enum C37PoseIntegration_FieldEvidenceApp_Domain_Content_ContentReferenceContract
 enum C30ConsumerBoundaryV1_Domain_Content_ContentReferenceContractsV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/Content/ContentReferenceContractsV1.swift", role: .content)
 }
+
+enum C31LightingContentReferenceBoundaryV1 {
+    static let lightingProjectionUsesDigestOnly = true
+    static let originalBytesRemainInExistingStore = true
+    static let privateLocatorsAndActorIdentityExcluded = true
+
+    static func accepts(_ reference: ContentReferenceV1) -> Bool {
+        reference.byteLength >= 0
+            && !reference.contentID.isEmpty
+            && !reference.workspaceID.isEmpty
+    }
+}

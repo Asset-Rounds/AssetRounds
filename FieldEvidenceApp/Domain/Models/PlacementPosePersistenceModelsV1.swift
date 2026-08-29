@@ -39,3 +39,11 @@ enum PlacementPosePersistenceFailureV1: Error { case corruptRow }
 }
 
 enum PlacementPosePersistenceEnrollmentV1{static let durableModelCount=2;static let persistentSchemaVersion=29;static let recordsSchemaVersion=28;static let derivedTypes:[Any.Type]=[PoseAxisDescriptorRegistryV1.self,AssetPoseCurrentTipV1.self,CompletedPlacementPoseSnapshotV1.self]}
+
+enum LightingPoseReferenceReuseV1 { static let lightingTopologyMayReferenceExistingPoseHistory = true; static let createsNoPoseTipRow = true }
+
+enum C31LightingPosePersistenceBoundaryV1 {
+    static let poseHistoryRemainsCanonical = true
+    static let lightingStoresNoPoseSnapshotCopy = true
+    static let uncertainPoseCannotBecomeAnAssertedLightingFact = true
+}

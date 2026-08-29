@@ -1797,3 +1797,19 @@ extension SnapshotValidatorV1 {
 enum C30ConsumerBoundaryV1_Infrastructure_Reporting_SnapshotValidatorV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Reporting/SnapshotValidatorV1.swift", role: .report)
 }
+
+// MARK: - C31 lighting validation
+
+extension SnapshotValidatorV1 {
+    static func validateLightingProjection(
+        _ projection: C31LightingReportProjectionV1
+    ) throws -> C31LightingReportProjectionV1 {
+        try C31LightingReportProjectionRegistryV1.validate(projection)
+    }
+
+    static let lightingHistoricDisplayIsImmutable = true
+    static let lightingProjectionIsMetadataOnly = true
+    static let lightingOriginalEvidenceRemainsSeparate = true
+    static let lightingTimestampPhotoSolarInferenceRejected = true
+    static let lightingOperationalSafetySecurityComplianceClaimsRejected = true
+}

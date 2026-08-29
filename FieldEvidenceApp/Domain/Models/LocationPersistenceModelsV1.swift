@@ -228,3 +228,11 @@ final class LocationMigrationReceiptRow {
         return value
     }
 }
+
+enum LightingLocationTopologyReuseV1 { static let systemAggregateReferencesExistingLocationSubjects = true; static let createsNoParallelLocationGraph = true }
+
+enum C31LightingLocationPersistenceBoundaryV1 {
+    static let locationHierarchyRemainsCanonical = true
+    static let topologyCarriesStableLocationReferences = true
+    static let geometryAndPrivateLocatorsAreNotCopied = true
+}

@@ -384,3 +384,9 @@ enum C37PoseIntegration_FieldEvidenceApp_Domain_Packs_SurveyDefinitionContractsV
 enum C30ConsumerBoundaryV1_Domain_Packs_SurveyDefinitionContractsV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/Packs/SurveyDefinitionContractsV1.swift", role: .survey)
 }
+
+enum C31LightingSurveyDefinitionBoundaryV1 {
+    static let measurementCriteriaReferenceIsStable = true
+    static let definitionReleaseRemainsThePackageAuthority = true
+    static let localizedLabelsDoNotChangeSemanticIDs = true
+}

@@ -334,3 +334,31 @@ enum C30EvidenceContextWorkflowBoundaryV1 {
         }
     }
 }
+
+enum C31LightingWorkflowBoundaryV1 {
+    static let topologyAndObservationAreRecordedFacts = true
+    static let measurementRequiresRecordedProtocolAndCalibration = true
+    static let safetyStopBlocksUnsafeIntent = true
+    static let previewNeverAppliesOrSavesTruth = true
+    static let timestampPhotoAndSolarInferenceRejected = true
+
+    static func validate(
+        records: [V31BackupLightingRecordV1],
+        workspaceID: WorkspaceID
+    ) throws {
+        let roots = try LightingBackupRecordSetV1.decode(records)
+        let workspaces = roots.systems.map(\.workspaceID)
+            + roots.observations.map(\.workspaceID)
+            + roots.issues.map(\.workspaceID)
+            + roots.plans.map(\.workspaceID)
+            + roots.claims.map(\.workspaceID)
+        guard workspaces.allSatisfy({ $0 == workspaceID }),
+              topologyAndObservationAreRecordedFacts,
+              measurementRequiresRecordedProtocolAndCalibration,
+              safetyStopBlocksUnsafeIntent,
+              previewNeverAppliesOrSavesTruth,
+              timestampPhotoAndSolarInferenceRejected else {
+            throw LightingContractFailureV1.wrongWorkspace
+        }
+    }
+}

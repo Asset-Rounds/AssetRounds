@@ -355,3 +355,24 @@ enum C30EvidenceContextWorkRuleV1 {
               !pairMayClaimCompliance else { throw EvidenceContextFailureV1.invalidValue }
     }
 }
+
+enum C31LightingWorkRuleBoundaryV1 {
+    static let observedFactsRequireExplicitBasis = true
+    static let safetyStopsRemainBlocking = true
+    static let claimsRequireRecordedReferences = true
+
+    static func validate(
+        records: [V31BackupLightingRecordV1],
+        workspaceID: WorkspaceID
+    ) throws {
+        try C31LightingWorkflowBoundaryV1.validate(
+            records: records,
+            workspaceID: workspaceID
+        )
+        guard observedFactsRequireExplicitBasis,
+              safetyStopsRemainBlocking,
+              claimsRequireRecordedReferences else {
+            throw LightingContractFailureV1.invalidValue
+        }
+    }
+}

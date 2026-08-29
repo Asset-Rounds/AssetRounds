@@ -264,3 +264,33 @@ enum AssetSemanticSchedulePersistencePartitionV1 {
         }
     }
 }
+
+enum LightingAssetSemanticReuseV1 { static let referencedExistingRows = ["AssetKindBindingEventRow","AssetWorkflowCapabilityBindingEventRow"]; static let createsDuplicateLightingRows = false }
+
+// C31 keeps lighting topology as a projection over the canonical asset rows;
+// no lighting bytes or claim state are added to the semantic persistence rows.
+struct C31LightingAssetSemanticProjectionV1: Codable, Equatable, Sendable {
+    let systemID: UUID
+    let systemRevision: UInt64
+    let systemSHA256: String
+    let assetIDs: [UUID]
+
+    init(system: LightingSystemV1) throws {
+        try system.validateIntrinsic()
+        systemID = system.systemID
+        systemRevision = system.revision
+        systemSHA256 = system.systemSHA256
+        assetIDs = system.luminaires.map(\.assetID).sorted {
+            $0.uuidString < $1.uuidString
+        }
+    }
+
+    func validate() throws {
+        guard !assetIDs.isEmpty, systemRevision > 0,
+              MutationEnvelopeV1.isSHA256(systemSHA256),
+              assetIDs == assetIDs.sorted(by: { $0.uuidString < $1.uuidString }),
+              Set(assetIDs).count == assetIDs.count else {
+            throw AssetSemanticContractFailureV1.invalidValue
+        }
+    }
+}

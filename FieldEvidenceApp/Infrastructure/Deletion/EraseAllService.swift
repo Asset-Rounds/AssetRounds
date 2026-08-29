@@ -21,6 +21,27 @@ enum C30EvidenceContextEraseAllPolicyV1 {
         }
     }
 }
+
+enum C31LightingEraseAllServiceBoundaryV1 {
+    static let eraseClearsAllFiveDurableFamilies = true
+    static let eraseDoesNotClaimExternalAvailability = true
+    static let diagnosticsRemainAggregateOnly = true
+
+    static func validate(
+        records: [V31BackupLightingRecordV1],
+        workspaceID: WorkspaceID
+    ) throws {
+        try C31LightingEraseIntentBoundaryV1.validate(
+            records: records,
+            workspaceID: workspaceID
+        )
+        guard eraseClearsAllFiveDurableFamilies,
+              eraseDoesNotClaimExternalAvailability,
+              diagnosticsRemainAggregateOnly else {
+            throw LightingContractFailureV1.invalidValue
+        }
+    }
+}
 import SwiftData
 
 enum IntegrationProjectionEraseAllPolicyV1 {

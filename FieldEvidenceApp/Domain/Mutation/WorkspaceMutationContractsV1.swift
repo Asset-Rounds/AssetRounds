@@ -105,6 +105,11 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case spatialAnchorObservation
     case evidenceContext
     case pairedObservationLink
+    case lightingSystem
+    case lightingObservation
+    case lightingIssue
+    case lightingMeasurementPlan
+    case lightingClaimState
     case workflowRecord
     case evidenceFile
     case issue
@@ -1559,6 +1564,23 @@ extension EvidenceContextWriteOperationV1{
     var expectedRevision:UInt64{switch self{case .appendContext(_,let predecessor):return predecessor?.revision ?? 0;case .appendPair(_,let predecessor):return predecessor?.revision ?? 0}}
 }
 
+extension LightingWriteOperationV1 {
+    var affectedIdentity: WorkspaceEntityIdentityV1 { get throws { switch self {
+    case let .appendSystem(v,_,_): return try .init(kind:.lightingSystem,id:v.recordID)
+    case let .appendObservation(v,_,_): return try .init(kind:.lightingObservation,id:v.recordID)
+    case let .appendIssue(v,_,_): return try .init(kind:.lightingIssue,id:v.recordID)
+    case let .appendMeasurementPlan(v,_,_): return try .init(kind:.lightingMeasurementPlan,id:v.recordID)
+    case let .appendClaim(v,_,_): return try .init(kind:.lightingClaimState,id:v.recordID) } } }
+    var concurrencyIdentity: WorkspaceEntityIdentityV1 { get throws { switch self {
+    case let .appendSystem(v,p,_): return try .init(kind:.lightingSystem,id:p?.recordID ?? v.recordID)
+    case let .appendObservation(v,p,_): return try .init(kind:.lightingObservation,id:p?.recordID ?? v.recordID)
+    case let .appendIssue(v,p,_): return try .init(kind:.lightingIssue,id:p?.recordID ?? v.recordID)
+    case let .appendMeasurementPlan(v,p,_): return try .init(kind:.lightingMeasurementPlan,id:p?.recordID ?? v.recordID)
+    case let .appendClaim(v,p,_): return try .init(kind:.lightingClaimState,id:p?.recordID ?? v.recordID) } } }
+    var expectedRevision: UInt64 { switch self { case .appendSystem(_,let p,_):p?.revision ?? 0;case .appendObservation(_,let p,_):p?.revision ?? 0;case .appendIssue(_,let p,_):p?.revision ?? 0;case .appendMeasurementPlan(_,let p,_):p?.revision ?? 0;case .appendClaim(_,let p,_):p?.revision ?? 0 } }
+    var revision: UInt64 { switch self { case .appendSystem(let v,_,_):v.revision;case .appendObservation(let v,_,_):v.revision;case .appendIssue(let v,_,_):v.revision;case .appendMeasurementPlan(let v,_,_):v.revision;case .appendClaim(let v,_,_):v.revision } }
+}
+
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
     case createCheckDraft(CheckDraftMutationV1)
@@ -1598,6 +1620,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyPlan(PlanMutationV1)
     case applyPlacementPose(PlacementPoseMutationV1)
     case applyEvidenceContext(EvidenceContextWriteOperationV1)
+    case applyLighting(LightingWriteOperationV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -1639,6 +1662,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyPlan:.applyPlan
         case .applyPlacementPose:.applyPlacementPose
         case .applyEvidenceContext:.applyEvidenceContext
+        case .applyLighting:.applyLighting
         }
     }
 }
@@ -1682,6 +1706,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyPlan="apply_plan"
     case applyPlacementPose="apply_placement_pose"
     case applyEvidenceContext="apply_evidence_context"
+    case applyLighting="apply_lighting"
 }
 
 extension WorkspaceCommandV1 {
@@ -2474,6 +2499,7 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind:.applyPlan,disposition:.compensatable,stableReason:"append_plan_history_successor_only"),
         .init(commandKind:.applyPlacementPose,disposition:.compensatable,stableReason:"append_pose_history_successor_only"),
         .init(commandKind:.applyEvidenceContext,disposition:.compensatable,stableReason:"append_evidence_context_history_successor_only"),
+        .init(commandKind:.applyLighting,disposition:.compensatable,stableReason:"append_lighting_history_successor_only"),
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {

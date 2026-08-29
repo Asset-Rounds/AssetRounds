@@ -236,3 +236,34 @@ enum V30EvidenceContextImportBoundaryV1 {
         _ = try EvidenceContextBackupRecordSetV1.decode(rows)
     }
 }
+
+/// C31 imports only the five canonical lighting roots.  Zone/group/luminaire
+/// topology, observations, issues, measurement plans, and claim state travel
+/// as one ordered canonical graph; display/search and any measurement result
+/// not present in the archive are derived after restore.
+enum V31LightingImportBoundaryV1 {
+    static let persistentSchemaVersion = 31
+    static let recordsSchemaVersion = 30
+    static let durableFamilyCount = 5
+    static let lifecycleHistoryStorage = "MUTATION_HISTORY_ONLY"
+    static let derivedProjectionStorage = "NONPERSISTENT_REBUILD"
+    static let externalMeasurementProvider = false
+    static let licensedCriterionTextImported = false
+
+    static func validate(
+        persistent: Int,
+        records: Int,
+        rows: [V31BackupLightingRecordV1] = []
+    ) throws {
+        guard persistent == persistentSchemaVersion,
+              records == recordsSchemaVersion,
+              durableFamilyCount == V31BackupLightingRecordV1.Kind.allCases.count,
+              lifecycleHistoryStorage == "MUTATION_HISTORY_ONLY",
+              derivedProjectionStorage == "NONPERSISTENT_REBUILD",
+              !externalMeasurementProvider,
+              !licensedCriterionTextImported else {
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
+        }
+        _ = try LightingBackupRecordSetV1.decode(rows)
+    }
+}

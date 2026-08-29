@@ -128,3 +128,11 @@ extension FieldDraftCheckpointRow {
         )
     }
 }
+
+enum LightingDraftIsolationV1 { static let lightingCanonicalWritesDoNotPersistDraftStaging = true; static let draftReservationsRemainIndependent = true }
+
+enum C31LightingDraftPersistenceBoundaryV1 {
+    static let stagingDoesNotEnterFinalizedReports = true
+    static let draftPayloadIsNotCopiedIntoSearch = true
+    static let incompleteDraftRemainsIncomplete = true
+}

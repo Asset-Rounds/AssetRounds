@@ -69,3 +69,11 @@ extension WorkPacketManifestRow {
         return manifest
     }
 }
+
+enum LightingWorkPacketReuseV1 { static let workPacketRowsRemainExistingAuthority = true; static let lightingAddsNoPacketRow = true }
+
+enum C31LightingWorkPacketPersistenceBoundaryV1 {
+    static let persistedManifestBytesAreNotDuplicated = true
+    static let projectionStoresDigestAndReferenceOnly = true
+    static let missingPackageDataFailsClosed = true
+}

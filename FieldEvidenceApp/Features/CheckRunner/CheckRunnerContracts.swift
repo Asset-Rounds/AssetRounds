@@ -744,3 +744,12 @@ enum C37PoseIntegration_FieldEvidenceApp_Features_CheckRunner_CheckRunnerContrac
 enum C30ConsumerBoundaryV1_Features_CheckRunner_CheckRunnerContracts {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Features/CheckRunner/CheckRunnerContracts.swift", role: .checkRunner)
 }
+
+enum C31LightingConsumerBoundary_Features_CheckRunner_CheckRunnerContracts {
+    static let registrationID = "C31_LIGHTING_CONSUMER/check-runner-contracts"
+    static let compatibility = C31LightingCompatibilityPolicyV1()
+    static func validate(projection: C31LightingReportProjectionV1) throws {
+        try compatibility.validate()
+        try C31LightingProjectionPolicyV1.validate(projection)
+    }
+}

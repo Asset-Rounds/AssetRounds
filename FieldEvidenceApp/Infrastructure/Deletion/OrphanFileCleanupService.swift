@@ -21,6 +21,31 @@ enum C30EvidenceContextOrphanCleanupPolicyV1 {
     }
 }
 
+enum C31LightingOrphanCleanupBoundaryV1 {
+    static let canonicalRowsMustExistBeforeOwnedBytesRemoval = true
+    static let unknownLightingRootsAreRejected = true
+    static let derivedIndexesMayBeRebuilt = true
+
+    static func validate(
+        records: [V31BackupLightingRecordV1],
+        workspaceID: WorkspaceID
+    ) throws {
+        try LightingBackupRecordSetV1.decode(records)
+        let roots = try LightingBackupRecordSetV1.decode(records)
+        let workspaces = roots.systems.map(\.workspaceID)
+            + roots.observations.map(\.workspaceID)
+            + roots.issues.map(\.workspaceID)
+            + roots.plans.map(\.workspaceID)
+            + roots.claims.map(\.workspaceID)
+        guard workspaces.allSatisfy({ $0 == workspaceID }),
+              canonicalRowsMustExistBeforeOwnedBytesRemoval,
+              unknownLightingRootsAreRejected,
+              derivedIndexesMayBeRebuilt else {
+            throw LightingContractFailureV1.wrongWorkspace
+        }
+    }
+}
+
 struct OrphanFileCleanupSummary: Equatable, Sendable {
     let inspectedFileCount: Int
     let removedFileCount: Int

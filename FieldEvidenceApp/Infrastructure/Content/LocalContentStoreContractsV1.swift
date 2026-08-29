@@ -259,3 +259,14 @@ enum C37PoseIntegration_FieldEvidenceApp_Infrastructure_Content_LocalContentStor
 enum C30ConsumerBoundaryV1_Infrastructure_Content_LocalContentStoreContractsV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Content/LocalContentStoreContractsV1.swift", role: .content)
 }
+
+enum C31LightingLocalContentStoreBoundaryV1 {
+    static let canonicalLightingProjectionStoresMetadataOnly = true
+    static let originalAndDerivedBytesUseExistingContentStore = true
+    static let searchAndReportNeverReadPrivateLocators = true
+
+    static func permitsProjectionRead() -> Bool {
+        canonicalLightingProjectionStoresMetadataOnly
+            && originalAndDerivedBytesUseExistingContentStore
+    }
+}

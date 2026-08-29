@@ -538,3 +538,9 @@ enum C37PoseIntegration_FieldEvidenceApp_Infrastructure_Jobs_ResumableLocalJobV1
 enum C30ConsumerBoundaryV1_Infrastructure_Jobs_ResumableLocalJobV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Jobs/ResumableLocalJobV1.swift", role: .job)
 }
+
+enum C31LightingLocalJobBoundaryV1 {
+    static let jobStateIsDisposableProjectionState = true
+    static let retryDoesNotRewriteFrozenHistory = true
+    static let jobDoesNotCollectSensorData = true
+}

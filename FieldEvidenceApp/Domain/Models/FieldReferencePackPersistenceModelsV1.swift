@@ -60,3 +60,11 @@ enum FieldReferencePackPersistenceFailureV1: Error { case corruptRow }
         return value
     }
 }
+
+enum LightingFieldReferenceReuseV1 { static let criterionLocatorsRemainExactReferences = true; static let licensedTextIsNotPersistedByLighting = true }
+
+enum C31LightingReferencePackPersistenceBoundaryV1 {
+    static let packBindingIsExistingPersistenceAuthority = true
+    static let lightingStoresNoReferencePackCopy = true
+    static let projectionCarriesOnlyDigestAndIDs = true
+}

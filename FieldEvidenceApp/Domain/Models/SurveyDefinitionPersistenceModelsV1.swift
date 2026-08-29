@@ -127,3 +127,11 @@ extension SurveyDefinitionReleaseRow {
         return release
     }
 }
+
+enum LightingSurveyDefinitionReuseV1 { static let definitionReleaseReferencesRemainExact = true; static let lightingAddsNoDefinitionRow = true }
+
+enum C31LightingSurveyDefinitionPersistenceBoundaryV1 {
+    static let criteriaAndMeasurementMetadataRemainPackageBound = true
+    static let persistenceDoesNotStoreLocalizedLabelsAsTruth = true
+    static let unsupportedCriterionReferenceFailsClosed = true
+}

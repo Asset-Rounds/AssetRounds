@@ -1953,3 +1953,66 @@ extension DiagnosticExportV1 {
         )
     }
 }
+
+// MARK: - C31 lighting diagnostics
+
+/// Aggregate-only lighting health.  Digests are intentionally omitted: the
+/// diagnostic surface reports bounded counts and closed states, never content
+/// bytes, private locators, actor identity, or an operational conclusion.
+struct C31LightingDiagnosticMetadataV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let maximumValues = 131_072
+
+    let schemaVersion: Int
+    let zoneCount: Int
+    let controlGroupCount: Int
+    let luminaireCount: Int
+    let observationCount: Int
+    let issueCount: Int
+    let measurementPlanCount: Int
+    let claimCount: Int
+    let safetyStopCount: Int
+    let metadataOnly: Bool
+    let originalEvidenceExcluded: Bool
+    let actorIdentityExcluded: Bool
+    let operationalInferenceExcluded: Bool
+    let historicDisplayFrozen: Bool
+
+    init(_ projection: C31LightingReportProjectionV1) throws {
+        try projection.validate()
+        schemaVersion = Self.schemaVersion
+        zoneCount = projection.zoneCount
+        controlGroupCount = projection.controlGroupCount
+        luminaireCount = projection.luminaireCount
+        observationCount = projection.observationCount
+        issueCount = projection.issueCount
+        measurementPlanCount = projection.measurementPlanCount
+        claimCount = projection.claimCount
+        safetyStopCount = projection.safetyStopReasons.count
+        metadataOnly = true
+        originalEvidenceExcluded = true
+        actorIdentityExcluded = true
+        operationalInferenceExcluded = true
+        historicDisplayFrozen = projection.frozenDisplay
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              [zoneCount, controlGroupCount, luminaireCount, observationCount,
+               issueCount, measurementPlanCount, claimCount, safetyStopCount]
+                .allSatisfy({ (0...Self.maximumValues).contains($0) }),
+              metadataOnly, originalEvidenceExcluded, actorIdentityExcluded,
+              operationalInferenceExcluded, historicDisplayFrozen else {
+            throw DiagnosticExportError.invalidValue
+        }
+    }
+}
+
+extension DiagnosticExportV1 {
+    static func lightingDiagnosticMetadata(
+        _ projection: C31LightingReportProjectionV1
+    ) throws -> C31LightingDiagnosticMetadataV1 {
+        try C31LightingDiagnosticMetadataV1(projection)
+    }
+}

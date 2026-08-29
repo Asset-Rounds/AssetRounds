@@ -503,3 +503,12 @@ enum WorkflowSchedulePersistenceEnrollmentV1 {
         }
     }
 }
+
+enum LightingWorkflowReferenceEnrollmentV1 { static let measurementAndClaimHistoryRemainAppendOnly = true; static let derivedLightingPreviewsAreNotPersistent = true }
+
+enum C31LightingWorkflowModelBoundaryV1 {
+    static let completedSnapshotsReferenceFrozenProjection = true
+    static let workflowRowsDoNotDuplicateLightingBytes = true
+    static let currentTipDoesNotRewriteHistoricDisplay = true
+    static let noOperationalStateInferred = true
+}

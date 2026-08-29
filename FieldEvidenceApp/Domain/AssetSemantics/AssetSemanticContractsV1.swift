@@ -1330,3 +1330,21 @@ enum C37PoseIntegration_FieldEvidenceApp_Domain_AssetSemantics_AssetSemanticCont
 enum C30ConsumerBoundaryV1_Domain_AssetSemantics_AssetSemanticContractsV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/AssetSemantics/AssetSemanticContractsV1.swift", role: .asset)
 }
+
+// MARK: - C31 lighting asset-semantic consumer boundary
+
+enum C31LightingAssetSemanticConsumerBoundaryV1 {
+    static let topologyUsesCanonicalAssetIdentity = true
+    static let displayUsesLocalizedLabels = true
+    static let privateLocatorsAndActorIdentityExcluded = true
+    static let operationalClaimsExcluded = true
+
+    static func assetIDs(
+        from system: LightingSystemV1
+    ) throws -> [UUID] {
+        try system.validateIntrinsic()
+        return system.luminaires.map(\.assetID).sorted {
+            $0.uuidString < $1.uuidString
+        }
+    }
+}

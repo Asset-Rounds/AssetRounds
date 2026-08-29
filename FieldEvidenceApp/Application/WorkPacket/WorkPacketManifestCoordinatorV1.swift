@@ -164,3 +164,12 @@ enum C37PoseIntegration_FieldEvidenceApp_Application_WorkPacket_WorkPacketManife
 enum C30ConsumerBoundaryV1_Application_WorkPacket_WorkPacketManifestCoordinatorV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Application/WorkPacket/WorkPacketManifestCoordinatorV1.swift", role: .workPacket)
 }
+
+enum C31LightingConsumerBoundary_Application_WorkPacket_WorkPacketManifestCoordinatorV1 {
+    static let registrationID = "C31_LIGHTING_CONSUMER/work-packet-coordinator"
+    static let compatibility = C31LightingCompatibilityPolicyV1()
+    static func validate(projection: C31LightingReportProjectionV1) throws {
+        try compatibility.validate()
+        try C31LightingProjectionPolicyV1.validate(projection)
+    }
+}

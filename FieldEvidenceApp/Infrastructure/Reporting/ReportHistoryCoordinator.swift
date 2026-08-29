@@ -862,3 +862,12 @@ extension ReportHistoryCoordinator {
 enum C30ConsumerBoundaryV1_Infrastructure_Reporting_ReportHistoryCoordinator {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Reporting/ReportHistoryCoordinator.swift", role: .report)
 }
+
+enum C31LightingConsumerBoundary_Infrastructure_Reporting_ReportHistoryCoordinator {
+    static let registrationID = "C31_LIGHTING_CONSUMER/report-history-coordinator"
+    static let compatibility = C31LightingCompatibilityPolicyV1()
+    static func validate(projection: C31LightingReportProjectionV1) throws {
+        try compatibility.validate()
+        try C31LightingProjectionPolicyV1.validate(projection)
+    }
+}

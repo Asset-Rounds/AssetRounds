@@ -156,6 +156,9 @@ struct IntegrationEventProjectionV1: Sendable {
     static let evidenceContextKinds:Set<WorkspaceEntityKindV1>=[.evidenceContext,.pairedObservationLink]
     static func validateEvidenceContextReceiptShape(_ receipt:MutationReceiptV1)throws{let identities=try receipt.postImages.map{$0.identity};let present=Set(identities.map(\.kind)).intersection(evidenceContextKinds);guard !present.isEmpty else{return};guard identities.count==1,let image=receipt.postImages.first,evidenceContextKinds.contains(try image.identity.kind)else{throw IntegrationEventFailureV1.divergentEvent};let concurrency=try image.concurrencyIdentity;guard let expected=receipt.expectedRevision.entityRevisions.first(where:{$0.identity==concurrency})?.revision,expected<UInt64.max,image.revision==expected+1 else{throw IntegrationEventFailureV1.divergentEvent}}
     func validateEvidenceContextReplay(_ receipts:[MutationReceiptV1])throws{var found=false;for receipt in receipts{for image in receipt.postImages where Self.evidenceContextKinds.contains(try image.identity.kind){found=true}};if found{try EvidenceContextIntegrationContractV1.validate(registry:registry)};try receipts.forEach{try Self.validateEvidenceContextReceiptShape($0)}}
+    static let lightingKinds:Set<WorkspaceEntityKindV1>=[.lightingSystem,.lightingObservation,.lightingIssue,.lightingMeasurementPlan,.lightingClaimState]
+    static func validateLightingReceiptShape(_ receipt:MutationReceiptV1)throws{let identities=try receipt.postImages.map{$0.identity};let present=Set(identities.map(\.kind)).intersection(lightingKinds);guard !present.isEmpty else{return};guard identities.count==1,let image=receipt.postImages.first,lightingKinds.contains(try image.identity.kind)else{throw IntegrationEventFailureV1.divergentEvent};let concurrency=try image.concurrencyIdentity;guard let expected=receipt.expectedRevision.entityRevisions.first(where:{$0.identity==concurrency})?.revision,expected<UInt64.max,image.revision==expected+1 else{throw IntegrationEventFailureV1.divergentEvent}}
+    func validateLightingReplay(_ receipts:[MutationReceiptV1])throws{for receipt in receipts{try Self.validateLightingReceiptShape(receipt)}}
 
     func validateProjectedStream(_ events: [IntegrationEventV1], workspaceID: WorkspaceID) throws -> [IntegrationEventV1] {
         let ordered = events.sorted { $0.order < $1.order }
@@ -327,5 +330,33 @@ extension IntegrationProjectionOperationalStoreV1 {
         workspaceID: WorkspaceID
     ) async throws {
         throw IntegrationEventFailureV1.invalidValue
+    }
+}
+
+struct C31LightingIntegrationProjectionMetadataV1: Codable, Equatable, Sendable {
+    let consumer: String
+    let sourceProjection: String
+    let derivedOnly: Bool
+    let bytesExcluded: Bool
+    let actorsExcluded: Bool
+    let privateLocatorsExcluded: Bool
+
+    init(consumer: String) throws {
+        guard !consumer.isEmpty else { throw IntegrationEventFailureV1.invalidValue }
+        self.consumer = consumer
+        sourceProjection = "C31_LIGHTING_REPORT_PROJECTION_V1"
+        derivedOnly = true
+        bytesExcluded = true
+        actorsExcluded = true
+        privateLocatorsExcluded = true
+    }
+
+    func validate() throws {
+        guard !consumer.isEmpty,
+              sourceProjection == "C31_LIGHTING_REPORT_PROJECTION_V1",
+              derivedOnly, bytesExcluded, actorsExcluded,
+              privateLocatorsExcluded else {
+            throw IntegrationEventFailureV1.invalidValue
+        }
     }
 }

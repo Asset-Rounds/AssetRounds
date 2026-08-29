@@ -209,6 +209,31 @@ enum C30EvidenceContextStreamingArchivePolicyV1 {
     }
 }
 
+enum C31LightingStreamingArchivePolicyV1 {
+    static let archiveKinds = V31BackupLightingRecordV1.Kind.allCases
+    static let canonicalRowsOnly = true
+    static let derivedProjectionDisposition = "DROP_AND_REBUILD"
+    static let externalProviderStateIncluded = false
+    static let licensedCriterionTextIncluded = false
+    static let durableFamilyCount = 5
+
+    static func validate(records: V4BackupRecordsV1) throws {
+        guard records.recordsSchemaVersion == 30,
+              archiveKinds.count == durableFamilyCount,
+              canonicalRowsOnly,
+              derivedProjectionDisposition == "DROP_AND_REBUILD",
+              !externalProviderStateIncluded,
+              !licensedCriterionTextIncluded else {
+            throw StreamingArchiveFailureV1.invalidArchive
+        }
+        do {
+            _ = try LightingBackupRecordSetV1.decode(records.lighting)
+        } catch {
+            throw StreamingArchiveFailureV1.invalidArchive
+        }
+    }
+}
+
 enum StreamingArchiveCompressionV1: String, Codable, CaseIterable, Sendable {
     case stored
     case zlib

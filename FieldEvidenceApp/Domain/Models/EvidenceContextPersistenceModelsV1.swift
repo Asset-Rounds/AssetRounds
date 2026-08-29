@@ -22,3 +22,10 @@ enum EvidenceContextPersistenceFailureV1:Error{case corruptRow}
 }
 
 enum EvidenceContextPersistenceEnrollmentV1{static let persistentSchemaVersion=30;static let recordsSchemaVersion=29;static let durableModelCount=2;static let totalModelCount=104}
+enum LightingEvidenceContextReuseV1 { static let observationEmbedsExactEvidenceContext = true; static let lightingAddsNoEvidenceContextRow = true }
+
+enum C31LightingEvidenceContextPersistenceBoundaryV1 {
+    static let evidenceContextRowRemainsExistingAuthority = true
+    static let lightingStoresOnlyContextReferenceAndDigest = true
+    static let privateContextPayloadIsExcludedFromSearch = true
+}

@@ -457,3 +457,9 @@ enum C37PoseIntegration_FieldEvidenceApp_Domain_Drafts_FieldDraftContractsV1_swi
 enum C30ConsumerBoundaryV1_Domain_Drafts_FieldDraftContractsV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/Drafts/FieldDraftContractsV1.swift", role: .draft)
 }
+
+enum C31LightingDraftBoundaryV1 {
+    static let draftLightingEditsAreNotCompletedEvidence = true
+    static let draftPreviewIsNotAppliedState = true
+    static let draftLabelsRemainNoncanonical = true
+}

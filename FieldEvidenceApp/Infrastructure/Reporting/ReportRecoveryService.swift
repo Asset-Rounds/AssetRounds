@@ -1089,3 +1089,19 @@ extension ReportRecoveryService {
 enum C30ConsumerBoundaryV1_Infrastructure_Reporting_ReportRecoveryService {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Reporting/ReportRecoveryService.swift", role: .report)
 }
+
+// MARK: - C31 lighting recovery
+
+extension ReportRecoveryService {
+    static func recoverLightingProjection(
+        _ projection: C31LightingReportProjectionV1
+    ) throws -> C31LightingReportProjectionV1 {
+        // Recovery validates the immutable projection only.  It never
+        // recalculates topology, measurements, solar context, or claim tier.
+        try SnapshotValidatorV1.validateLightingProjection(projection)
+    }
+
+    static let c31LightingRecoveryIsValidationOnly = true
+    static let c31LightingHistoryIsNeverRewritten = true
+    static let c31LightingManualOfflineFallback = true
+}

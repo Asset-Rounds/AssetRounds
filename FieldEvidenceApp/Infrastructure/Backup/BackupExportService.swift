@@ -85,6 +85,11 @@ final class BackupExportService {
         let rebaseReceipts: [RebaseReceiptRow]
         let poseEvents: [AssetPoseEventRow]
         let spatialAnchorObservations: [SpatialAnchorObservationRow]
+        let lightingSystems: [LightingSystemRow]
+        let lightingObservations: [LightingObservationRow]
+        let lightingIssues: [LightingIssueRow]
+        let lightingPlans: [MeasurementPlanRow]
+        let lightingClaims: [LightingClaimStateRow]
         let fieldReferenceReleases:[FieldReferenceReleaseRow]
         let fieldReferenceBindings:[FieldReferenceBindingRow]
         let recoverabilityVerificationReceipts:[RecoverabilityVerificationReceiptRow]
@@ -764,6 +769,7 @@ private extension BackupExportService {
                 schedules: records.schedules,
                 plans: records.plans,
                 placementPoses: records.placementPoses,
+                lighting: records.lighting,
                 fieldReferences:records.fieldReferences,
                 fieldDrafts: records.fieldDrafts,
                 workPackets: records.workPackets,
@@ -1549,6 +1555,11 @@ private extension BackupExportService {
                  rebaseReceipts: try modelContext.fetch(FetchDescriptor<RebaseReceiptRow>()),
                  poseEvents: try modelContext.fetch(FetchDescriptor<AssetPoseEventRow>()),
                  spatialAnchorObservations: try modelContext.fetch(FetchDescriptor<SpatialAnchorObservationRow>()),
+                 lightingSystems: try modelContext.fetch(FetchDescriptor<LightingSystemRow>()),
+                 lightingObservations: try modelContext.fetch(FetchDescriptor<LightingObservationRow>()),
+                 lightingIssues: try modelContext.fetch(FetchDescriptor<LightingIssueRow>()),
+                 lightingPlans: try modelContext.fetch(FetchDescriptor<MeasurementPlanRow>()),
+                 lightingClaims: try modelContext.fetch(FetchDescriptor<LightingClaimStateRow>()),
                  fieldReferenceReleases:try modelContext.fetch(FetchDescriptor<FieldReferenceReleaseRow>()),
                 fieldReferenceBindings:try modelContext.fetch(FetchDescriptor<FieldReferenceBindingRow>()),
                 recoverabilityVerificationReceipts:try modelContext.fetch(FetchDescriptor<RecoverabilityVerificationReceiptRow>()),
@@ -2147,12 +2158,14 @@ private extension BackupExportService {
         let schedules = mutationHistory == nil ? [] : try scheduleRecords(rows)
         let plans = mutationHistory == nil ? [] : try planRecords(rows)
         let placementPoses = try placementPoseRecords(rows)
+        let lighting = mutationHistory == nil ? [] : try lightingRecords(rows)
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveys,
             assetLocators: assetLocators,
             schedules: schedules,
             plans: plans,
             placementPoses: placementPoses,
+            lighting: lighting,
             accessibleDocumentAssessments:accessibleDocumentAssessments,
             surveyDefinitions:surveyDefinitions,
             fieldReferences:fieldReferences,
@@ -2216,7 +2229,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : 28,
+                : 30,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -2561,6 +2574,69 @@ private extension BackupExportService {
         }
         do {
             _ = try PlacementPoseBackupRecordSetV1.decode(result)
+        } catch {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        return result
+    }
+
+    private func lightingRecords(
+        _ rows: Rows
+    ) throws -> [V31BackupLightingRecordV1] {
+        let workspaceID = try currentStreamingWorkspaceIdentity().workspaceID
+        let systems = try rows.lightingSystems.map { try $0.value() }
+        let observations = try rows.lightingObservations.map { try $0.value() }
+        let issues = try rows.lightingIssues.map { try $0.value() }
+        let plans = try rows.lightingPlans.map { try $0.value() }
+        let claims = try rows.lightingClaims.map { try $0.value() }
+        guard systems.allSatisfy({ $0.workspaceID == workspaceID }),
+              observations.allSatisfy({ $0.workspaceID == workspaceID }),
+              issues.allSatisfy({ $0.workspaceID == workspaceID }),
+              plans.allSatisfy({ $0.workspaceID == workspaceID }),
+              claims.allSatisfy({ $0.workspaceID == workspaceID }) else {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        var result = try systems.map {
+            V31BackupLightingRecordV1(
+                kind: .lightingSystem, id: $0.recordID,
+                workspaceID: $0.workspaceID.rawValue, revision: $0.revision,
+                canonicalData: try LightingCanonicalCodecV1.encode($0)
+            )
+        }
+        result += try observations.map {
+            V31BackupLightingRecordV1(
+                kind: .lightingObservation, id: $0.recordID,
+                workspaceID: $0.workspaceID.rawValue, revision: $0.revision,
+                canonicalData: try LightingCanonicalCodecV1.encode($0)
+            )
+        }
+        result += try issues.map {
+            V31BackupLightingRecordV1(
+                kind: .lightingIssue, id: $0.recordID,
+                workspaceID: $0.workspaceID.rawValue, revision: $0.revision,
+                canonicalData: try LightingCanonicalCodecV1.encode($0)
+            )
+        }
+        result += try plans.map {
+            V31BackupLightingRecordV1(
+                kind: .measurementPlan, id: $0.recordID,
+                workspaceID: $0.workspaceID.rawValue, revision: $0.revision,
+                canonicalData: try LightingCanonicalCodecV1.encode($0)
+            )
+        }
+        result += try claims.map {
+            V31BackupLightingRecordV1(
+                kind: .lightingClaim, id: $0.recordID,
+                workspaceID: $0.workspaceID.rawValue, revision: $0.revision,
+                canonicalData: try LightingCanonicalCodecV1.encode($0)
+            )
+        }
+        result.sort {
+            "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
+                < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
+        }
+        do {
+            _ = try LightingBackupRecordSetV1.decode(result)
         } catch {
             throw BackupExportServiceError.invalidAuthority
         }

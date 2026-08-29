@@ -543,3 +543,9 @@ enum C37PoseIntegration_FieldEvidenceApp_Domain_Accountability_PartyAccountabili
 enum C30ConsumerBoundaryV1_Domain_Accountability_PartyAccountabilityContractsV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/Accountability/PartyAccountabilityContractsV1.swift", role: .evidence)
 }
+
+enum C31LightingAccountabilityBoundaryV1 {
+    static let partyIdentityIsNotCopiedIntoLightingProjection = true
+    static let responsibleActorClaimsAreNotInferred = true
+    static let reportUsesOnlyExistingWorkspaceReferences = true
+}

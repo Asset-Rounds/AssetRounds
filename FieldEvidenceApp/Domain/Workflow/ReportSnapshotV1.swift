@@ -396,3 +396,23 @@ extension ReportSnapshotV1 {
         return placementPose
     }
 }
+
+struct C31LightingFrozenSnapshotBindingV1: Codable, Equatable, Sendable {
+    let projection: C31LightingCompletedSnapshotReferenceV1
+    let historicDisplayIsFrozen: Bool
+    let sourceEvidenceRemainsSeparate: Bool
+
+    init(projection: C31LightingReportProjectionV1) throws {
+        self.projection = try C31LightingCompletedSnapshotReferenceV1(projection: projection)
+        historicDisplayIsFrozen = true
+        sourceEvidenceRemainsSeparate = true
+        try validate()
+    }
+
+    func validate() throws {
+        try projection.validate()
+        guard historicDisplayIsFrozen, sourceEvidenceRemainsSeparate else {
+            throw SnapshotProjectionFailureV1.historyRewrite
+        }
+    }
+}

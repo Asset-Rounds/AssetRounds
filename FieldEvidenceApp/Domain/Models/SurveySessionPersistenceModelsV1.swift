@@ -63,3 +63,11 @@ extension SurveySessionRow {
         return session
     }
 }
+
+enum LightingSurveySessionReuseV1 { static let captureSessionHistoryRemainsCanonical = true; static let lightingAddsNoSurveyRow = true }
+
+enum C31LightingSurveySessionPersistenceBoundaryV1 {
+    static let originalObservationReferencesRemainCanonical = true
+    static let measurementQualityIsRecordedNotRecomputed = true
+    static let projectionDoesNotPersistPrivateLocators = true
+}

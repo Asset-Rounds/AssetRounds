@@ -62,3 +62,14 @@ extension Asset {
         )
     }
 }
+
+enum LightingAssetIdentityEnrollmentV1 { static let lightingRowsReferenceCanonicalAssetID = true; static let topologyDoesNotCloneAssets = true }
+
+enum C31LightingAssetDisplayBoundaryV1 {
+    static let labelsComeFromLocalizationCatalog = true
+    static let systemTopologyIsNotAnOperationalConclusion = true
+
+    static func assetIDs(from system: LightingSystemV1) -> [UUID] {
+        system.luminaires.map(\.assetID).sorted { $0.uuidString < $1.uuidString }
+    }
+}

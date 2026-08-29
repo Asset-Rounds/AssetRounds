@@ -514,3 +514,9 @@ enum C37PoseIntegration_FieldEvidenceApp_Domain_InspectionKernel_InspectionPacka
 enum C30ConsumerBoundaryV1_Domain_InspectionKernel_InspectionPackageReleaseV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/InspectionKernel/InspectionPackageReleaseV1.swift", role: .lifecycle)
 }
+
+enum C31LightingPackageReleaseBoundaryV1 {
+    static let releaseDigestIsThePackageIdentity = true
+    static let topologyAndCriteriaBindToPublishedRelease = true
+    static let releaseLabelsArePresentationOnly = true
+}

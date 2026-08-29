@@ -2219,3 +2219,12 @@ extension SearchIndexRebuildCoordinatorV1 {
 enum C30ConsumerBoundaryV1_Infrastructure_Search_SearchIndexRebuildCoordinatorV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Search/SearchIndexRebuildCoordinatorV1.swift", role: .search)
 }
+
+enum C31LightingConsumerBoundary_Infrastructure_Search_SearchIndexRebuildCoordinatorV1 {
+    static let registrationID = "C31_LIGHTING_CONSUMER/search-index-rebuild-coordinator"
+    static let compatibility = C31LightingCompatibilityPolicyV1()
+    static func validate(projection: C31LightingReportProjectionV1) throws {
+        try compatibility.validate()
+        try C31LightingProjectionPolicyV1.validate(projection)
+    }
+}

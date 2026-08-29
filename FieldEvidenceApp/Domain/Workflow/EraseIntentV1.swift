@@ -556,3 +556,29 @@ enum C30EvidenceContextEraseIntentPolicyV1 {
         }
     }
 }
+
+enum C31LightingEraseIntentBoundaryV1 {
+    static let removesOnlyRequestedWorkspace = true
+    static let removesAllFiveDurableFamilies = true
+    static let leavesNoExternalCopyClaim = true
+    static let derivedStateIsDisposable = true
+
+    static func validate(
+        records: [V31BackupLightingRecordV1],
+        workspaceID: WorkspaceID
+    ) throws {
+        let roots = try LightingBackupRecordSetV1.decode(records)
+        let workspaces = roots.systems.map(\.workspaceID)
+            + roots.observations.map(\.workspaceID)
+            + roots.issues.map(\.workspaceID)
+            + roots.plans.map(\.workspaceID)
+            + roots.claims.map(\.workspaceID)
+        guard workspaces.allSatisfy({ $0 == workspaceID }),
+              removesOnlyRequestedWorkspace,
+              removesAllFiveDurableFamilies,
+              leavesNoExternalCopyClaim,
+              derivedStateIsDisposable else {
+            throw LightingContractFailureV1.wrongWorkspace
+        }
+    }
+}

@@ -73,3 +73,9 @@ enum C37PoseIntegration_FieldEvidenceApp_Domain_Location_CompletedLocationCompos
 enum C30ConsumerBoundaryV1_Domain_Location_CompletedLocationCompositionSnapshotV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/Location/CompletedLocationCompositionSnapshotV1.swift", role: .location)
 }
+
+enum C31LightingLocationSnapshotBoundaryV1 {
+    static let completedCompositionIsFrozenForDisplay = true
+    static let snapshotCarriesNoOriginalBytes = true
+    static let partialTopologyDoesNotBecomeAClaim = true
+}

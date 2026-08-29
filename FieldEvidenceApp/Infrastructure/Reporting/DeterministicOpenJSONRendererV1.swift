@@ -3088,3 +3088,117 @@ extension DeterministicOpenJSONRendererV1 {
 enum C30ConsumerBoundaryV1_Infrastructure_Reporting_DeterministicOpenJSONRendererV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Reporting/DeterministicOpenJSONRendererV1.swift", role: .report)
 }
+
+// MARK: - C31 lighting report output
+
+private enum C31LightingOpenJSONLabelsV1 {
+    static let allowed: Set<String> = [
+        "heading", "topology", "claim_boundary", "history_frozen",
+        "manual_offline", "safety_stop", "next_step",
+    ]
+}
+
+struct C31LightingOpenJSONEnvelopeV1: Codable, Equatable, Sendable {
+    static let schemaVersion = "C31_LIGHTING_OPEN_JSON_V1"
+
+    let schemaVersion: String
+    let projection: C31LightingReportProjectionV1
+    let labels: [String: String]
+
+    init(
+        projection: C31LightingReportProjectionV1,
+        labels: [String: String]
+    ) throws {
+        try C31LightingProjectionPolicyV1.validate(projection)
+        guard Set(labels.keys) == C31LightingOpenJSONLabelsV1.allowed,
+              labels.values.allSatisfy({ !$0.isEmpty }),
+              !C31LightingLocalizationPolicyV1.containsProhibitedClaim(
+                Array(labels.values)
+              ) else {
+            throw SnapshotProjectionFailureV1.hostileText
+        }
+        schemaVersion = Self.schemaVersion
+        self.projection = projection
+        self.labels = labels
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              Set(labels.keys) == C31LightingOpenJSONLabelsV1.allowed,
+              labels.values.allSatisfy({ !$0.isEmpty }) else {
+            throw SnapshotProjectionFailureV1.invalidValue
+        }
+        try C31LightingProjectionPolicyV1.validate(projection)
+    }
+}
+
+extension DeterministicOpenJSONRendererV1 {
+    static func renderLighting(
+        _ projection: C31LightingReportProjectionV1,
+        locale: String = "en"
+    ) throws -> ReportProjectionOutputV1 {
+        guard locale == "en" else { throw SnapshotProjectionFailureV1.incompatibleVersion }
+        let labels = [
+            "heading": BundledLocalizationCatalogV1.lightingDisplayLabel(
+                for: .systemHeading
+            ),
+            "topology": BundledLocalizationCatalogV1.lightingDisplayLabel(
+                for: .topology
+            ),
+            "claim_boundary": BundledLocalizationCatalogV1.lightingDisplayLabel(
+                for: .claimBoundary
+            ),
+            "history_frozen": BundledLocalizationCatalogV1.lightingDisplayLabel(
+                for: .historyFrozen
+            ),
+            "manual_offline": BundledLocalizationCatalogV1.lightingDisplayLabel(
+                for: .manualOffline
+            ),
+            "safety_stop": BundledLocalizationCatalogV1.lightingDisplayLabel(
+                for: .safetyStop
+            ),
+            "next_step": BundledLocalizationCatalogV1.lightingDisplayLabel(
+                for: .safetyNextStep
+            ),
+        ]
+        let envelope = try C31LightingOpenJSONEnvelopeV1(
+            projection: projection,
+            labels: labels
+        )
+        var encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let data = try encoder.encode(envelope)
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        return ReportProjectionOutputV1(
+            format: .openJSON,
+            data: data,
+            sha256: KernelCanonicalHashV1.sha256(data),
+            semanticSHA256: projection.systemSHA256,
+            orderedSemanticIDs: C31LightingAccessibilityIDV1.allCases.map(\.rawValue),
+            taggedPDFAccessibilityEvidence: false
+        )
+    }
+
+    static func reopenLighting(
+        _ data: Data
+    ) throws -> C31LightingReportProjectionV1 {
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        let envelope = try JSONDecoder().decode(
+            C31LightingOpenJSONEnvelopeV1.self,
+            from: data
+        )
+        try envelope.validate()
+        var encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        guard try encoder.encode(envelope) == data else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return envelope.projection
+    }
+}

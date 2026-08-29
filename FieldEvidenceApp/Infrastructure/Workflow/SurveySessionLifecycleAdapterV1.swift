@@ -59,3 +59,12 @@ enum C37PoseIntegration_FieldEvidenceApp_Infrastructure_Workflow_SurveySessionLi
 enum C30ConsumerBoundaryV1_Infrastructure_Workflow_SurveySessionLifecycleAdapterV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Workflow/SurveySessionLifecycleAdapterV1.swift", role: .survey)
 }
+
+enum C31LightingConsumerBoundary_Infrastructure_Workflow_SurveySessionLifecycleAdapterV1 {
+    static let registrationID = "C31_LIGHTING_CONSUMER/survey-session-lifecycle-adapter"
+    static let compatibility = C31LightingCompatibilityPolicyV1()
+    static func validate(projection: C31LightingReportProjectionV1) throws {
+        try compatibility.validate()
+        try C31LightingProjectionPolicyV1.validate(projection)
+    }
+}

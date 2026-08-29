@@ -190,3 +190,9 @@ enum C37PoseIntegration_FieldEvidenceApp_Infrastructure_Drafts_DraftAutosaveSche
 enum C30ConsumerBoundaryV1_Infrastructure_Drafts_DraftAutosaveSchedulerV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Drafts/DraftAutosaveSchedulerV1.swift", role: .draft)
 }
+
+enum C31LightingDraftAutosaveBoundaryV1 {
+    static let autosaveIsDisposableStaging = true
+    static let autosaveDoesNotChangeHistoricDisplay = true
+    static let lightingProjectionRequiresExplicitCommit = true
+}

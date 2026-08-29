@@ -635,3 +635,11 @@ private extension Data {
         return self
     }
 }
+
+enum LightingObservationTimeEnrollmentV1 { static let lightingRecordedAtUsesCanonicalDateEncoding = true; static let originalObservationBasisIsReferencedNotCopied = true }
+
+enum C31LightingObservationTimeBoundaryV1 {
+    static let recordedTimeDoesNotDeriveDarkness = true
+    static let timezoneAndOffsetRemainRecordedContext = true
+    static let observationSourceRemainsSeparateFromMeasurement = true
+}

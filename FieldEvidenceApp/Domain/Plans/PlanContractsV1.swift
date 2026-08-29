@@ -1322,3 +1322,9 @@ enum C37PoseIntegration_FieldEvidenceApp_Domain_Plans_PlanContractsV1_swift {
 enum C30ConsumerBoundaryV1_Domain_Plans_PlanContractsV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/Plans/PlanContractsV1.swift", role: .plan)
 }
+
+enum C31LightingPlanBoundaryV1 {
+    static let measurementPlanReferenceIsFrozen = true
+    static let criterionMetadataRequiresExplicitReleaseBinding = true
+    static let rebaseDoesNotRewriteHistoricLightingDisplay = true
+}

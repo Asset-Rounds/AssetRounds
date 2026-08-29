@@ -1311,3 +1311,13 @@ enum C37PoseIntegration_FieldEvidenceApp_Infrastructure_Jobs_ResumableLocalJobRu
 enum C30ConsumerBoundaryV1_Infrastructure_Jobs_ResumableLocalJobRunnerV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Jobs/ResumableLocalJobRunnerV1.swift", role: .job)
 }
+
+enum C31LightingConsumerBoundary_Infrastructure_Jobs_ResumableLocalJobRunnerV1 {
+    static let registrationID = "C31_LIGHTING_CONSUMER/resumable-local-job-runner"
+    static let compatibility = C31LightingCompatibilityPolicyV1()
+
+    static func validate(projection: C31LightingReportProjectionV1) throws {
+        try compatibility.validate()
+        try C31LightingProjectionPolicyV1.validate(projection)
+    }
+}

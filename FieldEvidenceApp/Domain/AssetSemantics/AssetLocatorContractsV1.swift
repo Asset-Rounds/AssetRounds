@@ -363,3 +363,9 @@ enum C37PoseIntegration_FieldEvidenceApp_Domain_AssetSemantics_AssetLocatorContr
 enum C30ConsumerBoundaryV1_Domain_AssetSemantics_AssetLocatorContractsV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/AssetSemantics/AssetLocatorContractsV1.swift", role: .asset)
 }
+
+enum C31LightingAssetLocatorBoundaryV1 {
+    static let searchUsesStableAssetAndLocatorIdentifiers = true
+    static let privateLocatorPayloadIsExcluded = true
+    static let locatorDoesNotImplyLightingCondition = true
+}

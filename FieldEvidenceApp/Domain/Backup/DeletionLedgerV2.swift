@@ -395,6 +395,29 @@ enum C30EvidenceContextDeletionLedgerPolicyV1 {
     }
 }
 
+/// Lighting roots are immutable evidence-bearing records. Ordinary asset/site
+/// deletion must leave their historical bytes addressable; workspace Erase is
+/// the sole operation allowed to remove the complete five-root closure.
+enum C31LightingDeletionLedgerPolicyV1 {
+    static let durableKinds = V31BackupLightingRecordV1.Kind.allCases
+    static let durableFamilyCount = 5
+    static let ordinaryDeletionPreservesImmutableHistory = true
+    static let workspaceEraseRemovesCompleteClosure = true
+    static let derivedProjectionIsNotDeletionTruth = true
+    static let orphanLightingRowsAreRejected = true
+
+    static func validate(rows: [V31BackupLightingRecordV1] = []) throws {
+        guard durableKinds.count == durableFamilyCount,
+              ordinaryDeletionPreservesImmutableHistory,
+              workspaceEraseRemovesCompleteClosure,
+              derivedProjectionIsNotDeletionTruth,
+              orphanLightingRowsAreRejected else {
+            throw DeletionLedgerFailureV2.invalidSchemaVersion
+        }
+        _ = try LightingBackupRecordSetV1.decode(rows)
+    }
+}
+
 struct DeletionLedgerV2: Codable, Equatable, Sendable {
     static let maximumEntryCount = 100_000
 
@@ -415,6 +438,7 @@ struct DeletionLedgerV2: Codable, Equatable, Sendable {
         try AuthorityCriterionDeletionLedgerPolicyV1.validate()
         try AssetLocatorDeletionLedgerPolicyV1.validate()
         try PlanDeletionLedgerPolicyV1.validate()
+        try C31LightingDeletionLedgerPolicyV1.validate()
         guard schemaVersion == 2 else {
             throw DeletionLedgerFailureV2.invalidSchemaVersion
         }

@@ -1698,3 +1698,28 @@ extension ReportRenderService {
 enum C30ConsumerBoundaryV1_Infrastructure_Reporting_ReportRenderService {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Reporting/ReportRenderService.swift", role: .report)
 }
+
+// MARK: - C31 lighting rendering
+
+extension ReportRenderService {
+    static func renderLightingOpenJSON(
+        _ projection: C31LightingReportProjectionV1,
+        locale: String = "en"
+    ) throws -> ReportProjectionOutputV1 {
+        try C31LightingProjectionPolicyV1.validate(projection)
+        return try DeterministicOpenJSONRendererV1.renderLighting(
+            projection,
+            locale: locale
+        )
+    }
+
+    static func lightingPDFMetadataLines(
+        _ projection: C31LightingReportProjectionV1
+    ) throws -> [String] {
+        try C31LightingProjectionPolicyV1.validate(projection)
+        return try DeterministicPDFRendererV1.lightingLines(projection)
+    }
+
+    static let c31LightingUsesFrozenMetadataOnlyProjection = true
+    static let c31LightingPreservesManualOfflinePath = true
+}

@@ -1210,3 +1210,44 @@ extension SearchPersistenceReleaseV1 {
 enum C30ConsumerBoundaryV1_Domain_Search_SearchPersistenceModelsV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/Search/SearchPersistenceModelsV1.swift", role: .search)
 }
+
+// MARK: - C31 lighting search persistence
+
+struct C31LightingSearchPersistencePolicyV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let metadataOnly: Bool
+    let localOnly: Bool
+    let sourceProjection: String
+    let currentFrozenProjectionOnly: Bool
+    let dropAndRebuildAfterRestoreReplayDelete: Bool
+    let excludesBytesNotesActorsPrivateLocators: Bool
+    let excludesOperationalClaims: Bool
+
+    init() {
+        schemaVersion = Self.schemaVersion
+        metadataOnly = true
+        localOnly = true
+        sourceProjection = "C31_LIGHTING_REPORT_PROJECTION_V1"
+        currentFrozenProjectionOnly = true
+        dropAndRebuildAfterRestoreReplayDelete = true
+        excludesBytesNotesActorsPrivateLocators = true
+        excludesOperationalClaims = true
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion, metadataOnly, localOnly,
+              sourceProjection == "C31_LIGHTING_REPORT_PROJECTION_V1",
+              currentFrozenProjectionOnly,
+              dropAndRebuildAfterRestoreReplayDelete,
+              excludesBytesNotesActorsPrivateLocators,
+              excludesOperationalClaims else {
+            throw SearchContractFailureV1.invalidField
+        }
+    }
+}
+
+extension SearchPersistenceReleaseV1 {
+    static let lightingPolicy = C31LightingSearchPersistencePolicyV1()
+}

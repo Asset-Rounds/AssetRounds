@@ -1043,3 +1043,27 @@ enum C30EvidenceContextWholeSignDeletionRuleV1 {
         try links.forEach { try $0.validateIntrinsic() }
     }
 }
+
+enum C31LightingWholeSignDeletionBoundaryV1 {
+    static let topologyIsDeletedAsOneClosure = true
+    static let ordinaryDeletionRetainsImmutableHistory = true
+    static let orphanLightingRootsAreRejected = true
+
+    static func validate(
+        records: [V31BackupLightingRecordV1],
+        workspaceID: WorkspaceID
+    ) throws {
+        let roots = try LightingBackupRecordSetV1.decode(records)
+        let workspaces = roots.systems.map(\.workspaceID)
+            + roots.observations.map(\.workspaceID)
+            + roots.issues.map(\.workspaceID)
+            + roots.plans.map(\.workspaceID)
+            + roots.claims.map(\.workspaceID)
+        guard workspaces.allSatisfy({ $0 == workspaceID }),
+              topologyIsDeletedAsOneClosure,
+              ordinaryDeletionRetainsImmutableHistory,
+              orphanLightingRootsAreRejected else {
+            throw LightingContractFailureV1.wrongWorkspace
+        }
+    }
+}

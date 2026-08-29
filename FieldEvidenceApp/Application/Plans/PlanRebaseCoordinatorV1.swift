@@ -176,3 +176,12 @@ enum C37PoseIntegration_FieldEvidenceApp_Application_Plans_PlanRebaseCoordinator
 enum C30ConsumerBoundaryV1_Application_Plans_PlanRebaseCoordinatorV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Application/Plans/PlanRebaseCoordinatorV1.swift", role: .plan)
 }
+
+enum C31LightingConsumerBoundary_Application_Plans_PlanRebaseCoordinatorV1 {
+    static let registrationID = "C31_LIGHTING_CONSUMER/plan-rebase-coordinator"
+    static let compatibility = C31LightingCompatibilityPolicyV1()
+    static func validate(projection: C31LightingReportProjectionV1) throws {
+        try compatibility.validate()
+        try C31LightingProjectionPolicyV1.validate(projection)
+    }
+}

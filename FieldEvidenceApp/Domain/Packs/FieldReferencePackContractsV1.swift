@@ -136,3 +136,9 @@ enum C37PoseIntegration_FieldEvidenceApp_Domain_Packs_FieldReferencePackContract
 enum C30ConsumerBoundaryV1_Domain_Packs_FieldReferencePackContractsV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/Packs/FieldReferencePackContractsV1.swift", role: .pack)
 }
+
+enum C31LightingReferencePackBoundaryV1 {
+    static let criterionTextIsReferencedByReleaseDigest = true
+    static let packProjectionExcludesLicensedPayload = true
+    static let unavailableReferenceRemainsExplicit = true
+}

@@ -771,3 +771,11 @@ extension S8_3DiagnosticPrivacyTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
+private final class C31LightingAnchorS83DiagnosticPrivacyTests: XCTestCase {
+    func testC31TypedLightingPackageContractAnchor() throws {
+        XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
+        XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
+        XCTAssertTrue(LightingIssueKindV1.allCases.contains(.cameraBandingOnly))
+        try LightingLimitsV1.digest(String(repeating: "a", count: 64))
+    }
+}

@@ -3465,6 +3465,106 @@
     "evidence.context.derived_condition" : {
       "comment" : "English-only C30 label for separately recorded evidence context facts; do not infer lighting, control state, measurement, failure, or compliance.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Derived condition (separate fact)" } } }
+    },
+    "lighting.system.heading" : {
+      "comment" : "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Lighting record" } } }
+    },
+    "lighting.system.topology" : {
+      "comment" : "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recorded topology" } } }
+    },
+    "lighting.system.zones" : {
+      "comment" : "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Zones" } } }
+    },
+    "lighting.system.control_groups" : {
+      "comment" : "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Control groups" } } }
+    },
+    "lighting.system.luminaires" : {
+      "comment" : "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Luminaires" } } }
+    },
+    "lighting.observation.heading" : {
+      "comment" : "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Lighting observation" } } }
+    },
+    "lighting.observation.recorded" : {
+      "comment" : "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Observation recorded" } } }
+    },
+    "lighting.issue.recorded" : {
+      "comment" : "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recorded issue" } } }
+    },
+    "lighting.issue.open" : {
+      "comment" : "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Issue open" } } }
+    },
+    "lighting.issue.resolved" : {
+      "comment" : "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Issue resolved with recorded evidence" } } }
+    },
+    "lighting.issue.superseded" : {
+      "comment" : "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Issue superseded by a later record" } } }
+    },
+    "lighting.measurement.heading" : {
+      "comment" : "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Measurement plan" } } }
+    },
+    "lighting.measurement.illuminance" : {
+      "comment" : "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recorded illuminance measurement" } } }
+    },
+    "lighting.measurement.calibration" : {
+      "comment" : "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Calibration reference" } } }
+    },
+    "lighting.claim.observed" : {
+      "comment" : "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Observed fact" } } }
+    },
+    "lighting.claim.measured" : {
+      "comment" : "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Measured fact with recorded inputs" } } }
+    },
+    "lighting.claim.derived" : {
+      "comment" : "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Derived fact from recorded inputs" } } }
+    },
+    "lighting.claim.criterion" : {
+      "comment" : "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Criterion reference recorded" } } }
+    },
+    "lighting.claim.external_reference" : {
+      "comment" : "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "External evidence reference recorded" } } }
+    },
+    "lighting.claim.unavailable" : {
+      "comment" : "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Claim unavailable" } } }
+    },
+    "lighting.safety.stop" : {
+      "comment" : "English-only C31 label for a recorded stop state; it does not grant authority or make a safety conclusion.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Safety stop recorded" } } }
+    },
+    "lighting.safety.next_step" : {
+      "comment" : "English-only C31 actionable label for reviewing recorded references; it does not grant authority or claim delivery.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review the recorded authority and control-plan references before continuing" } } }
+    },
+    "lighting.claim.boundary" : {
+      "comment" : "English-only C31 claim boundary; no operational, safety, security, ADA, IES, or compliance conclusion.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recorded facts only; no operational conclusion" } } }
+    },
+    "lighting.history.frozen" : {
+      "comment" : "English-only C31 historic display label; final report interpretation remains immutable.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Historic display is frozen" } } }
+    },
+    "lighting.manual_offline" : {
+      "comment" : "English-only C31 manual/offline path label; no sensor, network, or remote-delivery claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Manual/offline path remains available" } } }
     }
   },
   "version" : "1.0"

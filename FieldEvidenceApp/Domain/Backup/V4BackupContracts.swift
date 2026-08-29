@@ -745,6 +745,10 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     /// not a sidecar, so every encoder/decoder round trip carries them.
     let evidenceContexts: [V30BackupEvidenceContextRecordV1]
     let pairedObservationLinks: [V30BackupEvidenceContextRecordV1]
+    /// C31 canonical lighting roots.  The five durable roots are transported
+    /// as one stably ordered array so topology, observations, issues, plans,
+    /// and claim states cannot be split across a backup sidecar.
+    let lighting: [V31BackupLightingRecordV1]
     let surveyDefinitions:[V24BackupSurveyDefinitionRecordV1]
     let accessibleDocumentAssessments:[V23BackupAccessibleDocumentAssessmentRecordV1]
     let fieldReferences:[V22BackupFieldReferenceRecordV1]
@@ -821,7 +825,8 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         sites: [V4BackupSiteDTO],
         workflowRecords: [V4BackupWorkflowRecordDTO],
         evidenceContexts: [V30BackupEvidenceContextRecordV1] = [],
-        pairedObservationLinks: [V30BackupEvidenceContextRecordV1] = []
+        pairedObservationLinks: [V30BackupEvidenceContextRecordV1] = [],
+        lighting: [V31BackupLightingRecordV1] = []
     ) {
         self.guidedSurveys=guidedSurveys
         self.assetLocators = assetLocators
@@ -830,6 +835,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         self.placementPoses = placementPoses
         self.evidenceContexts = evidenceContexts
         self.pairedObservationLinks = pairedObservationLinks
+        self.lighting = lighting
         self.surveyDefinitions=surveyDefinitions
         self.accessibleDocumentAssessments=accessibleDocumentAssessments
         self.fieldReferences=fieldReferences
@@ -871,7 +877,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         case deletionLedger, evidenceFiles, issues, locationHierarchyEvents
         case locationMigrationReceipts, locationNodes, mutationHistory, packets, partyAccountability
         case recordsSchemaVersion, reports, requirementAssurance, savedSmartViews, sites
-         case workflowRecords, evidenceContexts, pairedObservationLinks
+         case workflowRecords, evidenceContexts, pairedObservationLinks, lighting
     }
 
     init(from decoder: Decoder) throws {
@@ -951,12 +957,35 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
             ) ?? [],
             pairedObservationLinks: try values.decodeIfPresent(
                 [V30BackupEvidenceContextRecordV1].self, forKey: .pairedObservationLinks
+            ) ?? [],
+            lighting: try values.decodeIfPresent(
+                [V31BackupLightingRecordV1].self, forKey: .lighting
             ) ?? []
         )
     }
 }
 
 extension V4BackupRecordsV1{
+    /// C31 canonical lighting closure.  Every durable root is decoded from
+    /// its canonical bytes, checked against its envelope identity, and then
+    /// joined through exact workspace/revision/digest references.  Derived
+    /// reports, search, and display projections are intentionally absent.
+    func validateC31LightingClosure() throws {
+        if recordsSchemaVersion < 30 {
+            guard lighting.isEmpty else { throw LightingContractFailureV1.invalidValue }
+            return
+        }
+        guard recordsSchemaVersion == 30 else {
+            throw LightingContractFailureV1.invalidValue
+        }
+        let decodedLighting = try LightingBackupRecordSetV1.decode(lighting)
+        try C31LightingClaimEvidenceClosureV1.validate(
+            lighting: decodedLighting,
+            measurementIntegrity: measurementIntegrity,
+            authorityCriterion: authorityCriterion
+        )
+    }
+
     /// Validates C30 rows after decoding and before any replacement/restore
     /// operation. A link is only valid when both endpoints are represented by
     /// a decoded context with the exact workspace/evidence/digest/revision and
@@ -968,7 +997,7 @@ extension V4BackupRecordsV1{
             }
             return
         }
-        guard recordsSchemaVersion == 29 else {
+        guard recordsSchemaVersion == 29 || recordsSchemaVersion == 30 else {
             throw EvidenceContextFailureV1.incompatibleVersion
         }
         guard evidenceContexts.allSatisfy({ $0.kind == .evidenceContext }),
@@ -1021,7 +1050,8 @@ extension V4BackupRecordsV1{
              savedSmartViews: savedSmartViews, sites: sites,
              workflowRecords: workflowRecords,
              evidenceContexts: evidenceContexts,
-             pairedObservationLinks: pairedObservationLinks)
+             pairedObservationLinks: pairedObservationLinks,
+             lighting: lighting)
     }
 
     func replacingSchedules(_ values: [V27BackupScheduleRecordV1]) -> Self {
@@ -1048,7 +1078,8 @@ extension V4BackupRecordsV1{
              savedSmartViews: savedSmartViews, sites: sites,
               workflowRecords: workflowRecords,
               evidenceContexts: evidenceContexts,
-              pairedObservationLinks: pairedObservationLinks)
+              pairedObservationLinks: pairedObservationLinks,
+              lighting: lighting)
     }
 
     func replacingPlans(_ values: [V28BackupPlanRecordV1]) -> Self {
@@ -1076,7 +1107,8 @@ extension V4BackupRecordsV1{
              savedSmartViews: savedSmartViews, sites: sites,
               workflowRecords: workflowRecords,
               evidenceContexts: evidenceContexts,
-              pairedObservationLinks: pairedObservationLinks)
+              pairedObservationLinks: pairedObservationLinks,
+              lighting: lighting)
     }
 
     func replacingPlacementPoses(_ values: [V29BackupPlacementPoseRecordV1]) -> Self {
@@ -1104,12 +1136,13 @@ extension V4BackupRecordsV1{
              savedSmartViews: savedSmartViews, sites: sites,
               workflowRecords: workflowRecords,
               evidenceContexts: evidenceContexts,
-              pairedObservationLinks: pairedObservationLinks)
+              pairedObservationLinks: pairedObservationLinks,
+              lighting: lighting)
     }
 
-     func replacingAccessibleDocumentAssessments(_ values:[V23BackupAccessibleDocumentAssessmentRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:values,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks)}
-     func replacingSurveyDefinitions(_ values:[V24BackupSurveyDefinitionRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:values,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks)}
-     func replacingGuidedSurveys(_ values:[V25BackupGuidedSurveyRecordV1])->Self{Self(guidedSurveys:values,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks)}
+     func replacingAccessibleDocumentAssessments(_ values:[V23BackupAccessibleDocumentAssessmentRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:values,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting)}
+     func replacingSurveyDefinitions(_ values:[V24BackupSurveyDefinitionRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:values,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting)}
+     func replacingGuidedSurveys(_ values:[V25BackupGuidedSurveyRecordV1])->Self{Self(guidedSurveys:values,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting)}
 }
 
 struct V4BackupEntryV1: Codable, Equatable, Sendable {
@@ -1294,5 +1327,607 @@ struct EvidenceContextBackupRecordSetV1: Sendable {
             }
         }
         return Self(contexts: contexts, pairedObservationLinks: links)
+    }
+}
+
+/// C31 backup transport for the five durable lighting roots.  A root carries
+/// canonical bytes rather than a second DTO shape; this keeps backup identity,
+/// revision, and digest validation on the same codec as the writer path.
+struct V31BackupLightingRecordV1: Codable, Equatable, Sendable {
+    enum Kind: String, Codable, CaseIterable, Hashable, Sendable {
+        case lightingSystem = "LIGHTING_SYSTEM"
+        case lightingObservation = "LIGHTING_OBSERVATION"
+        case lightingIssue = "LIGHTING_ISSUE"
+        case measurementPlan = "MEASUREMENT_PLAN"
+        case lightingClaim = "LIGHTING_CLAIM"
+    }
+
+    let kind: Kind
+    let id: UUID
+    let workspaceID: UUID
+    let revision: UInt64
+    let canonicalData: Data
+}
+
+struct LightingBackupRecordSetV1: Sendable {
+    let systems: [LightingSystemV1]
+    let observations: [LightingObservationV1]
+    let issues: [LightingIssueV1]
+    let plans: [MeasurementPlanV1]
+    let claims: [LightingClaimStateV1]
+
+    static func decode(_ records: [V31BackupLightingRecordV1]) throws -> Self {
+        let key: (V31BackupLightingRecordV1) -> String = {
+            "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
+        }
+        guard records == records.sorted(by: { key($0) < key($1) }),
+              Set(records.map(key)).count == records.count else {
+            throw LightingContractFailureV1.invalidValue
+        }
+
+        var systems: [LightingSystemV1] = []
+        var observations: [LightingObservationV1] = []
+        var issues: [LightingIssueV1] = []
+        var plans: [MeasurementPlanV1] = []
+        var claims: [LightingClaimStateV1] = []
+        let zero = LightingLimitsV1.zero
+        var workspaceIDs = Set<UUID>()
+
+        for record in records {
+            guard record.id != zero, record.workspaceID != zero,
+                  record.revision > 0, !record.canonicalData.isEmpty else {
+                throw LightingContractFailureV1.invalidValue
+            }
+            workspaceIDs.insert(record.workspaceID)
+            switch record.kind {
+            case .lightingSystem:
+                let value = try LightingCanonicalCodecV1.decode(
+                    LightingSystemV1.self, from: record.canonicalData
+                )
+                guard value.recordID == record.id,
+                      value.workspaceID.rawValue == record.workspaceID,
+                      value.revision == record.revision else {
+                    throw LightingContractFailureV1.staleReference
+                }
+                systems.append(value)
+            case .lightingObservation:
+                let value = try LightingCanonicalCodecV1.decode(
+                    LightingObservationV1.self, from: record.canonicalData
+                )
+                guard value.recordID == record.id,
+                      value.workspaceID.rawValue == record.workspaceID,
+                      value.revision == record.revision else {
+                    throw LightingContractFailureV1.staleReference
+                }
+                observations.append(value)
+            case .lightingIssue:
+                let value = try LightingCanonicalCodecV1.decode(
+                    LightingIssueV1.self, from: record.canonicalData
+                )
+                guard value.recordID == record.id,
+                      value.workspaceID.rawValue == record.workspaceID,
+                      value.revision == record.revision else {
+                    throw LightingContractFailureV1.staleReference
+                }
+                issues.append(value)
+            case .measurementPlan:
+                let value = try LightingCanonicalCodecV1.decode(
+                    MeasurementPlanV1.self, from: record.canonicalData
+                )
+                guard value.recordID == record.id,
+                      value.workspaceID.rawValue == record.workspaceID,
+                      value.revision == record.revision else {
+                    throw LightingContractFailureV1.staleReference
+                }
+                plans.append(value)
+            case .lightingClaim:
+                let value = try LightingCanonicalCodecV1.decode(
+                    LightingClaimStateV1.self, from: record.canonicalData
+                )
+                guard value.recordID == record.id,
+                      value.workspaceID.rawValue == record.workspaceID,
+                      value.revision == record.revision else {
+                    throw LightingContractFailureV1.staleReference
+                }
+                claims.append(value)
+            }
+        }
+        guard workspaceIDs.count <= 1 else {
+            throw LightingContractFailureV1.wrongWorkspace
+        }
+
+        // Do not use Dictionary(uniqueKeysWithValues:) here.  A hostile
+        // archive can contain two different row identities which collapse to
+        // one reference key; the initializer would trap instead of failing
+        // closed through the backup boundary.
+        var systemByReference: [String: LightingSystemV1] = [:]
+        for value in systems {
+            let reference = "\(value.systemID.uuidString.lowercased())|\(value.revision)|\(value.systemSHA256)"
+            guard systemByReference.updateValue(value, forKey: reference) == nil else {
+                throw LightingContractFailureV1.invalidValue
+            }
+        }
+        var observationByReference: [String: LightingObservationV1] = [:]
+        for value in observations {
+            let reference = "\(value.observationID.uuidString.lowercased())|\(value.revision)|\(value.observationSHA256)"
+            guard observationByReference.updateValue(value, forKey: reference) == nil else {
+                throw LightingContractFailureV1.invalidValue
+            }
+        }
+        var planByReference: [String: MeasurementPlanV1] = [:]
+        for value in plans {
+            let reference = "\(value.planID.uuidString.lowercased())|\(value.revision)|\(value.planSHA256)"
+            guard planByReference.updateValue(value, forKey: reference) == nil else {
+                throw LightingContractFailureV1.invalidValue
+            }
+        }
+
+        for observation in observations {
+            guard let system = systemByReference[
+                "\(observation.systemID.uuidString.lowercased())|\(observation.systemRevision)|\(observation.systemSHA256)"
+            ] else { throw LightingContractFailureV1.staleReference }
+            try observation.validate(system: system)
+        }
+        for plan in plans {
+            guard let system = systemByReference[
+                "\(plan.systemID.uuidString.lowercased())|\(plan.systemRevision)|\(plan.systemSHA256)"
+            ] else { throw LightingContractFailureV1.staleReference }
+            try plan.validate(system: system)
+        }
+        for issue in issues {
+            let reference = issue.observation
+            let key = "\(reference.observationID.uuidString.lowercased())|\(reference.revision)|\(reference.observationSHA256)"
+            guard let observation = observationByReference[key],
+                  reference.workspaceID == issue.workspaceID,
+                  observation.workspaceID == issue.workspaceID,
+                  observation.assetID == issue.subjectAssetID,
+                  observation.issueKinds.contains(issue.kind) else {
+                throw LightingContractFailureV1.staleReference
+            }
+        }
+        for claim in claims {
+            if let reference = claim.observation {
+                let key = "\(reference.observationID.uuidString.lowercased())|\(reference.revision)|\(reference.observationSHA256)"
+                guard let observation = observationByReference[key],
+                      observation.workspaceID == claim.workspaceID,
+                      observation.assetID == claim.subjectAssetID else {
+                    throw LightingContractFailureV1.staleReference
+                }
+            }
+            if let measurement = claim.measurement {
+                let key = "\(measurement.planID.uuidString.lowercased())|\(measurement.planRevision)|\(measurement.planSHA256)"
+                guard let plan = planByReference[key], plan.workspaceID == claim.workspaceID else {
+                    throw LightingContractFailureV1.staleReference
+                }
+            }
+        }
+
+        func validateChain<T>(
+            _ values: [T],
+            id: (T) -> UUID,
+            revision: (T) -> UInt64,
+            predecessorID: (T) -> UUID?,
+            predecessorDigest: (T) -> String?,
+            successor: (T, T) throws -> Void
+        ) throws {
+            for group in Dictionary(grouping: values, by: id).values {
+                let ordered = group.sorted {
+                    (revision($0), id($0).uuidString) < (revision($1), id($1).uuidString)
+                }
+                guard let first = ordered.first,
+                      revision(first) == 1,
+                      predecessorID(first) == nil,
+                      predecessorDigest(first) == nil,
+                      Set(ordered.map(revision)).count == ordered.count else {
+                    throw LightingContractFailureV1.invalidSuccessor
+                }
+                if ordered.count > 1 {
+                    for index in 1..<ordered.count {
+                        try successor(ordered[index - 1], ordered[index])
+                    }
+                }
+            }
+        }
+
+        try validateChain(
+            systems, id: { $0.systemID }, revision: { $0.revision },
+            predecessorID: { $0.supersedesRecordID }, predecessorDigest: { $0.predecessorSHA256 }
+        ) { try $1.validateSuccessor(of: $0) }
+        try validateChain(
+            observations, id: { $0.observationID }, revision: { $0.revision },
+            predecessorID: { $0.supersedesRecordID }, predecessorDigest: { $0.predecessorSHA256 }
+        ) {
+            guard let system = systemByReference[
+                "\($1.systemID.uuidString.lowercased())|\($1.systemRevision)|\($1.systemSHA256)"
+            ] else { throw LightingContractFailureV1.staleReference }
+            try $1.validateSuccessor(of: $0, system: system)
+        }
+        try validateChain(
+            issues, id: { $0.issueID }, revision: { $0.revision },
+            predecessorID: { $0.supersedesRecordID }, predecessorDigest: { $0.predecessorSHA256 }
+        ) { try $1.validateSuccessor(of: $0) }
+        try validateChain(
+            plans, id: { $0.planID }, revision: { $0.revision },
+            predecessorID: { $0.supersedesRecordID }, predecessorDigest: { $0.predecessorSHA256 }
+        ) {
+            guard let system = systemByReference[
+                "\($1.systemID.uuidString.lowercased())|\($1.systemRevision)|\($1.systemSHA256)"
+            ] else { throw LightingContractFailureV1.staleReference }
+            try $1.validateSuccessor(of: $0, system: system)
+        }
+        try validateChain(
+            claims, id: { $0.claimID }, revision: { $0.revision },
+            predecessorID: { $0.supersedesRecordID }, predecessorDigest: { $0.predecessorSHA256 }
+        ) { try $1.validateSuccessor(of: $0) }
+        return Self(systems: systems, observations: observations, issues: issues,
+                    plans: plans, claims: claims)
+    }
+}
+
+/// Shared C31 admission closure used by package validation and restore.  A
+/// lighting claim is not independently restorable: measured, derived, and
+/// screened claims must resolve the exact archived plan/capture/protocol/
+/// instrument/calibration/quality graph, plus the applicable C40 authority
+/// rows.  Keeping this join here prevents package and restore from drifting
+/// into separate, weaker checks.
+enum C31LightingClaimEvidenceClosureV1 {
+    static func validate(
+        lighting: LightingBackupRecordSetV1,
+        measurementIntegrity: [V18BackupMeasurementIntegrityRecordV1],
+        authorityCriterion: [V11BackupAuthorityCriterionRecordV1]
+    ) throws {
+        var instruments: [UUID: InstrumentReferenceV1] = [:]
+        var calibrations: [UUID: CalibrationStatusSnapshotV1] = [:]
+        var captures: [UUID: MeasurementCaptureV1] = [:]
+        var series: [UUID: MeasurementSeriesV1] = [:]
+        var quality: [UUID: MeasurementQualityAssessmentV1] = [:]
+
+        for row in measurementIntegrity {
+            guard !row.canonicalData.isEmpty else {
+                throw LightingContractFailureV1.invalidValue
+            }
+            switch row.kind {
+            case .instrumentReference:
+                let value = try MeasurementIntegrityCanonicalCodecV1.decode(
+                    InstrumentReferenceV1.self, from: row.canonicalData
+                )
+                guard value.referenceID == row.id,
+                      value.workspaceID.rawValue == row.workspaceID,
+                      value.revision == row.revision,
+                      instruments.updateValue(value, forKey: value.referenceID) == nil else {
+                    throw LightingContractFailureV1.staleReference
+                }
+            case .calibrationSnapshot:
+                let value = try MeasurementIntegrityCanonicalCodecV1.decode(
+                    CalibrationStatusSnapshotV1.self, from: row.canonicalData
+                )
+                guard value.snapshotID == row.id,
+                      value.workspaceID.rawValue == row.workspaceID,
+                      value.revision == row.revision,
+                      calibrations.updateValue(value, forKey: value.snapshotID) == nil else {
+                    throw LightingContractFailureV1.staleReference
+                }
+            case .measurementCapture:
+                let value = try MeasurementIntegrityCanonicalCodecV1.decode(
+                    MeasurementCaptureV1.self, from: row.canonicalData
+                )
+                guard value.captureID == row.id,
+                      value.workspaceID.rawValue == row.workspaceID,
+                      value.revision == row.revision,
+                      captures.updateValue(value, forKey: value.captureID) == nil else {
+                    throw LightingContractFailureV1.staleReference
+                }
+            case .measurementSeries:
+                let value = try MeasurementIntegrityCanonicalCodecV1.decode(
+                    MeasurementSeriesV1.self, from: row.canonicalData
+                )
+                guard value.snapshotID == row.id,
+                      value.workspaceID.rawValue == row.workspaceID,
+                      value.revision == row.revision,
+                      series.updateValue(value, forKey: value.snapshotID) == nil else {
+                    throw LightingContractFailureV1.staleReference
+                }
+            case .qualityAssessment:
+                let value = try MeasurementIntegrityCanonicalCodecV1.decode(
+                    MeasurementQualityAssessmentV1.self, from: row.canonicalData
+                )
+                guard value.assessmentID == row.id,
+                      value.workspaceID.rawValue == row.workspaceID,
+                      value.revision == row.revision,
+                      quality.updateValue(value, forKey: value.assessmentID) == nil else {
+                    throw LightingContractFailureV1.staleReference
+                }
+            }
+        }
+
+        var authorities: [UUID: AuthoritySourceReleaseV1] = [:]
+        var bases: [UUID: RequirementBasisBindingV1] = [:]
+        var applicability: [UUID: ApplicabilityContextSnapshotV1] = [:]
+        var scopes: [UUID: AssessmentScopeSnapshotV1] = [:]
+        var classifications: [UUID: FindingClassificationBindingV1] = [:]
+        var protocols: [UUID: MeasurementProtocolReleaseV1] = [:]
+        var evaluators: [UUID: DerivedFactEvaluatorDescriptorV1] = [:]
+        var provenances: [UUID: DerivedFactProvenanceV1] = [:]
+
+        for row in authorityCriterion {
+            guard !row.canonicalData.isEmpty else {
+                throw LightingContractFailureV1.invalidValue
+            }
+            switch row.kind {
+            case .authoritySourceRelease:
+                let value = try AuthorityCriterionCanonicalCodecV1.decode(
+                    AuthoritySourceReleaseV1.self, from: row.canonicalData
+                )
+                guard value.releaseID == row.id,
+                      value.workspaceID.rawValue == row.workspaceID,
+                      authorities.updateValue(value, forKey: value.releaseID) == nil else {
+                    throw LightingContractFailureV1.staleReference
+                }
+            case .requirementBasisBinding:
+                let value = try AuthorityCriterionCanonicalCodecV1.decode(
+                    RequirementBasisBindingV1.self, from: row.canonicalData
+                )
+                guard value.bindingID == row.id,
+                      value.workspaceID.rawValue == row.workspaceID,
+                      bases.updateValue(value, forKey: value.bindingID) == nil else {
+                    throw LightingContractFailureV1.staleReference
+                }
+            case .applicabilityContextSnapshot:
+                let value = try AuthorityCriterionCanonicalCodecV1.decode(
+                    ApplicabilityContextSnapshotV1.self, from: row.canonicalData
+                )
+                guard value.snapshotID == row.id,
+                      value.workspaceID.rawValue == row.workspaceID,
+                      applicability.updateValue(value, forKey: value.snapshotID) == nil else {
+                    throw LightingContractFailureV1.staleReference
+                }
+            case .assessmentScopeSnapshot:
+                let value = try AuthorityCriterionCanonicalCodecV1.decode(
+                    AssessmentScopeSnapshotV1.self, from: row.canonicalData
+                )
+                guard value.snapshotID == row.id,
+                      value.workspaceID.rawValue == row.workspaceID,
+                      scopes.updateValue(value, forKey: value.snapshotID) == nil else {
+                    throw LightingContractFailureV1.staleReference
+                }
+            case .severityScaleRelease:
+                // Severity rows are validated by the package authority
+                // boundary. They are not a claim join key.
+                _ = try AuthorityCriterionCanonicalCodecV1.decode(
+                    SeverityScaleReleaseV1.self, from: row.canonicalData
+                )
+            case .findingClassificationBinding:
+                let value = try AuthorityCriterionCanonicalCodecV1.decode(
+                    FindingClassificationBindingV1.self, from: row.canonicalData
+                )
+                guard value.bindingID == row.id,
+                      value.workspaceID.rawValue == row.workspaceID,
+                      classifications.updateValue(value, forKey: value.bindingID) == nil else {
+                    throw LightingContractFailureV1.staleReference
+                }
+            case .measurementProtocolRelease:
+                let value = try AuthorityCriterionCanonicalCodecV1.decode(
+                    MeasurementProtocolReleaseV1.self, from: row.canonicalData
+                )
+                guard value.releaseID == row.id,
+                      value.workspaceID.rawValue == row.workspaceID,
+                      protocols.updateValue(value, forKey: value.releaseID) == nil else {
+                    throw LightingContractFailureV1.staleReference
+                }
+            case .derivedFactEvaluatorDescriptor:
+                let value = try AuthorityCriterionCanonicalCodecV1.decode(
+                    DerivedFactEvaluatorDescriptorV1.self, from: row.canonicalData
+                )
+                guard value.descriptorID == row.id,
+                      value.workspaceID.rawValue == row.workspaceID,
+                      evaluators.updateValue(value, forKey: value.descriptorID) == nil else {
+                    throw LightingContractFailureV1.staleReference
+                }
+            case .derivedFactProvenance:
+                let value = try AuthorityCriterionCanonicalCodecV1.decode(
+                    DerivedFactProvenanceV1.self, from: row.canonicalData
+                )
+                guard value.provenanceID == row.id,
+                      value.workspaceID.rawValue == row.workspaceID,
+                      provenances.updateValue(value, forKey: value.provenanceID) == nil else {
+                    throw LightingContractFailureV1.staleReference
+                }
+            }
+        }
+
+        for claim in lighting.claims {
+            try claim.validateIntrinsic()
+            guard let observationReference = claim.observation,
+                  let observation = lighting.observations.first(where: {
+                      $0.observationID == observationReference.observationID
+                          && $0.revision == observationReference.revision
+                          && $0.observationSHA256 == observationReference.observationSHA256
+                  }) else {
+                if claim.tier == .observed || claim.tier == .measured
+                    || claim.tier == .derived || claim.tier == .screened {
+                    throw LightingContractFailureV1.staleReference
+                }
+                continue
+            }
+            let expectedObservation = try LightingObservationReferenceV1(observation)
+            guard expectedObservation == observationReference,
+                  observation.workspaceID == claim.workspaceID,
+                  observation.assetID == claim.subjectAssetID else {
+                throw LightingContractFailureV1.staleReference
+            }
+
+            switch claim.tier {
+            case .observed:
+                try LightingClaimAdmissionV1.validateObserved(
+                    claim, observation: observation
+                )
+            case .externallyAttested:
+                // External attestations are not C19 measurement claims. The
+                // claim's intrinsic validator still enforces its typed shape.
+                continue
+            case .measured, .derived, .screened:
+                guard let measurement = claim.measurement,
+                      let plan = lighting.plans.first(where: {
+                          $0.planID == measurement.planID
+                              && $0.revision == measurement.planRevision
+                              && $0.planSHA256 == measurement.planSHA256
+                      }),
+                      plan.workspaceID == claim.workspaceID,
+                      measurement.workspaceID == claim.workspaceID,
+                      measurement.planID == plan.planID,
+                      measurement.planRevision == plan.revision,
+                      measurement.planSHA256 == plan.planSHA256 else {
+                    throw LightingContractFailureV1.staleReference
+                }
+
+                let protocolReference = try MeasurementProtocolReferenceV1(
+                    releaseID: plan.protocolReference.releaseID,
+                    revision: plan.protocolReference.revision,
+                    releaseSHA256: plan.protocolReference.releaseSHA256
+                )
+                guard let protocolRelease = protocols[protocolReference.releaseID],
+                      protocolRelease.workspaceID == claim.workspaceID,
+                      (try MeasurementProtocolReferenceV1(protocolRelease)) == protocolReference,
+                      let evaluator = evaluators[protocolRelease.evaluatorDescriptorID],
+                      evaluator.workspaceID == claim.workspaceID else {
+                    throw LightingContractFailureV1.staleReference
+                }
+
+                var boundCaptures: [MeasurementCaptureV1] = []
+                var boundQuality: [MeasurementQualityAssessmentV1] = []
+                for binding in measurement.captures {
+                    guard let capture = captures[binding.captureID],
+                          capture.workspaceID == claim.workspaceID,
+                          capture.revision == binding.captureRevision,
+                          capture.captureSHA256 == binding.captureSHA256 else {
+                        throw LightingContractFailureV1.staleReference
+                    }
+                    let matchingQuality = quality.values.filter {
+                        $0.subjectKind == .capture && $0.subjectID == capture.captureID
+                    }
+                    guard matchingQuality.count == 1 else {
+                        throw LightingContractFailureV1.staleReference
+                    }
+                    boundCaptures.append(capture)
+                    boundQuality.append(matchingQuality[0])
+                }
+                guard let firstCapture = boundCaptures.first,
+                      let instrumentReference = firstCapture.instrument,
+                      let calibrationReference = firstCapture.calibration,
+                      let instrument = instruments[instrumentReference.referenceID],
+                      let calibration = calibrations[calibrationReference.snapshotID],
+                      (try InstrumentRevisionReferenceV1(instrument)) == instrumentReference,
+                      (try CalibrationSnapshotReferenceV1(calibration)) == calibrationReference,
+                      boundCaptures.allSatisfy({
+                          $0.instrument == instrumentReference
+                              && $0.calibration == calibrationReference
+                      }) else {
+                    throw LightingContractFailureV1.staleReference
+                }
+
+                try LightingClaimAdmissionV1.validateMeasured(
+                    claim,
+                    observation: observation,
+                    plan: plan,
+                    captures: boundCaptures,
+                    bindings: measurement.captures,
+                    protocolRelease: protocolRelease,
+                    instrument: instrument,
+                    calibration: calibration,
+                    quality: boundQuality
+                )
+
+                if let seriesID = measurement.seriesID {
+                    guard let seriesRevision = measurement.seriesRevision,
+                          let seriesSHA256 = measurement.seriesSHA256 else {
+                        throw LightingContractFailureV1.staleReference
+                    }
+                    let matchingSeries = series.values.filter {
+                        $0.seriesID == seriesID
+                            && $0.revision == seriesRevision
+                            && $0.seriesSHA256 == seriesSHA256
+                    }
+                    guard matchingSeries.count == 1 else {
+                        throw LightingContractFailureV1.staleReference
+                    }
+                    let archivedSeries = matchingSeries[0]
+                    try archivedSeries.validateClosure(
+                        captures: boundCaptures,
+                        protocolRelease: protocolRelease
+                    )
+                    if let seriesProvenance = archivedSeries.derivedFact {
+                        guard provenances[seriesProvenance.provenanceID] == seriesProvenance else {
+                            throw LightingContractFailureV1.staleReference
+                        }
+                    }
+                } else {
+                    guard measurement.seriesRevision == nil,
+                          measurement.seriesSHA256 == nil else {
+                        throw LightingContractFailureV1.staleReference
+                    }
+                }
+
+                switch claim.tier {
+                case .measured:
+                    break
+                case .derived:
+                    guard let provenance = claim.derivedFact,
+                          provenances[provenance.provenanceID] == provenance,
+                          provenance.workspaceID == claim.workspaceID,
+                          provenance.protocolReleaseID == protocolRelease.releaseID,
+                          provenance.evaluatorDescriptorID == evaluator.descriptorID else {
+                        throw LightingContractFailureV1.staleReference
+                    }
+                    try LightingClaimAdmissionV1.validateDerived(
+                        claim,
+                        observation: observation,
+                        plan: plan,
+                        captures: boundCaptures,
+                        bindings: measurement.captures,
+                        protocolRelease: protocolRelease,
+                        evaluator: evaluator,
+                        instrument: instrument,
+                        calibration: calibration,
+                        quality: boundQuality
+                    )
+                case .screened:
+                    guard let criterion = claim.criterion,
+                          let authority = authorities[criterion.authorityReleaseID],
+                          let basis = bases[criterion.basisBindingID],
+                          let applicabilitySnapshot = applicability[criterion.applicabilitySnapshotID],
+                          let scope = scopes[criterion.assessmentScopeID] else {
+                        throw LightingContractFailureV1.staleReference
+                    }
+                    let matchingClassifications = classifications.values.filter {
+                        $0.workspaceID == claim.workspaceID
+                            && $0.criterionID == criterion.criterionID
+                            && $0.applicabilityContextID == criterion.applicabilitySnapshotID
+                            && $0.assessmentScopeID == criterion.assessmentScopeID
+                    }
+                    guard matchingClassifications.count == 1 else {
+                        throw LightingContractFailureV1.staleReference
+                    }
+                    try LightingClaimAdmissionV1.validateScreened(
+                        claim,
+                        observation: observation,
+                        plan: plan,
+                        captures: boundCaptures,
+                        bindings: measurement.captures,
+                        protocolRelease: protocolRelease,
+                        instrument: instrument,
+                        calibration: calibration,
+                        quality: boundQuality,
+                        classification: matchingClassifications[0],
+                        criterion: criterion,
+                        authority: authority,
+                        basis: basis,
+                        applicability: applicabilitySnapshot,
+                        scope: scope
+                    )
+                case .observed, .externallyAttested:
+                    break
+                }
+            }
+        }
     }
 }

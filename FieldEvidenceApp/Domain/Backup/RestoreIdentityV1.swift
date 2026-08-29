@@ -561,3 +561,38 @@ enum C30EvidenceContextRestoreIdentityPolicyV1 {
         _ = try EvidenceContextBackupRecordSetV1.decode(rows)
     }
 }
+
+/// Lighting records remain immutable source evidence. Same-workspace restore
+/// preserves their canonical bytes; clone/fork callers must explicitly bind
+/// a new workspace before treating any restored root as current.
+enum C31LightingRestoreIdentityPolicyV1 {
+    static let persistentSchemaVersion = 31
+    static let recordsSchemaVersion = 30
+    static let durableFamilyCount = 5
+    static let sameWorkspacePreservesImmutableBytes = true
+    static let cloneForkRequiresExplicitHistoricRebind = true
+    static let sourceClaimNeverBecomesActive = true
+
+    static func disposition(for mode: BackupRestoreMode) -> String {
+        switch mode {
+        case .emptyInstall, .replaceExisting:
+            return "PRESERVE_SAME_WORKSPACE_LIGHTING_BYTES"
+        case .clone, .fork:
+            return "EXPLICIT_HISTORIC_LIGHTING_REBIND_REQUIRED"
+        }
+    }
+
+    static func validate(_ rows: [V31BackupLightingRecordV1],
+                         mode: BackupRestoreMode) throws {
+        guard persistentSchemaVersion == 31,
+              recordsSchemaVersion == 30,
+              durableFamilyCount == V31BackupLightingRecordV1.Kind.allCases.count,
+              sameWorkspacePreservesImmutableBytes,
+              cloneForkRequiresExplicitHistoricRebind,
+              sourceClaimNeverBecomesActive else {
+            throw LightingContractFailureV1.invalidValue
+        }
+        _ = disposition(for: mode)
+        _ = try LightingBackupRecordSetV1.decode(rows)
+    }
+}

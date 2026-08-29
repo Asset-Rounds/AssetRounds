@@ -101,3 +101,12 @@ final class EvidenceContextCoordinatorV1 {
         PairedObservationLinkV1.mismatches(first, second)
     }
 }
+
+enum C31LightingConsumerBoundary_Application_EvidenceContext_EvidenceContextCoordinatorV1 {
+    static let registrationID = "C31_LIGHTING_CONSUMER/evidence-context-coordinator"
+    static let compatibility = C31LightingCompatibilityPolicyV1()
+    static func validate(projection: C31LightingReportProjectionV1) throws {
+        try compatibility.validate()
+        try C31LightingProjectionPolicyV1.validate(projection)
+    }
+}

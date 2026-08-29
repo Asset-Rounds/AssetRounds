@@ -4805,3 +4805,169 @@ struct C30ConsumerRegistrationV1: Codable, Equatable, Sendable {
 enum C30ConsumerBoundaryV1_Domain_Reporting_ReportProjectionContractsV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/Reporting/ReportProjectionContractsV1.swift", role: .report)
 }
+
+// MARK: - C31 exterior/parking-lighting consumer projection
+
+/// Closed claim vocabulary for the C31 consumer surfaces.  These values are
+/// descriptions of recorded facts and references; they are deliberately not
+/// pass/fail, safety, compliance, security, or professional conclusions.
+enum C31LightingClaimBoundaryV1: String, Codable, CaseIterable, Hashable, Sendable {
+    case noClaimRecorded = "NO_CLAIM_RECORDED"
+    case observationOnly = "OBSERVATION_ONLY"
+    case measuredWithRecordedInputs = "MEASURED_WITH_RECORDED_INPUTS"
+    case criterionReferenceRecorded = "CRITERION_REFERENCE_RECORDED"
+    case externalEvidenceReferenceRecorded = "EXTERNAL_EVIDENCE_REFERENCE_RECORDED"
+    case mixedRecordedFacts = "MIXED_RECORDED_FACTS"
+
+    static func from(_ claims: [LightingClaimStateV1]) -> Self {
+        guard !claims.isEmpty else { return .noClaimRecorded }
+        let tiers = Set(claims.map(\.tier))
+        guard tiers.count == 1, let tier = tiers.first else { return .mixedRecordedFacts }
+        switch tier {
+        case .observed: return .observationOnly
+        case .measured, .derived: return .measuredWithRecordedInputs
+        case .screened: return .criterionReferenceRecorded
+        case .externallyAttested: return .externalEvidenceReferenceRecorded
+        }
+    }
+}
+
+/// Immutable, bounded, metadata-only C31 projection used by reports, export,
+/// and search consumers.  It contains no actor identity, content bytes,
+/// private locators, notes, or inferred equipment state.
+struct C31LightingReportProjectionV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let workspaceID: WorkspaceID
+    let systemID: UUID
+    let systemRevision: UInt64
+    let systemSHA256: String
+    let packageReleaseID: String
+    let zoneCount: Int
+    let controlGroupCount: Int
+    let luminaireCount: Int
+    let observationCount: Int
+    let issueCount: Int
+    let measurementPlanCount: Int
+    let claimCount: Int
+    let measuredClaimCount: Int
+    let criterionBoundClaimCount: Int
+    let captureBindingCount: Int
+    let issueKinds: [LightingIssueKindV1]
+    let claimTiers: [LightingClaimTierV1]
+    let issueDispositions: [LightingIssueDispositionV1]
+    let safetyStopReasons: [LightingSafetyStopReasonV1]
+    let claimBoundary: C31LightingClaimBoundaryV1
+    let frozenDisplay: Bool
+    let preservesOriginalEvidence: Bool
+    let manualOfflinePathPreserved: Bool
+
+    init(
+        system: LightingSystemV1,
+        observations: [LightingObservationV1] = [],
+        issues: [LightingIssueV1] = [],
+        measurementPlans: [MeasurementPlanV1] = [],
+        claims: [LightingClaimStateV1] = [],
+        safetyStopReasons: [LightingSafetyStopReasonV1] = []
+    ) throws {
+        try system.validateIntrinsic()
+        try observations.forEach { try $0.validate(system: system) }
+        try issues.forEach { try $0.validateIntrinsic() }
+        try measurementPlans.forEach { try $0.validate(system: system) }
+        try claims.forEach { try $0.validateIntrinsic() }
+        guard observations.allSatisfy({ $0.workspaceID == system.workspaceID }),
+              issues.allSatisfy({ $0.workspaceID == system.workspaceID }),
+              measurementPlans.allSatisfy({ $0.workspaceID == system.workspaceID }),
+              claims.allSatisfy({ $0.workspaceID == system.workspaceID }) else {
+            throw SnapshotProjectionFailureV1.wrongWorkspace
+        }
+
+        schemaVersion = Self.schemaVersion
+        workspaceID = system.workspaceID
+        systemID = system.systemID
+        systemRevision = system.revision
+        systemSHA256 = system.systemSHA256
+        packageReleaseID = system.packageRelease.packageReleaseID
+        zoneCount = system.zones.count
+        controlGroupCount = system.controlGroups.count
+        luminaireCount = system.luminaires.count
+        observationCount = observations.count
+        issueCount = issues.count
+        measurementPlanCount = measurementPlans.count
+        claimCount = claims.count
+        measuredClaimCount = claims.filter { $0.measurement != nil }.count
+        criterionBoundClaimCount = claims.filter { $0.criterion != nil }.count
+        captureBindingCount = claims.reduce(0) { $0 + ($1.measurement?.captures.count ?? 0) }
+        issueKinds = Array(Set(issues.map(\.kind))).sorted()
+        claimTiers = claims.map(\.tier).sorted { $0.rawValue < $1.rawValue }
+        issueDispositions = Array(Set(issues.map(\.disposition))).sorted { $0.rawValue < $1.rawValue }
+        self.safetyStopReasons = Array(Set(safetyStopReasons)).sorted { $0.rawValue < $1.rawValue }
+        claimBoundary = C31LightingClaimBoundaryV1.from(claims)
+        frozenDisplay = true
+        preservesOriginalEvidence = true
+        manualOfflinePathPreserved = true
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              systemID != LightingLimitsV1.zero,
+              systemRevision > 0,
+              MutationEnvelopeV1.isSHA256(systemSHA256),
+              MutationEnvelopeV1.isSHA256(packageReleaseID),
+              [zoneCount, controlGroupCount, luminaireCount, observationCount,
+               issueCount, measurementPlanCount, claimCount, measuredClaimCount,
+               criterionBoundClaimCount, captureBindingCount]
+                .allSatisfy({ $0 >= 0 }),
+              zoneCount <= LightingLimitsV1.maximumZones,
+              controlGroupCount <= LightingLimitsV1.maximumControlGroups,
+              luminaireCount <= LightingLimitsV1.maximumLuminaires,
+              observationCount <= LightingLimitsV1.maximumEvidence * LightingLimitsV1.maximumLuminaires,
+              issueCount <= LightingLimitsV1.maximumEvidence * LightingLimitsV1.maximumLuminaires,
+              measurementPlanCount <= LightingLimitsV1.maximumEvidence,
+              claimCount <= LightingLimitsV1.maximumEvidence * LightingLimitsV1.maximumLuminaires,
+              measuredClaimCount <= claimCount,
+              criterionBoundClaimCount <= claimCount,
+              claimTiers == claimTiers.sorted(by: { $0.rawValue < $1.rawValue }),
+              issueKinds == issueKinds.sorted(),
+              Set(issueKinds).count == issueKinds.count,
+              issueDispositions == issueDispositions.sorted(by: { $0.rawValue < $1.rawValue }),
+              Set(issueDispositions).count == issueDispositions.count,
+              safetyStopReasons == safetyStopReasons.sorted(by: { $0.rawValue < $1.rawValue }),
+              Set(safetyStopReasons).count == safetyStopReasons.count,
+              ((claimTiers.isEmpty && claimBoundary == .noClaimRecorded)
+                || (!claimTiers.isEmpty && claimBoundary != .noClaimRecorded)),
+              frozenDisplay, preservesOriginalEvidence, manualOfflinePathPreserved else {
+            throw SnapshotProjectionFailureV1.invalidValue
+        }
+    }
+}
+
+enum C31LightingProjectionPolicyV1 {
+    static let metadataOnly = true
+    static let preservesOriginalEvidence = true
+    static let historicDisplayFrozen = true
+    static let manualOfflinePathPreserved = true
+    static let excludesActorIdentity = true
+    static let excludesContentBytesAndPrivateLocators = true
+    static let excludesOperationalSafetySecurityComplianceClaims = true
+    static let excludesTimestampPhotoSolarInference = true
+    static let forbiddenClaimPhrases = [
+        "compliance", "safety certified", "security certified", "ies compliant",
+        "ada compliant", "verified safe", "operational failure", "actual control",
+        "photo proves", "timestamp proves", "darkness inferred", "survey-grade",
+        "gis", "cad", "bim", "lidar", "remote delivery", "secure",
+    ]
+
+    static func validate(_ projection: C31LightingReportProjectionV1) throws {
+        try projection.validate()
+        guard metadataOnly, preservesOriginalEvidence, historicDisplayFrozen,
+              manualOfflinePathPreserved, excludesActorIdentity,
+              excludesContentBytesAndPrivateLocators,
+              excludesOperationalSafetySecurityComplianceClaims,
+              excludesTimestampPhotoSolarInference else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+    }
+}

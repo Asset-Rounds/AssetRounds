@@ -222,3 +222,12 @@ enum C37PoseIntegration_FieldEvidenceApp_Application_Location_AssetPlacementChan
 enum C30ConsumerBoundaryV1_Application_Location_AssetPlacementChangeCoordinatorV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Application/Location/AssetPlacementChangeCoordinatorV1.swift", role: .location)
 }
+
+enum C31LightingConsumerBoundary_Application_Location_AssetPlacementChangeCoordinatorV1 {
+    static let registrationID = "C31_LIGHTING_CONSUMER/asset-placement-coordinator"
+    static let compatibility = C31LightingCompatibilityPolicyV1()
+    static func validate(projection: C31LightingReportProjectionV1) throws {
+        try compatibility.validate()
+        try C31LightingProjectionPolicyV1.validate(projection)
+    }
+}

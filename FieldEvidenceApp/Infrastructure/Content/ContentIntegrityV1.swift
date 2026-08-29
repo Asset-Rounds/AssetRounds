@@ -614,3 +614,13 @@ enum C37PoseIntegration_FieldEvidenceApp_Infrastructure_Content_ContentIntegrity
 enum C30ConsumerBoundaryV1_Infrastructure_Content_ContentIntegrityV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Content/ContentIntegrityV1.swift", role: .content)
 }
+
+enum C31LightingContentIntegrityBoundaryV1 {
+    static let projectionRequiresCanonicalDigest = true
+    static let projectionDoesNotRecalculateMeasurementOrSolarFacts = true
+    static let unsupportedSafetyAndComplianceClaimsRejected = true
+
+    static func validatesProjectionDigest(_ digest: String) -> Bool {
+        MutationEnvelopeV1.isSHA256(digest)
+    }
+}

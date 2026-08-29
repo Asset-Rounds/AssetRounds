@@ -1910,3 +1910,26 @@ enum C37PoseIntegration_FieldEvidenceApp_Infrastructure_Media_EvidenceBundleStor
 enum C30ConsumerBoundaryV1_Infrastructure_Media_EvidenceBundleStore {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Media/EvidenceBundleStore.swift", role: .media)
 }
+
+enum C31LightingEvidenceBundleBoundaryV1 {
+    static let lightingRecordsReferenceExistingContent = true
+    static let noSecondByteStore = true
+    static let reportAndSearchConsumersReceiveMetadataOnly = true
+    static let photoTimestampDoesNotEstablishLightingState = true
+
+    static func validate(
+        records: [V31BackupLightingRecordV1],
+        workspaceID: WorkspaceID
+    ) throws {
+        try C31LightingWorkflowBoundaryV1.validate(
+            records: records,
+            workspaceID: workspaceID
+        )
+        guard lightingRecordsReferenceExistingContent,
+              noSecondByteStore,
+              reportAndSearchConsumersReceiveMetadataOnly,
+              photoTimestampDoesNotEstablishLightingState else {
+            throw LightingContractFailureV1.invalidValue
+        }
+    }
+}

@@ -895,3 +895,17 @@ extension ContractManifestV1 {
 enum C30ConsumerBoundaryV1_Domain_Reporting_ContractManifestV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/Reporting/ContractManifestV1.swift", role: .report)
 }
+
+enum C31LightingContractManifestBoundaryV1 {
+    static let contractID = "lighting.report.projection.v1"
+    static let sourceContract = "LightingSystemV1"
+    static let supportedFacts = [
+        "topology", "observation", "issue", "measurement", "criterion", "safety_stop",
+    ]
+    static let unsupportedClaims = [
+        "operational_state", "safety_certification", "security_certification",
+        "compliance", "ada", "ies", "survey_grade",
+    ]
+    static let historicDisplayFrozen = true
+    static let manualOfflinePathPreserved = true
+}

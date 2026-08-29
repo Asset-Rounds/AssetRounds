@@ -46,3 +46,12 @@ final class PlacementPoseLifecycleAdapterV1: PlacementPoseMutationAuthorityV1 {
 enum C30ConsumerBoundaryV1_Infrastructure_Pose_PlacementPoseLifecycleAdapterV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Pose/PlacementPoseLifecycleAdapterV1.swift", role: .pose)
 }
+
+enum C31LightingConsumerBoundary_Infrastructure_Pose_PlacementPoseLifecycleAdapterV1 {
+    static let registrationID = "C31_LIGHTING_CONSUMER/placement-pose-lifecycle-adapter"
+    static let compatibility = C31LightingCompatibilityPolicyV1()
+    static func validate(projection: C31LightingReportProjectionV1) throws {
+        try compatibility.validate()
+        try C31LightingProjectionPolicyV1.validate(projection)
+    }
+}

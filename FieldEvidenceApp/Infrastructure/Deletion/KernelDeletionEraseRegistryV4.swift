@@ -444,6 +444,24 @@ enum KernelDeletionEraseRegistryV4 {
             throw KernelPersistenceV4Failure.incompleteCoverage
         }
     }
+    static let lightingDeleteKinds = V31BackupLightingRecordV1.Kind.allCases
+    static let lightingDurableFamilyCount = 5
+
+    static func validateLightingLifecycle() throws {
+        guard lightingDeleteKinds.count == lightingDurableFamilyCount,
+              Set(lightingDeleteKinds.map(\.rawValue)).count
+                == lightingDurableFamilyCount,
+              LightingPersistenceEnrollmentV1.persistentSchemaVersion == 31,
+              LightingPersistenceEnrollmentV1.recordsSchemaVersion == 30,
+              LightingPersistenceEnrollmentV1.durableModelCount
+                == lightingDurableFamilyCount,
+              C31LightingDeletionIntentBoundaryV1
+                .ordinaryDeletionPreservesImmutableLightingHistory,
+              C31LightingEraseIntentBoundaryV1
+                .removesAllFiveDurableFamilies else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
     /// Search V1 has one canonical workspace-owned record and one disposable
     /// local projection. Keeping these routes beside the kernel registry makes
     /// delete/Erase audits distinguish canonical deletion from index rebuild.
@@ -500,6 +518,7 @@ enum KernelDeletionEraseRegistryV4 {
         try validateScheduleLifecycle()
         try validatePlanLifecycle()
         try validatePlacementPoseLifecycle()
+        try validateLightingLifecycle()
         try validatePrivacyTransformLifecycle()
         try validateMeasurementIntegrityLifecycle()
         try validatePackageEvolutionLifecycle()

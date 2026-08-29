@@ -25,6 +25,46 @@ enum C30EvidenceContextBackupImportPolicyV1 {
     }
 }
 
+/// C31 lighting rows are imported only as canonical, workspace-scoped roots.
+/// The projection/search/diagnostic views are rebuilt after the durable rows
+/// are accepted and are never treated as backup truth.
+enum C31LightingBackupImportPolicyV1 {
+    static let acceptsOnlyCanonicalRows = true
+    static let acceptsInferredLighting = false
+    static let acceptsCrossWorkspaceRows = false
+    static let restoresHistoryBeforeProjection = true
+    static let persistentSchemaVersion = 31
+    static let recordsSchemaVersion = 30
+    static let durableFamilyCount = 5
+
+    static func validate(_ package: ValidatedV4BackupPackageV1) throws {
+        let manifest = package.manifest.source
+        let records = package.records
+        guard records.recordsSchemaVersion == recordsSchemaVersion
+                || manifest.persistentSchemaVersion == persistentSchemaVersion else {
+            return
+        }
+        guard acceptsOnlyCanonicalRows,
+              !acceptsInferredLighting,
+              !acceptsCrossWorkspaceRows,
+              restoresHistoryBeforeProjection,
+              manifest.persistentSchemaVersion == persistentSchemaVersion,
+              records.recordsSchemaVersion == recordsSchemaVersion else {
+            throw BackupImportServiceError.invalidGeneration
+        }
+        do {
+            try V31LightingImportBoundaryV1.validate(
+                persistent: persistentSchemaVersion,
+                records: recordsSchemaVersion,
+                rows: records.lighting
+            )
+            try records.validateC31LightingClosure()
+        } catch {
+            throw BackupImportServiceError.invalidGeneration
+        }
+    }
+}
+
 struct BackupSecurityScopedAccessV1: Sendable {
     let start: @Sendable (URL) -> Bool
     let stop: @Sendable (URL) -> Void
@@ -500,6 +540,7 @@ private extension BackupImportService {
                 stagedPackageURL: temporaryURL,
                 cancellation: cancellation
             )
+            try C31LightingBackupImportPolicyV1.validate(temporaryValue)
             guard temporaryValue.manifest == source.manifest,
                   try BackupPackageAnchoredFile.rootIdentity(at: sourceURL)
                     == source.rootIdentity else {
@@ -536,6 +577,7 @@ private extension BackupImportService {
                 stagedPackageURL: destinationURL,
                 cancellation: cancellation
             )
+            try C31LightingBackupImportPolicyV1.validate(value)
             guard value.manifest == source.manifest else {
                 throw BackupImportServiceError.invalidSource
             }
@@ -645,6 +687,7 @@ private extension BackupImportService {
                 stagedPackageURL: temporaryURL,
                 cancellation: cancellation
             )
+            try C31LightingBackupImportPolicyV1.validate(temporaryValue)
             let indexByPath = Dictionary(
                 uniqueKeysWithValues: extraction.index.entries.map { ($0.path, $0) }
             )
@@ -684,6 +727,7 @@ private extension BackupImportService {
                 stagedPackageURL: destinationURL,
                 cancellation: cancellation
             )
+            try C31LightingBackupImportPolicyV1.validate(value)
             guard value.manifest == temporaryValue.manifest,
                   value.records == temporaryValue.records,
                   value.members.keys == temporaryValue.members.keys else {
@@ -896,6 +940,11 @@ private extension BackupImportService {
             schemaPairIsValid = (try? V29PlacementPoseImportBoundaryV1.validate(
                 persistent: 29,
                 records: 28
+            )) != nil
+        case (4,31,30):
+            schemaPairIsValid = (try? V31LightingImportBoundaryV1.validate(
+                persistent: 31,
+                records: 30
             )) != nil
         default:
             schemaPairIsValid = false

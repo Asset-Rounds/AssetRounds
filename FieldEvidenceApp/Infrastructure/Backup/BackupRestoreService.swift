@@ -40,6 +40,55 @@ enum C30EvidenceContextBackupRestorePolicyV1 {
     }
 }
 
+enum C31LightingBackupRestorePolicyV1 {
+    static let persistentSchemaVersion = 31
+    static let recordsSchemaVersion = 30
+    static let durableFamilyCount = 5
+    static let restoresCanonicalRowsBeforeDerivedState = true
+    static let cloneForkRequiresHistoricRebind = true
+    static let sourceBytesRemainImmutable = true
+    static let sourceClaimAutomaticallyActive = false
+    static let licensedCriterionTextIncluded = false
+
+    static func validate(
+        _ rows: [V31BackupLightingRecordV1],
+        mode: BackupRestoreMode
+    ) throws {
+        guard persistentSchemaVersion == 31,
+              recordsSchemaVersion == 30,
+              durableFamilyCount == 5,
+              restoresCanonicalRowsBeforeDerivedState,
+              cloneForkRequiresHistoricRebind,
+              sourceBytesRemainImmutable,
+              !sourceClaimAutomaticallyActive,
+              !licensedCriterionTextIncluded else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        do {
+            _ = try LightingBackupRecordSetV1.decode(rows)
+            try C31LightingRestoreIdentityPolicyV1.validate(rows, mode: mode)
+        } catch {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+    }
+
+    /// Restore must use the same claim-to-measurement/authority closure as
+    /// package validation.  Keeping the full records envelope here prevents
+    /// a caller from validating lighting roots in isolation and then
+    /// inserting claims whose archived C19/C40 evidence is absent or stale.
+    static func validate(
+        _ records: V4BackupRecordsV1,
+        mode: BackupRestoreMode
+    ) throws {
+        do {
+            try validate(records.lighting, mode: mode)
+            try records.validateC31LightingClosure()
+        } catch {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+    }
+}
+
 enum BackupRestoreServiceError: Error, Equatable {
     case contextHasChanges
     case currentGenerationInvalid
@@ -479,6 +528,10 @@ final class BackupRestoreService {
         ) == validatedPackage else {
             throw BackupRestoreServiceError.invalidPackage
         }
+        try C31LightingBackupRestorePolicyV1.validate(
+            validatedPackage.records,
+            mode: mode
+        )
         try storagePreflight.checkBackupImport(
             declaredPayloadByteCount: Int64(
                 validatedPackage.manifest.declaredPayloadByteCount
@@ -1704,7 +1757,8 @@ private extension BackupRestoreService {
             requirementAssurance: records.requirementAssurance,
             savedSmartViews: records.savedSmartViews,
             sites: records.sites,
-            workflowRecords: records.workflowRecords
+            workflowRecords: records.workflowRecords,
+            lighting: records.lighting
         )
     }
 
@@ -1725,6 +1779,7 @@ private extension BackupRestoreService {
             + records.savedSmartViews.map(\.id)
             + records.surveyDefinitions.map(\.id)
             + records.placementPoses.map(\.id)
+            + records.lighting.map(\.id)
         return Set(ids).count == ids.count
     }
 
@@ -1768,7 +1823,8 @@ private extension BackupRestoreService {
             requirementAssurance: records.requirementAssurance,
             savedSmartViews: records.savedSmartViews,
             sites: records.sites,
-            workflowRecords: records.workflowRecords
+            workflowRecords: records.workflowRecords,
+            lighting: records.lighting
         )
     }
 
@@ -2029,7 +2085,8 @@ private extension BackupRestoreService {
             recordsSchemaVersion: records.recordsSchemaVersion,
             reports: records.reports, requirementAssurance: assurance,
             savedSmartViews: records.savedSmartViews, sites: records.sites,
-            workflowRecords: records.workflowRecords
+            workflowRecords: records.workflowRecords,
+            lighting: records.lighting
         )
     }
 
@@ -2319,7 +2376,8 @@ private extension BackupRestoreService {
                 reports: reports, sites: records.sites,
                 requirementAssurance: requirementAssurance,
                 savedSmartViews: savedSmartViews,
-                workflowRecords: records.workflowRecords
+                workflowRecords: records.workflowRecords,
+                lighting: records.lighting
             )
         }
         let receipt = try LocationPersistenceCodecV1.decode(
@@ -2398,7 +2456,8 @@ private extension BackupRestoreService {
             requirementAssurance: requirementAssurance,
             savedSmartViews: savedSmartViews,
             sites: records.sites,
-            workflowRecords: records.workflowRecords
+            workflowRecords: records.workflowRecords,
+            lighting: records.lighting
         )
     }
 
@@ -4623,7 +4682,9 @@ private extension BackupRestoreService {
                 || records.recordsSchemaVersion == 25
                 || records.recordsSchemaVersion == 26
                 || records.recordsSchemaVersion == 27
-                || records.recordsSchemaVersion == 28)
+                || records.recordsSchemaVersion == 28
+                || records.recordsSchemaVersion == 29
+                || records.recordsSchemaVersion == 30)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -4643,7 +4704,8 @@ private extension BackupRestoreService {
              (18, let ledger?, _), (19, let ledger?, _), (20, let ledger?, _),
              (21, let ledger?, _), (22, let ledger?, _), (23, let ledger?, _),
              (24, let ledger?, _), (25, let ledger?, _), (26, let ledger?, _),
-             (27, let ledger?, _), (28, let ledger?, _):
+             (27, let ledger?, _), (28, let ledger?, _),
+             (29, let ledger?, _), (30, let ledger?, _):
             do {
                 try ledger.validate()
                 try DeletionLedgerStore(context: context).stageUnion(ledger.entries)
@@ -5331,6 +5393,67 @@ private extension BackupRestoreService {
                 throw BackupRestoreServiceError.invalidPackage
             }
         }
+        if records.recordsSchemaVersion >= 30 {
+            do {
+                // Re-run the shared package/restore closure immediately
+                // before materialization.  This is deliberately adjacent to
+                // the inserts so no caller can bypass the evidence join.
+                try records.validateC31LightingClosure()
+                let expectedWorkspaceID = identityDecision.map {
+                    WorkspaceID(rawValue: $0.targetPointer.workspaceID)
+                } ?? legacyDestinationIdentity.workspaceID
+                let lighting = try LightingBackupRecordSetV1.decode(records.lighting)
+                let workspaces = lighting.systems.map(\.workspaceID)
+                    + lighting.observations.map(\.workspaceID)
+                    + lighting.issues.map(\.workspaceID)
+                    + lighting.plans.map(\.workspaceID)
+                    + lighting.claims.map(\.workspaceID)
+                guard workspaces.allSatisfy({ $0 == expectedWorkspaceID }) else {
+                    // No canonical C31 rebind constructor exists yet. Never
+                    // materialize source-workspace lighting rows into a new
+                    // clone/fork workspace under a false identity.
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                for value in lighting.systems.sorted(by: {
+                    ($0.systemID.uuidString, $0.revision)
+                        < ($1.systemID.uuidString, $1.revision)
+                }) {
+                    context.insert(try LightingSystemRow(value))
+                }
+                for value in lighting.observations.sorted(by: {
+                    ($0.observationID.uuidString, $0.revision)
+                        < ($1.observationID.uuidString, $1.revision)
+                }) {
+                    context.insert(try LightingObservationRow(value))
+                }
+                for value in lighting.issues.sorted(by: {
+                    ($0.issueID.uuidString, $0.revision)
+                        < ($1.issueID.uuidString, $1.revision)
+                }) {
+                    context.insert(try LightingIssueRow(value))
+                }
+                for value in lighting.plans.sorted(by: {
+                    ($0.planID.uuidString, $0.revision)
+                        < ($1.planID.uuidString, $1.revision)
+                }) {
+                    context.insert(try MeasurementPlanRow(value))
+                }
+                for value in lighting.claims.sorted(by: {
+                    ($0.claimID.uuidString, $0.revision)
+                        < ($1.claimID.uuidString, $1.revision)
+                }) {
+                    context.insert(try LightingClaimStateRow(value))
+                }
+            } catch let error as BackupRestoreServiceError {
+                throw error
+            } catch {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+        } else {
+            guard records.lighting.isEmpty else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+        }
         if let mutationHistory = records.mutationHistory {
             guard records.recordsSchemaVersion == 3
                     || records.recordsSchemaVersion == 4
@@ -5355,7 +5478,11 @@ private extension BackupRestoreService {
                     || records.recordsSchemaVersion == 23
                     || records.recordsSchemaVersion == 24
                     || records.recordsSchemaVersion == 25
-                    || records.recordsSchemaVersion == 26 else {
+                    || records.recordsSchemaVersion == 26
+                    || records.recordsSchemaVersion == 27
+                    || records.recordsSchemaVersion == 28
+                    || records.recordsSchemaVersion == 29
+                    || records.recordsSchemaVersion == 30 else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {
@@ -6504,7 +6631,8 @@ private extension BackupRestoreService {
             requirementAssurance: [],
             savedSmartViews: schemaVersion >= 6 ? records.savedSmartViews : [],
             sites: records.sites,
-            workflowRecords: records.workflowRecords
+            workflowRecords: records.workflowRecords,
+            lighting: schemaVersion >= 30 ? records.lighting : []
         )
     }
 
@@ -6539,7 +6667,9 @@ private extension BackupRestoreService {
             recordsSchemaVersion: expected.recordsSchemaVersion,
             reports: actual.reports,
             sites: actual.sites,
-            workflowRecords: actual.workflowRecords
+            workflowRecords: actual.workflowRecords,
+            lighting: expected.recordsSchemaVersion >= 30
+                ? expected.lighting : []
         )
         guard predecessor == expected,
               actual.locationNodes.isEmpty,
@@ -6727,6 +6857,21 @@ private extension BackupRestoreService {
         let spatialAnchorObservationRows = try context.fetch(
             FetchDescriptor<SpatialAnchorObservationRow>()
         )
+        let lightingSystemRows = try context.fetch(
+            FetchDescriptor<LightingSystemRow>()
+        )
+        let lightingObservationRows = try context.fetch(
+            FetchDescriptor<LightingObservationRow>()
+        )
+        let lightingIssueRows = try context.fetch(
+            FetchDescriptor<LightingIssueRow>()
+        )
+        let measurementPlanRows = try context.fetch(
+            FetchDescriptor<MeasurementPlanRow>()
+        )
+        let lightingClaimStateRows = try context.fetch(
+            FetchDescriptor<LightingClaimStateRow>()
+        )
         let recoverabilityVerificationReceipts=try context.fetch(FetchDescriptor<RecoverabilityVerificationReceiptRow>())
         let clientCapabilityProfiles=try context.fetch(FetchDescriptor<ClientCapabilityProfileRow>()),packageLifecyclePolicies=try context.fetch(FetchDescriptor<PackageLifecyclePolicyRow>()),packageLifecycleDispositions=try context.fetch(FetchDescriptor<PackageLifecycleDispositionRow>()),clientCapabilityAdmissionDecisions=try context.fetch(FetchDescriptor<ClientCapabilityAdmissionDecisionRow>())
         let privacyTransformPolicies=try context.fetch(FetchDescriptor<PrivacyTransformPolicyRow>()),privacyRegions=try context.fetch(FetchDescriptor<PrivacyRegionRow>()),privacyTransformManifests=try context.fetch(FetchDescriptor<PrivacyTransformManifestRow>()),privacyReviewReceipts=try context.fetch(FetchDescriptor<PrivacyReviewReceiptRow>())
@@ -6891,6 +7036,63 @@ private extension BackupRestoreService {
                     < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
             }
         _ = try PlacementPoseBackupRecordSetV1.decode(placementPoseRecords)
+        let lightingRecords: [V31BackupLightingRecordV1] =
+            mutationHistory == nil ? [] : try (
+                lightingSystemRows.map { row in
+                    let value = try row.value()
+                    return V31BackupLightingRecordV1(
+                        kind: .lightingSystem,
+                        id: value.recordID,
+                        workspaceID: value.workspaceID.rawValue,
+                        revision: value.revision,
+                        canonicalData: try LightingCanonicalCodecV1.encode(value)
+                    )
+                }
+                + lightingObservationRows.map { row in
+                    let value = try row.value()
+                    return V31BackupLightingRecordV1(
+                        kind: .lightingObservation,
+                        id: value.recordID,
+                        workspaceID: value.workspaceID.rawValue,
+                        revision: value.revision,
+                        canonicalData: try LightingCanonicalCodecV1.encode(value)
+                    )
+                }
+                + lightingIssueRows.map { row in
+                    let value = try row.value()
+                    return V31BackupLightingRecordV1(
+                        kind: .lightingIssue,
+                        id: value.recordID,
+                        workspaceID: value.workspaceID.rawValue,
+                        revision: value.revision,
+                        canonicalData: try LightingCanonicalCodecV1.encode(value)
+                    )
+                }
+                + measurementPlanRows.map { row in
+                    let value = try row.value()
+                    return V31BackupLightingRecordV1(
+                        kind: .measurementPlan,
+                        id: value.recordID,
+                        workspaceID: value.workspaceID.rawValue,
+                        revision: value.revision,
+                        canonicalData: try LightingCanonicalCodecV1.encode(value)
+                    )
+                }
+                + lightingClaimStateRows.map { row in
+                    let value = try row.value()
+                    return V31BackupLightingRecordV1(
+                        kind: .lightingClaim,
+                        id: value.recordID,
+                        workspaceID: value.workspaceID.rawValue,
+                        revision: value.revision,
+                        canonicalData: try LightingCanonicalCodecV1.encode(value)
+                    )
+                }
+            ).sorted {
+                "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
+                    < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
+            }
+        _ = try LightingBackupRecordSetV1.decode(lightingRecords)
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveyRecords,
             assetLocators: assetLocatorRecords,
@@ -7097,7 +7299,8 @@ private extension BackupRestoreService {
                 "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
                     < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
             },
-            recordsSchemaVersion: !planArchiveRecords.isEmpty ? 27
+            recordsSchemaVersion: !lightingRecords.isEmpty ? 30
+                : !planArchiveRecords.isEmpty ? 27
                 : mutationHistory != nil && !(surveySessions.isEmpty
                 && factCaptures.isEmpty && provisionalSubjects.isEmpty
                 && subjectPromotionReceipts.isEmpty && surveyPublicationSnapshots.isEmpty) ? 24
@@ -7169,7 +7372,8 @@ private extension BackupRestoreService {
                     throw BackupRestoreServiceError.invalidRestoreAuthority
                 }
                 return workflowDTO(record, observationAndTime: companion)
-            }.sorted { canonical($0.id) < canonical($1.id) }
+            }.sorted { canonical($0.id) < canonical($1.id) },
+            lighting: lightingRecords
         )
     }
 

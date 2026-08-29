@@ -16,6 +16,12 @@ enum EvidenceContextFailureV1: Error, Equatable {
     case nonCanonicalEncoding
 }
 
+enum C31LightingEvidenceContextBoundaryV1 {
+    static let contextIsUserObservedOrOfflineDerived = true
+    static let solarContextDoesNotProveLightingCondition = true
+    static let contextDigestIsPreservedInHistoricProjection = true
+}
+
 enum EvidenceContextLimitsV1 {
     static let maximumTokenBytes = 160
     static let maximumMismatchReasons = 8

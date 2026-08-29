@@ -3505,3 +3505,87 @@ enum C30OperatingContextSearchPolicyV1 {
 enum C30ConsumerBoundaryV1_Domain_Search_SearchContractsV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/Search/SearchContractsV1.swift", role: .search)
 }
+
+// MARK: - C31 lighting search projection
+
+/// Search receives only a derived summary of the frozen lighting projection.
+/// Source bytes, notes, actor identity, private locators, and safety claims do
+/// not enter the local index.
+struct C31LightingSearchRecordV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let workspaceID: WorkspaceID
+    let systemID: UUID
+    let systemRevision: UInt64
+    let systemSHA256: String
+    let zoneCount: Int
+    let controlGroupCount: Int
+    let luminaireCount: Int
+    let observationCount: Int
+    let issueCount: Int
+    let measurementPlanCount: Int
+    let claimCount: Int
+    let claimBoundary: C31LightingClaimBoundaryV1
+    let claimTiers: [LightingClaimTierV1]
+    let issueKinds: [LightingIssueKindV1]
+
+    init(projection: C31LightingReportProjectionV1) throws {
+        try C31LightingProjectionPolicyV1.validate(projection)
+        schemaVersion = Self.schemaVersion
+        workspaceID = projection.workspaceID
+        systemID = projection.systemID
+        systemRevision = projection.systemRevision
+        systemSHA256 = projection.systemSHA256
+        zoneCount = projection.zoneCount
+        controlGroupCount = projection.controlGroupCount
+        luminaireCount = projection.luminaireCount
+        observationCount = projection.observationCount
+        issueCount = projection.issueCount
+        measurementPlanCount = projection.measurementPlanCount
+        claimCount = projection.claimCount
+        claimBoundary = projection.claimBoundary
+        claimTiers = projection.claimTiers
+        issueKinds = projection.issueKinds
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              systemID != SearchContractValidationV1.zeroUUID,
+              systemRevision > 0,
+              KernelCanonicalHashV1.validSHA256(systemSHA256),
+              [zoneCount, controlGroupCount, luminaireCount, observationCount,
+               issueCount, measurementPlanCount, claimCount].allSatisfy({ $0 >= 0 }),
+              claimTiers == claimTiers.sorted(by: { $0.rawValue < $1.rawValue }),
+              issueKinds == issueKinds.sorted(),
+              Set(issueKinds).count == issueKinds.count else {
+            throw SearchContractFailureV1.invalidField
+        }
+    }
+}
+
+enum C31LightingSearchProjectionPolicyV1 {
+    static let metadataOnly = true
+    static let localOnly = true
+    static let derivedFromFrozenProjection = true
+    static let dropAndRebuildAfterRestoreReplayDelete = true
+    static let excludesSourceBytesNotesActorsAndPrivateLocators = true
+    static let excludesOperationalSafetySecurityComplianceClaims = true
+    static let searchableFields = [
+        "system_id", "system_revision", "system_sha256", "zone_count",
+        "control_group_count", "luminaire_count", "observation_count",
+        "issue_count", "measurement_plan_count", "claim_count",
+        "claim_boundary", "claim_tier", "issue_kind",
+    ]
+
+    static func validate(_ record: C31LightingSearchRecordV1) throws {
+        guard metadataOnly, localOnly, derivedFromFrozenProjection,
+              dropAndRebuildAfterRestoreReplayDelete,
+              excludesSourceBytesNotesActorsAndPrivateLocators,
+              excludesOperationalSafetySecurityComplianceClaims else {
+            throw SearchContractFailureV1.forbiddenField
+        }
+        try record.validate()
+    }
+}

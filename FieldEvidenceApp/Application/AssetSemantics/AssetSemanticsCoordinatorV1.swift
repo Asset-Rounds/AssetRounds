@@ -331,3 +331,12 @@ enum C37PoseIntegration_FieldEvidenceApp_Application_AssetSemantics_AssetSemanti
 enum C30ConsumerBoundaryV1_Application_AssetSemantics_AssetSemanticsCoordinatorV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Application/AssetSemantics/AssetSemanticsCoordinatorV1.swift", role: .asset)
 }
+
+enum C31LightingConsumerBoundary_Application_AssetSemantics_AssetSemanticsCoordinatorV1 {
+    static let registrationID = "C31_LIGHTING_CONSUMER/asset-semantics-coordinator"
+    static let compatibility = C31LightingCompatibilityPolicyV1()
+    static func validate(projection: C31LightingReportProjectionV1) throws {
+        try compatibility.validate()
+        try C31LightingProjectionPolicyV1.validate(projection)
+    }
+}

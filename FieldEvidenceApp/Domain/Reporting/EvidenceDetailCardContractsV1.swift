@@ -1945,3 +1945,26 @@ enum EvidenceDetailPlanProjectionGuardV1 {
 enum C30ConsumerBoundaryV1_Domain_Reporting_EvidenceDetailCardContractsV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/Reporting/EvidenceDetailCardContractsV1.swift", role: .report)
 }
+
+enum C31LightingEvidenceDetailPolicyV1 {
+    static let metadataOnly = true
+    static let frozenDisplay = true
+    static let preservesOriginalEvidence = true
+    static let actorIdentityExcluded = true
+    static let privateLocatorsExcluded = true
+    static let unsupportedOperationalSafetySecurityComplianceClaimsRejected = true
+    static let forbiddenPhrases = [
+        "compliance", "safety certified", "security certified", "ada compliant",
+        "ies compliant", "verified safe", "actual control", "control failure",
+        "darkness inferred", "photo proves", "timestamp proves", "survey-grade",
+    ]
+
+    static func validate(_ projection: C31LightingReportProjectionV1) throws {
+        try C31LightingProjectionPolicyV1.validate(projection)
+        guard metadataOnly, frozenDisplay, preservesOriginalEvidence,
+              actorIdentityExcluded, privateLocatorsExcluded,
+              unsupportedOperationalSafetySecurityComplianceClaimsRejected else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+    }
+}

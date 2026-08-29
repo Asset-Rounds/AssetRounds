@@ -123,3 +123,9 @@ enum C37PoseIntegration_FieldEvidenceApp_Infrastructure_System_DeviceTimeSemanti
 enum C30ConsumerBoundaryV1_Infrastructure_System_DeviceTimeSemanticsV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/System/DeviceTimeSemanticsV1.swift", role: .evidence)
 }
+
+enum C31LightingDeviceTimeBoundaryV1 {
+    static let deviceClockIsEvidenceContextOnly = true
+    static let clockValueDoesNotClassifyLightingCondition = true
+    static let historicDisplayPreservesRecordedTime = true
+}

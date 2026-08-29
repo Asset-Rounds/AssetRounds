@@ -2226,3 +2226,79 @@ enum C30OperatingContextAccessibilityPolicyV1 {
 enum C30ConsumerBoundaryV1_Domain_Accessibility_SemanticAccessibilityContractsV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/Accessibility/SemanticAccessibilityContractsV1.swift", role: .accessibility)
 }
+
+// MARK: - C31 exterior/parking-lighting accessibility
+
+/// Stable semantic IDs paired with the C31 English-only labels.  Every
+/// indeterminate or stop state has spoken text, a non-color state, and an
+/// actionable next step; no icon, motion, or color is the sole signal.
+enum C31LightingAccessibilityIDV1: String, Codable, CaseIterable, Sendable {
+    case screen = "lighting.screen"
+    case heading = "lighting.heading"
+    case topology = "lighting.topology"
+    case observation = "lighting.observation"
+    case issue = "lighting.issue"
+    case measurement = "lighting.measurement"
+    case calibration = "lighting.calibration"
+    case claim = "lighting.claim"
+    case claimBoundary = "lighting.claim.boundary"
+    case safetyStop = "lighting.safety.stop"
+    case nextStep = "lighting.safety.next_step"
+    case historyFrozen = "lighting.history.frozen"
+    case manualOffline = "lighting.manual_offline"
+
+    var localizationKey: LocalizationKeyV1 {
+        switch self {
+        case .screen, .heading: return C31LightingLocalizationKeyV1.systemHeading.localizationKey
+        case .topology: return C31LightingLocalizationKeyV1.topology.localizationKey
+        case .observation: return C31LightingLocalizationKeyV1.observationHeading.localizationKey
+        case .issue: return C31LightingLocalizationKeyV1.issueRecorded.localizationKey
+        case .measurement: return C31LightingLocalizationKeyV1.measurementHeading.localizationKey
+        case .calibration: return C31LightingLocalizationKeyV1.calibration.localizationKey
+        case .claim: return C31LightingLocalizationKeyV1.claimUnavailable.localizationKey
+        case .claimBoundary: return C31LightingLocalizationKeyV1.claimBoundary.localizationKey
+        case .safetyStop: return C31LightingLocalizationKeyV1.safetyStop.localizationKey
+        case .nextStep: return C31LightingLocalizationKeyV1.safetyNextStep.localizationKey
+        case .historyFrozen: return C31LightingLocalizationKeyV1.historyFrozen.localizationKey
+        case .manualOffline: return C31LightingLocalizationKeyV1.manualOffline.localizationKey
+        }
+    }
+}
+
+enum C31LightingAccessibilityPolicyV1 {
+    static let textAndIconRequired = true
+    static let stateIsNotColorOnly = true
+    static let iconOnlyStateAllowed = false
+    static let motionOnlyStateAllowed = false
+    static let actionableNextStepRequired = true
+    static let historicDisplayFrozen = true
+    static let actorIdentityExcluded = true
+    static let operationalSafetySecurityComplianceClaimsExcluded = true
+    static let stateSemanticIDs: Set<String> = [
+        C31LightingAccessibilityIDV1.issue.rawValue,
+        C31LightingAccessibilityIDV1.claim.rawValue,
+        C31LightingAccessibilityIDV1.claimBoundary.rawValue,
+        C31LightingAccessibilityIDV1.safetyStop.rawValue,
+        C31LightingAccessibilityIDV1.historyFrozen.rawValue,
+        C31LightingAccessibilityIDV1.manualOffline.rawValue,
+    ]
+
+    static func requiresActionableNextStep(for id: String) -> Bool {
+        id == C31LightingAccessibilityIDV1.safetyStop.rawValue
+            || id == C31LightingAccessibilityIDV1.claim.rawValue
+            || id == C31LightingAccessibilityIDV1.claimBoundary.rawValue
+    }
+
+    static func validate() throws {
+        guard textAndIconRequired, stateIsNotColorOnly,
+              !iconOnlyStateAllowed, !motionOnlyStateAllowed,
+              actionableNextStepRequired, historicDisplayFrozen,
+              actorIdentityExcluded,
+              operationalSafetySecurityComplianceClaimsExcluded,
+              C31LightingAccessibilityIDV1.allCases.allSatisfy({
+                  !$0.localizationKey.rawValue.isEmpty
+              }) else {
+            throw LocalizationContractFailureV1.invalidAccessibilityBinding
+        }
+    }
+}

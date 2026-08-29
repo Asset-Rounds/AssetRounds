@@ -47,6 +47,7 @@ actor IntegrationProjectionCheckpointStoreV1: IntegrationProjectionOperationalSt
             try IntegrationProjectionCheckpointStoreV1.validatePlanEventPage(events)
             try IntegrationProjectionCheckpointStoreV1.validatePlacementPoseEventPage(events)
             try IntegrationProjectionCheckpointStoreV1.validateEvidenceContextEventPage(events)
+            try IntegrationProjectionCheckpointStoreV1.validateLightingEventPage(events)
             guard schemaVersion == Self.schemaVersion,
                   generationID == expectedGenerationID,
                   workspaceID == expectedWorkspaceID,
@@ -159,6 +160,7 @@ actor IntegrationProjectionCheckpointStoreV1: IntegrationProjectionOperationalSt
     private static func validatePlanEventPage(_ events:[IntegrationEventV1])throws{let grouped=Dictionary(grouping:events,by:\.sourceReceiptID);for page in grouped.values{let subjects=page.map(\.subject),present=Set(subjects.map(\.kind)).intersection(IntegrationEventProjectionV1.planKinds);guard present.isEmpty || (!page.isEmpty&&page.count<=PlanLimitsV1.maximumPlacements+2&&Set(subjects).count==subjects.count&&subjects.allSatisfy{IntegrationEventProjectionV1.planKinds.contains($0.kind)})else{throw IntegrationEventFailureV1.divergentEvent}}}
     private static func validatePlacementPoseEventPage(_ events:[IntegrationEventV1])throws{let grouped=Dictionary(grouping:events,by:\.sourceReceiptID);for page in grouped.values{let subjects=page.map(\.subject),present=Set(subjects.map(\.kind)).intersection(IntegrationEventProjectionV1.placementPoseKinds);guard present.isEmpty || (!page.isEmpty&&page.count<=MutationReceiptV1.maximumPostImageCount&&Set(subjects).count==subjects.count&&subjects.allSatisfy{IntegrationEventProjectionV1.placementPoseKinds.contains($0.kind)})else{throw IntegrationEventFailureV1.divergentEvent}}}
     private static func validateEvidenceContextEventPage(_ events:[IntegrationEventV1])throws{let grouped=Dictionary(grouping:events,by:\.sourceReceiptID);for page in grouped.values{let subjects=page.map(\.subject),present=Set(subjects.map(\.kind)).intersection(IntegrationEventProjectionV1.evidenceContextKinds);guard present.isEmpty || (page.count==1&&Set(subjects).count==1&&subjects.allSatisfy{IntegrationEventProjectionV1.evidenceContextKinds.contains($0.kind)})else{throw IntegrationEventFailureV1.divergentEvent}}}
+    private static func validateLightingEventPage(_ events:[IntegrationEventV1])throws{let grouped=Dictionary(grouping:events,by:\.sourceReceiptID);for page in grouped.values{let subjects=page.map(\.subject),present=Set(subjects.map(\.kind)).intersection(IntegrationEventProjectionV1.lightingKinds);guard present.isEmpty || (page.count==1&&Set(subjects).count==1&&subjects.allSatisfy{IntegrationEventProjectionV1.lightingKinds.contains($0.kind)})else{throw IntegrationEventFailureV1.divergentEvent}}}
 
     init(generationRootURL: URL, generationID: UUID, workspaceID: WorkspaceID,
          limits: IntegrationEventLimitsV1 = try! IntegrationEventLimitsV1(),
@@ -361,4 +363,11 @@ actor IntegrationProjectionCheckpointStoreV1: IntegrationProjectionOperationalSt
             .map { String(format: "%02x", $0) }.joined()
         return rootURL.appendingPathComponent("effects-\(digest).json", isDirectory: false)
     }
+}
+
+enum C31LightingIntegrationCheckpointBoundaryV1 {
+    static let checkpointIsDisposable = true
+    static let rebuildsFromCanonicalLightingHistory = true
+    static let checkpointNeverCarriesLightingBytes = true
+    static let checkpointNeverCarriesActorIdentity = true
 }

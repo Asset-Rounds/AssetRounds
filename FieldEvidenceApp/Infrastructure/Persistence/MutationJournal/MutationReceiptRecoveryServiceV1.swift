@@ -50,4 +50,9 @@ final class MutationReceiptRecoveryServiceV1 {
     func recoverPlanEffectsBeforeWriterActivation()throws{try recoverBeforeWriterActivation()}
     func recoverPlacementPoseEffectsBeforeWriterActivation()throws{try recoverBeforeWriterActivation()}
     func recoverEvidenceContextEffectsBeforeWriterActivation()throws{try recoverBeforeWriterActivation()}
+    /// C31 recovery revalidates persisted topology and claim admission
+    /// authorities through MutationJournalStoreV1 before activating a writer.
+    func recoverLightingEffectsBeforeWriterActivation()throws{try recoverBeforeWriterActivation()}
 }
+
+enum LightingMutationReceiptRecoveryPolicyV1 { static func validateRecovered(operation:LightingWriteOperationV1,receipt:MutationReceiptV1)throws{_ = try LightingMutationReceiptV1(operation:operation,mutationReceipt:receipt)} }

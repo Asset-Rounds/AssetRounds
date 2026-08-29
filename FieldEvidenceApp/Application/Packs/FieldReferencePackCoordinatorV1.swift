@@ -37,3 +37,12 @@ enum C37PoseIntegration_FieldEvidenceApp_Application_Packs_FieldReferencePackCoo
 enum C30ConsumerBoundaryV1_Application_Packs_FieldReferencePackCoordinatorV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Application/Packs/FieldReferencePackCoordinatorV1.swift", role: .pack)
 }
+
+enum C31LightingConsumerBoundary_Application_Packs_FieldReferencePackCoordinatorV1 {
+    static let registrationID = "C31_LIGHTING_CONSUMER/reference-pack-coordinator"
+    static let compatibility = C31LightingCompatibilityPolicyV1()
+    static func validate(projection: C31LightingReportProjectionV1) throws {
+        try compatibility.validate()
+        try C31LightingProjectionPolicyV1.validate(projection)
+    }
+}

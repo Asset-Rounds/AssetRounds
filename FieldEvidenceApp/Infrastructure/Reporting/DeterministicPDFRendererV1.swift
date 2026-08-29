@@ -731,3 +731,39 @@ extension DeterministicPDFRendererV1 {
 enum C30ConsumerBoundaryV1_Infrastructure_Reporting_DeterministicPDFRendererV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Reporting/DeterministicPDFRendererV1.swift", role: .report)
 }
+
+// MARK: - C31 lighting PDF text
+
+extension DeterministicPDFRendererV1 {
+    static func lightingLines(
+        _ projection: C31LightingReportProjectionV1
+    ) throws -> [String] {
+        try C31LightingProjectionPolicyV1.validate(projection)
+        try C31LightingLocalizationPolicyV1.validate()
+        var lines = [
+            BundledLocalizationCatalogV1.lightingDisplayLabel(for: .systemHeading),
+            BundledLocalizationCatalogV1.lightingDisplayLabel(for: .topology),
+            "\(C31LightingLocalizationKeyV1.zones.englishDefaultValue): \(projection.zoneCount)",
+            "\(C31LightingLocalizationKeyV1.controlGroups.englishDefaultValue): \(projection.controlGroupCount)",
+            "\(C31LightingLocalizationKeyV1.luminaires.englishDefaultValue): \(projection.luminaireCount)",
+            C31LightingLocalizationKeyV1.claimBoundary.englishDefaultValue,
+            C31LightingLocalizationKeyV1.historyFrozen.englishDefaultValue,
+            C31LightingLocalizationKeyV1.manualOffline.englishDefaultValue,
+        ]
+        lines.append(contentsOf: projection.claimTiers.map {
+            BundledLocalizationCatalogV1.lightingClaimLabel(for: $0)
+        })
+        lines.append(contentsOf: projection.issueDispositions.map {
+            BundledLocalizationCatalogV1.lightingIssueLabel(for: $0)
+        })
+        if !projection.safetyStopReasons.isEmpty {
+            lines.append(C31LightingLocalizationKeyV1.safetyStop.englishDefaultValue)
+            lines.append(C31LightingLocalizationKeyV1.safetyNextStep.englishDefaultValue)
+        }
+        guard lines.allSatisfy({ !$0.isEmpty }),
+              !C31LightingLocalizationPolicyV1.containsProhibitedClaim(lines) else {
+            throw SnapshotProjectionFailureV1.hostileText
+        }
+        return lines
+    }
+}

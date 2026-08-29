@@ -584,6 +584,7 @@ final class LocalChangeJournalV1 {
             try PlanJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)
             try PlacementPoseJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)
             try EvidenceContextJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)
+            try LightingJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)
             let disposition: MutationReplayDispositionV1
             if blocked {
                 disposition = try .init(mutationID: change.envelope.mutationID, disposition: .deferredGap, reasonCode: "PRIOR_CAUSAL_GAP")
@@ -1697,3 +1698,5 @@ extension StoreSessionCoordinator {
         )
     }
 }
+
+enum LightingLocalChangeJournalPolicyV1 { static let commandKind:WorkspaceCommandKindV1 = .applyLighting;static let durableEntityKinds:Set<WorkspaceEntityKindV1>=[.lightingSystem,.lightingObservation,.lightingIssue,.lightingMeasurementPlan,.lightingClaimState];static func validate(_ envelope:MutationEnvelopeV1)throws{guard case let .applyLighting(operation)=envelope.command else{return};try operation.validate();guard envelope.commandKind==commandKind,envelope.mutationID==operation.mutationID else{throw ChangeJournalFailureV1.tamperedBatch}} }

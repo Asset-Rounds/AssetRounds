@@ -152,3 +152,24 @@ enum C30EvidenceContextTimeContextRuleV1 {
         }
     }
 }
+
+enum C31LightingTimeContextBoundaryV1 {
+    static let timestampsRemainRecordedInputs = true
+    static let solarValuesAreOfflineDerivedOnly = true
+    static let timeDoesNotEstablishLightingCompliance = true
+
+    static func validate(
+        records: [V31BackupLightingRecordV1],
+        workspaceID: WorkspaceID
+    ) throws {
+        try C31LightingWorkflowBoundaryV1.validate(
+            records: records,
+            workspaceID: workspaceID
+        )
+        guard timestampsRemainRecordedInputs,
+              solarValuesAreOfflineDerivedOnly,
+              timeDoesNotEstablishLightingCompliance else {
+            throw LightingContractFailureV1.invalidValue
+        }
+    }
+}

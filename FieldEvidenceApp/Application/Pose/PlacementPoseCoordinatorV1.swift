@@ -87,3 +87,12 @@ final class PlacementPoseCoordinatorV1 {
 enum C30ConsumerBoundaryV1_Application_Pose_PlacementPoseCoordinatorV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Application/Pose/PlacementPoseCoordinatorV1.swift", role: .pose)
 }
+
+enum C31LightingConsumerBoundary_Application_Pose_PlacementPoseCoordinatorV1 {
+    static let registrationID = "C31_LIGHTING_CONSUMER/placement-pose-coordinator"
+    static let compatibility = C31LightingCompatibilityPolicyV1()
+    static func validate(projection: C31LightingReportProjectionV1) throws {
+        try compatibility.validate()
+        try C31LightingProjectionPolicyV1.validate(projection)
+    }
+}

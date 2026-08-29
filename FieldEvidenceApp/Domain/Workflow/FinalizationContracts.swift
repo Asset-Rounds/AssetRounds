@@ -629,3 +629,24 @@ enum C30EvidenceContextFinalizationBoundaryV1 {
         }
     }
 }
+
+enum C31LightingFinalizationBoundaryV1 {
+    static let finalizationBindsRecordedRevisions = true
+    static let finalizedDisplayIsImmutable = true
+    static let noLicensedCriterionTextIsGenerated = true
+
+    static func validate(
+        records: [V31BackupLightingRecordV1],
+        workspaceID: WorkspaceID
+    ) throws {
+        try C31LightingWorkflowBoundaryV1.validate(
+            records: records,
+            workspaceID: workspaceID
+        )
+        guard finalizationBindsRecordedRevisions,
+              finalizedDisplayIsImmutable,
+              noLicensedCriterionTextIsGenerated else {
+            throw LightingContractFailureV1.invalidValue
+        }
+    }
+}

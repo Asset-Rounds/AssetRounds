@@ -5,7 +5,7 @@ import Foundation
 enum GuidedSurveyStreamingArchiveDispositionV1 {
     static func validate(records: V4BackupRecordsV1) throws {
         guard records.recordsSchemaVersion < 24 ||
-                ((24...28).contains(records.recordsSchemaVersion) &&
+                ((24...30).contains(records.recordsSchemaVersion) &&
                  records.guidedSurveys.count <= 200_000) else {
             throw StreamingArchiveErrorV1.invalidArchive
         }
@@ -33,6 +33,13 @@ enum GuidedSurveyStreamingArchiveDispositionV1 {
         if records.recordsSchemaVersion >= PlacementPoseStreamingArchivePolicyV1.recordsSchemaVersion {
             do {
                 try PlacementPoseStreamingArchivePolicyV1.validate(records: records)
+            } catch {
+                throw StreamingArchiveErrorV1.invalidArchive
+            }
+        }
+        if records.recordsSchemaVersion >= 30 {
+            do {
+                try C31LightingStreamingArchivePolicyV1.validate(records: records)
             } catch {
                 throw StreamingArchiveErrorV1.invalidArchive
             }
@@ -775,6 +782,25 @@ enum C30EvidenceContextStreamingArchiveServiceV1 {
             throw StreamingArchiveFailureV1.invalidArchive
         }
         try C30EvidenceContextStreamingArchivePolicyV1.validate(records: records)
+    }
+}
+
+enum C31LightingStreamingArchiveServiceV1 {
+    static let archivesCanonicalLightingRows = true
+    static let rebuildsDerivedLightingProjection = true
+    static let rejectsCrossWorkspaceRows = true
+    static let sourceBytesRemainImmutable = true
+    static let licensedCriterionTextIncluded = false
+
+    static func validate(_ records: V4BackupRecordsV1) throws {
+        guard archivesCanonicalLightingRows,
+              rebuildsDerivedLightingProjection,
+              rejectsCrossWorkspaceRows,
+              sourceBytesRemainImmutable,
+              !licensedCriterionTextIncluded else {
+            throw StreamingArchiveFailureV1.invalidArchive
+        }
+        try C31LightingStreamingArchivePolicyV1.validate(records: records)
     }
 }
 

@@ -2301,3 +2301,21 @@ extension ReportProjectionRegistryV1 {
 enum C30ConsumerBoundaryV1_Infrastructure_Reporting_ReportProjectionRegistryV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Reporting/ReportProjectionRegistryV1.swift", role: .report)
 }
+
+// MARK: - C31 lighting projection registration
+
+enum C31LightingReportProjectionRegistryV1 {
+    static let contractID = "lighting.report.projection.v1"
+    static let metadataOnly = true
+    static let historicDisplayFrozen = true
+    static let actorIdentityExcluded = true
+    static let bytesAndPrivateLocatorsExcluded = true
+    static let forbiddenOperationalInference = true
+
+    static func validate(
+        _ projection: C31LightingReportProjectionV1
+    ) throws -> C31LightingReportProjectionV1 {
+        try C31LightingProjectionPolicyV1.validate(projection)
+        return projection
+    }
+}

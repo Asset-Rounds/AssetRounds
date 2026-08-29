@@ -58,6 +58,7 @@ struct IntegrationConformanceConsumerV1: Sendable {
         try projection.validatePlanReplay(acceptedReceipts)
         try projection.validatePlacementPoseReplay(acceptedReceipts)
         try projection.validateEvidenceContextReplay(acceptedReceipts)
+        try projection.validateLightingReplay(acceptedReceipts)
         let prior = try await store.checkpoint(
             consumerID: consumer.consumerID, workspaceID: workspaceID
         )
@@ -115,6 +116,7 @@ struct IntegrationConformanceConsumerV1: Sendable {
         try projection.validatePlanReplay(acceptedReceipts)
         try projection.validatePlacementPoseReplay(acceptedReceipts)
         try projection.validateEvidenceContextReplay(acceptedReceipts)
+        try projection.validateLightingReplay(acceptedReceipts)
         try await store.dropDerivedProjection(
             consumerID: consumer.consumerID, workspaceID: workspaceID
         )
@@ -127,5 +129,16 @@ struct IntegrationConformanceConsumerV1: Sendable {
         try await store.dropDerivedProjection(
             consumerID: consumer.consumerID, workspaceID: workspaceID
         )
+    }
+}
+
+enum LightingIntegrationConformancePolicyV1 { static let durableKinds:Set<WorkspaceEntityKindV1>=[.lightingSystem,.lightingObservation,.lightingIssue,.lightingMeasurementPlan,.lightingClaimState];static func accepts(_ event:IntegrationEventV1)->Bool{durableKinds.contains(event.subject.kind)} }
+
+enum C31LightingConformanceBoundaryV1 {
+    static let canonicalLightingKindsRemainClosed = true
+    static let reportAndSearchConsumersAreDerivedOnly = true
+    static let noPartialLightingActivation = true
+    static func accepts(_ event: IntegrationEventV1) -> Bool {
+        LightingIntegrationConformancePolicyV1.accepts(event)
     }
 }

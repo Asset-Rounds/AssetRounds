@@ -467,6 +467,32 @@ enum BundledLocalizationKeyV1: String, CaseIterable, Sendable {
     case poseNextStep = "pose.next_step"
     case poseMissing = "pose.missing"
 
+    case lightingSystemHeading = "lighting.system.heading"
+    case lightingTopology = "lighting.system.topology"
+    case lightingZones = "lighting.system.zones"
+    case lightingControlGroups = "lighting.system.control_groups"
+    case lightingLuminaires = "lighting.system.luminaires"
+    case lightingObservationHeading = "lighting.observation.heading"
+    case lightingObservationRecorded = "lighting.observation.recorded"
+    case lightingIssueRecorded = "lighting.issue.recorded"
+    case lightingIssueOpen = "lighting.issue.open"
+    case lightingIssueResolved = "lighting.issue.resolved"
+    case lightingIssueSuperseded = "lighting.issue.superseded"
+    case lightingMeasurementHeading = "lighting.measurement.heading"
+    case lightingIlluminance = "lighting.measurement.illuminance"
+    case lightingCalibration = "lighting.measurement.calibration"
+    case lightingClaimObserved = "lighting.claim.observed"
+    case lightingClaimMeasured = "lighting.claim.measured"
+    case lightingClaimDerived = "lighting.claim.derived"
+    case lightingClaimCriterion = "lighting.claim.criterion"
+    case lightingClaimExternal = "lighting.claim.external_reference"
+    case lightingClaimUnavailable = "lighting.claim.unavailable"
+    case lightingSafetyStop = "lighting.safety.stop"
+    case lightingSafetyNextStep = "lighting.safety.next_step"
+    case lightingClaimBoundary = "lighting.claim.boundary"
+    case lightingHistoryFrozen = "lighting.history.frozen"
+    case lightingManualOffline = "lighting.manual_offline"
+
     static var functionalRelationshipDirected: Self { .functionalRelationshipDirectedSourceToTarget }
     static var functionalRelationshipActive: Self { .functionalRelationshipActiveState }
     static var functionalRelationshipEnded: Self { .functionalRelationshipEndedState }
@@ -3338,6 +3364,10 @@ enum BundledLocalizationCatalogV1 {
         // unapplied and no localization entry carries an accuracy, delivery,
         // security, or approval claim.
         supportedKeys.formUnion(PlanLocalizationKeyV1.allCases.map(\.rawValue))
+        // C31 adds only recorded lighting topology, observation, measurement,
+        // criterion, and stop labels. The source catalog remains English-only
+        // and rejects operational or compliance conclusions.
+        supportedKeys.formUnion(C31LightingLocalizationKeyV1.allCases.map(\.rawValue))
         guard registeredKeys.isSubset(of: Set(strings.keys)),
               Set(strings.keys).isSubset(of: supportedKeys) else {
             throw LocalizationContractFailureV1.invalidValue
@@ -4331,4 +4361,83 @@ extension BundledLocalizationCatalogV1 {
 // C30: this seam consumes only the frozen, metadata-only operating-context projection.
 enum C30ConsumerBoundaryV1_Infrastructure_Localization_BundledLocalizationCatalogV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift", role: .localization)
+}
+
+// MARK: - C31 exterior/parking-lighting labels
+
+extension BundledLocalizationCatalogV1 {
+    static func lightingRegistry() throws -> LocalizationKeyRegistryV1 {
+        let base = try poseRegistry()
+        let additions = try C31LightingLocalizationKeyV1.allCases.map { key in
+            guard let bundledKey = BundledLocalizationKeyV1(rawValue: key.rawValue) else {
+                throw LocalizationContractFailureV1.missingKey
+            }
+            return try definition(
+                bundledKey,
+                key.rawValue,
+                key.englishDefaultValue,
+                key.translatorComment
+            )
+        }
+        let registry = try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+        try C31LightingLocalizationPolicyV1.validate()
+        return registry
+    }
+
+    static func lightingAccessibilityRegistry(
+        localization: LocalizationKeyRegistryV1
+    ) throws -> SemanticAccessibilityIDRegistryV1 {
+        let entries = try C31LightingAccessibilityIDV1.allCases.map { id
+            -> AccessibilityContractV1 in
+            let role: SemanticAccessibilityRoleV1
+            switch id {
+            case .screen: role = .screen
+            case .heading: role = .heading
+            case .nextStep: role = .button
+            case .issue, .claim, .claimBoundary, .safetyStop,
+                 .historyFrozen, .manualOffline: role = .status
+            default: role = .group
+            }
+            let hintKey: LocalizationKeyV1? =
+                C31LightingAccessibilityPolicyV1.requiresActionableNextStep(for: id.rawValue)
+                ? C31LightingLocalizationKeyV1.safetyNextStep.localizationKey
+                : nil
+            return AccessibilityContractV1(
+                semanticID: id.rawValue,
+                role: role,
+                reachability: .whenAvailable,
+                labelKey: id.localizationKey,
+                hintKey: hintKey,
+                valueKey: nil,
+                dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            )
+        }
+        try C31LightingAccessibilityPolicyV1.validate()
+        return try SemanticAccessibilityIDRegistryV1(
+            entries: entries,
+            localization: localization
+        )
+    }
+
+    static func lightingDisplayLabel(
+        for key: C31LightingLocalizationKeyV1
+    ) -> String {
+        guard let bundledKey = BundledLocalizationKeyV1(rawValue: key.rawValue) else {
+            return key.englishDefaultValue
+        }
+        return localized(bundledKey)
+    }
+
+    static func lightingClaimLabel(
+        for value: LightingClaimTierV1
+    ) -> String {
+        lightingDisplayLabel(for: C31LightingLocalizationKeyV1.claimKey(value))
+    }
+
+    static func lightingIssueLabel(
+        for value: LightingIssueDispositionV1
+    ) -> String {
+        lightingDisplayLabel(for: C31LightingLocalizationKeyV1.issueKey(value))
+    }
 }

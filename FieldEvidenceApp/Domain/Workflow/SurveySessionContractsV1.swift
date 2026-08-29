@@ -248,3 +248,24 @@ enum C30EvidenceContextSurveySessionBoundaryV1 {
               sessionCreatesNoInferredContext else { throw EvidenceContextFailureV1.wrongWorkspace }
     }
 }
+
+enum C31LightingSurveySessionBoundaryV1 {
+    static let sessionReadsFrozenLightingReferences = true
+    static let sessionDoesNotRewriteMeasurementOriginals = true
+    static let derivedSessionViewsAreRebuildable = true
+
+    static func validate(
+        records: [V31BackupLightingRecordV1],
+        workspaceID: WorkspaceID
+    ) throws {
+        try C31LightingWorkflowBoundaryV1.validate(
+            records: records,
+            workspaceID: workspaceID
+        )
+        guard sessionReadsFrozenLightingReferences,
+              sessionDoesNotRewriteMeasurementOriginals,
+              derivedSessionViewsAreRebuildable else {
+            throw LightingContractFailureV1.invalidValue
+        }
+    }
+}

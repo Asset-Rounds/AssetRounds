@@ -247,3 +247,9 @@ enum C37PoseIntegration_FieldEvidenceApp_Domain_Location_AssetCompositionContrac
 enum C30ConsumerBoundaryV1_Domain_Location_AssetCompositionContractsV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/Location/AssetCompositionContractsV1.swift", role: .location)
 }
+
+enum C31LightingAssetCompositionBoundaryV1 {
+    static let controlGroupMembershipIsRecordedTopology = true
+    static let compositionDoesNotInferControlBehavior = true
+    static let emptyOrpartialCompositionRemainsVisible = true
+}

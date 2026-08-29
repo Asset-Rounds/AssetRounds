@@ -633,3 +633,9 @@ enum C37PoseIntegration_FieldEvidenceApp_Domain_Location_LocationHierarchyContra
 enum C30ConsumerBoundaryV1_Domain_Location_LocationHierarchyContractsV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/Location/LocationHierarchyContractsV1.swift", role: .location)
 }
+
+enum C31LightingLocationHierarchyBoundaryV1 {
+    static let zoneAndSiteReferencesAreStable = true
+    static let hierarchyIsNotAComplianceAssertion = true
+    static let crossSiteBindingMustRemainExplicit = true
+}

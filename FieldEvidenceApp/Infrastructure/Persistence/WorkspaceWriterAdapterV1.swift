@@ -42,6 +42,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             .applyPlan,
             .applyPlacementPose,
             .applyEvidenceContext,
+            .applyLighting,
         ])
 
     /// C22 receipts are appended by the existing fenced journal authority;
@@ -172,6 +173,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         case let .applyPlan(value):return try applyPlan(value,temporaryRelativePath:temporaryRelativePath)
         case let .applyPlacementPose(value):return try applyPlacementPose(value,temporaryRelativePath:temporaryRelativePath)
         case let .applyEvidenceContext(value):return try applyEvidenceContext(value,temporaryRelativePath:temporaryRelativePath)
+        case let .applyLighting(value):return try applyLighting(value,temporaryRelativePath:temporaryRelativePath)
         case .deleteAsset,
              .deleteSite,
              .eraseWorkspace,
@@ -217,6 +219,76 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
     private func applyPlan(_ mutation:PlanMutationV1,temporaryRelativePath:String)throws->WorkspaceMutationEffectV1{do{try mutation.validate();let documents=try modelContext.fetch(FetchDescriptor<PlanDocumentRow>()).map{try $0.value()},revisions=try modelContext.fetch(FetchDescriptor<PlanRevisionRow>()).map{try $0.value()},placements=try modelContext.fetch(FetchDescriptor<PlanPlacementRow>()).map{try $0.value()},receipts=try modelContext.fetch(FetchDescriptor<RebaseReceiptRow>()).map{try $0.value()};func noSuccessor<T>(_ all:[T],_ count:(T)->Bool)throws{let n=all.filter(count).count;guard n==0 else{throw n>1 ? WorkspaceMutationFailureV1.persistenceFailed:.staleWorkspaceRevision}};func requireRevisionReferences(_ value:PlanRevisionV1)throws{let releaseID=value.contentBinding.fieldReferenceReleaseID,releaseRows=try modelContext.fetch(FetchDescriptor<FieldReferenceReleaseRow>(predicate:#Predicate{$0.releaseID==releaseID}));guard releaseRows.count==1,let release=try releaseRows.first?.value(),release.workspaceID==value.workspaceID,release.revision==value.contentBinding.fieldReferenceReleaseRevision,release.releaseSHA256==value.contentBinding.fieldReferenceReleaseSHA256,release.manifestSHA256==value.contentBinding.fieldReferenceManifestSHA256 else{throw WorkspaceMutationFailureV1.invalidCommand};let documentMatches=documents.filter{$0.planDocumentID==value.planDocument.planDocumentID&&$0.revision==value.planDocument.revision&&$0.documentSHA256==value.planDocument.documentSHA256};guard documentMatches.count==1 else{throw WorkspaceMutationFailureV1.invalidCommand}};func requirePlacementReferences(_ value:PlanPlacementV1)throws{let revisionMatches=revisions.filter{$0.planRevisionID==value.planRevision.planRevisionID&&$0.revision==value.planRevision.revision&&$0.revisionSHA256==value.planRevision.revisionSHA256};guard revisionMatches.count==1 else{throw WorkspaceMutationFailureV1.invalidCommand};if let binding=value.assetLocatorBinding{let receiptID=binding.bindingReceiptID,rows=try modelContext.fetch(FetchDescriptor<LocatorBindingReceiptRow>(predicate:#Predicate{$0.receiptID==receiptID}));guard rows.count==1,let stored=try rows.first?.value(),stored.revision==binding.bindingReceiptRevision,stored.receiptSHA256==binding.bindingReceiptSHA256,stored.after==binding.locator,stored.after.assetID==binding.assetID else{throw WorkspaceMutationFailureV1.invalidCommand}}};switch mutation.payload{case let .appendDocument(value,predecessor):guard documents.filter({$0.mutationID==value.mutationID}).isEmpty else{throw WorkspaceMutationFailureV1.sequenceCollision};if let predecessor{guard documents.filter({$0.documentSHA256==predecessor.documentSHA256}).count==1 else{throw WorkspaceMutationFailureV1.invalidCommand};try noSuccessor(documents){$0.supersedesDocumentSHA256==predecessor.documentSHA256}};modelContext.insert(try PlanDocumentRow(value));case let .appendRevision(value,predecessor,_):try requireRevisionReferences(value);guard revisions.filter({$0.planRevisionID==value.planRevisionID}).isEmpty else{throw WorkspaceMutationFailureV1.sequenceCollision};if let predecessor{guard revisions.filter({$0.planRevisionID==predecessor.planRevisionID&&$0==predecessor}).count==1 else{throw WorkspaceMutationFailureV1.invalidCommand};try noSuccessor(revisions){$0.supersedesPlanRevisionID==predecessor.planRevisionID}};modelContext.insert(try PlanRevisionRow(value));case let .appendPlacement(value,predecessor,_):try requirePlacementReferences(value);if let predecessor{guard placements.filter({$0.placementSHA256==predecessor.placementSHA256}).count==1 else{throw WorkspaceMutationFailureV1.invalidCommand};try noSuccessor(placements){$0.supersedesPlacementSHA256==predecessor.placementSHA256}};modelContext.insert(try PlanPlacementRow(value));case let .applyRebase(newRevision,priorRevision,values,priors,receipt,predecessorReceipt,poseEffects):guard revisions.filter({$0.planRevisionID==priorRevision.planRevisionID&&$0==priorRevision}).count==1,revisions.filter({$0.planRevisionID==newRevision.planRevisionID}).isEmpty else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision};try noSuccessor(revisions){$0.supersedesPlanRevisionID==priorRevision.planRevisionID};try requireRevisionReferences(newRevision);for prior in priors{guard placements.filter({$0.placementSHA256==prior.placementSHA256}).count==1 else{throw WorkspaceMutationFailureV1.invalidCommand};try noSuccessor(placements){$0.supersedesPlacementSHA256==prior.placementSHA256}};for value in values{try requirePlacementReferencesAgainst(value,newRevision)};try requireReceiptPredecessor(predecessorReceipt,receipts);if let poseEffects{_ = try applyPlacementPose(poseEffects,temporaryRelativePath:temporaryRelativePath)};modelContext.insert(try PlanRevisionRow(newRevision));for value in values{modelContext.insert(try PlanPlacementRow(value))};modelContext.insert(try RebaseReceiptRow(receipt));case let .recordRebaseRejection(receipt,predecessorReceipt):try requireReceiptPredecessor(predecessorReceipt,receipts);modelContext.insert(try RebaseReceiptRow(receipt))};return try WorkspaceMutationEffectV1(affectedEntities:mutation.affectedIdentities,temporaryRelativePath:temporaryRelativePath)}catch let failure as WorkspaceMutationFailureV1{modelContext.rollback();throw failure}catch{modelContext.rollback();throw WorkspaceMutationFailureV1.invalidCommand}}
 
     private func applyEvidenceContext(_ operation:EvidenceContextWriteOperationV1,temporaryRelativePath:String)throws->WorkspaceMutationEffectV1{do{try operation.validate();switch operation{case let .appendContext(value,predecessor):let rows=try modelContext.fetch(FetchDescriptor<EvidenceContextRow>()).map{try $0.value()};guard rows.filter({$0.contextID==value.contextID}).isEmpty else{throw WorkspaceMutationFailureV1.sequenceCollision};if let predecessor{guard rows.filter({$0==predecessor}).count==1,rows.filter({$0.predecessorContextSHA256==predecessor.contextSHA256}).isEmpty else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision}}else{guard rows.filter({$0.workspaceID==value.workspaceID&&$0.evidenceID==value.evidenceID}).isEmpty else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision}};modelContext.insert(try EvidenceContextRow(value));case let .appendPair(value,predecessor):let rows=try modelContext.fetch(FetchDescriptor<PairedObservationLinkRow>()).map{try $0.value()};try validateEvidencePairPurpose(value,existing:rows);guard rows.filter({$0.linkID==value.linkID}).isEmpty else{throw WorkspaceMutationFailureV1.sequenceCollision};if let predecessor{guard rows.filter({$0==predecessor}).count==1,rows.filter({$0.predecessorLinkSHA256==predecessor.linkSHA256}).isEmpty else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision}}else{guard rows.filter({$0.workspaceID==value.workspaceID&&Set([$0.first.evidenceID,$0.second.evidenceID])==Set([value.first.evidenceID,value.second.evidenceID])}).isEmpty else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision}};modelContext.insert(try PairedObservationLinkRow(value))};return try WorkspaceMutationEffectV1(affectedEntities:[operation.affectedIdentity],temporaryRelativePath:temporaryRelativePath)}catch let failure as WorkspaceMutationFailureV1{modelContext.rollback();throw failure}catch{modelContext.rollback();throw WorkspaceMutationFailureV1.invalidCommand}}
+
+    private func applyLighting(_ operation: LightingWriteOperationV1, temporaryRelativePath: String) throws -> WorkspaceMutationEffectV1 {
+        do {
+            try operation.validate()
+            try LightingPersistedAdmissionV1.validate(operation, in: modelContext)
+            func requireExact<T: Equatable>(_ value: T, in values: [T]) throws {
+                guard values.filter({ $0 == value }).count == 1 else { throw WorkspaceMutationFailureV1.invalidCommand }
+            }
+            func oneSuccessor<T>(_ all: [T], _ matches: (T) -> Bool) throws {
+                let count = all.filter(matches).count
+                guard count == 0 else { throw count > 1 ? WorkspaceMutationFailureV1.persistenceFailed : .staleWorkspaceRevision }
+            }
+            func requirePackage(_ reference: LightingPackageReleaseReferenceV1) throws {
+                let releases = try modelContext.fetch(FetchDescriptor<PromotedPackageReleaseRow>()).map { try $0.value().packageRelease }
+                let matches = releases.filter { $0.packageReleaseID == reference.packageReleaseID }
+                guard matches.count == 1, let release = matches.first else { throw WorkspaceMutationFailureV1.invalidCommand }
+                try reference.validate(release)
+            }
+            func requireSystem(_ system: LightingSystemV1) throws {
+                try requirePackage(system.packageRelease)
+                try requireExact(system, in: try modelContext.fetch(FetchDescriptor<LightingSystemRow>()).map { try $0.value() })
+            }
+            func requireTopology(_ admission: LightingTopologyAdmissionClosureV1) throws {
+                let descriptors = try modelContext.fetch(FetchDescriptor<FunctionalRelationshipTypeDescriptorRow>()).map { try $0.value() }
+                let events = try modelContext.fetch(FetchDescriptor<AssetFunctionalRelationshipEventRow>()).map { try $0.value() }
+                for value in admission.descriptors { try requireExact(value, in: descriptors) }
+                for value in admission.relationshipEvents { try requireExact(value, in: events) }
+                let relationshipIDs = Set(admission.relationshipEvents.map(\.relationshipID))
+                let persistedHistory = events.filter { relationshipIDs.contains($0.relationshipID) }
+                guard persistedHistory.count == admission.relationshipEvents.count,
+                      persistedHistory.allSatisfy({ admission.relationshipEvents.contains($0) }) else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            }
+            func requireIssueAdmission(_ admission: LightingIssueAdmissionClosureV1) throws {
+                try requireExact(admission.observation, in: try modelContext.fetch(FetchDescriptor<LightingObservationRow>()).map { try $0.value() })
+            }
+            func requireClaimAdmission(_ admission: LightingClaimAdmissionClosureV1) throws {
+                func observation(_ value: LightingObservationV1) throws { try requireExact(value, in: try modelContext.fetch(FetchDescriptor<LightingObservationRow>()).map { try $0.value() }) }
+                func plan(_ value: MeasurementPlanV1) throws { try requireExact(value, in: try modelContext.fetch(FetchDescriptor<MeasurementPlanRow>()).map { try $0.value() }) }
+                func protocolRelease(_ value: MeasurementProtocolReleaseV1) throws { try requireExact(value, in: try modelContext.fetch(FetchDescriptor<MeasurementProtocolReleaseRow>()).map { try $0.value() }) }
+                func captures(_ values: [MeasurementCaptureV1]) throws { let stored=try modelContext.fetch(FetchDescriptor<MeasurementCaptureRow>()).map{try $0.value()};for value in values{try requireExact(value,in:stored)} }
+                func instrument(_ value: InstrumentReferenceV1) throws { try requireExact(value, in: try modelContext.fetch(FetchDescriptor<InstrumentReferenceRow>()).map { try $0.value() }) }
+                func calibration(_ value: CalibrationStatusSnapshotV1) throws { try requireExact(value, in: try modelContext.fetch(FetchDescriptor<CalibrationStatusSnapshotRow>()).map { try $0.value() }) }
+                func quality(_ values: [MeasurementQualityAssessmentV1]) throws { let stored=try modelContext.fetch(FetchDescriptor<MeasurementQualityAssessmentRow>()).map{try $0.value()};for value in values{try requireExact(value,in:stored)} }
+                switch admission {
+                case .observed(let o): try observation(o)
+                case .measured(let o,let p,let protocolValue,let c,_,let i,let calibrationValue,let q): try observation(o);try plan(p);try protocolRelease(protocolValue);try captures(c);try instrument(i);try calibration(calibrationValue);try quality(q)
+                case .derived(let o,let p,let protocolValue,let evaluator,let c,_,let i,let calibrationValue,let q): try observation(o);try plan(p);try protocolRelease(protocolValue);try requireExact(evaluator,in:try modelContext.fetch(FetchDescriptor<DerivedFactEvaluatorDescriptorRow>()).map{try $0.value()});try captures(c);try instrument(i);try calibration(calibrationValue);try quality(q)
+                case .screened(let o,let p,let protocolValue,let c,_,let i,let calibrationValue,let q,let classification,_,let authority,let basis,let applicability,let scope): try observation(o);try plan(p);try protocolRelease(protocolValue);try captures(c);try instrument(i);try calibration(calibrationValue);try quality(q);try requireExact(classification,in:try modelContext.fetch(FetchDescriptor<FindingClassificationBindingRow>()).map{try $0.value()});try requireExact(authority,in:try modelContext.fetch(FetchDescriptor<AuthoritySourceReleaseRow>()).map{try $0.value()});try requireExact(basis,in:try modelContext.fetch(FetchDescriptor<RequirementBasisBindingRow>()).map{try $0.value()});try requireExact(applicability,in:try modelContext.fetch(FetchDescriptor<ApplicabilityContextSnapshotRow>()).map{try $0.value()});try requireExact(scope,in:try modelContext.fetch(FetchDescriptor<AssessmentScopeSnapshotRow>()).map{try $0.value()})
+                case .externallyAttested(let o,let attestation): try observation(o);try requireExact(attestation,in:try modelContext.fetch(FetchDescriptor<AttestationRow>()).map{try $0.value()})
+                }
+            }
+            switch operation {
+            case let .appendSystem(value, predecessor, admission):
+                try requirePackage(value.packageRelease); try requireTopology(admission)
+                let all=try modelContext.fetch(FetchDescriptor<LightingSystemRow>()).map{try $0.value()};guard all.allSatisfy({$0.recordID != value.recordID})else{throw WorkspaceMutationFailureV1.sequenceCollision};if let predecessor{try requireExact(predecessor,in:all);try oneSuccessor(all){$0.supersedesRecordID==predecessor.recordID};try value.validateSuccessor(of:predecessor)};modelContext.insert(try LightingSystemRow(value))
+            case let .appendObservation(value, predecessor, system):
+                try requireSystem(system);let all=try modelContext.fetch(FetchDescriptor<LightingObservationRow>()).map{try $0.value()};guard all.allSatisfy({$0.recordID != value.recordID})else{throw WorkspaceMutationFailureV1.sequenceCollision};if let predecessor{try requireExact(predecessor,in:all);try oneSuccessor(all){$0.supersedesRecordID==predecessor.recordID}};try value.validate(system:system);modelContext.insert(try LightingObservationRow(value))
+            case let .appendIssue(value, predecessor, admission):
+                try requireIssueAdmission(admission);let all=try modelContext.fetch(FetchDescriptor<LightingIssueRow>()).map{try $0.value()};guard all.allSatisfy({$0.recordID != value.recordID})else{throw WorkspaceMutationFailureV1.sequenceCollision};if let predecessor{try requireExact(predecessor,in:all);try oneSuccessor(all){$0.supersedesRecordID==predecessor.recordID}};modelContext.insert(try LightingIssueRow(value))
+            case let .appendMeasurementPlan(value, predecessor, system):
+                try requireSystem(system);let all=try modelContext.fetch(FetchDescriptor<MeasurementPlanRow>()).map{try $0.value()};guard all.allSatisfy({$0.recordID != value.recordID})else{throw WorkspaceMutationFailureV1.sequenceCollision};if let predecessor{try requireExact(predecessor,in:all);try oneSuccessor(all){$0.supersedesRecordID==predecessor.recordID}};try value.validate(system:system);modelContext.insert(try MeasurementPlanRow(value))
+            case let .appendClaim(value, predecessor, admission):
+                try requireClaimAdmission(admission);let all=try modelContext.fetch(FetchDescriptor<LightingClaimStateRow>()).map{try $0.value()};guard all.allSatisfy({$0.recordID != value.recordID})else{throw WorkspaceMutationFailureV1.sequenceCollision};if let predecessor{try requireExact(predecessor,in:all);try oneSuccessor(all){$0.supersedesRecordID==predecessor.recordID}};modelContext.insert(try LightingClaimStateRow(value))
+            }
+            return try WorkspaceMutationEffectV1(affectedEntities:[operation.affectedIdentity],temporaryRelativePath:temporaryRelativePath)
+        } catch let failure as WorkspaceMutationFailureV1 { modelContext.rollback();throw failure }
+        catch { modelContext.rollback();throw WorkspaceMutationFailureV1.invalidCommand }
+    }
 
     private func validateEvidencePairPurpose(_ value:PairedObservationLinkV1,existing:[PairedObservationLinkV1])throws{for candidate in [value.first,value.second]{let historical=existing.filter{$0.workspaceID==value.workspaceID}.flatMap{[$0.first,$0.second]}.filter{$0.evidenceID==candidate.evidenceID};guard historical.allSatisfy({$0.purpose==candidate.purpose&&$0.purposeRevision==candidate.purposeRevision})else{throw WorkspaceMutationFailureV1.invalidCommand}}}
 
@@ -1851,5 +1923,47 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
 
     private static func isFinite(_ value: Date) -> Bool {
         value.timeIntervalSinceReferenceDate.isFinite
+    }
+}
+
+/// Resolves every authority embedded in a C31 admission closure to one exact
+/// canonical row. This is shared by live writes, journal replay, and startup.
+enum LightingPersistedAdmissionV1 {
+    static func validate(_ operation: LightingWriteOperationV1, in context: ModelContext) throws {
+        func exact<T: Equatable>(_ value: T, _ values: [T]) throws {
+            guard values.filter({ $0 == value }).count == 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        }
+        func observation(_ value: LightingObservationV1) throws { try exact(value, try context.fetch(FetchDescriptor<LightingObservationRow>()).map { try $0.value() }) }
+        func plan(_ value: MeasurementPlanV1) throws { try exact(value, try context.fetch(FetchDescriptor<MeasurementPlanRow>()).map { try $0.value() }) }
+        func protocolRelease(_ value: MeasurementProtocolReleaseV1) throws { try exact(value, try context.fetch(FetchDescriptor<MeasurementProtocolReleaseRow>()).map { try $0.value() }) }
+        func captures(_ values: [MeasurementCaptureV1]) throws { let rows=try context.fetch(FetchDescriptor<MeasurementCaptureRow>()).map{try $0.value()};for value in values{try exact(value,rows)} }
+        func instrument(_ value: InstrumentReferenceV1) throws { try exact(value, try context.fetch(FetchDescriptor<InstrumentReferenceRow>()).map { try $0.value() }) }
+        func calibration(_ value: CalibrationStatusSnapshotV1) throws { try exact(value, try context.fetch(FetchDescriptor<CalibrationStatusSnapshotRow>()).map { try $0.value() }) }
+        func quality(_ values: [MeasurementQualityAssessmentV1]) throws { let rows=try context.fetch(FetchDescriptor<MeasurementQualityAssessmentRow>()).map{try $0.value()};for value in values{try exact(value,rows)} }
+        func claim(_ admission: LightingClaimAdmissionClosureV1, value: LightingClaimStateV1) throws {
+            switch admission {
+            case .observed(let o): try observation(o)
+            case .measured(let o,let p,let protocolValue,let c,_,let i,let calibrationValue,let q): try observation(o);try plan(p);try protocolRelease(protocolValue);try captures(c);try instrument(i);try calibration(calibrationValue);try quality(q)
+            case .derived(let o,let p,let protocolValue,let evaluator,let c,_,let i,let calibrationValue,let q): try observation(o);try plan(p);try protocolRelease(protocolValue);try exact(evaluator,try context.fetch(FetchDescriptor<DerivedFactEvaluatorDescriptorRow>()).map{try $0.value()});guard let provenance=value.derivedFact else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};try exact(provenance,try context.fetch(FetchDescriptor<DerivedFactProvenanceRow>()).map{try $0.value()});try captures(c);try instrument(i);try calibration(calibrationValue);try quality(q)
+            case .screened(let o,let p,let protocolValue,let c,_,let i,let calibrationValue,let q,let classification,_,let authority,let basis,let applicability,let scope): try observation(o);try plan(p);try protocolRelease(protocolValue);try captures(c);try instrument(i);try calibration(calibrationValue);try quality(q);try exact(classification,try context.fetch(FetchDescriptor<FindingClassificationBindingRow>()).map{try $0.value()});try exact(authority,try context.fetch(FetchDescriptor<AuthoritySourceReleaseRow>()).map{try $0.value()});try exact(basis,try context.fetch(FetchDescriptor<RequirementBasisBindingRow>()).map{try $0.value()});try exact(applicability,try context.fetch(FetchDescriptor<ApplicabilityContextSnapshotRow>()).map{try $0.value()});try exact(scope,try context.fetch(FetchDescriptor<AssessmentScopeSnapshotRow>()).map{try $0.value()})
+            case .externallyAttested(let o,let attestation): try observation(o);try exact(attestation,try context.fetch(FetchDescriptor<AttestationRow>()).map{try $0.value()})
+            }
+        }
+        switch operation {
+        case .appendSystem(let system,_,let admission):
+            let descriptors=try context.fetch(FetchDescriptor<FunctionalRelationshipTypeDescriptorRow>()).map{try $0.value()}
+            let events=try context.fetch(FetchDescriptor<AssetFunctionalRelationshipEventRow>()).map{try $0.value()}
+            for value in admission.descriptors { try exact(value,descriptors) }
+            for value in admission.relationshipEvents { try exact(value,events) }
+            let requiredDescriptorIDs=Set(system.luminaires.compactMap{$0.supportRelationship?.descriptorReleaseID})
+            let requiredEventIDs=Set(system.luminaires.compactMap(\.supportRelationshipEventID))
+            let relationshipIDs=Set(system.luminaires.compactMap{$0.supportRelationship?.relationshipID})
+            guard Set(admission.descriptors.map(\.descriptorReleaseID))==requiredDescriptorIDs,
+                  requiredEventIDs.isSubset(of:Set(admission.relationshipEvents.map(\.eventID))),
+                  admission.relationshipEvents.allSatisfy({relationshipIDs.contains($0.relationshipID)}) else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        case .appendIssue(_,_,let admission): try observation(admission.observation)
+        case .appendClaim(let value,_,let admission): try claim(admission,value:value)
+        case .appendObservation, .appendMeasurementPlan: break
+        }
     }
 }

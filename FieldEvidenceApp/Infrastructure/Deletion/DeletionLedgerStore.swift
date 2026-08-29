@@ -15,6 +15,44 @@ enum C30EvidenceContextDeletionLedgerStorePolicyV1 {
               projectionIsNotLedgerTruth else { throw DeletionLedgerFailureV2.invalidIdentity }
     }
 }
+
+enum C31LightingDeletionLedgerStorePolicyV1 {
+    static let persistentSchemaVersion = 31
+    static let recordsSchemaVersion = 30
+    static let durableFamilyCount = 5
+    static let ordinaryDeletePreservesImmutableHistory = true
+    static let workspaceEraseRemovesAllLightingRoots = true
+    static let orphanRowsAreInvalid = true
+
+    static func validate(
+        records: [V31BackupLightingRecordV1],
+        workspaceID: WorkspaceID
+    ) throws {
+        let roots = try LightingBackupRecordSetV1.decode(records)
+        let workspaces = roots.systems.map(\.workspaceID)
+            + roots.observations.map(\.workspaceID)
+            + roots.issues.map(\.workspaceID)
+            + roots.plans.map(\.workspaceID)
+            + roots.claims.map(\.workspaceID)
+        guard workspaces.allSatisfy({ $0 == workspaceID }),
+              persistentSchemaVersion == 31,
+              recordsSchemaVersion == 30,
+              durableFamilyCount == 5,
+              ordinaryDeletePreservesImmutableHistory,
+              workspaceEraseRemovesAllLightingRoots,
+              orphanRowsAreInvalid else {
+            throw LightingContractFailureV1.wrongWorkspace
+        }
+    }
+
+    static func validateSchema() throws {
+        guard persistentSchemaVersion == LightingPersistenceEnrollmentV1.persistentSchemaVersion,
+              recordsSchemaVersion == LightingPersistenceEnrollmentV1.recordsSchemaVersion,
+              durableFamilyCount == LightingPersistenceEnrollmentV1.durableModelCount else {
+            throw DeletionLedgerFailureV2.invalidIdentity
+        }
+    }
+}
 import SwiftData
 
 enum FieldReferenceDeletionLedgerStorePolicyV1{static func validate()throws{guard FieldReferenceDeletionLedgerPolicyV1.immutableKinds==["FieldReferenceReleaseV1","FieldReferenceBindingV1"],FieldReferenceDeletionLedgerPolicyV1.ordinaryDeletionRetainsBoundAndFinalizedBytes,FieldReferenceDeletionLedgerPolicyV1.workspaceEraseRemovesRowsAndOwnedBytes else{throw DeletionLedgerFailureV2.invalidIdentity}}}
@@ -106,6 +144,7 @@ final class DeletionLedgerStore {
         try PlanDeletionLedgerStorePolicyV1.validate()
         try PlacementPoseDeletionLedgerStorePolicyV1.validate()
         try SurveySessionDeletionLedgerPolicyV1.validate()
+        try C31LightingDeletionLedgerStorePolicyV1.validateSchema()
         var descriptor = FetchDescriptor<DeletionLedgerRow>()
         descriptor.fetchLimit = DeletionLedgerV2.maximumEntryCount + 1
         let rows = try context.fetch(descriptor)

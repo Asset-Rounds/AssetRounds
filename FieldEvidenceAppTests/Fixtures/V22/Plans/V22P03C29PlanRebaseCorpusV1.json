@@ -120,5 +120,17 @@
     "durableFamilies": ["EvidenceContextV1", "PairedObservationLinkV1"],
     "providerFreeSolar": true,
     "pairMismatchReasonCount": 8
+  },
+  "c31LightingPackageCompatibility": {
+    "compatibilityCardID": "V23-P03-C31",
+    "persistentSchemaVersion": 31,
+    "recordsSchemaVersion": 30,
+    "durableFamilies": ["LightingSystemV1", "LightingObservationV1", "LightingIssueV1", "MeasurementPlanV1", "LightingClaimStateV1"],
+    "claimTierCount": 5,
+    "hostileCaseCount": 45,
+    "photoExifNeverMeasurement": true,
+    "exactFootcandleLuxConversion": "10.76391",
+    "sharedSupportNoClones": true,
+    "safetyStopKinds": ["ELECTRICAL", "TRAFFIC"]
   }
 }

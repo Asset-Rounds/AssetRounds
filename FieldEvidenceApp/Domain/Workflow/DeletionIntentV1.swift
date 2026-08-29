@@ -347,3 +347,27 @@ enum C30EvidenceContextDeletionIntentPolicyV1 {
         }
     }
 }
+
+enum C31LightingDeletionIntentBoundaryV1 {
+    static let ordinaryDeletionPreservesImmutableLightingHistory = true
+    static let deletionDoesNotPromoteDerivedClaims = true
+    static let projectionAndDiagnosticsAreRebuilt = true
+
+    static func validate(
+        records: [V31BackupLightingRecordV1],
+        workspaceID: WorkspaceID
+    ) throws {
+        let roots = try LightingBackupRecordSetV1.decode(records)
+        let workspaces = roots.systems.map(\.workspaceID)
+            + roots.observations.map(\.workspaceID)
+            + roots.issues.map(\.workspaceID)
+            + roots.plans.map(\.workspaceID)
+            + roots.claims.map(\.workspaceID)
+        guard workspaces.allSatisfy({ $0 == workspaceID }),
+              ordinaryDeletionPreservesImmutableLightingHistory,
+              deletionDoesNotPromoteDerivedClaims,
+              projectionAndDiagnosticsAreRebuilt else {
+            throw LightingContractFailureV1.wrongWorkspace
+        }
+    }
+}

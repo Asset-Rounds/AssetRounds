@@ -23,6 +23,32 @@ enum C30EvidenceContextBackupRestoreRegistryV1 {
     }
 }
 
+enum C31LightingBackupRestoreRegistryV1 {
+    static let persistentSchemaVersion = 31
+    static let recordsSchemaVersion = 30
+    static let archiveKinds = V31BackupLightingRecordV1.Kind.allCases
+    static let durableFamilyCount = 5
+    static let derivedProjectionDisposition = "DROP_AND_REBUILD"
+    static let providerStateIsTruth = false
+    static let licensedCriterionTextIncluded = false
+    static let sameWorkspacePreservesCanonicalBytes = true
+    static let cloneForkSourceClaimAutomaticallyActive = false
+
+    static func validate() throws {
+        guard persistentSchemaVersion == 31,
+              recordsSchemaVersion == 30,
+              archiveKinds.count == durableFamilyCount,
+              Set(archiveKinds.map(\.rawValue)).count == durableFamilyCount,
+              derivedProjectionDisposition == "DROP_AND_REBUILD",
+              !providerStateIsTruth,
+              !licensedCriterionTextIncluded,
+              sameWorkspacePreservesCanonicalBytes,
+              !cloneForkSourceClaimAutomaticallyActive else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}
+
 /// C28 schedule backup/restore is a two-family closure: immutable definition
 /// releases plus append-only occurrence history. Projection queues and
 /// reminders are rebuilt after restore and never enter the kernel archive.
@@ -302,6 +328,8 @@ enum KernelBackupRestoreRegistryV4 {
     static let assetLocatorArchiveKinds = V26BackupAssetLocatorRecordV1.Kind.allCases
     static let planArchiveKinds = V28BackupPlanRecordV1.Kind.allCases
     static let placementPoseArchiveKinds = V29BackupPlacementPoseRecordV1.Kind.allCases
+    static let lightingArchiveKinds = V31BackupLightingRecordV1.Kind.allCases
+    static let lightingDurableFamilyCount = 5
     static let accessibleDocumentPersistentFamilies=AccessibleDocumentLifecycleV1.persistentFamilies
     static let accessibleDocumentSemanticTreePersistence=AccessibleDocumentLifecycleV1.semanticTreePersistence
     static let recoverabilityVerificationArchiveKindCount=1
@@ -429,6 +457,18 @@ enum KernelBackupRestoreRegistryV4 {
         try PlacementPoseDeletionLedgerPolicyV1.validate()
         try PlacementPoseReplacementRestorePolicyV1.validate([])
     }
+    static func validateLightingLifecycle() throws {
+        guard lightingArchiveKinds.count == lightingDurableFamilyCount,
+              Set(lightingArchiveKinds.map(\.rawValue)).count
+                == lightingDurableFamilyCount,
+              LightingPersistenceEnrollmentV1.persistentSchemaVersion == 31,
+              LightingPersistenceEnrollmentV1.recordsSchemaVersion == 30,
+              LightingPersistenceEnrollmentV1.durableModelCount
+                == lightingDurableFamilyCount else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+        try C31LightingBackupRestoreRegistryV1.validate()
+    }
     typealias Route = (
         archive: KernelArchiveDispositionV4,
         restore: KernelRestoreDispositionV4,
@@ -474,6 +514,7 @@ enum KernelBackupRestoreRegistryV4 {
         try validateScheduleLifecycle()
         try validatePlanLifecycle()
         try validatePlacementPoseLifecycle()
+        try validateLightingLifecycle()
         try validatePrivacyTransformLifecycle()
         try validateMeasurementIntegrityLifecycle()
         try validatePackageEvolutionLifecycle()

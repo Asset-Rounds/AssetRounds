@@ -1088,3 +1088,49 @@ enum C30EvidenceContextReplacementRestorePolicyV1 {
         }
     }
 }
+
+/// Replacement restore validates lighting as one graph before packet merge.
+/// It never substitutes a partial topology and never makes a clone/fork
+/// source claim current without an explicit destination rebind.
+enum C31LightingReplacementRestorePolicyV1 {
+    static let preservesImmutableOriginals = true
+    static let rejectsPartialTopology = true
+    static let cloneForkRequiresExplicitRebind = true
+
+    static func validate(current: V4BackupRecordsV1,
+                         incoming: V4BackupRecordsV1,
+                         mode: BackupRestoreMode = .replaceExisting) throws {
+        guard preservesImmutableOriginals, rejectsPartialTopology,
+              cloneForkRequiresExplicitRebind else {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+        do {
+            try current.validateC31LightingClosure()
+            try incoming.validateC31LightingClosure()
+            let currentSet = try LightingBackupRecordSetV1.decode(current.lighting)
+            let incomingSet = try LightingBackupRecordSetV1.decode(incoming.lighting)
+            let currentWorkspaces = Set(current.lighting.map(\.workspaceID))
+            let incomingWorkspaces = Set(incoming.lighting.map(\.workspaceID))
+            guard currentWorkspaces.count <= 1, incomingWorkspaces.count <= 1 else {
+                throw LightingContractFailureV1.wrongWorkspace
+            }
+            if mode == .replaceExisting {
+                guard currentWorkspaces == incomingWorkspaces else {
+                    throw LightingContractFailureV1.wrongWorkspace
+                }
+            }
+            guard (currentSet.systems.isEmpty
+                    == (currentSet.observations.isEmpty && currentSet.issues.isEmpty
+                        && currentSet.plans.isEmpty && currentSet.claims.isEmpty)),
+                  (incomingSet.systems.isEmpty
+                    == (incomingSet.observations.isEmpty && incomingSet.issues.isEmpty
+                        && incomingSet.plans.isEmpty && incomingSet.claims.isEmpty)) else {
+                throw LightingContractFailureV1.incompleteTopology
+            }
+        } catch let failure as ReplacementRestoreRuleError {
+            throw failure
+        } catch {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+    }
+}

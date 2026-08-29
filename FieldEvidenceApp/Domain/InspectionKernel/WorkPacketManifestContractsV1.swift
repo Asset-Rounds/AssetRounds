@@ -392,3 +392,9 @@ enum C37PoseIntegration_FieldEvidenceApp_Domain_InspectionKernel_WorkPacketManif
 enum C30ConsumerBoundaryV1_Domain_InspectionKernel_WorkPacketManifestContractsV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/InspectionKernel/WorkPacketManifestContractsV1.swift", role: .workPacket)
 }
+
+enum C31LightingWorkPacketBoundaryV1 {
+    static let packageReleaseIsReferencedByDigest = true
+    static let lightingTopologyDoesNotCreateASecondManifest = true
+    static let absentLightingInputsRemainExplicitlyAbsent = true
+}

@@ -2308,3 +2308,29 @@ extension FinalizationIntentStore {
 enum C30ConsumerBoundaryV1_Infrastructure_Finalization_FinalizationIntentStore {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Finalization/FinalizationIntentStore.swift", role: .finalization)
 }
+
+enum C31LightingFinalizationIntentBoundaryV1 {
+    static let finalizationUsesRecordedLightingRoots = true
+    static let historicReportDisplayIsImmutable = true
+    static let derivedProjectionIsNotCanonical = true
+    static let licensedCriterionTextIsNotGenerated = true
+
+    static func validate(
+        records: [V31BackupLightingRecordV1],
+        workspaceID: WorkspaceID
+    ) throws {
+        let roots = try LightingBackupRecordSetV1.decode(records)
+        let workspaces = roots.systems.map(\.workspaceID)
+            + roots.observations.map(\.workspaceID)
+            + roots.issues.map(\.workspaceID)
+            + roots.plans.map(\.workspaceID)
+            + roots.claims.map(\.workspaceID)
+        guard workspaces.allSatisfy({ $0 == workspaceID }),
+              finalizationUsesRecordedLightingRoots,
+              historicReportDisplayIsImmutable,
+              derivedProjectionIsNotCanonical,
+              licensedCriterionTextIsNotGenerated else {
+            throw LightingContractFailureV1.wrongWorkspace
+        }
+    }
+}

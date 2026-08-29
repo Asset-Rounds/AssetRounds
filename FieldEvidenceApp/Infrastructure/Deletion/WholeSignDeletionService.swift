@@ -21,6 +21,29 @@ enum C30EvidenceContextWholeSignDeletionServiceV1 {
         }
     }
 }
+
+enum C31LightingWholeSignDeletionServiceBoundaryV1 {
+    static let deletesTopologyAsOneClosure = true
+    static let preservesImmutableHistoryForOrdinaryDelete = true
+    static let removesAllLightingRootsOnWorkspaceErase = true
+    static let leavesDerivedProjectionsForRebuild = true
+
+    static func validate(
+        records: [V31BackupLightingRecordV1],
+        workspaceID: WorkspaceID
+    ) throws {
+        try C31LightingWholeSignDeletionBoundaryV1.validate(
+            records: records,
+            workspaceID: workspaceID
+        )
+        guard deletesTopologyAsOneClosure,
+              preservesImmutableHistoryForOrdinaryDelete,
+              removesAllLightingRootsOnWorkspaceErase,
+              leavesDerivedProjectionsForRebuild else {
+            throw LightingContractFailureV1.invalidValue
+        }
+    }
+}
 import SwiftData
 
 private enum DeletionDescriptorRead {

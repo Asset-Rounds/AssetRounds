@@ -175,3 +175,9 @@ enum C37PoseIntegration_FieldEvidenceApp_Infrastructure_Drafts_DraftCommitSagaRe
 enum C30ConsumerBoundaryV1_Infrastructure_Drafts_DraftCommitSagaRecoveryV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Drafts/DraftCommitSagaRecoveryV1.swift", role: .draft)
 }
+
+enum C31LightingDraftRecoveryBoundaryV1 {
+    static let recoveryNeverPromotesUncommittedLightingFacts = true
+    static let replayIsDeterministic = true
+    static let failedRecoveryNeedsAnExplicitNextStep = true
+}

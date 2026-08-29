@@ -1797,3 +1797,43 @@ extension ReportSnapshotEncoderV1 {
 enum C30ConsumerBoundaryV1_Infrastructure_Finalization_ReportSnapshotEncoderV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Finalization/ReportSnapshotEncoderV1.swift", role: .finalization)
 }
+
+extension ReportSnapshotEncoderV1 {
+    func encodeLightingProjection(
+        _ projection: C31LightingReportProjectionV1
+    ) throws -> EncodedReportSnapshotV1 {
+        try C31LightingProjectionPolicyV1.validate(projection)
+        var encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let data = try encoder.encode(projection)
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        return EncodedReportSnapshotV1(
+            data: data,
+            sha256: KernelCanonicalHashV1.sha256(data)
+        )
+    }
+
+    func decodeLightingProjection(
+        _ data: Data
+    ) throws -> C31LightingReportProjectionV1 {
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        let value = try JSONDecoder().decode(
+            C31LightingReportProjectionV1.self,
+            from: data
+        )
+        try C31LightingProjectionPolicyV1.validate(value)
+        guard try encodeLightingProjection(value).data == data else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return value
+    }
+
+    static let c31LightingEncodingPreservesFrozenProjection = true
+    static let c31LightingEncodingExcludesActorsBytesAndPrivateLocators = true
+}

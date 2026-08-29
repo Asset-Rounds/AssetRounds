@@ -322,3 +322,24 @@ enum C37PoseIntegration_FieldEvidenceApp_Domain_Content_ContentLocatorManifestCo
 enum C30ConsumerBoundaryV1_Domain_Content_ContentLocatorManifestContractsV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/Content/ContentLocatorManifestContractsV1.swift", role: .content)
 }
+
+struct C31LightingContentLocatorProjectionV1: Codable, Equatable, Sendable {
+    let workspaceID: String
+    let contentID: String
+    let locatorRevision: Int
+    let expectedByteLength: Int64
+
+    init(_ locator: ContentLocatorV1) {
+        workspaceID = locator.workspaceID
+        contentID = locator.contentID
+        locatorRevision = locator.locatorRevision
+        expectedByteLength = locator.expectedByteLength
+    }
+
+    func validate() throws {
+        guard !workspaceID.isEmpty, !contentID.isEmpty,
+              locatorRevision >= 0, expectedByteLength >= 0 else {
+            throw ContentContractFailureV1.invalidValue
+        }
+    }
+}

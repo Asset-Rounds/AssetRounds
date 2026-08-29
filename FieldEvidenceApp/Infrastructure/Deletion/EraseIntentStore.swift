@@ -16,6 +16,27 @@ enum C30EvidenceContextEraseIntentStorePolicyV1 {
         }
     }
 }
+
+enum C31LightingEraseIntentStoreBoundaryV1 {
+    static let durableRowsAreWorkspaceScoped = true
+    static let eraseIsIdempotent = true
+    static let derivedStateIsNotEraseTruth = true
+
+    static func validate(
+        records: [V31BackupLightingRecordV1],
+        workspaceID: WorkspaceID
+    ) throws {
+        try C31LightingEraseIntentBoundaryV1.validate(
+            records: records,
+            workspaceID: workspaceID
+        )
+        guard durableRowsAreWorkspaceScoped,
+              eraseIsIdempotent,
+              derivedStateIsNotEraseTruth else {
+            throw LightingContractFailureV1.invalidValue
+        }
+    }
+}
 enum AssetLocatorEraseIntentEnrollmentV1 {
     static let recordsSchemaVersion = 25
     static let persistentSchemaVersion = 26

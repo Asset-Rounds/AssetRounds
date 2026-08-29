@@ -204,3 +204,9 @@ enum C37PoseIntegration_FieldEvidenceApp_Application_Ports_ResumableLocalJobPort
 enum C30ConsumerBoundaryV1_Application_Ports_ResumableLocalJobPortV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Application/Ports/ResumableLocalJobPortV1.swift", role: .port)
 }
+
+enum C31LightingProjectionJobBoundaryV1 {
+    static let rebuildIsDeterministicAndIdempotent = true
+    static let incompleteProjectionIsNotAClaim = true
+    static let originalEvidenceRemainsOutsideTheProjection = true
+}

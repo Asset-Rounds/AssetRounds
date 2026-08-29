@@ -55,3 +55,11 @@ private func assetLocatorDecoded<T:Codable & Equatable>(_ type:T.Type,data:Data,
     func locators(lookupKey:String,workspaceID:WorkspaceID)async throws->[AssetLocatorV1]{let workspace=workspaceID.rawValue,rows=try modelContext.fetch(FetchDescriptor<AssetLocatorRow>(predicate:#Predicate{$0.lookupKey==lookupKey&&$0.workspaceID==workspace}));return try rows.map{$0.value()}.sorted{$0.locatorID.uuidString<$1.locatorID.uuidString}}
     func locatorExistsOutsideWorkspace(lookupKey:String,workspaceID:WorkspaceID)async throws->Bool{let workspace=workspaceID.rawValue,rows=try modelContext.fetch(FetchDescriptor<AssetLocatorRow>(predicate:#Predicate{$0.lookupKey==lookupKey&&$0.workspaceID != workspace}));return !rows.isEmpty}
 }
+
+enum LightingAssetLocatorReuseV1 { static let locatorHistoryRemainsReferencedAuthority = true; static let topologyDoesNotPersistLocatorCopies = true }
+
+enum C31LightingAssetLocatorPersistenceBoundaryV1 {
+    static let locatorDigestAndIdentityMayBeProjected = true
+    static let rawLookupTokensRemainOutsideReports = true
+    static let crossWorkspaceLocatorReadsFailClosed = true
+}

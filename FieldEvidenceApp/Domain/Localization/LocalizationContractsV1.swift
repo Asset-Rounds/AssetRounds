@@ -4589,3 +4589,137 @@ enum C30OperatingContextLocalizationPolicyV1 {
 enum C30ConsumerBoundaryV1_Domain_Localization_LocalizationContractsV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift", role: .localization)
 }
+
+// MARK: - C31 exterior/parking-lighting localization
+
+/// English-only labels for recorded lighting topology, observations,
+/// measurements, criteria, and stop conditions.  Raw durable enum values are
+/// never used as user-facing text.
+enum C31LightingLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
+    case systemHeading = "lighting.system.heading"
+    case topology = "lighting.system.topology"
+    case zones = "lighting.system.zones"
+    case controlGroups = "lighting.system.control_groups"
+    case luminaires = "lighting.system.luminaires"
+    case observationHeading = "lighting.observation.heading"
+    case observationRecorded = "lighting.observation.recorded"
+    case issueRecorded = "lighting.issue.recorded"
+    case issueOpen = "lighting.issue.open"
+    case issueResolved = "lighting.issue.resolved"
+    case issueSuperseded = "lighting.issue.superseded"
+    case measurementHeading = "lighting.measurement.heading"
+    case illuminance = "lighting.measurement.illuminance"
+    case calibration = "lighting.measurement.calibration"
+    case claimObserved = "lighting.claim.observed"
+    case claimMeasured = "lighting.claim.measured"
+    case claimDerived = "lighting.claim.derived"
+    case claimCriterion = "lighting.claim.criterion"
+    case claimExternal = "lighting.claim.external_reference"
+    case claimUnavailable = "lighting.claim.unavailable"
+    case safetyStop = "lighting.safety.stop"
+    case safetyNextStep = "lighting.safety.next_step"
+    case claimBoundary = "lighting.claim.boundary"
+    case historyFrozen = "lighting.history.frozen"
+    case manualOffline = "lighting.manual_offline"
+
+    var localizationKey: LocalizationKeyV1 {
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+
+    var englishDefaultValue: String {
+        switch self {
+        case .systemHeading: return "Lighting record"
+        case .topology: return "Recorded topology"
+        case .zones: return "Zones"
+        case .controlGroups: return "Control groups"
+        case .luminaires: return "Luminaires"
+        case .observationHeading: return "Lighting observation"
+        case .observationRecorded: return "Observation recorded"
+        case .issueRecorded: return "Recorded issue"
+        case .issueOpen: return "Issue open"
+        case .issueResolved: return "Issue resolved with recorded evidence"
+        case .issueSuperseded: return "Issue superseded by a later record"
+        case .measurementHeading: return "Measurement plan"
+        case .illuminance: return "Recorded illuminance measurement"
+        case .calibration: return "Calibration reference"
+        case .claimObserved: return "Observed fact"
+        case .claimMeasured: return "Measured fact with recorded inputs"
+        case .claimDerived: return "Derived fact from recorded inputs"
+        case .claimCriterion: return "Criterion reference recorded"
+        case .claimExternal: return "External evidence reference recorded"
+        case .claimUnavailable: return "Claim unavailable"
+        case .safetyStop: return "Safety stop recorded"
+        case .safetyNextStep: return "Review the recorded authority and control-plan references before continuing"
+        case .claimBoundary: return "Recorded facts only; no operational conclusion"
+        case .historyFrozen: return "Historic display is frozen"
+        case .manualOffline: return "Manual/offline path remains available"
+        }
+    }
+
+    var translatorComment: String {
+        "English-only C31 label for recorded exterior-lighting facts and references; do not add safety, compliance, security, ADA, IES, or operational conclusions."
+    }
+
+    static func claimKey(_ value: LightingClaimTierV1) -> Self {
+        switch value {
+        case .observed: return .claimObserved
+        case .measured: return .claimMeasured
+        case .derived: return .claimDerived
+        case .screened: return .claimCriterion
+        case .externallyAttested: return .claimExternal
+        }
+    }
+
+    static func issueKey(_ value: LightingIssueDispositionV1) -> Self {
+        switch value {
+        case .open: return .issueOpen
+        case .resolved: return .issueResolved
+        case .superseded: return .issueSuperseded
+        }
+    }
+
+    static let keys = allCases.map(\.rawValue).sorted()
+    static let sourceLocale = "en"
+    static let shippingRuntimeLocales = ["en"]
+    static let metadataLocale = "en-US"
+    static let pseudoLocalesAreTestOnly = true
+    static let denyByDefault = true
+    static let historicDisplayFrozen = true
+    static let manualOfflinePathPreserved = true
+}
+
+enum C31LightingLocalizationPolicyV1 {
+    static let englishOnly = true
+    static let textAndIconRequired = true
+    static let nonColorStateRequired = true
+    static let historicDisplayFrozen = true
+    static let manualOfflinePathPreserved = true
+    static let forbiddenClaimPhrases = [
+        "compliance", "safety certified", "security certified", "ada compliant",
+        "ies compliant", "verified safe", "actual control", "control failure",
+        "darkness inferred", "photo proves", "timestamp proves", "survey-grade",
+        "gis", "cad", "bim", "lidar", "remote delivery", "secure",
+    ]
+
+    static func containsProhibitedClaim(_ values: [String]) -> Bool {
+        values.contains { value in
+            let normalized = value.lowercased()
+                .replacingOccurrences(of: "_", with: " ")
+                .replacingOccurrences(of: "-", with: " ")
+            return forbiddenClaimPhrases.contains { normalized.contains($0) }
+        }
+    }
+
+    static func validate() throws {
+        let values = C31LightingLocalizationKeyV1.allCases
+        guard values.map(\.rawValue).sorted() == C31LightingLocalizationKeyV1.keys,
+              Set(C31LightingLocalizationKeyV1.keys).count == values.count,
+              values.allSatisfy({ !$0.englishDefaultValue.isEmpty }),
+              englishOnly, textAndIconRequired, nonColorStateRequired,
+              historicDisplayFrozen, manualOfflinePathPreserved,
+              !containsProhibitedClaim(values.map(\.englishDefaultValue)) else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}

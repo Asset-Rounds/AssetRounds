@@ -462,3 +462,9 @@ enum C37PoseIntegration_FieldEvidenceApp_Domain_InspectionKernel_WorkflowGrammar
 enum C30ConsumerBoundaryV1_Domain_InspectionKernel_WorkflowGrammarContractsV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/InspectionKernel/WorkflowGrammarContractsV1.swift", role: .evidence)
 }
+
+enum C31LightingWorkflowGrammarBoundaryV1 {
+    static let topologyObservationMeasurementAndClaimAreSeparate = true
+    static let safetyStopIsARecordedGateState = true
+    static let unsupportedClaimVocabularyIsRejected = true
+}

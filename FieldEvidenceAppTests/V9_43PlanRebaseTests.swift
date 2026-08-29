@@ -596,3 +596,11 @@ final class V9_43PlanRebaseTests: XCTestCase {
         XCTAssertEqual(writer.received, nil)
     }
 }
+private final class C31LightingAnchorV943PlanRebaseTests: XCTestCase {
+    func testC31TypedLightingPackageContractAnchor() throws {
+        XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
+        XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
+        XCTAssertTrue(LightingIssueKindV1.allCases.contains(.cameraBandingOnly))
+        try LightingLimitsV1.digest(String(repeating: "a", count: 64))
+    }
+}

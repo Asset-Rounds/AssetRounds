@@ -1052,3 +1052,35 @@ extension ReleasedDataCompatibilityPolicyV1{static let placementPoseCompatibilit
 enum C30ConsumerBoundaryV1_Domain_Compatibility_ReleasedDataCompatibilityPolicyV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/Compatibility/ReleasedDataCompatibilityPolicyV1.swift", role: .compatibility)
 }
+
+struct C31LightingCompatibilityPolicyV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let currentLightingProjection = "C31_LIGHTING_REPORT_PROJECTION_V1"
+    let historicProjectionReadable: Bool
+    let unknownProjectionFailsClosed: Bool
+    let displayInterpretationImmutable: Bool
+    let migrationDisposition: String
+
+    init() {
+        schemaVersion = Self.schemaVersion
+        historicProjectionReadable = true
+        unknownProjectionFailsClosed = true
+        displayInterpretationImmutable = true
+        migrationDisposition = "READ_HISTORIC_OR_AMEND_WITH_REPLACEMENT"
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              currentLightingProjection == "C31_LIGHTING_REPORT_PROJECTION_V1",
+              historicProjectionReadable, unknownProjectionFailsClosed,
+              displayInterpretationImmutable,
+              migrationDisposition == "READ_HISTORIC_OR_AMEND_WITH_REPLACEMENT" else {
+            throw CompatibilityContractErrorV1.invalidSupportTable
+        }
+    }
+}
+
+extension ReleasedDataCompatibilityPolicyV1 {
+    static let lightingCompatibility = C31LightingCompatibilityPolicyV1()
+}

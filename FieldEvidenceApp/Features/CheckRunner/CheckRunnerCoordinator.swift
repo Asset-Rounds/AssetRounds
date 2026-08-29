@@ -2389,3 +2389,12 @@ enum C37PoseIntegration_FieldEvidenceApp_Features_CheckRunner_CheckRunnerCoordin
 enum C30ConsumerBoundaryV1_Features_CheckRunner_CheckRunnerCoordinator {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift", role: .checkRunner)
 }
+
+enum C31LightingConsumerBoundary_Features_CheckRunner_CheckRunnerCoordinator {
+    static let registrationID = "C31_LIGHTING_CONSUMER/check-runner-coordinator"
+    static let compatibility = C31LightingCompatibilityPolicyV1()
+    static func validate(projection: C31LightingReportProjectionV1) throws {
+        try compatibility.validate()
+        try C31LightingProjectionPolicyV1.validate(projection)
+    }
+}

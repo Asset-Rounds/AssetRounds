@@ -116,3 +116,9 @@ enum C37PoseIntegration_FieldEvidenceApp_Infrastructure_Camera_CameraAdapter_swi
 enum C30ConsumerBoundaryV1_Infrastructure_Camera_CameraAdapter {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Camera/CameraAdapter.swift", role: .camera)
 }
+
+enum C31LightingCameraBoundaryV1 {
+    static let captureRemainsUserObservedEvidence = true
+    static let cameraOutputDoesNotInferDarknessOrControlState = true
+    static let manualOfflinePathRemainsAvailable = true
+}

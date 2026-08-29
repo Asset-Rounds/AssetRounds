@@ -223,6 +223,7 @@ enum ScheduleIntegrationContractV1{static func definitions()throws->[Integration
 enum PlanIntegrationContractV1{static func definitions()throws->[IntegrationEventContractDefinitionV1]{try[("plan.document.v1",WorkspaceEntityKindV1.planDocument),("plan.revision.v1",.planRevision),("plan.placement.v1",.planPlacement),("plan.rebase_receipt.v1",.planRebaseReceipt)].map{try IntegrationEventContractDefinitionV1(eventKind:$0.0,eventVersion:1,sourceEntityKind:$0.1,sensitivity:.workspaceData,emittedVisibility:.workspaceInternal,redaction:.notRequired)}.sorted{$0.stableKey<$1.stableKey}}static func validate(registry:IntegrationContractRegistryV1)throws{for definition in try definitions(){guard try registry.definition(for:definition.sourceEntityKind)==definition else{throw IntegrationEventFailureV1.unknownEventKind}}}}
 enum PlacementPoseIntegrationContractV1{static func definitions()throws->[IntegrationEventContractDefinitionV1]{try[("pose.asset_event.v1",WorkspaceEntityKindV1.assetPoseEvent),("pose.spatial_anchor_observation.v1",.spatialAnchorObservation)].map{try IntegrationEventContractDefinitionV1(eventKind:$0.0,eventVersion:1,sourceEntityKind:$0.1,sensitivity:.workspaceData,emittedVisibility:.workspaceInternal,redaction:.notRequired)}.sorted{$0.stableKey<$1.stableKey}}static func validate(registry:IntegrationContractRegistryV1)throws{for definition in try definitions(){guard try registry.definition(for:definition.sourceEntityKind)==definition else{throw IntegrationEventFailureV1.unknownEventKind}}}}
 enum EvidenceContextIntegrationContractV1{static func definitions()throws->[IntegrationEventContractDefinitionV1]{try[("evidence.context.v1",WorkspaceEntityKindV1.evidenceContext),("evidence.paired_observation_link.v1",.pairedObservationLink)].map{try IntegrationEventContractDefinitionV1(eventKind:$0.0,eventVersion:1,sourceEntityKind:$0.1,sensitivity:.workspaceData,emittedVisibility:.workspaceInternal,redaction:.notRequired)}.sorted{$0.stableKey<$1.stableKey}}static func validate(registry:IntegrationContractRegistryV1)throws{for definition in try definitions(){guard try registry.definition(for:definition.sourceEntityKind)==definition else{throw IntegrationEventFailureV1.unknownEventKind}}}}
+enum LightingIntegrationContractV1{static func definitions()throws->[IntegrationEventContractDefinitionV1]{try[("lighting.system.v1",WorkspaceEntityKindV1.lightingSystem),("lighting.observation.v1",.lightingObservation),("lighting.issue.v1",.lightingIssue),("lighting.measurement_plan.v1",.lightingMeasurementPlan),("lighting.claim_state.v1",.lightingClaimState)].map{try IntegrationEventContractDefinitionV1(eventKind:$0.0,eventVersion:1,sourceEntityKind:$0.1,sensitivity:.workspaceData,emittedVisibility:.workspaceInternal,redaction:.notRequired)}.sorted{$0.stableKey<$1.stableKey}}}
 
 struct IntegrationEventOrderV1: Codable, Equatable, Hashable, Comparable, Sendable {
     let sourceWorkspaceRevision: UInt64
@@ -537,4 +538,19 @@ enum IntegrationEventValidationV1 {
 
 private extension UUID {
     static let zero = UUID(uuidString: "00000000-0000-0000-0000-000000000000")!
+}
+
+enum C31LightingIntegrationEventBoundaryV1 {
+    static let eventPayloadsRemainOutsideReportsAndDiagnostics = true
+    static let consumerReadsFrozenLightingProjectionOnly = true
+    static let sourceBytesActorsAndPrivateLocatorsExcluded = true
+    static let unsupportedOperationalClaimsRejected = true
+
+    static func isLightingProjectionConsumerEvent(_ event: IntegrationEventV1) -> Bool {
+        event.subject.kind == .lightingSystem
+            || event.subject.kind == .lightingObservation
+            || event.subject.kind == .lightingIssue
+            || event.subject.kind == .lightingMeasurementPlan
+            || event.subject.kind == .lightingClaimState
+    }
 }

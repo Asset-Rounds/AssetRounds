@@ -201,3 +201,12 @@ enum C37PoseIntegration_FieldEvidenceApp_Application_Drafts_FieldDraftCoordinato
 enum C30ConsumerBoundaryV1_Application_Drafts_FieldDraftCoordinatorV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Application/Drafts/FieldDraftCoordinatorV1.swift", role: .draft)
 }
+
+enum C31LightingConsumerBoundary_Application_Drafts_FieldDraftCoordinatorV1 {
+    static let registrationID = "C31_LIGHTING_CONSUMER/field-draft-coordinator"
+    static let compatibility = C31LightingCompatibilityPolicyV1()
+    static func validate(projection: C31LightingReportProjectionV1) throws {
+        try compatibility.validate()
+        try C31LightingProjectionPolicyV1.validate(projection)
+    }
+}

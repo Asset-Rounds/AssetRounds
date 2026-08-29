@@ -1414,3 +1414,27 @@ extension LocalSearchIndexStoreV1 {
 enum C30ConsumerBoundaryV1_Infrastructure_Search_LocalSearchIndexStoreV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Search/LocalSearchIndexStoreV1.swift", role: .search)
 }
+
+// MARK: - C31 lighting local index adapter
+
+extension LocalSearchIndexStoreV1 {
+    static func lightingSearchRecord(
+        from projection: C31LightingReportProjectionV1
+    ) throws -> C31LightingSearchRecordV1 {
+        let record = try C31LightingSearchRecordV1(projection: projection)
+        try C31LightingSearchProjectionPolicyV1.validate(record)
+        try C31LightingSearchPersistencePolicyV1().validate()
+        return record
+    }
+
+    static func validateLightingSearchRecord(
+        _ record: C31LightingSearchRecordV1
+    ) throws -> C31LightingSearchRecordV1 {
+        try C31LightingSearchProjectionPolicyV1.validate(record)
+        try C31LightingSearchPersistencePolicyV1().validate()
+        return record
+    }
+
+    static let c31LightingIndexIsDisposableAndRebuildable = true
+    static let c31LightingIndexExcludesBytesActorsAndPrivateLocators = true
+}

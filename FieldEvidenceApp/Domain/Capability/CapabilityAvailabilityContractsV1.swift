@@ -846,3 +846,9 @@ enum C37PoseIntegration_FieldEvidenceApp_Domain_Capability_CapabilityAvailabilit
 enum C30ConsumerBoundaryV1_Domain_Capability_CapabilityAvailabilityContractsV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/Capability/CapabilityAvailabilityContractsV1.swift", role: .lifecycle)
 }
+
+enum C31LightingCapabilityBoundaryV1 {
+    static let capabilityAvailabilityIsNotLightingEvidence = true
+    static let unsupportedMeasurementPathsRemainVisibleAsUnknown = true
+    static let capabilityDoesNotClaimInstalledOrOperationalStatus = true
+}

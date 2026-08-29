@@ -3779,3 +3779,29 @@ enum C37PoseIntegration_FieldEvidenceApp_Domain_InspectionKernel_CompletedActivi
 enum C30ConsumerBoundaryV1_Domain_InspectionKernel_CompletedActivitySnapshotContractsV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/InspectionKernel/CompletedActivitySnapshotContractsV1.swift", role: .evidence)
 }
+
+// MARK: - C31 completed lighting snapshot binding
+
+struct C31LightingCompletedSnapshotReferenceV1: Codable, Equatable, Sendable {
+    let systemID: UUID
+    let systemRevision: UInt64
+    let systemSHA256: String
+    let claimBoundary: C31LightingClaimBoundaryV1
+    let frozenDisplay: Bool
+
+    init(projection: C31LightingReportProjectionV1) throws {
+        try C31LightingProjectionPolicyV1.validate(projection)
+        systemID = projection.systemID
+        systemRevision = projection.systemRevision
+        systemSHA256 = projection.systemSHA256
+        claimBoundary = projection.claimBoundary
+        frozenDisplay = projection.frozenDisplay
+    }
+
+    func validate() throws {
+        guard systemID != LightingLimitsV1.zero, systemRevision > 0,
+              MutationEnvelopeV1.isSHA256(systemSHA256), frozenDisplay else {
+            throw SnapshotProjectionFailureV1.invalidValue
+        }
+    }
+}

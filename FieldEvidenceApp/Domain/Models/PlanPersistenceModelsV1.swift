@@ -46,3 +46,11 @@ enum PlanPersistenceFailureV1: Error { case corruptRow }
 }
 
 enum PlanPersistenceEnrollmentV1 { static let durableModelCount=4;static let persistentSchemaVersion=28;static let recordsSchemaVersion=27;static let derivedTypes:[Any.Type]=[RebasePreviewV1.self] }
+
+enum LightingPlanReferenceReuseV1 { static let lightingMeasurementPointsMayReferenceExistingPlans = true; static let createsNoSpatialFrameRow = true }
+
+enum C31LightingPlanPersistenceBoundaryV1 {
+    static let planRevisionAndDigestRemainCanonical = true
+    static let lightingDoesNotPersistAPlanCopy = true
+    static let measurementCriteriaRemainRecordedReferences = true
+}

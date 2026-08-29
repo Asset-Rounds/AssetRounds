@@ -71,3 +71,9 @@ enum C37PoseIntegration_FieldEvidenceApp_Application_Ports_ApplicationRuntimePor
 enum C30ConsumerBoundaryV1_Application_Ports_ApplicationRuntimePorts {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Application/Ports/ApplicationRuntimePorts.swift", role: .port)
 }
+
+enum C31LightingRuntimePortBoundaryV1 {
+    static let projectionIsLocalAndMetadataOnly = true
+    static let cameraAndSolarInputsRemainRecordedFacts = true
+    static let noRemoteControlOrOperationalInference = true
+}

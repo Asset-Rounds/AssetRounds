@@ -59,5 +59,17 @@
   ],
   "recordsSchemaVersion": 29,
   "schema": "V22P03C30EvidenceContextCorpusV1",
-  "schemaVersion": 1
+  "schemaVersion": 1,
+  "c31LightingPackageCompatibility": {
+    "compatibilityCardID": "V23-P03-C31",
+    "persistentSchemaVersion": 31,
+    "recordsSchemaVersion": 30,
+    "durableFamilies": ["LightingSystemV1", "LightingObservationV1", "LightingIssueV1", "MeasurementPlanV1", "LightingClaimStateV1"],
+    "claimTierCount": 5,
+    "hostileCaseCount": 45,
+    "photoExifNeverMeasurement": true,
+    "exactFootcandleLuxConversion": "10.76391",
+    "sharedSupportNoClones": true,
+    "safetyStopKinds": ["ELECTRICAL", "TRAFFIC"]
+  }
 }

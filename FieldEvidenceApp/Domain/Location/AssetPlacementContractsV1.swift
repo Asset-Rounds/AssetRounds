@@ -304,3 +304,9 @@ enum C37PoseIntegration_FieldEvidenceApp_Domain_Location_AssetPlacementContracts
 enum C30ConsumerBoundaryV1_Domain_Location_AssetPlacementContractsV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/Location/AssetPlacementContractsV1.swift", role: .location)
 }
+
+enum C31LightingAssetPlacementBoundaryV1 {
+    static let luminairesBindExistingAssetPlacement = true
+    static let placementDoesNotProveInstalledOrOperatingState = true
+    static let poseAndlightingFactsRemainSeparate = true
+}

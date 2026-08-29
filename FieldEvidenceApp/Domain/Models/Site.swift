@@ -32,3 +32,11 @@ final class Site {
         self.updatedAt = updatedAt ?? createdAt
     }
 }
+
+enum LightingSiteIdentityEnrollmentV1 { static let lightingSystemBindsExistingSiteID = true; static let createsNoSiteProjectionRow = true }
+
+enum C31LightingSiteBoundaryV1 {
+    static let siteIdentityIsAReferenceOnly = true
+    static let siteNameIsNotALightingConclusion = true
+    static let topologyDoesNotCreateSiteFacts = true
+}

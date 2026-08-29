@@ -1096,3 +1096,11 @@ extension V9_30FieldDraftResilienceTests {
         XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
     }
 }
+private final class C31LightingAnchorV930FieldDraftResilienceTests: XCTestCase {
+    func testC31TypedLightingPackageContractAnchor() throws {
+        XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
+        XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
+        XCTAssertTrue(LightingIssueKindV1.allCases.contains(.cameraBandingOnly))
+        try LightingLimitsV1.digest(String(repeating: "a", count: 64))
+    }
+}

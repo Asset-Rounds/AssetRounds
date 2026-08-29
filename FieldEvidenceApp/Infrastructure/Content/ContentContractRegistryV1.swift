@@ -287,3 +287,13 @@ enum C37PoseIntegration_FieldEvidenceApp_Infrastructure_Content_ContentContractR
 enum C30ConsumerBoundaryV1_Infrastructure_Content_ContentContractRegistryV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Content/ContentContractRegistryV1.swift", role: .content)
 }
+
+enum C31LightingContentContractRegistryV1 {
+    static let contractIDs = [
+        "lighting.system.v1", "lighting.observation.v1", "lighting.issue.v1",
+        "lighting.measurement-plan.v1", "lighting.claim-state.v1",
+    ]
+    static let oneCanonicalByteStore = true
+    static let oneCanonicalReceiptAuthority = true
+    static let projectionIsDerived = true
+}

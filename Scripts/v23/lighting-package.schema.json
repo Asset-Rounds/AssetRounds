@@ -1,0 +1,62 @@
+{
+  "$id": "https://assetrounds.invalid/v23/lighting-package.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "cardID": {
+      "const": "V23-P03-C31"
+    },
+    "durableFamilies": {
+      "const": [
+        "LightingSystemRow",
+        "LightingObservationRow",
+        "LightingIssueRow",
+        "MeasurementPlanRow",
+        "LightingClaimStateRow"
+      ]
+    },
+    "persistentSchemaVersion": {
+      "const": 31
+    },
+    "recordsSchemaVersion": {
+      "const": 30
+    },
+    "requiredContractNames": {
+      "const": [
+        "LightingSystemV1",
+        "LightingZoneV1",
+        "ControlGroupV1",
+        "LuminaireAssetV1",
+        "LightingObservationV1",
+        "LightingIssueV1",
+        "MeasurementPlanV1",
+        "CriterionReferenceV1",
+        "LightingClaimStateV1"
+      ]
+    },
+    "schema": {
+      "const": "V22P03C31LightingPackageCorpusV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "statusFlags": {
+      "additionalProperties": {
+        "const": false
+      },
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "persistentSchemaVersion",
+    "recordsSchemaVersion",
+    "durableFamilies",
+    "requiredContractNames",
+    "statusFlags"
+  ],
+  "title": "V23 P03 C31 Lighting Package Corpus",
+  "type": "object"
+}

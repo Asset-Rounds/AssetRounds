@@ -530,3 +530,12 @@ extension SearchCoordinatorV1 {
 enum C30ConsumerBoundaryV1_Application_Search_SearchCoordinatorV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Application/Search/SearchCoordinatorV1.swift", role: .search)
 }
+
+enum C31LightingConsumerBoundary_Application_Search_SearchCoordinatorV1 {
+    static let registrationID = "C31_LIGHTING_CONSUMER/search-coordinator"
+    static let compatibility = C31LightingCompatibilityPolicyV1()
+    static func validate(projection: C31LightingReportProjectionV1) throws {
+        try compatibility.validate()
+        try C31LightingProjectionPolicyV1.validate(projection)
+    }
+}
