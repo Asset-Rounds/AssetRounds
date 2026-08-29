@@ -6948,7 +6948,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             uiSource.components(
                 separatedBy: "keyboardIsAbsentOrInertOffApp("
             ).count - 1,
-            7
+            8
         )
         guard let passiveKeyboardHelperStartRange = uiSource.range(
             of: passiveKeyboardHelperStart
@@ -7642,10 +7642,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 multilineHelperStartRange.lowerBound..<multilinePassiveKeyboardHelperStartRange.lowerBound
             ]
         )
-        XCTAssertEqual(multilineHelperSource.utf8.count, 12_512)
+        XCTAssertEqual(multilineHelperSource.utf8.count, 12_570)
         XCTAssertEqual(
             Data(multilineHelperSource.utf8).sha256,
-            "4054F7E02F879E7A3647BB799720180F13C2F935F9BB7E19B3399E596004BC88"
+            "404DCD18FA4C14089461716B33FCBDD85EDBD49231124377831ABB36E2A08BB5"
         )
         let multilineHelperLocks = [
             "afterEditing field: XCUIElement",
@@ -7670,6 +7670,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "guard fieldScrollView.exists, fieldScrollView.isHittable else {",
             "fieldScrollView.swipeUp()",
             "keyboard.waitForNonExistence(timeout: 10)",
+            "|| keyboardIsAbsentOrInertOffApp(in: app)",
             #"String(describing: field.value ?? "") == expectedValue"#,
             "route.exists == expectedRouteExists",
             "app.state == expectedApplicationState",
@@ -20297,10 +20298,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 748_749)
+        XCTAssertEqual(uiSource.utf8.count, 748_807)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "76F5C1029E4CADACFCD563B302B50F7726A643DA710A8EBAABB2744D9B5744E0"
+            "D15B62C05653A7EEE5E694760C4E1B71C072EC6915FEDC3796793DDC6255102B"
         )
         let assertControlSource = try boundedSource(
             uiSource,

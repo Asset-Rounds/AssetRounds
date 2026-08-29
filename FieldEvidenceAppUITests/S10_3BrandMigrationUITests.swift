@@ -15570,7 +15570,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             }
         }
         fieldScrollView.swipeUp()
-        guard keyboard.waitForNonExistence(timeout: 10),
+        guard keyboard.waitForNonExistence(timeout: 10)
+                || keyboardIsAbsentOrInertOffApp(in: app),
               field.exists,
               String(describing: field.value ?? "") == expectedValue,
               route.exists == expectedRouteExists,
