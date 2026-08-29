@@ -1,0 +1,311 @@
+{
+  "schema": "V22P03C44CommunicationConsentCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P03-C44",
+  "classification": "PREPARE_NOW",
+  "collectionDisposition": "DISABLED_NO_SUBSCRIBER_COLLECTION_OR_TRANSMISSION",
+  "purposes": [
+    {
+      "purpose": "NEWSLETTER",
+      "createsMarketingContact": true,
+      "independentAffirmativeEnrollmentRequired": true,
+      "consentNontransitive": true,
+      "transactionalExclusionOnly": false
+    },
+    {
+      "purpose": "PRODUCT_UPDATE",
+      "createsMarketingContact": true,
+      "independentAffirmativeEnrollmentRequired": true,
+      "consentNontransitive": true,
+      "transactionalExclusionOnly": false
+    },
+    {
+      "purpose": "RESEARCH_INVITATION",
+      "createsMarketingContact": true,
+      "independentAffirmativeEnrollmentRequired": true,
+      "consentNontransitive": true,
+      "transactionalExclusionOnly": false
+    },
+    {
+      "purpose": "TRANSACTIONAL_OR_SUPPORT",
+      "createsMarketingContact": false,
+      "independentAffirmativeEnrollmentRequired": false,
+      "consentNontransitive": true,
+      "transactionalExclusionOnly": true
+    }
+  ],
+  "consentTruthTable": [
+    {
+      "caseID": "EXPLICIT_NEWSLETTER",
+      "purpose": "NEWSLETTER",
+      "source": "CONTROLLED_BACKEND_AFFIRMATIVE_ENROLLMENT",
+      "affirmative": true,
+      "prechecked": false,
+      "inferred": false,
+      "disclosureReleaseID": "DISCLOSURE.NEWSLETTER.V1.EN-US",
+      "presentedLocale": "en-US",
+      "verificationStatus": "VERIFIED",
+      "expectedDisposition": "ELIGIBLE_EXPLICIT_INDEPENDENT_ENROLLMENT"
+    },
+    {
+      "caseID": "SHARED_MAILBOX_REVIEW",
+      "purpose": "NEWSLETTER",
+      "source": "CONTROLLED_BACKEND_AFFIRMATIVE_ENROLLMENT",
+      "affirmative": true,
+      "prechecked": false,
+      "inferred": false,
+      "disclosureReleaseID": "DISCLOSURE.NEWSLETTER.V1.EN-US",
+      "presentedLocale": "en-US",
+      "verificationStatus": "REVIEW_REQUIRED",
+      "expectedDisposition": "REVIEW_REQUIRED"
+    },
+    {
+      "caseID": "TRANSACTIONAL_RECEIPT",
+      "purpose": "TRANSACTIONAL_OR_SUPPORT",
+      "source": "PURCHASE_RECEIPT",
+      "affirmative": true,
+      "prechecked": false,
+      "inferred": false,
+      "disclosureReleaseID": "NONE",
+      "presentedLocale": "en-US",
+      "verificationStatus": "VERIFIED",
+      "expectedDisposition": "INELIGIBLE_TRANSACTIONAL_OR_SUPPORT"
+    },
+    {
+      "caseID": "PRECHECKED_PRODUCT_UPDATE",
+      "purpose": "PRODUCT_UPDATE",
+      "source": "CONTROLLED_BACKEND_AFFIRMATIVE_ENROLLMENT",
+      "affirmative": true,
+      "prechecked": true,
+      "inferred": false,
+      "disclosureReleaseID": "DISCLOSURE.PRODUCT.V1.EN-US",
+      "presentedLocale": "en-US",
+      "verificationStatus": "PENDING",
+      "expectedDisposition": "INELIGIBLE_NONAFFIRMATIVE"
+    },
+    {
+      "caseID": "SUPPORT_SOURCE_NEWSLETTER",
+      "purpose": "NEWSLETTER",
+      "source": "SUPPORT_REQUEST",
+      "affirmative": true,
+      "prechecked": false,
+      "inferred": false,
+      "disclosureReleaseID": "DISCLOSURE.NEWSLETTER.V1.EN-US",
+      "presentedLocale": "en-US",
+      "verificationStatus": "UNVERIFIED",
+      "expectedDisposition": "INELIGIBLE_SOURCE"
+    },
+    {
+      "caseID": "STALE_DISCLOSURE",
+      "purpose": "NEWSLETTER",
+      "source": "CONTROLLED_BACKEND_AFFIRMATIVE_ENROLLMENT",
+      "affirmative": true,
+      "prechecked": false,
+      "inferred": false,
+      "disclosureReleaseID": "DISCLOSURE.NEWSLETTER.V0.EN-US",
+      "presentedLocale": "en-US",
+      "verificationStatus": "VERIFIED",
+      "expectedDisposition": "INELIGIBLE_DISCLOSURE"
+    },
+    {
+      "caseID": "UNKNOWN_JURISDICTION",
+      "purpose": "RESEARCH_INVITATION",
+      "source": "SEPARATELY_AUTHORIZED_RESEARCH_INVITATION_ENROLLMENT",
+      "affirmative": true,
+      "prechecked": false,
+      "inferred": false,
+      "disclosureReleaseID": "DISCLOSURE.RESEARCH.V1.EN-US",
+      "presentedLocale": "en-US",
+      "verificationStatus": "PENDING",
+      "expectedDisposition": "INELIGIBLE_LAWFUL_BASIS"
+    },
+    {
+      "caseID": "LOCALE_MISMATCH",
+      "purpose": "PRODUCT_UPDATE",
+      "source": "PROVIDER_HOSTED_AFFIRMATIVE_ENROLLMENT",
+      "affirmative": true,
+      "prechecked": false,
+      "inferred": false,
+      "disclosureReleaseID": "DISCLOSURE.PRODUCT.V1.EN-US",
+      "presentedLocale": "fr-FR",
+      "verificationStatus": "VERIFIED",
+      "expectedDisposition": "INELIGIBLE_DISCLOSURE"
+    },
+    {
+      "caseID": "INFERRED_FROM_RESEARCH_PARTICIPATION",
+      "purpose": "RESEARCH_INVITATION",
+      "source": "FIELD_RESEARCH_PARTICIPATION",
+      "affirmative": false,
+      "prechecked": false,
+      "inferred": true,
+      "disclosureReleaseID": "DISCLOSURE.RESEARCH.V1.EN-US",
+      "presentedLocale": "en-US",
+      "verificationStatus": "UNVERIFIED",
+      "expectedDisposition": "INELIGIBLE_NONAFFIRMATIVE"
+    }
+  ],
+  "normalizationCases": [
+    {
+      "caseID": "PLUS_TAG_COLLISION",
+      "enteredAddress": "owner+field@example.invalid",
+      "comparisonAddress": "owner@example.invalid",
+      "policyReleaseID": "CONTACT-COMPARISON.V1",
+      "collisionDisposition": "REVIEW_REQUIRED"
+    },
+    {
+      "caseID": "LOCAL_PART_CASE_COLLISION",
+      "enteredAddress": "Owner@example.invalid",
+      "comparisonAddress": "owner@example.invalid",
+      "policyReleaseID": "CONTACT-COMPARISON.V1",
+      "collisionDisposition": "REVIEW_REQUIRED"
+    },
+    {
+      "caseID": "UNICODE_NORMALIZATION_COLLISION",
+      "enteredAddress": "café@example.invalid",
+      "comparisonAddress": "café@example.invalid",
+      "policyReleaseID": "CONTACT-COMPARISON.V1",
+      "collisionDisposition": "REVIEW_REQUIRED"
+    }
+  ],
+  "disclosureReleases": [
+    {
+      "releaseID": "DISCLOSURE.NEWSLETTER.V1.EN-US",
+      "version": 1,
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "locales": ["en-US"],
+      "immutable": true,
+      "superseded": true
+    },
+    {
+      "releaseID": "DISCLOSURE.NEWSLETTER.V2.EN-US",
+      "version": 2,
+      "digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "locales": ["en-US"],
+      "immutable": true,
+      "superseded": false
+    },
+    {
+      "releaseID": "DISCLOSURE.PRODUCT.V1.EN-US",
+      "version": 1,
+      "digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "locales": ["en-US", "fr-FR"],
+      "immutable": true,
+      "superseded": false
+    }
+  ],
+  "suppressionCases": [
+    {
+      "caseID": "NEWSLETTER_WITHDRAWAL",
+      "purpose": "NEWSLETTER",
+      "channel": "EMAIL",
+      "tokenKind": "CONTACT_INFO_PSEUDONYMOUS_NOT_ANONYMOUS",
+      "plainHashForbidden": true,
+      "deleteReimportDisposition": "BLOCKED",
+      "audienceUseForbidden": true
+    },
+    {
+      "caseID": "PRODUCT_UPDATE_COMPLAINT",
+      "purpose": "PRODUCT_UPDATE",
+      "channel": "EMAIL",
+      "tokenKind": "CONTACT_INFO_PSEUDONYMOUS_NOT_ANONYMOUS",
+      "plainHashForbidden": true,
+      "deleteReimportDisposition": "BLOCKED",
+      "audienceUseForbidden": true
+    },
+    {
+      "caseID": "RESEARCH_INVITATION_ERASE_REIMPORT",
+      "purpose": "RESEARCH_INVITATION",
+      "channel": "EMAIL",
+      "tokenKind": "CONTACT_INFO_PSEUDONYMOUS_NOT_ANONYMOUS",
+      "plainHashForbidden": true,
+      "deleteReimportDisposition": "BLOCKED",
+      "audienceUseForbidden": true
+    }
+  ],
+  "hostileCases": [
+    "PLUS_ADDRESS_CASE_OR_UNICODE_NORMALIZATION_COLLISION",
+    "SHARED_MAILBOX",
+    "ADDRESS_CHANGE",
+    "DUPLICATE_CONSENT",
+    "PRECHECKED_CHECKBOX",
+    "STALE_DISCLOSURE",
+    "MINOR_OR_INCAPACITY_AMBIGUITY",
+    "UNKNOWN_JURISDICTION",
+    "CONSENT_AFTER_WITHDRAWAL",
+    "SEND_RACE_WITH_UNSUBSCRIBE",
+    "ERASED_OR_REIMPORTED_LIST",
+    "PROVIDER_OUTAGE_OR_DUPLICATE_WEBHOOK",
+    "CREDENTIAL_IN_BUNDLE_OR_LOG",
+    "HASHED_EMAIL_LABELED_ANONYMOUS",
+    "AUDIENCE_EXPORT_DESCRIBED_AS_NEWSLETTER",
+    "TRANSACTIONAL_COPY_CONTAINING_MARKETING"
+  ],
+  "archiveProofs": [
+    {
+      "surface": "DEPENDENCY",
+      "disposition": "STATIC_SOURCE_SCAN_CLEAN",
+      "forbiddenFindings": [],
+      "repositoryScanPathCount": 350,
+      "repositoryScanPathSetSHA256": "5cde2690c42fbb057eaed8f6c84ac8d5cedc60105480a6caf5ee024f62b171a2",
+      "repositoryScanAggregateContentSHA256": "f601e4e503666e1e6f1bbdcb02e4e1e8413b84d64e9e96d648088819b8f6df87",
+      "repositoryScanDependencyInventorySHA256": "7dd6dcb0920f4832d6edc0f015f1153f92e38db0cf3a1af402c7a3e42f9414de",
+      "repositoryScanDigest": "0905bfebecf976d914cfcd83f3e0fbbbad97e7a0b2e570ca07e72c9338b24419",
+      "repositoryScanProhibitedFindingCount": 0
+    },
+    {"surface": "ARCHIVE", "disposition": "PENDING_NOT_ACCEPTING", "forbiddenFindings": []},
+    {"surface": "LINK", "disposition": "PENDING_NOT_ACCEPTING", "forbiddenFindings": []},
+    {"surface": "RESOURCE", "disposition": "PENDING_NOT_ACCEPTING", "forbiddenFindings": []},
+    {"surface": "STRING", "disposition": "PENDING_NOT_ACCEPTING", "forbiddenFindings": []},
+    {"surface": "ROUTE", "disposition": "PENDING_NOT_ACCEPTING", "forbiddenFindings": []},
+    {"surface": "SETTINGS", "disposition": "PENDING_NOT_ACCEPTING", "forbiddenFindings": []},
+    {"surface": "BACKGROUND_TASK", "disposition": "PENDING_NOT_ACCEPTING", "forbiddenFindings": []},
+    {"surface": "CREDENTIAL", "disposition": "PENDING_NOT_ACCEPTING", "forbiddenFindings": []},
+    {"surface": "ENDPOINT", "disposition": "PENDING_NOT_ACCEPTING", "forbiddenFindings": []},
+    {"surface": "RUNTIME_NETWORK", "disposition": "PENDING_NOT_ACCEPTING", "forbiddenFindings": []}
+  ],
+  "lifecycle": {
+    "persistence": "NONPERSISTENT",
+    "contracts": "STATIC_VERSIONED_POLICY",
+    "providerPort": "UNBOUND_FUTURE_APPLICATION_PORT",
+    "runtimeStorage": "NONE",
+    "runtimeProvider": "NONE",
+    "runtimeNetwork": "NONE",
+    "retry": "BYTE_IDENTICAL_RESULT_OR_NO_EFFECT",
+    "rollback": "REMOVE_UNACTIVATED_CONTRACT_AND_TEST_CHANGES",
+    "supersession": "IMMUTABLE_RELEASES_SUPERSEDED_NOT_REWRITTEN"
+  },
+  "invariants": {
+    "purposeConsentNontransitive": true,
+    "transactionalNeverCreatesMarketingContact": true,
+    "operationalContactsNeverConvert": true,
+    "exactEnteredAddressPreserved": true,
+    "normalizationPolicyVersioned": true,
+    "collisionsRequireReview": true,
+    "disclosureReleaseAndLocalePinned": true,
+    "withdrawalAppendOnly": true,
+    "suppressionSurvivesDeleteAndReimport": true,
+    "plainHashForbidden": true,
+    "suppressionNotAudience": true,
+    "providerPortUnbound": true,
+    "providerSecretsAbsentFromApp": true,
+    "noSubscriberPersistence": true,
+    "noNetworkTransmission": true,
+    "configCannotActivate": true,
+    "ownerAcceptanceRequired": true,
+    "adAudienceEquivalenceForbidden": true
+  },
+  "evidenceIDs": [
+    "V23-P03-C44-G01",
+    "V23-P03-C44-A01",
+    "V23-P03-C44-H01",
+    "V23-P03-C44-I01",
+    "V23-P03-C44-R01"
+  ],
+  "statusFlags": {
+    "native": false,
+    "hosted": false,
+    "adoption": false,
+    "acceptance": false,
+    "release": false
+  }
+}
