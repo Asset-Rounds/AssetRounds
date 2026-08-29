@@ -2757,7 +2757,10 @@ jobs:
               and (.ignoredAuditIssues[0].elementIdentifier | type == "string")
               and (.ignoredAuditIssues[0].elementLabel | type == "string" and length > 0)
               and (.ignoredAuditIssues[0].elementType
-                == "XCUIElementType(rawValue: 48)")
+                == (if .stateID == "state.recheck-capture.wide-ready"
+                    then "XCUIElementType(rawValue: 9)"
+                    else "XCUIElementType(rawValue: 48)"
+                    end))
               and ((.ignoredAuditIssues[0].elementFrame | keys | sort)
                 == (["x", "y", "width", "height"] | sort))
               and all(.ignoredAuditIssues[0].elementFrame[]; type == "number")

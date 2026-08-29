@@ -120,8 +120,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 226_898,
-            sha256: "10A7AD50A5778D664BEC8DCA18CE9E1E2992969D899FB2FFC65EE788500183FA"
+            byteCount: 227_055,
+            sha256: "473DF9E38FC99F4E574EE6CAABEEF27AA1A7C7CA762F96FDFAF325A10759324A"
         )
         let workflowSource = try text(workflowPath)
         let currentF25WatchdogTuple = "] == [300, 900, 1200, 1920, 4500]"
@@ -19009,6 +19009,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"and $stateID == "state.issue.resolved" then 1"#,
             #"and $stateID == "state.issue.open" then 1"#,
             #"and $stateID == "state.recheck-capture.wide-ready" then 1"#,
+            #"== (if .stateID == "state.recheck-capture.wide-ready""#,
+            #"then "XCUIElementType(rawValue: 9)""#,
+            #"else "XCUIElementType(rawValue: 48)""#,
             #"and ($stateID == "state.feedback.review-ready""#,
             #"or $stateID == "state.report-correction.validation-error""#,
             #"or $stateID == "state.sample-report.ready") then 1"#,
@@ -19023,6 +19026,22 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for lock in workflowProtocolLocks {
             XCTAssertTrue(workflowSource.contains(lock), lock)
         }
+        let exactWorkflowAuthorityElementType =
+            "              and (.ignoredAuditIssues[0].elementType\n" +
+                "                == (if .stateID == \"state.recheck-capture.wide-ready\"\n" +
+                "                    then \"XCUIElementType(rawValue: 9)\"\n" +
+                "                    else \"XCUIElementType(rawValue: 48)\"\n" +
+                "                    end))"
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: exactWorkflowAuthorityElementType
+            ).count - 1,
+            1
+        )
+        let retiredWorkflowAuthorityElementType =
+            "              and (.ignoredAuditIssues[0].elementType\n" +
+                "                == \"XCUIElementType(rawValue: 48)\")"
+        XCTAssertFalse(workflowSource.contains(retiredWorkflowAuthorityElementType))
         let exactWorkflowAuthorityFilter =
             "                ($authorities\n" +
                 "                  | map(select(\n" +
