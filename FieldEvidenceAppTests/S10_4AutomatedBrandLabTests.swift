@@ -9070,10 +9070,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 workSavingPositioningStartRange.lowerBound..<workSavingPositioningEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(workSavingPositioningSource.utf8.count, 24_946)
+        XCTAssertEqual(workSavingPositioningSource.utf8.count, 25_606)
         XCTAssertEqual(
             Data(workSavingPositioningSource.utf8).sha256,
-            "863FCB2B2FB02C6029A55A0EE03CCA7C48A34B04041B8F7ED8E73172BB519605"
+            "17FABCB43899C656FF72A9378AB8F1ABF41FFEB0978C42D231AB2D9DC854538D"
         )
         let workSavingRouteBeforeEvidence =
             "        scroll(saveWork, in: app)\n" +
@@ -9128,6 +9128,27 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(
             workSavingPositioningSource.components(
                 separatedBy: workSavingAXTextImportFixtureIdentity
+            ).count - 1,
+            1
+        )
+        let workSavingMinimumOSHelperValidation =
+            "        let workSavingHelperTextBindingsAreValid: () -> Bool = {\n" +
+                "            guard minimumOSWorkHelperDuplicateExpected else {\n" +
+                "                return workHelperTexts.count == expectedWorkHelperTextCount\n" +
+                "            }\n" +
+                "            guard workHelperTexts.count == 1,\n" +
+                "                  workHelper.exists else {\n" +
+                "                return false\n" +
+                "            }\n" +
+                "            return workHelper.elementType == .staticText\n" +
+                "                && workHelper.identifier.isEmpty\n" +
+                "                && workHelper.label == workHelperLabel\n" +
+                #"                && (workHelper.value as? String) == """# + "\n" +
+                "                && workEditingFrameIsValid(workHelper.frame)\n" +
+                "        }"
+        XCTAssertEqual(
+            workSavingPositioningSource.components(
+                separatedBy: workSavingMinimumOSHelperValidation
             ).count - 1,
             1
         )
@@ -9347,13 +9368,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("app.state == .runningForeground", 3),
             ("workNoteHeadings.count == 1", 4),
             ("workTabBars.count == 1", 4),
-            ("workHelperTextBindingsAreValid()", 4),
-            ("workHelperTexts.count == 1", 0),
+            ("workHelperTextBindingsAreValid()", 0),
+            ("workSavingHelperTextBindingsAreValid()", 4),
+            ("workHelperTexts.count == 1", 1),
             ("workScrollViews.count == 1", 4),
             ("workNavigationBars.count == 1", 4),
             ("workNoteHeading.exists", 4),
             ("workTabBar.exists", 4),
-            ("workHelper.exists", 4),
+            ("workHelper.exists", 5),
             ("workScrollView.exists", 3),
             ("workNavigationBar.exists", 3),
             ("workPreview.exists", 4),
@@ -20741,10 +20763,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 778_930)
+        XCTAssertEqual(uiSource.utf8.count, 779_590)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "6FA518612CCC0466D0F7D5BB1EA189961EFAB8860527F3CCE98E93F8B9DE1A3A"
+            "18706FD1D88CD314C3CD12E637C26E2AE6065384A938F1EFD6DF26ACFE58C7C1"
         )
         let assertControlSource = try boundedSource(
             uiSource,

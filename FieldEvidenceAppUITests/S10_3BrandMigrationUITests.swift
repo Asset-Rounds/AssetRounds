@@ -5299,6 +5299,20 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             ? app.buttons.matching(identifier: "s5.1.work.import-fixture")
             : nil
         let workImportFixtureButton = workImportFixtureButtons?.firstMatch
+        let workSavingHelperTextBindingsAreValid: () -> Bool = {
+            guard minimumOSWorkHelperDuplicateExpected else {
+                return workHelperTexts.count == expectedWorkHelperTextCount
+            }
+            guard workHelperTexts.count == 1,
+                  workHelper.exists else {
+                return false
+            }
+            return workHelper.elementType == .staticText
+                && workHelper.identifier.isEmpty
+                && workHelper.label == workHelperLabel
+                && (workHelper.value as? String) == ""
+                && workEditingFrameIsValid(workHelper.frame)
+        }
         var savingInitialAXTextCompositionIsValid = !workEditingAXTextEnabled
         if workEditingAXTextEnabled {
             let savingInitialHelperFrame = workHelper.frame
@@ -5327,7 +5341,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         guard app.state == .runningForeground,
               workNoteHeadings.count == 1,
               workTabBars.count == 1,
-              workHelperTextBindingsAreValid(),
+              workSavingHelperTextBindingsAreValid(),
               workScrollViews.count == 1,
               workNavigationBars.count == 1,
               workNoteHeading.exists,
@@ -5350,7 +5364,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             guard app.state == .runningForeground,
                   workNoteHeadings.count == 1,
                   workTabBars.count == 1,
-                  workHelperTextBindingsAreValid(),
+                  workSavingHelperTextBindingsAreValid(),
                   workScrollViews.count == 1,
                   workNavigationBars.count == 1,
                   (!workEditingAXTextEnabled
@@ -5597,7 +5611,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             )
             guard workNoteHeadings.count == 1,
                   workTabBars.count == 1,
-                  workHelperTextBindingsAreValid(),
+                  workSavingHelperTextBindingsAreValid(),
                   workScrollViews.count == 1,
                   workNavigationBars.count == 1,
                   (!workEditingAXTextEnabled
@@ -5766,7 +5780,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         guard app.state == .runningForeground,
               workNoteHeadings.count == 1,
               workTabBars.count == 1,
-              workHelperTextBindingsAreValid(),
+              workSavingHelperTextBindingsAreValid(),
               workScrollViews.count == 1,
               workNavigationBars.count == 1,
               (!workEditingAXTextEnabled
