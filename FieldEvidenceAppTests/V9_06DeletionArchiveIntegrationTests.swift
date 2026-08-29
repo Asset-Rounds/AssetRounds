@@ -5,6 +5,13 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class V9_06DeletionArchiveIntegrationTests: XCTestCase {
+    func testV23P03C29TypedPlanContractAnchor() throws {
+        let minimum = try NormalizedPlanCoordinateV1(millionths: 0)
+        let maximum = try NormalizedPlanCoordinateV1(millionths: PlanLimitsV1.normalizedScale)
+        XCTAssertEqual(minimum.millionths, 0)
+        XCTAssertEqual(maximum.millionths, PlanLimitsV1.normalizedScale)
+        XCTAssertEqual(PlanDocumentV1.schemaVersion, 1)
+    }
     @MainActor
     func testV23P03C40AssetDeletionPreservesImmutableAuthorityRows() async throws {
         let harness = try V906Integration.makeHarness("c40-immutable", withAsset: true)

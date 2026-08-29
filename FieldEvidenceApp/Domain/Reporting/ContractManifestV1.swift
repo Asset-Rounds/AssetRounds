@@ -742,3 +742,75 @@ extension ContractManifestV1 {
         return self
     }
 }
+
+// MARK: - C29 versioned plan/rebase consumer boundary
+
+enum PlanContractManifestBoundaryV1 {
+    static let contractTypeIDs = [
+        "PlanDocumentV1",
+        "PlanRevisionV1",
+        "SpatialReferenceFrameV1",
+        "PlanPlacementV1",
+        "PlanRebaseComponentV1",
+        "PlanRebaseComponentRegistryV1",
+        "RebasePreviewV1",
+        "RebaseReceiptV1",
+        "PlanLifecycleClosureV1",
+    ]
+    static let durableFamilies = [
+        "PlanDocumentV1",
+        "PlanRevisionV1",
+        "PlanPlacementV1",
+    ]
+    static let derivedFamilies = [
+        "RebasePreviewV1",
+        "RebaseReceiptV1",
+        "PlanReportProjectionV1",
+    ]
+    static let reportProjectionVersion = PlanReportProjectionV1.projectionVersion
+    static let persistentBoundary = "C29_PLAN_KIND_INVENTORY_BEFORE_FIRST_WRITE"
+    static let normalizedCoordinatesAreCanonical = true
+    static let previewIsNotApplied = true
+    static let historicDisplayIsFrozen = true
+    static let noSecondWriter = true
+
+    static func validate() throws {
+        guard contractTypeIDs == [
+                  "PlanDocumentV1",
+                  "PlanRevisionV1",
+                  "SpatialReferenceFrameV1",
+                  "PlanPlacementV1",
+                  "PlanRebaseComponentV1",
+                  "PlanRebaseComponentRegistryV1",
+                  "RebasePreviewV1",
+                  "RebaseReceiptV1",
+                  "PlanLifecycleClosureV1",
+              ],
+              durableFamilies == [
+                  "PlanDocumentV1",
+                  "PlanRevisionV1",
+                  "PlanPlacementV1",
+              ],
+              derivedFamilies == [
+                  "RebasePreviewV1",
+                  "RebaseReceiptV1",
+                  "PlanReportProjectionV1",
+              ],
+              reportProjectionVersion == PlanReportProjectionV1.projectionVersion,
+              persistentBoundary == "C29_PLAN_KIND_INVENTORY_BEFORE_FIRST_WRITE",
+              normalizedCoordinatesAreCanonical,
+              previewIsNotApplied,
+              historicDisplayIsFrozen,
+              noSecondWriter else {
+            throw SnapshotProjectionFailureV1.invalidValue
+        }
+    }
+}
+
+extension ContractManifestV1 {
+    func validatePlanConsumerContract() throws -> Self {
+        try validate()
+        try PlanContractManifestBoundaryV1.validate()
+        return self
+    }
+}

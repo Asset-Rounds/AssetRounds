@@ -763,6 +763,44 @@ enum ScheduleReportHistoryPolicyV1 {
     }
 }
 
+// MARK: - C29 plan/rebase history boundary
+
+enum PlanReportHistoryPolicyV1 {
+    static let canonicalSource = "PLAN_DOCUMENT_REVISION_PLACEMENT"
+    static let revisionHistoryIsAppendOnly = true
+    static let placementsRemainBoundToRevision = true
+    static let previewIsDerivedOnly = true
+    static let receiptIsRecordedMetadataOnly = true
+    static let historicDisplayIsFrozen = true
+    static let noSilentRebase = true
+    static let noReportRewrite = true
+
+    static func validate(_ projection: PlanReportProjectionV1) throws {
+        guard revisionHistoryIsAppendOnly,
+              placementsRemainBoundToRevision,
+              previewIsDerivedOnly,
+              receiptIsRecordedMetadataOnly,
+              historicDisplayIsFrozen,
+              noSilentRebase,
+              noReportRewrite else {
+            throw SnapshotProjectionFailureV1.historyRewrite
+        }
+        try PlanReportProjectionPolicyV1.validate(
+            projection,
+            format: .openJSON
+        )
+    }
+}
+
+extension ReportHistoryCoordinator {
+    static func validatePlanHistory(
+        _ projection: PlanReportProjectionV1
+    ) throws -> PlanReportProjectionV1 {
+        try PlanReportHistoryPolicyV1.validate(projection)
+        return projection
+    }
+}
+
 extension ReportHistoryCoordinator {
     static func validateScheduleHistory(
         _ projection: ScheduleReportProjectionV1

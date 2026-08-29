@@ -4,6 +4,13 @@ import XCTest
 
 @MainActor
 final class V9_22LocalizationAccessibilityTests: XCTestCase {
+    func testV23P03C29TypedPlanContractAnchor() throws {
+        let minimum = try NormalizedPlanCoordinateV1(millionths: 0)
+        let maximum = try NormalizedPlanCoordinateV1(millionths: PlanLimitsV1.normalizedScale)
+        XCTAssertEqual(minimum.millionths, 0)
+        XCTAssertEqual(maximum.millionths, PlanLimitsV1.normalizedScale)
+        XCTAssertEqual(PlanDocumentV1.schemaVersion, 1)
+    }
     func testV9_22G01CompilerExtractedCatalogAndShippingLocaleTruth() throws {
         let value = try corpus()
         XCTAssertEqual(value.schema, "V23-P03-C16-LocalizationAccessibilityCorpusV1")

@@ -574,3 +574,11 @@ struct LocationConsumerAdapterContractV1: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey, CaseIterable { case schemaVersion, consumer, adapterVersion, readsFrozenPaths, mayWriteCanonicalLocation, contractSHA256 }
     init(from decoder: Decoder) throws { try LocationClosedCodingV1.require(decoder, keys: CodingKeys.self, required: Set(CodingKeys.allCases.map(\.rawValue))); let c = try decoder.container(keyedBy: CodingKeys.self); let rebuilt = try Self(consumer: c.decode(LocationConsumerKindV1.self, forKey: .consumer), adapterVersion: c.decode(Int.self, forKey: .adapterVersion), readsFrozenPaths: c.decode(Bool.self, forKey: .readsFrozenPaths), mayWriteCanonicalLocation: c.decode(Bool.self, forKey: .mayWriteCanonicalLocation)); guard try c.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion, try c.decode(String.self, forKey: .contractSHA256) == rebuilt.contractSHA256 else { throw LocationContractFailureV1.digestMismatch }; self = rebuilt }
 }
+
+/// C29 typed integration anchor: this owner consumes an exact immutable plan
+/// revision reference and may not reinterpret current plan state implicitly.
+enum C29PlanIntegration_Domain_Location_LocationHierarchyContractsV1 {
+    static func validatePlanRevision(_ value: PlanRevisionReferenceV1) throws {
+        try value.validate()
+    }
+}

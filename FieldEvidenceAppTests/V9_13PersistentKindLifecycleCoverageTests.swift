@@ -5,6 +5,13 @@ import XCTest
 
 @MainActor
 final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
+    func testV23P03C29TypedPlanContractAnchor() throws {
+        let minimum = try NormalizedPlanCoordinateV1(millionths: 0)
+        let maximum = try NormalizedPlanCoordinateV1(millionths: PlanLimitsV1.normalizedScale)
+        XCTAssertEqual(minimum.millionths, 0)
+        XCTAssertEqual(maximum.millionths, PlanLimitsV1.normalizedScale)
+        XCTAssertEqual(PlanDocumentV1.schemaVersion, 1)
+    }
     private let candidateHead = "c5aaa2a6b6f4a1c900e5743648b66252d19f5ef7"
 
     func testV23P03C40NinePersistentFamiliesHaveClosedLifecycleCoverage() throws {

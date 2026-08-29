@@ -1586,3 +1586,48 @@ extension ReportRenderService {
         return try DeterministicPDFRendererV1.scheduleTextLines(projection)
     }
 }
+
+// MARK: - C29 plan/rebase rendering boundary
+
+enum PlanReportRenderPolicyV1 {
+    static let metadataOnly = true
+    static let normalizedPlacementsOnly = true
+    static let historicDisplayIsFrozen = true
+    static let previewIsNotApplied = true
+    static let localProjectionOnly = true
+    static let excludesSourceBytes = true
+    static let excludesPrivateLocator = true
+    static let excludesActorIdentity = true
+
+    static func validate(
+        _ projection: PlanReportProjectionV1,
+        format: ReportProjectionFormatV1
+    ) throws -> PlanReportProjectionV1 {
+        guard metadataOnly, normalizedPlacementsOnly,
+              historicDisplayIsFrozen, previewIsNotApplied,
+              localProjectionOnly, excludesSourceBytes,
+              excludesPrivateLocator, excludesActorIdentity else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+        return try PlanReportProjectionPolicyV1.validate(
+            projection,
+            format: format
+        )
+    }
+}
+
+extension ReportRenderService {
+    static func renderPlanOpenJSON(
+        _ projection: PlanReportProjectionV1
+    ) throws -> ReportProjectionOutputV1 {
+        try PlanReportRenderPolicyV1.validate(projection, format: .openJSON)
+        return try DeterministicOpenJSONRendererV1.renderPlan(projection)
+    }
+
+    static func planPDFMetadataLines(
+        _ projection: PlanReportProjectionV1
+    ) throws -> [String] {
+        try PlanReportRenderPolicyV1.validate(projection, format: .pdf)
+        return try DeterministicPDFRendererV1.planTextLines(projection)
+    }
+}

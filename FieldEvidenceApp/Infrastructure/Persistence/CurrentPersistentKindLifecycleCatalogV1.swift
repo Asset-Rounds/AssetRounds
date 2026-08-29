@@ -245,6 +245,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
         let c63=TemporalOriginV1(card:"V23_P03_C26",ordinal:63)
         let c64=TemporalOriginV1(card:"V23_P03_C27",ordinal:64)
         let c65=TemporalOriginV1(card:"V23_P03_C28",ordinal:65)
+        let c66=TemporalOriginV1(card:"V23_P03_C29",ordinal:66)
         let groups: [(TemporalOriginV1, [String])] = [
             (c16, [
                 "JOURNAL:CurrentGenerationPointerV2",
@@ -407,6 +408,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
             (c63,["PERSISTENT_MODEL:SurveySessionRow","PERSISTENT_MODEL:FactCaptureRow","PERSISTENT_MODEL:ProvisionalSubjectRow","PERSISTENT_MODEL:SubjectPromotionReceiptRow","PERSISTENT_MODEL:SurveyPublicationSnapshotRow","PROJECTION:SurveySessionV1","PROJECTION:FactCaptureV1","PROJECTION:ProvisionalSubjectV1","PROJECTION:SubjectPromotionReceiptV1","PROJECTION:SurveyPublicationSnapshotV1","PROJECTION:SurveySessionLifecycleClosureV1","PROJECTION:StoreSemanticEnvelopeV25"]),
             (c64,["PERSISTENT_MODEL:AssetLocatorRow","PERSISTENT_MODEL:LocatorBindingReceiptRow","PROJECTION:AssetLocatorV1","PROJECTION:LocatorBindingReceiptV1","PROJECTION:LocatorResolutionV1","PROJECTION:LocatorBindingPreviewV1","PROJECTION:AssetLocatorLifecycleClosureV1","PROJECTION:StoreSemanticEnvelopeV26"]),
             (c65,["PERSISTENT_MODEL:ScheduleDefinitionReleaseRow","PERSISTENT_MODEL:OccurrenceHistoryEventRow","PROJECTION:ScheduleDefinitionReleaseV1","PROJECTION:OccurrenceHistoryEventV1","PROJECTION:OccurrenceGenerationPlanV1","PROJECTION:DueQueueProjectionV1","PROJECTION:ReminderProjectionV1","PROJECTION:StoreSemanticEnvelopeV27"]),
+            (c66,["PERSISTENT_MODEL:PlanDocumentRow","PERSISTENT_MODEL:PlanRevisionRow","PERSISTENT_MODEL:PlanPlacementRow","PERSISTENT_MODEL:RebaseReceiptRow","PROJECTION:PlanDocumentV1","PROJECTION:PlanRevisionV1","PROJECTION:SpatialReferenceFrameV1","PROJECTION:PlanPlacementV1","PROJECTION:RebasePreviewV1","PROJECTION:RebaseReceiptV1","PROJECTION:StoreSemanticEnvelopeV28"]),
         ]
         return groups.reduce(into: [:]) { result, group in
             for kindID in group.1 {

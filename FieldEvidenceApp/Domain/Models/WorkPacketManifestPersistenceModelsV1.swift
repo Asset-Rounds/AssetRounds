@@ -1,5 +1,7 @@
 import Foundation
 import SwiftData
+
+enum PlanWorkPacketBoundaryV1 { static let planRebaseDoesNotCreateWorkPackets = true; static let planRevisionHistoryIsImmutable = true }
 private func workPacketStoredRevision(_ v:UInt64)throws->Int64{guard v>0,v<=UInt64(Int64.max)else{throw WorkPacketFailureV1.invalidValue};return Int64(v)}
 private func workPacketDomainRevision(_ v:Int64)throws->UInt64{guard v>0 else{throw WorkPacketFailureV1.invalidValue};return UInt64(v)}
 @Model final class WorkPacketManifestRow{@Attribute(.unique)private(set)var manifestID:UUID;private(set)var packetID:UUID;private(set)var workspaceID:UUID;private(set)var revision:Int64;private(set)var mutationID:UUID;private(set)var canonicalSHA256:String;private(set)var canonicalData:Data;init(_ v:WorkPacketManifestV1)throws{try v.validate();let d=try WorkPacketCanonicalCodecV1.encode(v);manifestID=v.manifestID;packetID=v.packetID;workspaceID=v.workspaceID.rawValue;revision=try workPacketStoredRevision(v.revision);mutationID=v.mutationID.rawValue;canonicalSHA256=v.manifestSHA256;canonicalData=d}func value()throws->WorkPacketManifestV1{let v=try WorkPacketCanonicalCodecV1.decode(WorkPacketManifestV1.self,from:canonicalData);guard v.manifestID==manifestID,v.packetID==packetID,v.workspaceID.rawValue==workspaceID,v.revision==(try workPacketDomainRevision(revision)),v.mutationID.rawValue==mutationID,v.manifestSHA256==canonicalSHA256 else{throw WorkPacketFailureV1.digestMismatch};return v}}

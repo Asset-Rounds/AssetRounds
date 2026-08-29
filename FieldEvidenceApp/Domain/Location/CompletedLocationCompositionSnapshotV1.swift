@@ -49,3 +49,11 @@ struct CompletedLocationCompositionSnapshotV1: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey, CaseIterable { case schemaVersion, workspaceID, assetID, locationPath, placementTips, compositionEdges, frozenAtRevision, snapshotSHA256 }
     init(from decoder: Decoder) throws { try LocationClosedCodingV1.require(decoder, keys: CodingKeys.self, required: Set(CodingKeys.allCases.map(\.rawValue))); let c = try decoder.container(keyedBy: CodingKeys.self); let rebuilt = try Self(workspaceID: c.decode(WorkspaceID.self, forKey: .workspaceID), assetID: c.decode(UUID.self, forKey: .assetID), locationPath: c.decode(LocationPathSnapshotV1.self, forKey: .locationPath), placementTips: c.decode([AssetPlacementTipBindingV1].self, forKey: .placementTips), compositionEdges: c.decode([AssetCompositionEdgeV1].self, forKey: .compositionEdges), frozenAtRevision: c.decode(UInt64.self, forKey: .frozenAtRevision)); guard try c.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion, try c.decode(String.self, forKey: .snapshotSHA256) == rebuilt.snapshotSHA256 else { throw LocationContractFailureV1.digestMismatch }; self = rebuilt }
 }
+
+/// C29 typed integration anchor: this owner consumes an exact immutable plan
+/// revision reference and may not reinterpret current plan state implicitly.
+enum C29PlanIntegration_Domain_Location_CompletedLocationCompositionSnapshotV1 {
+    static func validatePlanRevision(_ value: PlanRevisionReferenceV1) throws {
+        try value.validate()
+    }
+}

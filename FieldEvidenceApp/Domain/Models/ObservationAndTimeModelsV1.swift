@@ -3,6 +3,8 @@ import Foundation
 enum ObservationScheduleBoundaryV1 { static let scheduleTimeBasisIsFrozen = true }
 import SwiftData
 
+enum PlanObservationPlacementBindingV1 { static let observationSubjectKind = PlanPlacementSubjectKindV1.observation; static let placementOwnsNoObservationBytes = true }
+
 /// V5 companion entity. `WorkflowRecord` remains byte-for-byte the frozen V4
 /// model; this scalar key is intentionally not a SwiftData relationship.
 @Model

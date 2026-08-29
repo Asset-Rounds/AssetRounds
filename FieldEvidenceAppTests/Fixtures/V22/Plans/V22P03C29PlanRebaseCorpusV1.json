@@ -1,0 +1,97 @@
+{
+  "schema": "V22P03C29PlanRebaseCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P03-C29",
+  "persistentSchemaVersion": 28,
+  "recordsSchemaVersion": 27,
+  "persistentKindLifecycleModelCount": 100,
+  "durableFamilyCount": 4,
+  "durableFamilies": [
+    "PlanDocumentV1",
+    "PlanRevisionV1",
+    "PlanPlacementV1",
+    "RebaseReceiptV1"
+  ],
+  "requiredContractNames": [
+    "PlanDocumentV1",
+    "PlanRevisionV1",
+    "SpatialReferenceFrameV1",
+    "PlanPlacementV1",
+    "PlanRebaseComponentV1",
+    "PlanRebaseComponentRegistryV1",
+    "PlanRebaseCoordinatorV1",
+    "RebasePreviewV1",
+    "RebaseReceiptV1"
+  ],
+  "rebaseOutcomes": [
+    "UNCHANGED",
+    "TRANSFORMED",
+    "OUT_OF_BOUNDS",
+    "ORPHANED",
+    "RESIDUAL_WARNING",
+    "REVIEW_REQUIRED",
+    "APPROVED",
+    "REJECTED"
+  ],
+  "evidenceSelectors": [
+    "testV23P03C29G01ImmutableRevisionAndNormalizedPlacementProduceOneDeterministicRebaseReceipt",
+    "testV23P03C29A01MissingUnsupportedOrInaccessiblePlanPreservesCompleteManualFallback",
+    "testV23P03C29H01CorruptHugeInvalidBoundsAndRegistryForksFailClosedWithoutPartialActivation",
+    "testV23P03C29I01InterruptedApprovalExposesOldSetOrOneSealedNewSet",
+    "testV23P03C29R01RestorePreservesOriginalRevisionHistoricReportAndOfflineReadiness"
+  ],
+  "coverage": {
+    "versionedOfflinePlanIdentity": true,
+    "normalizedCoordinatePlacement": true,
+    "referenceFrameBinding": true,
+    "contentAndLocatorPrerequisites": true,
+    "componentRegistryDeterminism": true,
+    "deterministicPreview": true,
+    "manualFallback": true,
+    "applyReceiptExactness": true,
+    "idempotentRecovery": true,
+    "backupRestoreCloneFork": true,
+    "deleteErase": true,
+    "searchReportLocalizationAccessibility": true
+  },
+  "hostileVectors": [
+    "negativeOrOverflowNormalizedCoordinate",
+    "invalidAffineTransform",
+    "duplicatePlacement",
+    "duplicateRegistryOrdinal",
+    "foreignWorkspacePlacement",
+    "forgedPreviewRegistryVersion",
+    "conflictingComponentContribution",
+    "staleMissingAmbiguousPrerequisite",
+    "receiptForkOrCycle",
+    "partialActivation"
+  ],
+  "interruptionBoundaries": [
+    "beforePreview",
+    "afterPreviewBeforeApproval",
+    "effectBeforeReceipt",
+    "receiptBeforeFinalState",
+    "restoreBeforeRebuild",
+    "replayBeforeCommit"
+  ],
+  "historicSemantics": {
+    "immutableOriginalRevision": true,
+    "historicReportBytesRemainStable": true,
+    "offlineReadinessUsesRecordedRelease": true,
+    "silentPinRecalculation": false,
+    "secondByteStore": false
+  },
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "release": false,
+    "releaseReadiness": false
+  }
+}

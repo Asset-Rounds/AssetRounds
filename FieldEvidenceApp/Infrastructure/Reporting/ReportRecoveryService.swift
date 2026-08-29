@@ -999,3 +999,33 @@ enum ScheduleReportRecoveryPolicyV1 {
         return projection
     }
 }
+
+// MARK: - C29 plan/rebase recovery boundary
+
+enum PlanReportRecoveryPolicyV1 {
+    static let recoverySource = "CANONICAL_PLAN_DOCUMENT_REVISION_PLACEMENT"
+    static let rebasePreviewIsRecomputed = true
+    static let historicProjectionIsNotRewritten = true
+    static let stalePreviewFailsClosed = true
+    static let componentConflictFailsClosed = true
+    static let searchRowsAreRebuilt = true
+    static let excludesSourceBytes = true
+    static let excludesPrivateLocator = true
+    static let excludesActorIdentity = true
+
+    static func validateRecovered(
+        _ projection: PlanReportProjectionV1
+    ) throws -> PlanReportProjectionV1 {
+        guard rebasePreviewIsRecomputed,
+              historicProjectionIsNotRewritten,
+              stalePreviewFailsClosed,
+              componentConflictFailsClosed,
+              searchRowsAreRebuilt,
+              excludesSourceBytes, excludesPrivateLocator,
+              excludesActorIdentity else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+        try PlanReportProjectionPolicyV1.validate(projection)
+        return projection
+    }
+}

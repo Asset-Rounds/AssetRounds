@@ -3004,3 +3004,207 @@ enum ScheduleOccurrenceSearchProjectionPolicyV1 {
         }
     }
 }
+
+// MARK: - C29 versioned plan placement search projection
+
+/// Search receives only bounded plan identity, normalized placement values,
+/// and closed recorded states. Subject identifiers, source bytes, private
+/// locator bindings, component inputs, and rebase payloads stay out of the
+/// disposable local index.
+enum PlanPlacementSearchFieldV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case workspaceID = "plan_workspace_id"
+    case planDocumentID = "plan_document_id"
+    case planRevisionID = "plan_revision_id"
+    case placementID = "plan_placement_id"
+    case subjectKind = "plan_subject_kind"
+    case documentState = "plan_document_state"
+    case revisionState = "plan_revision_state"
+    case disposition = "plan_placement_disposition"
+    case spatialFrameID = "plan_spatial_frame_id"
+    case xMillionths = "plan_x_millionths"
+    case yMillionths = "plan_y_millionths"
+    case placementRevision = "plan_placement_revision"
+    case projectionSHA256 = "plan_projection_sha256"
+}
+
+struct PlanPlacementSearchRecordV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let maximumSearchTokens = SearchContractLimitsV1.maximumQueryTokens
+
+    let schemaVersion: Int
+    let workspaceID: UUID
+    let planDocumentID: UUID
+    let planRevisionID: UUID
+    let placementID: UUID
+    let subjectKind: PlanPlacementSubjectKindV1
+    let documentState: PlanDocumentStateV1
+    let revisionState: PlanRevisionStateV1
+    let disposition: PlanPlacementDispositionV1
+    let spatialFrameID: UUID
+    let xMillionths: Int64
+    let yMillionths: Int64
+    let placementRevision: UInt64
+    let projectionSHA256: String
+    let normalizedTokens: [String]
+
+    init(
+        projection: PlanReportProjectionV1,
+        placement: PlanPlacementReportProjectionV1
+    ) throws {
+        try PlanReportProjectionPolicyV1.validate(projection)
+        try placement.validate()
+        guard projection.placements.contains(placement),
+              placement.planRevisionID == projection.revisionReference.planRevisionID else {
+            throw SearchContractFailureV1.scopeMismatch
+        }
+        schemaVersion = Self.schemaVersion
+        workspaceID = projection.workspaceID
+        planDocumentID = projection.documentReference.planDocumentID
+        planRevisionID = projection.revisionReference.planRevisionID
+        placementID = placement.placementID
+        subjectKind = placement.subjectKind
+        documentState = projection.documentState
+        revisionState = projection.revisionState
+        disposition = placement.disposition
+        spatialFrameID = placement.spatialFrameID
+        xMillionths = placement.xMillionths
+        yMillionths = placement.yMillionths
+        placementRevision = placement.revision
+        projectionSHA256 = projection.projectionSHA256
+        normalizedTokens = Self.tokens(
+            workspaceID: workspaceID,
+            planDocumentID: planDocumentID,
+            planRevisionID: planRevisionID,
+            placementID: placementID,
+            spatialFrameID: spatialFrameID,
+            subjectKind: subjectKind,
+            documentState: documentState,
+            revisionState: revisionState,
+            disposition: disposition,
+            xMillionths: xMillionths,
+            yMillionths: yMillionths
+        )
+        try validate()
+    }
+
+    var projectionIdentity: String {
+        "plan-placement:\(workspaceID.uuidString.lowercased()):\(placementID.uuidString.lowercased())"
+    }
+
+    var boundedFieldValues: [PlanPlacementSearchFieldV1: String] {
+        [
+            .workspaceID: workspaceID.uuidString.lowercased(),
+            .planDocumentID: planDocumentID.uuidString.lowercased(),
+            .planRevisionID: planRevisionID.uuidString.lowercased(),
+            .placementID: placementID.uuidString.lowercased(),
+            .subjectKind: subjectKind.rawValue,
+            .documentState: documentState.rawValue,
+            .revisionState: revisionState.rawValue,
+            .disposition: disposition.rawValue,
+            .spatialFrameID: spatialFrameID.uuidString.lowercased(),
+            .xMillionths: String(xMillionths),
+            .yMillionths: String(yMillionths),
+            .placementRevision: String(placementRevision),
+            .projectionSHA256: projectionSHA256,
+        ]
+    }
+
+    func validate() throws {
+        let zero = SearchContractValidationV1.zeroUUID
+        guard schemaVersion == Self.schemaVersion,
+              workspaceID != zero,
+              planDocumentID != zero,
+              planRevisionID != zero,
+              placementID != zero,
+              spatialFrameID != zero,
+              subjectKind == PlanPlacementSubjectKindV1(rawValue: subjectKind.rawValue),
+              documentState == PlanDocumentStateV1(rawValue: documentState.rawValue),
+              revisionState == PlanRevisionStateV1(rawValue: revisionState.rawValue),
+              disposition == PlanPlacementDispositionV1(rawValue: disposition.rawValue),
+              (0...PlanLimitsV1.normalizedScale).contains(xMillionths),
+              (0...PlanLimitsV1.normalizedScale).contains(yMillionths),
+              placementRevision > 0,
+              KernelCanonicalHashV1.validSHA256(projectionSHA256),
+              normalizedTokens.count <= Self.maximumSearchTokens,
+              normalizedTokens == normalizedTokens.sorted(),
+              SearchContractValidationV1.normalizedTokensAreCanonical(normalizedTokens),
+              boundedFieldValues.count == PlanPlacementSearchFieldV1.allCases.count,
+              boundedFieldValues.values.allSatisfy({ value in
+                  let parts = SearchContractValidationV1.normalizeSearchText(value)
+                      .split { !CharacterSet.alphanumerics.contains($0) }
+                      .map(String.init)
+                  return !parts.isEmpty
+                      && parts.allSatisfy(SearchContractValidationV1.isCanonicalSearchToken)
+              }) else {
+            throw SearchContractFailureV1.invalidField
+        }
+    }
+
+    private static func tokens(
+        workspaceID: UUID,
+        planDocumentID: UUID,
+        planRevisionID: UUID,
+        placementID: UUID,
+        spatialFrameID: UUID,
+        subjectKind: PlanPlacementSubjectKindV1,
+        documentState: PlanDocumentStateV1,
+        revisionState: PlanRevisionStateV1,
+        disposition: PlanPlacementDispositionV1,
+        xMillionths: Int64,
+        yMillionths: Int64
+    ) -> [String] {
+        let values = [
+            workspaceID.uuidString,
+            planDocumentID.uuidString,
+            planRevisionID.uuidString,
+            placementID.uuidString,
+            spatialFrameID.uuidString,
+            subjectKind.rawValue,
+            documentState.rawValue,
+            revisionState.rawValue,
+            disposition.rawValue,
+            String(xMillionths),
+            String(yMillionths),
+        ]
+        let tokens = values.flatMap { value in
+            SearchContractValidationV1.normalizeSearchText(value)
+                .split { !CharacterSet.alphanumerics.contains($0) }
+                .map(String.init)
+        }
+        return Array(Set(tokens)).sorted()
+    }
+}
+
+enum PlanPlacementSearchProjectionPolicyV1 {
+    static let sourceKind = "PLAN_PLACEMENT"
+    static let semanticLabel = "PLAN_PLACEMENT_METADATA_V1"
+    static let fieldIDs = PlanPlacementSearchFieldV1.allCases.map(\.rawValue).sorted()
+    static let metadataOnly = true
+    static let derivedOnly = true
+    static let normalizedCoordinatesOnly = true
+    static let dropAndRebuildAfterRestore = true
+    static let dropAndRebuildOnReplay = true
+    static let dropAndRebuildAfterDelete = true
+    static let excludesSubjectIdentity = true
+    static let excludesSourceBytes = true
+    static let excludesPrivateLocators = true
+    static let excludesActorIdentity = true
+    static let excludesComponentInputs = true
+    static let excludesUnsupportedClaims = true
+
+    static func accepts(_ field: PlanPlacementSearchFieldV1) -> Bool {
+        fieldIDs.contains(field.rawValue)
+    }
+
+    static func validate(_ record: PlanPlacementSearchRecordV1) throws {
+        try record.validate()
+        guard metadataOnly, derivedOnly, normalizedCoordinatesOnly,
+              dropAndRebuildAfterRestore, dropAndRebuildOnReplay,
+              dropAndRebuildAfterDelete, excludesSubjectIdentity,
+              excludesSourceBytes, excludesPrivateLocators,
+              excludesActorIdentity, excludesComponentInputs,
+              excludesUnsupportedClaims else {
+            throw SearchContractFailureV1.forbiddenField
+        }
+    }
+}

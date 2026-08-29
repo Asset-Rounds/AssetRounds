@@ -7,6 +7,13 @@ import XCTest
 
 @MainActor
 final class V9_12SystemHealthOperationalDiagnosticsTests: XCTestCase {
+    func testV23P03C29TypedPlanContractAnchor() throws {
+        let minimum = try NormalizedPlanCoordinateV1(millionths: 0)
+        let maximum = try NormalizedPlanCoordinateV1(millionths: PlanLimitsV1.normalizedScale)
+        XCTAssertEqual(minimum.millionths, 0)
+        XCTAssertEqual(maximum.millionths, PlanLimitsV1.normalizedScale)
+        XCTAssertEqual(PlanDocumentV1.schemaVersion, 1)
+    }
     func testV9_12G01BoundedSystemHealthAndSingleMetricSource() throws {
         let corpus = try Self.loadCorpus()
         XCTAssertEqual(corpus.schemaVersion, 1)

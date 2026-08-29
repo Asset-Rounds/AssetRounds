@@ -424,3 +424,11 @@ extension ContentDerivativeProvenanceV1 {
         try self.init(provenanceID: c.decode(String.self, forKey: .provenanceID), workspaceID: c.decode(String.self, forKey: .workspaceID), sources: c.decode([ContentSourceBindingV1].self, forKey: .sources), derivativeContentID: c.decode(String.self, forKey: .derivativeContentID), derivativeDigest: c.decode(ContentDigestV1.self, forKey: .derivativeDigest), transform: c.decode(ContentDerivativeTransformV1.self, forKey: .transform), metadataSanitizerID: c.decode(String.self, forKey: .metadataSanitizerID), metadataSanitizerVersion: c.decode(String.self, forKey: .metadataSanitizerVersion), createdAt: c.decode(String.self, forKey: .createdAt))
     }
 }
+
+/// C29 typed integration anchor: this owner consumes an exact immutable plan
+/// revision reference and may not reinterpret current plan state implicitly.
+enum C29PlanIntegration_Domain_Content_ContentProvenanceContractsV1 {
+    static func validatePlanRevision(_ value: PlanRevisionReferenceV1) throws {
+        try value.validate()
+    }
+}

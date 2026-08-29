@@ -2365,3 +2365,11 @@ extension CheckRunnerCoordinator {
         }
     }
 }
+
+/// C29 typed integration anchor: this owner consumes an exact immutable plan
+/// revision reference and may not reinterpret current plan state implicitly.
+enum C29PlanIntegration_Features_CheckRunner_CheckRunnerCoordinator {
+    static func validatePlanRevision(_ value: PlanRevisionReferenceV1) throws {
+        try value.validate()
+    }
+}

@@ -73,6 +73,49 @@ enum ScheduleRestoreIdentityPolicyV1 {
     }
 }
 
+enum PlanRestoreIdentityDispositionV1: String, Codable, Equatable, Sendable {
+    case preserveSameWorkspaceBytes = "PRESERVE_SAME_WORKSPACE_BYTES"
+    case historicRebindForCloneOrFork = "HISTORIC_REBIND_FOR_CLONE_OR_FORK"
+
+    static func resolve(_ mode: BackupRestoreMode) -> Self {
+        switch mode {
+        case .emptyInstall, .replaceExisting: return .preserveSameWorkspaceBytes
+        case .clone, .fork: return .historicRebindForCloneOrFork
+        }
+    }
+}
+
+/// Plan documents, revisions, normalized frames, placements, and approved
+/// rebase receipts are immutable history.  A clone/fork gets explicit
+/// destination bindings; a source release is never silently made active.
+enum PlanRestoreIdentityPolicyV1 {
+    static let persistentSchemaVersion = 28
+    static let recordsSchemaVersion = 27
+    static let durableFamilyCount = 4
+    static let derivedPreviewRebuilt = true
+    static let sourcePlanAutomaticallyActive = false
+
+    static func validate() throws {
+        guard persistentSchemaVersion == PlanPersistenceEnrollmentV1.persistentSchemaVersion,
+              recordsSchemaVersion == PlanPersistenceEnrollmentV1.recordsSchemaVersion,
+              durableFamilyCount == PlanPersistenceEnrollmentV1.durableModelCount,
+              derivedPreviewRebuilt,
+              !sourcePlanAutomaticallyActive else {
+            throw RestoreIdentityDecisionErrorV1.invalidMode
+        }
+    }
+
+    static func preservesImmutableBytes(for mode: BackupRestoreMode) -> Bool {
+        PlanRestoreIdentityDispositionV1.resolve(mode) == .preserveSameWorkspaceBytes
+    }
+
+    static func validate(records: [V28BackupPlanRecordV1]) throws {
+        try validate()
+        do { _ = try PlanBackupRecordSetV1.decode(records) }
+        catch { throw RestoreIdentityDecisionErrorV1.invalidMode }
+    }
+}
+
 extension RestoreIdentityV1 {
     func destinationPackageEvolutionWorkspaceID() -> WorkspaceID {
         WorkspaceID(rawValue: targetPointer.workspaceID)
@@ -88,11 +131,18 @@ extension RestoreIdentityV1 {
     func destinationClientCapabilityWorkspaceID() -> WorkspaceID { WorkspaceID(rawValue: targetPointer.workspaceID) }
     func destinationRecoverabilityWorkspaceID() -> WorkspaceID { WorkspaceID(rawValue: targetPointer.workspaceID) }
     func destinationFieldReferenceWorkspaceID()->WorkspaceID{WorkspaceID(rawValue:targetPointer.workspaceID)}
+    func destinationPlanWorkspaceID() -> WorkspaceID { WorkspaceID(rawValue: targetPointer.workspaceID) }
     func assetLocatorDisposition() -> AssetLocatorRestoreIdentityDispositionV1 {
         AssetLocatorRestoreIdentityDispositionV1.resolve(mode)
     }
     func preservesAssetLocatorPublicSignedPayload() -> Bool {
         assetLocatorDisposition() == .preservePublicSignedPayload
+    }
+    func planDisposition() -> PlanRestoreIdentityDispositionV1 {
+        PlanRestoreIdentityDispositionV1.resolve(mode)
+    }
+    func preservesPlanImmutableBytes() -> Bool {
+        PlanRestoreIdentityPolicyV1.preservesImmutableBytes(for: mode)
     }
     static let packageEvolutionIdentityRule = "PRESERVE_RELEASE_RUN_RECEIPT_POINTER_IDS_REBIND_WORKSPACE_AND_DIGESTS"
 }

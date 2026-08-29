@@ -78,6 +78,39 @@ struct WorkPacketDiagnosticSummaryV1: Codable, Equatable, Sendable {
     }
 }
 
+/// C29 aggregate-only plan health.  Diagnostics expose bounded counts and
+/// lifecycle-state totals, never plan IDs, canonical bytes, content/locator
+/// references, actor snapshots, component registries, or rebase digests.
+struct PlanDiagnosticMetadataV1: Codable, Equatable, Sendable {
+    let documentCount: Int
+    let revisionCount: Int
+    let placementCount: Int
+    let rebaseReceiptCount: Int
+    let activeDocumentCount: Int
+    let retiredDocumentCount: Int
+    let draftRevisionCount: Int
+    let releasedRevisionCount: Int
+    let withdrawnRevisionCount: Int
+    let metadataOnly: Bool
+    let derivedPreviewRebuilt: Bool
+    let componentRegistryExcluded: Bool
+
+    var isValid: Bool {
+        let values = [
+            documentCount, revisionCount, placementCount, rebaseReceiptCount,
+            activeDocumentCount, retiredDocumentCount, draftRevisionCount,
+            releasedRevisionCount, withdrawnRevisionCount,
+        ]
+        return values.allSatisfy { $0 >= 0 }
+            && activeDocumentCount + retiredDocumentCount == documentCount
+            && draftRevisionCount + releasedRevisionCount + withdrawnRevisionCount
+                == revisionCount
+            && metadataOnly
+            && derivedPreviewRebuilt
+            && componentRegistryExcluded
+    }
+}
+
 struct DiagnosticExportV1: Codable, Equatable, Sendable {
     let app: DiagnosticAppContextV1
     let counters: DiagnosticsV1
@@ -120,6 +153,9 @@ struct DiagnosticExportV1: Codable, Equatable, Sendable {
     /// occurrence identities, actor snapshots, and due/reminder identifiers
     /// are never diagnostic material.
     var schedule: ScheduleDiagnosticMetadataV1? = nil
+    /// Optional C29 aggregate-only plan health. Immutable plan bytes and
+    /// component-registry/rebase payloads are excluded from diagnostics.
+    var plan: PlanDiagnosticMetadataV1? = nil
 
     /// Integration event payloads, subjects, cursors, and checkpoint bytes are
     /// never diagnostic material. Diagnostics may describe only the static
@@ -150,6 +186,7 @@ struct DiagnosticExportV1: Codable, Equatable, Sendable {
             && (fieldReference?.isValid ?? true)
             && (accessibleDocument?.isValid ?? true)
             && (schedule?.isValid ?? true)
+            && (plan?.isValid ?? true)
             && integrationProjectionPayloadExcluded
     }
 
@@ -226,6 +263,7 @@ struct DiagnosticExportService {
     typealias FieldReferenceProvider = () -> FieldReferenceDiagnosticMetadataV1?
     typealias AccessibleDocumentProvider = () -> AccessibleDocumentDiagnosticMetadataV1?
     typealias ScheduleProvider = () -> ScheduleDiagnosticMetadataV1?
+    typealias PlanProvider = () -> PlanDiagnosticMetadataV1?
     typealias ContextProvider<Value> = () -> Value
     typealias Clock = () -> Date
 
@@ -238,6 +276,7 @@ struct DiagnosticExportService {
     private let fieldReferenceProvider: FieldReferenceProvider
     private let accessibleDocumentProvider: AccessibleDocumentProvider
     private let scheduleProvider: ScheduleProvider
+    private let planProvider: PlanProvider
     private let appProvider: ContextProvider<DiagnosticAppContextV1>
     private let deviceProvider: ContextProvider<DiagnosticDeviceContextV1>
     private let clock: Clock
@@ -254,7 +293,8 @@ struct DiagnosticExportService {
         recoverabilityVerification: @escaping RecoverabilityVerificationProvider = { nil },
         fieldReference: @escaping FieldReferenceProvider = { nil },
         accessibleDocument: @escaping AccessibleDocumentProvider = { nil },
-        schedule: @escaping ScheduleProvider = { nil }
+        schedule: @escaping ScheduleProvider = { nil },
+        plan: @escaping PlanProvider = { nil }
     ) {
         countersProvider = counters
         metricKitProvider = metricKit
@@ -265,6 +305,7 @@ struct DiagnosticExportService {
         fieldReferenceProvider = fieldReference
         accessibleDocumentProvider = accessibleDocument
         scheduleProvider = schedule
+        planProvider = plan
         appProvider = app
         deviceProvider = device
         self.clock = clock
@@ -281,6 +322,7 @@ struct DiagnosticExportService {
         fieldReference: @escaping FieldReferenceProvider = { nil },
         accessibleDocument: @escaping AccessibleDocumentProvider = { nil },
         schedule: @escaping ScheduleProvider = { nil },
+        plan: @escaping PlanProvider = { nil },
         bundle: Bundle = .main,
         device: UIDevice = .current,
         clock: @escaping Clock = Date.init
@@ -309,7 +351,8 @@ struct DiagnosticExportService {
             recoverabilityVerification: recoverabilityVerification,
             fieldReference: fieldReference,
             accessibleDocument: accessibleDocument,
-            schedule: schedule
+            schedule: schedule,
+            plan: plan
         )
     }
 
@@ -327,7 +370,8 @@ struct DiagnosticExportService {
             recoverabilityVerification: recoverabilityVerificationProvider(),
             fieldReference: fieldReferenceProvider(),
             accessibleDocument: accessibleDocumentProvider(),
-            schedule: scheduleProvider()
+            schedule: scheduleProvider(),
+            plan: planProvider()
         )
         guard value.isValid else {
             throw DiagnosticExportError.invalidValue
@@ -385,6 +429,9 @@ enum DiagnosticExportCanonicalEncoderV1 {
         }
         if let schedule = value.schedule {
             object["schedule"] = scheduleValue(schedule)
+        }
+        if let plan = value.plan {
+            object["plan"] = planValue(plan)
         }
         let data = try CanonicalJSONV1.encode(.object(object))
         try IntegrationProjectionDiagnosticExclusionV1.validate(data)
@@ -590,6 +637,25 @@ enum DiagnosticExportCanonicalEncoderV1 {
             "excludesOccurrenceIdentity": .bool(value.excludesOccurrenceIdentity),
             "excludesActorIdentity": .bool(value.excludesActorIdentity),
             "excludesNotificationState": .bool(value.excludesNotificationState),
+        ])
+    }
+
+    private static func planValue(
+        _ value: PlanDiagnosticMetadataV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "documentCount": .integer(value.documentCount),
+            "revisionCount": .integer(value.revisionCount),
+            "placementCount": .integer(value.placementCount),
+            "rebaseReceiptCount": .integer(value.rebaseReceiptCount),
+            "activeDocumentCount": .integer(value.activeDocumentCount),
+            "retiredDocumentCount": .integer(value.retiredDocumentCount),
+            "draftRevisionCount": .integer(value.draftRevisionCount),
+            "releasedRevisionCount": .integer(value.releasedRevisionCount),
+            "withdrawnRevisionCount": .integer(value.withdrawnRevisionCount),
+            "metadataOnly": .bool(value.metadataOnly),
+            "derivedPreviewRebuilt": .bool(value.derivedPreviewRebuilt),
+            "componentRegistryExcluded": .bool(value.componentRegistryExcluded),
         ])
     }
 

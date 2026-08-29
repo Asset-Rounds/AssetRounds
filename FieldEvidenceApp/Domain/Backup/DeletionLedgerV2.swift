@@ -23,6 +23,7 @@ struct DeletionLedgerProofV2: Codable, Equatable, Sendable {
         try RecoverabilityVerificationDeletionLedgerPolicyV1.validate()
         try FieldReferenceDeletionLedgerPolicyV1.validate()
         try AccessibleDocumentDeletionLedgerPolicyV1.validate()
+        try PlanDeletionLedgerPolicyV1.validate()
         let allowed = CharacterSet(charactersIn: "0123456789abcdef")
         guard entryCount >= 0,
               canonicalSHA256.utf8.count == 64,
@@ -57,6 +58,33 @@ enum ScheduleDeletionLedgerPolicyV1 {
     }
 }
 enum AccessibleDocumentDeletionLedgerPolicyV1{static let ordinaryDeletionPreservesAcceptedReceiptAndOutput=true;static let removalRequiresPrivacyExpiryTombstoneAndRedactionProof=true;static let workspaceEraseRemovesReceiptAndOwnedOutput=true;static func validate()throws{guard AccessibleDocumentLifecycleV1.persistentFamilies==["AccessibleDocumentAssessmentReceiptV1"],AccessibleDocumentLifecycleV1.semanticTreePersistence=="DERIVED_ONLY",ordinaryDeletionPreservesAcceptedReceiptAndOutput,removalRequiresPrivacyExpiryTombstoneAndRedactionProof,workspaceEraseRemovesReceiptAndOwnedOutput else{throw DeletionLedgerFailureV2.invalidSchemaVersion}}}
+
+/// Plans have no independent filesystem payload. Ordinary deletion keeps
+/// immutable document/revision/frame/placement history and rebase receipts;
+/// workspace Erase is the only operation that removes those canonical rows.
+enum PlanDeletionLedgerPolicyV1 {
+    static let durableKinds = [
+        "PlanDocumentV1", "PlanRevisionV1", "SpatialReferenceFrameV1",
+        "PlanPlacementV1", "RebaseReceiptV1"
+    ]
+    static let ordinaryDeletionPreservesImmutableHistory = true
+    static let workspaceEraseRemovesAllCanonicalRows = true
+    static let previewsAndRegistriesAreDerived = true
+    static let missingFilesystemBytesCannotDeletePlanHistory = true
+
+    static func validate() throws {
+        guard durableKinds.count == 5,
+              Set(durableKinds).count == durableKinds.count,
+              PlanPersistenceEnrollmentV1.durableModelCount == 4,
+              V28BackupPlanRecordV1.Kind.allCases.count == durableKinds.count,
+              ordinaryDeletionPreservesImmutableHistory,
+              workspaceEraseRemovesAllCanonicalRows,
+              previewsAndRegistriesAreDerived,
+              missingFilesystemBytesCannotDeletePlanHistory else {
+            throw DeletionLedgerFailureV2.invalidSchemaVersion
+        }
+    }
+}
 
 /// The closed set of persisted content kinds. System rows such as the schema
 /// marker and deletion-ledger rows are deliberately outside this registry.
@@ -335,6 +363,7 @@ struct DeletionLedgerV2: Codable, Equatable, Sendable {
     func validate() throws {
         try AuthorityCriterionDeletionLedgerPolicyV1.validate()
         try AssetLocatorDeletionLedgerPolicyV1.validate()
+        try PlanDeletionLedgerPolicyV1.validate()
         guard schemaVersion == 2 else {
             throw DeletionLedgerFailureV2.invalidSchemaVersion
         }

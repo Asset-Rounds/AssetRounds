@@ -1,6 +1,8 @@
 import Foundation
 import SwiftData
 
+enum PlanAssetLocatorPersistenceBindingV1 { static let planPlacementRequiresExactBindingReceipt = true; static let locatorResolutionIsDerived = true }
+
 enum AssetLocatorPersistenceFailureV1: Error { case corruptRow }
 
 private func assetLocatorDecoded<T:Codable & Equatable>(_ type:T.Type,data:Data,expected:T?=nil)throws->T{let value=try AssetLocatorCanonicalCodecV1.decode(type,from:data);if let expected,value != expected{throw AssetLocatorPersistenceFailureV1.corruptRow};return value}

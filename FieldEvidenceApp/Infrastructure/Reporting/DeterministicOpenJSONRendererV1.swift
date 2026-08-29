@@ -2357,6 +2357,193 @@ extension DeterministicOpenJSONRendererV1 {
     }
 }
 
+// MARK: - C29 plan and rebase open JSON
+
+struct PlanReportOpenJSONLabelsV1: Codable, Equatable, Sendable {
+    let heading: String
+    let document: String
+    let revision: String
+    let documentState: String
+    let revisionState: String
+    let placement: String
+    let placementDisposition: String
+    let coordinate: String
+    let reference: String
+    let rebasePreview: String
+    let rebaseReceipt: String
+    let rebaseDecision: String
+    let rebaseWarning: String
+    let component: String
+    let residual: String
+    let expectedRevision: String
+    let historyImmutable: String
+    let previewNotApplied: String
+    let claimBoundary: String
+    let nextStep: String
+    let documentStates: [String: String]
+    let revisionStates: [String: String]
+    let placementDispositions: [String: String]
+    let decisions: [String: String]
+    let warnings: [String: String]
+
+    init(projection: PlanReportProjectionV1) {
+        heading = BundledLocalizationCatalogV1.localized(.planHeading)
+        document = BundledLocalizationCatalogV1.localized(.planDocument)
+        revision = BundledLocalizationCatalogV1.localized(.planRevision)
+        documentState = BundledLocalizationCatalogV1.localized(.planRevisionState)
+        revisionState = BundledLocalizationCatalogV1.localized(.planRevisionState)
+        placement = BundledLocalizationCatalogV1.localized(.planPlacement)
+        placementDisposition = BundledLocalizationCatalogV1.localized(.planPlacementDisposition)
+        coordinate = BundledLocalizationCatalogV1.localized(.planCoordinate)
+        reference = BundledLocalizationCatalogV1.localized(.planReference)
+        rebasePreview = BundledLocalizationCatalogV1.localized(.planRebasePreview)
+        rebaseReceipt = BundledLocalizationCatalogV1.localized(.planRebaseReceipt)
+        rebaseDecision = BundledLocalizationCatalogV1.localized(.planRebaseDecision)
+        rebaseWarning = BundledLocalizationCatalogV1.localized(.planRebaseWarning)
+        component = BundledLocalizationCatalogV1.localized(.planRebaseComponent)
+        residual = BundledLocalizationCatalogV1.localized(.planResidual)
+        expectedRevision = BundledLocalizationCatalogV1.localized(.planExpectedRevision)
+        historyImmutable = BundledLocalizationCatalogV1.localized(.planHistoryImmutable)
+        previewNotApplied = BundledLocalizationCatalogV1.localized(.planPreviewNotApplied)
+        claimBoundary = BundledLocalizationCatalogV1.localized(.planClaimBoundary)
+        nextStep = BundledLocalizationCatalogV1.localized(.planNextStep)
+        documentStates = Dictionary(uniqueKeysWithValues: PlanDocumentStateV1.allCases.map {
+            ($0.rawValue, BundledLocalizationCatalogV1.planDocumentStateDisplayLabel($0))
+        })
+        revisionStates = Dictionary(uniqueKeysWithValues: PlanRevisionStateV1.allCases.map {
+            ($0.rawValue, BundledLocalizationCatalogV1.planRevisionStateDisplayLabel($0))
+        })
+        placementDispositions = Dictionary(uniqueKeysWithValues: PlanPlacementDispositionV1.allCases.map {
+            ($0.rawValue, BundledLocalizationCatalogV1.planPlacementDispositionDisplayLabel($0))
+        })
+        decisions = Dictionary(uniqueKeysWithValues: PlanRebaseDecisionV1.allCases.map {
+            ($0.rawValue, BundledLocalizationCatalogV1.planRebaseDecisionDisplayLabel($0))
+        })
+        warnings = Dictionary(uniqueKeysWithValues: PlanRebaseWarningCodeV1.allCases.map {
+            ($0.rawValue, BundledLocalizationCatalogV1.planRebaseWarningDisplayLabel($0))
+        })
+    }
+
+    func validate(projection: PlanReportProjectionV1) throws {
+        let expected = PlanReportOpenJSONLabelsV1(projection: projection)
+        let values = [
+            heading, document, revision, documentState, revisionState, placement,
+            placementDisposition, coordinate, reference, rebasePreview,
+            rebaseReceipt, rebaseDecision, rebaseWarning, component, residual,
+            expectedRevision, historyImmutable, previewNotApplied, claimBoundary,
+            nextStep,
+        ] + Array(documentStates.values) + Array(revisionStates.values)
+            + Array(placementDispositions.values) + Array(decisions.values)
+            + Array(warnings.values)
+        guard self == expected,
+              values.allSatisfy({ !$0.isEmpty }),
+              Set(documentStates.keys) == Set(PlanDocumentStateV1.allCases.map(\.rawValue)),
+              Set(revisionStates.keys) == Set(PlanRevisionStateV1.allCases.map(\.rawValue)),
+              Set(placementDispositions.keys) == Set(PlanPlacementDispositionV1.allCases.map(\.rawValue)),
+              Set(decisions.keys) == Set(PlanRebaseDecisionV1.allCases.map(\.rawValue)),
+              Set(warnings.keys) == Set(PlanRebaseWarningCodeV1.allCases.map(\.rawValue)),
+              !PlanLocalizationPolicyV1.containsProhibitedClaim(values) else {
+            throw SnapshotProjectionFailureV1.hostileText
+        }
+    }
+}
+
+struct PlanReportOpenJSONEnvelopeV1: Codable, Equatable, Sendable {
+    static let schema = "PLAN_REPORT_OPEN_JSON_V1"
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let schema: String
+    let locale: String
+    let projection: PlanReportProjectionV1
+    let labels: PlanReportOpenJSONLabelsV1
+
+    init(
+        projection: PlanReportProjectionV1,
+        locale: String = "en"
+    ) throws {
+        try projection.validate()
+        guard locale == "en" else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        schemaVersion = Self.schemaVersion
+        schema = Self.schema
+        self.locale = locale
+        self.projection = projection
+        labels = PlanReportOpenJSONLabelsV1(projection: projection)
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              schema == Self.schema,
+              locale == "en" else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try PlanReportProjectionPolicyV1.validate(
+            projection,
+            format: .openJSON
+        )
+        try labels.validate(projection: projection)
+    }
+}
+
+extension DeterministicOpenJSONRendererV1 {
+    static func renderPlan(
+        _ projection: PlanReportProjectionV1,
+        locale: String = "en"
+    ) throws -> ReportProjectionOutputV1 {
+        try ReportProjectionRegistryV1.validatePlanProjection(projection)
+        let envelope = try PlanReportOpenJSONEnvelopeV1(
+            projection: projection,
+            locale: locale
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let data = try encoder.encode(envelope)
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes,
+              try reopenPlan(data) == projection else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return ReportProjectionOutputV1(
+            format: .openJSON,
+            data: data,
+            sha256: KernelCanonicalHashV1.sha256(data),
+            semanticSHA256: projection.projectionSHA256,
+            orderedSemanticIDs: PlanAccessibilityIDV1.allCases.map(\.rawValue),
+            taggedPDFAccessibilityEvidence: false
+        )
+    }
+
+    static func reopenPlan(
+        _ data: Data
+    ) throws -> PlanReportProjectionV1 {
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        let envelope = try JSONDecoder().decode(
+            PlanReportOpenJSONEnvelopeV1.self,
+            from: data
+        )
+        try envelope.validate()
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        guard try encoder.encode(envelope) == data else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return envelope.projection
+    }
+
+    static func renderPlanOpenJSON(
+        _ projection: PlanReportProjectionV1,
+        locale: String = "en"
+    ) throws -> ReportProjectionOutputV1 {
+        try renderPlan(projection, locale: locale)
+    }
+}
+
 // MARK: - C28 schedule and occurrence open JSON
 
 /// Labels are carried beside the machine-readable schedule projection so a

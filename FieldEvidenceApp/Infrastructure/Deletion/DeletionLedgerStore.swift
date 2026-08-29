@@ -17,6 +17,26 @@ enum ScheduleDeletionLedgerStorePolicyV1 {
         }
     }
 }
+enum PlanDeletionLedgerStorePolicyV1 {
+    static let durableRowNames: Set<String> = [
+        "PlanDocumentRow", "PlanRevisionRow", "PlanPlacementRow", "RebaseReceiptRow"
+    ]
+    static let embeddedTransportFamily = "SpatialReferenceFrameV1"
+    static let ordinaryDeletionPreservesHistory = true
+    static let workspaceEraseRemovesRows = true
+    static let previewsAndRegistriesAreDerived = true
+
+    static func validate() throws {
+        guard durableRowNames.count == PlanPersistenceEnrollmentV1.durableModelCount,
+              embeddedTransportFamily == "SpatialReferenceFrameV1",
+              ordinaryDeletionPreservesHistory,
+              workspaceEraseRemovesRows,
+              previewsAndRegistriesAreDerived else {
+            throw DeletionLedgerFailureV2.invalidIdentity
+        }
+        try PlanDeletionLedgerPolicyV1.validate()
+    }
+}
 enum AssetLocatorDeletionLedgerStorePolicyV1 {
     static let durableRowNames: Set<String> = [
         "AssetLocatorRow", "LocatorBindingReceiptRow"
@@ -48,6 +68,7 @@ final class DeletionLedgerStore {
         try AccessibleDocumentDeletionLedgerStorePolicyV1.validate()
         try SurveyDefinitionDeletionLedgerStorePolicyV1.validate()
         try ScheduleDeletionLedgerStorePolicyV1.validate()
+        try PlanDeletionLedgerStorePolicyV1.validate()
         try SurveySessionDeletionLedgerPolicyV1.validate()
         var descriptor = FetchDescriptor<DeletionLedgerRow>()
         descriptor.fetchLimit = DeletionLedgerV2.maximumEntryCount + 1

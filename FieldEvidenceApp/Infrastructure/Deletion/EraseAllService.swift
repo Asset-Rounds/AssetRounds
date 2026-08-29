@@ -146,6 +146,28 @@ enum ScheduleEraseAllPolicyV1 {
     }
 }
 
+enum PlanEraseAllPolicyV1 {
+    static let persistentSchemaVersion = 28
+    static let recordsSchemaVersion = 27
+    static let durableModelCount = 4
+    static let durableFamilyCount = 4
+    static let previewsAndRegistriesAreDerived = true
+
+    static func validatePublishedEmptyGeneration(_ context: ModelContext) throws {
+        guard persistentSchemaVersion == PlanPersistenceEnrollmentV1.persistentSchemaVersion,
+              recordsSchemaVersion == PlanPersistenceEnrollmentV1.recordsSchemaVersion,
+              durableModelCount == PlanPersistenceEnrollmentV1.durableModelCount,
+              durableFamilyCount == PlanPersistenceEnrollmentV1.durableModelCount,
+              previewsAndRegistriesAreDerived,
+              try context.fetchCount(FetchDescriptor<PlanDocumentRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<PlanRevisionRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<PlanPlacementRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<RebaseReceiptRow>()) == 0 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+}
+
 enum EraseAllServiceError: Error, Equatable {
     case contextHasChanges
     case invalidAuthority
@@ -1324,6 +1346,7 @@ private extension EraseAllService {
         try SurveySessionEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try AssetLocatorEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try ScheduleEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
+        try PlanEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         if let identity {
             let history = try MutationJournalStoreV1(
                 modelContext: session.modelContext,

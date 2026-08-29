@@ -111,6 +111,34 @@ enum FinalizationFieldReferenceProjectionPolicyV1 {
     }
 }
 
+// MARK: - C29 plan/rebase finalization boundary
+
+/// Finalization carries an already-frozen plan projection as report metadata.
+/// It never applies a preview, resolves a newer revision, or admits source
+/// bytes/private locator bindings into the finalized snapshot.
+enum FinalizationPlanProjectionPolicyV1 {
+    static let historicDisplayIsFrozen = true
+    static let previewIsNotApplied = true
+    static let currentRevisionResolutionIsForbidden = true
+    static let excludesSourceBytes = true
+    static let excludesPrivateLocators = true
+    static let excludesActorIdentity = true
+
+    static func validate(_ snapshot: ReportSnapshotV1) throws {
+        guard historicDisplayIsFrozen, previewIsNotApplied,
+              currentRevisionResolutionIsForbidden, excludesSourceBytes,
+              excludesPrivateLocators, excludesActorIdentity else {
+            throw FinalizationIntentStoreError.intentInvalid
+        }
+        guard let projection = snapshot.planProjection else { return }
+        do {
+            try PlanReportProjectionPolicyV1.validate(projection, format: .openJSON)
+        } catch {
+            throw FinalizationIntentStoreError.bytesMismatch
+        }
+    }
+}
+
 /// Test-only synchronization at a verified authority boundary. Production
 /// callers leave this nil; it neither changes storage names nor product state.
 final class FinalizationIntentStoreAuthorityBarrier: @unchecked Sendable {
@@ -704,6 +732,7 @@ actor FinalizationIntentStore {
         }
         do {
             let snapshot = try ReportSnapshotEncoderV1().decode(data)
+            try FinalizationPlanProjectionPolicyV1.validate(snapshot)
             let payload = intent.finalizationPayload
             let expectedEvidenceSource = payload.workflowRecordAfter.evidenceSourceRecordID
                 ?? payload.workflowRecordAfter.id

@@ -283,6 +283,7 @@ enum KernelBackupRestoreRegistryV4 {
     static let clientCapabilityArchiveKinds=V20BackupClientCapabilityRecordV1.Kind.allCases
     static let fieldReferenceArchiveKinds=V22BackupFieldReferenceRecordV1.Kind.allCases
     static let assetLocatorArchiveKinds = V26BackupAssetLocatorRecordV1.Kind.allCases
+    static let planArchiveKinds = V28BackupPlanRecordV1.Kind.allCases
     static let accessibleDocumentPersistentFamilies=AccessibleDocumentLifecycleV1.persistentFamilies
     static let accessibleDocumentSemanticTreePersistence=AccessibleDocumentLifecycleV1.semanticTreePersistence
     static let recoverabilityVerificationArchiveKindCount=1
@@ -361,6 +362,32 @@ enum KernelBackupRestoreRegistryV4 {
             throw KernelPersistenceV4Failure.incompleteCoverage
         }
     }
+    static func validatePlanLifecycle() throws {
+        guard planArchiveKinds.count == PlanStreamingArchivePolicyV1.archiveFamilyCount,
+              Set(planArchiveKinds.map(\.rawValue)).count == planArchiveKinds.count,
+              PlanPersistenceEnrollmentV1.persistentSchemaVersion == 28,
+              PlanPersistenceEnrollmentV1.recordsSchemaVersion == 27,
+              PlanPersistenceEnrollmentV1.durableModelCount == 4,
+              PlanStreamingArchivePolicyV1.recordsSchemaVersion == 27,
+              PlanStreamingArchivePolicyV1.persistentSchemaVersion == 28,
+              PlanStreamingArchivePolicyV1.lifecycleHistoryStorage == "MUTATION_HISTORY_ONLY",
+              PlanStreamingArchivePolicyV1.derivedProjectionStorage == "NONPERSISTENT_REBUILD",
+              !PlanStreamingArchivePolicyV1.cloneForkSourcePlanAutomaticallyActive,
+              !PlanStreamingArchivePolicyV1.componentRegistryIsArchiveTruth,
+              PlanRestoreIdentityPolicyV1.persistentSchemaVersion == 28,
+              PlanRestoreIdentityPolicyV1.recordsSchemaVersion == 27,
+              PlanRestoreIdentityPolicyV1.durableFamilyCount == 4,
+              !PlanRestoreIdentityPolicyV1.sourcePlanAutomaticallyActive,
+              !PlanRestoreIdentityPolicyV1.derivedPreviewRestored,
+              PlanReplacementRestorePolicyV1.persistentSchemaVersion == 28,
+              PlanReplacementRestorePolicyV1.recordsSchemaVersion == 27,
+              PlanReplacementRestorePolicyV1.durableFamilyCount == 4,
+              !PlanReplacementRestorePolicyV1.derivedPreviewRestored,
+              !PlanReplacementRestorePolicyV1.sourcePlanAutomaticallyActiveOnCloneOrFork else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+        try PlanDeletionLedgerPolicyV1.validate()
+    }
     typealias Route = (
         archive: KernelArchiveDispositionV4,
         restore: KernelRestoreDispositionV4,
@@ -404,6 +431,7 @@ enum KernelBackupRestoreRegistryV4 {
         try validateFieldReferenceLifecycle()
         try validateAssetLocatorLifecycle()
         try validateScheduleLifecycle()
+        try validatePlanLifecycle()
         try validatePrivacyTransformLifecycle()
         try validateMeasurementIntegrityLifecycle()
         try validatePackageEvolutionLifecycle()

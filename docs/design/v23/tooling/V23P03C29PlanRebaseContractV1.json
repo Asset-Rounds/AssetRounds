@@ -1,0 +1,145 @@
+{
+  "artifactDigest": "e196de55b0d40c7a50ad12f55fb07c3fff46722ed7a98d46bb27c9c1a3497039",
+  "authority": {
+    "allowedPathCount": 182,
+    "appBaseHead": "8efb2cdf9241268a2035e947934ff72282d807d6",
+    "appBaseTree": "ac757f22be8385fb1af7d74ad4f8e8d9dd640fb3",
+    "attemptID": 1,
+    "cardID": "V23-P03-C29",
+    "contextDigest": "b202e213e61a093d65c169453878700f110cba548cf4bbba86d760733b5f4d8d",
+    "coordinationCASSequence": 282,
+    "coordinationHead": "80f5527884169c9d9409673d7412329ddaee0473",
+    "coordinationLedgerDigest": "0ccf73b5e6a62edd4f53fdc651f0900c4bee38001c83e9022adf7d17d6437970",
+    "coordinationProjectionDigest": "7d0d3e5e5f67570a21b6109a2ac7fd1cde91da1c99b6c460af1a319f67391223",
+    "coordinationTree": "e5996208859ad13058788939c8946acd41d9bde2",
+    "digestPinsPending": false,
+    "directPrerequisiteCards": [
+      "V23-P03-C23",
+      "V23-P03-C27"
+    ],
+    "existingPathCount": 168,
+    "fenceDigest": "d647bb477e65b06a780876ac60c02ed68296e7d89c2219823f19815c75c2bb53",
+    "hydrationRevision": 1,
+    "hydrationTransitionDigest": "b20b178a9e00f7966014c0f9651ce07d339a0a0d429af715e407eb894443499d",
+    "newPathCount": 14,
+    "nextCard": "V23-P03-C37",
+    "registerOrdinal": 66,
+    "title": "Versioned offline plans, normalized placements, deterministic rebase preview, and receipts"
+  },
+  "directPrerequisiteEvidence": {
+    "acceptanceCredit": false,
+    "canonicalRelationPreserved": true,
+    "disposition": "PROVISIONALLY_SATISFIED_FOR_ORDERED_IMPLEMENTATION_AND_STATIC_TEST_ONLY",
+    "nativeCompileRan": false,
+    "nonreleaseSpecialEdgeApplied": false,
+    "ordinaryDirectEdgeCount": 2,
+    "physicalLockedState": "REQUIRED_PENDING_OWNER",
+    "predecessors": [
+      {
+        "attemptID": 1,
+        "cardID": "V23-P03-C23",
+        "disposition": "CHECKPOINTED_PROVISIONAL_CANONICAL_DIRECT_PREREQUISITE_AT_EXACT_C23_HEAD"
+      },
+      {
+        "attemptID": 1,
+        "cardID": "V23-P03-C27",
+        "disposition": "CHECKPOINTED_PROVISIONAL_CANONICAL_DIRECT_PREREQUISITE_AT_EXACT_C27_HEAD_WITH_APPEND_ONLY_CORRECTIONS"
+      }
+    ],
+    "prerequisiteDigest": "03c907a94c4d5749c7d066c00e19c2b1e7d1764c1a9db34c115afc9a28005227",
+    "releaseCredit": false,
+    "schema": "ProvisionalExecutionPrerequisiteSetReceiptV1",
+    "schemaVersion": 1,
+    "successorAttemptID": 1,
+    "successorCardID": "V23-P03-C29"
+  },
+  "persistence": {
+    "backupRestoreRequired": true,
+    "cloneForkRequired": true,
+    "deleteEraseRequired": true,
+    "downgrade": "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_FIRST_V28_WRITE",
+    "durableFamilyCount": 4,
+    "embeddedFamilies": [
+      "SpatialReferenceFrameV1"
+    ],
+    "exportReportRequired": true,
+    "interruptionRecoveryRequired": true,
+    "migrationRequired": true,
+    "mode": "NEW_SCHEMA_VERSION",
+    "nonPersistentFamilies": [
+      "RebasePreviewV1",
+      "PlanRebaseMutationIntentV1",
+      "PlanRebaseComponentRegistryV1"
+    ],
+    "persistedFamilies": [
+      "PlanDocumentV1",
+      "PlanRevisionV1",
+      "PlanPlacementV1",
+      "RebaseReceiptV1"
+    ],
+    "persistentKindLifecycleModelCount": 100,
+    "persistentSchemaVersion": 28,
+    "recordsSchemaVersion": 27,
+    "replayRequired": true,
+    "schemaRelease": "PLAN_REBASE_V1",
+    "searchRebuildRequired": true
+  },
+  "requiredSemantics": {
+    "backupDeleteSearchReportLocalizationAccessibilityClosure": true,
+    "closedStablePureComponentRegistry": true,
+    "contractNames": [
+      "PlanDocumentV1",
+      "PlanRevisionV1",
+      "SpatialReferenceFrameV1",
+      "PlanPlacementV1",
+      "PlanRebaseComponentV1",
+      "PlanRebaseComponentRegistryV1",
+      "PlanRebaseCoordinatorV1",
+      "RebasePreviewV1",
+      "RebaseReceiptV1"
+    ],
+    "cycleFreeCanonicalCommandDigest": true,
+    "directPrerequisiteClosure": true,
+    "embeddedFamilies": [
+      "SpatialReferenceFrameV1"
+    ],
+    "fiveSelectors": [
+      "testV23P03C29G01ImmutableRevisionAndNormalizedPlacementProduceOneDeterministicRebaseReceipt",
+      "testV23P03C29A01MissingUnsupportedOrInaccessiblePlanPreservesCompleteManualFallback",
+      "testV23P03C29H01CorruptHugeInvalidBoundsAndRegistryForksFailClosedWithoutPartialActivation",
+      "testV23P03C29I01InterruptedApprovalExposesOldSetOrOneSealedNewSet",
+      "testV23P03C29R01RestorePreservesOriginalRevisionHistoricReportAndOfflineReadiness"
+    ],
+    "historicReportRewritten": false,
+    "immutableRevisionHistory": true,
+    "nonPersistentFamilies": [
+      "RebasePreviewV1",
+      "PlanRebaseMutationIntentV1",
+      "PlanRebaseComponentRegistryV1"
+    ],
+    "normalizedPlacementSeparateFromPixels": true,
+    "oneCombinedPreviewWriterMutationAndReceipt": true,
+    "persistentFamilies": [
+      "PlanDocumentV1",
+      "PlanRevisionV1",
+      "PlanPlacementV1",
+      "RebaseReceiptV1"
+    ],
+    "previewIsDerivedAndZeroWrite": true,
+    "rebaseOutcomes": [
+      "UNCHANGED",
+      "TRANSFORMED",
+      "OUT_OF_BOUNDS",
+      "ORPHANED",
+      "RESIDUAL_WARNING",
+      "REVIEW_REQUIRED",
+      "APPROVED",
+      "REJECTED"
+    ],
+    "secondByteStore": false,
+    "silentPinRecalculation": false,
+    "surveyGradeClaim": false
+  },
+  "schema": "V23P03C29PlanRebaseContractV1",
+  "schemaVersion": 1
+}

@@ -1322,6 +1322,10 @@ private extension WholeSignDeletionService {
         let occurrenceHistoryEvents: [OccurrenceHistoryEventRow]
         let assetLocators: [AssetLocatorRow]
         let locatorBindingReceipts: [LocatorBindingReceiptRow]
+        let planDocuments: [PlanDocumentRow]
+        let planRevisions: [PlanRevisionRow]
+        let planPlacements: [PlanPlacementRow]
+        let rebaseReceipts: [RebaseReceiptRow]
         let observationAndTime: [UUID: ObservationAndTimeRow]
         let recordPayloads: [WorkflowRecordPayloadV1]
         let evidence: [EvidenceFile]
@@ -1386,6 +1390,10 @@ private extension WholeSignDeletionService {
                  occurrenceHistoryEvents: try boundedFetch(OccurrenceHistoryEventRow.self),
                  assetLocators: try boundedFetch(AssetLocatorRow.self),
                  locatorBindingReceipts: try boundedFetch(LocatorBindingReceiptRow.self),
+                 planDocuments: try boundedFetch(PlanDocumentRow.self),
+                 planRevisions: try boundedFetch(PlanRevisionRow.self),
+                 planPlacements: try boundedFetch(PlanPlacementRow.self),
+                 rebaseReceipts: try boundedFetch(RebaseReceiptRow.self),
                 observationAndTime: observationAndTime,
                 recordPayloads: recordPayloads,
                 evidence: try boundedFetch(EvidenceFile.self),
@@ -1466,6 +1474,17 @@ private extension WholeSignDeletionService {
             after: scheduleInventory,
             workspaceErase: false
         )
+        let planDocuments = try rows.planDocuments.map { try $0.value() }
+        let planRevisions = try rows.planRevisions.map { try $0.value() }
+        let planPlacements = try rows.planPlacements.map { try $0.value() }
+        let rebaseReceipts = try rows.rebaseReceipts.map { try $0.value() }
+        try PlanLifecycleClosureV1(
+            documentHistory: planDocuments,
+            revisionHistory: planRevisions,
+            placementHistory: planPlacements,
+            receipts: rebaseReceipts
+        ).validate()
+        try PlanKernelDeletionEnrollmentV1.validate()
         do {
             var assetIDs = Set<UUID>()
             if let deletingAssetID { assetIDs.insert(deletingAssetID) }

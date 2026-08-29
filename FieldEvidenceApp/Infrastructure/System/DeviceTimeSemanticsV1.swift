@@ -99,3 +99,11 @@ struct DeviceTimeSemanticsV1: Sendable {
         return .nanoseconds(Int64(delta))
     }
 }
+
+/// C29 typed integration anchor: this owner consumes an exact immutable plan
+/// revision reference and may not reinterpret current plan state implicitly.
+enum C29PlanIntegration_Infrastructure_System_DeviceTimeSemanticsV1 {
+    static func validatePlanRevision(_ value: PlanRevisionReferenceV1) throws {
+        try value.validate()
+    }
+}

@@ -1883,3 +1883,36 @@ enum EvidenceDetailScheduleProjectionGuardV1 {
         }
     }
 }
+
+// MARK: - C29 plan/rebase projection guard
+
+enum EvidenceDetailPlanProjectionGuardV1 {
+    static let metadataOnly = true
+    static let normalizedPlacementsOnly = true
+    static let historicDisplayIsFrozen = true
+    static let previewIsNotApplied = true
+    static let excludesSourceBytes = true
+    static let excludesPrivateLocator = true
+    static let excludesActorIdentity = true
+    static let excludesUnsupportedClaims = true
+
+    static func validate(
+        _ projection: PlanReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> PlanReportProjectionV1 {
+        guard metadataOnly, normalizedPlacementsOnly,
+              historicDisplayIsFrozen, previewIsNotApplied,
+              excludesSourceBytes, excludesPrivateLocator,
+              excludesActorIdentity, excludesUnsupportedClaims else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+        do {
+            return try PlanReportProjectionPolicyV1.validate(
+                projection,
+                format: format
+            )
+        } catch {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+    }
+}

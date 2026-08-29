@@ -104,6 +104,51 @@ enum ScheduleStreamingArchivePolicyV1 {
     }
 }
 
+/// C29 archive boundary: plan documents, immutable revision history, their
+/// spatial frames, placements, and rebase receipts travel together.  A
+/// rebase preview and component registry are derived inputs and are rebuilt
+/// after extraction; neither is an archive truth source.
+enum PlanStreamingArchivePolicyV1 {
+    static let recordsSchemaVersion = 27
+    static let persistentSchemaVersion = 28
+    static let durableFamilyCount = 4
+    static let archiveFamilyCount = 5
+    static let derivedProjectionStorage = "NONPERSISTENT_REBUILD"
+    static let lifecycleHistoryStorage = "MUTATION_HISTORY_ONLY"
+    static let cloneForkSourcePlanAutomaticallyActive = false
+    static let componentRegistryIsArchiveTruth = false
+
+    static func validate(records: V4BackupRecordsV1) throws {
+        guard records.recordsSchemaVersion <= recordsSchemaVersion else {
+            throw StreamingArchiveFailureV1.invalidArchive
+        }
+        guard records.recordsSchemaVersion < recordsSchemaVersion ||
+                records.plans.count <= PlanLimitsV1.maximumPlacements * 5,
+              derivedProjectionStorage == "NONPERSISTENT_REBUILD",
+              lifecycleHistoryStorage == "MUTATION_HISTORY_ONLY",
+              !cloneForkSourcePlanAutomaticallyActive,
+              !componentRegistryIsArchiveTruth else {
+            throw StreamingArchiveFailureV1.entryLimitExceeded
+        }
+        guard records.recordsSchemaVersion < recordsSchemaVersion ||
+                records.mutationHistory != nil else {
+            throw StreamingArchiveFailureV1.invalidArchive
+        }
+        do {
+            guard archiveFamilyCount == V28BackupPlanRecordV1.Kind.allCases.count else {
+                throw StreamingArchiveFailureV1.invalidArchive
+            }
+            try V28PlanImportBoundaryV1.validate(
+                persistent: persistentSchemaVersion,
+                records: recordsSchemaVersion
+            )
+            _ = try PlanBackupRecordSetV1.decode(records.plans)
+        } catch {
+            throw StreamingArchiveFailureV1.invalidArchive
+        }
+    }
+}
+
 enum StreamingArchiveCompressionV1: String, Codable, CaseIterable, Sendable {
     case stored
     case zlib

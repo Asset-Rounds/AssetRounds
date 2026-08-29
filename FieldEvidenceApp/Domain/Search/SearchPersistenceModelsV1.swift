@@ -1050,3 +1050,69 @@ struct ScheduleOccurrenceSearchPersistencePolicyV1: Codable, Equatable, Sendable
 extension SearchPersistenceReleaseV1 {
     static let scheduleOccurrencePolicy = ScheduleOccurrenceSearchPersistencePolicyV1()
 }
+
+// MARK: - C29 plan placement search persistence boundary
+
+/// Plan placement rows are disposable metadata derivatives. They are rebuilt
+/// from frozen report projections after restore, replay, or erase; plan
+/// source bytes, subject identifiers, private locators, and component input
+/// payloads are never part of the V7 search store.
+struct PlanPlacementSearchPersistencePolicyV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let sourceSchema: String
+    let searchPersistenceRelease: SearchPersistenceReleaseV1
+    let fieldIDs: [String]
+    let metadataOnly: Bool
+    let derivedOnly: Bool
+    let normalizedCoordinatesOnly: Bool
+    let excludesSubjectIdentity: Bool
+    let excludesSourceBytes: Bool
+    let excludesPrivateLocators: Bool
+    let excludesActorIdentity: Bool
+    let excludesComponentInputs: Bool
+    let excludesUnsupportedClaims: Bool
+    let backupDisposition: String
+    let replayDisposition: String
+    let deleteDisposition: String
+
+    init() {
+        schemaVersion = Self.schemaVersion
+        sourceSchema = PlanPlacementSearchProjectionPolicyV1.semanticLabel
+        searchPersistenceRelease = .v7
+        fieldIDs = PlanPlacementSearchProjectionPolicyV1.fieldIDs
+        metadataOnly = true
+        derivedOnly = true
+        normalizedCoordinatesOnly = true
+        excludesSubjectIdentity = true
+        excludesSourceBytes = true
+        excludesPrivateLocators = true
+        excludesActorIdentity = true
+        excludesComponentInputs = true
+        excludesUnsupportedClaims = true
+        backupDisposition = "EXCLUDED_DERIVED_REBUILD"
+        replayDisposition = "DROP_AND_REBUILD_FROM_FROZEN_PLAN_PROJECTIONS"
+        deleteDisposition = "DROP_AND_REBUILD_AFTER_PLAN_ERASE"
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              sourceSchema == PlanPlacementSearchProjectionPolicyV1.semanticLabel,
+              searchPersistenceRelease == .v7,
+              fieldIDs == PlanPlacementSearchProjectionPolicyV1.fieldIDs,
+              metadataOnly, derivedOnly, normalizedCoordinatesOnly,
+              excludesSubjectIdentity, excludesSourceBytes,
+              excludesPrivateLocators, excludesActorIdentity,
+              excludesComponentInputs, excludesUnsupportedClaims,
+              backupDisposition == "EXCLUDED_DERIVED_REBUILD",
+              replayDisposition == "DROP_AND_REBUILD_FROM_FROZEN_PLAN_PROJECTIONS",
+              deleteDisposition == "DROP_AND_REBUILD_AFTER_PLAN_ERASE" else {
+            throw SearchContractFailureV1.invalidField
+        }
+    }
+}
+
+extension SearchPersistenceReleaseV1 {
+    static let planPlacementPolicy = PlanPlacementSearchPersistencePolicyV1()
+}

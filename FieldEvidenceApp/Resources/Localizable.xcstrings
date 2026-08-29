@@ -3045,6 +3045,182 @@
     "schedule.occurrence.state.completed" : {
       "comment" : "English-only C28 label for frozen schedule and occurrence facts; notification delivery is disposable and never changes canonical occurrence state.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Completed" } } }
+    },
+    "plan.heading" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Plan" } } }
+    },
+    "plan.document" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Plan document" } } }
+    },
+    "plan.revision" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Plan revision" } } }
+    },
+    "plan.revision.state" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Plan revision state" } } }
+    },
+    "plan.placement" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Plan placement" } } }
+    },
+    "plan.placement.disposition" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Placement status" } } }
+    },
+    "plan.coordinate" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Normalized page coordinate" } } }
+    },
+    "plan.reference" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Plan reference" } } }
+    },
+    "plan.content.binding" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Bound content metadata" } } }
+    },
+    "plan.spatial.frame" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Spatial reference frame" } } }
+    },
+    "plan.rebase.preview" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Rebase preview" } } }
+    },
+    "plan.rebase.receipt" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Rebase receipt" } } }
+    },
+    "plan.rebase.decision" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recorded rebase decision" } } }
+    },
+    "plan.rebase.warning" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Rebase warning" } } }
+    },
+    "plan.rebase.component" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Rebase component" } } }
+    },
+    "plan.rebase.residual" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Residual normalized units" } } }
+    },
+    "plan.rebase.expected_revision" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Expected revision" } } }
+    },
+    "plan.history.immutable" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Historic plan output remains unchanged" } } }
+    },
+    "plan.rebase.preview.not_applied" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Preview only; it is not applied or saved" } } }
+    },
+    "plan.claim_boundary" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recorded plan metadata only" } } }
+    },
+    "plan.next_step" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review the recorded plan preview" } } }
+    },
+    "plan.document.state.active" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Active" } } }
+    },
+    "plan.document.state.retired" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Retired" } } }
+    },
+    "plan.revision.state.draft" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Draft" } } }
+    },
+    "plan.revision.state.released" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Released" } } }
+    },
+    "plan.revision.state.withdrawn" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Withdrawn" } } }
+    },
+    "plan.placement.disposition.accepted" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Accepted placement" } } }
+    },
+    "plan.placement.disposition.review_required" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review required" } } }
+    },
+    "plan.placement.disposition.orphaned" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Orphaned placement" } } }
+    },
+    "plan.placement.disposition.out_of_bounds" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Outside normalized bounds" } } }
+    },
+    "plan.rebase.decision.apply_recorded" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recorded decision: apply" } } }
+    },
+    "plan.rebase.decision.reject_recorded" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recorded decision: reject" } } }
+    },
+    "plan.rebase.warning.page_missing" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Page is missing" } } }
+    },
+    "plan.rebase.warning.page_reordered" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Page order changed" } } }
+    },
+    "plan.rebase.warning.out_of_bounds" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Placement is outside normalized bounds" } } }
+    },
+    "plan.rebase.warning.orphaned_anchor" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Anchor is orphaned" } } }
+    },
+    "plan.rebase.warning.residual_exceeded" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Residual exceeds the recorded limit" } } }
+    },
+    "plan.rebase.warning.calibration_unavailable" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Calibration is unavailable" } } }
+    },
+    "plan.rebase.warning.component_review_required" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Component review is required" } } }
+    },
+    "plan.error.stale_preview" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Preview is stale" } } }
+    },
+    "plan.error.wrong_reference" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reference does not match" } } }
+    },
+    "plan.error.component_conflict" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Component outputs conflict" } } }
+    },
+    "plan.error.review_required" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review is required" } } }
+    },
+    "plan.error.invalid_digest" : {
+      "comment" : "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Digest is invalid" } } }
     }
   },
   "version" : "1.0"

@@ -312,6 +312,7 @@ private extension ReplacementRestoreRule {
         try ledger.validate()
         try AssetLocatorReplacementRestorePolicyV1.validate(records.assetLocators)
         try ScheduleReplacementRestorePolicyV1.validate(records.schedules)
+        try PlanReplacementRestorePolicyV1.validate(records.plans)
         let deleted = Dictionary(
             uniqueKeysWithValues: ledger.entries.map { ($0.identity, $0) }
         )
@@ -355,6 +356,7 @@ private extension ReplacementRestoreRule {
             guidedSurveys:records.guidedSurveys,
             assetLocators: records.assetLocators,
             schedules: records.schedules,
+            plans: records.plans,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
@@ -404,6 +406,7 @@ private extension ReplacementRestoreRule {
             guidedSurveys:records.guidedSurveys,
             assetLocators: records.assetLocators,
             schedules: records.schedules,
+            plans: records.plans,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
@@ -446,6 +449,7 @@ private extension ReplacementRestoreRule {
             guidedSurveys:records.guidedSurveys,
             assetLocators: records.assetLocators,
             schedules: records.schedules,
+            plans: records.plans,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
@@ -490,6 +494,7 @@ private extension ReplacementRestoreRule {
             guidedSurveys:records.guidedSurveys,
             assetLocators: records.assetLocators,
             schedules: records.schedules,
+            plans: records.plans,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
@@ -981,6 +986,47 @@ enum AssetLocatorReplacementRestorePolicyV1 {
             try AssetLocatorLifecycleClosureV1(
                 locators: locators, receipts: receipts
             ).validate()
+        } catch {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+    }
+}
+
+/// Plan replacement is append-only.  The incoming package may supersede a
+/// plan revision, but it may not discard an older document/revision/placement
+/// or turn a derived preview/component registry into durable backup state.
+enum PlanReplacementRestorePolicyV1 {
+    static let persistentSchemaVersion = 28
+    static let recordsSchemaVersion = 27
+    static let durableFamilyCount = 4
+    static let derivedPreviewRestored = false
+    static let sourcePlanAutomaticallyActiveOnCloneOrFork = false
+
+    static func validate(_ records: [V28BackupPlanRecordV1]) throws {
+        guard persistentSchemaVersion == PlanPersistenceEnrollmentV1.persistentSchemaVersion,
+              recordsSchemaVersion == PlanPersistenceEnrollmentV1.recordsSchemaVersion,
+              durableFamilyCount == PlanPersistenceEnrollmentV1.durableModelCount,
+              !derivedPreviewRestored,
+              !sourcePlanAutomaticallyActiveOnCloneOrFork else {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+        guard records == records.sorted(by: {
+            "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
+                < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
+        }), Set(records.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())" }).count == records.count else {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+        do {
+            let values = try PlanBackupRecordSetV1.decode(records)
+            let revisionIDs = Set(values.revisions.map(\.planRevisionID))
+            for receipt in values.receipts {
+                if receipt.decision == .approved {
+                    guard let resultingRevision = receipt.resultingRevision,
+                          revisionIDs.contains(resultingRevision.planRevisionID) else {
+                        throw ReplacementRestoreRuleError.invalidAuthority
+                    }
+                }
+            }
         } catch {
             throw ReplacementRestoreRuleError.invalidAuthority
         }

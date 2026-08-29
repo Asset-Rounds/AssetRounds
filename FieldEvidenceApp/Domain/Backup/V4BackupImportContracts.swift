@@ -155,3 +155,31 @@ enum V27ScheduleImportBoundaryV1 {
         }
     }
 }
+
+/// C29 accepts only the immutable plan families.  Frames travel as a
+/// transport family but remain embedded in the durable revision row; preview
+/// and component-registry values are rebuilt and never imported as truth.
+enum V28PlanImportBoundaryV1 {
+    static let persistentSchemaVersion = 28
+    static let recordsSchemaVersion = 27
+    static let durableFamilyCount = 4
+    static let archiveFamilyCount = 5
+    static let derivedProjectionStorage = "NONPERSISTENT_REBUILD"
+    static let lifecycleHistoryStorage = "MUTATION_HISTORY_ONLY"
+    static let cloneForkPlanAutomaticallyActive = false
+
+    static func validate(persistent: Int, records: Int) throws {
+        guard persistent == persistentSchemaVersion,
+              records == recordsSchemaVersion,
+              durableFamilyCount == PlanPersistenceEnrollmentV1.durableModelCount,
+              archiveFamilyCount == V28BackupPlanRecordV1.Kind.allCases.count,
+              PlanPersistenceEnrollmentV1.persistentSchemaVersion == persistentSchemaVersion,
+              PlanPersistenceEnrollmentV1.recordsSchemaVersion == recordsSchemaVersion,
+              PlanPersistenceEnrollmentV1.durableModelCount == 4,
+              derivedProjectionStorage == "NONPERSISTENT_REBUILD",
+              lifecycleHistoryStorage == "MUTATION_HISTORY_ONLY",
+              !cloneForkPlanAutomaticallyActive else {
+            throw BackupImportServiceError.unsupportedSchemaVersion
+        }
+    }
+}

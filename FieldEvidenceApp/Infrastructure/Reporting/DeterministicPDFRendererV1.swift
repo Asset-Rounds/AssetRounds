@@ -23,6 +23,82 @@ extension DeterministicPDFRendererV1 {
     }
 }
 
+// MARK: - C29 plan and rebase PDF metadata
+
+enum PlanReportPDFBoundaryV1 {
+    static let localMetadataOnly = true
+    static let historicalDisplayIsFrozen = true
+    static let previewIsNotApplied = true
+    static let excludesSourceBytes = true
+    static let excludesPrivateLocators = true
+    static let excludesActorIdentity = true
+    static let excludesUnsupportedClaims = true
+
+    static func validate(_ projection: PlanReportProjectionV1) throws {
+        guard localMetadataOnly, historicalDisplayIsFrozen,
+              previewIsNotApplied, excludesSourceBytes,
+              excludesPrivateLocators, excludesActorIdentity,
+              excludesUnsupportedClaims else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+        try PlanReportProjectionPolicyV1.validate(projection, format: .pdf)
+    }
+}
+
+extension DeterministicPDFRendererV1 {
+    /// Stable, localized metadata lines for a versioned plan report. The
+    /// normalized coordinates and rebase facts are recorded facts; a preview
+    /// remains explicitly unapplied until a separate receipt is recorded.
+    static func planTextLines(
+        _ projection: PlanReportProjectionV1
+    ) throws -> [String] {
+        try PlanReportPDFBoundaryV1.validate(projection)
+        let labels = PlanReportOpenJSONLabelsV1(projection: projection)
+        try labels.validate(projection: projection)
+
+        var lines = [
+            labels.heading,
+            "\(labels.document): \(projection.documentReference.planDocumentID.uuidString.lowercased())",
+            "\(labels.revision): \(projection.revisionReference.planRevisionID.uuidString.lowercased())",
+            "\(labels.documentState): \(labels.documentStates[projection.documentState.rawValue] ?? projection.documentState.rawValue)",
+            "\(labels.revisionState): \(labels.revisionStates[projection.revisionState.rawValue] ?? projection.revisionState.rawValue)",
+            "\(labels.placement): \(projection.placements.count)",
+            labels.historyImmutable,
+            labels.previewNotApplied,
+            labels.claimBoundary,
+        ]
+
+        for placement in projection.placements {
+            let disposition = labels.placementDispositions[placement.disposition]
+                ?? placement.disposition.rawValue
+            lines.append(
+                "\(labels.placement) \(placement.placementID.uuidString.lowercased()): \(disposition) (\(labels.coordinate) \(placement.xMillionths),\(placement.yMillionths))"
+            )
+        }
+
+        if let preview = projection.preview {
+            lines.append("\(labels.rebasePreview): \(preview.previewID.uuidString.lowercased())")
+            lines.append("\(labels.expectedRevision): \(preview.expectedRevision)")
+            lines.append("\(labels.rebaseWarning): \(preview.warningCodes.count)")
+            lines.append(labels.previewNotApplied)
+        }
+        if let receipt = projection.receipt {
+            let decision = labels.decisions[receipt.decision.rawValue]
+                ?? receipt.decision.rawValue
+            lines.append("\(labels.rebaseReceipt): \(receipt.receiptID.uuidString.lowercased())")
+            lines.append("\(labels.rebaseDecision): \(decision)")
+        }
+        lines.append(labels.nextStep)
+
+        guard !lines.isEmpty,
+              lines.allSatisfy({ !$0.isEmpty }),
+              !PlanLocalizationPolicyV1.containsProhibitedClaim(lines) else {
+            throw SnapshotProjectionFailureV1.hostileText
+        }
+        return lines
+    }
+}
+
 enum DeterministicPDFRendererV1 {
     static let rendererVersion = "deterministic-pdf-renderer-v1"
 

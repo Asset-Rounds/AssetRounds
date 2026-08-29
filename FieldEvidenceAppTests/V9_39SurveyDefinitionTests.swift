@@ -307,6 +307,13 @@ private struct C25SurveyDefinitionCorpus: Decodable {
 }
 
 final class V9_39SurveyDefinitionTests: XCTestCase {
+    func testV23P03C29TypedPlanContractAnchor() throws {
+        let minimum = try NormalizedPlanCoordinateV1(millionths: 0)
+        let maximum = try NormalizedPlanCoordinateV1(millionths: PlanLimitsV1.normalizedScale)
+        XCTAssertEqual(minimum.millionths, 0)
+        XCTAssertEqual(maximum.millionths, PlanLimitsV1.normalizedScale)
+        XCTAssertEqual(PlanDocumentV1.schemaVersion, 1)
+    }
     func testV23P03C25G01FiveActivityKindsHaveStableImmutableLifecycleSemantics() throws {
         let corpus = try C25SurveyDefinitionTestSupport.decodedCorpus()
         XCTAssertEqual(corpus.schema, "V22P03C25SurveyDefinitionCorpusV1")

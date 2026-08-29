@@ -1,6 +1,8 @@
 import Foundation
 import SwiftData
 
+enum PlanSurveyDefinitionBindingV1 { static let normalizedPlanPlacementRemainsDefinitionSemantic = true; static let planPlacementIsSeparateHistory = true }
+
 enum SurveyDefinitionPersistenceFailureV1: Error { case corruptRow }
 
 @Model final class SurveyDefinitionIdentityRow {

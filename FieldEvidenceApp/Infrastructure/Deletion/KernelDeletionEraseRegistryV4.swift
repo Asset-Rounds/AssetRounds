@@ -52,6 +52,36 @@ enum ScheduleKernelDeletionEnrollmentV1 {
     }
 }
 
+/// Plan rows preserve immutable document/revision/placement history through
+/// ordinary asset or site deletion. Workspace Erase clears the four SwiftData
+/// rows; spatial frames remain an embedded transport family and previews or
+/// component registries are rebuilt rather than deleted as canonical rows.
+enum PlanKernelDeletionEnrollmentV1 {
+    static let persistentRowNames: Set<String> = [
+        "PlanDocumentRow", "PlanRevisionRow", "PlanPlacementRow", "RebaseReceiptRow"
+    ]
+    static let embeddedTransportFamily = "SpatialReferenceFrameV1"
+    static let derivedProjectionNames: Set<String> = [
+        "RebasePreviewV1", "PlanRebaseComponentRegistryV1"
+    ]
+    static let ordinaryDeletionPreservesHistory = true
+    static let workspaceEraseClearsRows = true
+    static let rowsOwnNoFilesystemPayload = true
+
+    static func validate() throws {
+        guard persistentRowNames.count == PlanPersistenceEnrollmentV1.durableModelCount,
+              embeddedTransportFamily == "SpatialReferenceFrameV1",
+              derivedProjectionNames.count == 2,
+              persistentRowNames.isDisjoint(with: derivedProjectionNames),
+              ordinaryDeletionPreservesHistory,
+              workspaceEraseClearsRows,
+              rowsOwnNoFilesystemPayload else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+        try PlanDeletionLedgerPolicyV1.validate()
+    }
+}
+
 enum KernelDeleteDispositionV4: String, Codable, Sendable {
     case explicitOnly = "EXPLICIT_ONLY"
     case deleteAfterDependents = "DELETE_AFTER_DEPENDENTS"
@@ -348,6 +378,17 @@ enum KernelDeletionEraseRegistryV4 {
             throw KernelPersistenceV4Failure.incompleteCoverage
         }
     }
+    static func validatePlanLifecycle() throws {
+        try PlanKernelDeletionEnrollmentV1.validate()
+        guard PlanStreamingArchivePolicyV1.recordsSchemaVersion == 27,
+              PlanStreamingArchivePolicyV1.persistentSchemaVersion == 28,
+              PlanRestoreIdentityPolicyV1.durableFamilyCount == 4,
+              !PlanRestoreIdentityPolicyV1.sourcePlanAutomaticallyActive,
+              !PlanReplacementRestorePolicyV1.derivedPreviewRestored,
+              !PlanReplacementRestorePolicyV1.sourcePlanAutomaticallyActiveOnCloneOrFork else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
     /// Search V1 has one canonical workspace-owned record and one disposable
     /// local projection. Keeping these routes beside the kernel registry makes
     /// delete/Erase audits distinguish canonical deletion from index rebuild.
@@ -402,6 +443,7 @@ enum KernelDeletionEraseRegistryV4 {
         try validateFieldReferenceLifecycle()
         try validateAccessibleDocumentLifecycle()
         try validateScheduleLifecycle()
+        try validatePlanLifecycle()
         try validatePrivacyTransformLifecycle()
         try validateMeasurementIntegrityLifecycle()
         try validatePackageEvolutionLifecycle()

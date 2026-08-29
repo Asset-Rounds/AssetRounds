@@ -55,6 +55,7 @@ struct IntegrationConformanceConsumerV1: Sendable {
         try projection.validateSurveySessionReplay(acceptedReceipts)
         try projection.validateAssetLocatorReplay(acceptedReceipts)
         try projection.validateScheduleReplay(acceptedReceipts)
+        try projection.validatePlanReplay(acceptedReceipts)
         let prior = try await store.checkpoint(
             consumerID: consumer.consumerID, workspaceID: workspaceID
         )
@@ -109,6 +110,7 @@ struct IntegrationConformanceConsumerV1: Sendable {
         try projection.validateSurveySessionReplay(acceptedReceipts)
         try projection.validateAssetLocatorReplay(acceptedReceipts)
         try projection.validateScheduleReplay(acceptedReceipts)
+        try projection.validatePlanReplay(acceptedReceipts)
         try await store.dropDerivedProjection(
             consumerID: consumer.consumerID, workspaceID: workspaceID
         )

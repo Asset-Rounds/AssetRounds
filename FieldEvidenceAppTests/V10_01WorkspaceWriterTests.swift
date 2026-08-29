@@ -5,6 +5,13 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class V10_01WorkspaceWriterTests: XCTestCase {
+    func testV23P03C29TypedPlanContractAnchor() throws {
+        let minimum = try NormalizedPlanCoordinateV1(millionths: 0)
+        let maximum = try NormalizedPlanCoordinateV1(millionths: PlanLimitsV1.normalizedScale)
+        XCTAssertEqual(minimum.millionths, 0)
+        XCTAssertEqual(maximum.millionths, PlanLimitsV1.normalizedScale)
+        XCTAssertEqual(PlanDocumentV1.schemaVersion, 1)
+    }
     func testV23P03C39SemanticCodecRetryBytesAreIdempotent() throws {
         let value = [
             try AssetSemanticCapabilityIDV1("capability.inspect"),

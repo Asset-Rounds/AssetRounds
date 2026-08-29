@@ -385,6 +385,35 @@ extension SearchCoordinatorV1 {
     }
 }
 
+// MARK: - C29 plan placement metadata search
+
+extension SearchCoordinatorV1 {
+    /// Searches only the disposable plan placement metadata projection. A
+    /// preview, source reference, subject identifier, or component payload is
+    /// never treated as searchable report truth.
+    static func searchPlanPlacementMetadata(
+        query: String,
+        records: [PlanPlacementSearchRecordV1],
+        maximumResults: Int = 100
+    ) throws -> [PlanPlacementSearchRecordV1] {
+        guard maximumResults > 0,
+              maximumResults <= SearchContractLimitsV1.maximumCanonicalRecords else {
+            throw SearchContractFailureV1.limitExceeded
+        }
+        let tokens = normalizedTokens(query)
+        guard !tokens.isEmpty else { throw SearchContractFailureV1.invalidQuery }
+        try records.forEach { try PlanPlacementSearchProjectionPolicyV1.validate($0) }
+        let matches = records.filter { record in
+            tokens.allSatisfy { queryToken in
+                record.normalizedTokens.contains { indexedToken in
+                    indexedToken == queryToken || indexedToken.hasPrefix(queryToken)
+                }
+            }
+        }.sorted { $0.projectionIdentity < $1.projectionIdentity }
+        return Array(matches.prefix(maximumResults))
+    }
+}
+
 // MARK: - C27 asset-locator metadata search
 
 extension SearchCoordinatorV1 {

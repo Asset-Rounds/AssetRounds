@@ -1306,3 +1306,11 @@ private struct WorkSubjectScopeDigestBasisV1: Codable {
     let semanticBindings: [WorkSubjectSemanticBindingSnapshotV1]
     let workspaceRevision: UInt64; let recordedAt: Date
 }
+
+/// C29 typed integration anchor: this owner consumes an exact immutable plan
+/// revision reference and may not reinterpret current plan state implicitly.
+enum C29PlanIntegration_Domain_AssetSemantics_AssetSemanticContractsV1 {
+    static func validatePlanRevision(_ value: PlanRevisionReferenceV1) throws {
+        try value.validate()
+    }
+}

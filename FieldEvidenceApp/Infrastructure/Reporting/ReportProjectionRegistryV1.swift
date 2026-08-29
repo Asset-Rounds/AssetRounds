@@ -1825,6 +1825,49 @@ extension ReportProjectionRegistryV1 {
     }
 }
 
+// MARK: - C29 versioned plan/rebase projection
+
+extension ReportProjectionRegistryV1 {
+    static let planProjectionSectionID = PlanReportProjectionPolicyV1.sectionID
+    static let planProjectionVersion = PlanReportProjectionPolicyV1.projectionVersion
+
+    func validatePlanProjection(
+        _ projection: PlanReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> PlanReportProjectionV1 {
+        try validate()
+        try PlanContractManifestBoundaryV1.validate()
+        return try PlanReportProjectionPolicyV1.validate(
+            projection,
+            format: format
+        )
+    }
+
+    static func validatePlanProjection(
+        _ projection: PlanReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> PlanReportProjectionV1 {
+        try Self().validatePlanProjection(projection, format: format)
+    }
+
+    static func planProjection(
+        document: PlanDocumentV1,
+        revision: PlanRevisionV1,
+        placements: [PlanPlacementV1],
+        preview: RebasePreviewV1? = nil,
+        receipt: RebaseReceiptV1? = nil
+    ) throws -> PlanReportProjectionV1 {
+        let projection = try PlanReportProjectionV1(
+            document: document,
+            revision: revision,
+            placements: placements,
+            preview: preview,
+            receipt: receipt
+        )
+        return try validatePlanProjection(projection)
+    }
+}
+
 // MARK: - C21 client capability and package lifecycle consumer enrollment
 
 enum ClientCapabilityReportConsumerPolicyV1 {

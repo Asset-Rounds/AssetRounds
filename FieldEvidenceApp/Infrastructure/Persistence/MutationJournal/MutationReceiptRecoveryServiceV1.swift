@@ -45,4 +45,7 @@ final class MutationReceiptRecoveryServiceV1 {
     /// the canonical mutation journal; derived resolution previews are rebuilt.
     func recoverAssetLocatorEffectsBeforeWriterActivation()throws{try recoverBeforeWriterActivation()}
     func recoverScheduleEffectsBeforeWriterActivation()throws{try recoverBeforeWriterActivation()}
+    /// C29 repairs the four plan histories and their generic receipt together;
+    /// spatial frames stay embedded and rebase previews are rebuilt.
+    func recoverPlanEffectsBeforeWriterActivation()throws{try recoverBeforeWriterActivation()}
 }

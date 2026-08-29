@@ -1,6 +1,8 @@
 import Foundation
 import SwiftData
 
+enum PlanLocationPersistenceBindingV1 { static let locationPlacementUsesStableSubjectIdentity = true; static let hierarchyRebaseDoesNotRewritePlanHistory = true }
+
 enum LocationPersistenceReleaseV1: Int, Codable, CaseIterable, Sendable {
     case v6 = 6
     static let predecessorSchemaVersion = 5

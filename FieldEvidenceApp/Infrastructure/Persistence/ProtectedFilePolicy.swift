@@ -33,6 +33,12 @@ enum OwnedFileKindV1: String, CaseIterable, Equatable, Hashable, Sendable {
     case searchIndex
 }
 
+enum PlanProtectedFileBoundaryV1 {
+    static let ownsExternalFiles = false
+    static let canonicalRowsUseProtectedDatabase = true
+    static let sourceContentRemainsUnderExistingContentAuthority = true
+}
+
 struct OwnedFileProtectionDispositionV1: Equatable, Sendable {
     let expectsDirectory: Bool
     let isExcludedFromBackup: Bool

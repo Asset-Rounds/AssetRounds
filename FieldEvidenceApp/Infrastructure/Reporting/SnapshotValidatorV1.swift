@@ -1716,3 +1716,32 @@ extension SnapshotValidatorV1 {
     static let scheduleReminderIsNotOccurrenceTruth = true
     static let scheduleMissingHistoryFailsClosed = true
 }
+
+// MARK: - C29 plan and rebase projection validation
+
+extension SnapshotValidatorV1 {
+    /// Validates the frozen plan consumer projection without resolving a
+    /// current document or reinterpreting a preview. Stale references and
+    /// component conflicts therefore fail closed at the report boundary.
+    static func validatePlanProjection(
+        _ projection: PlanReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> PlanReportProjectionV1 {
+        try ReportProjectionRegistryV1.validatePlanProjection(
+            projection,
+            format: format
+        )
+    }
+
+    static func validatePlanOpenJSON(
+        _ data: Data
+    ) throws -> PlanReportProjectionV1 {
+        try DeterministicOpenJSONRendererV1.reopenPlan(data)
+    }
+
+    static let planHistoricDisplayIsImmutable = true
+    static let planPreviewIsNotAppliedTruth = true
+    static let planStaleReferenceFailsClosed = true
+    static let planComponentConflictFailsClosed = true
+    static let planMissingReceiptFailsClosed = true
+}

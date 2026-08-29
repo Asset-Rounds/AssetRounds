@@ -132,6 +132,10 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
     case locatorBindingReceipt(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case scheduleDefinitionRelease(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case occurrenceHistoryEvent(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case planDocument(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case planRevision(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case planPlacement(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case planRebaseReceipt(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case workflowRecord(id: UUID, revision: UInt64, semanticSHA256: String)
     case evidenceFile(id: UUID, revision: UInt64, semanticSHA256: String)
     case issue(id: UUID, revision: UInt64, semanticSHA256: String)
@@ -217,6 +221,10 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
             case let .locatorBindingReceipt(id,_,_,_):return try .init(kind:.locatorBindingReceipt,id:id)
             case let .scheduleDefinitionRelease(id,_,_,_):return try .init(kind:.scheduleDefinitionRelease,id:id)
             case let .occurrenceHistoryEvent(id,_,_,_):return try .init(kind:.occurrenceHistoryEvent,id:id)
+            case let .planDocument(id,_,_,_):return try .init(kind:.planDocument,id:id)
+            case let .planRevision(id,_,_,_):return try .init(kind:.planRevision,id:id)
+            case let .planPlacement(id,_,_,_):return try .init(kind:.planPlacement,id:id)
+            case let .planRebaseReceipt(id,_,_,_):return try .init(kind:.planRebaseReceipt,id:id)
             case let .workflowRecord(id, _, _): return try .init(kind: .workflowRecord, id: id)
             case let .evidenceFile(id, _, _): return try .init(kind: .evidenceFile, id: id)
             case let .issue(id, _, _): return try .init(kind: .issue, id: id)
@@ -230,7 +238,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
 
     var semanticSHA256: String {
         switch self {
-        case let .accessibleDocumentAssessmentReceipt(_,_,_,value),let .surveyDefinitionIdentity(_,_,_,value),let .surveyDefinitionRelease(_,_,_,value),let .surveySession(_,_,_,value),let .factCapture(_,_,_,value),let .provisionalSubject(_,_,_,value),let .subjectPromotionReceipt(_,_,_,value),let .surveyPublicationSnapshot(_,_,_,value),let .assetLocator(_,_,_,value),let .locatorBindingReceipt(_,_,_,value),let .scheduleDefinitionRelease(_,_,_,value),let .occurrenceHistoryEvent(_,_,_,value):return value
+        case let .accessibleDocumentAssessmentReceipt(_,_,_,value),let .surveyDefinitionIdentity(_,_,_,value),let .surveyDefinitionRelease(_,_,_,value),let .surveySession(_,_,_,value),let .factCapture(_,_,_,value),let .provisionalSubject(_,_,_,value),let .subjectPromotionReceipt(_,_,_,value),let .surveyPublicationSnapshot(_,_,_,value),let .assetLocator(_,_,_,value),let .locatorBindingReceipt(_,_,_,value),let .scheduleDefinitionRelease(_,_,_,value),let .occurrenceHistoryEvent(_,_,_,value),let .planDocument(_,_,_,value),let .planRevision(_,_,_,value),let .planPlacement(_,_,_,value),let .planRebaseReceipt(_,_,_,value):return value
         case let .site(_, _, value), let .asset(_, _, value), let .locationNode(_, _, value),
              let .assetPlacementEvent(_, _, value), let .assetCompositionEdge(_, _, value),
              let .assetCompositionEvent(_, _, value), let .savedSmartView(_, _, value),
@@ -332,6 +340,10 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
             case let .locatorBindingReceipt(_,v,_,_):guard v.kind == .locatorBindingReceipt else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             case let .scheduleDefinitionRelease(_,v,_,_):guard v.kind == .scheduleDefinitionRelease else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             case let .occurrenceHistoryEvent(_,v,_,_):guard v.kind == .occurrenceHistoryEvent else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+            case let .planDocument(_,v,_,_):guard v.kind == .planDocument else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+            case let .planRevision(_,v,_,_):guard v.kind == .planRevision else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+            case let .planPlacement(_,v,_,_):guard v.kind == .planPlacement else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+            case let .planRebaseReceipt(_,v,_,_):guard v.kind == .planRebaseReceipt else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             default:
                 return try identity
             }
@@ -340,7 +352,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
 
     var revision: UInt64 {
         switch self {
-        case let .accessibleDocumentAssessmentReceipt(_,_,value,_),let .surveyDefinitionIdentity(_,_,value,_),let .surveyDefinitionRelease(_,_,value,_),let .surveySession(_,_,value,_),let .factCapture(_,_,value,_),let .provisionalSubject(_,_,value,_),let .subjectPromotionReceipt(_,_,value,_),let .surveyPublicationSnapshot(_,_,value,_),let .assetLocator(_,_,value,_),let .locatorBindingReceipt(_,_,value,_),let .scheduleDefinitionRelease(_,_,value,_),let .occurrenceHistoryEvent(_,_,value,_):return value
+        case let .accessibleDocumentAssessmentReceipt(_,_,value,_),let .surveyDefinitionIdentity(_,_,value,_),let .surveyDefinitionRelease(_,_,value,_),let .surveySession(_,_,value,_),let .factCapture(_,_,value,_),let .provisionalSubject(_,_,value,_),let .subjectPromotionReceipt(_,_,value,_),let .surveyPublicationSnapshot(_,_,value,_),let .assetLocator(_,_,value,_),let .locatorBindingReceipt(_,_,value,_),let .scheduleDefinitionRelease(_,_,value,_),let .occurrenceHistoryEvent(_,_,value,_),let .planDocument(_,_,value,_),let .planRevision(_,_,value,_),let .planPlacement(_,_,value,_),let .planRebaseReceipt(_,_,value,_):return value
         case let .site(_, value, _), let .asset(_, value, _),
              let .locationNode(_, value, _), let .assetPlacementEvent(_, value, _),
              let .assetCompositionEdge(_, value, _), let .assetCompositionEvent(_, value, _),
@@ -1130,3 +1142,8 @@ enum MutationHistoryRestoreIdentityV1: Equatable, Sendable {
     case preserve
     case destination(WorkspaceReplicaIdentityV1, generationID: UUID)
 }
+
+extension PlanMutationV1{
+    var mutationPostImages:[MutationPostImageV1]{get throws{let concurrency=try concurrencyIdentities;func c(_ kind:WorkspaceEntityKindV1,_ id:UUID)throws->WorkspaceEntityIdentityV1{guard let value=concurrency.first(where:{$0.kind==kind&&$0.id==id}) ?? concurrency.first(where:{$0.kind==kind})else{throw WorkspaceMutationFailureV1.invalidCommand};return value};let values:[MutationPostImageV1];switch payload{case let .appendDocument(v,_):values=[.planDocument(id:v.planDocumentID,concurrencyIdentity:try c(.planDocument,v.planDocumentID),revision:v.revision,semanticSHA256:v.documentSHA256)];case let .appendRevision(v,_,_):values=[.planRevision(id:v.planRevisionID,concurrencyIdentity:try c(.planRevision,v.planRevisionID),revision:v.revision,semanticSHA256:v.revisionSHA256)];case let .appendPlacement(v,_,_):values=[.planPlacement(id:v.placementID,concurrencyIdentity:try c(.planPlacement,v.placementID),revision:v.revision,semanticSHA256:v.placementSHA256)];case let .applyRebase(v,_,placements,_,receipt,_):values=[.planRevision(id:v.planRevisionID,concurrencyIdentity:try c(.planRevision,v.planRevisionID),revision:v.revision,semanticSHA256:v.revisionSHA256)]+(try placements.map{.planPlacement(id:$0.placementID,concurrencyIdentity:try c(.planPlacement,$0.placementID),revision:$0.revision,semanticSHA256:$0.placementSHA256)})+[.planRebaseReceipt(id:receipt.receiptID,concurrencyIdentity:try c(.planRebaseReceipt,receipt.receiptID),revision:receipt.revision,semanticSHA256:receipt.receiptSHA256)];case let .recordRebaseRejection(receipt,_):values=[.planRebaseReceipt(id:receipt.receiptID,concurrencyIdentity:try c(.planRebaseReceipt,receipt.receiptID),revision:receipt.revision,semanticSHA256:receipt.receiptSHA256)]};return try values.sorted{try $0.identity.stableKey<$1.identity.stableKey}}}
+}
+struct PlanMutationReceiptV1:Codable,Equatable,Sendable{let mutationSHA256:String;let mutationReceipt:MutationReceiptV1;let affectedIdentities:[WorkspaceEntityIdentityV1];let concurrencyIdentities:[WorkspaceEntityIdentityV1];init(mutation:PlanMutationV1,mutationReceipt:MutationReceiptV1)throws{try mutation.validate();try mutationReceipt.validate();let affected=try mutation.affectedIdentities,concurrency=try mutation.concurrencyIdentities,images=try mutation.mutationPostImages;guard mutationReceipt.mutationID==mutation.mutationID,mutationReceipt.identity.workspaceID==mutation.workspaceID,mutationReceipt.commandBodySHA256==(try WorkspaceMutationCanonicalV1.sha256(WorkspaceCommandV1.applyPlan(mutation))),mutationReceipt.postImages==images,try concurrency.allSatisfy({identity in mutationReceipt.expectedRevision.entityRevisions.first(where:{$0.identity==identity})?.revision == (try mutation.expectedRevision(for:identity))}),try images.allSatisfy({image in mutationReceipt.resultingRevision.entityRevisions.first(where:{$0.identity==(try image.identity)})?.revision==image.revision})else{throw WorkspaceMutationFailureV1.invalidReceipt};mutationSHA256=try WorkspaceMutationCanonicalV1.sha256(mutation);self.mutationReceipt=mutationReceipt;affectedIdentities=affected;concurrencyIdentities=concurrency}}

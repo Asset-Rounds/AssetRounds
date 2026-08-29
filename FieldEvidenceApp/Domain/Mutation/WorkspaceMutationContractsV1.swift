@@ -97,6 +97,10 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case locatorBindingReceipt
     case scheduleDefinitionRelease
     case occurrenceHistoryEvent
+    case planDocument
+    case planRevision
+    case planPlacement
+    case planRebaseReceipt
     case workflowRecord
     case evidenceFile
     case issue
@@ -1508,6 +1512,29 @@ struct ScheduleMutationV1:Codable,Equatable,Sendable{
     func expectedRevision(for identity:WorkspaceEntityIdentityV1)throws->UInt64{switch payload{case let .appendRelease(value,predecessor):guard identity.kind == .scheduleDefinitionRelease,identity.id==(predecessor?.releaseID ?? value.releaseID)else{throw WorkspaceMutationContractFailureV1.invalidPlan};return predecessor?.revision ?? 0;case let .appendOccurrenceEvent(value,predecessor,_):guard identity.kind == .occurrenceHistoryEvent,identity.id==(predecessor?.eventID ?? value.eventID)else{throw WorkspaceMutationContractFailureV1.invalidPlan};return predecessor?.revision ?? 0;case let .startOccurrence(_,predecessor,_):guard identity.kind == .occurrenceHistoryEvent,identity.id==predecessor.eventID else{throw WorkspaceMutationContractFailureV1.invalidPlan};return predecessor.revision;case let .generateOccurrences(_,_,events):guard identity.kind == .occurrenceHistoryEvent,events.contains(where:{$0.eventID==identity.id})else{throw WorkspaceMutationContractFailureV1.invalidPlan};return 0}}
 }
 
+enum PlanMutationPayloadV1:Codable,Equatable,Sendable{
+    case appendDocument(PlanDocumentV1,predecessor:PlanDocumentV1?)
+    case appendRevision(PlanRevisionV1,predecessor:PlanRevisionV1?,document:PlanDocumentV1)
+    case appendPlacement(PlanPlacementV1,predecessor:PlanPlacementV1?,planRevision:PlanRevisionV1)
+    case applyRebase(newRevision:PlanRevisionV1,predecessorRevision:PlanRevisionV1,placements:[PlanPlacementV1],predecessorPlacements:[PlanPlacementV1],receipt:RebaseReceiptV1,predecessorReceipt:RebaseReceiptV1?)
+    case recordRebaseRejection(receipt:RebaseReceiptV1,predecessorReceipt:RebaseReceiptV1?)
+}
+extension PlanMutationPayloadV1{var newRevisionForReference:PlanRevisionReferenceV1?{get throws{if case let .applyRebase(value,_,_,_,_,_)=self{return try value.reference};return nil}}}
+struct PlanMutationV1:Codable,Equatable,Sendable{
+    let workspaceID:WorkspaceID;let mutationID:MutationIDV1;let payload:PlanMutationPayloadV1
+    init(workspaceID:WorkspaceID,mutationID:MutationIDV1,payload:PlanMutationPayloadV1)throws{self.workspaceID=workspaceID;self.mutationID=mutationID;self.payload=payload;try validate()}
+    func validate()throws{switch payload{
+    case let .appendDocument(value,predecessor):try value.validateIntrinsic();if let predecessor{try value.validateSuccessor(of:predecessor)}else{guard value.revision==1 else{throw WorkspaceMutationContractFailureV1.invalidPlan}};guard value.workspaceID==workspaceID,value.mutationID==mutationID else{throw WorkspaceMutationContractFailureV1.invalidPlan}
+    case let .appendRevision(value,predecessor,document):try value.validateIntrinsic();try document.validateIntrinsic();if let predecessor{try value.validateSuccessor(of:predecessor)}else{guard value.revision==1 else{throw WorkspaceMutationContractFailureV1.invalidPlan}};guard value.workspaceID==workspaceID,document.workspaceID==workspaceID,value.planDocument==(try document.reference),value.mutationID==mutationID else{throw WorkspaceMutationContractFailureV1.invalidPlan}
+    case let .appendPlacement(value,predecessor,planRevision):try value.validateIntrinsic();try planRevision.validateIntrinsic();if let predecessor{try value.validateSuccessor(of:predecessor)}else{guard value.revision==1 else{throw WorkspaceMutationContractFailureV1.invalidPlan}};guard value.workspaceID==workspaceID,planRevision.workspaceID==workspaceID,value.planRevision==(try planRevision.reference),value.mutationID==mutationID else{throw WorkspaceMutationContractFailureV1.invalidPlan}
+    case let .applyRebase(newRevision,priorRevision,placements,priors,receipt,predecessorReceipt):try newRevision.validateSuccessor(of:priorRevision);try receipt.validateIntrinsic();guard newRevision.workspaceID==workspaceID,newRevision.mutationID==mutationID,receipt.workspaceID==workspaceID,receipt.mutationID==mutationID,receipt.decision == .approved,receipt.resultingRevision==(try newRevision.reference),placements.count==priors.count,placements.count<=PlanLimitsV1.maximumPlacements,Set(placements.map(\.placementID)).count==placements.count,Set(priors.map(\.placementID))==Set(placements.map(\.placementID)),receipt.canonicalPlanMutationSHA256 != nil else{throw WorkspaceMutationContractFailureV1.invalidPlan};let old=Dictionary(uniqueKeysWithValues:priors.map{($0.placementID,$0)});for value in placements{guard let predecessor=old[value.placementID] else{throw WorkspaceMutationContractFailureV1.invalidPlan};try value.validateSuccessor(of:predecessor);guard value.workspaceID==workspaceID,value.mutationID==mutationID,value.planRevision==(try newRevision.reference)else{throw WorkspaceMutationContractFailureV1.invalidPlan}};if let predecessorReceipt{guard predecessorReceipt.revision<UInt64.max,receipt.revision==predecessorReceipt.revision+1 else{throw WorkspaceMutationContractFailureV1.invalidPlan}}else{guard receipt.revision==1 else{throw WorkspaceMutationContractFailureV1.invalidPlan}}
+    case let .recordRebaseRejection(receipt,predecessorReceipt):try receipt.validateIntrinsic();guard receipt.workspaceID==workspaceID,receipt.mutationID==mutationID,receipt.decision == .rejected else{throw WorkspaceMutationContractFailureV1.invalidPlan};if let predecessorReceipt{try predecessorReceipt.validateIntrinsic();guard predecessorReceipt.revision<UInt64.max,receipt.receiptID != predecessorReceipt.receiptID,receipt.workspaceID==predecessorReceipt.workspaceID,receipt.revision==predecessorReceipt.revision+1,receipt.supersedesReceiptSHA256==predecessorReceipt.receiptSHA256,receipt.mutationID != predecessorReceipt.mutationID else{throw WorkspaceMutationContractFailureV1.invalidPlan}}else{guard receipt.revision==1,receipt.supersedesReceiptSHA256==nil else{throw WorkspaceMutationContractFailureV1.invalidPlan}}
+    }}
+    var affectedIdentities:[WorkspaceEntityIdentityV1]{get throws{let values:[WorkspaceEntityIdentityV1];switch payload{case let .appendDocument(v,_):values=[try .init(kind:.planDocument,id:v.planDocumentID)];case let .appendRevision(v,_,_):values=[try .init(kind:.planRevision,id:v.planRevisionID)];case let .appendPlacement(v,_,_):values=[try .init(kind:.planPlacement,id:v.placementID)];case let .applyRebase(v,_,p,_,r,_):values=[try .init(kind:.planRevision,id:v.planRevisionID)]+(try p.map{try .init(kind:.planPlacement,id:$0.placementID)})+[try .init(kind:.planRebaseReceipt,id:r.receiptID)];case let .recordRebaseRejection(r,_):values=[try .init(kind:.planRebaseReceipt,id:r.receiptID)]};let result=values.sorted{$0.stableKey<$1.stableKey};guard result.count<=MutationReceiptV1.maximumPostImageCount,Set(result).count==result.count else{throw WorkspaceMutationContractFailureV1.invalidPlan};return result}}
+    var concurrencyIdentities:[WorkspaceEntityIdentityV1]{get throws{let values:[WorkspaceEntityIdentityV1];switch payload{case let .appendDocument(v,p):values=[try .init(kind:.planDocument,id:p?.planDocumentID ?? v.planDocumentID)];case let .appendRevision(v,p,_):values=[try .init(kind:.planRevision,id:p?.planRevisionID ?? v.planRevisionID)];case let .appendPlacement(v,p,_):values=[try .init(kind:.planPlacement,id:p?.placementID ?? v.placementID)];case let .applyRebase(v,p,p2,p1,r,pr):values=[try .init(kind:.planRevision,id:p.planRevisionID)]+(try p1.map{try .init(kind:.planPlacement,id:$0.placementID)})+[try .init(kind:.planRebaseReceipt,id:pr?.receiptID ?? r.receiptID)];_ = v;_ = p2;case let .recordRebaseRejection(r,pr):values=[try .init(kind:.planRebaseReceipt,id:pr?.receiptID ?? r.receiptID)]};return values.sorted{$0.stableKey<$1.stableKey}}}
+    func expectedRevision(for identity:WorkspaceEntityIdentityV1)throws->UInt64{switch payload{case let .appendDocument(v,p):guard identity.kind == .planDocument,identity.id==(p?.planDocumentID ?? v.planDocumentID)else{throw WorkspaceMutationContractFailureV1.invalidPlan};return p?.revision ?? 0;case let .appendRevision(v,p,_):guard identity.kind == .planRevision,identity.id==(p?.planRevisionID ?? v.planRevisionID)else{throw WorkspaceMutationContractFailureV1.invalidPlan};return p?.revision ?? 0;case let .appendPlacement(v,p,_):guard identity.kind == .planPlacement,identity.id==(p?.placementID ?? v.placementID)else{throw WorkspaceMutationContractFailureV1.invalidPlan};return p?.revision ?? 0;case let .applyRebase(_,prior,_,priors,receipt,priorReceipt):if identity.kind == .planRevision&&identity.id==prior.planRevisionID{return prior.revision};if identity.kind == .planPlacement,let value=priors.first(where:{$0.placementID==identity.id}){return value.revision};if identity.kind == .planRebaseReceipt&&identity.id==(priorReceipt?.receiptID ?? receipt.receiptID){return priorReceipt?.revision ?? 0};throw WorkspaceMutationContractFailureV1.invalidPlan;case let .recordRebaseRejection(receipt,prior):guard identity.kind == .planRebaseReceipt,identity.id==(prior?.receiptID ?? receipt.receiptID)else{throw WorkspaceMutationContractFailureV1.invalidPlan};return prior?.revision ?? 0}}
+}
+
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
     case createCheckDraft(CheckDraftMutationV1)
@@ -1544,6 +1571,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applySurveySession(SurveySessionMutationV1)
     case applyAssetLocator(AssetLocatorMutationV1)
     case applySchedule(ScheduleMutationV1)
+    case applyPlan(PlanMutationV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -1582,6 +1610,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applySurveySession:.applySurveySession
         case .applyAssetLocator:.applyAssetLocator
         case .applySchedule:.applySchedule
+        case .applyPlan:.applyPlan
         }
     }
 }
@@ -1622,6 +1651,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applySurveySession="apply_survey_session"
     case applyAssetLocator="apply_asset_locator"
     case applySchedule="apply_schedule"
+    case applyPlan="apply_plan"
 }
 
 extension WorkspaceCommandV1 {
@@ -2371,6 +2401,10 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind:.applyFieldReference,disposition:.irreversible,stableReason:"append_field_reference_forward_fix_only"),
         .init(commandKind:.applyAccessibleDocumentAssessment,disposition:.irreversible,stableReason:"append_accessible_document_assessment_successor_only"),
         .init(commandKind:.applySurveyDefinition,disposition:.compensatable,stableReason:"append_survey_definition_successor_only"),
+        .init(commandKind:.applySurveySession,disposition:.compensatable,stableReason:"append_survey_session_successor_only"),
+        .init(commandKind:.applyAssetLocator,disposition:.compensatable,stableReason:"append_asset_locator_successor_only"),
+        .init(commandKind:.applySchedule,disposition:.compensatable,stableReason:"append_schedule_successor_only"),
+        .init(commandKind:.applyPlan,disposition:.compensatable,stableReason:"append_plan_history_successor_only"),
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {

@@ -755,7 +755,8 @@ struct StoreMigrationJournalV1: Codable, Equatable, Sendable {
                 || (sourceRelease == .v23 && targetRelease == .v24)
                 || (sourceRelease == .v24 && targetRelease == .v25)
                 || (sourceRelease == .v25 && targetRelease == .v26)
-                || (sourceRelease == .v26 && targetRelease == .v27)) else {
+                || (sourceRelease == .v26 && targetRelease == .v27)
+                || (sourceRelease == .v27 && targetRelease == .v28)) else {
             throw StoreMigrationFailure.invalidContract
         }
 

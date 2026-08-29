@@ -1,6 +1,8 @@
 import Foundation
 import SwiftData
 
+enum PlanSurveySessionBindingV1 { static let placementMayReferenceObservationIdentity = true; static let sessionRowsDoNotOwnPlanBytes = true }
+
 enum SurveySessionPersistenceFailureV1: Error { case corruptRow }
 
 private func surveySessionDecoded<T: Codable & Equatable>(_ type: T.Type, data: Data, expected: T? = nil) throws -> T {

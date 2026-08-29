@@ -1342,3 +1342,31 @@ extension LocalSearchIndexStoreV1 {
         return record
     }
 }
+
+// MARK: - C29 plan placement search adapter
+
+extension LocalSearchIndexStoreV1 {
+    /// Admits only the bounded plan placement report derivative to the local
+    /// disposable index. Rebase previews and receipts remain report metadata,
+    /// never searchable source or mutation input.
+    static func planPlacementSearchRecord(
+        from projection: PlanReportProjectionV1,
+        placement: PlanPlacementReportProjectionV1
+    ) throws -> PlanPlacementSearchRecordV1 {
+        let record = try PlanPlacementSearchRecordV1(
+            projection: projection,
+            placement: placement
+        )
+        try PlanPlacementSearchProjectionPolicyV1.validate(record)
+        try PlanPlacementSearchPersistencePolicyV1().validate()
+        return record
+    }
+
+    static func validatePlanPlacementSearchRecord(
+        _ record: PlanPlacementSearchRecordV1
+    ) throws -> PlanPlacementSearchRecordV1 {
+        try PlanPlacementSearchProjectionPolicyV1.validate(record)
+        try PlanPlacementSearchPersistencePolicyV1().validate()
+        return record
+    }
+}

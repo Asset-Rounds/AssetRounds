@@ -439,6 +439,13 @@ private struct C26SurveySessionCorpus: Decodable {
 
 @MainActor
 final class V9_40SurveySessionTests: XCTestCase {
+    func testV23P03C29TypedPlanContractAnchor() throws {
+        let minimum = try NormalizedPlanCoordinateV1(millionths: 0)
+        let maximum = try NormalizedPlanCoordinateV1(millionths: PlanLimitsV1.normalizedScale)
+        XCTAssertEqual(minimum.millionths, 0)
+        XCTAssertEqual(maximum.millionths, PlanLimitsV1.normalizedScale)
+        XCTAssertEqual(PlanDocumentV1.schemaVersion, 1)
+    }
     private func corpus() throws -> C26SurveySessionCorpus {
         let bundle = Bundle(for: Self.self)
         let url = try XCTUnwrap(

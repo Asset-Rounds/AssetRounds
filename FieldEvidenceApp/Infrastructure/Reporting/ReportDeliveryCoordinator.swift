@@ -1366,6 +1366,47 @@ extension ReportDeliveryCoordinator {
         return try DeterministicOpenJSONRendererV1.renderSchedule(projection).data
     }
 }
+
+// MARK: - C29 local plan/rebase report export boundary
+
+enum PlanReportDeliveryPolicyV1 {
+    static let localExportOnly = true
+    static let remoteDeliveryClaimed = false
+    static let acknowledgementClaimed = false
+    static let historicReleasePinned = true
+    static let metadataOnly = true
+    static let previewIsNotApplied = true
+    static let excludesSourceBytes = true
+    static let excludesPrivateLocator = true
+    static let excludesActorIdentity = true
+
+    static func validateExport(
+        _ projection: PlanReportProjectionV1
+    ) throws -> PlanReportProjectionV1 {
+        guard localExportOnly, !remoteDeliveryClaimed,
+              !acknowledgementClaimed, historicReleasePinned,
+              metadataOnly, previewIsNotApplied,
+              excludesSourceBytes, excludesPrivateLocator,
+              excludesActorIdentity else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+        return try PlanReportProjectionPolicyV1.validate(
+            projection,
+            format: .openJSON
+        )
+    }
+}
+
+extension ReportDeliveryCoordinator {
+    /// Produces a local deterministic artifact only; it does not claim that
+    /// the preview was applied or that any artifact was remotely delivered.
+    static func localPlanExport(
+        _ projection: PlanReportProjectionV1
+    ) throws -> Data {
+        try PlanReportDeliveryPolicyV1.validateExport(projection)
+        return try DeterministicOpenJSONRendererV1.renderPlan(projection).data
+    }
+}
 private struct ReadyValidatedEvidenceBytes: Sendable {
     let originalJPEG: Data
     let thumbnailJPEG: Data

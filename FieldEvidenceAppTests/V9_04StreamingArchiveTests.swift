@@ -5,6 +5,13 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class V9_04StreamingArchiveTests: XCTestCase {
+    func testV23P03C29TypedPlanContractAnchor() throws {
+        let minimum = try NormalizedPlanCoordinateV1(millionths: 0)
+        let maximum = try NormalizedPlanCoordinateV1(millionths: PlanLimitsV1.normalizedScale)
+        XCTAssertEqual(minimum.millionths, 0)
+        XCTAssertEqual(maximum.millionths, PlanLimitsV1.normalizedScale)
+        XCTAssertEqual(PlanDocumentV1.schemaVersion, 1)
+    }
     func testV9_04G01GoldenDeterministicRepeatAndLegacyV4Dispatch() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }

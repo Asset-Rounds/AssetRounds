@@ -360,3 +360,11 @@ struct SurveyTemplateQuarantineAssessmentV1:Codable,Equatable,Sendable{let quara
 
 enum SurveyDefinitionCanonicalCodecV1{static func encode<T:Encodable>(_ value:T)throws->Data{let e=JSONEncoder();e.outputFormatting=[.sortedKeys,.withoutEscapingSlashes];e.dateEncodingStrategy = .millisecondsSince1970;let d=try e.encode(value);guard !d.isEmpty,d.count<=SurveyDefinitionLimitsV1.maximumCanonicalBytes else{throw SurveyDefinitionFailureV1.limitExceeded};return d}static func decode<T:Codable>(_ type:T.Type,from data:Data)throws->T{guard !data.isEmpty,data.count<=SurveyDefinitionLimitsV1.maximumCanonicalBytes else{throw SurveyDefinitionFailureV1.limitExceeded};let d=JSONDecoder();d.dateDecodingStrategy = .millisecondsSince1970;let v=try d.decode(type,from:data);guard try encode(v)==data else{throw SurveyDefinitionFailureV1.invalidDigest};return v}}
 enum SurveyDefinitionLifecycleV1{static let persistentFamilies=["SurveyDefinitionIdentityV1","SurveyDefinitionReleaseV1"];static let lifecycleEventPersistence="CANONICAL_MUTATION_JOURNAL_ENVELOPE";static let semanticDiffPersistence="NONPERSISTENT";static let adoptionPreviewPersistence="NONPERSISTENT";static let quarantinePersistence="DERIVED_ONLY";static let writer="SOLE_CANONICAL_WORKSPACE_WRITER";static let importDisposition="QUARANTINE_THEN_NEW_DRAFT_IDENTITY"}
+
+/// C29 typed integration anchor: this owner consumes an exact immutable plan
+/// revision reference and may not reinterpret current plan state implicitly.
+enum C29PlanIntegration_Domain_Packs_SurveyDefinitionContractsV1 {
+    static func validatePlanRevision(_ value: PlanRevisionReferenceV1) throws {
+        try value.validate()
+    }
+}

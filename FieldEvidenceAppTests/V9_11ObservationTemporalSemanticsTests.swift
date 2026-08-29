@@ -6,6 +6,13 @@ import XCTest
 
 @MainActor
 final class V9_11ObservationTemporalSemanticsTests: XCTestCase {
+    func testV23P03C29TypedPlanContractAnchor() throws {
+        let minimum = try NormalizedPlanCoordinateV1(millionths: 0)
+        let maximum = try NormalizedPlanCoordinateV1(millionths: PlanLimitsV1.normalizedScale)
+        XCTAssertEqual(minimum.millionths, 0)
+        XCTAssertEqual(maximum.millionths, PlanLimitsV1.normalizedScale)
+        XCTAssertEqual(PlanDocumentV1.schemaVersion, 1)
+    }
     func testV9_11G01ObservationBasisRoundTripsIndependentlyFromOutcome() throws {
         let corpus = try Self.loadCorpus()
         XCTAssertEqual(corpus.schemaVersion, 1)

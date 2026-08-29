@@ -3,6 +3,13 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class V9_15ContentReferenceProvenanceTests: XCTestCase {
+    func testV23P03C29TypedPlanContractAnchor() throws {
+        let minimum = try NormalizedPlanCoordinateV1(millionths: 0)
+        let maximum = try NormalizedPlanCoordinateV1(millionths: PlanLimitsV1.normalizedScale)
+        XCTAssertEqual(minimum.millionths, 0)
+        XCTAssertEqual(maximum.millionths, PlanLimitsV1.normalizedScale)
+        XCTAssertEqual(PlanDocumentV1.schemaVersion, 1)
+    }
     private let instant = "2026-08-27T00:00:00Z"
 
     func testV9_15G01LocatorReplacementPreservesCanonicalContentIdentity() throws {

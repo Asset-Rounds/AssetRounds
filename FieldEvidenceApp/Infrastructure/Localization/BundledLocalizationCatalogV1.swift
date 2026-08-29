@@ -3260,6 +3260,10 @@ enum BundledLocalizationCatalogV1 {
         // delivery is a disposable projection and never becomes a catalog
         // identity or completion claim.
         supportedKeys.formUnion(ScheduleLocalizationKeyV1.allCases.map(\.rawValue))
+        // C29 adds only recorded plan/rebase labels. Preview state remains
+        // unapplied and no localization entry carries an accuracy, delivery,
+        // security, or approval claim.
+        supportedKeys.formUnion(PlanLocalizationKeyV1.allCases.map(\.rawValue))
         guard registeredKeys.isSubset(of: Set(strings.keys)),
               Set(strings.keys).isSubset(of: supportedKeys) else {
             throw LocalizationContractFailureV1.invalidValue
@@ -3386,6 +3390,126 @@ extension BundledLocalizationCatalogV1 {
     static func packageEvolutionAccessibilityContracts()
         -> [PackageEvolutionAccessibilityContractV1] {
         PackageEvolutionAccessibilityPolicyV1.contracts
+    }
+}
+
+// MARK: - C29 versioned plan and rebase labels
+
+extension BundledLocalizationCatalogV1 {
+    static func planRegistry() throws -> LocalizationKeyRegistryV1 {
+        try PlanLocalizationPolicyV1.validate()
+        let base = try scheduleRegistry()
+        let additions = try PlanLocalizationKeyV1.allCases.map { key in
+            LocalizationKeyDefinitionV1(
+                key: key.localizationKey,
+                meaningID: key.rawValue,
+                translatorComment: key.translatorComment,
+                englishDefaultValue: key.englishDefaultValue,
+                arguments: [],
+                requiredEnglishPluralCategories: [],
+                state: .active,
+                deprecatedFallbackKey: nil
+            )
+        }
+        return try LocalizationKeyRegistryV1(
+            definitions: base.definitions + additions
+        )
+    }
+
+    static func localized(
+        _ key: PlanLocalizationKeyV1,
+        bundle: Bundle = .main
+    ) -> String {
+        String(
+            localized: key.rawValue,
+            defaultValue: key.englishDefaultValue,
+            bundle: bundle,
+            locale: Locale(identifier: runtimeLanguage),
+            comment: key.translatorComment
+        )
+    }
+
+    static func planDocumentStateDisplayLabel(
+        _ state: PlanDocumentStateV1,
+        bundle: Bundle = .main
+    ) -> String {
+        localized(PlanLocalizationKeyV1.documentStateKey(state), bundle: bundle)
+    }
+
+    static func planRevisionStateDisplayLabel(
+        _ state: PlanRevisionStateV1,
+        bundle: Bundle = .main
+    ) -> String {
+        localized(PlanLocalizationKeyV1.revisionStateKey(state), bundle: bundle)
+    }
+
+    static func planPlacementDispositionDisplayLabel(
+        _ disposition: PlanPlacementDispositionV1,
+        bundle: Bundle = .main
+    ) -> String {
+        localized(
+            PlanLocalizationKeyV1.placementDispositionKey(disposition),
+            bundle: bundle
+        )
+    }
+
+    static func planRebaseDecisionDisplayLabel(
+        _ decision: PlanRebaseDecisionV1,
+        bundle: Bundle = .main
+    ) -> String {
+        localized(PlanLocalizationKeyV1.decisionKey(decision), bundle: bundle)
+    }
+
+    static func planRebaseWarningDisplayLabel(
+        _ warning: PlanRebaseWarningCodeV1,
+        bundle: Bundle = .main
+    ) -> String {
+        localized(PlanLocalizationKeyV1.warningKey(warning), bundle: bundle)
+    }
+
+    static func planAccessibilityRegistry(
+        localization: LocalizationKeyRegistryV1
+    ) throws -> SemanticAccessibilityIDRegistryV1 {
+        let base = try scheduleAccessibilityRegistry(localization: localization)
+        let nextStep = PlanLocalizationKeyV1.planNextStep.localizationKey
+        let entries = try PlanAccessibilityIDV1.allCases.map {
+            id -> AccessibilityContractV1 in
+            let role: SemanticAccessibilityRoleV1
+            switch id {
+            case .screen: role = .screen
+            case .heading, .document, .revision, .revisionState, .placement,
+                 .placementDisposition, .coordinate, .reference, .contentBinding,
+                 .spatialFrame, .rebasePreview, .rebaseReceipt, .rebaseDecision,
+                 .rebaseWarning, .rebaseComponent, .residual, .expectedRevision,
+                 .historyImmutable, .previewNotApplied: role = .heading
+            case .nextStep: role = .button
+            case .documentActive, .documentRetired, .revisionDraft,
+                 .revisionReleased, .revisionWithdrawn, .placementAccepted,
+                 .placementReviewRequired, .placementOrphaned,
+                 .placementOutOfBounds, .decisionApplyRecorded,
+                 .decisionRejectRecorded, .warningPageMissing,
+                 .warningPageReordered, .warningOutOfBounds,
+                 .warningOrphanedAnchor, .warningResidualExceeded,
+                 .warningCalibrationUnavailable,
+                 .warningComponentReviewRequired, .errorStalePreview,
+                 .errorWrongReference, .errorComponentConflict,
+                 .errorReviewRequired, .errorInvalidDigest: role = .status
+            case .claimBoundary: role = .group
+            }
+            return AccessibilityContractV1(
+                semanticID: id.rawValue,
+                role: role,
+                reachability: .whenAvailable,
+                labelKey: id.localizationKey,
+                hintKey: PlanAccessibilityPolicyV1
+                    .requiresActionableNextStep(for: id.rawValue)
+                    ? nextStep : nil,
+                valueKey: nil,
+                dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            )
+        }
+        return try base.appending(entries, localization: localization)
     }
 }
 

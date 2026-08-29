@@ -519,3 +519,11 @@ extension SignoffSnapshotV1 {
     private struct Decoded: Decodable { let schemaVersion: Int; let snapshotID: UUID; let workspaceID: WorkspaceID; let purpose: String; let subjectID: UUID; let subjectRevision: UInt64; let disposition: SignoffDispositionV1; let method: SignoffMethodV1; let roleAssertion: SignoffRoleAssertionV1?; let qualification: QualificationSnapshotV1?; let externalEvidenceID: UUID?; let occurredAt: Date?; let recordedAt: Date; let supersedesSnapshotID: UUID?; let mutationID: MutationIDV1; let snapshotSHA256: String }
     init(from decoder: Decoder) throws { let v = try Decoded(from: decoder); guard v.schemaVersion == Self.schemaVersion else { throw PartyAccountabilityFailureV1.incompatibleVersion }; try self.init(snapshotID: v.snapshotID, workspaceID: v.workspaceID, purpose: v.purpose, subjectID: v.subjectID, subjectRevision: v.subjectRevision, disposition: v.disposition, method: v.method, roleAssertion: v.roleAssertion, qualification: v.qualification, externalEvidenceID: v.externalEvidenceID, occurredAt: v.occurredAt, recordedAt: v.recordedAt, supersedesSnapshotID: v.supersedesSnapshotID, mutationID: v.mutationID); guard snapshotSHA256 == v.snapshotSHA256 else { throw PartyAccountabilityFailureV1.digestMismatch } }
 }
+
+/// C29 typed integration anchor: this owner consumes an exact immutable plan
+/// revision reference and may not reinterpret current plan state implicitly.
+enum C29PlanIntegration_Domain_Accountability_PartyAccountabilityContractsV1 {
+    static func validatePlanRevision(_ value: PlanRevisionReferenceV1) throws {
+        try value.validate()
+    }
+}

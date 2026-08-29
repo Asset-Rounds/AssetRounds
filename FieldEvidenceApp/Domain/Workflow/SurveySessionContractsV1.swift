@@ -213,3 +213,11 @@ struct SurveySessionLifecycleClosureV1:Codable,Equatable,Sendable{
 }
 
 enum SurveySessionCanonicalCodecV1{static func encode<T:Encodable>(_ value:T)throws->Data{let e=JSONEncoder();e.outputFormatting=[.sortedKeys,.withoutEscapingSlashes];e.dateEncodingStrategy = .millisecondsSince1970;return try e.encode(value)};static func decode<T:Codable>(_ type:T.Type,from data:Data)throws->T{let d=JSONDecoder();d.dateDecodingStrategy = .millisecondsSince1970;let value=try d.decode(type,from:data);guard try encode(value)==data else{throw SurveySessionFailureV1.invalidDigest};return value}}
+
+/// C29 typed integration anchor: this owner consumes an exact immutable plan
+/// revision reference and may not reinterpret current plan state implicitly.
+enum C29PlanIntegration_Domain_Workflow_SurveySessionContractsV1 {
+    static func validatePlanRevision(_ value: PlanRevisionReferenceV1) throws {
+        try value.validate()
+    }
+}

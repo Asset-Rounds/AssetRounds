@@ -62,7 +62,7 @@ extension AssetPlacementEventV1 {
     func frozenAssetWorkSubjectReference() throws -> WorkSubjectReferenceV1 {
         try validate()
         let value = WorkSubjectReferenceV1(
-            kind: .asset, subjectID: assetID, revision: revision, ownerAssetID: nil
+            kind: .asset, subjectID: assetID, revision: 1, ownerAssetID: nil
         )
         try value.validate()
         return value
@@ -233,5 +233,13 @@ enum AssetPlacementHistoryV1 {
         guard reachable.count == events.count, reachable.contains(roots[0].id) else {
             throw LocationContractFailureV1.hierarchyViolation
         }
+    }
+}
+
+/// C29 typed integration anchor: this owner consumes an exact immutable plan
+/// revision reference and may not reinterpret current plan state implicitly.
+enum C29PlanIntegration_Domain_Location_AssetPlacementContractsV1 {
+    static func validatePlanRevision(_ value: PlanRevisionReferenceV1) throws {
+        try value.validate()
     }
 }

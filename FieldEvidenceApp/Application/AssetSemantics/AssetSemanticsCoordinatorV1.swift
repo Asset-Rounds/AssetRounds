@@ -307,3 +307,11 @@ final class AssetSemanticsCoordinatorV1 {
 
 typealias AssetSemanticsPlanV1 = AssetSemanticsChangePlanV1
 typealias AssetSemanticsReceiptV1 = AssetSemanticsChangeReceiptV1
+
+/// C29 typed integration anchor: this owner consumes an exact immutable plan
+/// revision reference and may not reinterpret current plan state implicitly.
+enum C29PlanIntegration_Application_AssetSemantics_AssetSemanticsCoordinatorV1 {
+    static func validatePlanRevision(_ value: PlanRevisionReferenceV1) throws {
+        try value.validate()
+    }
+}

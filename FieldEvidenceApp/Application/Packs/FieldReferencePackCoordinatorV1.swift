@@ -13,3 +13,11 @@ actor FieldReferencePackCoordinatorV1{
     func bind(_ binding:FieldReferenceBindingV1,to release:FieldReferenceReleaseV1)async throws->FieldReferenceWriteReceiptV1{try binding.validate(release:release);let inputs=try await content.readinessInputs(release:release,binding:binding,evaluatedAt:binding.boundAt);guard inputs.evaluatedAt==binding.boundAt,inputs.policy == .exactLocalContentV1 else{throw FieldReferencePackFailureV1.staleBinding};let readiness=try FieldReferenceOfflineReadinessV1(release:release,binding:binding,inputs:inputs);try readiness.validate(recomputedFrom:inputs,release:release,binding:binding);guard readiness.availability == .readyOffline,readiness.missingContentIDs.isEmpty else{throw FieldReferencePackFailureV1.missingContent};if let r=try await writer.acceptedBindingReceipt(for:binding,release:release){try validate(r,mutationID:binding.mutationID,digest:binding.bindingSHA256);return r};let r=try await writer.appendBinding(binding,release:release);try validate(r,mutationID:binding.mutationID,digest:binding.bindingSHA256);return r}
     private func validate(_ r:FieldReferenceWriteReceiptV1,mutationID:MutationIDV1,digest:String)throws{guard r.mutationID==mutationID,r.postImageSHA256==digest else{throw FieldReferencePackFailureV1.divergentRetry}}
 }
+
+/// C29 typed integration anchor: this owner consumes an exact immutable plan
+/// revision reference and may not reinterpret current plan state implicitly.
+enum C29PlanIntegration_Application_Packs_FieldReferencePackCoordinatorV1 {
+    static func validatePlanRevision(_ value: PlanRevisionReferenceV1) throws {
+        try value.validate()
+    }
+}

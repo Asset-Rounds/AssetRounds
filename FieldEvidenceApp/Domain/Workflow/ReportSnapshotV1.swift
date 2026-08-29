@@ -103,6 +103,15 @@ struct ReportSnapshotV1: Codable, Equatable, Sendable {
     /// basis and bounded due/reminder metadata for a historic report.
     var scheduleProjection: ScheduleReportProjectionV1? = nil
 
+    /// Optional C29 plan/rebase projection. It carries normalized placement
+    /// metadata and frozen preview/receipt summaries without source bytes,
+    /// private locators, actor identity, or an accuracy claim.
+    var planProjection: PlanReportProjectionV1? = nil
+
+    var planHistoryProjection: PlanReportProjectionV1? {
+        planProjection
+    }
+
     var scheduleHistoryProjection: ScheduleReportProjectionV1? {
         scheduleProjection
     }
@@ -325,4 +334,12 @@ struct TimeContextSnapshotV1: Codable, Equatable, Sendable {
     let observedAtUTC: Date
     let timeZoneID: String
     let utcOffsetMinutes: Int
+}
+
+/// C29 typed integration anchor: this owner consumes an exact immutable plan
+/// revision reference and may not reinterpret current plan state implicitly.
+enum C29PlanIntegration_Domain_Workflow_ReportSnapshotV1 {
+    static func validatePlanRevision(_ value: PlanRevisionReferenceV1) throws {
+        try value.validate()
+    }
 }

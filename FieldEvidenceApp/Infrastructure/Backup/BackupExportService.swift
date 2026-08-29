@@ -64,6 +64,10 @@ final class BackupExportService {
         let locatorBindingReceipts: [LocatorBindingReceiptRow]
         let scheduleDefinitionReleases: [ScheduleDefinitionReleaseRow]
         let occurrenceHistoryEvents: [OccurrenceHistoryEventRow]
+        let planDocuments: [PlanDocumentRow]
+        let planRevisions: [PlanRevisionRow]
+        let planPlacements: [PlanPlacementRow]
+        let rebaseReceipts: [RebaseReceiptRow]
         let fieldReferenceReleases:[FieldReferenceReleaseRow]
         let fieldReferenceBindings:[FieldReferenceBindingRow]
         let recoverabilityVerificationReceipts:[RecoverabilityVerificationReceiptRow]
@@ -741,6 +745,7 @@ private extension BackupExportService {
                 guidedSurveys:[],
                 assetLocators: records.assetLocators,
                 schedules: records.schedules,
+                plans: records.plans,
                 fieldReferences:records.fieldReferences,
                 fieldDrafts: records.fieldDrafts,
                 workPackets: records.workPackets,
@@ -982,9 +987,9 @@ private extension BackupExportService {
             source: .init(
                 appBuild: appBuild(),
                 appVersion: appVersion(),
-                persistentSchemaVersion: 23,
+                persistentSchemaVersion: 28,
                 replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: 22,
+                recordsSchemaVersion: 27,
                 sourceGenerationID: generationID,
                 workspaceID: sourceIdentity.workspaceID.rawValue
             )
@@ -1520,6 +1525,10 @@ private extension BackupExportService {
                  locatorBindingReceipts: try modelContext.fetch(FetchDescriptor<LocatorBindingReceiptRow>()),
                  scheduleDefinitionReleases: try modelContext.fetch(FetchDescriptor<ScheduleDefinitionReleaseRow>()),
                  occurrenceHistoryEvents: try modelContext.fetch(FetchDescriptor<OccurrenceHistoryEventRow>()),
+                 planDocuments: try modelContext.fetch(FetchDescriptor<PlanDocumentRow>()),
+                 planRevisions: try modelContext.fetch(FetchDescriptor<PlanRevisionRow>()),
+                 planPlacements: try modelContext.fetch(FetchDescriptor<PlanPlacementRow>()),
+                 rebaseReceipts: try modelContext.fetch(FetchDescriptor<RebaseReceiptRow>()),
                  fieldReferenceReleases:try modelContext.fetch(FetchDescriptor<FieldReferenceReleaseRow>()),
                 fieldReferenceBindings:try modelContext.fetch(FetchDescriptor<FieldReferenceBindingRow>()),
                 recoverabilityVerificationReceipts:try modelContext.fetch(FetchDescriptor<RecoverabilityVerificationReceiptRow>()),
@@ -2083,10 +2092,12 @@ private extension BackupExportService {
         let guidedSurveys=try mutationHistory.map{_ in try guidedSurveyRecords(rows)} ?? []
         let assetLocators = mutationHistory == nil ? [] : try assetLocatorRecords(rows)
         let schedules = mutationHistory == nil ? [] : try scheduleRecords(rows)
+        let plans = mutationHistory == nil ? [] : try planRecords(rows)
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveys,
             assetLocators: assetLocators,
             schedules: schedules,
+            plans: plans,
             accessibleDocumentAssessments:accessibleDocumentAssessments,
             surveyDefinitions:surveyDefinitions,
             fieldReferences:fieldReferences,
@@ -2384,6 +2395,81 @@ private extension BackupExportService {
             "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
                 < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
         }
+    }
+
+    private func planRecords(_ rows: Rows) throws -> [V28BackupPlanRecordV1] {
+        let documents = try rows.planDocuments.map { try $0.value() }
+        let revisions = try rows.planRevisions.map { try $0.value() }
+        let placements = try rows.planPlacements.map { try $0.value() }
+        let receipts = try rows.rebaseReceipts.map { try $0.value() }
+        guard !documents.isEmpty || !revisions.isEmpty || !placements.isEmpty || !receipts.isEmpty else {
+            return []
+        }
+        let workspaceID = try currentStreamingWorkspaceIdentity().workspaceID
+        guard documents.allSatisfy({ $0.workspaceID == workspaceID }),
+              revisions.allSatisfy({ $0.workspaceID == workspaceID }),
+              placements.allSatisfy({ $0.workspaceID == workspaceID }),
+              receipts.allSatisfy({ $0.workspaceID == workspaceID }) else {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        let closure = PlanLifecycleClosureV1(
+            documentHistory: documents,
+            revisionHistory: revisions,
+            placementHistory: placements,
+            receipts: receipts
+        )
+        try closure.validate()
+
+        var frameByID: [UUID: (value: SpatialReferenceFrameV1, revision: UInt64)] = [:]
+        for revision in revisions {
+            for frame in revision.spatialFrames {
+                if let existing = frameByID[frame.frameID], existing.value != frame {
+                    throw BackupExportServiceError.invalidAuthority
+                }
+                frameByID[frame.frameID] = (frame, revision.revision)
+            }
+        }
+        let documentRecords = try documents.map {
+            V28BackupPlanRecordV1(
+                kind: .document, id: $0.planDocumentID,
+                workspaceID: $0.workspaceID.rawValue, revision: $0.revision,
+                canonicalData: try PlanCanonicalCodecV1.encode($0)
+            )
+        }
+        let revisionRecords = try revisions.map {
+            V28BackupPlanRecordV1(
+                kind: .revision, id: $0.planRevisionID,
+                workspaceID: $0.workspaceID.rawValue, revision: $0.revision,
+                canonicalData: try PlanCanonicalCodecV1.encode($0)
+            )
+        }
+        let frameRecords = try frameByID.values.map {
+            V28BackupPlanRecordV1(
+                kind: .spatialFrame, id: $0.value.frameID,
+                workspaceID: workspaceID.rawValue, revision: $0.revision,
+                canonicalData: try PlanCanonicalCodecV1.encode($0.value)
+            )
+        }
+        let placementRecords = try placements.map {
+            V28BackupPlanRecordV1(
+                kind: .placement, id: $0.placementID,
+                workspaceID: $0.workspaceID.rawValue, revision: $0.revision,
+                canonicalData: try PlanCanonicalCodecV1.encode($0)
+            )
+        }
+        let receiptRecords = try receipts.map {
+            V28BackupPlanRecordV1(
+                kind: .rebaseReceipt, id: $0.receiptID,
+                workspaceID: $0.workspaceID.rawValue, revision: $0.revision,
+                canonicalData: try PlanCanonicalCodecV1.encode($0)
+            )
+        }
+        let result = (documentRecords + revisionRecords + frameRecords + placementRecords + receiptRecords).sorted {
+            "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
+                < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
+        }
+        _ = try PlanBackupRecordSetV1.decode(result)
+        return result
     }
 
     private func functionalRelationshipRecords(

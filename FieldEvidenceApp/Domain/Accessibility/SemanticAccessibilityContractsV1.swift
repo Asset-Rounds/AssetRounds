@@ -1788,3 +1788,186 @@ enum ScheduleAccessibilityPolicyV1 {
         }
     }
 }
+
+// MARK: - C29 plan and rebase accessibility
+
+/// Stable semantic identifiers for the plan/rebase projection. They expose
+/// recorded document, placement, warning, and receipt facts without making
+/// an unapplied preview sound like verified or applied truth.
+enum PlanAccessibilityIDV1: String, Codable, CaseIterable, Sendable {
+    case screen = "plan.screen"
+    case heading = "plan.heading"
+    case document = "plan.document"
+    case revision = "plan.revision"
+    case revisionState = "plan.revision.state"
+    case placement = "plan.placement"
+    case placementDisposition = "plan.placement.disposition"
+    case coordinate = "plan.coordinate"
+    case reference = "plan.reference"
+    case contentBinding = "plan.content.binding"
+    case spatialFrame = "plan.spatial.frame"
+    case rebasePreview = "plan.rebase.preview"
+    case rebaseReceipt = "plan.rebase.receipt"
+    case rebaseDecision = "plan.rebase.decision"
+    case rebaseWarning = "plan.rebase.warning"
+    case rebaseComponent = "plan.rebase.component"
+    case residual = "plan.rebase.residual"
+    case expectedRevision = "plan.rebase.expected_revision"
+    case historyImmutable = "plan.history.immutable"
+    case previewNotApplied = "plan.rebase.preview.not_applied"
+    case claimBoundary = "plan.claim_boundary"
+    case nextStep = "plan.next_step"
+
+    case documentActive = "plan.document.state.active"
+    case documentRetired = "plan.document.state.retired"
+    case revisionDraft = "plan.revision.state.draft"
+    case revisionReleased = "plan.revision.state.released"
+    case revisionWithdrawn = "plan.revision.state.withdrawn"
+    case placementAccepted = "plan.placement.disposition.accepted"
+    case placementReviewRequired = "plan.placement.disposition.review_required"
+    case placementOrphaned = "plan.placement.disposition.orphaned"
+    case placementOutOfBounds = "plan.placement.disposition.out_of_bounds"
+    case decisionApplyRecorded = "plan.rebase.decision.apply_recorded"
+    case decisionRejectRecorded = "plan.rebase.decision.reject_recorded"
+    case warningPageMissing = "plan.rebase.warning.page_missing"
+    case warningPageReordered = "plan.rebase.warning.page_reordered"
+    case warningOutOfBounds = "plan.rebase.warning.out_of_bounds"
+    case warningOrphanedAnchor = "plan.rebase.warning.orphaned_anchor"
+    case warningResidualExceeded = "plan.rebase.warning.residual_exceeded"
+    case warningCalibrationUnavailable = "plan.rebase.warning.calibration_unavailable"
+    case warningComponentReviewRequired = "plan.rebase.warning.component_review_required"
+    case errorStalePreview = "plan.error.stale_preview"
+    case errorWrongReference = "plan.error.wrong_reference"
+    case errorComponentConflict = "plan.error.component_conflict"
+    case errorReviewRequired = "plan.error.review_required"
+    case errorInvalidDigest = "plan.error.invalid_digest"
+
+    var localizationKey: LocalizationKeyV1 {
+        let key: PlanLocalizationKeyV1
+        switch self {
+        case .screen, .heading: key = .planHeading
+        case .document: key = .planDocument
+        case .revision: key = .planRevision
+        case .revisionState: key = .planRevisionState
+        case .placement: key = .planPlacement
+        case .placementDisposition: key = .planPlacementDisposition
+        case .coordinate: key = .planCoordinate
+        case .reference: key = .planReference
+        case .contentBinding: key = .planContentBinding
+        case .spatialFrame: key = .planSpatialFrame
+        case .rebasePreview: key = .planRebasePreview
+        case .rebaseReceipt: key = .planRebaseReceipt
+        case .rebaseDecision: key = .planRebaseDecision
+        case .rebaseWarning: key = .planRebaseWarning
+        case .rebaseComponent: key = .planRebaseComponent
+        case .residual: key = .planResidual
+        case .expectedRevision: key = .planExpectedRevision
+        case .historyImmutable: key = .planHistoryImmutable
+        case .previewNotApplied: key = .planPreviewNotApplied
+        case .claimBoundary: key = .planClaimBoundary
+        case .nextStep: key = .planNextStep
+        case .documentActive: key = .documentActive
+        case .documentRetired: key = .documentRetired
+        case .revisionDraft: key = .revisionDraft
+        case .revisionReleased: key = .revisionReleased
+        case .revisionWithdrawn: key = .revisionWithdrawn
+        case .placementAccepted: key = .placementAccepted
+        case .placementReviewRequired: key = .placementReviewRequired
+        case .placementOrphaned: key = .placementOrphaned
+        case .placementOutOfBounds: key = .placementOutOfBounds
+        case .decisionApplyRecorded: key = .decisionApplyRecorded
+        case .decisionRejectRecorded: key = .decisionRejectRecorded
+        case .warningPageMissing: key = .warningPageMissing
+        case .warningPageReordered: key = .warningPageReordered
+        case .warningOutOfBounds: key = .warningOutOfBounds
+        case .warningOrphanedAnchor: key = .warningOrphanedAnchor
+        case .warningResidualExceeded: key = .warningResidualExceeded
+        case .warningCalibrationUnavailable: key = .warningCalibrationUnavailable
+        case .warningComponentReviewRequired: key = .warningComponentReviewRequired
+        case .errorStalePreview: key = .errorStalePreview
+        case .errorWrongReference: key = .errorWrongReference
+        case .errorComponentConflict: key = .errorComponentConflict
+        case .errorReviewRequired: key = .errorReviewRequired
+        case .errorInvalidDigest: key = .errorInvalidDigest
+        }
+        // swiftlint:disable:next force_try
+        return try! LocalizationKeyV1(key.rawValue)
+    }
+}
+
+enum PlanAccessibilityPolicyV1 {
+    static let semanticIDs = PlanAccessibilityIDV1.allCases.map(\.rawValue)
+    static let stateSemanticIDs: Set<String> = Set(
+        [PlanAccessibilityIDV1]([
+            .documentActive, .documentRetired,
+            .revisionDraft, .revisionReleased, .revisionWithdrawn,
+            .placementAccepted, .placementReviewRequired,
+            .placementOrphaned, .placementOutOfBounds,
+            .decisionApplyRecorded, .decisionRejectRecorded,
+        ]).map(\.rawValue)
+    )
+    static let indeterminateSemanticIDs: Set<String> = Set(
+        [PlanAccessibilityIDV1]([
+            .placementReviewRequired, .placementOrphaned, .placementOutOfBounds,
+            .warningPageMissing, .warningPageReordered, .warningOutOfBounds,
+            .warningOrphanedAnchor, .warningResidualExceeded,
+            .warningCalibrationUnavailable, .warningComponentReviewRequired,
+            .errorStalePreview, .errorWrongReference, .errorComponentConflict,
+            .errorReviewRequired, .errorInvalidDigest,
+        ]).map(\.rawValue)
+    )
+    static let denyByDefault = true
+    static let nonColorStateTextRequired = true
+    static let textAlternativeRequired = true
+    static let textAndIconRequiredForIndeterminateStates = true
+    static let actionableNextStepRequiredForIndeterminateStates = true
+    static let colorOnlyStateAllowed = false
+    static let iconOnlyStateAllowed = false
+    static let motionOnlyStateAllowed = false
+
+    static func requiresTextAndIcon(for semanticID: String) -> Bool {
+        indeterminateSemanticIDs.contains(semanticID)
+    }
+
+    static func requiresActionableNextStep(for semanticID: String) -> Bool {
+        indeterminateSemanticIDs.contains(semanticID)
+    }
+
+    static func documentStateID(_ state: PlanDocumentStateV1) -> PlanAccessibilityIDV1 {
+        switch state {
+        case .active: return .documentActive
+        case .retired: return .documentRetired
+        }
+    }
+
+    static func revisionStateID(_ state: PlanRevisionStateV1) -> PlanAccessibilityIDV1 {
+        switch state {
+        case .draft: return .revisionDraft
+        case .released: return .revisionReleased
+        case .withdrawn: return .revisionWithdrawn
+        }
+    }
+
+    static func placementDispositionID(
+        _ disposition: PlanPlacementDispositionV1
+    ) -> PlanAccessibilityIDV1 {
+        switch disposition {
+        case .accepted: return .placementAccepted
+        case .reviewRequired: return .placementReviewRequired
+        case .orphaned: return .placementOrphaned
+        case .outOfBounds: return .placementOutOfBounds
+        }
+    }
+
+    static func warningID(_ warning: PlanRebaseWarningCodeV1) -> PlanAccessibilityIDV1 {
+        switch warning {
+        case .pageMissing: return .warningPageMissing
+        case .pageReordered: return .warningPageReordered
+        case .outOfBounds: return .warningOutOfBounds
+        case .orphanedAnchor: return .warningOrphanedAnchor
+        case .residualExceeded: return .warningResidualExceeded
+        case .calibrationUnavailable: return .warningCalibrationUnavailable
+        case .componentReviewRequired: return .warningComponentReviewRequired
+        }
+    }
+}

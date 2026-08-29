@@ -92,3 +92,11 @@ enum AssetLocatorCameraBoundaryV1 {
         AssetLocatorInputDecoderV1.decode(data, source: .camera)
     }
 }
+
+/// C29 typed integration anchor: this owner consumes an exact immutable plan
+/// revision reference and may not reinterpret current plan state implicitly.
+enum C29PlanIntegration_Infrastructure_Camera_CameraAdapter {
+    static func validatePlanRevision(_ value: PlanRevisionReferenceV1) throws {
+        try value.validate()
+    }
+}

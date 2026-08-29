@@ -223,3 +223,11 @@ struct AssetCompositionChangePlanV1: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey, CaseIterable { case operationID, mutationID, workspaceID, expectedRevision, event, currentPlacementTips, resultingActiveEdges, planSHA256 }
     init(from decoder: Decoder) throws { try LocationClosedCodingV1.require(decoder, keys: CodingKeys.self, required: Set(CodingKeys.allCases.map(\.rawValue))); let c = try decoder.container(keyedBy: CodingKeys.self); let tips = try c.decode([AssetPlacementTipBindingV1].self, forKey: .currentPlacementTips); guard tips == tips.sorted(), Set(tips.map(\.assetID)).count == tips.count else { throw LocationContractFailureV1.unorderedValue }; let rebuilt = try Self(operationID: c.decode(UUID.self, forKey: .operationID), mutationID: c.decode(MutationIDV1.self, forKey: .mutationID), workspaceID: c.decode(WorkspaceID.self, forKey: .workspaceID), expectedRevision: c.decode(WorkspaceExpectedRevisionV1.self, forKey: .expectedRevision), event: c.decode(AssetCompositionEventV1.self, forKey: .event), currentPlacementByAssetID: Dictionary(uniqueKeysWithValues: tips.map { ($0.assetID, $0.placement) }), resultingActiveEdges: c.decode([AssetCompositionEdgeV1].self, forKey: .resultingActiveEdges)); guard try c.decode(String.self, forKey: .planSHA256) == rebuilt.planSHA256 else { throw LocationContractFailureV1.digestMismatch }; self = rebuilt }
 }
+
+/// C29 typed integration anchor: this owner consumes an exact immutable plan
+/// revision reference and may not reinterpret current plan state implicitly.
+enum C29PlanIntegration_Domain_Location_AssetCompositionContractsV1 {
+    static func validatePlanRevision(_ value: PlanRevisionReferenceV1) throws {
+        try value.validate()
+    }
+}

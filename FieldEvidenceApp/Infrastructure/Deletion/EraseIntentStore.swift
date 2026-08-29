@@ -66,6 +66,26 @@ enum ScheduleEraseIntentStorePolicyV1 {
         }
     }
 }
+enum PlanEraseIntentStorePolicyV1 {
+    static let persistentSchemaVersion = 28
+    static let recordsSchemaVersion = 27
+    static let durableModelCount = 4
+    static let durableFamilyCount = 4
+    static let derivedPreviewRebuilt = true
+    static let sourcePlanAutomaticallyActiveAfterCloneOrFork = false
+
+    static func validate() throws {
+        guard persistentSchemaVersion == PlanPersistenceEnrollmentV1.persistentSchemaVersion,
+              recordsSchemaVersion == PlanPersistenceEnrollmentV1.recordsSchemaVersion,
+              durableModelCount == PlanPersistenceEnrollmentV1.durableModelCount,
+              durableFamilyCount == PlanPersistenceEnrollmentV1.durableModelCount,
+              derivedPreviewRebuilt,
+              !sourcePlanAutomaticallyActiveAfterCloneOrFork else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        try PlanDeletionLedgerPolicyV1.validate()
+    }
+}
 
 enum EraseIntentStoreError: Error, Equatable {
     case invalidAuthority
@@ -393,6 +413,7 @@ final class EraseIntentStore {
         try AccessibleDocumentEraseIntentStorePolicyV1.validate()
         try SurveyDefinitionEraseIntentStorePolicyV1.validate()
         try ScheduleEraseIntentStorePolicyV1.validate()
+        try PlanEraseIntentStorePolicyV1.validate()
         try SurveySessionEraseIntentEnrollmentV1.validate()
         let root = applicationSupportURL.standardizedFileURL
         guard root.isFileURL else { throw EraseIntentStoreError.invalidAuthority }

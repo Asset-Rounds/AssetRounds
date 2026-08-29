@@ -2086,3 +2086,53 @@ extension SearchIndexRebuildCoordinatorV1 {
     static let scheduleOccurrenceRestoreDisposition =
         "EXCLUDE_SCHEDULE_ROWS_AND_REBUILD_AFTER_CANONICAL_RESTORE"
 }
+
+// MARK: - C29 plan placement search rebuild
+
+extension SearchIndexRebuildCoordinatorV1 {
+    /// Rebuilds disposable plan placement rows from frozen report projections
+    /// in deterministic order. Rebase previews, receipts, source bytes, and
+    /// private locator bindings never become search rows.
+    static func planPlacementSearchRecords(
+        from projections: [PlanReportProjectionV1]
+    ) throws -> [PlanPlacementSearchRecordV1] {
+        try PlanPlacementSearchPersistencePolicyV1().validate()
+        guard projections.count <= SearchContractLimitsV1.maximumCanonicalRecords else {
+            throw SearchContractFailureV1.limitExceeded
+        }
+        try projections.forEach {
+            try PlanReportProjectionPolicyV1.validate($0)
+        }
+
+        var records: [PlanPlacementSearchRecordV1] = []
+        for projection in projections.sorted(by: { $0.projectionSHA256 < $1.projectionSHA256 }) {
+            guard projection.placements.count <= PlanLimitsV1.maximumPlacements,
+                  records.count <= SearchContractLimitsV1.maximumProjectionRecords
+            else {
+                throw SearchContractFailureV1.limitExceeded
+            }
+            for placement in projection.placements {
+                records.append(try LocalSearchIndexStoreV1.planPlacementSearchRecord(
+                    from: projection,
+                    placement: placement
+                ))
+            }
+        }
+        guard records.count <= SearchContractLimitsV1.maximumProjectionRecords else {
+            throw SearchContractFailureV1.limitExceeded
+        }
+        records.sort { $0.projectionIdentity < $1.projectionIdentity }
+        guard Set(records.map(\.projectionIdentity)).count == records.count else {
+            throw SearchContractFailureV1.duplicateProjection
+        }
+        try records.forEach { try PlanPlacementSearchProjectionPolicyV1.validate($0) }
+        return records
+    }
+
+    static let planPlacementReplayDisposition =
+        "DROP_AND_REBUILD_FROM_FROZEN_PLAN_REPORT_PROJECTIONS"
+    static let planPlacementRestoreDisposition =
+        "EXCLUDE_PLAN_ROWS_AND_REBUILD_AFTER_CANONICAL_RESTORE"
+    static let planPlacementEraseDisposition =
+        "DROP_AND_REBUILD_AFTER_PLAN_ERASE"
+}

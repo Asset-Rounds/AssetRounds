@@ -1649,6 +1649,7 @@ private extension BackupRestoreService {
             guidedSurveys:records.guidedSurveys,
             assetLocators: records.assetLocators,
             schedules: records.schedules,
+            plans: records.plans,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
@@ -1710,6 +1711,7 @@ private extension BackupRestoreService {
             guidedSurveys:records.guidedSurveys,
             assetLocators: records.assetLocators,
             schedules: records.schedules,
+            plans: records.plans,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
@@ -1835,6 +1837,7 @@ private extension BackupRestoreService {
             guidedSurveys:records.guidedSurveys,
             assetLocators: records.assetLocators,
             schedules: records.schedules,
+            plans: records.plans,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
@@ -2110,11 +2113,18 @@ private extension BackupRestoreService {
             destinationSurveyDefinitions: surveyDefinitions,
             packageEvolution: packageEvolution
         )
+        let plans = try rebindingPlans(
+            records.plans,
+            identity: identity,
+            workspaceID: workspaceID,
+            assetLocators: assetLocators
+        )
         guard let archived = records.locationMigrationReceipts.first else {
             return V4BackupRecordsV1(
                 guidedSurveys:guidedSurveys,
                 assetLocators: assetLocators,
                 schedules: schedules,
+                plans: plans,
                 accessibleDocumentAssessments:records.accessibleDocumentAssessments,
                 surveyDefinitions: surveyDefinitions,
                 fieldReferences:fieldReferences,
@@ -2168,6 +2178,7 @@ private extension BackupRestoreService {
            workPackets == records.workPackets,
            assetLocators == records.assetLocators,
            schedules == records.schedules,
+           plans == records.plans,
            reports == records.reports {
             return records
         }
@@ -2183,6 +2194,7 @@ private extension BackupRestoreService {
             guidedSurveys:guidedSurveys,
             assetLocators: assetLocators,
             schedules: schedules,
+            plans: plans,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: surveyDefinitions,
             fieldReferences:fieldReferences,
@@ -3034,6 +3046,199 @@ private extension BackupRestoreService {
             "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
                 < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
         }
+    }
+
+    /// Rebinds plan document/revision/placement history for a clone or fork.
+    /// Rebase receipts are deliberately not synthesized: their preview digest
+    /// is a proof over the source component registry and cannot be recreated
+    /// from an archive without that derived registry.  A package containing
+    /// such receipts therefore fails closed instead of accepting a forged
+    /// destination preview.  Same-workspace replacement preserves every
+    /// canonical plan byte unchanged.
+    func rebindingPlans(
+        _ records: [V28BackupPlanRecordV1],
+        identity: RestoreIdentityV1,
+        workspaceID: WorkspaceID,
+        assetLocators: [V26BackupAssetLocatorRecordV1]
+    ) throws -> [V28BackupPlanRecordV1] {
+        guard !records.isEmpty else { return [] }
+        try PlanRestoreIdentityPolicyV1.validate(records: records)
+        let values = try PlanBackupRecordSetV1.decode(records)
+        let sourceWorkspace = values.documents.first?.workspaceID
+            ?? values.revisions.first?.workspaceID
+            ?? values.placements.first?.workspaceID
+            ?? values.receipts.first?.workspaceID
+        guard let sourceWorkspace else { throw BackupRestoreServiceError.invalidPackage }
+        guard values.documents.allSatisfy({ $0.workspaceID == sourceWorkspace }),
+              values.revisions.allSatisfy({ $0.workspaceID == sourceWorkspace }),
+              values.placements.allSatisfy({ $0.workspaceID == sourceWorkspace }),
+              values.receipts.allSatisfy({ $0.workspaceID == sourceWorkspace }) else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        let needsRebind = sourceWorkspace != workspaceID ||
+            identity.mode == .clone || identity.mode == .fork
+        guard needsRebind else { return records }
+
+        func actor(_ source: ActorSnapshotV1) throws -> ActorSnapshotV1 {
+            let local = try LocalActorReferenceV1(
+                actorReferenceID: source.actor.actorReferenceID,
+                workspaceID: workspaceID,
+                partyID: source.actor.partyID,
+                displayName: source.actor.displayName
+            )
+            return try ActorSnapshotV1(
+                snapshotID: source.snapshotID,
+                workspaceID: workspaceID,
+                actor: local,
+                responsibility: source.responsibility,
+                displayNameAtTime: source.displayNameAtTime,
+                capturedAt: source.capturedAt
+            )
+        }
+
+        let sourceDocuments = values.documents
+        var destinationDocuments: [PlanDocumentV1] = []
+        var documentReferences: [PlanDocumentReferenceV1: PlanDocumentReferenceV1] = [:]
+        for group in Dictionary(grouping: sourceDocuments, by: \.planDocumentID).values {
+            var predecessor: PlanDocumentV1?
+            for source in group.sorted(by: { $0.revision < $1.revision }) {
+                let destination = try source.rebound(
+                    to: workspaceID,
+                    predecessor: predecessor
+                )
+                if let predecessor { try destination.validateSuccessor(of: predecessor) }
+                documentReferences[try source.reference] = try destination.reference
+                destinationDocuments.append(destination)
+                predecessor = destination
+            }
+        }
+
+        var destinationRevisions: [PlanRevisionV1] = []
+        var revisionReferences: [PlanRevisionReferenceV1: PlanRevisionReferenceV1] = [:]
+        for group in Dictionary(grouping: values.revisions, by: { $0.planDocument.planDocumentID }).values {
+            var predecessor: PlanRevisionV1?
+            for source in group.sorted(by: { $0.revision < $1.revision }) {
+                guard let destinationDocument = documentReferences[source.planDocument] else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                let destination = try source.rebound(
+                    to: workspaceID,
+                    planDocument: destinationDocument,
+                    contentBinding: source.contentBinding,
+                    predecessor: predecessor,
+                    recordedBy: try actor(source.recordedBy)
+                )
+                if let predecessor { try destination.validateSuccessor(of: predecessor) }
+                revisionReferences[try source.reference] = try destination.reference
+                destinationRevisions.append(destination)
+                predecessor = destination
+            }
+        }
+
+        let locatorValues = try assetLocators.compactMap { record -> AssetLocatorV1? in
+            guard record.kind == .locator else { return nil }
+            return try AssetLocatorCanonicalCodecV1.decode(
+                AssetLocatorV1.self,
+                from: record.canonicalData
+            )
+        }
+        let receiptValues = try assetLocators.compactMap { record -> LocatorBindingReceiptV1? in
+            guard record.kind == .bindingReceipt else { return nil }
+            return try AssetLocatorCanonicalCodecV1.decode(
+                LocatorBindingReceiptV1.self,
+                from: record.canonicalData
+            )
+        }
+        let locatorByReference = try Dictionary(uniqueKeysWithValues: locatorValues.map {
+            (try $0.reference, $0)
+        })
+        let receiptByID = try Dictionary(uniqueKeysWithValues: receiptValues.map {
+            ($0.receiptID, $0)
+        })
+
+        var destinationPlacements: [PlanPlacementV1] = []
+        for group in Dictionary(grouping: values.placements, by: \.placementID).values {
+            var predecessor: PlanPlacementV1?
+            for source in group.sorted(by: { $0.revision < $1.revision }) {
+                guard let destinationRevision = revisionReferences[source.planRevision] else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                let destinationBinding: PlanAssetLocatorBindingV1?
+                if let sourceBinding = source.assetLocatorBinding {
+                    guard let locator = locatorByReference[sourceBinding.locator],
+                          let receipt = receiptByID[sourceBinding.bindingReceiptID] else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                    destinationBinding = try PlanAssetLocatorBindingV1(
+                        locator: locator,
+                        receipt: receipt
+                    )
+                } else {
+                    destinationBinding = nil
+                }
+                let destination = try source.rebound(
+                    to: workspaceID,
+                    planRevision: destinationRevision,
+                    assetLocatorBinding: destinationBinding,
+                    predecessor: predecessor
+                )
+                if let predecessor { try destination.validateSuccessor(of: predecessor) }
+                destinationPlacements.append(destination)
+                predecessor = destination
+            }
+        }
+
+        // A receipt's preview and component-registry digest are derived
+        // values, not archive members.  Never manufacture a replacement
+        // preview merely to make the receipt appear destination-local.
+        guard values.receipts.isEmpty else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+
+        try PlanLifecycleClosureV1(
+            documentHistory: destinationDocuments,
+            revisionHistory: destinationRevisions,
+            placementHistory: destinationPlacements,
+            receipts: []
+        ).validate()
+        let frames = try values.spatialFrames.map { frame in
+            V28BackupPlanRecordV1(
+                kind: .spatialFrame,
+                id: frame.frameID,
+                workspaceID: workspaceID.rawValue,
+                revision: records.first(where: { $0.kind == .spatialFrame && $0.id == frame.frameID })?.revision ?? 1,
+                canonicalData: try PlanCanonicalCodecV1.encode(frame)
+            )
+        }
+        let reboundRecords = try (
+            destinationDocuments.map {
+                V28BackupPlanRecordV1(
+                    kind: .document, id: $0.planDocumentID,
+                    workspaceID: workspaceID.rawValue, revision: $0.revision,
+                    canonicalData: try PlanCanonicalCodecV1.encode($0)
+                )
+            }
+            + destinationRevisions.map {
+                V28BackupPlanRecordV1(
+                    kind: .revision, id: $0.planRevisionID,
+                    workspaceID: workspaceID.rawValue, revision: $0.revision,
+                    canonicalData: try PlanCanonicalCodecV1.encode($0)
+                )
+            }
+            + frames
+            + destinationPlacements.map {
+                V28BackupPlanRecordV1(
+                    kind: .placement, id: $0.placementID,
+                    workspaceID: workspaceID.rawValue, revision: $0.revision,
+                    canonicalData: try PlanCanonicalCodecV1.encode($0)
+                )
+            }
+        ).sorted {
+            "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())" <
+                "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
+        }
+        _ = try PlanBackupRecordSetV1.decode(reboundRecords)
+        return reboundRecords
     }
 
     func preparedAccessibleDocumentAssessments(_ records:[V23BackupAccessibleDocumentAssessmentRecordV1],identityDecision:RestoreIdentityV1?)async throws->[V23BackupAccessibleDocumentAssessmentRecordV1]{
@@ -6072,6 +6277,7 @@ private extension BackupRestoreService {
             guidedSurveys:schemaVersion >= 24 ? records.guidedSurveys:[],
             assetLocators: schemaVersion >= 25 ? records.assetLocators : [],
             schedules: schemaVersion >= 26 ? records.schedules : [],
+            plans: schemaVersion >= 27 ? records.plans : [],
             accessibleDocumentAssessments:schemaVersion >= 22 ? records.accessibleDocumentAssessments:[],
             surveyDefinitions: schemaVersion >= 23 ? records.surveyDefinitions : [],
             fieldReferences:schemaVersion >= 21 ? records.fieldReferences:[],
@@ -6115,6 +6321,7 @@ private extension BackupRestoreService {
     ) throws -> Bool {
         let predecessor = V4BackupRecordsV1(
             guidedSurveys:expected.recordsSchemaVersion >= 24 ? expected.guidedSurveys:[],
+            plans: expected.recordsSchemaVersion >= 27 ? expected.plans : [],
             accessibleDocumentAssessments:expected.recordsSchemaVersion >= 22 ? expected.accessibleDocumentAssessments:[],
             surveyDefinitions: expected.recordsSchemaVersion >= 23 ? expected.surveyDefinitions : [],
             fieldReferences:expected.recordsSchemaVersion >= 21 ? expected.fieldReferences:[],
@@ -6319,6 +6526,10 @@ private extension BackupRestoreService {
         let surveySessions=try context.fetch(FetchDescriptor<SurveySessionRow>()),factCaptures=try context.fetch(FetchDescriptor<FactCaptureRow>()),provisionalSubjects=try context.fetch(FetchDescriptor<ProvisionalSubjectRow>()),subjectPromotionReceipts=try context.fetch(FetchDescriptor<SubjectPromotionReceiptRow>()),surveyPublicationSnapshots=try context.fetch(FetchDescriptor<SurveyPublicationSnapshotRow>())
         let assetLocatorRows = try context.fetch(FetchDescriptor<AssetLocatorRow>())
         let locatorBindingReceiptRows = try context.fetch(FetchDescriptor<LocatorBindingReceiptRow>())
+        let planDocumentRows = try context.fetch(FetchDescriptor<PlanDocumentRow>())
+        let planRevisionRows = try context.fetch(FetchDescriptor<PlanRevisionRow>())
+        let planPlacementRows = try context.fetch(FetchDescriptor<PlanPlacementRow>())
+        let rebaseReceiptRows = try context.fetch(FetchDescriptor<RebaseReceiptRow>())
         let recoverabilityVerificationReceipts=try context.fetch(FetchDescriptor<RecoverabilityVerificationReceiptRow>())
         let clientCapabilityProfiles=try context.fetch(FetchDescriptor<ClientCapabilityProfileRow>()),packageLifecyclePolicies=try context.fetch(FetchDescriptor<PackageLifecyclePolicyRow>()),packageLifecycleDispositions=try context.fetch(FetchDescriptor<PackageLifecycleDispositionRow>()),clientCapabilityAdmissionDecisions=try context.fetch(FetchDescriptor<ClientCapabilityAdmissionDecisionRow>())
         let privacyTransformPolicies=try context.fetch(FetchDescriptor<PrivacyTransformPolicyRow>()),privacyRegions=try context.fetch(FetchDescriptor<PrivacyRegionRow>()),privacyTransformManifests=try context.fetch(FetchDescriptor<PrivacyTransformManifestRow>()),privacyReviewReceipts=try context.fetch(FetchDescriptor<PrivacyReviewReceiptRow>())
@@ -6445,10 +6656,18 @@ private extension BackupRestoreService {
                     < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
             }
         }
+        let planArchiveRecords = try planRecords(
+            documentRows: planDocumentRows,
+            revisionRows: planRevisionRows,
+            placementRows: planPlacementRows,
+            receiptRows: rebaseReceiptRows,
+            mutationHistory: mutationHistory
+        )
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveyRecords,
             assetLocators: assetLocatorRecords,
             schedules: scheduleRecords,
+            plans: planArchiveRecords,
             accessibleDocumentAssessments:accessibleDocumentAssessmentRecords,
             surveyDefinitions: surveyDefinitionRecords,
             fieldReferences:fieldReferenceRecords,
@@ -6649,7 +6868,8 @@ private extension BackupRestoreService {
                 "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
                     < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
             },
-            recordsSchemaVersion: mutationHistory != nil && !(surveySessions.isEmpty
+            recordsSchemaVersion: !planArchiveRecords.isEmpty ? 27
+                : mutationHistory != nil && !(surveySessions.isEmpty
                 && factCaptures.isEmpty && provisionalSubjects.isEmpty
                 && subjectPromotionReceipts.isEmpty && surveyPublicationSnapshots.isEmpty) ? 24
                 : mutationHistory != nil ? 23
@@ -6722,6 +6942,97 @@ private extension BackupRestoreService {
                 return workflowDTO(record, observationAndTime: companion)
             }.sorted { canonical($0.id) < canonical($1.id) }
         )
+    }
+
+    private func planRecords(
+        documentRows: [PlanDocumentRow],
+        revisionRows: [PlanRevisionRow],
+        placementRows: [PlanPlacementRow],
+        receiptRows: [RebaseReceiptRow],
+        mutationHistory: MutationHistorySnapshotV1?
+    ) throws -> [V28BackupPlanRecordV1] {
+        let hasRows = !documentRows.isEmpty || !revisionRows.isEmpty
+            || !placementRows.isEmpty || !receiptRows.isEmpty
+        guard hasRows else { return [] }
+        guard mutationHistory != nil else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        let documents = try documentRows.map { try $0.value() }
+        let revisions = try revisionRows.map { try $0.value() }
+        let placements = try placementRows.map { try $0.value() }
+        let receipts = try receiptRows.map { try $0.value() }
+        try PlanLifecycleClosureV1(
+            documentHistory: documents,
+            revisionHistory: revisions,
+            placementHistory: placements,
+            receipts: receipts
+        ).validate()
+
+        var frames: [UUID: (value: SpatialReferenceFrameV1, revision: UInt64)] = [:]
+        for revision in revisions {
+            for frame in revision.spatialFrames {
+                if let existing = frames[frame.frameID], existing.value != frame {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                frames[frame.frameID] = (frame, revision.revision)
+            }
+        }
+        let documentRecords = try documents.map {
+            V28BackupPlanRecordV1(
+                kind: .document,
+                id: $0.planDocumentID,
+                workspaceID: $0.workspaceID.rawValue,
+                revision: $0.revision,
+                canonicalData: try PlanCanonicalCodecV1.encode($0)
+            )
+        }
+        let revisionRecords = try revisions.map {
+            V28BackupPlanRecordV1(
+                kind: .revision,
+                id: $0.planRevisionID,
+                workspaceID: $0.workspaceID.rawValue,
+                revision: $0.revision,
+                canonicalData: try PlanCanonicalCodecV1.encode($0)
+            )
+        }
+        let frameRecords = try frames.values.map {
+            V28BackupPlanRecordV1(
+                kind: .spatialFrame,
+                id: $0.value.frameID,
+                workspaceID: revisions.first?.workspaceID.rawValue
+                    ?? documents.first?.workspaceID.rawValue
+                    ?? placements.first?.workspaceID.rawValue
+                    ?? receipts.first?.workspaceID.rawValue
+                    ?? UUID(),
+                revision: $0.revision,
+                canonicalData: try PlanCanonicalCodecV1.encode($0.value)
+            )
+        }
+        let placementRecords = try placements.map {
+            V28BackupPlanRecordV1(
+                kind: .placement,
+                id: $0.placementID,
+                workspaceID: $0.workspaceID.rawValue,
+                revision: $0.revision,
+                canonicalData: try PlanCanonicalCodecV1.encode($0)
+            )
+        }
+        let receiptRecords = try receipts.map {
+            V28BackupPlanRecordV1(
+                kind: .rebaseReceipt,
+                id: $0.receiptID,
+                workspaceID: $0.workspaceID.rawValue,
+                revision: $0.revision,
+                canonicalData: try PlanCanonicalCodecV1.encode($0)
+            )
+        }
+        let result = (documentRecords + revisionRecords + frameRecords
+            + placementRecords + receiptRecords).sorted {
+                "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
+                    < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
+            }
+        _ = try PlanBackupRecordSetV1.decode(result)
+        return result
     }
 
     func workflowDTO(

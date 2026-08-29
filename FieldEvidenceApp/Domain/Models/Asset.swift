@@ -3,6 +3,8 @@ import Foundation
 enum AssetScheduleOwnershipBoundaryV1 { static let assetRowsStoreScheduleState = false }
 import SwiftData
 
+enum PlanAssetIdentityBindingV1 { static let assetIdentityIsReferencedNotCopied = true; static let planSchemaVersion = 28 }
+
 @Model
 final class Asset {
     @Attribute(.unique) var id: UUID

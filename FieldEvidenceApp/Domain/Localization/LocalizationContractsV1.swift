@@ -4065,3 +4065,216 @@ enum ScheduleLocalizationPolicyV1 {
         }
     }
 }
+
+// MARK: - C29 versioned plan and rebase localization
+
+/// Closed English-only labels for plan documents, normalized placements, and
+/// deterministic rebase previews. These labels describe recorded facts only;
+/// they never turn a preview into applied or verified plan truth.
+enum PlanLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
+    case planHeading = "plan.heading"
+    case planDocument = "plan.document"
+    case planRevision = "plan.revision"
+    case planRevisionState = "plan.revision.state"
+    case planPlacement = "plan.placement"
+    case planPlacementDisposition = "plan.placement.disposition"
+    case planCoordinate = "plan.coordinate"
+    case planReference = "plan.reference"
+    case planContentBinding = "plan.content.binding"
+    case planSpatialFrame = "plan.spatial.frame"
+    case planRebasePreview = "plan.rebase.preview"
+    case planRebaseReceipt = "plan.rebase.receipt"
+    case planRebaseDecision = "plan.rebase.decision"
+    case planRebaseWarning = "plan.rebase.warning"
+    case planRebaseComponent = "plan.rebase.component"
+    case planResidual = "plan.rebase.residual"
+    case planExpectedRevision = "plan.rebase.expected_revision"
+    case planHistoryImmutable = "plan.history.immutable"
+    case planPreviewNotApplied = "plan.rebase.preview.not_applied"
+    case planClaimBoundary = "plan.claim_boundary"
+    case planNextStep = "plan.next_step"
+
+    case documentActive = "plan.document.state.active"
+    case documentRetired = "plan.document.state.retired"
+    case revisionDraft = "plan.revision.state.draft"
+    case revisionReleased = "plan.revision.state.released"
+    case revisionWithdrawn = "plan.revision.state.withdrawn"
+    case placementAccepted = "plan.placement.disposition.accepted"
+    case placementReviewRequired = "plan.placement.disposition.review_required"
+    case placementOrphaned = "plan.placement.disposition.orphaned"
+    case placementOutOfBounds = "plan.placement.disposition.out_of_bounds"
+    case decisionApplyRecorded = "plan.rebase.decision.apply_recorded"
+    case decisionRejectRecorded = "plan.rebase.decision.reject_recorded"
+    case warningPageMissing = "plan.rebase.warning.page_missing"
+    case warningPageReordered = "plan.rebase.warning.page_reordered"
+    case warningOutOfBounds = "plan.rebase.warning.out_of_bounds"
+    case warningOrphanedAnchor = "plan.rebase.warning.orphaned_anchor"
+    case warningResidualExceeded = "plan.rebase.warning.residual_exceeded"
+    case warningCalibrationUnavailable = "plan.rebase.warning.calibration_unavailable"
+    case warningComponentReviewRequired = "plan.rebase.warning.component_review_required"
+    case errorStalePreview = "plan.error.stale_preview"
+    case errorWrongReference = "plan.error.wrong_reference"
+    case errorComponentConflict = "plan.error.component_conflict"
+    case errorReviewRequired = "plan.error.review_required"
+    case errorInvalidDigest = "plan.error.invalid_digest"
+
+    var localizationKey: LocalizationKeyV1 {
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+
+    var englishDefaultValue: String {
+        switch self {
+        case .planHeading: return "Plan"
+        case .planDocument: return "Plan document"
+        case .planRevision: return "Plan revision"
+        case .planRevisionState: return "Plan revision state"
+        case .planPlacement: return "Plan placement"
+        case .planPlacementDisposition: return "Placement status"
+        case .planCoordinate: return "Normalized page coordinate"
+        case .planReference: return "Plan reference"
+        case .planContentBinding: return "Bound content metadata"
+        case .planSpatialFrame: return "Spatial reference frame"
+        case .planRebasePreview: return "Rebase preview"
+        case .planRebaseReceipt: return "Rebase receipt"
+        case .planRebaseDecision: return "Recorded rebase decision"
+        case .planRebaseWarning: return "Rebase warning"
+        case .planRebaseComponent: return "Rebase component"
+        case .planResidual: return "Residual normalized units"
+        case .planExpectedRevision: return "Expected revision"
+        case .planHistoryImmutable: return "Historic plan output remains unchanged"
+        case .planPreviewNotApplied: return "Preview only; it is not applied or saved"
+        case .planClaimBoundary: return "Recorded plan metadata only"
+        case .planNextStep: return "Review the recorded plan preview"
+        case .documentActive: return "Active"
+        case .documentRetired: return "Retired"
+        case .revisionDraft: return "Draft"
+        case .revisionReleased: return "Released"
+        case .revisionWithdrawn: return "Withdrawn"
+        case .placementAccepted: return "Accepted placement"
+        case .placementReviewRequired: return "Review required"
+        case .placementOrphaned: return "Orphaned placement"
+        case .placementOutOfBounds: return "Outside normalized bounds"
+        case .decisionApplyRecorded: return "Recorded decision: apply"
+        case .decisionRejectRecorded: return "Recorded decision: reject"
+        case .warningPageMissing: return "Page is missing"
+        case .warningPageReordered: return "Page order changed"
+        case .warningOutOfBounds: return "Placement is outside normalized bounds"
+        case .warningOrphanedAnchor: return "Anchor is orphaned"
+        case .warningResidualExceeded: return "Residual exceeds the recorded limit"
+        case .warningCalibrationUnavailable: return "Calibration is unavailable"
+        case .warningComponentReviewRequired: return "Component review is required"
+        case .errorStalePreview: return "Preview is stale"
+        case .errorWrongReference: return "Reference does not match"
+        case .errorComponentConflict: return "Component outputs conflict"
+        case .errorReviewRequired: return "Review is required"
+        case .errorInvalidDigest: return "Digest is invalid"
+        }
+    }
+
+    var translatorComment: String {
+        "English-only C29 label for recorded plan, normalized placement, and rebase facts; previews remain unapplied until a separate canonical mutation is recorded."
+    }
+
+    static func documentStateKey(_ state: PlanDocumentStateV1) -> Self {
+        switch state {
+        case .active: return .documentActive
+        case .retired: return .documentRetired
+        }
+    }
+
+    static func revisionStateKey(_ state: PlanRevisionStateV1) -> Self {
+        switch state {
+        case .draft: return .revisionDraft
+        case .released: return .revisionReleased
+        case .withdrawn: return .revisionWithdrawn
+        }
+    }
+
+    static func placementDispositionKey(_ disposition: PlanPlacementDispositionV1) -> Self {
+        switch disposition {
+        case .accepted: return .placementAccepted
+        case .reviewRequired: return .placementReviewRequired
+        case .orphaned: return .placementOrphaned
+        case .outOfBounds: return .placementOutOfBounds
+        }
+    }
+
+    static func decisionKey(_ decision: PlanRebaseDecisionV1) -> Self {
+        switch decision {
+        case .approved: return .decisionApplyRecorded
+        case .rejected: return .decisionRejectRecorded
+        }
+    }
+
+    static func warningKey(_ warning: PlanRebaseWarningCodeV1) -> Self {
+        switch warning {
+        case .pageMissing: return .warningPageMissing
+        case .pageReordered: return .warningPageReordered
+        case .outOfBounds: return .warningOutOfBounds
+        case .orphanedAnchor: return .warningOrphanedAnchor
+        case .residualExceeded: return .warningResidualExceeded
+        case .calibrationUnavailable: return .warningCalibrationUnavailable
+        case .componentReviewRequired: return .warningComponentReviewRequired
+        }
+    }
+}
+
+enum PlanLocalizationPolicyV1 {
+    static let sourceLocale = "en"
+    static let shippingRuntimeLocales = ["en"]
+    static let metadataLocale = "en-US"
+    static let pseudoLocalesAreTestOnly = true
+    static let englishOnly = true
+    static let previewIsNotApplied = true
+    static let historicDisplayIsFrozen = true
+    static let denyByDefault = true
+    static let keys = PlanLocalizationKeyV1.allCases.map(\.rawValue).sorted()
+    static let documentStateKeys = PlanDocumentStateV1.allCases.map {
+        PlanLocalizationKeyV1.documentStateKey($0).rawValue
+    }.sorted()
+    static let revisionStateKeys = PlanRevisionStateV1.allCases.map {
+        PlanLocalizationKeyV1.revisionStateKey($0).rawValue
+    }.sorted()
+    static let placementDispositionKeys = PlanPlacementDispositionV1.allCases.map {
+        PlanLocalizationKeyV1.placementDispositionKey($0).rawValue
+    }.sorted()
+    static let warningKeys = PlanRebaseWarningCodeV1.allCases.map {
+        PlanLocalizationKeyV1.warningKey($0).rawValue
+    }.sorted()
+    static let prohibitedClaimPhrases = [
+        "approval", "approved", "authorization", "authorized", "verified",
+        "accuracy", "delivery", "delivered", "security", "secure", "legal",
+        "compliance", "identity", "operator", "customer data", "work data",
+        "evidence bytes", "private locator", "remote",
+    ]
+
+    static func containsProhibitedClaim(_ values: [String]) -> Bool {
+        values.contains { value in
+            let normalized = value.lowercased()
+                .replacingOccurrences(of: "_", with: " ")
+                .replacingOccurrences(of: "-", with: " ")
+            return prohibitedClaimPhrases.contains { normalized.contains($0) }
+        }
+    }
+
+    static func validate() throws {
+        let typed = PlanLocalizationKeyV1.allCases
+            .map(\.localizationKey.rawValue).sorted()
+        let values = PlanLocalizationKeyV1.allCases.map(\.englishDefaultValue)
+        guard typed == keys,
+              Set(keys).count == keys.count,
+              documentStateKeys.count == PlanDocumentStateV1.allCases.count,
+              revisionStateKeys.count == PlanRevisionStateV1.allCases.count,
+              placementDispositionKeys.count == PlanPlacementDispositionV1.allCases.count,
+              warningKeys.count == PlanRebaseWarningCodeV1.allCases.count,
+              sourceLocale == "en", shippingRuntimeLocales == ["en"],
+              metadataLocale == "en-US", pseudoLocalesAreTestOnly,
+              englishOnly, previewIsNotApplied, historicDisplayIsFrozen,
+              denyByDefault, values.allSatisfy({
+                  !$0.isEmpty && !containsProhibitedClaim([$0])
+              }) else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}

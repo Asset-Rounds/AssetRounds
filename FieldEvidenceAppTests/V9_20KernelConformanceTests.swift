@@ -5,6 +5,13 @@ import SwiftData
 
 @MainActor
 final class V9_20KernelConformanceTests: XCTestCase {
+    func testV23P03C29TypedPlanContractAnchor() throws {
+        let minimum = try NormalizedPlanCoordinateV1(millionths: 0)
+        let maximum = try NormalizedPlanCoordinateV1(millionths: PlanLimitsV1.normalizedScale)
+        XCTAssertEqual(minimum.millionths, 0)
+        XCTAssertEqual(maximum.millionths, PlanLimitsV1.normalizedScale)
+        XCTAssertEqual(PlanDocumentV1.schemaVersion, 1)
+    }
     func testV9_20G01BothFixtureShapesCompleteFullLifecycleWithPortableSchemaParity() async throws {
         let checklist = try KernelConformanceFixtureHarnessV1.loadManifest(.checklist)
         let measurement = try KernelConformanceFixtureHarnessV1.loadManifest(.measurementRepeat)

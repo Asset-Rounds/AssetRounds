@@ -482,6 +482,11 @@ struct ReportSnapshotEncoderV1: Sendable {
                 return false
             }
         }
+        if let planProjection = snapshot.planProjection {
+            guard (try? PlanReportProjectionPolicyV1.validate(planProjection)) != nil else {
+                return false
+            }
+        }
 
         guard validObservationAndTime(
             basis: snapshot.observationBasis,
@@ -632,6 +637,9 @@ extension CanonicalJSONV1 {
         if let scheduleProjection = value.scheduleProjection {
             object["scheduleProjection"] = Self.scheduleProjection(scheduleProjection)
         }
+        if let planProjection = value.planProjection {
+            object["planProjection"] = Self.planProjection(planProjection)
+        }
         return .object(object)
     }
 
@@ -711,6 +719,110 @@ extension CanonicalJSONV1 {
             "disposition": .string(value.disposition.rawValue),
             "timeBasisSHA256": .string(value.timeBasisSHA256),
             "adjustmentProvenanceSHA256": value.adjustmentProvenanceSHA256.map { .string($0) } ?? .null,
+        ])
+    }
+
+    private static func planProjection(
+        _ value: PlanReportProjectionV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "schemaVersion": .integer(value.schemaVersion),
+            "projectionVersion": .string(value.projectionVersion),
+            "workspaceID": uuid(value.workspaceID),
+            "documentReference": c29PlanDocumentReference(value.documentReference),
+            "revisionReference": c29PlanRevisionReference(value.revisionReference),
+            "documentState": .string(value.documentState.rawValue),
+            "revisionState": .string(value.revisionState.rawValue),
+            "contentReleaseID": uuid(value.contentReleaseID),
+            "contentReleaseRevision": .integer(Int(value.contentReleaseRevision)),
+            "contentReleaseSHA256": .string(value.contentReleaseSHA256),
+            "contentManifestSHA256": .string(value.contentManifestSHA256),
+            "pageCount": .integer(value.pageCount),
+            "placements": .array(value.placements.map(c29PlanPlacement)),
+            "rebasePreview": value.rebasePreview.map(c29PlanPreview) ?? .null,
+            "rebaseReceipt": value.rebaseReceipt.map(c29PlanReceipt) ?? .null,
+            "historicDisplayIsFrozen": .bool(value.historicDisplayIsFrozen),
+            "previewIsNotApplied": .bool(value.previewIsNotApplied),
+            "projectionSHA256": .string(value.projectionSHA256),
+        ])
+    }
+
+    private static func c29PlanDocumentReference(
+        _ value: PlanDocumentReferenceV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "planDocumentID": uuid(value.planDocumentID),
+            "revision": .integer(Int(value.revision)),
+            "documentSHA256": .string(value.documentSHA256),
+        ])
+    }
+
+    private static func c29PlanRevisionReference(
+        _ value: PlanRevisionReferenceV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "planRevisionID": uuid(value.planRevisionID),
+            "planDocumentID": uuid(value.planDocumentID),
+            "revision": .integer(Int(value.revision)),
+            "revisionSHA256": .string(value.revisionSHA256),
+        ])
+    }
+
+    private static func c29PlanPlacement(
+        _ value: PlanPlacementReportProjectionV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "schemaVersion": .integer(value.schemaVersion),
+            "placementID": uuid(value.placementID),
+            "subjectKind": .string(value.subjectKind.rawValue),
+            "subjectID": uuid(value.subjectID),
+            "planRevisionID": uuid(value.planRevisionID),
+            "spatialFrameID": uuid(value.spatialFrameID),
+            "xMillionths": .integer(Int(value.xMillionths)),
+            "yMillionths": .integer(Int(value.yMillionths)),
+            "disposition": .string(value.disposition.rawValue),
+            "revision": .integer(Int(value.revision)),
+            "placementSHA256": .string(value.placementSHA256),
+        ])
+    }
+
+    private static func c29PlanPreview(
+        _ value: PlanRebasePreviewReportProjectionV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "schemaVersion": .integer(value.schemaVersion),
+            "previewID": uuid(value.previewID),
+            "oldRevision": c29PlanRevisionReference(value.oldRevision),
+            "newRevision": c29PlanRevisionReference(value.newRevision),
+            "transformSHA256": .string(value.transformSHA256),
+            "registrySHA256": .string(value.registrySHA256),
+            "componentIDs": .array(value.componentIDs.map { .string($0) }),
+            "rowCount": .integer(value.rowCount),
+            "acceptedRowCount": .integer(value.acceptedRowCount),
+            "reviewRequiredRowCount": .integer(value.reviewRequiredRowCount),
+            "warningCodes": .array(value.warningCodes.map { .string($0.rawValue) }),
+            "requiresReview": .bool(value.requiresReview),
+            "expectedRevision": .integer(Int(value.expectedRevision)),
+            "generatedAt": date(value.generatedAt),
+            "previewSHA256": .string(value.previewSHA256),
+        ])
+    }
+
+    private static func c29PlanReceipt(
+        _ value: PlanRebaseReceiptReportProjectionV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "schemaVersion": .integer(value.schemaVersion),
+            "receiptID": uuid(value.receiptID),
+            "previewID": uuid(value.previewID),
+            "previewSHA256": .string(value.previewSHA256),
+            "decision": .string(value.decision.rawValue),
+            "resultingRevision": value.resultingRevision.map(c29PlanRevisionReference) ?? .null,
+            "resultingPlacementsSHA256": value.resultingPlacementsSHA256.map { .string($0) } ?? .null,
+            "canonicalMutationReceiptSHA256": value.canonicalMutationReceiptSHA256.map { .string($0) } ?? .null,
+            "recordedAt": date(value.recordedAt),
+            "revision": .integer(Int(value.revision)),
+            "receiptSHA256": .string(value.receiptSHA256),
         ])
     }
 

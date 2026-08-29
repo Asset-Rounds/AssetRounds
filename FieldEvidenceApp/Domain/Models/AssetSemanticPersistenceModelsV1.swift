@@ -1,6 +1,8 @@
 import Foundation
 import SwiftData
 
+enum PlanAssetSemanticPersistenceBindingV1 { static let durableDependency = AssetKindBindingEventRow.self; static let planPlacementUsesFrozenLocatorReceipt = true }
+
 enum AssetSemanticPersistenceReleaseV1: Int, Codable, CaseIterable, Sendable {
     case v10 = 10
     static let predecessorSchemaVersion = 9

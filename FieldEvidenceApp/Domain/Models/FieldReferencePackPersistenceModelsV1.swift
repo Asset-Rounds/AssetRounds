@@ -1,6 +1,8 @@
 import Foundation
 import SwiftData
 
+enum PlanFieldReferencePersistenceBindingV1 { static let planRevisionRequiresExactRelease = true; static let originalContentAuthorityIsPreserved = true }
+
 enum FieldReferencePackPersistenceFailureV1: Error { case corruptRow }
 
 @Model final class FieldReferenceReleaseRow {

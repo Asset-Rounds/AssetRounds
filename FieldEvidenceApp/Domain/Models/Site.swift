@@ -1,6 +1,8 @@
 import Foundation
 import SwiftData
 
+enum PlanSitePersistenceBoundaryV1 { static let siteIdentityMayAnchorLocationSubjects = true; static let planRowsDoNotDuplicateSiteState = true }
+
 @Model
 final class Site {
     @Attribute(.unique) var id: UUID

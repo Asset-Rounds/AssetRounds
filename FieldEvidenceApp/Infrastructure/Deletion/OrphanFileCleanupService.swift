@@ -89,6 +89,29 @@ enum ScheduleOrphanCleanupPolicyV1 {
     }
 }
 
+/// Plan rows do not own files. Orphan cleanup may remove only unreferenced
+/// content bytes and derived previews; a missing plan-related file can never
+/// authorize deletion of an immutable document, revision, placement, frame,
+/// or rebase receipt row.
+enum PlanOrphanCleanupPolicyV1 {
+    static let rowsOwnNoFilesystemPayload = true
+    static let previewsAndRegistriesAreDerived = true
+    static let missingFileCannotDeleteCanonicalRows = true
+    static let immutableHistoryPreserved = true
+
+    static func validate() throws {
+        guard rowsOwnNoFilesystemPayload,
+              previewsAndRegistriesAreDerived,
+              missingFileCannotDeleteCanonicalRows,
+              immutableHistoryPreserved,
+              PlanPersistenceEnrollmentV1.durableModelCount == 4,
+              V28BackupPlanRecordV1.Kind.allCases.count == 5 else {
+            throw OrphanFileCleanupServiceError.invalidOwnedLayout
+        }
+        try PlanDeletionLedgerPolicyV1.validate()
+    }
+}
+
 struct FieldDraftOrphanCleanupProofV1: Equatable, Sendable {
     let removableStageIDs: [UUID]
     let removableReservationIDs: [UUID]
@@ -302,6 +325,7 @@ private extension OrphanFileCleanupService {
     func validateKernelOrphanMappings() throws {
         do {
             try ScheduleOrphanCleanupPolicyV1.validate()
+            try PlanOrphanCleanupPolicyV1.validate()
             let ownedContent = try KernelDeletionEraseRegistryV4.registration(
                 for: .contentReference
             )

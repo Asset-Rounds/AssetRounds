@@ -3567,3 +3567,445 @@ struct AssetLocatorReportProjectionV1: Codable, Equatable, Sendable {
         )
     }
 }
+
+// MARK: - C29 versioned plan/rebase report projection
+
+enum PlanReportProjectionFailureV1: Error, Equatable, Sendable {
+    case invalidValue
+    case invalidDigest
+    case wrongWorkspace
+    case staleReference
+    case stalePreview
+    case componentConflict
+    case missingReceipt
+    case unsupportedFormat
+}
+
+/// Bounded placement metadata for reports. Source content and locator
+/// bindings remain outside this derivative; coordinates are the canonical
+/// normalized values from the plan placement record.
+struct PlanPlacementReportProjectionV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let placementID: UUID
+    let subjectKind: PlanPlacementSubjectKindV1
+    let subjectID: UUID
+    let planRevisionID: UUID
+    let spatialFrameID: UUID
+    let xMillionths: Int64
+    let yMillionths: Int64
+    let disposition: PlanPlacementDispositionV1
+    let revision: UInt64
+    let placementSHA256: String
+
+    init(
+        placement: PlanPlacementV1,
+        expectedRevision: PlanRevisionReferenceV1
+    ) throws {
+        try placement.validateIntrinsic()
+        guard placement.planRevision == expectedRevision else {
+            throw PlanReportProjectionFailureV1.staleReference
+        }
+        schemaVersion = Self.schemaVersion
+        placementID = placement.placementID
+        subjectKind = placement.subjectKind
+        subjectID = placement.subjectID
+        planRevisionID = placement.planRevision.planRevisionID
+        spatialFrameID = placement.spatialFrameID
+        xMillionths = placement.x.millionths
+        yMillionths = placement.y.millionths
+        disposition = placement.disposition
+        revision = placement.revision
+        placementSHA256 = placement.placementSHA256
+        try validate()
+    }
+
+    func validate() throws {
+        try PlanLimitsV1.id(placementID)
+        try PlanLimitsV1.id(subjectID)
+        try PlanLimitsV1.id(planRevisionID)
+        try PlanLimitsV1.id(spatialFrameID)
+        try PlanLimitsV1.revision(revision)
+        try PlanLimitsV1.digest(placementSHA256)
+        guard schemaVersion == Self.schemaVersion,
+              revision <= UInt64(Int.max),
+              (0...PlanLimitsV1.normalizedScale).contains(xMillionths),
+              (0...PlanLimitsV1.normalizedScale).contains(yMillionths) else {
+            throw PlanReportProjectionFailureV1.invalidValue
+        }
+    }
+}
+
+struct PlanRebasePreviewReportProjectionV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let previewID: UUID
+    let oldRevision: PlanRevisionReferenceV1
+    let newRevision: PlanRevisionReferenceV1
+    let transformSHA256: String
+    let registrySHA256: String
+    let componentIDs: [String]
+    let rowCount: Int
+    let acceptedRowCount: Int
+    let reviewRequiredRowCount: Int
+    let warningCodes: [PlanRebaseWarningCodeV1]
+    let requiresReview: Bool
+    let expectedRevision: UInt64
+    let generatedAt: Date
+    let previewSHA256: String
+
+    init(preview: RebasePreviewV1) throws {
+        try preview.validate()
+        schemaVersion = Self.schemaVersion
+        previewID = preview.previewID
+        oldRevision = preview.oldRevision
+        newRevision = preview.newRevision
+        transformSHA256 = preview.transform.transformSHA256
+        registrySHA256 = preview.registrySHA256
+        componentIDs = preview.contributions.map(\.componentID).sorted()
+        rowCount = preview.rows.count
+        acceptedRowCount = preview.rows.filter { $0.disposition == .accepted }.count
+        reviewRequiredRowCount = preview.rows.filter { $0.disposition != .accepted }.count
+        warningCodes = Array(Set(preview.warnings.map(\.code))).sorted {
+            $0.rawValue < $1.rawValue
+        }
+        requiresReview = preview.requiresReview
+        expectedRevision = preview.expectedRevision
+        generatedAt = preview.generatedAt
+        previewSHA256 = preview.previewSHA256
+        try validate()
+    }
+
+    func validate() throws {
+        try PlanLimitsV1.id(previewID)
+        try oldRevision.validate()
+        try newRevision.validate()
+        guard oldRevision.revision <= UInt64(Int.max),
+              newRevision.revision <= UInt64(Int.max) else {
+            throw PlanReportProjectionFailureV1.invalidValue
+        }
+        try PlanLimitsV1.digest(transformSHA256)
+        try PlanLimitsV1.digest(registrySHA256)
+        try componentIDs.forEach(PlanLimitsV1.token)
+        try PlanLimitsV1.instant(generatedAt)
+        try PlanLimitsV1.digest(previewSHA256)
+        guard schemaVersion == Self.schemaVersion,
+              componentIDs == componentIDs.sorted(),
+              Set(componentIDs).count == componentIDs.count,
+              rowCount >= 0,
+              acceptedRowCount >= 0,
+              reviewRequiredRowCount >= 0,
+              acceptedRowCount + reviewRequiredRowCount == rowCount,
+              expectedRevision > 0,
+              expectedRevision <= UInt64(Int.max),
+              warningCodes == warningCodes.sorted(by: { $0.rawValue < $1.rawValue }),
+              Set(warningCodes).count == warningCodes.count else {
+            throw PlanReportProjectionFailureV1.invalidValue
+        }
+    }
+}
+
+struct PlanRebaseReceiptReportProjectionV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let receiptID: UUID
+    let previewID: UUID
+    let previewSHA256: String
+    let decision: PlanRebaseDecisionV1
+    let resultingRevision: PlanRevisionReferenceV1?
+    let resultingPlacementsSHA256: String?
+    let canonicalMutationReceiptSHA256: String?
+    let recordedAt: Date
+    let revision: UInt64
+    let receiptSHA256: String
+
+    init(receipt: RebaseReceiptV1, preview: RebasePreviewV1) throws {
+        try receipt.validate(preview: preview)
+        schemaVersion = Self.schemaVersion
+        receiptID = receipt.receiptID
+        previewID = receipt.previewID
+        previewSHA256 = receipt.previewSHA256
+        decision = receipt.decision
+        resultingRevision = receipt.resultingRevision
+        resultingPlacementsSHA256 = receipt.resultingPlacementsSHA256
+        canonicalMutationReceiptSHA256 = receipt.canonicalMutationReceiptSHA256
+        recordedAt = receipt.recordedAt
+        revision = receipt.revision
+        receiptSHA256 = receipt.receiptSHA256
+        try validate(
+            previewID: preview.previewID,
+            previewSHA256: preview.previewSHA256
+        )
+    }
+
+    func validate(
+        previewID expectedPreviewID: UUID,
+        previewSHA256 expectedPreviewSHA256: String
+    ) throws {
+        try PlanLimitsV1.id(receiptID)
+        try PlanLimitsV1.id(previewID)
+        try PlanLimitsV1.digest(previewSHA256)
+        try resultingRevision?.validate()
+        try resultingPlacementsSHA256.map(PlanLimitsV1.digest)
+        try canonicalMutationReceiptSHA256.map(PlanLimitsV1.digest)
+        try PlanLimitsV1.instant(recordedAt)
+        try PlanLimitsV1.revision(revision)
+        try PlanLimitsV1.digest(receiptSHA256)
+        let approved = decision == .approved
+        guard schemaVersion == Self.schemaVersion,
+              previewID == expectedPreviewID,
+              previewSHA256 == expectedPreviewSHA256,
+              revision <= UInt64(Int.max),
+              resultingRevision.map({ $0.revision <= UInt64(Int.max) }) ?? true,
+              approved == (resultingRevision != nil
+                           && resultingPlacementsSHA256 != nil
+                           && canonicalMutationReceiptSHA256 != nil) else {
+            throw PlanReportProjectionFailureV1.stalePreview
+        }
+    }
+}
+
+struct PlanReportProjectionV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let projectionVersion = "PLAN_REPORT_PROJECTION_V1"
+
+    let schemaVersion: Int
+    let projectionVersion: String
+    let workspaceID: UUID
+    let documentReference: PlanDocumentReferenceV1
+    let revisionReference: PlanRevisionReferenceV1
+    let documentState: PlanDocumentStateV1
+    let revisionState: PlanRevisionStateV1
+    let contentReleaseID: UUID
+    let contentReleaseRevision: UInt64
+    let contentReleaseSHA256: String
+    let contentManifestSHA256: String
+    let pageCount: Int
+    let placements: [PlanPlacementReportProjectionV1]
+    let rebasePreview: PlanRebasePreviewReportProjectionV1?
+    let rebaseReceipt: PlanRebaseReceiptReportProjectionV1?
+    let historicDisplayIsFrozen: Bool
+    let previewIsNotApplied: Bool
+    let projectionSHA256: String
+
+    private struct DigestBasis: Codable {
+        let schemaVersion: Int
+        let projectionVersion: String
+        let workspaceID: UUID
+        let documentReference: PlanDocumentReferenceV1
+        let revisionReference: PlanRevisionReferenceV1
+        let documentState: PlanDocumentStateV1
+        let revisionState: PlanRevisionStateV1
+        let contentReleaseID: UUID
+        let contentReleaseRevision: UInt64
+        let contentReleaseSHA256: String
+        let contentManifestSHA256: String
+        let pageCount: Int
+        let placements: [PlanPlacementReportProjectionV1]
+        let rebasePreview: PlanRebasePreviewReportProjectionV1?
+        let rebaseReceipt: PlanRebaseReceiptReportProjectionV1?
+        let historicDisplayIsFrozen: Bool
+        let previewIsNotApplied: Bool
+    }
+
+    init(
+        document: PlanDocumentV1,
+        revision: PlanRevisionV1,
+        placements: [PlanPlacementV1],
+        preview: RebasePreviewV1? = nil,
+        receipt: RebaseReceiptV1? = nil
+    ) throws {
+        try document.validateIntrinsic()
+        try revision.validateIntrinsic()
+        let documentReference = try document.reference
+        let revisionReference = try revision.reference
+        guard revision.workspaceID == document.workspaceID,
+              revision.planDocument.planDocumentID == document.planDocumentID,
+              revision.planDocument == documentReference,
+              placements.count <= PlanLimitsV1.maximumPlacements,
+              placements.allSatisfy({ placement in
+                  placement.workspaceID == revision.workspaceID
+                      && placement.planRevision == revisionReference
+                      && revision.spatialFrames.contains(where: {
+                          $0.frameID == placement.spatialFrameID
+                      })
+              }) else {
+            throw PlanReportProjectionFailureV1.wrongWorkspace
+        }
+        let projectedPlacements = try placements
+            .sorted { $0.placementID.uuidString < $1.placementID.uuidString }
+            .map {
+                try PlanPlacementReportProjectionV1(
+                    placement: $0,
+                    expectedRevision: revisionReference
+                )
+            }
+        guard Set(projectedPlacements.map(\.placementID)).count == projectedPlacements.count else {
+            throw PlanReportProjectionFailureV1.invalidValue
+        }
+
+        let projectedPreview = try preview.map {
+            try PlanRebasePreviewReportProjectionV1(preview: $0)
+        }
+        if let preview {
+            guard preview.workspaceID == revision.workspaceID,
+                  preview.newRevision == revisionReference else {
+                throw PlanReportProjectionFailureV1.stalePreview
+            }
+        }
+        let projectedReceipt: PlanRebaseReceiptReportProjectionV1?
+        if let receipt {
+            guard let preview else {
+                throw PlanReportProjectionFailureV1.missingReceipt
+            }
+            projectedReceipt = try PlanRebaseReceiptReportProjectionV1(
+                receipt: receipt,
+                preview: preview
+            )
+        } else {
+            projectedReceipt = nil
+        }
+
+        schemaVersion = Self.schemaVersion
+        projectionVersion = Self.projectionVersion
+        workspaceID = revision.workspaceID.rawValue
+        self.documentReference = documentReference
+        self.revisionReference = revisionReference
+        documentState = document.state
+        revisionState = revision.state
+        contentReleaseID = revision.contentBinding.fieldReferenceReleaseID
+        contentReleaseRevision = revision.contentBinding.fieldReferenceReleaseRevision
+        contentReleaseSHA256 = revision.contentBinding.fieldReferenceReleaseSHA256
+        contentManifestSHA256 = revision.contentBinding.fieldReferenceManifestSHA256
+        pageCount = revision.pages.count
+        self.placements = projectedPlacements
+        rebasePreview = projectedPreview
+        rebaseReceipt = projectedReceipt
+        historicDisplayIsFrozen = true
+        previewIsNotApplied = true
+        projectionSHA256 = try PlanCanonicalCodecV1.sha256(
+            DigestBasis(
+                schemaVersion: Self.schemaVersion,
+                projectionVersion: Self.projectionVersion,
+                workspaceID: workspaceID,
+                documentReference: documentReference,
+                revisionReference: revisionReference,
+                documentState: documentState,
+                revisionState: revisionState,
+                contentReleaseID: contentReleaseID,
+                contentReleaseRevision: contentReleaseRevision,
+                contentReleaseSHA256: contentReleaseSHA256,
+                contentManifestSHA256: contentManifestSHA256,
+                pageCount: pageCount,
+                placements: projectedPlacements,
+                rebasePreview: projectedPreview,
+                rebaseReceipt: projectedReceipt,
+                historicDisplayIsFrozen: true,
+                previewIsNotApplied: true
+            )
+        )
+        try validate()
+    }
+
+    func validate() throws {
+        try PlanLimitsV1.id(workspaceID)
+        try documentReference.validate()
+        try revisionReference.validate()
+        try PlanLimitsV1.id(contentReleaseID)
+        try PlanLimitsV1.revision(contentReleaseRevision)
+        try PlanLimitsV1.digest(contentReleaseSHA256)
+        try PlanLimitsV1.digest(contentManifestSHA256)
+        try placements.forEach { try $0.validate() }
+        guard placements.allSatisfy({
+            $0.planRevisionID == revisionReference.planRevisionID
+        }) else {
+            throw PlanReportProjectionFailureV1.staleReference
+        }
+        if let preview = rebasePreview {
+            try preview.validate()
+            guard preview.newRevision == revisionReference else {
+                throw PlanReportProjectionFailureV1.stalePreview
+            }
+            if let receipt = rebaseReceipt {
+                try receipt.validate(
+                    previewID: preview.previewID,
+                    previewSHA256: preview.previewSHA256
+                )
+            }
+        } else if rebaseReceipt != nil {
+            throw PlanReportProjectionFailureV1.missingReceipt
+        }
+        guard schemaVersion == Self.schemaVersion,
+              projectionVersion == Self.projectionVersion,
+              documentReference.planDocumentID == revisionReference.planDocumentID,
+              documentReference.revision <= UInt64(Int.max),
+              revisionReference.revision <= UInt64(Int.max),
+              contentReleaseRevision <= UInt64(Int.max),
+              pageCount > 0,
+              pageCount <= PlanLimitsV1.maximumPages,
+              placements == placements.sorted(by: {
+                  $0.placementID.uuidString < $1.placementID.uuidString
+              }),
+              Set(placements.map(\.placementID)).count == placements.count,
+              historicDisplayIsFrozen,
+              previewIsNotApplied,
+              projectionSHA256 == (try PlanCanonicalCodecV1.sha256(
+                  DigestBasis(
+                      schemaVersion: schemaVersion,
+                      projectionVersion: projectionVersion,
+                      workspaceID: workspaceID,
+                      documentReference: documentReference,
+                      revisionReference: revisionReference,
+                      documentState: documentState,
+                      revisionState: revisionState,
+                      contentReleaseID: contentReleaseID,
+                      contentReleaseRevision: contentReleaseRevision,
+                      contentReleaseSHA256: contentReleaseSHA256,
+                      contentManifestSHA256: contentManifestSHA256,
+                      pageCount: pageCount,
+                      placements: placements,
+                      rebasePreview: rebasePreview,
+                      rebaseReceipt: rebaseReceipt,
+                      historicDisplayIsFrozen: historicDisplayIsFrozen,
+                      previewIsNotApplied: previewIsNotApplied
+                  )
+              )) else {
+            throw PlanReportProjectionFailureV1.invalidDigest
+        }
+    }
+}
+
+enum PlanReportProjectionPolicyV1 {
+    static let sectionID = "plan"
+    static let projectionVersion = PlanReportProjectionV1.projectionVersion
+    static let supportedFormats: [ReportProjectionFormatV1] = [.openJSON, .pdf, .structuredText]
+    static let metadataOnly = true
+    static let normalizedPlacementsOnly = true
+    static let historicDisplayIsFrozen = true
+    static let previewIsNotApplied = true
+    static let excludesSourceBytes = true
+    static let excludesPrivateLocator = true
+    static let excludesActorIdentity = true
+    static let excludesUnsupportedClaims = true
+
+    static func supports(_ format: ReportProjectionFormatV1) -> Bool {
+        supportedFormats.contains(format)
+    }
+
+    static func validate(
+        _ projection: PlanReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> PlanReportProjectionV1 {
+        guard supports(format), metadataOnly, normalizedPlacementsOnly,
+              historicDisplayIsFrozen, previewIsNotApplied,
+              excludesSourceBytes, excludesPrivateLocator,
+              excludesActorIdentity, excludesUnsupportedClaims else {
+            throw PlanReportProjectionFailureV1.unsupportedFormat
+        }
+        try projection.validate()
+        return projection
+    }
+}

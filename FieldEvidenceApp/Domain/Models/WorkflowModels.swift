@@ -1,6 +1,8 @@
 import Foundation
 import SwiftData
 
+enum PlanWorkflowPersistenceBoundaryV1 { static let rebasePreviewIsDerived = true; static let framesAreEmbeddedInRevision = true }
+
 enum WorkflowRecordAssetLocatorBoundaryV1 {
     static let locatorCurrentProjectionStoredOnWorkflowRow = false
 
