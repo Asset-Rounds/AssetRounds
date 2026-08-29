@@ -54,6 +54,18 @@ enum ClientCapabilityEraseIntentStorePolicyV1{static func validate()throws{guard
 enum FieldReferenceEraseIntentStorePolicyV1{static func validate()throws{guard FieldReferenceEraseBoundaryV1.atomicFamilyCount==2,FieldReferenceEraseBoundaryV1.ordinaryDeletionRetainsBoundAndFinalizedReleaseBytes,FieldReferenceEraseBoundaryV1.unboundReleaseMayBeDiscarded,FieldReferenceEraseBoundaryV1.workspaceEraseClearsRowsAndOwnedBytes,FieldReferenceEraseBoundaryV1.readinessProjectionIsNonpersistent else{throw EraseIntentStoreError.invalidAuthority}}}
 enum AccessibleDocumentEraseIntentStorePolicyV1{static func validate()throws{guard AccessibleDocumentEraseBoundaryV1.atomicFamilyCount==1,AccessibleDocumentEraseBoundaryV1.semanticTreeIsDerived,AccessibleDocumentEraseBoundaryV1.workspaceEraseClearsReceiptsAndOwnedOutputs,AccessibleDocumentEraseBoundaryV1.escapedOutputsCannotBeRecalled else{throw EraseIntentStoreError.invalidAuthority}}}
 enum SurveyDefinitionEraseIntentStorePolicyV1{static func validate()throws{guard SurveyDefinitionEraseBoundaryV1.atomicFamilyCount==2,SurveyDefinitionEraseBoundaryV1.lifecycleEventsAreMutationHistoryOnly,SurveyDefinitionEraseBoundaryV1.workspaceEraseClearsIdentityAndReleaseRows,SurveyDefinitionEraseBoundaryV1.quarantinedImportsAreNoncanonical else{throw EraseIntentStoreError.invalidAuthority}}}
+enum ScheduleEraseIntentStorePolicyV1 {
+    static func validate() throws {
+        guard ScheduleEraseBoundaryV1.atomicFamilyCount == 2,
+              ScheduleEraseBoundaryV1.lifecycleHistoryIsMutationJournalBacked,
+              ScheduleEraseBoundaryV1.ordinaryDeletionPreservesReleaseAndOccurrenceHistory,
+              ScheduleEraseBoundaryV1.workspaceEraseClearsEntireLifecycleClosure,
+              ScheduleEraseBoundaryV1.dueAndReminderProjectionsAreNonpersistent,
+              !ScheduleEraseBoundaryV1.notificationStateIsTruth else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+    }
+}
 
 enum EraseIntentStoreError: Error, Equatable {
     case invalidAuthority
@@ -380,6 +392,7 @@ final class EraseIntentStore {
         try FieldReferenceEraseIntentStorePolicyV1.validate()
         try AccessibleDocumentEraseIntentStorePolicyV1.validate()
         try SurveyDefinitionEraseIntentStorePolicyV1.validate()
+        try ScheduleEraseIntentStorePolicyV1.validate()
         try SurveySessionEraseIntentEnrollmentV1.validate()
         let root = applicationSupportURL.standardizedFileURL
         guard root.isFileURL else { throw EraseIntentStoreError.invalidAuthority }

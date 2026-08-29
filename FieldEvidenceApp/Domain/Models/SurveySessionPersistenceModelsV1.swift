@@ -43,3 +43,19 @@ private func surveySessionDecoded<T: Codable & Equatable>(_ type: T.Type, data: 
     init(_ v:SurveyPublicationSnapshotV1)throws{try v.validateIntrinsic();snapshotID=v.snapshotID;workspaceID=v.workspaceID.rawValue;sessionID=v.sessionID;revision=v.revision;mutationID=v.mutationID.rawValue;snapshotSHA256=v.snapshotSHA256;canonicalData=try SurveySessionCanonicalCodecV1.encode(v);_ = try surveySessionDecoded(SurveyPublicationSnapshotV1.self,data:canonicalData,expected:v)}
     func value()throws->SurveyPublicationSnapshotV1{let v=try surveySessionDecoded(SurveyPublicationSnapshotV1.self,data:canonicalData);try v.validateIntrinsic();guard v.snapshotID==snapshotID,v.workspaceID.rawValue==workspaceID,v.sessionID==sessionID,v.revision==revision,v.mutationID.rawValue==mutationID,v.snapshotSHA256==snapshotSHA256 else{throw SurveySessionPersistenceFailureV1.corruptRow};return v}
 }
+
+
+extension SurveySessionRow {
+    /// Resolves the exact pre-created round session referenced by a C28 START
+    /// event; no schedule write may create or advance the session implicitly.
+    func value(matching workInstance: ScheduledWorkInstanceReferenceV1) throws -> SurveySessionV1 {
+        let session = try value()
+        guard case let .roundSession(sessionID, revision, digest) = workInstance,
+              session.sessionID == sessionID,
+              session.revision == revision,
+              session.sessionSHA256 == digest else {
+            throw SurveySessionPersistenceFailureV1.corruptRow
+        }
+        return session
+    }
+}

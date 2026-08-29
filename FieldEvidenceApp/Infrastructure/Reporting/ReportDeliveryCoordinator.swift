@@ -1325,6 +1325,47 @@ extension ReportDeliveryCoordinator {
         return try DeterministicOpenJSONRendererV1.renderSurveyDefinition(projection).data
     }
 }
+
+// MARK: - C28 local schedule report export boundary
+
+enum ScheduleReportDeliveryPolicyV1 {
+    static let localExportOnly = true
+    static let remoteDeliveryClaimed = false
+    static let acknowledgementClaimed = false
+    static let historicReleasePinned = true
+    static let notificationDeliveryIsTruth = false
+    static let metadataOnly = true
+    static let excludesNotificationPayload = true
+    static let excludesActorIdentity = true
+    static let excludesWorkInstanceIdentity = true
+
+    static func validateExport(
+        _ projection: ScheduleReportProjectionV1
+    ) throws -> ScheduleReportProjectionV1 {
+        guard localExportOnly, !remoteDeliveryClaimed,
+              !acknowledgementClaimed, historicReleasePinned,
+              !notificationDeliveryIsTruth, metadataOnly,
+              excludesNotificationPayload, excludesActorIdentity,
+              excludesWorkInstanceIdentity else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+        return try ScheduleReportProjectionPolicyV1.validate(
+            projection,
+            format: .openJSON
+        )
+    }
+}
+
+extension ReportDeliveryCoordinator {
+    /// Returns a local deterministic artifact only. The bytes carry no claim
+    /// that a reminder or report was sent, delivered, or acknowledged.
+    static func localScheduleExport(
+        _ projection: ScheduleReportProjectionV1
+    ) throws -> Data {
+        try ScheduleReportDeliveryPolicyV1.validateExport(projection)
+        return try DeterministicOpenJSONRendererV1.renderSchedule(projection).data
+    }
+}
 private struct ReadyValidatedEvidenceBytes: Sendable {
     let originalJPEG: Data
     let thumbnailJPEG: Data

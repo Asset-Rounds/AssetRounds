@@ -95,6 +95,8 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case surveyPublicationSnapshot
     case assetLocator
     case locatorBindingReceipt
+    case scheduleDefinitionRelease
+    case occurrenceHistoryEvent
     case workflowRecord
     case evidenceFile
     case issue
@@ -1486,6 +1488,26 @@ struct AssetLocatorMutationV1:Codable,Equatable,Sendable{
     func expectedRevision(for identity:WorkspaceEntityIdentityV1)throws->UInt64{switch payload{case let .bind(value,_,predecessorReceipt):if identity.kind == .assetLocator&&identity.id==value.locatorID{return 0};if identity.kind == .locatorBindingReceipt{return predecessorReceipt?.revision ?? 0};case let .transition(_,_,prior,predecessorReceipt):if identity.kind == .assetLocator&&identity.id==prior.locatorID{return prior.revision};if identity.kind == .locatorBindingReceipt{return predecessorReceipt?.revision ?? 0};case let .replace(_,replacement,_,prior,predecessorReceipt):if identity.kind == .assetLocator&&identity.id==prior.locatorID{return prior.revision};if identity.kind == .assetLocator&&identity.id==replacement.locatorID{return 0};if identity.kind == .locatorBindingReceipt{return predecessorReceipt?.revision ?? 0}};throw WorkspaceMutationContractFailureV1.invalidPlan}
 }
 
+enum ScheduleMutationPayloadV1:Codable,Equatable,Sendable{
+    case appendRelease(ScheduleDefinitionReleaseV1,predecessor:ScheduleDefinitionReleaseV1?)
+    case appendOccurrenceEvent(OccurrenceHistoryEventV1,predecessor:OccurrenceHistoryEventV1?,release:ScheduleDefinitionReleaseV1)
+    case startOccurrence(OccurrenceHistoryEventV1,predecessor:OccurrenceHistoryEventV1,release:ScheduleDefinitionReleaseV1)
+    case generateOccurrences(release:ScheduleDefinitionReleaseV1,plan:OccurrenceGenerationPlanV1,events:[OccurrenceHistoryEventV1])
+}
+struct ScheduleMutationV1:Codable,Equatable,Sendable{
+    let workspaceID:WorkspaceID;let mutationID:MutationIDV1;let payload:ScheduleMutationPayloadV1
+    init(workspaceID:WorkspaceID,mutationID:MutationIDV1,payload:ScheduleMutationPayloadV1)throws{self.workspaceID=workspaceID;self.mutationID=mutationID;self.payload=payload;try validate()}
+    func validate()throws{switch payload{
+    case let .appendRelease(value,predecessor):try value.validate();if let predecessor{try value.validateSuccessor(of:predecessor)}else{guard value.revision==1 else{throw WorkspaceMutationContractFailureV1.invalidPlan}};guard value.workspaceID==workspaceID,value.mutationID==mutationID else{throw WorkspaceMutationContractFailureV1.invalidPlan}
+    case let .appendOccurrenceEvent(value,predecessor,release):try release.validate();try value.validate(predecessor:predecessor);guard release.workspaceID==workspaceID,value.workspaceID==workspaceID,value.mutationID==mutationID,value.action != .start,value.scheduleRelease==(try ScheduleDefinitionReleaseReferenceV1(release)) else{throw WorkspaceMutationContractFailureV1.invalidPlan}
+    case let .startOccurrence(value,predecessor,release):try release.validate();try value.validate(predecessor:predecessor);guard release.workspaceID==workspaceID,value.workspaceID==workspaceID,value.mutationID==mutationID,value.action == .start,value.workInstance != nil,value.scheduleRelease==(try ScheduleDefinitionReleaseReferenceV1(release)) else{throw WorkspaceMutationContractFailureV1.invalidPlan}
+    case let .generateOccurrences(release,plan,events):try release.validate();try plan.validate(definition:release);try events.forEach{$0.validate(predecessor:nil)};var candidates:[OccurrenceIDV1:OccurrenceGenerationCandidateV1]=[:];for candidate in plan.candidates{guard candidates.updateValue(candidate,forKey:candidate.occurrenceID)==nil else{throw WorkspaceMutationContractFailureV1.invalidPlan}};guard release.workspaceID==workspaceID,plan.workspaceID==workspaceID,events.count==plan.candidates.count,events.count<=release.maximumGeneratedOccurrences,Set(events.map(\.eventID)).count==events.count,Set(events.map(\.occurrenceID)).count==events.count,events.allSatisfy({event in guard let candidate=candidates[event.occurrenceID] else{return false};return event.workspaceID==workspaceID&&event.mutationID==mutationID&&event.action == .generated&&event.scheduleRelease==plan.scheduleRelease&&event.nominalBasis==candidate.nominalBasis&&event.effectiveBasis==candidate.effectiveBasis&&event.identityPredecessorOccurrenceID==candidate.predecessorOccurrenceID&&event.identityCompletionEventSHA256==candidate.completionEventSHA256}) else{throw WorkspaceMutationContractFailureV1.invalidPlan}}
+    }
+    var affectedIdentities:[WorkspaceEntityIdentityV1]{get throws{let values:[WorkspaceEntityIdentityV1];switch payload{case let .appendRelease(value,_):values=[try .init(kind:.scheduleDefinitionRelease,id:value.releaseID)];case let .appendOccurrenceEvent(value,_,_),let .startOccurrence(value,_,_):values=[try .init(kind:.occurrenceHistoryEvent,id:value.eventID)];case let .generateOccurrences(_,_,events):values=try events.map{try .init(kind:.occurrenceHistoryEvent,id:$0.eventID)}};let ordered=values.sorted{$0.stableKey<$1.stableKey};guard ordered.count<=MutationReceiptV1.maximumPostImageCount,Set(ordered).count==ordered.count else{throw WorkspaceMutationContractFailureV1.invalidPlan};return ordered}}
+    var concurrencyIdentities:[WorkspaceEntityIdentityV1]{get throws{switch payload{case let .appendRelease(value,predecessor):return [try .init(kind:.scheduleDefinitionRelease,id:predecessor?.releaseID ?? value.releaseID)];case let .appendOccurrenceEvent(value,predecessor,_):return [try .init(kind:.occurrenceHistoryEvent,id:predecessor?.eventID ?? value.eventID)];case let .startOccurrence(_,predecessor,_):return [try .init(kind:.occurrenceHistoryEvent,id:predecessor.eventID)];case let .generateOccurrences(_,_,events):return try events.map{try .init(kind:.occurrenceHistoryEvent,id:$0.eventID)}.sorted{$0.stableKey<$1.stableKey}}}}
+    func expectedRevision(for identity:WorkspaceEntityIdentityV1)throws->UInt64{switch payload{case let .appendRelease(value,predecessor):guard identity.kind == .scheduleDefinitionRelease,identity.id==(predecessor?.releaseID ?? value.releaseID)else{throw WorkspaceMutationContractFailureV1.invalidPlan};return predecessor?.revision ?? 0;case let .appendOccurrenceEvent(value,predecessor,_):guard identity.kind == .occurrenceHistoryEvent,identity.id==(predecessor?.eventID ?? value.eventID)else{throw WorkspaceMutationContractFailureV1.invalidPlan};return predecessor?.revision ?? 0;case let .startOccurrence(_,predecessor,_):guard identity.kind == .occurrenceHistoryEvent,identity.id==predecessor.eventID else{throw WorkspaceMutationContractFailureV1.invalidPlan};return predecessor.revision;case let .generateOccurrences(_,_,events):guard identity.kind == .occurrenceHistoryEvent,events.contains(where:{$0.eventID==identity.id})else{throw WorkspaceMutationContractFailureV1.invalidPlan};return 0}}
+}
+
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
     case createCheckDraft(CheckDraftMutationV1)
@@ -1521,6 +1543,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applySurveyDefinition(SurveyDefinitionMutationV1)
     case applySurveySession(SurveySessionMutationV1)
     case applyAssetLocator(AssetLocatorMutationV1)
+    case applySchedule(ScheduleMutationV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -1558,6 +1581,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applySurveyDefinition:.applySurveyDefinition
         case .applySurveySession:.applySurveySession
         case .applyAssetLocator:.applyAssetLocator
+        case .applySchedule:.applySchedule
         }
     }
 }
@@ -1597,6 +1621,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applySurveyDefinition="apply_survey_definition"
     case applySurveySession="apply_survey_session"
     case applyAssetLocator="apply_asset_locator"
+    case applySchedule="apply_schedule"
 }
 
 extension WorkspaceCommandV1 {

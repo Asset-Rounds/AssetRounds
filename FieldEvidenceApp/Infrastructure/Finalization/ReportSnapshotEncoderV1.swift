@@ -477,6 +477,11 @@ struct ReportSnapshotEncoderV1: Sendable {
                 return false
             }
         }
+        if let scheduleProjection = snapshot.scheduleProjection {
+            guard (try? ScheduleReportProjectionPolicyV1.validate(scheduleProjection)) != nil else {
+                return false
+            }
+        }
 
         guard validObservationAndTime(
             basis: snapshot.observationBasis,
@@ -624,7 +629,89 @@ extension CanonicalJSONV1 {
         if let surveyPublication = value.surveyPublication {
             object["surveyPublication"] = Self.surveyPublication(surveyPublication)
         }
+        if let scheduleProjection = value.scheduleProjection {
+            object["scheduleProjection"] = Self.scheduleProjection(scheduleProjection)
+        }
         return .object(object)
+    }
+
+    private static func scheduleProjection(
+        _ value: ScheduleReportProjectionV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "schemaVersion": .integer(value.schemaVersion),
+            "projectionVersion": .string(value.projectionVersion),
+            "workspaceID": uuid(value.workspaceID),
+            "scheduleDefinitionID": uuid(value.scheduleDefinitionID),
+            "scheduleRelease": scheduleRelease(value.scheduleRelease),
+            "lifecycleState": .string(value.lifecycleState.rawValue),
+            "recurrenceKind": .string(value.recurrenceKind),
+            "timeBasis": timeBasis(value.timeBasis),
+            "evaluatedAt": date(value.evaluatedAt),
+            "occurrences": .array(value.occurrences.map(scheduleOccurrence)),
+            "dueQueueProjectionSHA256": .string(value.dueQueueProjectionSHA256),
+            "reminderProjectionSHA256": value.reminderProjectionSHA256.map { .string($0) } ?? .null,
+            "sourceClosureSHA256": .string(value.sourceClosureSHA256),
+            "historyFrozen": .bool(value.historyFrozen),
+            "notificationDeliveryIsTruth": .bool(value.notificationDeliveryIsTruth),
+            "projectionSHA256": .string(value.projectionSHA256),
+        ])
+    }
+
+    private static func scheduleRelease(
+        _ value: ScheduleDefinitionReleaseReferenceV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "scheduleDefinitionID": uuid(value.scheduleDefinitionID),
+            "releaseID": uuid(value.releaseID),
+            "revision": .integer(Int(value.revision)),
+            "releaseSHA256": .string(value.releaseSHA256),
+        ])
+    }
+
+    private static func timeBasis(
+        _ value: FrozenScheduleTimeBasisV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "calendar": .string(value.calendar.rawValue),
+            "ianaTimeZoneIdentifier": .string(value.ianaTimeZoneIdentifier),
+            "timeZoneRuleSetVersion": .string(value.timeZoneRuleSetVersion),
+            "timeZoneRuleSetSHA256": .string(value.timeZoneRuleSetSHA256),
+            "ambiguousTimePolicy": .string(value.ambiguousTimePolicy.rawValue),
+            "nonexistentTimePolicy": .string(value.nonexistentTimePolicy.rawValue),
+            "calendarBasisID": .string(value.calendarBasisID),
+            "calendarBasisRevision": .integer(Int(value.calendarBasisRevision)),
+            "calendarBasisSHA256": .string(value.calendarBasisSHA256),
+        ])
+    }
+
+    private static func scheduleOccurrence(
+        _ value: ScheduleOccurrenceReportProjectionV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "schemaVersion": .integer(value.schemaVersion),
+            "occurrenceID": .string(value.occurrenceID.rawValue),
+            "state": .string(value.state.rawValue),
+            "scheduleRelease": scheduleRelease(value.scheduleRelease),
+            "nominalBasis": occurrenceBasis(value.nominalBasis),
+            "effectiveBasis": occurrenceBasis(value.effectiveBasis),
+            "historyEventSHA256": .string(value.historyEventSHA256),
+            "workInstanceRecorded": .bool(value.workInstanceRecorded),
+        ])
+    }
+
+    private static func occurrenceBasis(
+        _ value: ResolvedOccurrenceBasisV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "nominalLocalDate": .string(value.nominalLocalDate),
+            "nominalLocalTime": .string(value.nominalLocalTime),
+            "resolvedAtUTC": value.resolvedAtUTC.map(date) ?? .null,
+            "utcOffsetSeconds": value.utcOffsetSeconds.map { .integer($0) } ?? .null,
+            "disposition": .string(value.disposition.rawValue),
+            "timeBasisSHA256": .string(value.timeBasisSHA256),
+            "adjustmentProvenanceSHA256": value.adjustmentProvenanceSHA256.map { .string($0) } ?? .null,
+        ])
     }
 
     private static func surveyPublication(

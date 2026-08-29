@@ -1,4 +1,6 @@
 import Foundation
+
+enum AssetScheduleOwnershipBoundaryV1 { static let assetRowsStoreScheduleState = false }
 import SwiftData
 
 @Model

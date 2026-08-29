@@ -1,6 +1,8 @@
 import Darwin
 import Foundation
 
+enum ScheduleGenerationRunnerBoundaryV1 { static let retriesAreIdempotent = true }
+
 enum ResumableLocalJobRunnerFailureV1: Error, Equatable, Sendable {
     case operationNotRegistered
     case publisherNotRegistered

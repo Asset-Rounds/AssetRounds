@@ -1,5 +1,7 @@
 import Foundation
 
+enum ScheduleLocalJobBoundaryV1 { static let derivedProjectionsAreRebuildable = true }
+
 /// Narrow application boundary for the device-local operational job ledger.
 ///
 /// The ledger is not canonical workspace truth. Callers enqueue work only

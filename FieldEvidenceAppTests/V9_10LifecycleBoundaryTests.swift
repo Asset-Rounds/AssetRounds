@@ -1444,3 +1444,12 @@ extension V9_10LifecycleBoundaryTests {
         XCTAssertNoThrow(try V25GuidedSurveyImportBoundaryV1.validate(persistent: 25, records: 24))
     }
 }
+
+extension V9_10LifecycleBoundaryTests {
+    func testV23P03C28TypedScheduleBoundaryIsClosedAndNonpersistent() {
+        XCTAssertEqual(OccurrenceStateV1.allCases, [.upcoming, .ready, .due, .overdue, .deferred,
+                                                    .missed, .skipped, .cancelled, .started, .completed])
+        XCTAssertEqual(ScheduleReleaseActionV1.allCases.count, 6)
+        XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
+    }
+}

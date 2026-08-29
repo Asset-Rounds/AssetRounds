@@ -1501,3 +1501,12 @@ final class V9_40SurveySessionTests: XCTestCase {
         XCTAssertTrue(value.statusFlags.values.allSatisfy { !$0 })
     }
 }
+
+extension V9_40SurveySessionTests {
+    func testV23P03C28TypedScheduleBoundaryIsClosedAndNonpersistent() {
+        XCTAssertEqual(OccurrenceStateV1.allCases, [.upcoming, .ready, .due, .overdue, .deferred,
+                                                    .missed, .skipped, .cancelled, .started, .completed])
+        XCTAssertEqual(ScheduleReleaseActionV1.allCases.count, 6)
+        XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
+    }
+}

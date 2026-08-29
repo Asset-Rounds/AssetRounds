@@ -44,4 +44,5 @@ final class MutationReceiptRecoveryServiceV1 {
     /// C27 locator and binding-receipt effects are recovered exclusively from
     /// the canonical mutation journal; derived resolution previews are rebuilt.
     func recoverAssetLocatorEffectsBeforeWriterActivation()throws{try recoverBeforeWriterActivation()}
+    func recoverScheduleEffectsBeforeWriterActivation()throws{try recoverBeforeWriterActivation()}
 }

@@ -37,6 +37,25 @@ enum FieldReferenceDeletionLedgerPolicyV1{static let immutableKinds=["FieldRefer
 enum SurveyDefinitionDeletionLedgerPolicyV1{static let durableKinds=SurveyDefinitionLifecycleV1.persistentFamilies;static let ordinaryAssetOrSiteDeleteRetainsAll=true;static let workspaceEraseRemovesAll=true;static let quarantineCandidatesAreNotDurable=true;static func validate()throws{guard durableKinds==["SurveyDefinitionIdentityV1","SurveyDefinitionReleaseV1"],ordinaryAssetOrSiteDeleteRetainsAll,workspaceEraseRemovesAll,quarantineCandidatesAreNotDurable,V24BackupSurveyDefinitionRecordV1.Kind.allCases.count==2 else{throw DeletionLedgerFailureV2.invalidSchemaVersion}}}
 
 enum SurveySessionDeletionLedgerPolicyV1{static let durableKinds=["SurveySessionV1","FactCaptureV1","ProvisionalSubjectV1","SubjectPromotionReceiptV1","SurveyPublicationSnapshotV1"];static let ordinaryAssetOrSiteDeleteRetainsFrozenPublications=true;static let workspaceEraseRemovesAll=true;static func validate()throws{guard durableKinds.count==5,Set(durableKinds).count==5,ordinaryAssetOrSiteDeleteRetainsFrozenPublications,workspaceEraseRemovesAll else{throw DeletionLedgerFailureV2.invalidSchemaVersion}}}
+/// Schedule releases are immutable content and occurrence events are
+/// append-only history. Ordinary asset/site deletion cannot prune either
+/// family; workspace Erase is the only operation that removes them.
+enum ScheduleDeletionLedgerPolicyV1 {
+    static let durableKinds = ["ScheduleDefinitionReleaseV1", "OccurrenceHistoryEventV1"]
+    static let lifecycleEventsRemainInMutationHistory = true
+    static let ordinaryDeletionPreservesReleaseAndOccurrenceHistory = true
+    static let workspaceEraseRemovesAll = true
+
+    static func validate() throws {
+        guard durableKinds.count == 2,
+              Set(durableKinds).count == durableKinds.count,
+              lifecycleEventsRemainInMutationHistory,
+              ordinaryDeletionPreservesReleaseAndOccurrenceHistory,
+              workspaceEraseRemovesAll else {
+            throw DeletionLedgerFailureV2.invalidSchemaVersion
+        }
+    }
+}
 enum AccessibleDocumentDeletionLedgerPolicyV1{static let ordinaryDeletionPreservesAcceptedReceiptAndOutput=true;static let removalRequiresPrivacyExpiryTombstoneAndRedactionProof=true;static let workspaceEraseRemovesReceiptAndOwnedOutput=true;static func validate()throws{guard AccessibleDocumentLifecycleV1.persistentFamilies==["AccessibleDocumentAssessmentReceiptV1"],AccessibleDocumentLifecycleV1.semanticTreePersistence=="DERIVED_ONLY",ordinaryDeletionPreservesAcceptedReceiptAndOutput,removalRequiresPrivacyExpiryTombstoneAndRedactionProof,workspaceEraseRemovesReceiptAndOwnedOutput else{throw DeletionLedgerFailureV2.invalidSchemaVersion}}}
 
 /// The closed set of persisted content kinds. System rows such as the schema
@@ -220,6 +239,7 @@ struct DeletionLedgerEntryV2: Codable, Equatable, Hashable, Sendable {
         try AuthorityCriterionDeletionLedgerPolicyV1.validate()
         try FunctionalRelationshipDeletionLedgerPolicyV1.validate()
         try EvidenceAssuranceDeletionLedgerPolicyV1.validate()
+        try ScheduleDeletionLedgerPolicyV1.validate()
         guard schemaVersion == 2 else {
             throw DeletionLedgerFailureV2.invalidSchemaVersion
         }

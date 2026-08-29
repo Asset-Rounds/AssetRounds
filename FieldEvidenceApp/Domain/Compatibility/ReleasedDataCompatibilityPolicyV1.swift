@@ -1031,3 +1031,15 @@ struct AssetLocatorCompatibilityPolicyV1:Codable,Equatable,Sendable{
     func validate()throws{guard Set(Self.readablePersistentWriterVersions).count==26,Self.readablePersistentWriterVersions.last==Self.currentPersistentWriterVersion,Set(Self.readableBackupWriterVersions).count==Self.readableBackupWriterVersions.count,Self.readableBackupWriterVersions.last==Self.currentBackupWriterVersion,resolutionAndPreviewPersistence=="DERIVED_ONLY",historicalLocatorEvidencePreserved,unknownVersionsFailClosed else{throw CompatibilityContractErrorV1.invalidSupportTable}}
 }
 extension ReleasedDataCompatibilityPolicyV1{static let assetLocatorCompatibility=AssetLocatorCompatibilityPolicyV1.current}
+
+struct ScheduleCompatibilityPolicyV1:Codable,Equatable,Sendable{
+    static let persistentSchemaVersion=27,recordsSchemaVersion=26
+    static let currentPersistentWriterVersion="27.0.0",currentBackupWriterVersion="archive1-backup4-persistent27-records26"
+    static let readablePersistentWriterVersions=(1...27).map{"\($0).0.0"}
+    static let readableBackupWriterVersions=AssetLocatorCompatibilityPolicyV1.readableBackupWriterVersions+[currentBackupWriterVersion]
+    static let downgradeDisposition="PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_FIRST_V27_WRITE"
+    let exceptionPersistence="EMBEDDED_HISTORY_PAYLOAD_ONLY";let dueAndReminderPersistence="DERIVED_ONLY";let unknownVersionsFailClosed=true
+    static let current=Self()
+    func validate()throws{guard Set(Self.readablePersistentWriterVersions).count==27,Self.readablePersistentWriterVersions.last==Self.currentPersistentWriterVersion,Set(Self.readableBackupWriterVersions).count==Self.readableBackupWriterVersions.count,Self.readableBackupWriterVersions.last==Self.currentBackupWriterVersion,exceptionPersistence=="EMBEDDED_HISTORY_PAYLOAD_ONLY",dueAndReminderPersistence=="DERIVED_ONLY",unknownVersionsFailClosed else{throw CompatibilityContractErrorV1.invalidSupportTable}}
+}
+extension ReleasedDataCompatibilityPolicyV1{static let scheduleCompatibility=ScheduleCompatibilityPolicyV1.current}

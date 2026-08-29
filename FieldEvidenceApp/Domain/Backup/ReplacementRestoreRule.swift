@@ -193,6 +193,74 @@ enum ReplacementRestoreRule {
     }
 }
 
+/// Schedule rows are immutable/append-only restore material. Replacement
+/// filtering validates and carries this closure forward; due/reminder queues
+/// and generation plans are rebuilt locally and never restored as truth.
+enum ScheduleReplacementRestorePolicyV1 {
+    static let cloneForkSourceScheduleAutomaticallyActive = false
+    static let derivedProjectionsRestored = false
+    static let notificationStateRestored = false
+
+    static func validate(_ records: [V27BackupScheduleRecordV1]) throws {
+        guard records == records.sorted(by: {
+            "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
+                < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
+        }),
+        Set(records.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())" }).count
+            == records.count,
+        !cloneForkSourceScheduleAutomaticallyActive,
+        !derivedProjectionsRestored,
+        !notificationStateRestored else {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+        guard !records.isEmpty else { return }
+        var definitions: [ScheduleDefinitionReleaseV1] = []
+        var history: [OccurrenceHistoryEventV1] = []
+        for record in records {
+            guard record.revision > 0, !record.canonicalData.isEmpty else {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+            do {
+                switch record.kind {
+                case .scheduleRelease:
+                    let value = try ScheduleCanonicalCodecV1.decode(
+                        ScheduleDefinitionReleaseV1.self, from: record.canonicalData
+                    )
+                    try value.validate()
+                    guard value.releaseID == record.id,
+                          value.workspaceID.rawValue == record.workspaceID,
+                          value.revision == record.revision else {
+                        throw ReplacementRestoreRuleError.invalidAuthority
+                    }
+                    definitions.append(value)
+                case .occurrenceHistory:
+                    let value = try ScheduleCanonicalCodecV1.decode(
+                        OccurrenceHistoryEventV1.self, from: record.canonicalData
+                    )
+                    try value.validateIntrinsic()
+                    guard value.eventID == record.id,
+                          value.workspaceID.rawValue == record.workspaceID,
+                          value.revision == record.revision else {
+                        throw ReplacementRestoreRuleError.invalidAuthority
+                    }
+                    history.append(value)
+                }
+            } catch let error as ReplacementRestoreRuleError {
+                throw error
+            } catch {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+        }
+        do {
+            try ScheduleLifecycleClosureV1(
+                definitions: definitions, history: history
+            ).validate()
+        } catch {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+    }
+}
+
 private extension ReplacementRestoreRule {
     static func normalizedLedger(_ records: V4BackupRecordsV1) throws
         -> DeletionLedgerV2 {
@@ -209,7 +277,16 @@ private extension ReplacementRestoreRule {
             explicit = ledger
         case (3, let ledger?, let history?), (4, let ledger?, let history?),
              (5, let ledger?, let history?), (6, let ledger?, let history?),
-             (7, let ledger?, let history?):
+             (7, let ledger?, let history?), (8, let ledger?, let history?),
+             (9, let ledger?, let history?), (10, let ledger?, let history?),
+             (11, let ledger?, let history?), (12, let ledger?, let history?),
+             (13, let ledger?, let history?), (14, let ledger?, let history?),
+             (15, let ledger?, let history?), (16, let ledger?, let history?),
+             (17, let ledger?, let history?), (18, let ledger?, let history?),
+             (19, let ledger?, let history?), (20, let ledger?, let history?),
+             (21, let ledger?, let history?), (22, let ledger?, let history?),
+             (23, let ledger?, let history?), (24, let ledger?, let history?),
+             (25, let ledger?, let history?), (26, let ledger?, let history?):
             try ledger.validate()
             try MutationJournalStoreV1.validateImportedSnapshot(history)
             explicit = ledger
@@ -234,6 +311,7 @@ private extension ReplacementRestoreRule {
     ) throws -> V4BackupRecordsV1 {
         try ledger.validate()
         try AssetLocatorReplacementRestorePolicyV1.validate(records.assetLocators)
+        try ScheduleReplacementRestorePolicyV1.validate(records.schedules)
         let deleted = Dictionary(
             uniqueKeysWithValues: ledger.entries.map { ($0.identity, $0) }
         )
@@ -276,6 +354,7 @@ private extension ReplacementRestoreRule {
         let result = V4BackupRecordsV1(
             guidedSurveys:records.guidedSurveys,
             assetLocators: records.assetLocators,
+            schedules: records.schedules,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
@@ -324,6 +403,7 @@ private extension ReplacementRestoreRule {
         V4BackupRecordsV1(
             guidedSurveys:records.guidedSurveys,
             assetLocators: records.assetLocators,
+            schedules: records.schedules,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
@@ -365,6 +445,7 @@ private extension ReplacementRestoreRule {
         V4BackupRecordsV1(
             guidedSurveys:records.guidedSurveys,
             assetLocators: records.assetLocators,
+            schedules: records.schedules,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
@@ -408,6 +489,7 @@ private extension ReplacementRestoreRule {
         V4BackupRecordsV1(
             guidedSurveys:records.guidedSurveys,
             assetLocators: records.assetLocators,
+            schedules: records.schedules,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,

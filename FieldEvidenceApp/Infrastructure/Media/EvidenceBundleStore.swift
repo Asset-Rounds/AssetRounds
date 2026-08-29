@@ -2,6 +2,8 @@ import CryptoKit
 import Darwin
 import Foundation
 
+enum EvidenceBundleScheduleBoundaryV1 { static let reminderProjectionWritesEvidence = false }
+
 enum AssetLocatorEvidenceBundleBoundaryV1 {
     static let locatorPayloadIsEvidenceMember = false
     static let resolutionWritesEvidence = false

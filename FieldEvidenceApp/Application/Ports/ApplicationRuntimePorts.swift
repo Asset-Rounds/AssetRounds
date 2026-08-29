@@ -1,5 +1,7 @@
 import Foundation
 
+protocol ScheduleProjectionClockV1: Sendable { func nowUTC() -> Date }
+
 protocol ApplicationClock: Sendable {
     /// Wall time for durable records and user-visible calendar context only.
     /// It must never be used to order causal mutations or measure durations.

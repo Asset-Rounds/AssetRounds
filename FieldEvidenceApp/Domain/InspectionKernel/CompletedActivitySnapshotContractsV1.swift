@@ -1,5 +1,15 @@
 import Foundation
 
+struct FrozenScheduleCompletionReferenceV1: Codable, Equatable, Sendable {
+    let occurrenceID: OccurrenceIDV1
+    let completionEventSHA256: String
+    init(event: OccurrenceHistoryEventV1) throws {
+        try event.validateIntrinsic()
+        guard event.action == .complete else { throw ScheduleFailureV1.invalidValue }
+        occurrenceID = event.occurrenceID; completionEventSHA256 = event.eventSHA256
+    }
+}
+
 enum CompletedActivityAssetLocatorBoundaryV1 {
     /// Completed snapshots consume an already-frozen interpretation. They do
     /// not re-run resolution against later locator lifecycle state.

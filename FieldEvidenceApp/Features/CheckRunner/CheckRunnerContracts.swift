@@ -1,5 +1,15 @@
 import Foundation
 
+struct CheckRunnerScheduleContextV1: Equatable, Sendable {
+    let occurrenceID: OccurrenceIDV1
+    let startEventSHA256: String
+    init(startEvent: OccurrenceHistoryEventV1) throws {
+        try startEvent.validateIntrinsic()
+        guard startEvent.action == .start else { throw ScheduleFailureV1.invalidTransition }
+        occurrenceID = startEvent.occurrenceID; startEventSHA256 = startEvent.eventSHA256
+    }
+}
+
 struct CheckRunnerAssetLocatorContextV1: Equatable, Sendable {
     let resolution: LocatorResolutionV1
     let frozenInterpretation: FrozenAssetLocatorInterpretationV1

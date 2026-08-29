@@ -1,5 +1,7 @@
 import Foundation
 
+enum ScheduleNotificationCapabilityBoundaryV1 { static let permissionIsCanonicalScheduleTruth = false }
+
 enum CapabilityContractFailureV1: Error, Equatable, Sendable {
     case invalidValue
     case duplicateCapability

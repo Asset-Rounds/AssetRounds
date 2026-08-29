@@ -1,5 +1,7 @@
 import Foundation
 
+enum SurveySessionScheduleBoundaryV1 { static let dueProjectionMayCreateSession = false }
+
 enum SurveySessionFailureV1: Error, Equatable {
     case invalidValue, invalidDigest, wrongWorkspace, wrongDefinition, invalidTransition
     case staleRevision, unresolvedConflict, incompleteSurvey, unsafePromotion, passFailClaimForbidden

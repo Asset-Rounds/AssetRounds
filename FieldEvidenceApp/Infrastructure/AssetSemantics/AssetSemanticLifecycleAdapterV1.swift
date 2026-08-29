@@ -1,5 +1,7 @@
 import Foundation
 
+enum AssetSemanticsScheduleLifecycleBoundaryV1 { static let noSecondScheduleWriter = true }
+
 extension AssetSemanticLifecycleAdapterV1 {
     func validateLocatorLifecycle(_ closure: AssetLocatorLifecycleClosureV1) throws {
         try closure.validate()

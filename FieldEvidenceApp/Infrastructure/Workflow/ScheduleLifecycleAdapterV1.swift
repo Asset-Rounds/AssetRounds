@@ -1,0 +1,39 @@
+import Foundation
+
+/// C28 lifecycle bridge. The journal is the replay authority and the existing
+/// WorkspaceWriter remains the only canonical transaction boundary.
+@MainActor final class ScheduleLifecycleAdapterV1: ScheduleCanonicalWritingV1 {
+    private let writer: WorkspaceWriterV1
+    private let journalStore: MutationJournalStoreV1
+
+    init(writer: WorkspaceWriterV1, journalStore: MutationJournalStoreV1) {
+        self.writer = writer
+        self.journalStore = journalStore
+    }
+
+    func acceptedScheduleMutation(_ mutation: ScheduleMutationV1) throws -> ScheduleMutationReceiptV1? {
+        try journalStore.validateScheduleReferences(mutation)
+        return try journalStore.acceptedScheduleMutation(mutation)
+    }
+
+    func applySchedule(_ mutation: ScheduleMutationV1) throws -> ScheduleMutationReceiptV1 {
+        try mutation.validate()
+        try journalStore.validateScheduleReferences(mutation)
+        if let accepted = try acceptedScheduleMutation(mutation) { return accepted }
+        return try .init(mutation: mutation, mutationReceipt: writer.commitSchedule(mutation))
+    }
+}
+
+/// Disposable reminder state. Permission or scheduling failure is surfaced and
+/// never becomes canonical occurrence or notification truth.
+protocol ScheduleReminderReconcilingV1: Sendable {
+    func reconcile(_ projection: ReminderProjectionV1) async throws
+    func removeAll(workspaceID: WorkspaceID) async throws
+}
+
+actor ScheduleReminderLifecycleV1 {
+    private let reconciler: any ScheduleReminderReconcilingV1
+    init(reconciler: any ScheduleReminderReconcilingV1) { self.reconciler = reconciler }
+    func rebuild(_ projection: ReminderProjectionV1) async throws { try await reconciler.reconcile(projection) }
+    func erase(workspaceID: WorkspaceID) async throws { try await reconciler.removeAll(workspaceID: workspaceID) }
+}

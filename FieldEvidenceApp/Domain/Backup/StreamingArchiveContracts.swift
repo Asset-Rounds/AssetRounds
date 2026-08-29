@@ -20,7 +20,10 @@ enum AssetLocatorStreamingArchivePolicyV1 {
     static let privateKeyMaterialMayBeExported = false
 
     static func validate(records: V4BackupRecordsV1) throws {
-        guard (1...recordsSchemaVersion).contains(records.recordsSchemaVersion) else {
+        // Schema 26 carries the prior locator family alongside schedules;
+        // locator validation remains valid when it is embedded in that
+        // successor package.
+        guard (1...26).contains(records.recordsSchemaVersion) else {
             throw StreamingArchiveFailureV1.invalidArchive
         }
         guard records.recordsSchemaVersion < recordsSchemaVersion else {
@@ -66,6 +69,37 @@ enum AssetLocatorStreamingArchivePolicyV1 {
             } catch {
                 throw StreamingArchiveFailureV1.invalidArchive
             }
+        }
+    }
+}
+
+/// C28 archive policy: immutable schedule releases and append-only occurrence
+/// history are portable; due/reminder projections and generation plans are
+/// reconstructed after restore and never become archive truth.
+enum ScheduleStreamingArchivePolicyV1 {
+    static let recordsSchemaVersion = 26
+    static let persistentSchemaVersion = 27
+    static let durableFamilyCount = 2
+    static let lifecycleEventsRemainInMutationHistory = true
+    static let derivedProjectionsAreExcluded = true
+    static let notificationStateIsTruth = false
+    static let cloneForkSourceScheduleAutomaticallyActive = false
+
+    static func validate(records: V4BackupRecordsV1) throws {
+        guard records.recordsSchemaVersion <= recordsSchemaVersion else {
+            throw StreamingArchiveFailureV1.invalidArchive
+        }
+        guard records.schedules.count <= 200_000,
+              derivedProjectionsAreExcluded,
+              !notificationStateIsTruth,
+              !cloneForkSourceScheduleAutomaticallyActive else {
+            throw StreamingArchiveFailureV1.entryLimitExceeded
+        }
+        do {
+            let bytes = try BackupCanonicalEncoderV1().encodeRecords(records).data
+            _ = try BackupCanonicalDecoderV1().decodeRecords(bytes)
+        } catch {
+            throw StreamingArchiveFailureV1.invalidArchive
         }
     }
 }

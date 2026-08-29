@@ -1,5 +1,12 @@
 import Foundation
 
+enum ScheduleWorkStartRuleV1 {
+    static func validate(_ event: OccurrenceHistoryEventV1, predecessor: OccurrenceHistoryEventV1) throws {
+        try event.validate(predecessor: predecessor)
+        guard event.action == .start, event.workInstance != nil else { throw ScheduleFailureV1.duplicateWorkLink }
+    }
+}
+
 struct WorkRuleSubmission: Equatable, Sendable {
     let performedLocalDate: String
     let description: String

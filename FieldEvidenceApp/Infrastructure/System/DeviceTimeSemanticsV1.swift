@@ -1,5 +1,10 @@
 import Foundation
 
+enum ScheduleDeviceClockBoundaryV1 {
+    static let wallClockRollbackMutatesOccurrenceHistory = false
+    static func validateEvaluationInstant(_ value: Date) throws { try ScheduleLimitsV1.instant(value) }
+}
+
 enum DeviceTimeSemanticsFailureV1: Error, Equatable, Sendable {
     case invalidWallTime
     case monotonicClockRegressed

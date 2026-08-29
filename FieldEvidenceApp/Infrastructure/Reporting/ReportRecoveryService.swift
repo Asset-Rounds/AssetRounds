@@ -956,3 +956,46 @@ enum AssetLocatorReportRecoveryPolicyV1 {
         return projection
     }
 }
+
+// MARK: - C28 schedule recovery boundary
+
+enum ScheduleReportRecoveryPolicyV1 {
+    static let recoverySource = "CANONICAL_SCHEDULE_RELEASE_AND_OCCURRENCE_HISTORY"
+    static let dueQueueRebuiltFromCanonicalHistory = true
+    static let reminderRebuiltFromDueQueue = true
+    static let finalizedReportIsNotRewritten = true
+    static let notificationDeliveryIsTruth = false
+    static let excludesNotificationPayload = true
+
+    static func rebuildDueQueue(
+        workspaceID: WorkspaceID,
+        evaluatedAt: Date,
+        definitions: [ScheduleDefinitionReleaseV1],
+        history: [OccurrenceHistoryEventV1]
+    ) throws -> DueQueueProjectionV1 {
+        guard dueQueueRebuiltFromCanonicalHistory,
+              reminderRebuiltFromDueQueue,
+              finalizedReportIsNotRewritten,
+              !notificationDeliveryIsTruth,
+              excludesNotificationPayload else {
+            throw SnapshotProjectionFailureV1.invalidValue
+        }
+        return try DueQueueProjectionV1(
+            workspaceID: workspaceID,
+            evaluatedAt: evaluatedAt,
+            definitions: definitions,
+            history: history
+        )
+    }
+
+    static func validateRecovered(
+        _ projection: ScheduleReportProjectionV1
+    ) throws -> ScheduleReportProjectionV1 {
+        try ScheduleReportProjectionPolicyV1.validate(projection)
+        guard finalizedReportIsNotRewritten,
+              !notificationDeliveryIsTruth else {
+            throw SnapshotProjectionFailureV1.invalidValue
+        }
+        return projection
+    }
+}

@@ -1,5 +1,7 @@
 import Foundation
 
+enum WorkflowScheduleBoundaryV1 { static let dueProjectionMayStartWorkflow = false }
+
 enum WorkflowAssetLocatorBoundaryV1 {
     static let resolutionStartsWorkflow = false
     static let captureStoresFrozenInterpretation = true

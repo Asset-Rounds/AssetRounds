@@ -989,3 +989,64 @@ struct AssetLocatorSearchPersistencePolicyV1: Codable, Equatable, Sendable {
 extension SearchPersistenceReleaseV1 {
     static let assetLocatorPolicy = AssetLocatorSearchPersistencePolicyV1()
 }
+
+// MARK: - C28 schedule occurrence search persistence boundary
+
+/// Schedule search rows are disposable metadata derivatives. Canonical
+/// release/history records are rebuilt first after restore, replay, or Erase;
+/// notification requests and work-instance details never enter this store.
+struct ScheduleOccurrenceSearchPersistencePolicyV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let sourceSchema: String
+    let searchPersistenceRelease: SearchPersistenceReleaseV1
+    let fieldIDs: [String]
+    let metadataOnly: Bool
+    let derivedOnly: Bool
+    let notificationDeliveryIsTruth: Bool
+    let excludesNotificationPayload: Bool
+    let excludesWorkInstanceIdentity: Bool
+    let excludesActorIdentity: Bool
+    let excludesDraftValues: Bool
+    let backupDisposition: String
+    let replayDisposition: String
+    let deleteDisposition: String
+
+    init() {
+        schemaVersion = Self.schemaVersion
+        sourceSchema = ScheduleOccurrenceSearchProjectionPolicyV1.semanticLabel
+        searchPersistenceRelease = .v7
+        fieldIDs = ScheduleOccurrenceSearchProjectionPolicyV1.fieldIDs
+        metadataOnly = true
+        derivedOnly = true
+        notificationDeliveryIsTruth = false
+        excludesNotificationPayload = true
+        excludesWorkInstanceIdentity = true
+        excludesActorIdentity = true
+        excludesDraftValues = true
+        backupDisposition = "EXCLUDED_DERIVED_REBUILD"
+        replayDisposition = "DROP_AND_REBUILD_FROM_CANONICAL_SCHEDULE_HISTORY"
+        deleteDisposition = "DROP_AND_REBUILD_AFTER_SCHEDULE_ERASE"
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              sourceSchema == ScheduleOccurrenceSearchProjectionPolicyV1.semanticLabel,
+              searchPersistenceRelease == .v7,
+              fieldIDs == ScheduleOccurrenceSearchProjectionPolicyV1.fieldIDs,
+              metadataOnly, derivedOnly,
+              !notificationDeliveryIsTruth,
+              excludesNotificationPayload, excludesWorkInstanceIdentity,
+              excludesActorIdentity, excludesDraftValues,
+              backupDisposition == "EXCLUDED_DERIVED_REBUILD",
+              replayDisposition == "DROP_AND_REBUILD_FROM_CANONICAL_SCHEDULE_HISTORY",
+              deleteDisposition == "DROP_AND_REBUILD_AFTER_SCHEDULE_ERASE" else {
+            throw SearchContractFailureV1.invalidField
+        }
+    }
+}
+
+extension SearchPersistenceReleaseV1 {
+    static let scheduleOccurrencePolicy = ScheduleOccurrenceSearchPersistencePolicyV1()
+}

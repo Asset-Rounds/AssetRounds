@@ -34,6 +34,23 @@ enum FieldReferenceEraseBoundaryV1{static let atomicFamilyCount=2;static let ord
 enum AccessibleDocumentEraseBoundaryV1{static let atomicFamilyCount=1;static let semanticTreeIsDerived=true;static let workspaceEraseClearsReceiptsAndOwnedOutputs=true;static let escapedOutputsCannotBeRecalled=true}
 enum SurveyDefinitionEraseBoundaryV1{static let atomicFamilyCount=2;static let lifecycleEventsAreMutationHistoryOnly=true;static let workspaceEraseClearsIdentityAndReleaseRows=true;static let quarantinedImportsAreNoncanonical=true}
 enum SurveySessionEraseBoundaryV1{static let atomicFamilyCount=5;static let ordinaryDeletionPreservesPublicationAndCaptureHistory=true;static let workspaceEraseClearsEntireLifecycleClosure=true;static let previewsAndCurrentProjectionsAreNonpersistent=true}
+enum ScheduleEraseBoundaryV1 {
+    static let atomicFamilyCount = 2
+    static let lifecycleHistoryIsMutationJournalBacked = true
+    static let ordinaryDeletionPreservesReleaseAndOccurrenceHistory = true
+    static let workspaceEraseClearsEntireLifecycleClosure = true
+    static let dueAndReminderProjectionsAreNonpersistent = true
+    static let notificationStateIsTruth = false
+
+    static func validate() -> Bool {
+        atomicFamilyCount == 2
+            && lifecycleHistoryIsMutationJournalBacked
+            && ordinaryDeletionPreservesReleaseAndOccurrenceHistory
+            && workspaceEraseClearsEntireLifecycleClosure
+            && dueAndReminderProjectionsAreNonpersistent
+            && !notificationStateIsTruth
+    }
+}
 enum AssetLocatorEraseBoundaryV1 {
     static let atomicFamilyCount = 2
     static let ordinaryDeletionRemovesAssetOwnedRows = true

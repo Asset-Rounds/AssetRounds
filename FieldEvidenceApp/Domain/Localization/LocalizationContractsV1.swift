@@ -3922,3 +3922,146 @@ enum AssetLocatorLocalizationPolicyV1 {
         }
     }
 }
+
+// MARK: - C28 schedule and occurrence localization
+
+/// Closed English-only labels for the C28 schedule projection. Canonical
+/// schedule/occurrence wire values remain machine tokens; this enum is only a
+/// presentation mapping and never participates in identity or recurrence.
+enum ScheduleLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
+    case heading = "schedule.heading"
+    case definition = "schedule.definition"
+    case occurrence = "schedule.occurrence"
+    case occurrenceState = "schedule.occurrence.state"
+    case fixedCalendar = "schedule.recurrence.fixed_calendar"
+    case completionRelative = "schedule.recurrence.completion_relative"
+    case timeBasis = "schedule.time_basis"
+    case history = "schedule.history"
+    case historyImmutable = "schedule.history.immutable"
+    case dueQueue = "schedule.due_queue"
+    case reminder = "schedule.reminder"
+    case reminderNotTruth = "schedule.reminder.not_truth"
+    case claimBoundary = "schedule.claim_boundary"
+    case nextStep = "schedule.next_step"
+    case stateUpcoming = "schedule.occurrence.state.upcoming"
+    case stateReady = "schedule.occurrence.state.ready"
+    case stateDue = "schedule.occurrence.state.due"
+    case stateOverdue = "schedule.occurrence.state.overdue"
+    case stateDeferred = "schedule.occurrence.state.deferred"
+    case stateMissed = "schedule.occurrence.state.missed"
+    case stateSkipped = "schedule.occurrence.state.skipped"
+    case stateCancelled = "schedule.occurrence.state.cancelled"
+    case stateStarted = "schedule.occurrence.state.started"
+    case stateCompleted = "schedule.occurrence.state.completed"
+
+    var localizationKey: LocalizationKeyV1 {
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+
+    var englishDefaultValue: String {
+        switch self {
+        case .heading: return "Schedule"
+        case .definition: return "Schedule definition"
+        case .occurrence: return "Occurrence"
+        case .occurrenceState: return "Occurrence state"
+        case .fixedCalendar: return "Fixed-calendar schedule"
+        case .completionRelative: return "Completion-relative schedule"
+        case .timeBasis: return "Frozen time basis"
+        case .history: return "Occurrence history"
+        case .historyImmutable: return "History remains unchanged"
+        case .dueQueue: return "Due queue"
+        case .reminder: return "Reminder preview"
+        case .reminderNotTruth: return "Reminder is a preview; it does not change occurrence state"
+        case .claimBoundary: return "Recorded schedule metadata only"
+        case .nextStep: return "Review recorded schedule facts"
+        case .stateUpcoming: return "Upcoming"
+        case .stateReady: return "Ready"
+        case .stateDue: return "Due"
+        case .stateOverdue: return "Overdue"
+        case .stateDeferred: return "Deferred"
+        case .stateMissed: return "Missed"
+        case .stateSkipped: return "Skipped"
+        case .stateCancelled: return "Cancelled"
+        case .stateStarted: return "Started"
+        case .stateCompleted: return "Completed"
+        }
+    }
+
+    var translatorComment: String {
+        "English-only C28 label for frozen schedule and occurrence facts; notification delivery is disposable and never changes canonical occurrence state."
+    }
+
+    static func key(for state: OccurrenceStateV1) -> Self {
+        switch state {
+        case .upcoming: return .stateUpcoming
+        case .ready: return .stateReady
+        case .due: return .stateDue
+        case .overdue: return .stateOverdue
+        case .deferred: return .stateDeferred
+        case .missed: return .stateMissed
+        case .skipped: return .stateSkipped
+        case .cancelled: return .stateCancelled
+        case .started: return .stateStarted
+        case .completed: return .stateCompleted
+        }
+    }
+
+    static func recurrenceKey(for recurrence: ScheduleRecurrenceV1) -> Self {
+        switch recurrence {
+        case .fixedCalendar: return .fixedCalendar
+        case .completionRelative: return .completionRelative
+        }
+    }
+}
+
+enum ScheduleLocalizationPolicyV1 {
+    static let sourceLocale = "en"
+    static let shippingRuntimeLocales = ["en"]
+    static let metadataLocale = "en-US"
+    static let pseudoLocalesAreTestOnly = true
+    static let keys = ScheduleLocalizationKeyV1.allCases.map(\.rawValue).sorted()
+    static let occurrenceStateKeys = OccurrenceStateV1.allCases.map {
+        ScheduleLocalizationKeyV1.key(for: $0).rawValue
+    }.sorted()
+    static let englishOnly = true
+    static let notificationDeliveryIsTruth = false
+    static let historyDisplayIsFrozen = true
+    static let denyByDefault = true
+    static let prohibitedClaimPhrases = [
+        "approval", "authorization", "permission", "verified identity", "authorship",
+        "legal signature", "nonrepudiation", "tamperproof", "secure", "sent", "delivered",
+        "remote", "network", "telemetry", "customer data", "work data", "evidence bytes",
+    ]
+
+    static func containsProhibitedClaim(_ values: [String]) -> Bool {
+        values.contains { value in
+            let normalized = value.lowercased()
+                .replacingOccurrences(of: "_", with: " ")
+                .replacingOccurrences(of: "-", with: " ")
+            return prohibitedClaimPhrases.contains { normalized.contains($0) }
+        }
+    }
+
+    static func validate() throws {
+        let typed = ScheduleLocalizationKeyV1.allCases.map(\.localizationKey.rawValue).sorted()
+        guard typed == keys,
+              Set(keys).count == keys.count,
+              occurrenceStateKeys.count == OccurrenceStateV1.allCases.count,
+              Set(occurrenceStateKeys).count == occurrenceStateKeys.count,
+              sourceLocale == "en",
+              shippingRuntimeLocales == ["en"],
+              metadataLocale == "en-US",
+              pseudoLocalesAreTestOnly,
+              englishOnly,
+              !notificationDeliveryIsTruth,
+              historyDisplayIsFrozen,
+              denyByDefault,
+              ScheduleLocalizationKeyV1.allCases.allSatisfy({
+                  !$0.englishDefaultValue.isEmpty
+                      && !containsProhibitedClaim([$0.englishDefaultValue])
+              }) else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}

@@ -24,6 +24,34 @@ enum AssetLocatorKernelDeletionEnrollmentV1 {
     }
 }
 
+/// Schedule rows have no file-owned payload and remain intact through an
+/// ordinary asset/site delete. Workspace Erase clears the release/history
+/// closure, while due/reminder projections are rebuilt from it.
+enum ScheduleKernelDeletionEnrollmentV1 {
+    static let persistentRowNames: Set<String> = [
+        "ScheduleDefinitionReleaseRow", "OccurrenceHistoryEventRow"
+    ]
+    static let derivedProjectionNames: Set<String> = [
+        "DueQueueProjectionV1", "ReminderProjectionV1", "OccurrenceGenerationPlanV1"
+    ]
+    static let ordinaryAssetOrSiteDeletePreservesRows = true
+    static let workspaceEraseClearsRows = true
+    static let rowsOwnNoFilesystemPayload = true
+
+    static func validate() throws {
+        guard persistentRowNames.count == 2,
+              derivedProjectionNames.count == 3,
+              persistentRowNames.isDisjoint(with: derivedProjectionNames),
+              ordinaryAssetOrSiteDeletePreservesRows,
+              workspaceEraseClearsRows,
+              rowsOwnNoFilesystemPayload,
+              ScheduleEraseBoundaryV1.validate() else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+        try ScheduleDeletionLedgerPolicyV1.validate()
+    }
+}
+
 enum KernelDeleteDispositionV4: String, Codable, Sendable {
     case explicitOnly = "EXPLICIT_ONLY"
     case deleteAfterDependents = "DELETE_AFTER_DEPENDENTS"
@@ -310,6 +338,16 @@ enum KernelDeletionEraseRegistryV4 {
     static func validateClientCapabilityLifecycle()throws{guard clientCapabilityDeleteKinds.count==4 else{throw KernelPersistenceV4Failure.incompleteCoverage};try ClientCapabilityDeletionLedgerPolicyV1.validate()}
     static func validateFieldReferenceLifecycle()throws{guard fieldReferenceDeleteKinds.count==2,FieldReferencePackLifecycleV1.persistentFamilies.count==2 else{throw KernelPersistenceV4Failure.incompleteCoverage};try FieldReferenceDeletionLedgerPolicyV1.validate()}
     static func validateAccessibleDocumentLifecycle()throws{guard accessibleDocumentDeleteFamilyCount==1,AccessibleDocumentLifecycleV1.semanticTreePersistence=="DERIVED_ONLY" else{throw KernelPersistenceV4Failure.incompleteCoverage};try AccessibleDocumentDeletionLedgerPolicyV1.validate()}
+    static func validateScheduleLifecycle() throws {
+        try ScheduleKernelDeletionEnrollmentV1.validate()
+        guard ScheduleDeletionIntentBoundaryV1.validate(),
+              ScheduleOrphanCleanupPolicyV1.rowsOwnNoFilesystemPayload,
+              ScheduleOrphanCleanupPolicyV1.projectionsAreDerived,
+              ScheduleOrphanCleanupPolicyV1.missingFileCannotDeleteCanonicalRows,
+              !ScheduleOrphanCleanupPolicyV1.notificationStateIsTruth else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
     /// Search V1 has one canonical workspace-owned record and one disposable
     /// local projection. Keeping these routes beside the kernel registry makes
     /// delete/Erase audits distinguish canonical deletion from index rebuild.
@@ -363,6 +401,7 @@ enum KernelDeletionEraseRegistryV4 {
         try validateClientCapabilityLifecycle()
         try validateFieldReferenceLifecycle()
         try validateAccessibleDocumentLifecycle()
+        try validateScheduleLifecycle()
         try validatePrivacyTransformLifecycle()
         try validateMeasurementIntegrityLifecycle()
         try validatePackageEvolutionLifecycle()

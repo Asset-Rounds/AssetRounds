@@ -1,6 +1,8 @@
 import Foundation
 import CryptoKit
 
+enum ScheduleContentIntegrityBoundaryV1 { static let occurrenceDigestUsesCanonicalDomainCodec = true }
+
 enum AssetLocatorIntegrityBoundaryV1 {
     static func validateCanonicalDigest(_ digest: String) throws {
         guard KernelCanonicalHashV1.validSHA256(digest) else {

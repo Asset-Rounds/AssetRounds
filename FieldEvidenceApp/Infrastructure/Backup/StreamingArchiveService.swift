@@ -5,13 +5,20 @@ import Foundation
 enum GuidedSurveyStreamingArchiveDispositionV1 {
     static func validate(records: V4BackupRecordsV1) throws {
         guard records.recordsSchemaVersion < 24 ||
-                ((24...25).contains(records.recordsSchemaVersion) &&
+                ((24...26).contains(records.recordsSchemaVersion) &&
                  records.guidedSurveys.count <= 200_000) else {
             throw StreamingArchiveErrorV1.invalidArchive
         }
         if records.recordsSchemaVersion >= AssetLocatorStreamingArchivePolicyV1.recordsSchemaVersion {
             do {
                 try AssetLocatorStreamingArchivePolicyV1.validate(records: records)
+            } catch {
+                throw StreamingArchiveErrorV1.invalidArchive
+            }
+        }
+        if records.recordsSchemaVersion >= ScheduleStreamingArchivePolicyV1.recordsSchemaVersion {
+            do {
+                try ScheduleStreamingArchivePolicyV1.validate(records: records)
             } catch {
                 throw StreamingArchiveErrorV1.invalidArchive
             }

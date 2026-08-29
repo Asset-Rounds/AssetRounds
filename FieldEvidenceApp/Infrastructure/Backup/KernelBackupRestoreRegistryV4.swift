@@ -6,6 +6,32 @@ enum GuidedSurveyBackupRegistryV1 {
     static let canonicalKinds = Set(V25BackupGuidedSurveyRecordV1.Kind.allCases)
 }
 
+/// C28 schedule backup/restore is a two-family closure: immutable definition
+/// releases plus append-only occurrence history. Projection queues and
+/// reminders are rebuilt after restore and never enter the kernel archive.
+enum ScheduleBackupRestoreRegistryV1 {
+    static let persistentSchemaVersion = 27
+    static let recordsSchemaVersion = 26
+    static let durableFamilyCount = 2
+    static let lifecycleHistoryStorage = "MUTATION_HISTORY_ONLY"
+    static let derivedProjectionDisposition = "DROP_AND_REBUILD"
+    static let notificationStateIsTruth = false
+    static let cloneForkSourceScheduleAutomaticallyActive = false
+
+    static func validate() throws {
+        guard persistentSchemaVersion == 27,
+              recordsSchemaVersion == 26,
+              durableFamilyCount == 2,
+              lifecycleHistoryStorage == "MUTATION_HISTORY_ONLY",
+              derivedProjectionDisposition == "DROP_AND_REBUILD",
+              !notificationStateIsTruth,
+              !cloneForkSourceScheduleAutomaticallyActive else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+        try ScheduleRestoreIdentityPolicyV1.validate()
+    }
+}
+
 enum KernelArchiveDispositionV4: String, Codable, Sendable {
     case includeCanonical = "INCLUDE_CANONICAL"
     case includeImmutableHistory = "INCLUDE_IMMUTABLE_HISTORY"
@@ -321,6 +347,20 @@ enum KernelBackupRestoreRegistryV4 {
             throw KernelPersistenceV4Failure.incompleteCoverage
         }
     }
+    static func validateScheduleLifecycle() throws {
+        try ScheduleBackupRestoreRegistryV1.validate()
+        guard ScheduleStreamingArchivePolicyV1.recordsSchemaVersion == 26,
+              ScheduleStreamingArchivePolicyV1.persistentSchemaVersion == 27,
+              ScheduleStreamingArchivePolicyV1.durableFamilyCount == 2,
+              ScheduleStreamingArchivePolicyV1.lifecycleEventsRemainInMutationHistory,
+              !ScheduleStreamingArchivePolicyV1.notificationStateIsTruth,
+              !ScheduleStreamingArchivePolicyV1.cloneForkSourceScheduleAutomaticallyActive,
+              !ScheduleReplacementRestorePolicyV1.cloneForkSourceScheduleAutomaticallyActive,
+              !ScheduleReplacementRestorePolicyV1.derivedProjectionsRestored,
+              !ScheduleReplacementRestorePolicyV1.notificationStateRestored else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
     typealias Route = (
         archive: KernelArchiveDispositionV4,
         restore: KernelRestoreDispositionV4,
@@ -363,6 +403,7 @@ enum KernelBackupRestoreRegistryV4 {
         try validateRecoverabilityVerificationLifecycle()
         try validateFieldReferenceLifecycle()
         try validateAssetLocatorLifecycle()
+        try validateScheduleLifecycle()
         try validatePrivacyTransformLifecycle()
         try validateMeasurementIntegrityLifecycle()
         try validatePackageEvolutionLifecycle()

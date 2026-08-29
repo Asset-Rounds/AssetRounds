@@ -208,6 +208,7 @@ struct BackupCanonicalDecoderV1: Sendable {
             try Self.validateSurveyDefinitions(value)
             try Self.validateGuidedSurveys(value)
             try Self.validateAssetLocators(value)
+            try Self.validateSchedules(value)
             let canonical = try BackupCanonicalEncoderV1().encodeRecords(value).data
             guard canonical == data else {
                 throw BackupCanonicalDecodingErrorV1.invalidRecords
@@ -222,7 +223,7 @@ struct BackupCanonicalDecoderV1: Sendable {
 private extension BackupCanonicalDecoderV1 {
     static func validateGuidedSurveys(_ records:V4BackupRecordsV1)throws{
         guard records.recordsSchemaVersion>=24 else{guard records.guidedSurveys.isEmpty else{throw BackupCanonicalDecodingErrorV1.invalidRecords};return}
-        guard (24...25).contains(records.recordsSchemaVersion) else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
+        guard (24...26).contains(records.recordsSchemaVersion) else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
         if records.mutationHistory == nil {
             guard records.guidedSurveys.isEmpty else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
             return
@@ -284,7 +285,7 @@ private extension BackupCanonicalDecoderV1 {
             }
             return
         }
-        guard records.recordsSchemaVersion == 25 else {
+        guard records.recordsSchemaVersion <= 26 else {
             throw BackupCanonicalDecodingErrorV1.invalidRecords
         }
         var locators: [UUID: AssetLocatorV1] = [:]
@@ -338,9 +339,126 @@ private extension BackupCanonicalDecoderV1 {
         }
     }
 
+    static func validateSchedules(_ records: V4BackupRecordsV1) throws {
+        guard records.recordsSchemaVersion >= 26 else {
+            guard records.schedules.isEmpty else {
+                throw BackupCanonicalDecodingErrorV1.invalidRecords
+            }
+            return
+        }
+        guard records.recordsSchemaVersion == 26 else {
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
+        }
+        guard records.schedules.count <= 200_000 else {
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
+        }
+        if !records.schedules.isEmpty {
+            guard records.mutationHistory != nil else {
+                throw BackupCanonicalDecodingErrorV1.invalidRecords
+            }
+        }
+        let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
+        let ordered = records.schedules.sorted {
+            "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
+                < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
+        }
+        guard ordered == records.schedules else {
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
+        }
+        var rowKeys = Set<String>()
+        var definitions: [UUID: ScheduleDefinitionReleaseV1] = [:]
+        var history: [UUID: OccurrenceHistoryEventV1] = [:]
+        for record in records.schedules {
+            guard record.id != zero, record.workspaceID != zero,
+                  record.revision > 0, record.revision <= UInt64(Int.max),
+                  !record.canonicalData.isEmpty,
+                  rowKeys.insert("\(record.kind.rawValue)|\(record.id.uuidString.lowercased())").inserted else {
+                throw BackupCanonicalDecodingErrorV1.invalidRecords
+            }
+            do {
+                switch record.kind {
+                case .scheduleRelease:
+                    let value = try ScheduleCanonicalCodecV1.decode(
+                        ScheduleDefinitionReleaseV1.self, from: record.canonicalData
+                    )
+                    try value.validate()
+                    guard value.releaseID == record.id,
+                          value.workspaceID.rawValue == record.workspaceID,
+                          value.revision == record.revision,
+                          definitions.updateValue(value, forKey: value.releaseID) == nil else {
+                        throw BackupCanonicalDecodingErrorV1.invalidRecords
+                    }
+                case .occurrenceHistory:
+                    let value = try ScheduleCanonicalCodecV1.decode(
+                        OccurrenceHistoryEventV1.self, from: record.canonicalData
+                    )
+                    try value.validateIntrinsic()
+                    guard value.eventID == record.id,
+                          value.workspaceID.rawValue == record.workspaceID,
+                          value.revision == record.revision,
+                          history.updateValue(value, forKey: value.eventID) == nil else {
+                        throw BackupCanonicalDecodingErrorV1.invalidRecords
+                    }
+                }
+            } catch let error as BackupCanonicalDecodingErrorV1 {
+                throw error
+            } catch {
+                throw BackupCanonicalDecodingErrorV1.invalidRecords
+            }
+        }
+        for group in Dictionary(grouping: definitions.values, by: \.scheduleDefinitionID).values {
+            let ordered = group.sorted { $0.revision < $1.revision }
+            guard let first = ordered.first, first.revision == 1,
+                  ordered.filter({ $0.supersedesReleaseID == nil }).count == 1 else {
+                throw BackupCanonicalDecodingErrorV1.invalidRecords
+            }
+            var children = Set<UUID>()
+            if ordered.count > 1 {
+                for index in 1..<ordered.count {
+                    let predecessor = ordered[index - 1]
+                    let successor = ordered[index]
+                    guard children.insert(predecessor.releaseID).inserted else {
+                        throw BackupCanonicalDecodingErrorV1.invalidRecords
+                    }
+                    try successor.validateSuccessor(of: predecessor)
+                }
+            }
+        }
+        for event in history.values {
+            guard let release = definitions[event.scheduleRelease.releaseID],
+                  release.workspaceID == event.workspaceID,
+                  release.releaseSHA256 == event.scheduleRelease.releaseSHA256,
+                  release.revision == event.scheduleRelease.revision else {
+                throw BackupCanonicalDecodingErrorV1.invalidRecords
+            }
+        }
+        for group in Dictionary(grouping: history.values, by: \.occurrenceID).values {
+            let ordered = group.sorted { $0.revision < $1.revision }
+            guard let first = ordered.first, first.revision == 1,
+                  first.predecessorEventID == nil,
+                  first.predecessorEventSHA256 == nil else {
+                throw BackupCanonicalDecodingErrorV1.invalidRecords
+            }
+            if ordered.count > 1 {
+                for index in 1..<ordered.count {
+                    let predecessor = ordered[index - 1]
+                    let successor = ordered[index]
+                    guard successor.predecessorEventID == predecessor.eventID,
+                          successor.predecessorEventSHA256 == predecessor.eventSHA256 else {
+                        throw BackupCanonicalDecodingErrorV1.invalidRecords
+                    }
+                    try successor.validate(predecessor: predecessor)
+                }
+            }
+            guard Set(ordered.map(\.eventID)).count == ordered.count else {
+                throw BackupCanonicalDecodingErrorV1.invalidRecords
+            }
+        }
+    }
+
     static func validateSurveyDefinitions(_ records:V4BackupRecordsV1)throws{
         guard records.recordsSchemaVersion>=23 else{guard records.surveyDefinitions.isEmpty else{throw BackupCanonicalDecodingErrorV1.invalidRecords};return}
-        guard (23...25).contains(records.recordsSchemaVersion),let history=records.mutationHistory else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
+        guard (23...26).contains(records.recordsSchemaVersion),let history=records.mutationHistory else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
         var releases:[UUID:SurveyDefinitionReleaseV1]=[:],identities:[UUID:SurveyDefinitionIdentityV1]=[:],keys=Set<String>()
         for record in records.surveyDefinitions where record.kind == .release{let value=try SurveyDefinitionCanonicalCodecV1.decode(SurveyDefinitionReleaseV1.self,from:record.canonicalData);try value.validate();guard record.id==value.releaseID,record.workspaceID==value.workspaceID.rawValue,record.revision==value.revision,keys.insert("release|\(record.id.uuidString)").inserted,releases.updateValue(value,forKey:value.releaseID)==nil else{throw BackupCanonicalDecodingErrorV1.invalidRecords}}
         for record in records.surveyDefinitions where record.kind == .identity {
@@ -360,7 +478,7 @@ private extension BackupCanonicalDecoderV1 {
     }
     static func validateAccessibleDocumentAssessments(_ records:V4BackupRecordsV1)throws{
         guard records.recordsSchemaVersion>=22 else{guard records.accessibleDocumentAssessments.isEmpty else{throw BackupCanonicalDecodingErrorV1.invalidRecords};return}
-        guard (22...25).contains(records.recordsSchemaVersion) else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
+        guard (22...26).contains(records.recordsSchemaVersion) else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
         var values:[UUID:AccessibleDocumentAssessmentReceiptV1]=[:],children:[UUID:Int]=[:]
         for record in records.accessibleDocumentAssessments{let value=try AccessibleDocumentCanonicalCodecV1.decode(AccessibleDocumentAssessmentReceiptV1.self,from:record.canonicalData);try value.validateIntrinsic();guard record.id==value.receiptID,record.workspaceID==value.workspaceID.rawValue,record.revision==value.revision,values.updateValue(value,forKey:value.receiptID)==nil else{throw BackupCanonicalDecodingErrorV1.invalidRecords}}
         for value in values.values{if let predecessorID=value.supersedesReceiptID{guard let predecessor=values[predecessorID],predecessor.workspaceID==value.workspaceID,predecessor.treeSHA256==value.treeSHA256,predecessor.outputSHA256==value.outputSHA256,predecessor.revision<UInt64.max,value.revision==predecessor.revision+1 else{throw BackupCanonicalDecodingErrorV1.invalidRecords};children[predecessorID,default:0]+=1;guard children[predecessorID]==1 else{throw BackupCanonicalDecodingErrorV1.invalidRecords}}else if value.revision != 1{throw BackupCanonicalDecodingErrorV1.invalidRecords}}

@@ -489,3 +489,62 @@ extension DeterministicPDFRendererV1 {
     static let surveyDefinitionHistoricOutputIsFrozen = true
     static let surveyDefinitionUsesExistingRenderer = true
 }
+
+// MARK: - C28 schedule and occurrence PDF metadata
+
+enum ScheduleReportPDFBoundaryV1 {
+    static let localMetadataOnly = true
+    static let historicalDisplayUsesRecordedBasis = true
+    static let notificationDeliveryIsTruth = false
+    static let excludesNotificationPayload = true
+    static let excludesActorIdentity = true
+    static let excludesWorkInstanceIdentity = true
+
+    static func validate(_ projection: ScheduleReportProjectionV1) throws {
+        guard localMetadataOnly, historicalDisplayUsesRecordedBasis,
+              !notificationDeliveryIsTruth, excludesNotificationPayload,
+              excludesActorIdentity, excludesWorkInstanceIdentity else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+        try ScheduleReportProjectionPolicyV1.validate(projection, format: .pdf)
+    }
+}
+
+extension DeterministicPDFRendererV1 {
+    /// Stable, localized metadata lines for a schedule report. Notification
+    /// previews are named as previews and never become occurrence evidence.
+    static func scheduleTextLines(
+        _ projection: ScheduleReportProjectionV1
+    ) throws -> [String] {
+        try ScheduleReportPDFBoundaryV1.validate(projection)
+        let recurrenceKey: ScheduleLocalizationKeyV1 =
+            projection.recurrenceKind == "FIXED_CALENDAR"
+                ? .fixedCalendar
+                : .completionRelative
+        let recurrence = BundledLocalizationCatalogV1.localized(recurrenceKey)
+        let stateLines = projection.occurrences.map { occurrence in
+            let label = BundledLocalizationCatalogV1.scheduleDisplayLabel(
+                for: occurrence.state
+            )
+            return "\(BundledLocalizationCatalogV1.localized(.occurrence)) \(occurrence.occurrenceID.rawValue): \(label)"
+        }
+        let lines = [
+            BundledLocalizationCatalogV1.localized(.heading),
+            "\(BundledLocalizationCatalogV1.localized(.definition)): \(projection.scheduleDefinitionID.uuidString.lowercased())",
+            "\(BundledLocalizationCatalogV1.localized(.definition)): \(recurrence)",
+            "\(BundledLocalizationCatalogV1.localized(.occurrence)): \(projection.occurrences.count)",
+            "\(BundledLocalizationCatalogV1.localized(.timeBasis)): \(projection.timeBasis.ianaTimeZoneIdentifier)",
+            BundledLocalizationCatalogV1.localized(.historyImmutable),
+            "\(BundledLocalizationCatalogV1.localized(.dueQueue)): \(projection.occurrences.count)",
+            "\(BundledLocalizationCatalogV1.localized(.reminder)): \(BundledLocalizationCatalogV1.localized(.reminderNotTruth))",
+            BundledLocalizationCatalogV1.localized(.claimBoundary),
+            BundledLocalizationCatalogV1.localized(.nextStep),
+        ] + stateLines
+        guard !lines.isEmpty,
+              lines.allSatisfy({ !$0.isEmpty }),
+              !ScheduleLocalizationPolicyV1.containsProhibitedClaim(lines) else {
+            throw SnapshotProjectionFailureV1.hostileText
+        }
+        return lines
+    }
+}

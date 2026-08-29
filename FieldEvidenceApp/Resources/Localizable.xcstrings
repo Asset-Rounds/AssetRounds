@@ -2949,6 +2949,102 @@
     "asset.locator.next_step" : {
       "comment" : "English-only C27 label for recorded locator metadata and offline resolution; do not expose opaque input, secrets, private key material, vendor identifiers, identity, access, or delivery claims.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review locator details" } } }
+    },
+    "schedule.heading" : {
+      "comment" : "English-only C28 label for frozen schedule and occurrence facts; notification delivery is disposable and never changes canonical occurrence state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Schedule" } } }
+    },
+    "schedule.definition" : {
+      "comment" : "English-only C28 label for frozen schedule and occurrence facts; notification delivery is disposable and never changes canonical occurrence state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Schedule definition" } } }
+    },
+    "schedule.occurrence" : {
+      "comment" : "English-only C28 label for frozen schedule and occurrence facts; notification delivery is disposable and never changes canonical occurrence state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Occurrence" } } }
+    },
+    "schedule.occurrence.state" : {
+      "comment" : "English-only C28 label for frozen schedule and occurrence facts; notification delivery is disposable and never changes canonical occurrence state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Occurrence state" } } }
+    },
+    "schedule.recurrence.fixed_calendar" : {
+      "comment" : "English-only C28 label for frozen schedule and occurrence facts; notification delivery is disposable and never changes canonical occurrence state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Fixed-calendar schedule" } } }
+    },
+    "schedule.recurrence.completion_relative" : {
+      "comment" : "English-only C28 label for frozen schedule and occurrence facts; notification delivery is disposable and never changes canonical occurrence state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Completion-relative schedule" } } }
+    },
+    "schedule.time_basis" : {
+      "comment" : "English-only C28 label for frozen schedule and occurrence facts; notification delivery is disposable and never changes canonical occurrence state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Frozen time basis" } } }
+    },
+    "schedule.history" : {
+      "comment" : "English-only C28 label for frozen schedule and occurrence facts; notification delivery is disposable and never changes canonical occurrence state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Occurrence history" } } }
+    },
+    "schedule.history.immutable" : {
+      "comment" : "English-only C28 label for frozen schedule and occurrence facts; notification delivery is disposable and never changes canonical occurrence state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "History remains unchanged" } } }
+    },
+    "schedule.due_queue" : {
+      "comment" : "English-only C28 label for frozen schedule and occurrence facts; notification delivery is disposable and never changes canonical occurrence state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Due queue" } } }
+    },
+    "schedule.reminder" : {
+      "comment" : "English-only C28 label for frozen schedule and occurrence facts; notification delivery is disposable and never changes canonical occurrence state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reminder preview" } } }
+    },
+    "schedule.reminder.not_truth" : {
+      "comment" : "English-only C28 label for frozen schedule and occurrence facts; notification delivery is disposable and never changes canonical occurrence state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reminder is a preview; it does not change occurrence state" } } }
+    },
+    "schedule.claim_boundary" : {
+      "comment" : "English-only C28 label for frozen schedule and occurrence facts; notification delivery is disposable and never changes canonical occurrence state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recorded schedule metadata only" } } }
+    },
+    "schedule.next_step" : {
+      "comment" : "English-only C28 label for frozen schedule and occurrence facts; notification delivery is disposable and never changes canonical occurrence state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review recorded schedule facts" } } }
+    },
+    "schedule.occurrence.state.upcoming" : {
+      "comment" : "English-only C28 label for frozen schedule and occurrence facts; notification delivery is disposable and never changes canonical occurrence state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Upcoming" } } }
+    },
+    "schedule.occurrence.state.ready" : {
+      "comment" : "English-only C28 label for frozen schedule and occurrence facts; notification delivery is disposable and never changes canonical occurrence state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Ready" } } }
+    },
+    "schedule.occurrence.state.due" : {
+      "comment" : "English-only C28 label for frozen schedule and occurrence facts; notification delivery is disposable and never changes canonical occurrence state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Due" } } }
+    },
+    "schedule.occurrence.state.overdue" : {
+      "comment" : "English-only C28 label for frozen schedule and occurrence facts; notification delivery is disposable and never changes canonical occurrence state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Overdue" } } }
+    },
+    "schedule.occurrence.state.deferred" : {
+      "comment" : "English-only C28 label for frozen schedule and occurrence facts; notification delivery is disposable and never changes canonical occurrence state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Deferred" } } }
+    },
+    "schedule.occurrence.state.missed" : {
+      "comment" : "English-only C28 label for frozen schedule and occurrence facts; notification delivery is disposable and never changes canonical occurrence state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Missed" } } }
+    },
+    "schedule.occurrence.state.skipped" : {
+      "comment" : "English-only C28 label for frozen schedule and occurrence facts; notification delivery is disposable and never changes canonical occurrence state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Skipped" } } }
+    },
+    "schedule.occurrence.state.cancelled" : {
+      "comment" : "English-only C28 label for frozen schedule and occurrence facts; notification delivery is disposable and never changes canonical occurrence state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Cancelled" } } }
+    },
+    "schedule.occurrence.state.started" : {
+      "comment" : "English-only C28 label for frozen schedule and occurrence facts; notification delivery is disposable and never changes canonical occurrence state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Started" } } }
+    },
+    "schedule.occurrence.state.completed" : {
+      "comment" : "English-only C28 label for frozen schedule and occurrence facts; notification delivery is disposable and never changes canonical occurrence state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Completed" } } }
     }
   },
   "version" : "1.0"

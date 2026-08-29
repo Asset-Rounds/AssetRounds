@@ -322,6 +322,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
     func commitSurveyDefinition(_ mutation:SurveyDefinitionMutationV1)throws->MutationReceiptV1{try mutation.validate();let current=try currentRevision(),targets=try mutation.concurrencyIdentities;let known=Dictionary(uniqueKeysWithValues:current.entityRevisions.map{($0.identity,$0.revision)});guard try targets.allSatisfy({known[$0,default:0]==(try mutation.expectedRevision(for:$0))})else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision};let expected=try WorkspaceExpectedRevisionV1(workspaceID:current.workspaceID,generationID:current.generationID,writerInstanceID:current.writerInstanceID,workspaceRevision:current.revision,entityRevisions:try targets.map{.init(identity:$0,revision:try mutation.expectedRevision(for:$0))});_ = try execute(.init(mutationID:mutation.mutationID,expectedRevision:expected,command:.applySurveyDefinition(mutation)));guard let receipt=try journalStore?.receipt(mutationID:mutation.mutationID)else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};_ = try SurveyDefinitionMutationReceiptV1(mutation:mutation,mutationReceipt:receipt);return receipt}
     func commitSurveySession(_ mutation:SurveySessionMutationV1)throws->MutationReceiptV1{try mutation.validate();let current=try currentRevision(),targets=try mutation.concurrencyIdentities;let known=Dictionary(uniqueKeysWithValues:current.entityRevisions.map{($0.identity,$0.revision)});guard try targets.allSatisfy({known[$0,default:0]==(try mutation.expectedRevision(for:$0))})else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision};let expected=try WorkspaceExpectedRevisionV1(workspaceID:current.workspaceID,generationID:current.generationID,writerInstanceID:current.writerInstanceID,workspaceRevision:current.revision,entityRevisions:try targets.map{.init(identity:$0,revision:try mutation.expectedRevision(for:$0))});_ = try execute(.init(mutationID:mutation.mutationID,expectedRevision:expected,command:.applySurveySession(mutation)));guard let receipt=try journalStore?.receipt(mutationID:mutation.mutationID)else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};_ = try SurveySessionMutationReceiptV1(mutation:mutation,mutationReceipt:receipt);return receipt}
     func commitAssetLocator(_ mutation:AssetLocatorMutationV1)throws->MutationReceiptV1{try mutation.validate();let current=try currentRevision(),targets=try mutation.concurrencyIdentities,known=Dictionary(uniqueKeysWithValues:current.entityRevisions.map{($0.identity,$0.revision)});guard try targets.allSatisfy({known[$0,default:0]==(try mutation.expectedRevision(for:$0))})else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision};let expected=try WorkspaceExpectedRevisionV1(workspaceID:current.workspaceID,generationID:current.generationID,writerInstanceID:current.writerInstanceID,workspaceRevision:current.revision,entityRevisions:try targets.map{.init(identity:$0,revision:try mutation.expectedRevision(for:$0))});_ = try execute(.init(mutationID:mutation.mutationID,expectedRevision:expected,command:.applyAssetLocator(mutation)));guard let receipt=try journalStore?.receipt(mutationID:mutation.mutationID)else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};_ = try AssetLocatorMutationReceiptV1(mutation:mutation,mutationReceipt:receipt);return receipt}
+    func commitSchedule(_ mutation:ScheduleMutationV1)throws->MutationReceiptV1{try mutation.validate();let current=try currentRevision(),targets=try mutation.concurrencyIdentities,known=Dictionary(uniqueKeysWithValues:current.entityRevisions.map{($0.identity,$0.revision)});guard try targets.allSatisfy({known[$0,default:0]==(try mutation.expectedRevision(for:$0))})else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision};let expected=try WorkspaceExpectedRevisionV1(workspaceID:current.workspaceID,generationID:current.generationID,writerInstanceID:current.writerInstanceID,workspaceRevision:current.revision,entityRevisions:try targets.map{.init(identity:$0,revision:try mutation.expectedRevision(for:$0))});_ = try execute(.init(mutationID:mutation.mutationID,expectedRevision:expected,command:.applySchedule(mutation)));guard let receipt=try journalStore?.receipt(mutationID:mutation.mutationID)else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};_ = try ScheduleMutationReceiptV1(mutation:mutation,mutationReceipt:receipt);return receipt}
 
     func execute(
         _ command: WorkspaceCommandV1,
@@ -554,6 +555,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             do{try value.validate();let targets=try value.concurrencyIdentities;let expected=Dictionary(uniqueKeysWithValues:request.expectedRevision.entityRevisions.map{($0.identity,$0.revision)});guard value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,sourceKind == .importedHistory || occurredAtOverride != nil || (try targets.allSatisfy({expected[$0]==(try value.expectedRevision(for:$0))})) else{throw WorkspaceMutationFailureV1.invalidCommand}}catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
         case .applyAssetLocator(let value):
             do{try value.validate();let targets=try value.concurrencyIdentities,expected=Dictionary(uniqueKeysWithValues:request.expectedRevision.entityRevisions.map{($0.identity,$0.revision)});guard value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,sourceKind == .importedHistory || occurredAtOverride != nil || (try targets.allSatisfy({expected[$0]==(try value.expectedRevision(for:$0))}))else{throw WorkspaceMutationFailureV1.invalidCommand}}catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
+        case .applySchedule(let value):
+            do{try value.validate();let targets=try value.concurrencyIdentities,expected=Dictionary(uniqueKeysWithValues:request.expectedRevision.entityRevisions.map{($0.identity,$0.revision)});guard value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,sourceKind == .importedHistory || occurredAtOverride != nil || (try targets.allSatisfy({expected[$0]==(try value.expectedRevision(for:$0))}))else{throw WorkspaceMutationFailureV1.invalidCommand}}catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
         default:
             break
         }
@@ -764,6 +767,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         } else if case let .applySurveySession(mutation) = request.command {
             for image in try mutation.mutationPostImages{entityRevisions[try image.identity]=image.revision}
         } else if case let .applyAssetLocator(mutation) = request.command {
+            for image in try mutation.mutationPostImages{entityRevisions[try image.identity]=image.revision}
+        } else if case let .applySchedule(mutation) = request.command {
             for image in try mutation.mutationPostImages{entityRevisions[try image.identity]=image.revision}
         } else {
             for target in targets { entityRevisions[target, default: 0] += 1 }
@@ -1234,6 +1239,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             try value.validate();values=try value.affectedIdentities
         case let .applyAssetLocator(value):
             try value.validate();values=try value.affectedIdentities
+        case let .applySchedule(value):
+            try value.validate();values=try value.affectedIdentities
         }
         guard Set(values).count == values.count else {
             throw WorkspaceMutationFailureV1.invalidCommand
@@ -1265,6 +1272,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         if case let .applySurveyDefinition(value)=command{try value.validate();return try value.concurrencyIdentities}
         if case let .applySurveySession(value)=command{try value.validate();return try value.concurrencyIdentities}
         if case let .applyAssetLocator(value)=command{try value.validate();return try value.concurrencyIdentities}
+        if case let .applySchedule(value)=command{try value.validate();return try value.concurrencyIdentities}
         return try targetIdentities(for: command)
     }
 

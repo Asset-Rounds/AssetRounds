@@ -1,0 +1,46 @@
+{
+  "cardID": "V23-P03-C28",
+  "durableFamilies": [
+    "ScheduleDefinitionReleaseV1",
+    "OccurrenceHistoryEventV1"
+  ],
+  "durableFamilyCount": 2,
+  "occurrenceStates": [
+    "UPCOMING",
+    "READY",
+    "DUE",
+    "OVERDUE",
+    "DEFERRED",
+    "MISSED",
+    "SKIPPED",
+    "CANCELLED",
+    "STARTED",
+    "COMPLETED"
+  ],
+  "persistentKindLifecycleModelCount": 96,
+  "persistentSchemaVersion": 27,
+  "recordsSchemaVersion": 26,
+  "requiredContractNames": [
+    "ScheduleDefinitionReleaseV1",
+    "OccurrenceIDV1",
+    "OccurrenceStateV1",
+    "ScheduleExceptionV1",
+    "DueQueueProjectionV1",
+    "ReminderProjectionV1"
+  ],
+  "schema": "V22P03C28ScheduleCorpusV1",
+  "schemaVersion": 1,
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "release": false,
+    "releaseReadiness": false
+  }
+}

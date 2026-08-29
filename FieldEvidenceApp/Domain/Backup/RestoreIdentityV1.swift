@@ -38,6 +38,41 @@ enum AssetLocatorRestoreIdentityDispositionV1: String, Codable, Equatable, Senda
     }
 }
 
+/// Schedule releases and occurrence history are immutable workspace records.
+/// A same-workspace replacement keeps their canonical bytes; clone/fork
+/// rebinding preserves the history as historic source provenance and never
+/// activates source-local notification state.
+enum ScheduleRestoreIdentityPolicyV1 {
+    static let persistentSchemaVersion = 27
+    static let recordsSchemaVersion = 26
+    static let durableFamilyCount = 2
+    static let sameWorkspacePreservesImmutableBytes = true
+    static let cloneForkSourceScheduleAutomaticallyActive = false
+    static let dueAndReminderProjectionsRebuilt = true
+    static let notificationStateRestoredAsTruth = false
+
+    static func validate() throws {
+        guard persistentSchemaVersion == 27,
+              recordsSchemaVersion == 26,
+              durableFamilyCount == 2,
+              sameWorkspacePreservesImmutableBytes,
+              !cloneForkSourceScheduleAutomaticallyActive,
+              dueAndReminderProjectionsRebuilt,
+              !notificationStateRestoredAsTruth else {
+            throw RestoreIdentityDecisionError.invalidMode
+        }
+    }
+
+    static func preservesImmutableBytes(for mode: BackupRestoreMode) -> Bool {
+        switch mode {
+        case .emptyInstall, .replaceExisting:
+            return sameWorkspacePreservesImmutableBytes
+        case .clone, .fork:
+            return false
+        }
+    }
+}
+
 extension RestoreIdentityV1 {
     func destinationPackageEvolutionWorkspaceID() -> WorkspaceID {
         WorkspaceID(rawValue: targetPointer.workspaceID)

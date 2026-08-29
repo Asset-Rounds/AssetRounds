@@ -52,3 +52,16 @@ extension WorkPacketManifestRow {
         )
     }
 }
+
+
+extension WorkPacketManifestRow {
+    /// Resolves the exact pre-created work packet referenced by an atomic C28
+    /// START event. The schedule event stores only this immutable reference.
+    func value(matching reference: WorkPacketManifestReferenceV1) throws -> WorkPacketManifestV1 {
+        let manifest = try value()
+        guard try WorkPacketManifestReferenceV1(manifest) == reference else {
+            throw WorkPacketFailureV1.digestMismatch
+        }
+        return manifest
+    }
+}

@@ -1648,6 +1648,7 @@ private extension BackupRestoreService {
         V4BackupRecordsV1(
             guidedSurveys:records.guidedSurveys,
             assetLocators: records.assetLocators,
+            schedules: records.schedules,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
@@ -1708,6 +1709,7 @@ private extension BackupRestoreService {
         V4BackupRecordsV1(
             guidedSurveys:records.guidedSurveys,
             assetLocators: records.assetLocators,
+            schedules: records.schedules,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
@@ -1832,6 +1834,7 @@ private extension BackupRestoreService {
         return V4BackupRecordsV1(
             guidedSurveys:records.guidedSurveys,
             assetLocators: records.assetLocators,
+            schedules: records.schedules,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: records.surveyDefinitions,
             fieldReferences:records.fieldReferences,
@@ -2099,10 +2102,19 @@ private extension BackupRestoreService {
             identity: identity,
             workspaceID: workspaceID
         )
+        let schedules = try rebindingSchedules(
+            records.schedules,
+            identity: identity,
+            workspaceID: workspaceID,
+            sourceSurveyDefinitions: records.surveyDefinitions,
+            destinationSurveyDefinitions: surveyDefinitions,
+            packageEvolution: packageEvolution
+        )
         guard let archived = records.locationMigrationReceipts.first else {
             return V4BackupRecordsV1(
                 guidedSurveys:guidedSurveys,
                 assetLocators: assetLocators,
+                schedules: schedules,
                 accessibleDocumentAssessments:records.accessibleDocumentAssessments,
                 surveyDefinitions: surveyDefinitions,
                 fieldReferences:fieldReferences,
@@ -2155,6 +2167,7 @@ private extension BackupRestoreService {
            clientCapabilities == records.clientCapabilities,
            workPackets == records.workPackets,
            assetLocators == records.assetLocators,
+           schedules == records.schedules,
            reports == records.reports {
             return records
         }
@@ -2169,6 +2182,7 @@ private extension BackupRestoreService {
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveys,
             assetLocators: assetLocators,
+            schedules: schedules,
             accessibleDocumentAssessments:records.accessibleDocumentAssessments,
             surveyDefinitions: surveyDefinitions,
             fieldReferences:fieldReferences,
@@ -2762,6 +2776,261 @@ private extension BackupRestoreService {
             )
         }
         return (locatorRecords + receiptRecords).sorted {
+            "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
+                < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
+        }
+    }
+
+    /// Rebinds schedule releases and occurrence history as one closure.  The
+    /// schedule IDs are immutable, but a clone/fork receives a new workspace,
+    /// destination definition/package references, and destination actor
+    /// snapshots.  Rebuilding each successor with the rebound predecessor is
+    /// important: copying the source predecessor digest would make the
+    /// destination chain unverifiable.  Due/reminder projections are not
+    /// represented in backup records and are therefore rebuilt later.
+    func rebindingSchedules(
+        _ records: [V27BackupScheduleRecordV1],
+        identity: RestoreIdentityV1,
+        workspaceID: WorkspaceID,
+        sourceSurveyDefinitions: [V24BackupSurveyDefinitionRecordV1],
+        destinationSurveyDefinitions: [V24BackupSurveyDefinitionRecordV1],
+        packageEvolution: [V17BackupPackageEvolutionRecordV1]
+    ) throws -> [V27BackupScheduleRecordV1] {
+        guard !records.isEmpty else { return [] }
+        let sourceWorkspaceUUID = identity.source.workspaceID
+            ?? UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+        let sourceWorkspaceID = WorkspaceID(rawValue: sourceWorkspaceUUID)
+        let destinationIsDifferent = sourceWorkspaceID != workspaceID
+        let cloneOrFork = identity.mode == .clone || identity.mode == .fork
+        let needsRebind = destinationIsDifferent || cloneOrFork
+
+        guard records.allSatisfy({ $0.workspaceID == sourceWorkspaceUUID }) else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        if !needsRebind {
+            try ScheduleReplacementRestorePolicyV1.validate(records)
+            return records
+        }
+
+        let sourceDefinitions = try Dictionary(uniqueKeysWithValues:
+            sourceSurveyDefinitions.filter { $0.kind == .release }.map { record in
+                let value = try SurveyDefinitionCanonicalCodecV1.decode(
+                    SurveyDefinitionReleaseV1.self, from: record.canonicalData
+                )
+                guard value.workspaceID.rawValue == sourceWorkspaceUUID else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                return (value.releaseID, value)
+            }
+        )
+        let destinationDefinitions = try Dictionary(uniqueKeysWithValues:
+            destinationSurveyDefinitions.filter { $0.kind == .release }.map { record in
+                let value = try SurveyDefinitionCanonicalCodecV1.decode(
+                    SurveyDefinitionReleaseV1.self, from: record.canonicalData
+                )
+                guard value.workspaceID == workspaceID else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                return (value.releaseID, value)
+            }
+        )
+        let destinationPackages = try Dictionary(uniqueKeysWithValues:
+            packageEvolution.filter { $0.kind == .promotedRelease }.map { record in
+                let value = try PackageEvolutionCanonicalCodecV1.decode(
+                    PromotedPackageReleaseV1.self, from: record.canonicalData
+                )
+                guard value.workspaceID == workspaceID else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                return (value.packageRelease.packageReleaseID, value.packageRelease)
+            }
+        )
+
+        var sourceDefinitionsByID: [UUID: ScheduleDefinitionReleaseV1] = [:]
+        var sourceEventsByID: [UUID: OccurrenceHistoryEventV1] = [:]
+        for record in records {
+            switch record.kind {
+            case .scheduleRelease:
+                let value = try ScheduleCanonicalCodecV1.decode(
+                    ScheduleDefinitionReleaseV1.self, from: record.canonicalData
+                )
+                try value.validate()
+                guard value.releaseID == record.id,
+                      value.workspaceID == sourceWorkspaceID,
+                      value.revision == record.revision,
+                      sourceDefinitionsByID.updateValue(value, forKey: value.releaseID) == nil else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+            case .occurrenceHistory:
+                let value = try ScheduleCanonicalCodecV1.decode(
+                    OccurrenceHistoryEventV1.self, from: record.canonicalData
+                )
+                try value.validateIntrinsic()
+                guard value.eventID == record.id,
+                      value.workspaceID == sourceWorkspaceID,
+                      value.revision == record.revision,
+                      sourceEventsByID.updateValue(value, forKey: value.eventID) == nil else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+            }
+        }
+        let sourceDefinitionsList = Array(sourceDefinitionsByID.values)
+        let sourceEventsList = Array(sourceEventsByID.values)
+        try ScheduleLifecycleClosureV1(
+            definitions: sourceDefinitionsList,
+            history: sourceEventsList
+        ).validate()
+
+        func actor(_ source: ActorSnapshotV1) throws -> ActorSnapshotV1 {
+            let local = try LocalActorReferenceV1(
+                actorReferenceID: source.actor.actorReferenceID,
+                workspaceID: workspaceID,
+                partyID: source.actor.partyID,
+                displayName: source.actor.displayName
+            )
+            return try ActorSnapshotV1(
+                snapshotID: source.snapshotID,
+                workspaceID: workspaceID,
+                actor: local,
+                responsibility: source.responsibility,
+                displayNameAtTime: source.displayNameAtTime,
+                capturedAt: source.capturedAt
+            )
+        }
+
+        func workInstance(
+            _ source: ScheduledWorkInstanceReferenceV1?
+        ) throws -> ScheduledWorkInstanceReferenceV1? {
+            guard let source else { return nil }
+            switch source {
+            case .workPacket(let reference):
+                return .workPacket(try reference.rebound(to: workspaceID))
+            case let .roundSession(sessionID, revision, sessionSHA256):
+                return .roundSession(
+                    sessionID: sessionID,
+                    revision: revision,
+                    sessionSHA256: sessionSHA256
+                )
+            }
+        }
+
+        func exception(
+            _ source: ScheduleExceptionV1?
+        ) throws -> ScheduleExceptionV1? {
+            guard let source else { return nil }
+            return try ScheduleExceptionV1(
+                exceptionID: source.exceptionID,
+                kind: source.kind,
+                priorEffectiveBasisSHA256: source.priorEffectiveBasisSHA256,
+                replacementBasis: source.replacementBasis,
+                replacementOccurrenceID: source.replacementOccurrenceID,
+                reasonCode: source.reasonCode,
+                recordedBy: actor(source.recordedBy),
+                recordedAt: source.recordedAt
+            )
+        }
+
+        var reboundDefinitions: [UUID: ScheduleDefinitionReleaseV1] = [:]
+        for group in Dictionary(grouping: sourceDefinitionsList, by: \.scheduleDefinitionID).values {
+            var predecessor: ScheduleDefinitionReleaseV1?
+            for source in group.sorted(by: { $0.revision < $1.revision }) {
+                guard let sourceDefinition = sourceDefinitions[source.workDefinition.definitionRelease.releaseID],
+                      sourceDefinition.releaseSHA256 == source.workDefinition.definitionRelease.releaseSHA256,
+                      let destinationDefinition = destinationDefinitions[sourceDefinition.releaseID],
+                      let packageRelease = destinationPackages[source.workDefinition.packageReleaseID],
+                      packageRelease.packageReleaseID == source.workDefinition.packageReleaseID,
+                      packageRelease.packageSHA256 == source.workDefinition.packageSHA256,
+                      packageRelease.workflowSHA256 == source.workDefinition.workflowSHA256 else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                let workDefinition = try ScheduledWorkDefinitionReferenceV1(
+                    kind: source.workDefinition.kind,
+                    definition: destinationDefinition,
+                    packageRelease: packageRelease
+                )
+                let rebound = try ScheduleDefinitionReleaseV1(
+                    scheduleDefinitionID: source.scheduleDefinitionID,
+                    releaseID: source.releaseID,
+                    workspaceID: workspaceID,
+                    occurrenceIdentityNamespaceID: source.occurrenceIdentityNamespaceID,
+                    action: source.action,
+                    lifecycleState: source.lifecycleState,
+                    recurrence: source.recurrence,
+                    timeBasis: source.timeBasis,
+                    startsAtUTC: source.startsAtUTC,
+                    endsAtUTC: source.endsAtUTC,
+                    generationHorizonDays: source.generationHorizonDays,
+                    maximumGeneratedOccurrences: source.maximumGeneratedOccurrences,
+                    readyLeadSeconds: source.readyLeadSeconds,
+                    overdueGraceSeconds: source.overdueGraceSeconds,
+                    subject: source.subject,
+                    workDefinition: workDefinition,
+                    assignee: try source.assignee.map(actor),
+                    supersedesReleaseID: predecessor?.releaseID,
+                    predecessorReleaseSHA256: predecessor?.releaseSHA256,
+                    revision: source.revision,
+                    mutationID: source.mutationID,
+                    authoredBy: actor(source.authoredBy),
+                    authoredAt: source.authoredAt
+                )
+                if let predecessor {
+                    try rebound.validateSuccessor(of: predecessor)
+                }
+                guard reboundDefinitions.updateValue(rebound, forKey: rebound.releaseID) == nil else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                predecessor = rebound
+            }
+        }
+
+        var reboundEvents: [UUID: OccurrenceHistoryEventV1] = [:]
+        for group in Dictionary(grouping: sourceEventsList, by: \.occurrenceID).values {
+            var predecessor: OccurrenceHistoryEventV1?
+            for source in group.sorted(by: { $0.revision < $1.revision }) {
+                guard let release = reboundDefinitions[source.scheduleRelease.releaseID],
+                      release.releaseSHA256 == source.scheduleRelease.releaseSHA256 else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                let rebound = try source.rebound(
+                    to: workspaceID,
+                    scheduleRelease: try ScheduleDefinitionReleaseReferenceV1(release),
+                    recordedBy: actor(source.recordedBy),
+                    exception: try exception(source.exception),
+                    workInstance: try workInstance(source.workInstance),
+                    predecessor: predecessor
+                )
+                if let predecessor {
+                    try rebound.validate(predecessor: predecessor)
+                }
+                guard reboundEvents.updateValue(rebound, forKey: rebound.eventID) == nil else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                predecessor = rebound
+            }
+        }
+        try ScheduleLifecycleClosureV1(
+            definitions: Array(reboundDefinitions.values),
+            history: Array(reboundEvents.values)
+        ).validate()
+        let releaseRecords = try reboundDefinitions.values.map { value in
+            V27BackupScheduleRecordV1(
+                kind: .scheduleRelease,
+                id: value.releaseID,
+                workspaceID: workspaceID.rawValue,
+                revision: value.revision,
+                canonicalData: try ScheduleCanonicalCodecV1.data(value)
+            )
+        }
+        let eventRecords = try reboundEvents.values.map { value in
+            V27BackupScheduleRecordV1(
+                kind: .occurrenceHistory,
+                id: value.eventID,
+                workspaceID: workspaceID.rawValue,
+                revision: value.revision,
+                canonicalData: try ScheduleCanonicalCodecV1.data(value)
+            )
+        }
+        return (releaseRecords + eventRecords).sorted {
             "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
                 < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
         }
@@ -3976,7 +4245,8 @@ private extension BackupRestoreService {
                 || records.recordsSchemaVersion == 22
                 || records.recordsSchemaVersion == 23
                 || records.recordsSchemaVersion == 24
-                || records.recordsSchemaVersion == 25)
+                || records.recordsSchemaVersion == 25
+                || records.recordsSchemaVersion == 26)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -3995,7 +4265,7 @@ private extension BackupRestoreService {
              (15, let ledger?, _), (16, let ledger?, _), (17, let ledger?, _),
              (18, let ledger?, _), (19, let ledger?, _), (20, let ledger?, _),
              (21, let ledger?, _), (22, let ledger?, _), (23, let ledger?, _),
-             (24, let ledger?, _), (25, let ledger?, _):
+             (24, let ledger?, _), (25, let ledger?, _), (26, let ledger?, _):
             do {
                 try ledger.validate()
                 try DeletionLedgerStore(context: context).stageUnion(ledger.entries)
@@ -4608,6 +4878,62 @@ private extension BackupRestoreService {
                 throw BackupRestoreServiceError.invalidPackage
             }
         }
+        if records.recordsSchemaVersion >= 26 {
+            do {
+                let expectedWorkspaceID = identityDecision.map {
+                    WorkspaceID(rawValue: $0.targetPointer.workspaceID)
+                } ?? legacyDestinationIdentity.workspaceID
+                var releases: [ScheduleDefinitionReleaseV1] = []
+                var events: [OccurrenceHistoryEventV1] = []
+                for record in records.schedules {
+                    guard record.workspaceID == expectedWorkspaceID.rawValue,
+                          record.revision > 0,
+                          !record.canonicalData.isEmpty else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                    switch record.kind {
+                    case .scheduleRelease:
+                        let value = try ScheduleCanonicalCodecV1.decode(
+                            ScheduleDefinitionReleaseV1.self,
+                            from: record.canonicalData
+                        )
+                        try value.validate()
+                        guard value.releaseID == record.id,
+                              value.workspaceID == expectedWorkspaceID,
+                              value.revision == record.revision else {
+                            throw BackupRestoreServiceError.invalidPackage
+                        }
+                        releases.append(value)
+                    case .occurrenceHistory:
+                        let value = try ScheduleCanonicalCodecV1.decode(
+                            OccurrenceHistoryEventV1.self,
+                            from: record.canonicalData
+                        )
+                        try value.validateIntrinsic()
+                        guard value.eventID == record.id,
+                              value.workspaceID == expectedWorkspaceID,
+                              value.revision == record.revision else {
+                            throw BackupRestoreServiceError.invalidPackage
+                        }
+                        events.append(value)
+                    }
+                }
+                try ScheduleLifecycleClosureV1(
+                    definitions: releases,
+                    history: events
+                ).validate()
+                for value in releases.sorted(by: { $0.releaseID.uuidString < $1.releaseID.uuidString }) {
+                    context.insert(try ScheduleDefinitionReleaseRow(value))
+                }
+                for value in events.sorted(by: { $0.eventID.uuidString < $1.eventID.uuidString }) {
+                    context.insert(try OccurrenceHistoryEventRow(value))
+                }
+            } catch let error as BackupRestoreServiceError {
+                throw error
+            } catch {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+        }
         if let mutationHistory = records.mutationHistory {
             guard records.recordsSchemaVersion == 3
                     || records.recordsSchemaVersion == 4
@@ -4631,7 +4957,8 @@ private extension BackupRestoreService {
                     || records.recordsSchemaVersion == 22
                     || records.recordsSchemaVersion == 23
                     || records.recordsSchemaVersion == 24
-                    || records.recordsSchemaVersion == 25 else {
+                    || records.recordsSchemaVersion == 25
+                    || records.recordsSchemaVersion == 26 else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {
@@ -5744,6 +6071,7 @@ private extension BackupRestoreService {
         V4BackupRecordsV1(
             guidedSurveys:schemaVersion >= 24 ? records.guidedSurveys:[],
             assetLocators: schemaVersion >= 25 ? records.assetLocators : [],
+            schedules: schemaVersion >= 26 ? records.schedules : [],
             accessibleDocumentAssessments:schemaVersion >= 22 ? records.accessibleDocumentAssessments:[],
             surveyDefinitions: schemaVersion >= 23 ? records.surveyDefinitions : [],
             fieldReferences:schemaVersion >= 21 ? records.fieldReferences:[],
@@ -6059,6 +6387,37 @@ private extension BackupRestoreService {
             + subjectPromotionReceipts.map{let v=try $0.value();return .init(kind:.subjectPromotionReceipt,id:v.receiptID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try SurveySessionCanonicalCodecV1.encode(v))}
             + surveyPublicationSnapshots.map{let v=try $0.value();return .init(kind:.publicationSnapshot,id:v.snapshotID,workspaceID:v.workspaceID.rawValue,revision:v.revision,canonicalData:try SurveySessionCanonicalCodecV1.encode(v))}
         ).sorted{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"}
+        var scheduleRecords: [V27BackupScheduleRecordV1] = []
+        let scheduleReleaseRows = try context.fetch(FetchDescriptor<ScheduleDefinitionReleaseRow>())
+        let occurrenceHistoryRows = try context.fetch(FetchDescriptor<OccurrenceHistoryEventRow>())
+        if mutationHistory != nil {
+            let definitions = try scheduleReleaseRows.map { try $0.value() }
+            let history = try occurrenceHistoryRows.map { try $0.value() }
+            if !definitions.isEmpty || !history.isEmpty {
+                do {
+                    try ScheduleLifecycleClosureV1(
+                        definitions: definitions, history: history
+                    ).validate()
+                } catch {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                scheduleRecords = try definitions.map {
+                    .init(kind: .scheduleRelease, id: $0.releaseID,
+                          workspaceID: $0.workspaceID.rawValue,
+                          revision: $0.revision,
+                          canonicalData: try ScheduleCanonicalCodecV1.data($0))
+                } + history.map {
+                    .init(kind: .occurrenceHistory, id: $0.eventID,
+                          workspaceID: $0.workspaceID.rawValue,
+                          revision: $0.revision,
+                          canonicalData: try ScheduleCanonicalCodecV1.data($0))
+                }
+                scheduleRecords.sort {
+                    "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
+                        < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
+                }
+            }
+        }
         var assetLocatorRecords: [V26BackupAssetLocatorRecordV1] = []
         if mutationHistory != nil {
             let locatorValues = try assetLocatorRows.map { row -> V26BackupAssetLocatorRecordV1 in
@@ -6089,6 +6448,7 @@ private extension BackupRestoreService {
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveyRecords,
             assetLocators: assetLocatorRecords,
+            schedules: scheduleRecords,
             accessibleDocumentAssessments:accessibleDocumentAssessmentRecords,
             surveyDefinitions: surveyDefinitionRecords,
             fieldReferences:fieldReferenceRecords,

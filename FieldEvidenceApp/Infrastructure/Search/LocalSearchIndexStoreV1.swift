@@ -1314,3 +1314,31 @@ extension LocalSearchIndexStoreV1 {
         return record
     }
 }
+
+// MARK: - C28 schedule occurrence search adapter
+
+extension LocalSearchIndexStoreV1 {
+    /// Admits the bounded schedule occurrence projection to the disposable
+    /// local index. The adapter intentionally has no notification, actor,
+    /// draft, or work-instance inputs.
+    static func scheduleOccurrenceSearchRecord(
+        from projection: ScheduleReportProjectionV1,
+        occurrence: ScheduleOccurrenceReportProjectionV1
+    ) throws -> ScheduleOccurrenceSearchRecordV1 {
+        let record = try ScheduleOccurrenceSearchRecordV1(
+            projection: projection,
+            occurrence: occurrence
+        )
+        try ScheduleOccurrenceSearchProjectionPolicyV1.validate(record)
+        try ScheduleOccurrenceSearchPersistencePolicyV1().validate()
+        return record
+    }
+
+    static func validateScheduleOccurrenceSearchRecord(
+        _ record: ScheduleOccurrenceSearchRecordV1
+    ) throws -> ScheduleOccurrenceSearchRecordV1 {
+        try ScheduleOccurrenceSearchProjectionPolicyV1.validate(record)
+        try ScheduleOccurrenceSearchPersistencePolicyV1().validate()
+        return record
+    }
+}

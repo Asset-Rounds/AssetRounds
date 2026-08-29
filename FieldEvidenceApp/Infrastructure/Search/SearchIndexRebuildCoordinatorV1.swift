@@ -2042,3 +2042,47 @@ extension SearchIndexRebuildCoordinatorV1 {
     static let assetLocatorRestoreDisposition =
         "EXCLUDE_LOCATOR_ROWS_AND_REBUILD_AFTER_CANONICAL_RESTORE"
 }
+
+// MARK: - C28 schedule occurrence search rebuild
+
+extension SearchIndexRebuildCoordinatorV1 {
+    /// Rebuilds the disposable schedule rows from frozen report projections.
+    /// Inputs are already derived from canonical release/history records; this
+    /// path never reinterprets a device time zone or treats notification
+    /// delivery as an occurrence transition.
+    static func scheduleOccurrenceSearchRecords(
+        from projections: [ScheduleReportProjectionV1]
+    ) throws -> [ScheduleOccurrenceSearchRecordV1] {
+        try ScheduleOccurrenceSearchPersistencePolicyV1().validate()
+        guard projections.count <= SearchContractLimitsV1.maximumCanonicalRecords else {
+            throw SearchContractFailureV1.limitExceeded
+        }
+        try projections.forEach {
+            try ScheduleReportProjectionPolicyV1.validate($0)
+        }
+
+        var records: [ScheduleOccurrenceSearchRecordV1] = []
+        for projection in projections.sorted(by: { $0.projectionSHA256 < $1.projectionSHA256 }) {
+            for occurrence in projection.occurrences {
+                records.append(try LocalSearchIndexStoreV1.scheduleOccurrenceSearchRecord(
+                    from: projection,
+                    occurrence: occurrence
+                ))
+            }
+        }
+        guard records.count <= SearchContractLimitsV1.maximumProjectionRecords else {
+            throw SearchContractFailureV1.limitExceeded
+        }
+        records.sort { $0.projectionIdentity < $1.projectionIdentity }
+        guard Set(records.map(\.projectionIdentity)).count == records.count else {
+            throw SearchContractFailureV1.duplicateProjection
+        }
+        try records.forEach { try ScheduleOccurrenceSearchProjectionPolicyV1.validate($0) }
+        return records
+    }
+
+    static let scheduleOccurrenceReplayDisposition =
+        "DROP_AND_REBUILD_FROM_CANONICAL_SCHEDULE_RELEASE_AND_OCCURRENCE_HISTORY"
+    static let scheduleOccurrenceRestoreDisposition =
+        "EXCLUDE_SCHEDULE_ROWS_AND_REBUILD_AFTER_CANONICAL_RESTORE"
+}

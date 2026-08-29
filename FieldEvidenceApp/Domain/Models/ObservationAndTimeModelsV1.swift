@@ -1,4 +1,6 @@
 import Foundation
+
+enum ObservationScheduleBoundaryV1 { static let scheduleTimeBasisIsFrozen = true }
 import SwiftData
 
 /// V5 companion entity. `WorkflowRecord` remains byte-for-byte the frozen V4

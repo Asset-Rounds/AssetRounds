@@ -6,6 +6,17 @@ import SwiftData
 enum FieldReferenceDeletionLedgerStorePolicyV1{static func validate()throws{guard FieldReferenceDeletionLedgerPolicyV1.immutableKinds==["FieldReferenceReleaseV1","FieldReferenceBindingV1"],FieldReferenceDeletionLedgerPolicyV1.ordinaryDeletionRetainsBoundAndFinalizedBytes,FieldReferenceDeletionLedgerPolicyV1.workspaceEraseRemovesRowsAndOwnedBytes else{throw DeletionLedgerFailureV2.invalidIdentity}}}
 enum AccessibleDocumentDeletionLedgerStorePolicyV1{static func validate()throws{try AccessibleDocumentDeletionLedgerPolicyV1.validate()}}
 enum SurveyDefinitionDeletionLedgerStorePolicyV1{static func validate()throws{try SurveyDefinitionDeletionLedgerPolicyV1.validate()}}
+enum ScheduleDeletionLedgerStorePolicyV1 {
+    static func validate() throws {
+        try ScheduleDeletionLedgerPolicyV1.validate()
+        guard ScheduleDeletionLedgerPolicyV1.durableKinds.count == 2,
+              ScheduleDeletionLedgerPolicyV1.lifecycleEventsRemainInMutationHistory,
+              ScheduleDeletionLedgerPolicyV1.ordinaryDeletionPreservesReleaseAndOccurrenceHistory,
+              ScheduleDeletionLedgerPolicyV1.workspaceEraseRemovesAll else {
+            throw DeletionLedgerFailureV2.invalidIdentity
+        }
+    }
+}
 enum AssetLocatorDeletionLedgerStorePolicyV1 {
     static let durableRowNames: Set<String> = [
         "AssetLocatorRow", "LocatorBindingReceiptRow"
@@ -36,6 +47,7 @@ final class DeletionLedgerStore {
         try FieldReferenceDeletionLedgerStorePolicyV1.validate()
         try AccessibleDocumentDeletionLedgerStorePolicyV1.validate()
         try SurveyDefinitionDeletionLedgerStorePolicyV1.validate()
+        try ScheduleDeletionLedgerStorePolicyV1.validate()
         try SurveySessionDeletionLedgerPolicyV1.validate()
         var descriptor = FetchDescriptor<DeletionLedgerRow>()
         descriptor.fetchLimit = DeletionLedgerV2.maximumEntryCount + 1

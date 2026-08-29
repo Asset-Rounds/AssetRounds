@@ -18,6 +18,7 @@ enum AssetLocatorKernelMutationReceiptPolicyV1{
     static let entityKinds:Set<WorkspaceEntityKindV1>=[.assetLocator,.locatorBindingReceipt]
     static func validate(mutation:AssetLocatorMutationV1,receipt:MutationReceiptV1)throws{let affected=try mutation.affectedIdentities;guard entityKinds.count==2,affected.allSatisfy({entityKinds.contains($0.kind)})else{throw WorkspaceMutationFailureV1.invalidReceipt};_ = try AssetLocatorMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)}
 }
+enum ScheduleKernelMutationReceiptPolicyV1{static let entityKinds:Set<WorkspaceEntityKindV1>=[.scheduleDefinitionRelease,.occurrenceHistoryEvent];static func validate(mutation:ScheduleMutationV1,receipt:MutationReceiptV1)throws{let affected=try mutation.affectedIdentities;guard entityKinds.count==2,affected.allSatisfy({entityKinds.contains($0.kind)})else{throw WorkspaceMutationFailureV1.invalidReceipt};_ = try ScheduleMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)}}
 
 struct KernelMutationRegistrationV4: Codable, Equatable, Comparable, Sendable {
     private enum CodingKeys: String, CodingKey, CaseIterable {

@@ -68,6 +68,7 @@ enum ProtectedFilePolicyV1 {
             throw ProtectedFilePolicyError.resourceValueMismatch
         }
     }
+    static func validateSchedulePersistencePosture()throws{guard disposition(for:.database).isExcludedFromBackup == false,disposition(for:.journal).isExcludedFromBackup else{throw ProtectedFilePolicyError.resourceValueMismatch}}
 
     /// Recoverability verification stages only under the existing disposable
     /// staging policy. The opaque locator never creates a new durable file

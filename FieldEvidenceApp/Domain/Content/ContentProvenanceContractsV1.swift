@@ -1,5 +1,7 @@
 import Foundation
 
+enum ScheduleContentProvenanceBoundaryV1 { static let dueStateIsAuthorityClaim = false }
+
 enum AssetLocatorProvenanceBoundaryV1 {
     static let signedPayloadProvesAuthorship = false
     static let signedPayloadProvesAuthorization = false

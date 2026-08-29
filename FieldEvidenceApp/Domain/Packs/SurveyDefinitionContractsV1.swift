@@ -1,5 +1,7 @@
 import Foundation
 
+enum SurveyDefinitionScheduleBoundaryV1 { static let bindingRequiresExactRelease = true }
+
 enum SurveyDefinitionFailureV1: Error, Equatable, Sendable {
     case invalidValue, invalidDigest, incompatibleVersion, invalidSuccessor
     case invalidTransition, stalePreview, hostileArchive, limitExceeded, wrongWorkspace

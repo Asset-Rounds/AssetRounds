@@ -43,6 +43,7 @@ struct IntegrationEventProjectionV1: Sendable {
             try Self.validateSurveyDefinitionReceiptShape(receipt)
             try Self.validateSurveySessionReceiptShape(receipt)
             try Self.validateAssetLocatorReceiptShape(receipt)
+            try Self.validateScheduleReceiptShape(receipt)
             guard receipt.identity.workspaceID == workspaceID,
                   receipt.resultingRevision.workspaceID == workspaceID else {
                 throw IntegrationEventFailureV1.wrongWorkspace
@@ -140,6 +141,9 @@ struct IntegrationEventProjectionV1: Sendable {
     func validateSurveySessionReplay(_ receipts:[MutationReceiptV1])throws{var found=false;for receipt in receipts{for image in receipt.postImages where Self.surveySessionKinds.contains(try image.identity.kind){found=true}};if found{try SurveySessionIntegrationContractV1.validate(registry:registry)};try receipts.forEach{try Self.validateSurveySessionReceiptShape($0)}}
     static func validateAssetLocatorReceiptShape(_ receipt:MutationReceiptV1)throws{let identities=try receipt.postImages.map{$0.identity};let present=Set(identities.map(\.kind)).intersection(assetLocatorKinds);guard !present.isEmpty else{return};guard [2,3].contains(identities.count),Set(identities).count==identities.count,identities.contains(where:{$0.kind == .assetLocator}),identities.contains(where:{$0.kind == .locatorBindingReceipt}),identities.allSatisfy({assetLocatorKinds.contains($0.kind)})else{throw IntegrationEventFailureV1.divergentEvent};for image in receipt.postImages{let concurrency=try image.concurrencyIdentity;guard let expected=receipt.expectedRevision.entityRevisions.first(where:{$0.identity==concurrency})?.revision,expected<UInt64.max,image.revision==expected+1 else{throw IntegrationEventFailureV1.divergentEvent}}}
     func validateAssetLocatorReplay(_ receipts:[MutationReceiptV1])throws{var found=false;for receipt in receipts{for image in receipt.postImages where Self.assetLocatorKinds.contains(try image.identity.kind){found=true}};if found{try AssetLocatorIntegrationContractV1.validate(registry:registry)};try receipts.forEach{try Self.validateAssetLocatorReceiptShape($0)}}
+    static let scheduleKinds:Set<WorkspaceEntityKindV1>=[.scheduleDefinitionRelease,.occurrenceHistoryEvent]
+    static func validateScheduleReceiptShape(_ receipt:MutationReceiptV1)throws{let identities=try receipt.postImages.map{$0.identity};let present=Set(identities.map(\.kind)).intersection(scheduleKinds);guard !present.isEmpty else{return};guard Set(identities).count==identities.count,identities.allSatisfy({scheduleKinds.contains($0.kind)}),identities.count<=ScheduleLimitsV1.maximumGeneratedOccurrences else{throw IntegrationEventFailureV1.divergentEvent};for image in receipt.postImages{let concurrency=try image.concurrencyIdentity;guard let expected=receipt.expectedRevision.entityRevisions.first(where:{$0.identity==concurrency})?.revision,expected<UInt64.max,image.revision==expected+1 else{throw IntegrationEventFailureV1.divergentEvent}}}
+    func validateScheduleReplay(_ receipts:[MutationReceiptV1])throws{var found=false;for receipt in receipts{for image in receipt.postImages where Self.scheduleKinds.contains(try image.identity.kind){found=true}};if found{try ScheduleIntegrationContractV1.validate(registry:registry)};try receipts.forEach{try Self.validateScheduleReceiptShape($0)}}
 
     func validateProjectedStream(_ events: [IntegrationEventV1], workspaceID: WorkspaceID) throws -> [IntegrationEventV1] {
         let ordered = events.sorted { $0.order < $1.order }

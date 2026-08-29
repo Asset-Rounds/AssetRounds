@@ -1,5 +1,7 @@
 import Foundation
 
+enum ScheduleContentLocatorBoundaryV1 { static let reminderStateIsContent = false }
+
 enum AssetLocatorManifestBoundaryV1 {
     static let locatorLookupUsesContentLocatorManifest = false
     static let locatorResolutionMayFetchBytes = false

@@ -47,6 +47,49 @@ struct AssetLocatorDeletionInventoryV1: Equatable, Sendable {
         assetIDs = Set(locators.map(\.assetID))
     }
 }
+
+/// Schedule rows are not ordinary asset/site cascade targets.  This
+/// inventory makes the retention boundary explicit for delete previews and
+/// lets workspace Erase prove that both durable families were removed.
+struct ScheduleDeletionInventoryV1: Equatable, Sendable {
+    let releaseIDs: Set<UUID>
+    let occurrenceEventIDs: Set<UUID>
+
+    static let empty = Self(releaseIDs: [], occurrenceEventIDs: [])
+
+    init(
+        definitions: [ScheduleDefinitionReleaseV1],
+        history: [OccurrenceHistoryEventV1]
+    ) throws {
+        try ScheduleLifecycleClosureV1(
+            definitions: definitions, history: history
+        ).validate()
+        releaseIDs = Set(definitions.map(\.releaseID))
+        occurrenceEventIDs = Set(history.map(\.eventID))
+    }
+}
+
+extension WholeSignDeletionRule {
+    static func validateScheduleLifecycle(
+        before: ScheduleDeletionInventoryV1,
+        after: ScheduleDeletionInventoryV1,
+        workspaceErase: Bool
+    ) throws {
+        try ScheduleDeletionLedgerPolicyV1.validate()
+        if workspaceErase {
+            guard after == .empty else {
+                throw WholeSignDeletionRuleError.invalidGraph
+            }
+            return
+        }
+        // A normal asset/site delete does not delete schedule definitions or
+        // occurrence history.  Keeping both sets exactly preserves every
+        // immutable release and append-only event without dangling refs.
+        guard after == before else {
+            throw WholeSignDeletionRuleError.invalidGraph
+        }
+    }
+}
 extension WholeSignDeletionRule {
     static func validateAssetLocatorLifecycle(
         before: AssetLocatorDeletionInventoryV1,

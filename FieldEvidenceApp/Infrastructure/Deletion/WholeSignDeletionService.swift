@@ -1318,6 +1318,8 @@ private extension WholeSignDeletionService {
         let accessibleDocumentAssessmentReceipts:[AccessibleDocumentAssessmentReceiptRow]
         let surveyDefinitionIdentities:[SurveyDefinitionIdentityRow];let surveyDefinitionReleases:[SurveyDefinitionReleaseRow]
         let surveySessions:[SurveySessionRow];let factCaptures:[FactCaptureRow];let provisionalSubjects:[ProvisionalSubjectRow];let subjectPromotionReceipts:[SubjectPromotionReceiptRow];let surveyPublicationSnapshots:[SurveyPublicationSnapshotRow]
+        let scheduleDefinitionReleases: [ScheduleDefinitionReleaseRow]
+        let occurrenceHistoryEvents: [OccurrenceHistoryEventRow]
         let assetLocators: [AssetLocatorRow]
         let locatorBindingReceipts: [LocatorBindingReceiptRow]
         let observationAndTime: [UUID: ObservationAndTimeRow]
@@ -1380,6 +1382,8 @@ private extension WholeSignDeletionService {
                 accessibleDocumentAssessmentReceipts:try boundedFetch(AccessibleDocumentAssessmentReceiptRow.self),
                 surveyDefinitionIdentities:try boundedFetch(SurveyDefinitionIdentityRow.self),surveyDefinitionReleases:try boundedFetch(SurveyDefinitionReleaseRow.self),
                  surveySessions:try boundedFetch(SurveySessionRow.self),factCaptures:try boundedFetch(FactCaptureRow.self),provisionalSubjects:try boundedFetch(ProvisionalSubjectRow.self),subjectPromotionReceipts:try boundedFetch(SubjectPromotionReceiptRow.self),surveyPublicationSnapshots:try boundedFetch(SurveyPublicationSnapshotRow.self),
+                 scheduleDefinitionReleases: try boundedFetch(ScheduleDefinitionReleaseRow.self),
+                 occurrenceHistoryEvents: try boundedFetch(OccurrenceHistoryEventRow.self),
                  assetLocators: try boundedFetch(AssetLocatorRow.self),
                  locatorBindingReceipts: try boundedFetch(LocatorBindingReceiptRow.self),
                 observationAndTime: observationAndTime,
@@ -1451,6 +1455,17 @@ private extension WholeSignDeletionService {
         let surveyInventory=SurveyDefinitionDeletionInventoryV1(identityIDs:Set(rows.surveyDefinitionIdentities.map(\.definitionID)),releaseIDs:Set(rows.surveyDefinitionReleases.map(\.releaseID)))
         try WholeSignDeletionRule.validateSurveyDefinitionLifecycle(before:surveyInventory,after:surveyInventory,workspaceErase:false)
         try rows.surveySessions.forEach{_ = try $0.value()};try rows.factCaptures.forEach{_ = try $0.value()};try rows.provisionalSubjects.forEach{_ = try $0.value()};try rows.subjectPromotionReceipts.forEach{_ = try $0.value()};try rows.surveyPublicationSnapshots.forEach{_ = try $0.value()};let sessionInventory=SurveySessionDeletionInventoryV1(sessionIDs:Set(rows.surveySessions.map(\.sessionID)),captureIDs:Set(rows.factCaptures.map(\.captureID)),provisionalSubjectIDs:Set(rows.provisionalSubjects.map(\.provisionalSubjectID)),promotionReceiptIDs:Set(rows.subjectPromotionReceipts.map(\.receiptID)),publicationSnapshotIDs:Set(rows.surveyPublicationSnapshots.map(\.snapshotID)));try WholeSignDeletionRule.validateSurveySessionLifecycle(before:sessionInventory,after:sessionInventory,workspaceErase:false);try SurveySessionDeletionLedgerPolicyV1.validate()
+        let scheduleDefinitions = try rows.scheduleDefinitionReleases.map { try $0.value() }
+        let scheduleHistory = try rows.occurrenceHistoryEvents.map { try $0.value() }
+        let scheduleInventory = try ScheduleDeletionInventoryV1(
+            definitions: scheduleDefinitions,
+            history: scheduleHistory
+        )
+        try WholeSignDeletionRule.validateScheduleLifecycle(
+            before: scheduleInventory,
+            after: scheduleInventory,
+            workspaceErase: false
+        )
         do {
             var assetIDs = Set<UUID>()
             if let deletingAssetID { assetIDs.insert(deletingAssetID) }

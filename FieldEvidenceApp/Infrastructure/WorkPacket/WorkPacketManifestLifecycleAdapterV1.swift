@@ -1,5 +1,7 @@
 import Foundation
 
+enum WorkPacketScheduleLifecycleBoundaryV1 { static let dueQueueCreatesRows = false }
+
 /// Read-only bridge to the canonical V15 rows. Implementations must read the
 /// one workspace store; this protocol is not a persistence or writer owner.
 @MainActor protocol WorkPacketManifestRecordSourceV1: AnyObject {

@@ -2163,3 +2163,42 @@ extension ReportProjectionRegistryV1 {
         return try validateAssetLocatorProjection(projection)
     }
 }
+
+// MARK: - C28 schedule and occurrence projection
+
+extension ReportProjectionRegistryV1 {
+    static let scheduleProjectionSectionID = ScheduleReportProjectionPolicyV1.sectionID
+    static let scheduleProjectionVersion = ScheduleReportProjectionPolicyV1.projectionVersion
+
+    func validateScheduleProjection(
+        _ projection: ScheduleReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> ScheduleReportProjectionV1 {
+        try validate()
+        try ScheduleReportProjectionPolicyV1.validate(projection, format: format)
+        try ScheduleContractManifestBoundaryV1.validate()
+        return projection
+    }
+
+    static func validateScheduleProjection(
+        _ projection: ScheduleReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> ScheduleReportProjectionV1 {
+        try Self().validateScheduleProjection(projection, format: format)
+    }
+
+    static func scheduleProjection(
+        definition: ScheduleDefinitionReleaseV1,
+        dueQueue: DueQueueProjectionV1,
+        history: [OccurrenceHistoryEventV1],
+        reminder: ReminderProjectionV1? = nil
+    ) throws -> ScheduleReportProjectionV1 {
+        let projection = try ScheduleReportProjectionV1(
+            definition: definition,
+            dueQueue: dueQueue,
+            history: history,
+            reminder: reminder
+        )
+        return try validateScheduleProjection(projection)
+    }
+}

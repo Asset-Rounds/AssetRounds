@@ -1,5 +1,7 @@
 import Foundation
 
+enum WorkPacketScheduleBoundaryV1 { static let occurrenceLinkRequiresExplicitStart = true }
+
 enum WorkPacketFailureV1: Error, Equatable, Sendable {
     case incompatibleVersion, invalidValue, wrongWorkspace, digestMismatch
     case staleRevision, reorderedEvent, leaseExpired, holderMismatch

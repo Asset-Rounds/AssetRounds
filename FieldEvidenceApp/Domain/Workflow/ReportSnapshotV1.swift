@@ -98,6 +98,15 @@ struct ReportSnapshotV1: Codable, Equatable, Sendable {
     /// subject-at-publication or introduces pass/fail meaning.
     var surveyPublication: SurveyPublicationReportProjectionV1? = nil
 
+    /// Optional C28 schedule projection. The canonical release and occurrence
+    /// history remain authoritative; this field freezes the recorded time
+    /// basis and bounded due/reminder metadata for a historic report.
+    var scheduleProjection: ScheduleReportProjectionV1? = nil
+
+    var scheduleHistoryProjection: ScheduleReportProjectionV1? {
+        scheduleProjection
+    }
+
     var audienceSafeDerivativeProjection: PrivacyTransformReportProjectionV1? {
         privacyTransform
     }

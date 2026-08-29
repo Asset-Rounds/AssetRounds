@@ -108,3 +108,18 @@ extension SurveyDefinitionReleaseRow {
         return release
     }
 }
+
+
+extension SurveyDefinitionReleaseRow {
+    /// Resolves the exact definition release embedded in a C28 schedule. It
+    /// deliberately never substitutes the latest release in the definition.
+    func value(pinnedBy schedule: ScheduleDefinitionReleaseV1) throws -> SurveyDefinitionReleaseV1 {
+        let release = try value()
+        guard schedule.workspaceID == release.workspaceID,
+              schedule.workDefinition.definitionWorkspaceID == release.workspaceID,
+              schedule.workDefinition.definitionRelease == (try SurveyDefinitionReleaseReferenceV1(release)) else {
+            throw SurveyDefinitionPersistenceFailureV1.corruptRow
+        }
+        return release
+    }
+}

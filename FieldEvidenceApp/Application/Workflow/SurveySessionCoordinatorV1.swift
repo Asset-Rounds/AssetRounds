@@ -1,5 +1,7 @@
 import Foundation
 
+enum SurveySessionScheduleCoordinatorBoundaryV1 { static let scheduledStartUsesExplicitAtomicLink = true }
+
 /// Application boundary for C26 survey-session writes. Implementations must
 /// route every value through the sole workspace writer and its durable journal;
 /// this protocol does not authorize a second store or receipt stream.

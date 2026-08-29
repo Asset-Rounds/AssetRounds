@@ -413,3 +413,32 @@ extension SearchCoordinatorV1 {
         return Array(matches.prefix(maximumResults))
     }
 }
+
+// MARK: - C28 schedule occurrence metadata search
+
+extension SearchCoordinatorV1 {
+    /// Searches only the disposable schedule metadata projection. Matching is
+    /// limited to canonical IDs, frozen local-basis values, and the closed
+    /// occurrence state; a reminder request can never become search truth.
+    static func searchScheduleOccurrenceMetadata(
+        query: String,
+        records: [ScheduleOccurrenceSearchRecordV1],
+        maximumResults: Int = 100
+    ) throws -> [ScheduleOccurrenceSearchRecordV1] {
+        guard maximumResults > 0,
+              maximumResults <= SearchContractLimitsV1.maximumCanonicalRecords else {
+            throw SearchContractFailureV1.limitExceeded
+        }
+        let tokens = normalizedTokens(query)
+        guard !tokens.isEmpty else { throw SearchContractFailureV1.invalidQuery }
+        try records.forEach { try ScheduleOccurrenceSearchProjectionPolicyV1.validate($0) }
+        let matches = records.filter { record in
+            tokens.allSatisfy { queryToken in
+                record.normalizedTokens.contains { indexedToken in
+                    indexedToken == queryToken || indexedToken.hasPrefix(queryToken)
+                }
+            }
+        }.sorted { $0.projectionIdentity < $1.projectionIdentity }
+        return Array(matches.prefix(maximumResults))
+    }
+}

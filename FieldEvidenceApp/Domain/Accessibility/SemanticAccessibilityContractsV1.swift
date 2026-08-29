@@ -1679,3 +1679,112 @@ enum AssetLocatorAccessibilityPolicyV1 {
         }
     }
 }
+
+// MARK: - C28 schedule and occurrence accessibility
+
+/// Stable semantic identifiers for the schedule projection. They describe
+/// recorded facts and safe next steps; they are not route names or localized
+/// display strings.
+enum ScheduleAccessibilityIDV1: String, Codable, CaseIterable, Sendable {
+    case screen = "schedule.screen"
+    case heading = "schedule.heading"
+    case definition = "schedule.definition"
+    case occurrence = "schedule.occurrence"
+    case occurrenceState = "schedule.occurrence.state"
+    case timeBasis = "schedule.time_basis"
+    case history = "schedule.history"
+    case dueQueue = "schedule.due_queue"
+    case reminder = "schedule.reminder"
+    case claimBoundary = "schedule.claim_boundary"
+    case nextStep = "schedule.next_step"
+    case stateUpcoming = "schedule.occurrence.state.upcoming"
+    case stateReady = "schedule.occurrence.state.ready"
+    case stateDue = "schedule.occurrence.state.due"
+    case stateOverdue = "schedule.occurrence.state.overdue"
+    case stateDeferred = "schedule.occurrence.state.deferred"
+    case stateMissed = "schedule.occurrence.state.missed"
+    case stateSkipped = "schedule.occurrence.state.skipped"
+    case stateCancelled = "schedule.occurrence.state.cancelled"
+    case stateStarted = "schedule.occurrence.state.started"
+    case stateCompleted = "schedule.occurrence.state.completed"
+
+    var localizationKey: LocalizationKeyV1 {
+        let key: ScheduleLocalizationKeyV1
+        switch self {
+        case .screen: key = .heading
+        case .heading: key = .heading
+        case .definition: key = .definition
+        case .occurrence: key = .occurrence
+        case .occurrenceState: key = .occurrenceState
+        case .timeBasis: key = .timeBasis
+        case .history: key = .history
+        case .dueQueue: key = .dueQueue
+        case .reminder: key = .reminder
+        case .claimBoundary: key = .claimBoundary
+        case .nextStep: key = .nextStep
+        case .stateUpcoming: key = .stateUpcoming
+        case .stateReady: key = .stateReady
+        case .stateDue: key = .stateDue
+        case .stateOverdue: key = .stateOverdue
+        case .stateDeferred: key = .stateDeferred
+        case .stateMissed: key = .stateMissed
+        case .stateSkipped: key = .stateSkipped
+        case .stateCancelled: key = .stateCancelled
+        case .stateStarted: key = .stateStarted
+        case .stateCompleted: key = .stateCompleted
+        }
+        return key.localizationKey
+    }
+}
+
+enum ScheduleAccessibilityPolicyV1 {
+    static let semanticIDs = ScheduleAccessibilityIDV1.allCases.map(\.rawValue)
+    static let stateSemanticIDs: Set<String> = Set(
+        [ScheduleAccessibilityIDV1](
+            [
+                .stateUpcoming, .stateReady, .stateDue, .stateOverdue,
+                .stateDeferred, .stateMissed, .stateSkipped, .stateCancelled,
+                .stateStarted, .stateCompleted,
+            ]
+        ).map(\.rawValue)
+    )
+    static let indeterminateSemanticIDs: Set<String> = Set(
+        [ScheduleAccessibilityIDV1](
+            [
+                .stateUpcoming, .stateReady, .stateDue, .stateOverdue,
+                .stateDeferred, .stateMissed, .stateSkipped, .stateCancelled,
+            ]
+        ).map(\.rawValue)
+    )
+    static let denyByDefault = true
+    static let nonColorStateTextRequired = true
+    static let textAlternativeRequired = true
+    static let textAndIconRequiredForIndeterminateStates = true
+    static let actionableNextStepRequiredForIndeterminateStates = true
+    static let colorOnlyStateAllowed = false
+    static let iconOnlyStateAllowed = false
+    static let motionOnlyStateAllowed = false
+
+    static func requiresTextAndIcon(for semanticID: String) -> Bool {
+        indeterminateSemanticIDs.contains(semanticID)
+    }
+
+    static func requiresActionableNextStep(for semanticID: String) -> Bool {
+        indeterminateSemanticIDs.contains(semanticID)
+    }
+
+    static func stateID(_ value: OccurrenceStateV1) -> ScheduleAccessibilityIDV1 {
+        switch value {
+        case .upcoming: return .stateUpcoming
+        case .ready: return .stateReady
+        case .due: return .stateDue
+        case .overdue: return .stateOverdue
+        case .deferred: return .stateDeferred
+        case .missed: return .stateMissed
+        case .skipped: return .stateSkipped
+        case .cancelled: return .stateCancelled
+        case .started: return .stateStarted
+        case .completed: return .stateCompleted
+        }
+    }
+}

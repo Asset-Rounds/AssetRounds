@@ -1,5 +1,7 @@
 import Foundation
 
+enum ScheduleTimeContextBoundaryV1 { static func validate(_ value: FrozenScheduleTimeBasisV1) throws { try value.validate() } }
+
 struct FrozenTimeContext: Equatable, Sendable {
     let observedAtUTC: Date
     let timeZoneID: String

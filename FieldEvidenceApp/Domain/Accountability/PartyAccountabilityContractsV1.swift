@@ -1,5 +1,12 @@
 import Foundation
 
+enum ScheduleAssigneeBoundaryV1 {
+    static func validate(_ actor: ActorSnapshotV1, workspaceID: WorkspaceID) throws {
+        try actor.validate()
+        guard actor.workspaceID == workspaceID, actor.responsibility == .assignedTo else { throw ScheduleFailureV1.wrongWorkspace }
+    }
+}
+
 enum PartyAccountabilityFailureV1: Error, Equatable, Sendable {
     case invalidValue
     case incompatibleVersion

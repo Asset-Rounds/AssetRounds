@@ -69,6 +69,26 @@ enum SurveyTemplateOrphanCleanupPolicyV1 {
     }
 }
 
+/// Schedule releases and occurrence history own no filesystem payload. Their
+/// due/reminder projections are disposable and must be rebuilt from the
+/// durable closure; a missing file can therefore never justify deleting a
+/// schedule row or history event.
+enum ScheduleOrphanCleanupPolicyV1 {
+    static let rowsOwnNoFilesystemPayload = true
+    static let projectionsAreDerived = true
+    static let missingFileCannotDeleteCanonicalRows = true
+    static let notificationStateIsTruth = false
+
+    static func validate() throws {
+        guard rowsOwnNoFilesystemPayload,
+              projectionsAreDerived,
+              missingFileCannotDeleteCanonicalRows,
+              !notificationStateIsTruth else {
+            throw OrphanFileCleanupServiceError.invalidOwnedLayout
+        }
+    }
+}
+
 struct FieldDraftOrphanCleanupProofV1: Equatable, Sendable {
     let removableStageIDs: [UUID]
     let removableReservationIDs: [UUID]
@@ -281,6 +301,7 @@ final class OrphanFileCleanupService {
 private extension OrphanFileCleanupService {
     func validateKernelOrphanMappings() throws {
         do {
+            try ScheduleOrphanCleanupPolicyV1.validate()
             let ownedContent = try KernelDeletionEraseRegistryV4.registration(
                 for: .contentReference
             )

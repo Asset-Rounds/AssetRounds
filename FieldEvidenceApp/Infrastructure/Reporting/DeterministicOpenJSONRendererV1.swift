@@ -2356,3 +2356,159 @@ extension DeterministicOpenJSONRendererV1 {
         try renderAssetLocator(projection, locale: locale)
     }
 }
+
+// MARK: - C28 schedule and occurrence open JSON
+
+/// Labels are carried beside the machine-readable schedule projection so a
+/// report can be rendered without treating an occurrence state token as user
+/// facing copy. The state map is closed over the canonical ten states.
+struct ScheduleReportOpenJSONLabelsV1: Codable, Equatable, Sendable {
+    let heading: String
+    let definition: String
+    let recurrence: String
+    let occurrence: String
+    let occurrenceState: String
+    let timeBasis: String
+    let history: String
+    let historyImmutable: String
+    let dueQueue: String
+    let reminder: String
+    let reminderNotTruth: String
+    let claimBoundary: String
+    let nextStep: String
+    let stateLabels: [String: String]
+
+    init(projection: ScheduleReportProjectionV1) {
+        heading = BundledLocalizationCatalogV1.localized(.heading)
+        definition = BundledLocalizationCatalogV1.localized(.definition)
+        recurrence = BundledLocalizationCatalogV1.localized(
+            projection.recurrenceKind == "FIXED_CALENDAR"
+                ? .fixedCalendar
+                : .completionRelative
+        )
+        occurrence = BundledLocalizationCatalogV1.localized(.occurrence)
+        occurrenceState = BundledLocalizationCatalogV1.localized(.occurrenceState)
+        timeBasis = BundledLocalizationCatalogV1.localized(.timeBasis)
+        history = BundledLocalizationCatalogV1.localized(.history)
+        historyImmutable = BundledLocalizationCatalogV1.localized(.historyImmutable)
+        dueQueue = BundledLocalizationCatalogV1.localized(.dueQueue)
+        reminder = BundledLocalizationCatalogV1.localized(.reminder)
+        reminderNotTruth = BundledLocalizationCatalogV1.localized(.reminderNotTruth)
+        claimBoundary = BundledLocalizationCatalogV1.localized(.claimBoundary)
+        nextStep = BundledLocalizationCatalogV1.localized(.nextStep)
+        stateLabels = Dictionary(uniqueKeysWithValues: OccurrenceStateV1.allCases.map {
+            ($0.rawValue, BundledLocalizationCatalogV1.scheduleDisplayLabel(for: $0))
+        })
+    }
+
+    func validate(projection: ScheduleReportProjectionV1) throws {
+        let expected = ScheduleReportOpenJSONLabelsV1(projection: projection)
+        let values = [
+            heading, definition, recurrence, occurrence, occurrenceState,
+            timeBasis, history, historyImmutable, dueQueue, reminder,
+            reminderNotTruth, claimBoundary, nextStep,
+        ] + Array(stateLabels.values)
+        guard self == expected,
+              values.allSatisfy({ !$0.isEmpty }),
+              Set(stateLabels.keys) == Set(OccurrenceStateV1.allCases.map(\.rawValue)),
+              !ScheduleLocalizationPolicyV1.containsProhibitedClaim(values) else {
+            throw SnapshotProjectionFailureV1.hostileText
+        }
+    }
+}
+
+struct ScheduleReportOpenJSONEnvelopeV1: Codable, Equatable, Sendable {
+    static let schema = "SCHEDULE_REPORT_OPEN_JSON_V1"
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let schema: String
+    let locale: String
+    let projection: ScheduleReportProjectionV1
+    let labels: ScheduleReportOpenJSONLabelsV1
+
+    init(
+        projection: ScheduleReportProjectionV1,
+        locale: String = "en"
+    ) throws {
+        try projection.validate()
+        guard locale == "en" else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        schemaVersion = Self.schemaVersion
+        schema = Self.schema
+        self.locale = locale
+        self.projection = projection
+        labels = ScheduleReportOpenJSONLabelsV1(projection: projection)
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              schema == Self.schema,
+              locale == "en" else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try ScheduleReportProjectionPolicyV1.validate(
+            projection,
+            format: .openJSON
+        )
+        try labels.validate(projection: projection)
+    }
+}
+
+extension DeterministicOpenJSONRendererV1 {
+    static func renderSchedule(
+        _ projection: ScheduleReportProjectionV1,
+        locale: String = "en"
+    ) throws -> ReportProjectionOutputV1 {
+        try ReportProjectionRegistryV1.validateScheduleProjection(projection)
+        let envelope = try ScheduleReportOpenJSONEnvelopeV1(
+            projection: projection,
+            locale: locale
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let data = try encoder.encode(envelope)
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes,
+              try reopenSchedule(data) == projection else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return ReportProjectionOutputV1(
+            format: .openJSON,
+            data: data,
+            sha256: KernelCanonicalHashV1.sha256(data),
+            semanticSHA256: projection.projectionSHA256,
+            orderedSemanticIDs: ScheduleAccessibilityIDV1.allCases.map(\.rawValue),
+            taggedPDFAccessibilityEvidence: false
+        )
+    }
+
+    static func reopenSchedule(
+        _ data: Data
+    ) throws -> ScheduleReportProjectionV1 {
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        let envelope = try JSONDecoder().decode(
+            ScheduleReportOpenJSONEnvelopeV1.self,
+            from: data
+        )
+        try envelope.validate()
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        guard try encoder.encode(envelope) == data else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return envelope.projection
+    }
+
+    static func renderScheduleOpenJSON(
+        _ projection: ScheduleReportProjectionV1,
+        locale: String = "en"
+    ) throws -> ReportProjectionOutputV1 {
+        try renderSchedule(projection, locale: locale)
+    }
+}

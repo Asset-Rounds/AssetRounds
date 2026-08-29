@@ -1,5 +1,7 @@
 import Foundation
 
+enum ScheduleLocalContentStoreBoundaryV1 { static let scheduleRowsBelongInByteStore = false }
+
 enum AssetLocatorLocalContentStoreBoundaryV1 {
     static let locatorRowsBelongInContentStore = false
     static let resolverPerformsRuntimeFetch = false

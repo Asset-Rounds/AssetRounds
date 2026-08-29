@@ -116,6 +116,10 @@ struct DiagnosticExportV1: Codable, Equatable, Sendable {
     /// evidence identifiers, locators, original bytes, and assessor identity
     /// are intentionally absent.
     var accessibleDocument: AccessibleDocumentDiagnosticMetadataV1? = nil
+    /// Optional C28 aggregate-only schedule health. Release/history payloads,
+    /// occurrence identities, actor snapshots, and due/reminder identifiers
+    /// are never diagnostic material.
+    var schedule: ScheduleDiagnosticMetadataV1? = nil
 
     /// Integration event payloads, subjects, cursors, and checkpoint bytes are
     /// never diagnostic material. Diagnostics may describe only the static
@@ -145,6 +149,7 @@ struct DiagnosticExportV1: Codable, Equatable, Sendable {
             && (recoverabilityVerification?.isValid ?? true)
             && (fieldReference?.isValid ?? true)
             && (accessibleDocument?.isValid ?? true)
+            && (schedule?.isValid ?? true)
             && integrationProjectionPayloadExcluded
     }
 
@@ -220,6 +225,7 @@ struct DiagnosticExportService {
     typealias RecoverabilityVerificationProvider = () -> RecoverabilityVerificationDiagnosticMetadataV1?
     typealias FieldReferenceProvider = () -> FieldReferenceDiagnosticMetadataV1?
     typealias AccessibleDocumentProvider = () -> AccessibleDocumentDiagnosticMetadataV1?
+    typealias ScheduleProvider = () -> ScheduleDiagnosticMetadataV1?
     typealias ContextProvider<Value> = () -> Value
     typealias Clock = () -> Date
 
@@ -231,6 +237,7 @@ struct DiagnosticExportService {
     private let recoverabilityVerificationProvider: RecoverabilityVerificationProvider
     private let fieldReferenceProvider: FieldReferenceProvider
     private let accessibleDocumentProvider: AccessibleDocumentProvider
+    private let scheduleProvider: ScheduleProvider
     private let appProvider: ContextProvider<DiagnosticAppContextV1>
     private let deviceProvider: ContextProvider<DiagnosticDeviceContextV1>
     private let clock: Clock
@@ -246,7 +253,8 @@ struct DiagnosticExportService {
         clientCapability: @escaping ClientCapabilityProvider = { nil },
         recoverabilityVerification: @escaping RecoverabilityVerificationProvider = { nil },
         fieldReference: @escaping FieldReferenceProvider = { nil },
-        accessibleDocument: @escaping AccessibleDocumentProvider = { nil }
+        accessibleDocument: @escaping AccessibleDocumentProvider = { nil },
+        schedule: @escaping ScheduleProvider = { nil }
     ) {
         countersProvider = counters
         metricKitProvider = metricKit
@@ -256,6 +264,7 @@ struct DiagnosticExportService {
         recoverabilityVerificationProvider = recoverabilityVerification
         fieldReferenceProvider = fieldReference
         accessibleDocumentProvider = accessibleDocument
+        scheduleProvider = schedule
         appProvider = app
         deviceProvider = device
         self.clock = clock
@@ -271,6 +280,7 @@ struct DiagnosticExportService {
         recoverabilityVerification: @escaping RecoverabilityVerificationProvider = { nil },
         fieldReference: @escaping FieldReferenceProvider = { nil },
         accessibleDocument: @escaping AccessibleDocumentProvider = { nil },
+        schedule: @escaping ScheduleProvider = { nil },
         bundle: Bundle = .main,
         device: UIDevice = .current,
         clock: @escaping Clock = Date.init
@@ -298,7 +308,8 @@ struct DiagnosticExportService {
             clientCapability: clientCapability,
             recoverabilityVerification: recoverabilityVerification,
             fieldReference: fieldReference,
-            accessibleDocument: accessibleDocument
+            accessibleDocument: accessibleDocument,
+            schedule: schedule
         )
     }
 
@@ -315,7 +326,8 @@ struct DiagnosticExportService {
             clientCapability: clientCapabilityProvider(),
             recoverabilityVerification: recoverabilityVerificationProvider(),
             fieldReference: fieldReferenceProvider(),
-            accessibleDocument: accessibleDocumentProvider()
+            accessibleDocument: accessibleDocumentProvider(),
+            schedule: scheduleProvider()
         )
         guard value.isValid else {
             throw DiagnosticExportError.invalidValue
@@ -370,6 +382,9 @@ enum DiagnosticExportCanonicalEncoderV1 {
         }
         if let accessibleDocument = value.accessibleDocument {
             object["accessibleDocument"] = accessibleDocumentValue(accessibleDocument)
+        }
+        if let schedule = value.schedule {
+            object["schedule"] = scheduleValue(schedule)
         }
         let data = try CanonicalJSONV1.encode(.object(object))
         try IntegrationProjectionDiagnosticExclusionV1.validate(data)
@@ -556,6 +571,25 @@ enum DiagnosticExportCanonicalEncoderV1 {
             "excludesAssessorIdentity": .bool(value.excludesAssessorIdentity),
             "excludesPrivateLocators": .bool(value.excludesPrivateLocators),
             "excludesUnsupportedClaims": .bool(value.excludesUnsupportedClaims),
+        ])
+    }
+
+    private static func scheduleValue(
+        _ value: ScheduleDiagnosticMetadataV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "schemaVersion": .integer(value.schemaVersion),
+            "definitionReleaseCount": .integer(value.definitionReleaseCount),
+            "activeReleaseCount": .integer(value.activeReleaseCount),
+            "occurrenceHistoryEventCount": .integer(value.occurrenceHistoryEventCount),
+            "dueProjectionEntryCount": .integer(value.dueProjectionEntryCount),
+            "reminderProjectionEntryCount": .integer(value.reminderProjectionEntryCount),
+            "policyVersion": .string(value.policyVersion),
+            "metadataOnly": .bool(value.metadataOnly),
+            "excludesSchedulePayload": .bool(value.excludesSchedulePayload),
+            "excludesOccurrenceIdentity": .bool(value.excludesOccurrenceIdentity),
+            "excludesActorIdentity": .bool(value.excludesActorIdentity),
+            "excludesNotificationState": .bool(value.excludesNotificationState),
         ])
     }
 
@@ -1679,6 +1713,100 @@ extension DiagnosticExportV1 {
         try AssetLocatorDiagnosticMetadataV1(
             locators: locators,
             receipts: receipts
+        )
+    }
+}
+
+// MARK: - C28 schedule diagnostic metadata
+
+/// Aggregate-only schedule health. Canonical release/history bytes, schedule
+/// and occurrence IDs, work references, actor snapshots, and notification
+/// identifiers are intentionally excluded from diagnostics.
+struct ScheduleDiagnosticMetadataV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let policyVersion = "SCHEDULE_DIAGNOSTIC_V1"
+    static let maximumValues = 200_000
+
+    let schemaVersion: Int
+    let definitionReleaseCount: Int
+    let activeReleaseCount: Int
+    let occurrenceHistoryEventCount: Int
+    let dueProjectionEntryCount: Int
+    let reminderProjectionEntryCount: Int
+    let policyVersion: String
+    let metadataOnly: Bool
+    let excludesSchedulePayload: Bool
+    let excludesOccurrenceIdentity: Bool
+    let excludesActorIdentity: Bool
+    let excludesNotificationState: Bool
+
+    init(
+        definitions: [ScheduleDefinitionReleaseV1] = [],
+        history: [OccurrenceHistoryEventV1] = [],
+        dueProjectionEntryCount: Int = 0,
+        reminderProjectionEntryCount: Int = 0
+    ) throws {
+        guard definitions.count <= Self.maximumValues,
+              history.count <= Self.maximumValues,
+              (0...Self.maximumValues).contains(dueProjectionEntryCount),
+              (0...Self.maximumValues).contains(reminderProjectionEntryCount) else {
+            throw DiagnosticExportError.invalidValue
+        }
+        do {
+            try ScheduleLifecycleClosureV1(
+                definitions: definitions,
+                history: history
+            ).validate()
+        } catch {
+            throw DiagnosticExportError.invalidValue
+        }
+        schemaVersion = Self.schemaVersion
+        definitionReleaseCount = definitions.count
+        activeReleaseCount = definitions.filter { $0.lifecycleState == .active }.count
+        occurrenceHistoryEventCount = history.count
+        self.dueProjectionEntryCount = dueProjectionEntryCount
+        self.reminderProjectionEntryCount = reminderProjectionEntryCount
+        policyVersion = Self.policyVersion
+        metadataOnly = true
+        excludesSchedulePayload = true
+        excludesOccurrenceIdentity = true
+        excludesActorIdentity = true
+        excludesNotificationState = true
+        try validate()
+    }
+
+    var isValid: Bool { (try? validate()) != nil }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              [definitionReleaseCount, activeReleaseCount,
+               occurrenceHistoryEventCount, dueProjectionEntryCount,
+               reminderProjectionEntryCount]
+                .allSatisfy({ (0...Self.maximumValues).contains($0) }),
+              activeReleaseCount <= definitionReleaseCount,
+              policyVersion == Self.policyVersion,
+              metadataOnly,
+              excludesSchedulePayload,
+              excludesOccurrenceIdentity,
+              excludesActorIdentity,
+              excludesNotificationState else {
+            throw DiagnosticExportError.invalidValue
+        }
+    }
+}
+
+extension DiagnosticExportV1 {
+    static func scheduleDiagnosticMetadata(
+        definitions: [ScheduleDefinitionReleaseV1] = [],
+        history: [OccurrenceHistoryEventV1] = [],
+        dueProjectionEntryCount: Int = 0,
+        reminderProjectionEntryCount: Int = 0
+    ) throws -> ScheduleDiagnosticMetadataV1 {
+        try ScheduleDiagnosticMetadataV1(
+            definitions: definitions,
+            history: history,
+            dueProjectionEntryCount: dueProjectionEntryCount,
+            reminderProjectionEntryCount: reminderProjectionEntryCount
         )
     }
 }

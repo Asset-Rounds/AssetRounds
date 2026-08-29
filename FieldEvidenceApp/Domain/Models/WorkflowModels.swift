@@ -485,3 +485,17 @@ final class Report {
         self.replacesReportID = replacesReportID
     }
 }
+
+/// Executable V27 partition assertion: canonical workflow rows remain inherited
+/// while schedule state is represented only by immutable release/history rows.
+enum WorkflowSchedulePersistenceEnrollmentV1 {
+    static func validate() throws {
+        let v26 = PersistentSchemaV26.models.map { ObjectIdentifier($0) }
+        let v27 = PersistentSchemaV27.models.map { ObjectIdentifier($0) }
+        guard Array(v27.dropLast(2)) == v26,
+              Array(v27.suffix(2)) == [ObjectIdentifier(ScheduleDefinitionReleaseRow.self), ObjectIdentifier(OccurrenceHistoryEventRow.self)],
+              v27.contains(ObjectIdentifier(WorkflowRecord.self)) else {
+            throw WorkspaceMutationFailureV1.persistenceFailed
+        }
+    }
+}

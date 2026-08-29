@@ -4,6 +4,30 @@ enum FieldReferenceOrdinaryDeletionDispositionV1:Equatable,Sendable{case preserv
 enum AccessibleDocumentOrdinaryDeletionDispositionV1:Equatable,Sendable{case preserveSealedOutputAndAssessment(receiptIDs:Set<UUID>,outputSHA256:Set<String>);case removeAfterAuthorizedPrivacyExpiry(receiptID:UUID,tombstoneSHA256:String,redactionProofSHA256:String);case blockedMissingRetentionProof(receiptID:UUID)}
 enum SurveyDefinitionOrdinaryDeletionDispositionV1:Equatable,Sendable{case preserveImmutableHistory(identityIDs:Set<UUID>,releaseIDs:Set<UUID>)}
 enum SurveySessionOrdinaryDeletionDispositionV1:Equatable,Sendable{case preserveMutableHeadsAndImmutableHistory(sessionIDs:Set<UUID>,captureIDs:Set<UUID>,provisionalSubjectIDs:Set<UUID>,promotionReceiptIDs:Set<UUID>,publicationSnapshotIDs:Set<UUID>)}
+/// Schedule releases and occurrence history are not asset-owned content. An
+/// ordinary asset/site deletion therefore preserves the complete schedule
+/// closure; only a workspace Erase removes these rows.
+enum ScheduleOrdinaryDeletionDispositionV1: Equatable, Sendable {
+    case preserveImmutableReleaseAndOccurrenceHistory(
+        releaseIDs: Set<UUID>, occurrenceEventIDs: Set<UUID>
+    )
+}
+
+enum ScheduleDeletionIntentBoundaryV1 {
+    static let ordinaryAssetOrSiteDeletePreservesScheduleHistory = true
+    static let workspaceEraseRemovesScheduleRows = true
+    static let dueAndReminderProjectionsAreDerived = true
+    static let notificationStateIsTruth = false
+    static let cloneForkSourceScheduleAutomaticallyActive = false
+
+    static func validate() -> Bool {
+        ordinaryAssetOrSiteDeletePreservesScheduleHistory
+            && workspaceEraseRemovesScheduleRows
+            && dueAndReminderProjectionsAreDerived
+            && !notificationStateIsTruth
+            && !cloneForkSourceScheduleAutomaticallyActive
+    }
+}
 enum AssetLocatorDeletionIntentBoundaryV1 {
     static let locatorRowsAreAssetOwned = true
     static let bindingReceiptRowsMustBeRemovedWithTheirReferences = true

@@ -2187,3 +2187,12 @@ extension S6_3BackupValidationTests {
         XCTAssertNoThrow(try V25GuidedSurveyImportBoundaryV1.validate(persistent: 25, records: 24))
     }
 }
+
+extension S6_3BackupValidationTests {
+    func testV23P03C28TypedScheduleBoundaryIsClosedAndNonpersistent() {
+        XCTAssertEqual(OccurrenceStateV1.allCases, [.upcoming, .ready, .due, .overdue, .deferred,
+                                                    .missed, .skipped, .cancelled, .started, .completed])
+        XCTAssertEqual(ScheduleReleaseActionV1.allCases.count, 6)
+        XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
+    }
+}

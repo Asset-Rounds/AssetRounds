@@ -925,3 +925,12 @@ extension S6_1DeletionGraphTests {
         XCTAssertEqual(PersistentSchemaV22.models.count, PersistentSchemaV21.models.count + 2)
     }
 }
+
+extension S6_1DeletionGraphTests {
+    func testV23P03C28TypedScheduleBoundaryIsClosedAndNonpersistent() {
+        XCTAssertEqual(OccurrenceStateV1.allCases, [.upcoming, .ready, .due, .overdue, .deferred,
+                                                    .missed, .skipped, .cancelled, .started, .completed])
+        XCTAssertEqual(ScheduleReleaseActionV1.allCases.count, 6)
+        XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
+    }
+}

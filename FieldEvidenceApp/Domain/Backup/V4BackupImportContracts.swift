@@ -130,3 +130,28 @@ enum V26AssetLocatorImportBoundaryV1 {
         }
     }
 }
+
+/// C28 schedule releases and occurrence history are the only additional
+/// durable package families.  Due/reminder projections and generation plans
+/// are rebuilt locally from the imported immutable rows.
+enum V27ScheduleImportBoundaryV1 {
+    static let persistentSchemaVersion = 27
+    static let recordsSchemaVersion = 26
+    static let durableFamilyCount = 2
+    static let lifecycleHistoryStorage = "MUTATION_HISTORY_ONLY"
+    static let derivedProjectionStorage = "NONPERSISTENT_REBUILD"
+    static let notificationStateIsTruth = false
+    static let cloneForkSourceScheduleAutomaticallyActive = false
+
+    static func validate(persistent: Int, records: Int) throws {
+        guard persistent == persistentSchemaVersion,
+              records == recordsSchemaVersion,
+              durableFamilyCount == V27BackupScheduleRecordV1.Kind.allCases.count,
+              lifecycleHistoryStorage == "MUTATION_HISTORY_ONLY",
+              derivedProjectionStorage == "NONPERSISTENT_REBUILD",
+              !notificationStateIsTruth,
+              !cloneForkSourceScheduleAutomaticallyActive else {
+            throw BackupImportServiceError.unsupportedSchemaVersion
+        }
+    }
+}

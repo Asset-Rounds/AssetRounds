@@ -1,0 +1,82 @@
+{
+  "$id": "https://assetrounds.invalid/v23/schedule.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "cardID": {
+      "const": "V23-P03-C28"
+    },
+    "durableFamilies": {
+      "const": [
+        "ScheduleDefinitionReleaseV1",
+        "OccurrenceHistoryEventV1"
+      ],
+      "type": "array"
+    },
+    "durableFamilyCount": {
+      "const": 2
+    },
+    "occurrenceStates": {
+      "const": [
+        "UPCOMING",
+        "READY",
+        "DUE",
+        "OVERDUE",
+        "DEFERRED",
+        "MISSED",
+        "SKIPPED",
+        "CANCELLED",
+        "STARTED",
+        "COMPLETED"
+      ],
+      "type": "array"
+    },
+    "persistentKindLifecycleModelCount": {
+      "const": 96
+    },
+    "persistentSchemaVersion": {
+      "const": 27
+    },
+    "recordsSchemaVersion": {
+      "const": 26
+    },
+    "requiredContractNames": {
+      "const": [
+        "ScheduleDefinitionReleaseV1",
+        "OccurrenceIDV1",
+        "OccurrenceStateV1",
+        "ScheduleExceptionV1",
+        "DueQueueProjectionV1",
+        "ReminderProjectionV1"
+      ],
+      "type": "array"
+    },
+    "schema": {
+      "const": "V22P03C28ScheduleCorpusV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "statusFlags": {
+      "additionalProperties": {
+        "const": false
+      },
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "persistentSchemaVersion",
+    "recordsSchemaVersion",
+    "persistentKindLifecycleModelCount",
+    "durableFamilyCount",
+    "durableFamilies",
+    "occurrenceStates",
+    "requiredContractNames",
+    "statusFlags"
+  ],
+  "title": "V23 P03 C28 Schedule Corpus",
+  "type": "object"
+}

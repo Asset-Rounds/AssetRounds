@@ -360,3 +360,12 @@ private extension V9_04StreamingArchiveTests {
         withUnsafeBytes(of: &encoded) { data.append(contentsOf: $0) }
     }
 }
+
+extension V9_04StreamingArchiveTests {
+    func testV23P03C28TypedScheduleBoundaryIsClosedAndNonpersistent() {
+        XCTAssertEqual(OccurrenceStateV1.allCases, [.upcoming, .ready, .due, .overdue, .deferred,
+                                                    .missed, .skipped, .cancelled, .started, .completed])
+        XCTAssertEqual(ScheduleReleaseActionV1.allCases.count, 6)
+        XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
+    }
+}

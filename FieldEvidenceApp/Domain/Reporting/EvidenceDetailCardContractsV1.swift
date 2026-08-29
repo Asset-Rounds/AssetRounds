@@ -1849,3 +1849,37 @@ extension EvidenceDetailCardV1 {
         return projection
     }
 }
+
+// MARK: - C28 schedule projection guard
+
+/// Evidence cards may reference schedule facts only through the frozen
+/// report projection. This guard keeps notification requests, actor detail,
+/// and work-instance identity outside audience-safe evidence output.
+enum EvidenceDetailScheduleProjectionGuardV1 {
+    static let metadataOnly = true
+    static let derivedOnly = true
+    static let historicDisplayIsImmutable = true
+    static let excludesNotificationPayload = true
+    static let excludesActorIdentity = true
+    static let excludesWorkInstanceIdentity = true
+    static let notificationDeliveryIsTruth = false
+
+    static func validate(
+        _ projection: ScheduleReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> ScheduleReportProjectionV1 {
+        guard metadataOnly, derivedOnly, historicDisplayIsImmutable,
+              excludesNotificationPayload, excludesActorIdentity,
+              excludesWorkInstanceIdentity, !notificationDeliveryIsTruth else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+        do {
+            return try ScheduleReportProjectionPolicyV1.validate(
+                projection,
+                format: format
+            )
+        } catch {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+    }
+}

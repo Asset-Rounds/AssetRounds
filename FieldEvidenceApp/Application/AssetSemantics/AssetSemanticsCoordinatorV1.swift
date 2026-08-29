@@ -1,5 +1,7 @@
 import Foundation
 
+enum AssetSemanticsScheduleCoordinatorBoundaryV1 { static let scheduleProjectionIsReadOnly = true }
+
 extension AssetSemanticsCoordinatorV1 {
     /// Resolution is deliberately read-only and shares no semantic mutation
     /// plan with the C39 coordinator.

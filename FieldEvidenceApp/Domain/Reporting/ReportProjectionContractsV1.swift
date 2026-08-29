@@ -77,6 +77,294 @@ struct SurveyPublicationReportProjectionV1: Codable, Equatable, Sendable {
     }
 }
 
+// MARK: - C28 frozen schedule and occurrence report projection
+
+/// C28 keeps schedule truth in the workflow contracts.  This is a bounded
+/// report projection over those records: it carries the frozen time basis,
+/// occurrence history facts, and the hashes of disposable due/reminder
+/// projections without copying actor, work-instance, or notification data.
+enum ScheduleReportProjectionFailureV1: Error, Equatable, Sendable {
+    case invalidValue
+    case invalidState
+    case invalidDigest
+    case wrongWorkspace
+    case duplicateOccurrence
+    case missingHistory
+    case unsupportedFormat
+}
+
+struct ScheduleOccurrenceReportProjectionV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let occurrenceID: OccurrenceIDV1
+    let state: OccurrenceStateV1
+    let scheduleRelease: ScheduleDefinitionReleaseReferenceV1
+    let nominalBasis: ResolvedOccurrenceBasisV1
+    let effectiveBasis: ResolvedOccurrenceBasisV1
+    let historyEventSHA256: String
+    let workInstanceRecorded: Bool
+
+    init(
+        event: OccurrenceHistoryEventV1,
+        entry: DueQueueEntryV1
+    ) throws {
+        try event.validateIntrinsic()
+        guard event.occurrenceID == entry.occurrenceID,
+              event.scheduleRelease == entry.scheduleRelease,
+              event.effectiveBasis.resolvedAtUTC == entry.effectiveDueAtUTC,
+              OccurrenceStateV1.allCases.contains(entry.state),
+              KernelCanonicalHashV1.validSHA256(event.eventSHA256) else {
+            throw ScheduleReportProjectionFailureV1.invalidValue
+        }
+        schemaVersion = Self.schemaVersion
+        occurrenceID = event.occurrenceID
+        state = entry.state
+        scheduleRelease = event.scheduleRelease
+        nominalBasis = event.nominalBasis
+        effectiveBasis = event.effectiveBasis
+        historyEventSHA256 = event.eventSHA256
+        workInstanceRecorded = event.workInstance != nil
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              OccurrenceStateV1.allCases.contains(state),
+              KernelCanonicalHashV1.validSHA256(historyEventSHA256) else {
+            throw ScheduleReportProjectionFailureV1.invalidState
+        }
+        try occurrenceID.validate()
+        try scheduleRelease.validate()
+        try nominalBasis.validate()
+        try effectiveBasis.validate()
+    }
+}
+
+struct ScheduleReportProjectionV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let projectionVersion = "SCHEDULE_REPORT_PROJECTION_V1"
+
+    let schemaVersion: Int
+    let projectionVersion: String
+    let workspaceID: UUID
+    let scheduleDefinitionID: UUID
+    let scheduleRelease: ScheduleDefinitionReleaseReferenceV1
+    let lifecycleState: ScheduleLifecycleStateV1
+    /// This is a presentation discriminator derived from the canonical
+    /// `ScheduleRecurrenceV1`; it is never used to resolve occurrences.
+    let recurrenceKind: String
+    let timeBasis: FrozenScheduleTimeBasisV1
+    let evaluatedAt: Date
+    let occurrences: [ScheduleOccurrenceReportProjectionV1]
+    let dueQueueProjectionSHA256: String
+    let reminderProjectionSHA256: String?
+    let sourceClosureSHA256: String
+    let historyFrozen: Bool
+    let notificationDeliveryIsTruth: Bool
+    let projectionSHA256: String
+
+    private struct DigestBasis: Codable {
+        let schemaVersion: Int
+        let projectionVersion: String
+        let workspaceID: UUID
+        let scheduleDefinitionID: UUID
+        let scheduleRelease: ScheduleDefinitionReleaseReferenceV1
+        let lifecycleState: ScheduleLifecycleStateV1
+        let recurrenceKind: String
+        let timeBasis: FrozenScheduleTimeBasisV1
+        let evaluatedAt: Date
+        let occurrences: [ScheduleOccurrenceReportProjectionV1]
+        let dueQueueProjectionSHA256: String
+        let reminderProjectionSHA256: String?
+        let sourceClosureSHA256: String
+        let historyFrozen: Bool
+        let notificationDeliveryIsTruth: Bool
+    }
+
+    init(
+        definition: ScheduleDefinitionReleaseV1,
+        dueQueue: DueQueueProjectionV1,
+        history: [OccurrenceHistoryEventV1],
+        reminder: ReminderProjectionV1? = nil,
+        evaluatedAt: Date? = nil
+    ) throws {
+        try definition.validate()
+        guard dueQueue.workspaceID == definition.workspaceID,
+              dueQueue.entries.count <= definition.maximumGeneratedOccurrences,
+              KernelCanonicalHashV1.validSHA256(dueQueue.sourceClosureSHA256),
+              KernelCanonicalHashV1.validSHA256(dueQueue.projectionSHA256),
+              history.count <= definition.maximumGeneratedOccurrences else {
+            throw ScheduleReportProjectionFailureV1.wrongWorkspace
+        }
+
+        let release = try ScheduleDefinitionReleaseReferenceV1(definition)
+        guard dueQueue.entries.allSatisfy({ $0.scheduleRelease == release }),
+              history.allSatisfy({ $0.workspaceID == definition.workspaceID }) else {
+            throw ScheduleReportProjectionFailureV1.wrongWorkspace
+        }
+
+        var latestByOccurrence: [OccurrenceIDV1: OccurrenceHistoryEventV1] = [:]
+        for group in Dictionary(grouping: history, by: \.occurrenceID).values {
+            let ordered = group.sorted { $0.revision < $1.revision }
+            guard let first = ordered.first, first.revision == 1 else {
+                throw ScheduleReportProjectionFailureV1.invalidValue
+            }
+            try first.validate(predecessor: nil)
+            if ordered.count > 1 {
+                for index in 1..<ordered.count {
+                    try ordered[index].validate(predecessor: ordered[index - 1])
+                }
+            }
+            guard let latest = ordered.last else {
+                throw ScheduleReportProjectionFailureV1.missingHistory
+            }
+            latestByOccurrence[latest.occurrenceID] = latest
+        }
+
+        let values = try dueQueue.entries.sorted {
+            if $0.occurrenceID != $1.occurrenceID {
+                return $0.occurrenceID < $1.occurrenceID
+            }
+            return $0.scheduleRelease.releaseID.uuidString < $1.scheduleRelease.releaseID.uuidString
+        }.map { entry -> ScheduleOccurrenceReportProjectionV1 in
+            guard let event = latestByOccurrence[entry.occurrenceID],
+                  event.scheduleRelease == entry.scheduleRelease else {
+                throw ScheduleReportProjectionFailureV1.missingHistory
+            }
+            return try ScheduleOccurrenceReportProjectionV1(event: event, entry: entry)
+        }
+        guard Set(values.map(\.occurrenceID)).count == values.count else {
+            throw ScheduleReportProjectionFailureV1.duplicateOccurrence
+        }
+
+        if let reminder {
+            guard reminder.workspaceID == definition.workspaceID,
+                  reminder.dueQueueSHA256 == dueQueue.projectionSHA256,
+                  KernelCanonicalHashV1.validSHA256(reminder.projectionSHA256) else {
+                throw ScheduleReportProjectionFailureV1.invalidDigest
+            }
+        }
+
+        schemaVersion = Self.schemaVersion
+        projectionVersion = Self.projectionVersion
+        workspaceID = definition.workspaceID.rawValue
+        scheduleDefinitionID = definition.scheduleDefinitionID
+        scheduleRelease = release
+        lifecycleState = definition.lifecycleState
+        switch definition.recurrence {
+        case .fixedCalendar: recurrenceKind = "FIXED_CALENDAR"
+        case .completionRelative: recurrenceKind = "COMPLETION_RELATIVE"
+        }
+        timeBasis = definition.timeBasis
+        self.evaluatedAt = evaluatedAt ?? dueQueue.evaluatedAt
+        occurrences = values
+        dueQueueProjectionSHA256 = dueQueue.projectionSHA256
+        reminderProjectionSHA256 = reminder?.projectionSHA256
+        sourceClosureSHA256 = dueQueue.sourceClosureSHA256
+        historyFrozen = true
+        notificationDeliveryIsTruth = false
+        projectionSHA256 = try ScheduleCanonicalCodecV1.sha256(
+            DigestBasis(
+                schemaVersion: Self.schemaVersion,
+                projectionVersion: Self.projectionVersion,
+                workspaceID: workspaceID,
+                scheduleDefinitionID: scheduleDefinitionID,
+                scheduleRelease: scheduleRelease,
+                lifecycleState: lifecycleState,
+                recurrenceKind: recurrenceKind,
+                timeBasis: timeBasis,
+                evaluatedAt: self.evaluatedAt,
+                occurrences: occurrences,
+                dueQueueProjectionSHA256: dueQueueProjectionSHA256,
+                reminderProjectionSHA256: reminderProjectionSHA256,
+                sourceClosureSHA256: sourceClosureSHA256,
+                historyFrozen: historyFrozen,
+                notificationDeliveryIsTruth: notificationDeliveryIsTruth
+            )
+        )
+        try validate()
+    }
+
+    func validate() throws {
+        let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+        guard schemaVersion == Self.schemaVersion,
+              projectionVersion == Self.projectionVersion,
+              workspaceID != zero,
+              scheduleDefinitionID != zero,
+              recurrenceKind == "FIXED_CALENDAR" || recurrenceKind == "COMPLETION_RELATIVE",
+              historyFrozen,
+              !notificationDeliveryIsTruth,
+              evaluatedAt.timeIntervalSinceReferenceDate.isFinite,
+              occurrences.count <= ScheduleLimitsV1.maximumGeneratedOccurrences,
+              occurrences == occurrences.sorted(by: { $0.occurrenceID < $1.occurrenceID }),
+              Set(occurrences.map(\.occurrenceID)).count == occurrences.count,
+              KernelCanonicalHashV1.validSHA256(dueQueueProjectionSHA256),
+              KernelCanonicalHashV1.validSHA256(sourceClosureSHA256),
+              reminderProjectionSHA256.map(KernelCanonicalHashV1.validSHA256) ?? true else {
+            throw ScheduleReportProjectionFailureV1.invalidValue
+        }
+        try scheduleRelease.validate()
+        try timeBasis.validate()
+        try occurrences.forEach { try $0.validate() }
+        guard scheduleRelease.scheduleDefinitionID == scheduleDefinitionID,
+              projectionSHA256 == (try ScheduleCanonicalCodecV1.sha256(
+                  DigestBasis(
+                      schemaVersion: schemaVersion,
+                      projectionVersion: projectionVersion,
+                      workspaceID: workspaceID,
+                      scheduleDefinitionID: scheduleDefinitionID,
+                      scheduleRelease: scheduleRelease,
+                      lifecycleState: lifecycleState,
+                      recurrenceKind: recurrenceKind,
+                      timeBasis: timeBasis,
+                      evaluatedAt: evaluatedAt,
+                      occurrences: occurrences,
+                      dueQueueProjectionSHA256: dueQueueProjectionSHA256,
+                      reminderProjectionSHA256: reminderProjectionSHA256,
+                      sourceClosureSHA256: sourceClosureSHA256,
+                      historyFrozen: historyFrozen,
+                      notificationDeliveryIsTruth: notificationDeliveryIsTruth
+                  )
+              )) else {
+            throw ScheduleReportProjectionFailureV1.invalidDigest
+        }
+    }
+}
+
+enum ScheduleReportProjectionPolicyV1 {
+    static let sectionID = "schedule"
+    static let sectionVersion = 1
+    static let projectionVersion = ScheduleReportProjectionV1.projectionVersion
+    static let sourceOfTruth = "CANONICAL_SCHEDULE_RELEASE_AND_OCCURRENCE_HISTORY"
+    static let supportedFormats: [ReportProjectionFormatV1] = [.openJSON, .pdf, .structuredText]
+    static let metadataOnly = true
+    static let derivedOnly = true
+    static let historicalDisplayIsFrozen = true
+    static let notificationDeliveryIsTruth = false
+    static let excludesNotificationPayload = true
+    static let excludesActorIdentity = true
+    static let excludesWorkInstanceIdentity = true
+
+    static func supports(_ format: ReportProjectionFormatV1) -> Bool {
+        supportedFormats.contains(format)
+    }
+
+    static func validate(
+        _ projection: ScheduleReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> ScheduleReportProjectionV1 {
+        guard supports(format), metadataOnly, derivedOnly,
+              historicalDisplayIsFrozen, !notificationDeliveryIsTruth,
+              excludesNotificationPayload, excludesActorIdentity,
+              excludesWorkInstanceIdentity else {
+            throw ScheduleReportProjectionFailureV1.unsupportedFormat
+        }
+        try projection.validate()
+        return projection
+    }
+}
+
 enum SurveyPublicationReportBoundaryV1 {
     static let semanticTreeIsDerivedOnly = true
     static let laterPromotionRewritesFrozenSubject = false

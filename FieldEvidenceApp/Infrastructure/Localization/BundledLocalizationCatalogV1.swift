@@ -3256,6 +3256,10 @@ enum BundledLocalizationCatalogV1 {
         // Opaque input, key material, and lookup payloads never become
         // catalog entries.
         supportedKeys.formUnion(AssetLocatorLocalizationKeyV1.allCases.map(\.rawValue))
+        // C28 adds only frozen schedule/occurrence labels. Reminder
+        // delivery is a disposable projection and never becomes a catalog
+        // identity or completion claim.
+        supportedKeys.formUnion(ScheduleLocalizationKeyV1.allCases.map(\.rawValue))
         guard registeredKeys.isSubset(of: Set(strings.keys)),
               Set(strings.keys).isSubset(of: supportedKeys) else {
             throw LocalizationContractFailureV1.invalidValue
@@ -3382,6 +3386,89 @@ extension BundledLocalizationCatalogV1 {
     static func packageEvolutionAccessibilityContracts()
         -> [PackageEvolutionAccessibilityContractV1] {
         PackageEvolutionAccessibilityPolicyV1.contracts
+    }
+}
+
+// MARK: - C28 schedule and occurrence labels
+
+extension BundledLocalizationCatalogV1 {
+    /// Extends the one English source catalog with schedule labels. The
+    /// canonical release/history records remain the only schedule writer;
+    /// these definitions are presentation metadata only.
+    static func scheduleRegistry() throws -> LocalizationKeyRegistryV1 {
+        try ScheduleLocalizationPolicyV1.validate()
+        let base = try assetLocatorRegistry()
+        let additions = try ScheduleLocalizationKeyV1.allCases.map { key in
+            LocalizationKeyDefinitionV1(
+                key: key.localizationKey,
+                meaningID: key.rawValue,
+                translatorComment: key.translatorComment,
+                englishDefaultValue: key.englishDefaultValue,
+                arguments: [],
+                requiredEnglishPluralCategories: [],
+                state: .active,
+                deprecatedFallbackKey: nil
+            )
+        }
+        return try LocalizationKeyRegistryV1(
+            definitions: base.definitions + additions
+        )
+    }
+
+    static func localized(
+        _ key: ScheduleLocalizationKeyV1,
+        bundle: Bundle = .main
+    ) -> String {
+        String(
+            localized: key.rawValue,
+            defaultValue: key.englishDefaultValue,
+            bundle: bundle,
+            locale: Locale(identifier: runtimeLanguage),
+            comment: key.translatorComment
+        )
+    }
+
+    static func scheduleDisplayLabel(
+        for state: OccurrenceStateV1,
+        bundle: Bundle = .main
+    ) -> String {
+        localized(ScheduleLocalizationKeyV1.key(for: state), bundle: bundle)
+    }
+
+    static func scheduleAccessibilityRegistry(
+        localization: LocalizationKeyRegistryV1
+    ) throws -> SemanticAccessibilityIDRegistryV1 {
+        let base = try assetLocatorAccessibilityRegistry(
+            localization: localization
+        )
+        let nextStep = ScheduleLocalizationKeyV1.nextStep.localizationKey
+        let entries = try ScheduleAccessibilityIDV1.allCases.map {
+            id -> AccessibilityContractV1 in
+            let role: SemanticAccessibilityRoleV1
+            switch id {
+            case .screen: role = .screen
+            case .heading, .definition, .occurrenceState, .timeBasis,
+                 .history, .dueQueue, .reminder: role = .heading
+            case .nextStep: role = .button
+            case .stateUpcoming, .stateReady, .stateDue, .stateOverdue,
+                 .stateDeferred, .stateMissed, .stateSkipped, .stateCancelled,
+                 .stateStarted, .stateCompleted: role = .status
+            case .occurrence, .claimBoundary: role = .group
+            }
+            return AccessibilityContractV1(
+                semanticID: id.rawValue,
+                role: role,
+                reachability: .whenAvailable,
+                labelKey: id.localizationKey,
+                hintKey: ScheduleAccessibilityPolicyV1
+                    .requiresActionableNextStep(for: id.rawValue)
+                    ? nextStep : nil,
+                valueKey: nil,
+                dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            )
+        }
+        return try base.appending(entries, localization: localization)
     }
 }
 

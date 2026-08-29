@@ -2,6 +2,8 @@ import AVFoundation
 import Foundation
 import UIKit
 
+enum CameraScheduleBoundaryV1 { static let cameraResolutionMayStartOccurrence = false }
+
 enum CameraAuthorizationStatus: Equatable, Sendable {
     case notDetermined
     case authorized

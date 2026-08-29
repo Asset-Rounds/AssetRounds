@@ -737,3 +737,37 @@ extension ReportHistoryCoordinator {
         try AssetLocatorReportHistoryPolicyV1.binding(from: interpretation)
     }
 }
+
+// MARK: - C28 frozen schedule history
+
+enum ScheduleReportHistoryPolicyV1 {
+    static let canonicalSource = "SCHEDULE_RELEASE_AND_OCCURRENCE_HISTORY"
+    static let finalizedArtifactsAreImmutable = true
+    static let laterScheduleReleaseIsAmendOnly = true
+    static let dueQueueIsRebuildable = true
+    static let reminderIsDisposable = true
+    static let notificationDeliveryIsTruth = false
+
+    static func validate(_ projection: ScheduleReportProjectionV1) throws {
+        try ScheduleReportProjectionPolicyV1.validate(
+            projection,
+            format: .structuredText
+        )
+        guard finalizedArtifactsAreImmutable,
+              laterScheduleReleaseIsAmendOnly,
+              dueQueueIsRebuildable,
+              reminderIsDisposable,
+              !notificationDeliveryIsTruth else {
+            throw SnapshotProjectionFailureV1.invalidValue
+        }
+    }
+}
+
+extension ReportHistoryCoordinator {
+    static func validateScheduleHistory(
+        _ projection: ScheduleReportProjectionV1
+    ) throws -> ScheduleReportProjectionV1 {
+        try ScheduleReportHistoryPolicyV1.validate(projection)
+        return projection
+    }
+}

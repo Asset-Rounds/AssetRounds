@@ -110,10 +110,11 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
     static let v24PersistentModelNames=["SurveyDefinitionIdentityRow","SurveyDefinitionReleaseRow"]
     static let v25PersistentModelNames=["FactCaptureRow","ProvisionalSubjectRow","SubjectPromotionReceiptRow","SurveyPublicationSnapshotRow","SurveySessionRow"]
     static let v26PersistentModelNames=["AssetLocatorRow","LocatorBindingReceiptRow"]
+    static let v27PersistentModelNames=["OccurrenceHistoryEventRow","ScheduleDefinitionReleaseRow"]
     static let activePersistentModelNames =
         (persistentModelNames + v6PersistentModelNames + v7PersistentModelNames
             + v8PersistentModelNames + v9PersistentModelNames + v10PersistentModelNames
-            + v11PersistentModelNames + v12PersistentModelNames + v13PersistentModelNames + v14PersistentModelNames + v15PersistentModelNames + v16PersistentModelNames + v17PersistentModelNames + v18PersistentModelNames + v19PersistentModelNames + v20PersistentModelNames + v21PersistentModelNames + v22PersistentModelNames + v23PersistentModelNames + v24PersistentModelNames + v25PersistentModelNames + v26PersistentModelNames).sorted()
+            + v11PersistentModelNames + v12PersistentModelNames + v13PersistentModelNames + v14PersistentModelNames + v15PersistentModelNames + v16PersistentModelNames + v17PersistentModelNames + v18PersistentModelNames + v19PersistentModelNames + v20PersistentModelNames + v21PersistentModelNames + v22PersistentModelNames + v23PersistentModelNames + v24PersistentModelNames + v25PersistentModelNames + v26PersistentModelNames + v27PersistentModelNames).sorted()
 
     static let ownedFileClassNames = [
         "cache", "commerceEntitlementCache", "database", "databaseSHM", "databaseWAL",
@@ -184,6 +185,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "SurveyDefinitionIdentityV1","SurveyDefinitionReleaseV1",
         "SurveySessionV1","FactCaptureV1","ProvisionalSubjectV1","SubjectPromotionReceiptV1","SurveyPublicationSnapshotV1","SurveySessionLifecycleClosureV1",
         "AssetLocatorV1","LocatorBindingReceiptV1","AssetLocatorLifecycleClosureV1",
+        "ScheduleDefinitionReleaseV1","OccurrenceHistoryEventV1",
     ]
 
     static let derivedIndexNames = [
@@ -238,6 +240,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "StoreSemanticEnvelopeV24","SurveyDefinitionSemanticDiffV1","SurveyDefinitionAdoptionPreviewV1","SurveyTemplateQuarantineAssessmentV1",
         "StoreSemanticEnvelopeV25",
         "StoreSemanticEnvelopeV26","LocatorBindingPreviewV1","LocatorResolutionV1",
+        "StoreSemanticEnvelopeV27","OccurrenceGenerationPlanV1","DueQueueProjectionV1","ReminderProjectionV1",
         "WorkspaceMutationStateSemanticV1",
         "entityMutationRevision",
         "workspaceMutationState",
@@ -761,6 +764,7 @@ private extension CurrentSyncClassificationCatalogV1 {
         }
         for name in v25PersistentModelNames{let dependencies:[SyncSubjectIdentityV1];switch name{case "FactCaptureRow","SurveyPublicationSnapshotRow":dependencies=[try subject(category:.persistentModel,name:"SurveySessionRow")];case "SubjectPromotionReceiptRow":dependencies=[try subject(category:.persistentModel,name:"ProvisionalSubjectRow")];default:dependencies=[]};specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:dependencies))}
         for name in v26PersistentModelNames{let dependencies=name=="LocatorBindingReceiptRow" ? [try subject(category:.persistentModel,name:"AssetLocatorRow")]:[];specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:dependencies))}
+        for name in v27PersistentModelNames{let dependencies=name=="OccurrenceHistoryEventRow" ? [try subject(category:.persistentModel,name:"ScheduleDefinitionReleaseRow")]:[];specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:dependencies))}
 
         for name in portableContentProjectionNames {
             let profile: AdditionalProfile = name == "ReportSnapshotV1"
@@ -1173,6 +1177,9 @@ private extension CurrentSyncClassificationCatalogV1 {
         case "AssetLocatorV1":return[try subject(category:.persistentModel,name:"AssetLocatorRow")]
         case "LocatorBindingReceiptV1":return[try subject(category:.persistentModel,name:"LocatorBindingReceiptRow")]
         case "AssetLocatorLifecycleClosureV1":return try subjects(category:.persistentModel,names:v26PersistentModelNames)
+        case "ScheduleDefinitionReleaseV1":return[try subject(category:.persistentModel,name:"ScheduleDefinitionReleaseRow")]
+        case "OccurrenceHistoryEventV1":return[try subject(category:.persistentModel,name:"OccurrenceHistoryEventRow"),try subject(category:.persistentModel,name:"ScheduleDefinitionReleaseRow")]
+        case "OccurrenceGenerationPlanV1","DueQueueProjectionV1","ReminderProjectionV1":return try subjects(category:.persistentModel,names:v27PersistentModelNames)
         case "PackageSemanticDiffV1","DraftUpgradePlanV1":return []
         default:
             throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
@@ -1240,7 +1247,8 @@ private extension CurrentSyncClassificationCatalogV1 {
         case "StoreSemanticEnvelopeV23":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v24PersistentModelNames+v25PersistentModelNames+v26PersistentModelNames).contains($0)})
         case "StoreSemanticEnvelopeV24":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v25PersistentModelNames+v26PersistentModelNames).contains($0)})
         case "StoreSemanticEnvelopeV25":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!v26PersistentModelNames.contains($0)})
-        case "StoreSemanticEnvelopeV26":return try subjects(category:.persistentModel,names:activePersistentModelNames)
+        case "StoreSemanticEnvelopeV26":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!v27PersistentModelNames.contains($0)})
+        case "StoreSemanticEnvelopeV27":return try subjects(category:.persistentModel,names:activePersistentModelNames)
         case "LocatorBindingPreviewV1","LocatorResolutionV1":return try subjects(category:.persistentModel,names:v26PersistentModelNames)
         case "AccessibleDocumentSemanticTreeV1","AccessibleDocumentLifecycleV1":return try subjects(category:.persistentModel,names:v23PersistentModelNames)
         case "SurveyDefinitionSemanticDiffV1":return[try subject(category:.persistentModel,name:"SurveyDefinitionReleaseRow")]
@@ -1408,8 +1416,9 @@ private extension CurrentSyncClassificationCatalogV1 {
             SurveyDefinitionIdentityRow.self,SurveyDefinitionReleaseRow.self,
             SurveySessionRow.self,FactCaptureRow.self,ProvisionalSubjectRow.self,SubjectPromotionReceiptRow.self,SurveyPublicationSnapshotRow.self,
             AssetLocatorRow.self,LocatorBindingReceiptRow.self,
+            ScheduleDefinitionReleaseRow.self,OccurrenceHistoryEventRow.self,
         ]
-        let runtimeNames = PersistentSchemaV26.models.map { modelType in
+        let runtimeNames = PersistentSchemaV27.models.map { modelType in
             String(describing: modelType)
                 .split(separator: ".")
                 .last
@@ -1422,9 +1431,9 @@ private extension CurrentSyncClassificationCatalogV1 {
               Set(PersistentSchemaV5.models.map { ObjectIdentifier($0) })
                 == Set(frozenV5.map { ObjectIdentifier($0) }),
               frozenNames == persistentModelNames,
-              PersistentSchemaV26.models.count == 94,
-              PersistentSchemaV26.models.count == expected.count,
-              Set(PersistentSchemaV26.models.map { ObjectIdentifier($0) })
+              PersistentSchemaV27.models.count == 96,
+              PersistentSchemaV27.models.count == expected.count,
+              Set(PersistentSchemaV27.models.map { ObjectIdentifier($0) })
                 == Set(expected.map { ObjectIdentifier($0) }),
               runtimeNames.count == Set(runtimeNames).count,
               runtimeNames.allSatisfy(ReplicationContractValidationV1.validToken),

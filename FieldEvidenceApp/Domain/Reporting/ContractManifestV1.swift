@@ -675,3 +675,70 @@ extension ContractManifestV1 {
         return self
     }
 }
+
+// MARK: - C28 schedule contract manifest boundary
+
+/// The schedule report section consumes the canonical V27 release/history
+/// families. Due/reminder projections are disposable and are never promoted
+/// into the manifest's durable contract surface.
+enum ScheduleContractManifestBoundaryV1 {
+    static let contractTypeIDs = [
+        "ScheduleDefinitionReleaseV1",
+        "OccurrenceIDV1",
+        "OccurrenceStateV1",
+        "ScheduleExceptionV1",
+        "DueQueueProjectionV1",
+        "ReminderProjectionV1",
+    ]
+    static let persistentSchema = "PERSISTENT_SCHEMA_V27_SCHEDULE_RELEASE_AND_OCCURRENCE_HISTORY"
+    static let durableFamilies = [
+        "ScheduleDefinitionReleaseV1",
+        "OccurrenceHistoryEventV1",
+    ]
+    static let derivedFamilies = [
+        "DueQueueProjectionV1",
+        "ReminderProjectionV1",
+        "ScheduleGenerationPlanV1",
+    ]
+    static let reportProjectionVersion = "SCHEDULE_REPORT_PROJECTION_V1"
+    static let notificationDeliveryIsTruth = false
+    static let historicDisplayIsImmutable = true
+    static let generationIsBounded = true
+    static let noSecondWriter = true
+
+    static func validate() throws {
+        guard contractTypeIDs == [
+                  "ScheduleDefinitionReleaseV1",
+                  "OccurrenceIDV1",
+                  "OccurrenceStateV1",
+                  "ScheduleExceptionV1",
+                  "DueQueueProjectionV1",
+                  "ReminderProjectionV1",
+              ],
+              durableFamilies == [
+                  "ScheduleDefinitionReleaseV1",
+                  "OccurrenceHistoryEventV1",
+              ],
+              derivedFamilies == [
+                  "DueQueueProjectionV1",
+                  "ReminderProjectionV1",
+                  "ScheduleGenerationPlanV1",
+              ],
+              persistentSchema == "PERSISTENT_SCHEMA_V27_SCHEDULE_RELEASE_AND_OCCURRENCE_HISTORY",
+              reportProjectionVersion == ScheduleReportProjectionV1.projectionVersion,
+              !notificationDeliveryIsTruth,
+              historicDisplayIsImmutable,
+              generationIsBounded,
+              noSecondWriter else {
+            throw SnapshotProjectionFailureV1.invalidValue
+        }
+    }
+}
+
+extension ContractManifestV1 {
+    func validateScheduleConsumerContract() throws -> Self {
+        try validate()
+        try ScheduleContractManifestBoundaryV1.validate()
+        return self
+    }
+}

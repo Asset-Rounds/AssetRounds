@@ -1,6 +1,8 @@
 import CryptoKit
 import Foundation
 
+enum ScheduleGenerationJobBoundaryV1 { static let outputIsDerivedPlan = true }
+
 struct LocalJobIDV1: RawRepresentable, Codable, Equatable, Hashable, Sendable {
     let rawValue: UUID
 

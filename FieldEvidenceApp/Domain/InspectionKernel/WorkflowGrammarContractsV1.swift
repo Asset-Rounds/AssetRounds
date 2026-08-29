@@ -1,5 +1,7 @@
 import Foundation
 
+enum WorkflowGrammarScheduleBoundaryV1 { static let recurrenceIsPackageScriptable = false }
+
 enum InspectionKernelFailureV1: Error, Equatable, Sendable {
     case invalidValue
     case unknownKind

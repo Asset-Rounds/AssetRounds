@@ -2801,3 +2801,206 @@ enum AssetLocatorSearchProjectionPolicyV1 {
         }
     }
 }
+
+// MARK: - C28 bounded schedule occurrence search projection
+
+/// Search stores only schedule identity, frozen time-basis metadata, and the
+/// closed occurrence state. Due/reminder rows are disposable derivatives; no
+/// notification payload, work-instance identity, actor, note, or draft is
+/// searchable.
+enum ScheduleOccurrenceSearchFieldV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case workspaceID = "schedule_workspace_id"
+    case scheduleDefinitionID = "schedule_definition_id"
+    case releaseID = "schedule_release_id"
+    case occurrenceID = "schedule_occurrence_id"
+    case occurrenceState = "schedule_occurrence_state"
+    case nominalLocalDate = "schedule_nominal_local_date"
+    case nominalLocalTime = "schedule_nominal_local_time"
+    case effectiveDueAtUTC = "schedule_effective_due_at_utc"
+    case timeZoneIdentifier = "schedule_time_zone_identifier"
+    case calendarBasisID = "schedule_calendar_basis_id"
+    case releaseSHA256 = "schedule_release_sha256"
+}
+
+struct ScheduleOccurrenceSearchRecordV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let maximumSearchTokens = SearchContractLimitsV1.maximumQueryTokens
+
+    let schemaVersion: Int
+    let workspaceID: UUID
+    let scheduleDefinitionID: UUID
+    let releaseID: UUID
+    let occurrenceID: OccurrenceIDV1
+    let occurrenceState: OccurrenceStateV1
+    let nominalLocalDate: String
+    let nominalLocalTime: String
+    let effectiveDueAtUTC: Date?
+    let timeZoneIdentifier: String
+    let calendarBasisID: String
+    let releaseSHA256: String
+    let normalizedTokens: [String]
+
+    init(
+        projection: ScheduleReportProjectionV1,
+        occurrence: ScheduleOccurrenceReportProjectionV1
+    ) throws {
+        try ScheduleReportProjectionPolicyV1.validate(projection)
+        try occurrence.validate()
+        guard projection.occurrences.contains(occurrence),
+              occurrence.scheduleRelease == projection.scheduleRelease else {
+            throw SearchContractFailureV1.scopeMismatch
+        }
+        schemaVersion = Self.schemaVersion
+        workspaceID = projection.workspaceID
+        scheduleDefinitionID = projection.scheduleDefinitionID
+        releaseID = projection.scheduleRelease.releaseID
+        occurrenceID = occurrence.occurrenceID
+        occurrenceState = occurrence.state
+        nominalLocalDate = occurrence.nominalBasis.nominalLocalDate
+        nominalLocalTime = occurrence.nominalBasis.nominalLocalTime
+        effectiveDueAtUTC = occurrence.effectiveBasis.resolvedAtUTC
+        timeZoneIdentifier = projection.timeBasis.ianaTimeZoneIdentifier
+        calendarBasisID = projection.timeBasis.calendarBasisID
+        releaseSHA256 = projection.scheduleRelease.releaseSHA256
+        normalizedTokens = Self.tokens(
+            workspaceID: workspaceID,
+            scheduleDefinitionID: scheduleDefinitionID,
+            releaseID: releaseID,
+            occurrenceID: occurrenceID,
+            occurrenceState: occurrenceState,
+            nominalLocalDate: nominalLocalDate,
+            nominalLocalTime: nominalLocalTime,
+            timeZoneIdentifier: timeZoneIdentifier,
+            calendarBasisID: calendarBasisID
+        )
+        try validate()
+    }
+
+    var projectionIdentity: String {
+        "schedule-occurrence:\(workspaceID.uuidString.lowercased()):\(occurrenceID.rawValue)"
+    }
+
+    var boundedFieldValues: [ScheduleOccurrenceSearchFieldV1: String] {
+        [
+            .workspaceID: workspaceID.uuidString.lowercased(),
+            .scheduleDefinitionID: scheduleDefinitionID.uuidString.lowercased(),
+            .releaseID: releaseID.uuidString.lowercased(),
+            .occurrenceID: occurrenceID.rawValue,
+            .occurrenceState: occurrenceState.rawValue,
+            .nominalLocalDate: nominalLocalDate,
+            .nominalLocalTime: nominalLocalTime,
+            .effectiveDueAtUTC: effectiveDueAtUTC.map {
+                // Keep hostile-but-finite Date values lossless and avoid a
+                // trapping floating-point-to-Int conversion in search.
+                String($0.timeIntervalSince1970)
+            } ?? "none",
+            .timeZoneIdentifier: timeZoneIdentifier,
+            .calendarBasisID: calendarBasisID,
+            .releaseSHA256: releaseSHA256,
+        ]
+    }
+
+    func validate() throws {
+        let zero = SearchContractValidationV1.zeroUUID
+        guard schemaVersion == Self.schemaVersion,
+              workspaceID != zero,
+              scheduleDefinitionID != zero,
+              releaseID != zero,
+              occurrenceState == OccurrenceStateV1(rawValue: occurrenceState.rawValue),
+              SearchContractValidationV1.validID(occurrenceID.rawValue),
+              SearchContractValidationV1.validDisplayText(
+                  nominalLocalDate,
+                  maximumBytes: SearchContractLimitsV1.maximumIdentifierBytes
+              ),
+              SearchContractValidationV1.validDisplayText(
+                  nominalLocalTime,
+                  maximumBytes: SearchContractLimitsV1.maximumIdentifierBytes
+              ),
+              SearchContractValidationV1.validDisplayText(
+                  timeZoneIdentifier,
+                  maximumBytes: SearchContractLimitsV1.maximumIdentifierBytes
+              ),
+              SearchContractValidationV1.validDisplayText(
+                  calendarBasisID,
+                  maximumBytes: SearchContractLimitsV1.maximumIdentifierBytes
+              ),
+              effectiveDueAtUTC.map(SearchContractValidationV1.validDate) ?? true,
+              KernelCanonicalHashV1.validSHA256(releaseSHA256),
+              normalizedTokens.count <= Self.maximumSearchTokens,
+              normalizedTokens == normalizedTokens.sorted(),
+              SearchContractValidationV1.normalizedTokensAreCanonical(normalizedTokens),
+              boundedFieldValues.count == ScheduleOccurrenceSearchFieldV1.allCases.count,
+              boundedFieldValues.values.allSatisfy({ value in
+                  let parts = SearchContractValidationV1.normalizeSearchText(value)
+                      .split { !CharacterSet.alphanumerics.contains($0) }
+                      .map(String.init)
+                  return !parts.isEmpty
+                      && parts.allSatisfy(SearchContractValidationV1.isCanonicalSearchToken)
+              }) else {
+            throw SearchContractFailureV1.invalidField
+        }
+    }
+
+    private static func tokens(
+        workspaceID: UUID,
+        scheduleDefinitionID: UUID,
+        releaseID: UUID,
+        occurrenceID: OccurrenceIDV1,
+        occurrenceState: OccurrenceStateV1,
+        nominalLocalDate: String,
+        nominalLocalTime: String,
+        timeZoneIdentifier: String,
+        calendarBasisID: String
+    ) -> [String] {
+        let values = [
+            workspaceID.uuidString,
+            scheduleDefinitionID.uuidString,
+            releaseID.uuidString,
+            occurrenceID.rawValue,
+            occurrenceState.rawValue,
+            nominalLocalDate,
+            nominalLocalTime,
+            timeZoneIdentifier,
+            calendarBasisID,
+        ]
+        let tokens = values.flatMap { value in
+            SearchContractValidationV1.normalizeSearchText(value)
+                .split { !CharacterSet.alphanumerics.contains($0) }
+                .map(String.init)
+        }
+        return Array(Set(tokens)).sorted()
+    }
+}
+
+enum ScheduleOccurrenceSearchProjectionPolicyV1 {
+    static let sourceKind = "SCHEDULE_OCCURRENCE"
+    static let semanticLabel = "SCHEDULE_OCCURRENCE_METADATA_V1"
+    static let fieldIDs = ScheduleOccurrenceSearchFieldV1.allCases.map(\.rawValue).sorted()
+    static let metadataOnly = true
+    static let derivedOnly = true
+    static let dropAndRebuildAfterRestore = true
+    static let dropAndRebuildOnReplay = true
+    static let dropAndRebuildAfterDelete = true
+    static let notificationDeliveryIsTruth = false
+    static let excludesNotificationPayload = true
+    static let excludesWorkInstanceIdentity = true
+    static let excludesActorIdentity = true
+    static let excludesDraftValues = true
+    static let excludesUnsupportedClaims = true
+
+    static func accepts(_ field: ScheduleOccurrenceSearchFieldV1) -> Bool {
+        fieldIDs.contains(field.rawValue)
+    }
+
+    static func validate(_ record: ScheduleOccurrenceSearchRecordV1) throws {
+        try record.validate()
+        guard metadataOnly, derivedOnly,
+              dropAndRebuildAfterRestore, dropAndRebuildOnReplay,
+              dropAndRebuildAfterDelete, !notificationDeliveryIsTruth,
+              excludesNotificationPayload, excludesWorkInstanceIdentity,
+              excludesActorIdentity, excludesDraftValues,
+              excludesUnsupportedClaims else {
+            throw SearchContractFailureV1.forbiddenField
+        }
+    }
+}

@@ -1542,3 +1542,47 @@ extension ReportRenderService {
         try AssetLocatorReportRenderPolicyV1.validate(projection, format: format)
     }
 }
+
+// MARK: - C28 schedule rendering boundary
+
+enum ScheduleReportRenderPolicyV1 {
+    static let metadataOnly = true
+    static let historicDisplayUsesRecordedBasis = true
+    static let localProjectionOnly = true
+    static let notificationDeliveryIsTruth = false
+    static let excludesNotificationPayload = true
+    static let excludesActorIdentity = true
+    static let excludesWorkInstanceIdentity = true
+
+    static func validate(
+        _ projection: ScheduleReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> ScheduleReportProjectionV1 {
+        guard metadataOnly, historicDisplayUsesRecordedBasis,
+              localProjectionOnly, !notificationDeliveryIsTruth,
+              excludesNotificationPayload, excludesActorIdentity,
+              excludesWorkInstanceIdentity else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+        return try ScheduleReportProjectionPolicyV1.validate(
+            projection,
+            format: format
+        )
+    }
+}
+
+extension ReportRenderService {
+    static func renderScheduleOpenJSON(
+        _ projection: ScheduleReportProjectionV1
+    ) throws -> ReportProjectionOutputV1 {
+        try ScheduleReportRenderPolicyV1.validate(projection, format: .openJSON)
+        return try DeterministicOpenJSONRendererV1.renderSchedule(projection)
+    }
+
+    static func schedulePDFMetadataLines(
+        _ projection: ScheduleReportProjectionV1
+    ) throws -> [String] {
+        try ScheduleReportRenderPolicyV1.validate(projection, format: .pdf)
+        return try DeterministicPDFRendererV1.scheduleTextLines(projection)
+    }
+}

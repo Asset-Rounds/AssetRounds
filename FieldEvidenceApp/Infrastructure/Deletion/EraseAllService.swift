@@ -123,6 +123,29 @@ enum AssetLocatorEraseAllPolicyV1 {
     }
 }
 
+/// Schedule releases and occurrence history are workspace-owned canonical
+/// rows. A newly published erase generation must contain neither family;
+/// due/reminder projections are derived and are not erased as durable truth.
+enum ScheduleEraseAllPolicyV1 {
+    static let persistentSchemaVersion = 27
+    static let recordsSchemaVersion = 26
+    static let durableFamilyCount = 2
+    static let projectionsAreDerived = true
+    static let notificationStateIsTruth = false
+
+    static func validatePublishedEmptyGeneration(_ context: ModelContext) throws {
+        guard persistentSchemaVersion == 27,
+              recordsSchemaVersion == 26,
+              durableFamilyCount == 2,
+              projectionsAreDerived,
+              !notificationStateIsTruth,
+              try context.fetchCount(FetchDescriptor<ScheduleDefinitionReleaseRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<OccurrenceHistoryEventRow>()) == 0 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+}
+
 enum EraseAllServiceError: Error, Equatable {
     case contextHasChanges
     case invalidAuthority
@@ -1300,6 +1323,7 @@ private extension EraseAllService {
         try SurveyDefinitionEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try SurveySessionEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try AssetLocatorEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
+        try ScheduleEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         if let identity {
             let history = try MutationJournalStoreV1(
                 modelContext: session.modelContext,

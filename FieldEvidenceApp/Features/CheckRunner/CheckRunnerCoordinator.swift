@@ -1,5 +1,7 @@
 import Foundation
 
+enum CheckRunnerScheduleCoordinatorBoundaryV1 { static let checkRunnerMayAutoStartOccurrence = false }
+
 extension CheckRunnerCoordinator {
     /// Produces capture context only. The existing explicit draft/start path
     /// remains the sole authority to start work.

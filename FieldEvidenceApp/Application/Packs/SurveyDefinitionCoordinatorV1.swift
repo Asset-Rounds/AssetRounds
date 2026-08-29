@@ -1,5 +1,7 @@
 import Foundation
 
+enum SurveyDefinitionScheduleCoordinatorBoundaryV1 { static let publicationCreatesSchedule = false }
+
 struct SurveyDefinitionPreparedMutationV1: Equatable, Sendable {
     let identity: SurveyDefinitionIdentityV1
     let release: SurveyDefinitionReleaseV1

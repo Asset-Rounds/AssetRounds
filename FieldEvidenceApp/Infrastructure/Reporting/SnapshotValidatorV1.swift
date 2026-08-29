@@ -1697,3 +1697,22 @@ extension SnapshotValidatorV1 {
     static let assetLocatorResolutionIsReadOnly = true
     static let assetLocatorMissingStateFailsClosed = true
 }
+
+// MARK: - C28 schedule projection validation
+
+extension SnapshotValidatorV1 {
+    static func validateScheduleProjection(
+        _ projection: ScheduleReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> ScheduleReportProjectionV1 {
+        try ReportProjectionRegistryV1.validateScheduleProjection(
+            projection,
+            format: format
+        )
+    }
+
+    static let scheduleHistoricDisplayIsImmutable = true
+    static let scheduleDueQueueIsDerivedOnly = true
+    static let scheduleReminderIsNotOccurrenceTruth = true
+    static let scheduleMissingHistoryFailsClosed = true
+}

@@ -1,5 +1,7 @@
 import Foundation
 
+enum WorkPacketScheduleCoordinatorBoundaryV1 { static let startRequiresScheduleMutation = true }
+
 /// Application bridge to the sole WorkspaceWriter. A conformer must route
 /// these values through its canonical expected-revision mutation command and
 /// return the durable workspace receipt; it may not persist independently.

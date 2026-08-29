@@ -1,5 +1,7 @@
 import Foundation
 
+enum AssetSemanticScheduleBoundaryV1 { static let assetSemanticsInferDueState = false }
+
 enum AssetLocatorSemanticBoundaryV1 {
     static let locatorMayInferProductIdentity = false
     static let locatorMayInferLifecycleState = false

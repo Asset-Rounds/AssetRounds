@@ -62,6 +62,8 @@ final class BackupExportService {
         let accessibleDocumentAssessmentReceipts:[AccessibleDocumentAssessmentReceiptRow]
         let assetLocators: [AssetLocatorRow]
         let locatorBindingReceipts: [LocatorBindingReceiptRow]
+        let scheduleDefinitionReleases: [ScheduleDefinitionReleaseRow]
+        let occurrenceHistoryEvents: [OccurrenceHistoryEventRow]
         let fieldReferenceReleases:[FieldReferenceReleaseRow]
         let fieldReferenceBindings:[FieldReferenceBindingRow]
         let recoverabilityVerificationReceipts:[RecoverabilityVerificationReceiptRow]
@@ -738,6 +740,7 @@ private extension BackupExportService {
             let semanticRecords = V4BackupRecordsV1(
                 guidedSurveys:[],
                 assetLocators: records.assetLocators,
+                schedules: records.schedules,
                 fieldReferences:records.fieldReferences,
                 fieldDrafts: records.fieldDrafts,
                 workPackets: records.workPackets,
@@ -1515,6 +1518,8 @@ private extension BackupExportService {
                  accessibleDocumentAssessmentReceipts:try modelContext.fetch(FetchDescriptor<AccessibleDocumentAssessmentReceiptRow>()),
                  assetLocators: try modelContext.fetch(FetchDescriptor<AssetLocatorRow>()),
                  locatorBindingReceipts: try modelContext.fetch(FetchDescriptor<LocatorBindingReceiptRow>()),
+                 scheduleDefinitionReleases: try modelContext.fetch(FetchDescriptor<ScheduleDefinitionReleaseRow>()),
+                 occurrenceHistoryEvents: try modelContext.fetch(FetchDescriptor<OccurrenceHistoryEventRow>()),
                  fieldReferenceReleases:try modelContext.fetch(FetchDescriptor<FieldReferenceReleaseRow>()),
                 fieldReferenceBindings:try modelContext.fetch(FetchDescriptor<FieldReferenceBindingRow>()),
                 recoverabilityVerificationReceipts:try modelContext.fetch(FetchDescriptor<RecoverabilityVerificationReceiptRow>()),
@@ -2077,9 +2082,11 @@ private extension BackupExportService {
         let surveyDefinitions=try mutationHistory.map{try surveyDefinitionRecords(rows,history:$0)} ?? []
         let guidedSurveys=try mutationHistory.map{_ in try guidedSurveyRecords(rows)} ?? []
         let assetLocators = mutationHistory == nil ? [] : try assetLocatorRecords(rows)
+        let schedules = mutationHistory == nil ? [] : try scheduleRecords(rows)
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveys,
             assetLocators: assetLocators,
+            schedules: schedules,
             accessibleDocumentAssessments:accessibleDocumentAssessments,
             surveyDefinitions:surveyDefinitions,
             fieldReferences:fieldReferences,
@@ -2341,6 +2348,42 @@ private extension BackupExportService {
             receipts: try rows.locatorBindingReceipts.map { try $0.value() }
         ).validate()
         return records
+    }
+
+    private func scheduleRecords(_ rows: Rows) throws -> [V27BackupScheduleRecordV1] {
+        let definitions = try rows.scheduleDefinitionReleases.map { try $0.value() }
+        let history = try rows.occurrenceHistoryEvents.map { try $0.value() }
+        guard !definitions.isEmpty || !history.isEmpty else { return [] }
+        let workspaceID = try currentStreamingWorkspaceIdentity().workspaceID
+        guard definitions.allSatisfy({ $0.workspaceID == workspaceID }),
+              history.allSatisfy({ $0.workspaceID == workspaceID }) else {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        do {
+            try ScheduleLifecycleClosureV1(
+                definitions: definitions, history: history
+            ).validate()
+        } catch {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        let releaseRows = try definitions.map { value in
+            V27BackupScheduleRecordV1(
+                kind: .scheduleRelease, id: value.releaseID,
+                workspaceID: value.workspaceID.rawValue, revision: value.revision,
+                canonicalData: try ScheduleCanonicalCodecV1.data(value)
+            )
+        }
+        let historyRows = try history.map { value in
+            V27BackupScheduleRecordV1(
+                kind: .occurrenceHistory, id: value.eventID,
+                workspaceID: value.workspaceID.rawValue, revision: value.revision,
+                canonicalData: try ScheduleCanonicalCodecV1.data(value)
+            )
+        }
+        return (releaseRows + historyRows).sorted {
+            "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
+                < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
+        }
     }
 
     private func functionalRelationshipRecords(

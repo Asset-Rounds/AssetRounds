@@ -245,3 +245,18 @@ enum AssetSemanticLocatorPersistencePartitionV1 {
         }
     }
 }
+
+/// C28 preserves the C39 semantic model partition byte-for-byte. Schedule
+/// definition/history rows are additive V27 families and never masquerade as
+/// asset semantic bindings or a persisted due-state projection.
+enum AssetSemanticSchedulePersistencePartitionV1 {
+    static func validate() throws {
+        let semantic = Set(PersistentSchemaV10.models.map { ObjectIdentifier($0) })
+        let v27Tail = PersistentSchemaV27.models.suffix(2).map { ObjectIdentifier($0) }
+        guard !semantic.contains(ObjectIdentifier(ScheduleDefinitionReleaseRow.self)),
+              !semantic.contains(ObjectIdentifier(OccurrenceHistoryEventRow.self)),
+              v27Tail == [ObjectIdentifier(ScheduleDefinitionReleaseRow.self), ObjectIdentifier(OccurrenceHistoryEventRow.self)] else {
+            throw AssetSemanticContractFailureV1.nonCanonicalData
+        }
+    }
+}
