@@ -20662,10 +20662,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 778_919)
+        XCTAssertEqual(uiSource.utf8.count, 778_930)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "3906DDBA1F40017D18F7F16FE145E76DCB9927203F44AC81F70C33EC865BA9D6"
+            "6FA518612CCC0466D0F7D5BB1EA189961EFAB8860527F3CCE98E93F8B9DE1A3A"
         )
         let assertControlSource = try boundedSource(
             uiSource,

@@ -904,7 +904,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         recordMetric("cold_launch_to_welcome", since: coldLaunchStartedAt)
 
         assertLightFirstSignValidationAndCreation(in: app)
-        completeVisibleIssueCheck(in: app)
+        try completeVisibleIssueCheck(in: app)
         assertFirstReceiptAndReport(in: app)
         assertReportsIndex(in: app)
 
@@ -1723,7 +1723,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
-    private func completeVisibleIssueCheck(in app: XCUIApplication) {
+    private func completeVisibleIssueCheck(in app: XCUIApplication) throws {
         let start = element("s2.sign-detail.start-check", in: app)
         scroll(start, in: app)
         assertControl(start, label: "Start Check")
