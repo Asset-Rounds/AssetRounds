@@ -7061,7 +7061,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             uiSource.components(
                 separatedBy: "keyboardIsAbsentOrInertOffApp("
             ).count - 1,
-            8
+            9
         )
         guard let passiveKeyboardHelperStartRange = uiSource.range(
             of: passiveKeyboardHelperStart
