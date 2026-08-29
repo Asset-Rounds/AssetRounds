@@ -1,0 +1,582 @@
+{
+  "$id": "https://assetrounds.invalid/v23/customer-learning.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "activationDecision": {
+      "additionalProperties": false,
+      "properties": {
+        "configCannotActivate": {
+          "const": true
+        },
+        "expires": {
+          "const": true
+        },
+        "ownerAcceptanceRequired": {
+          "const": true
+        },
+        "state": {
+          "const": "UNACTIVATED_OWNER_ACCEPTANCE_REQUIRED"
+        }
+      },
+      "required": [
+        "state",
+        "ownerAcceptanceRequired",
+        "configCannotActivate",
+        "expires"
+      ],
+      "type": "object"
+    },
+    "archiveProofs": {
+      "items": false,
+      "maxItems": 6,
+      "minItems": 6,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "disposition": {
+              "const": "STATIC_SOURCE_SCAN_CLEAN"
+            },
+            "forbiddenFindings": {
+              "maxItems": 0,
+              "type": "array"
+            },
+            "surface": {
+              "const": "DEPENDENCY"
+            }
+          },
+          "required": [
+            "surface",
+            "disposition",
+            "forbiddenFindings"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "disposition": {
+              "const": "PENDING_NOT_ACCEPTING"
+            },
+            "forbiddenFindings": {
+              "maxItems": 0,
+              "type": "array"
+            },
+            "surface": {
+              "const": "LINK"
+            }
+          },
+          "required": [
+            "surface",
+            "disposition",
+            "forbiddenFindings"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "disposition": {
+              "const": "PENDING_NOT_ACCEPTING"
+            },
+            "forbiddenFindings": {
+              "maxItems": 0,
+              "type": "array"
+            },
+            "surface": {
+              "const": "STRING"
+            }
+          },
+          "required": [
+            "surface",
+            "disposition",
+            "forbiddenFindings"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "disposition": {
+              "const": "PENDING_NOT_ACCEPTING"
+            },
+            "forbiddenFindings": {
+              "maxItems": 0,
+              "type": "array"
+            },
+            "surface": {
+              "const": "DOMAIN"
+            }
+          },
+          "required": [
+            "surface",
+            "disposition",
+            "forbiddenFindings"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "disposition": {
+              "const": "PENDING_NOT_ACCEPTING"
+            },
+            "forbiddenFindings": {
+              "maxItems": 0,
+              "type": "array"
+            },
+            "surface": {
+              "const": "BACKGROUND_TASK"
+            }
+          },
+          "required": [
+            "surface",
+            "disposition",
+            "forbiddenFindings"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "disposition": {
+              "const": "PENDING_NOT_ACCEPTING"
+            },
+            "forbiddenFindings": {
+              "maxItems": 0,
+              "type": "array"
+            },
+            "surface": {
+              "const": "RUNTIME_NETWORK"
+            }
+          },
+          "required": [
+            "surface",
+            "disposition",
+            "forbiddenFindings"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    },
+    "cardID": {
+      "const": "V23-P03-C43"
+    },
+    "classification": {
+      "const": "PREPARE_NOW"
+    },
+    "collectionDisposition": {
+      "const": "DISABLED_NO_COLLECTION"
+    },
+    "evidenceIDs": {
+      "const": [
+        "V23-P03-C43-G01",
+        "V23-P03-C43-A01",
+        "V23-P03-C43-H01",
+        "V23-P03-C43-I01",
+        "V23-P03-C43-R01"
+      ]
+    },
+    "hostileCases": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 12,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "invariants": {
+      "additionalProperties": false,
+      "properties": {
+        "configCannotActivate": {
+          "const": true
+        },
+        "evaluatorSyntheticOnly": {
+          "const": true
+        },
+        "fourSourcesNonjoinable": {
+          "const": true
+        },
+        "missingNeverZero": {
+          "const": true
+        },
+        "noCausalClaim": {
+          "const": true
+        },
+        "noDiagnosticsInput": {
+          "const": true
+        },
+        "noIdentityInput": {
+          "const": true
+        },
+        "noNetwork": {
+          "const": true
+        },
+        "noOperationalMetricBridge": {
+          "const": true
+        },
+        "noPersistence": {
+          "const": true
+        },
+        "noProductionReceiptReader": {
+          "const": true
+        },
+        "noRuntimeProvider": {
+          "const": true
+        },
+        "noScreenNameIdentity": {
+          "const": true
+        },
+        "noWorkflowFrictionInput": {
+          "const": true
+        },
+        "ownerAcceptanceRequired": {
+          "const": true
+        },
+        "thresholdSuppressesSmallCohort": {
+          "const": true
+        },
+        "userLevelLinkageForbidden": {
+          "const": true
+        }
+      },
+      "required": [
+        "fourSourcesNonjoinable",
+        "userLevelLinkageForbidden",
+        "missingNeverZero",
+        "thresholdSuppressesSmallCohort",
+        "evaluatorSyntheticOnly",
+        "noProductionReceiptReader",
+        "noWorkflowFrictionInput",
+        "noDiagnosticsInput",
+        "noIdentityInput",
+        "noNetwork",
+        "noPersistence",
+        "noRuntimeProvider",
+        "configCannotActivate",
+        "ownerAcceptanceRequired",
+        "noOperationalMetricBridge",
+        "noScreenNameIdentity",
+        "noCausalClaim"
+      ],
+      "type": "object"
+    },
+    "lifecycle": {
+      "additionalProperties": false,
+      "properties": {
+        "catalog": {
+          "const": "STATIC_VERSIONED_POLICY"
+        },
+        "evaluator": {
+          "const": "SYNTHETIC_TEST_TARGET_ONLY"
+        },
+        "persistence": {
+          "const": "NONPERSISTENT"
+        },
+        "retry": {
+          "const": "BYTE_IDENTICAL_RESULT_OR_NO_EFFECT"
+        },
+        "rollback": {
+          "const": "REMOVE_UNACTIVATED_CONTRACT_AND_TEST_CHANGES"
+        },
+        "runtimeNetwork": {
+          "const": "NONE"
+        },
+        "runtimeProvider": {
+          "const": "NONE"
+        },
+        "runtimeStorage": {
+          "const": "NONE"
+        },
+        "supersession": {
+          "const": "IMMUTABLE_RELEASES_SUPERSEDED_NOT_REWRITTEN"
+        }
+      },
+      "required": [
+        "persistence",
+        "catalog",
+        "evaluator",
+        "runtimeStorage",
+        "runtimeProvider",
+        "runtimeNetwork",
+        "retry",
+        "rollback",
+        "supersession"
+      ],
+      "type": "object"
+    },
+    "metricDefinitions": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "attributionWindowDays": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "decisionID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "denominatorID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "exclusions": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "formula": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "metricID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "missingDataDisposition": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "noncausalInterpretation": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "numeratorID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "observationWindowDays": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "privacyThreshold": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "questionID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "sourceKind": {
+            "enum": [
+              "APP_STORE_CONNECT_AGGREGATE",
+              "EXPLICIT_FIELD_RESEARCH",
+              "REBUILDABLE_OPERATIONAL_RECEIPT_PROJECTION",
+              "FUTURE_CONSENTED_PRODUCT_ANALYTICS"
+            ]
+          },
+          "sourceReleaseID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "unit": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "metricID",
+          "version",
+          "questionID",
+          "decisionID",
+          "numeratorID",
+          "denominatorID",
+          "formula",
+          "unit",
+          "sourceKind",
+          "sourceReleaseID",
+          "privacyThreshold",
+          "missingDataDisposition",
+          "noncausalInterpretation",
+          "observationWindowDays",
+          "attributionWindowDays",
+          "exclusions"
+        ],
+        "type": "object"
+      },
+      "minItems": 7,
+      "type": "array"
+    },
+    "questions": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "allowedSourceKinds": {
+            "items": {
+              "enum": [
+                "APP_STORE_CONNECT_AGGREGATE",
+                "EXPLICIT_FIELD_RESEARCH",
+                "REBUILDABLE_OPERATIONAL_RECEIPT_PROJECTION",
+                "FUTURE_CONSENTED_PRODUCT_ANALYTICS"
+              ]
+            },
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "decisionID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "exclusions": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "purpose": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "questionID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "questionID",
+          "version",
+          "decisionID",
+          "purpose",
+          "allowedSourceKinds",
+          "exclusions"
+        ],
+        "type": "object"
+      },
+      "minItems": 7,
+      "type": "array"
+    },
+    "schema": {
+      "const": "V22P03C43CustomerLearningCorpusV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "sourceSeparation": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "eligibility": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "missingness": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "nonjoinable": {
+            "const": true
+          },
+          "privacyThreshold": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "provenance": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "refreshLagDays": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "releaseID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "sourceKind": {
+            "enum": [
+              "APP_STORE_CONNECT_AGGREGATE",
+              "EXPLICIT_FIELD_RESEARCH",
+              "REBUILDABLE_OPERATIONAL_RECEIPT_PROJECTION",
+              "FUTURE_CONSENTED_PRODUCT_ANALYTICS"
+            ]
+          },
+          "userLevelLinkageForbidden": {
+            "const": true
+          }
+        },
+        "required": [
+          "sourceKind",
+          "releaseID",
+          "provenance",
+          "privacyThreshold",
+          "eligibility",
+          "refreshLagDays",
+          "missingness",
+          "nonjoinable",
+          "userLevelLinkageForbidden"
+        ],
+        "type": "object"
+      },
+      "maxItems": 4,
+      "minItems": 4,
+      "type": "array"
+    },
+    "statusFlags": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance": {
+          "const": false
+        },
+        "adoption": {
+          "const": false
+        },
+        "hosted": {
+          "const": false
+        },
+        "native": {
+          "const": false
+        },
+        "release": {
+          "const": false
+        }
+      },
+      "required": [
+        "native",
+        "hosted",
+        "adoption",
+        "acceptance",
+        "release"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "classification",
+    "collectionDisposition",
+    "questions",
+    "metricDefinitions",
+    "sourceSeparation",
+    "activationDecision",
+    "hostileCases",
+    "archiveProofs",
+    "lifecycle",
+    "invariants",
+    "evidenceIDs",
+    "statusFlags"
+  ],
+  "title": "V23 P03 C43 Customer Learning Corpus",
+  "type": "object"
+}
