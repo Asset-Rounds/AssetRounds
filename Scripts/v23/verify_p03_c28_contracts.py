@@ -12,7 +12,8 @@ def main()->int:
   except Exception as e:fail.append(f"AST:{path}:{e}")
  for path,raw in rendered.items():
   if not (ROOT/path).is_file() or (ROOT/path).read_bytes()!=raw:fail.append(f"artifact:{path}")
- status=subprocess.run(["git","-C",str(ROOT),"status","--porcelain=v1","--untracked-files=all"],check=True,capture_output=True,text=True).stdout;changed={x[3:].split(" -> ",1)[-1].replace("\\","/") for x in status.splitlines() if x};unowned=changed-set(c.PATH_FENCE)
+ status=subprocess.run(["git","-C",str(ROOT),"status","--porcelain=v1","--untracked-files=all"],check=True,capture_output=True,text=True).stdout;changed={x[3:].split(" -> ",1)[-1].replace("\\","/") for x in status.splitlines() if x}
+ committed=subprocess.run(["git","-C",str(ROOT),"diff","--name-only",c.BASE_HEAD,"--"],check=True,capture_output=True,text=True).stdout;changed.update(x.replace("\\","/") for x in committed.splitlines() if x);unowned=changed-set(c.PATH_FENCE)
  if unowned:fail.append("unowned:"+",".join(sorted(unowned)))
  if a.complete and set(c.PATH_FENCE)-changed:fail.append("incomplete fence")
  source=ROOT/"FieldEvidenceApp/Domain/Workflow/ScheduleContractsV1.swift"
