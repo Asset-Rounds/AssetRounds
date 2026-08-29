@@ -1862,7 +1862,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                         let receiverInset: CGFloat = 24
                         let minimumGestureDistance: CGFloat = 44
                         var preflightPositioningDirection: CGFloat?
-                        for _ in 0..<4 {
+                        var previousCommandedDragDistance: CGFloat?
+                        var previousConfirmationMinYBeforeDrag: CGFloat?
+                        var previousConfirmationMinYAfterDrag: CGFloat?
+                        var previousObservedMovement: CGFloat?
+                        for attemptIndex in 0..<4 {
                             guard app.state == .runningForeground,
                                   preflightScrollViews.count == 1,
                                   preflightNavigationBars.count == 1,
@@ -1959,10 +1963,178 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                             if maximumShift > -minimumGestureDistance {
                                 let recognizedResidualDistance =
                                     -minimumGestureDistance
-                                guard minimumShift
-                                    <= recognizedResidualDistance else {
+                                if minimumShift > recognizedResidualDistance {
+                                    let optionalNumber: (CGFloat?) -> Any = {
+                                        value in
+                                        value.map { Double($0) } ?? NSNull()
+                                    }
+                                    let optionalString: (String?) -> Any = {
+                                        value in
+                                        value.map { $0 as Any } ?? NSNull()
+                                    }
+                                    let diagnosticContext: [String: Any] = [
+                                        "schemaVersion": 1,
+                                        "acceptanceEligible": false,
+                                        "shardID": optionalString(
+                                            automationShard?.shardID
+                                        ),
+                                        "requirementID": optionalString(
+                                            automationShard?.requirementID
+                                        ),
+                                        "deviceProfileID": optionalString(
+                                            automationShard?.deviceProfileID
+                                        ),
+                                        "attemptOrdinal": attemptIndex + 1,
+                                        "applicationState": String(describing: app.state),
+                                        "applicationStateRawValue": app.state.rawValue,
+                                        "applicationForeground": app.state
+                                            == .runningForeground,
+                                        "applicationFrame": auditFrameObject(
+                                            liveApplicationFrame
+                                        ),
+                                        "scrollFrame": auditFrameObject(scrollFrame),
+                                        "liveScrollFrame": auditFrameObject(
+                                            liveScrollFrame
+                                        ),
+                                        "navigationFrame": auditFrameObject(
+                                            navigationFrame
+                                        ),
+                                        "tabBarFrame": auditFrameObject(tabBarFrame),
+                                        "confirmationFrame": auditFrameObject(
+                                            confirmationFrame
+                                        ),
+                                        "safeTop": Double(safeTop),
+                                        "safeBottom": Double(safeBottom),
+                                        "receiverTop": Double(receiverTop),
+                                        "receiverBottom": Double(receiverBottom),
+                                        "receiverCapacity": Double(receiverCapacity),
+                                        "minimumGestureDistance": Double(
+                                            minimumGestureDistance
+                                        ),
+                                        "recognizedResidualDistance": Double(
+                                            recognizedResidualDistance
+                                        ),
+                                        "minimumShift": Double(minimumShift),
+                                        "maximumShift": Double(maximumShift),
+                                        "intervalWidth": Double(
+                                            maximumShift - minimumShift
+                                        ),
+                                        "previousCommandedDragDistance":
+                                            optionalNumber(
+                                                previousCommandedDragDistance
+                                            ),
+                                        "previousConfirmationMinYBeforeDrag":
+                                            optionalNumber(
+                                                previousConfirmationMinYBeforeDrag
+                                            ),
+                                        "previousConfirmationMinYAfterDrag":
+                                            optionalNumber(
+                                                previousConfirmationMinYAfterDrag
+                                            ),
+                                        "previousObservedMovement":
+                                            optionalNumber(previousObservedMovement),
+                                        "previousCommandMinusObservedResidual":
+                                            optionalNumber(
+                                                previousCommandedDragDistance.flatMap {
+                                                    command in
+                                                    previousObservedMovement.map {
+                                                        movement in
+                                                        command - movement
+                                                    }
+                                                }
+                                            ),
+                                        "positioningDirection": optionalNumber(
+                                            preflightPositioningDirection
+                                        ),
+                                        "route": [
+                                            "preflightExists": preflight.exists,
+                                            "detailRouteExists": detailRoute.exists,
+                                            "zoneExists": zone.exists,
+                                            "zoneIdentifier": zone.identifier,
+                                            "zoneLabel": zone.label,
+                                            "zoneValue": optionalString(
+                                                zone.value as? String
+                                            ),
+                                            "zoneFrame": auditFrameObject(zone.frame),
+                                            "afterDarkExists": afterDark.exists,
+                                            "afterDarkIdentifier": afterDark.identifier,
+                                            "afterDarkLabel": afterDark.label,
+                                            "afterDarkValue": optionalString(
+                                                afterDark.value as? String
+                                            ),
+                                            "afterDarkFrame": auditFrameObject(
+                                                afterDark.frame
+                                            ),
+                                            "safePositionExists": safePosition.exists,
+                                            "safePositionIdentifier":
+                                                safePosition.identifier,
+                                            "safePositionLabel": safePosition.label,
+                                            "safePositionValue": optionalString(
+                                                safePosition.value as? String
+                                            ),
+                                            "safePositionFrame": auditFrameObject(
+                                                safePosition.frame
+                                            ),
+                                            "confirmationExists":
+                                                confirmationText.exists,
+                                            "confirmationIdentifier":
+                                                confirmationText.identifier,
+                                            "confirmationLabel":
+                                                confirmationText.label,
+                                            "confirmationTypeRawValue":
+                                                confirmationText.elementType.rawValue,
+                                            "keyboardFrame": auditFrameObject(
+                                                keyboard.frame
+                                            ),
+                                            "inputAssistantFrame": auditFrameObject(
+                                                inputAssistantView.frame
+                                            ),
+                                        ],
+                                        "queryCounts": [
+                                            "preflightScrollViews":
+                                                preflightScrollViews.count,
+                                            "preflightNavigationBars":
+                                                preflightNavigationBars.count,
+                                            "preflightTabBars": preflightTabBars.count,
+                                            "confirmationTexts": confirmationTexts.count,
+                                            "inputAssistantViews":
+                                                inputAssistantViews.count,
+                                        ],
+                                    ]
+                                    printJSONLine(
+                                        prefix:
+                                            "S10_4_MINIMUM_DOUBLE_LENGTH_PREFLIGHT_RESIDUAL_DIAGNOSTIC",
+                                        object: diagnosticContext
+                                    )
+                                    let appAttachment = XCTAttachment(
+                                        screenshot: app.screenshot()
+                                    )
+                                    appAttachment.name =
+                                        "S10.4 minimum double-length preflight residual diagnostic app"
+                                    appAttachment.lifetime = .keepAlways
+                                    add(appAttachment)
+                                    let treeAttachment = XCTAttachment(
+                                        string: app.debugDescription
+                                    )
+                                    treeAttachment.name =
+                                        "S10.4 minimum double-length preflight residual diagnostic tree"
+                                    treeAttachment.lifetime = .keepAlways
+                                    add(treeAttachment)
+                                    let contextData = try? JSONSerialization.data(
+                                        withJSONObject: diagnosticContext,
+                                        options: [.prettyPrinted, .sortedKeys]
+                                    )
+                                    let contextAttachment = XCTAttachment(
+                                        string: contextData.map {
+                                            String(decoding: $0, as: UTF8.self)
+                                        } ?? "S10.4 minimum double-length preflight residual diagnostic context encoding failed"
+                                    )
+                                    contextAttachment.name =
+                                        "S10.4 minimum double-length preflight residual diagnostic context"
+                                    contextAttachment.lifetime = .keepAlways
+                                    add(contextAttachment)
                                     XCTFail(
-                                        "The minimum double-length preflight confirmation has no recognized upward shift."
+                                        "S10.4 minimum double-length preflight residual diagnostic completed nonaccepting"
                                     )
                                     return
                                 }
@@ -2061,6 +2233,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                 )
                                 return
                             }
+                            previousCommandedDragDistance = dragDistance
+                            previousConfirmationMinYBeforeDrag =
+                                confirmationMinYBeforeDrag
+                            previousConfirmationMinYAfterDrag =
+                                confirmationText.frame.minY
+                            previousObservedMovement = confirmationMovement
                         }
                         let finalApplicationFrame = app.frame
                         let finalScrollFrame = preflightScrollView.frame.intersection(

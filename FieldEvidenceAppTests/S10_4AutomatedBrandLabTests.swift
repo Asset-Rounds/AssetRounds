@@ -2428,10 +2428,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     preflightQuickPathSource.endIndex
             ]
         )
-        XCTAssertEqual(preflightMinimumSource.utf8.count, 53_955)
+        XCTAssertEqual(preflightMinimumSource.utf8.count, 66_112)
         XCTAssertEqual(
             Data(preflightMinimumSource.utf8).sha256,
-            "DCFFA6B9674317E774FBF4EDD1661426FD397297FC6226B578CB9FDD93B034D2"
+            "3ACC8682F1E0ADBD41BF29630CE22794E8B25D278716D226F48810CDA6582D4A"
         )
         XCTAssertEqual(currentProfilePreflightQuickPathSource.utf8.count, 29_876)
         XCTAssertEqual(
@@ -5135,10 +5135,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 preflightOffAppSource.startIndex..<minimumDoubleLengthPositioningStartRange.lowerBound
             ]
         )
-        XCTAssertEqual(minimumDoubleLengthPositioningSource.utf8.count, 16_957)
+        XCTAssertEqual(minimumDoubleLengthPositioningSource.utf8.count, 29_114)
         XCTAssertEqual(
             Data(minimumDoubleLengthPositioningSource.utf8).sha256,
-            "72D734F5AA3860A8B2D18841D7568969433F7963D5E688CEFB0288F9E33BAE92"
+            "08A574FF585EF2F2A21C643E84A04C83052C9320FF49E02DE10E5D1BB6FE316A"
         )
         XCTAssertEqual(
             preflightOffAppSource.components(
@@ -5230,7 +5230,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "let receiverInset: CGFloat = 24",
             "let minimumGestureDistance: CGFloat = 44",
             "var preflightPositioningDirection: CGFloat?",
-            "for _ in 0..<4 {",
+            "var previousCommandedDragDistance: CGFloat?",
+            "var previousConfirmationMinYBeforeDrag: CGFloat?",
+            "var previousConfirmationMinYAfterDrag: CGFloat?",
+            "var previousObservedMovement: CGFloat?",
+            "for attemptIndex in 0..<4 {",
             "let liveApplicationFrame = app.frame",
             "let scrollFrame = preflightScrollView.frame",
             "let liveScrollFrame = scrollFrame.intersection(\n" +
@@ -5273,8 +5277,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "if maximumShift > -minimumGestureDistance {",
             "let recognizedResidualDistance =\n" +
                 "-minimumGestureDistance",
-            "guard minimumShift\n" +
-                "<= recognizedResidualDistance else {",
+            "if minimumShift > recognizedResidualDistance {",
             "dragDistance = recognizedResidualDistance",
             "} else if abs(maximumShift) <= receiverCapacity {\n" +
                 "dragDistance = maximumShift\n" +
@@ -5318,6 +5321,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "confirmationText.frame.minY\n" +
                 "- confirmationMinYBeforeDrag",
             "guard confirmationMovement * dragDistance > 0 else {",
+            "previousCommandedDragDistance = dragDistance",
+            "previousConfirmationMinYBeforeDrag =\n" +
+                "confirmationMinYBeforeDrag",
+            "previousConfirmationMinYAfterDrag =\n" +
+                "confirmationText.frame.minY",
+            "previousObservedMovement = confirmationMovement",
             "let finalApplicationFrame = app.frame",
             "let finalScrollFrame = preflightScrollView.frame.intersection(\n" +
                 "finalApplicationFrame\n" +
@@ -5388,6 +5397,104 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             directMaximumShiftBranch.lowerBound,
             stagedMaximumShiftBranch.lowerBound
         )
+        let residualDiagnosticStart =
+            "                                if minimumShift > recognizedResidualDistance {"
+        let residualDiagnosticEnd =
+            "                                dragDistance = recognizedResidualDistance"
+        guard let residualDiagnosticStartRange =
+            minimumDoubleLengthPositioningSource.range(of: residualDiagnosticStart),
+            let residualDiagnosticEndRange =
+                minimumDoubleLengthPositioningSource.range(
+                    of: residualDiagnosticEnd,
+                    range:
+                        residualDiagnosticStartRange.upperBound ..<
+                        minimumDoubleLengthPositioningSource.endIndex
+                )
+        else {
+            XCTFail("Missing the minimum double-length residual diagnostic slice")
+            return
+        }
+        let minimumDoubleLengthResidualDiagnosticSource = String(
+            minimumDoubleLengthPositioningSource[
+                residualDiagnosticStartRange.lowerBound ..<
+                    residualDiagnosticEndRange.lowerBound
+            ]
+        )
+        XCTAssertEqual(minimumDoubleLengthResidualDiagnosticSource.utf8.count, 11_880)
+        XCTAssertEqual(
+            Data(minimumDoubleLengthResidualDiagnosticSource.utf8).sha256,
+            "43ACF7A4D553724088D750D0CE7333E4AEFF0624953F060BB6EEA9200254FBC0"
+        )
+        for diagnosticLock in [
+            "\"schemaVersion\": 1",
+            "\"acceptanceEligible\": false",
+            "\"attemptOrdinal\": attemptIndex + 1",
+            "\"applicationStateRawValue\": app.state.rawValue",
+            "\"applicationFrame\": auditFrameObject(",
+            "\"scrollFrame\": auditFrameObject(scrollFrame)",
+            "\"liveScrollFrame\": auditFrameObject(",
+            "\"navigationFrame\": auditFrameObject(",
+            "\"tabBarFrame\": auditFrameObject(tabBarFrame)",
+            "\"confirmationFrame\": auditFrameObject(",
+            "\"minimumShift\": Double(minimumShift)",
+            "\"maximumShift\": Double(maximumShift)",
+            "\"recognizedResidualDistance\": Double(",
+            "\"previousCommandedDragDistance\":",
+            "\"previousConfirmationMinYBeforeDrag\":",
+            "\"previousConfirmationMinYAfterDrag\":",
+            "\"previousObservedMovement\":",
+            "\"previousCommandMinusObservedResidual\":",
+            "\"positioningDirection\": optionalNumber(",
+            "\"route\": [",
+            "\"queryCounts\": [",
+            "S10_4_MINIMUM_DOUBLE_LENGTH_PREFLIGHT_RESIDUAL_DIAGNOSTIC",
+            "S10.4 minimum double-length preflight residual diagnostic app",
+            "S10.4 minimum double-length preflight residual diagnostic tree",
+            "S10.4 minimum double-length preflight residual diagnostic context",
+            "options: [.prettyPrinted, .sortedKeys]",
+            "S10.4 minimum double-length preflight residual diagnostic completed nonaccepting",
+        ] {
+            XCTAssertEqual(
+                minimumDoubleLengthResidualDiagnosticSource.components(
+                    separatedBy: diagnosticLock
+                ).count - 1,
+                1,
+                diagnosticLock
+            )
+        }
+        for (diagnosticToken, count) in [
+            ("printJSONLine(", 1),
+            ("XCTAttachment(", 3),
+            ("lifetime = .keepAlways", 3),
+            ("add(", 3),
+            ("try? JSONSerialization.data(", 1),
+            ("XCTFail(", 1),
+            ("return\n", 1),
+            ("throw AutomationConfigurationError.invalid(", 0),
+            ("performAccessibilityAudit", 0),
+            ("captureBaseline(", 0),
+            ("attachCandidate(", 0),
+            ("S10_MIGRATION_STATE", 0),
+            ("S10_4_AX_STATE", 0),
+            ("S10_4_CONTRAST", 0),
+            ("S10_4_CANDIDATE", 0),
+            ("S10_4_TASK", 0),
+            ("S10_4_SHARD_RECEIPT", 0),
+            (".press(", 0),
+            (".tap(", 0),
+            (".swipe", 0),
+            ("coordinate(", 0),
+            ("waitForExistence", 0),
+            ("waitForNonExistence", 0),
+        ] {
+            XCTAssertEqual(
+                minimumDoubleLengthResidualDiagnosticSource.components(
+                    separatedBy: diagnosticToken
+                ).count - 1,
+                count,
+                diagnosticToken
+            )
+        }
         for (lock, count) in [
             ("preflightScrollViews.count == 1", 3),
             ("preflightNavigationBars.count == 1", 3),
@@ -5402,11 +5509,16 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("confirmationText.elementType == .staticText", 3),
             ("confirmationText.label == confirmationLabel", 3),
             ("keyboardIsAbsentOrInertOffApp(in: app)", 3),
-            ("preflightPositioningDirection", 4),
+            ("preflightPositioningDirection", 5),
+            ("attemptIndex", 2),
+            ("previousCommandedDragDistance", 5),
+            ("previousConfirmationMinYBeforeDrag", 4),
+            ("previousConfirmationMinYAfterDrag", 4),
+            ("previousObservedMovement", 5),
             ("dragDirection", 3),
             ("dragStartPoint", 4),
             ("CGPoint(", 1),
-            ("zone.frame", 1),
+            ("zone.frame", 2),
             ("preflightScrollView.coordinate(", 1),
             ("dragStart.press(", 1),
             ("forDuration: 0.2", 1),
@@ -20298,10 +20410,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 748_807)
+        XCTAssertEqual(uiSource.utf8.count, 760_964)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "D15B62C05653A7EEE5E694760C4E1B71C072EC6915FEDC3796793DDC6255102B"
+            "E0F99133107FC31CBBE1FBBA3B4CB1EBEDC8A79A76D89F2C8ECC8FA4BC291E4B"
         )
         let assertControlSource = try boundedSource(
             uiSource,
