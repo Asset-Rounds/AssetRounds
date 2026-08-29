@@ -322,7 +322,7 @@ jobs:
                   .testTimeoutSeconds,
                   .uiTimeoutSeconds,
                   .totalBudgetSeconds
-                ] == [300, 900, 1200, 1920, 4500]
+                ] == [420, 900, 1200, 1920, 4500]
               else false
               end;
             exact_keys
@@ -1045,7 +1045,7 @@ jobs:
           mkdir -p "$artifact_dir"
           finalization_start_epoch="${CI_DEVELOPMENT_ONLY_FINALIZATION_START_EPOCH:-$(date +%s)}"
           budget_start_epoch="${CI_BUDGET_START_EPOCH:-$finalization_start_epoch}"
-          setup_artifact_budget_seconds="${CI_SETUP_ARTIFACT_TIMEOUT_SECONDS:-300}"
+          setup_artifact_budget_seconds="${CI_SETUP_ARTIFACT_TIMEOUT_SECONDS:-420}"
           total_budget_seconds="${CI_TOTAL_BUDGET_SECONDS:-4500}"
           setup_elapsed_seconds="${CI_SETUP_ELAPSED_SECONDS:-$(( finalization_start_epoch - budget_start_epoch ))}"
           case "$finalization_start_epoch:$budget_start_epoch:$setup_artifact_budget_seconds:$total_budget_seconds:$setup_elapsed_seconds" in

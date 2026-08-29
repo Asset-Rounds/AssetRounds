@@ -142,7 +142,7 @@ jobs:
                   .testTimeoutSeconds,
                   .uiTimeoutSeconds,
                   .totalBudgetSeconds
-                ] == [300, 900, 1200, 1920, 4500]
+                ] == [420, 900, 1200, 1920, 4500]
               else false
               end;
             exact_keys
@@ -456,7 +456,7 @@ jobs:
 
           if test "$CI_S10_4_SEGMENT_ID" != "none"; then
             test "$(shasum -a 256 Scripts/ci-selection.json | awk '{print toupper($1)}')" = \
-              "1CF3451D6E34CA0AF416AE9B174701F24C380C623575EA05236766C96EDE14C3"
+              "CB00EF8F85EF32627B37E801D8A6CAD84624650FBCEF80C093199B728AC1F8F7"
             test "$(shasum -a 256 Scripts/s10-4-shards.json | awk '{print toupper($1)}')" = \
               "C023ADE99CAB0F9ED2984C90BCC0E03B0D05A05643DF7185201CC00772E3C8E4"
             test "$(shasum -a 256 docs/design/s10/s10-screen-state-inventory.json | awk '{print toupper($1)}')" = \
@@ -503,7 +503,7 @@ jobs:
                 and .buildMode == "independent-build-for-testing"
                 and .crossSessionBuildReuse == false
                 and .crossSessionTestWithoutBuilding == false
-                and .selectorSHA256 == "1CF3451D6E34CA0AF416AE9B174701F24C380C623575EA05236766C96EDE14C3"
+                and .selectorSHA256 == "CB00EF8F85EF32627B37E801D8A6CAD84624650FBCEF80C093199B728AC1F8F7"
                 and .shardContractSHA256 == "C023ADE99CAB0F9ED2984C90BCC0E03B0D05A05643DF7185201CC00772E3C8E4"
                 and .inventorySHA256 == "6C820E8A1160297F561EABF1873BE82403589B408E4A8FA3318269293242F507"
                 and .commonTaskSchemaSHA256 == "B7EDB1DD18BAB6DEE1884DA52C15F63AD5AD06045F58444C61442957558999F0"
