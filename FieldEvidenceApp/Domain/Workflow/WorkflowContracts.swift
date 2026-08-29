@@ -406,3 +406,11 @@ enum C45AssetLabelBoundary_WorkflowContractsV1 {
     static func validate(_ snapshot: AcceptedLabelGenerationSnapshotV1) throws { try snapshot.validate() }
     static let writesSurveyFactsDuringPreview = false
 }
+
+enum C46OperationalContactConformance_FieldEvidenceApp_Domain_Workflow_WorkflowContracts_swift {
+    static let operationalContactsRemainPurposeSeparated = true
+    static let systemHandoffsRemainExplicitEphemeralAndNoncanonical = true
+    static let subscriberConsentCampaignAndMeasurementProjectionForbidden = true
+    static let contactExportExcludedByDefault = true
+    static let siteRoleOwnershipForbidden = true
+}

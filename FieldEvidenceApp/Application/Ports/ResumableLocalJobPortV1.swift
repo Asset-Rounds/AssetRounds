@@ -276,3 +276,10 @@ enum C32AssistanceLifecycleBoundary_FieldEvidenceApp_Application_Ports_Resumable
         try receipt.validate()
     }
 }
+enum C46OperationalContactConformance_FieldEvidenceApp_Application_Ports_ResumableLocalJobPortV1_swift {
+    static let operationalContactsRemainPurposeSeparated = true
+    static let systemHandoffsRemainExplicitEphemeralAndNoncanonical = true
+    static let subscriberConsentCampaignAndMeasurementProjectionForbidden = true
+    static let contactExportExcludedByDefault = true
+    static let noSecondWriterOrAutomaticHandoff = true
+}

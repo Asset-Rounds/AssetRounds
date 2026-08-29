@@ -955,3 +955,11 @@ enum AssetLabelCapabilityBoundaryV1 {
     static let labelAuthorizationIsProvided = false
     static let printerOrHostedResolverCapabilityIsProvided = false
 }
+
+enum C46OperationalContactConformance_FieldEvidenceApp_Domain_Capability_CapabilityAvailabilityContractsV1_swift {
+    static let operationalContactsRemainPurposeSeparated = true
+    static let systemHandoffsRemainExplicitEphemeralAndNoncanonical = true
+    static let subscriberConsentCampaignAndMeasurementProjectionForbidden = true
+    static let contactExportExcludedByDefault = true
+    static let siteRoleOwnershipForbidden = true
+}

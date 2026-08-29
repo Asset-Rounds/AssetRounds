@@ -1580,3 +1580,10 @@ extension DeterministicPDFRendererV1 {
         return "\(thousandths / 1_000).\(String(format: "%03lld", abs(thousandths % 1_000)))"
     }
 }
+enum C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Reporting_DeterministicPDFRendererV1_swift {
+    static let operationalContactsRemainPurposeSeparated = true
+    static let systemHandoffsRemainExplicitEphemeralAndNoncanonical = true
+    static let subscriberConsentCampaignAndMeasurementProjectionForbidden = true
+    static let contactExportExcludedByDefault = true
+    static let noContactProjectionOrNetworkDelivery = true
+}

@@ -585,6 +585,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             do{try value.validate();guard value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,value.expectedRevision==request.expectedRevision else{throw WorkspaceMutationFailureV1.invalidCommand}}catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
         case .applyAssetLabel(let value):
             do{try value.validate();guard value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,value.expectedRevision==request.expectedRevision else{throw WorkspaceMutationFailureV1.invalidCommand}}catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
+        case .applyOperationalContact(let value):
+            do{try value.validate();guard value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,value.expectedRevision==request.expectedRevision else{throw WorkspaceMutationFailureV1.invalidCommand}}catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
         default:
             break
         }
@@ -824,6 +826,10 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         } else if case let .applyAssetLabel(mutation) = request.command {
             let image = try mutation.mutationPostImage
             entityRevisions[try image.identity] = image.revision
+        } else if case let .applyOperationalContact(mutation) = request.command {
+            for image in try mutation.mutationPostImages {
+                entityRevisions[try image.identity] = image.revision
+            }
         } else {
             for target in targets { entityRevisions[target, default: 0] += 1 }
         }
@@ -1322,6 +1328,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             try value.validate();values=try value.affectedIdentities
         case let .applyAssetLabel(value):
             try value.validate();values=[try value.affectedIdentity]
+        case let .applyOperationalContact(value):
+            try value.validate();values=try value.affectedIdentities
         }
         guard Set(values).count == values.count else {
             throw WorkspaceMutationFailureV1.invalidCommand
@@ -1376,6 +1384,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         if case let .applyAssistanceAcceptance(value)=command{try value.validate();return try value.targetMutation.concurrencyIdentities}
         if case let .applyTemporalEvidence(value)=command{try value.validate();return try value.concurrencyIdentities}
         if case let .applyAssetLabel(value)=command{try value.validate();return[try value.affectedIdentity]}
+        if case let .applyOperationalContact(value)=command{try value.validate();return try value.concurrencyIdentities}
         return try targetIdentities(for: command)
     }
 
@@ -1572,5 +1581,50 @@ extension WorkspaceWriterV1: AssetLabelCanonicalWorkspaceWritingV1 {
         }
         try committed.validate(snapshot: mutation.snapshot)
         return committed
+    }
+}
+
+// MARK: - C46 operational-contact sole writer
+
+extension WorkspaceWriterV1: OperationalContactMutationCommittingV1 {
+    func commitOperationalContact(
+        _ mutation: OperationalContactMutationV1
+    ) async throws -> OperationalContactMutationReceiptV1 {
+        try mutation.validate()
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        if let existing = try journalStore.operationalContactReceipt(mutationID: mutation.mutationID) {
+            guard existing.mutationSHA256 == (try OperationalContactCanonicalCodecV1.sha256(mutation)) else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            return existing
+        }
+        let current = try currentRevision()
+        guard mutation.expectedRevision.workspaceID == current.workspaceID,
+              mutation.expectedRevision.generationID == current.generationID,
+              mutation.expectedRevision.writerInstanceID == current.writerInstanceID,
+              mutation.expectedRevision.workspaceRevision == current.revision else {
+            throw WorkspaceMutationFailureV1.staleWorkspaceRevision
+        }
+        _ = try execute(mutation.canonicalWorkspaceMutationRequest())
+        guard let receipt = try journalStore.operationalContactReceipt(mutationID: mutation.mutationID) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        return receipt
+    }
+
+    func durableOperationalContactReceipt(
+        workspaceID: WorkspaceID,
+        mutationID: MutationIDV1
+    ) async throws -> OperationalContactMutationReceiptV1? {
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        let current = try currentRevision()
+        guard current.workspaceID == workspaceID else {
+            throw WorkspaceMutationFailureV1.wrongWorkspace
+        }
+        guard let journalStore else {
+            throw WorkspaceMutationFailureV1.persistenceFailed
+        }
+        return try journalStore.operationalContactReceipt(mutationID: mutationID)
     }
 }

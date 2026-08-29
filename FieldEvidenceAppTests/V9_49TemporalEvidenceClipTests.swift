@@ -2102,3 +2102,13 @@ private extension TemporalEvidenceContractFailureV1 {
         [.insufficientStorage, .unsupportedMedia, .interruption]
     }
 }
+private final class C46V949TemporalCompatibilityTests: XCTestCase {
+    func testC46TemporalEvidenceCannotBecomeContactHistory() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "temporal-evidence",
+            kind: .phone,
+            handoff: .text,
+            slot: 46049
+        )
+    }
+}

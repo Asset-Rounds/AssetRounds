@@ -1853,3 +1853,13 @@ final class V9_48AssistanceProposalTests: XCTestCase {
         XCTAssertEqual(value.lifecycle.report, "EXCLUDED")
     }
 }
+private final class C46V948AssistanceCompatibilityTests: XCTestCase {
+    func testC46AssistanceProposalCannotAutoCreateContact() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "assistance-proposal",
+            kind: .email,
+            handoff: .email,
+            slot: 46048
+        )
+    }
+}

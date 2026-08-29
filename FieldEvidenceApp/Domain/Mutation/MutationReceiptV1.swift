@@ -148,6 +148,8 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
     case temporalEvidenceClip(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case timecodedEvidenceAnchor(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case acceptedLabelGenerationSnapshot(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case serviceContactPoint(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case systemHandoffIntent(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case workflowRecord(id: UUID, revision: UInt64, semanticSHA256: String)
     case evidenceFile(id: UUID, revision: UInt64, semanticSHA256: String)
     case issue(id: UUID, revision: UInt64, semanticSHA256: String)
@@ -249,6 +251,8 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
             case let .temporalEvidenceClip(id,_,_,_):return try .init(kind:.temporalEvidenceClip,id:id)
             case let .timecodedEvidenceAnchor(id,_,_,_):return try .init(kind:.timecodedEvidenceAnchor,id:id)
             case let .acceptedLabelGenerationSnapshot(id,_,_,_):return try .init(kind:.acceptedLabelGenerationSnapshot,id:id)
+            case let .serviceContactPoint(id,_,_,_):return try .init(kind:.serviceContactPoint,id:id)
+            case let .systemHandoffIntent(id,_,_,_):return try .init(kind:.systemHandoffIntent,id:id)
             case let .workflowRecord(id, _, _): return try .init(kind: .workflowRecord, id: id)
             case let .evidenceFile(id, _, _): return try .init(kind: .evidenceFile, id: id)
             case let .issue(id, _, _): return try .init(kind: .issue, id: id)
@@ -262,7 +266,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
 
     var semanticSHA256: String {
         switch self {
-        case let .accessibleDocumentAssessmentReceipt(_,_,_,value),let .surveyDefinitionIdentity(_,_,_,value),let .surveyDefinitionRelease(_,_,_,value),let .surveySession(_,_,_,value),let .factCapture(_,_,_,value),let .provisionalSubject(_,_,_,value),let .subjectPromotionReceipt(_,_,_,value),let .surveyPublicationSnapshot(_,_,_,value),let .assetLocator(_,_,_,value),let .locatorBindingReceipt(_,_,_,value),let .scheduleDefinitionRelease(_,_,_,value),let .occurrenceHistoryEvent(_,_,_,value),let .planDocument(_,_,_,value),let .planRevision(_,_,_,value),let .planPlacement(_,_,_,value),let .planRebaseReceipt(_,_,_,value),let .assetPoseEvent(_,_,_,value),let .spatialAnchorObservation(_,_,_,value),let .evidenceContext(_,_,_,value),let .pairedObservationLink(_,_,_,value),let .lightingSystem(_,_,_,value),let .lightingObservation(_,_,_,value),let .lightingIssue(_,_,_,value),let .lightingMeasurementPlan(_,_,_,value),let .lightingClaimState(_,_,_,value),let .temporalEvidenceClip(_,_,_,value),let .timecodedEvidenceAnchor(_,_,_,value),let .acceptedLabelGenerationSnapshot(_,_,_,value):return value
+        case let .accessibleDocumentAssessmentReceipt(_,_,_,value),let .surveyDefinitionIdentity(_,_,_,value),let .surveyDefinitionRelease(_,_,_,value),let .surveySession(_,_,_,value),let .factCapture(_,_,_,value),let .provisionalSubject(_,_,_,value),let .subjectPromotionReceipt(_,_,_,value),let .surveyPublicationSnapshot(_,_,_,value),let .assetLocator(_,_,_,value),let .locatorBindingReceipt(_,_,_,value),let .scheduleDefinitionRelease(_,_,_,value),let .occurrenceHistoryEvent(_,_,_,value),let .planDocument(_,_,_,value),let .planRevision(_,_,_,value),let .planPlacement(_,_,_,value),let .planRebaseReceipt(_,_,_,value),let .assetPoseEvent(_,_,_,value),let .spatialAnchorObservation(_,_,_,value),let .evidenceContext(_,_,_,value),let .pairedObservationLink(_,_,_,value),let .lightingSystem(_,_,_,value),let .lightingObservation(_,_,_,value),let .lightingIssue(_,_,_,value),let .lightingMeasurementPlan(_,_,_,value),let .lightingClaimState(_,_,_,value),let .temporalEvidenceClip(_,_,_,value),let .timecodedEvidenceAnchor(_,_,_,value),let .acceptedLabelGenerationSnapshot(_,_,_,value),let .serviceContactPoint(_,_,_,value),let .systemHandoffIntent(_,_,_,value):return value
         case let .site(_, _, value), let .asset(_, _, value), let .locationNode(_, _, value),
              let .assetPlacementEvent(_, _, value), let .assetCompositionEdge(_, _, value),
              let .assetCompositionEvent(_, _, value), let .savedSmartView(_, _, value),
@@ -380,6 +384,8 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
             case let .temporalEvidenceClip(_,v,_,_):guard v.kind == .temporalEvidenceClip else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             case let .timecodedEvidenceAnchor(_,v,_,_):guard v.kind == .timecodedEvidenceAnchor else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             case let .acceptedLabelGenerationSnapshot(_,v,_,_):guard v.kind == .acceptedLabelGenerationSnapshot else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+            case let .serviceContactPoint(_,v,_,_):guard v.kind == .serviceContactPoint else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+            case let .systemHandoffIntent(_,v,_,_):guard v.kind == .systemHandoffIntent else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             default:
                 return try identity
             }
@@ -388,7 +394,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
 
     var revision: UInt64 {
         switch self {
-        case let .accessibleDocumentAssessmentReceipt(_,_,value,_),let .surveyDefinitionIdentity(_,_,value,_),let .surveyDefinitionRelease(_,_,value,_),let .surveySession(_,_,value,_),let .factCapture(_,_,value,_),let .provisionalSubject(_,_,value,_),let .subjectPromotionReceipt(_,_,value,_),let .surveyPublicationSnapshot(_,_,value,_),let .assetLocator(_,_,value,_),let .locatorBindingReceipt(_,_,value,_),let .scheduleDefinitionRelease(_,_,value,_),let .occurrenceHistoryEvent(_,_,value,_),let .planDocument(_,_,value,_),let .planRevision(_,_,value,_),let .planPlacement(_,_,value,_),let .planRebaseReceipt(_,_,value,_),let .assetPoseEvent(_,_,value,_),let .spatialAnchorObservation(_,_,value,_),let .evidenceContext(_,_,value,_),let .pairedObservationLink(_,_,value,_),let .lightingSystem(_,_,value,_),let .lightingObservation(_,_,value,_),let .lightingIssue(_,_,value,_),let .lightingMeasurementPlan(_,_,value,_),let .lightingClaimState(_,_,value,_),let .temporalEvidenceClip(_,_,value,_),let .timecodedEvidenceAnchor(_,_,value,_),let .acceptedLabelGenerationSnapshot(_,_,value,_):return value
+        case let .accessibleDocumentAssessmentReceipt(_,_,value,_),let .surveyDefinitionIdentity(_,_,value,_),let .surveyDefinitionRelease(_,_,value,_),let .surveySession(_,_,value,_),let .factCapture(_,_,value,_),let .provisionalSubject(_,_,value,_),let .subjectPromotionReceipt(_,_,value,_),let .surveyPublicationSnapshot(_,_,value,_),let .assetLocator(_,_,value,_),let .locatorBindingReceipt(_,_,value,_),let .scheduleDefinitionRelease(_,_,value,_),let .occurrenceHistoryEvent(_,_,value,_),let .planDocument(_,_,value,_),let .planRevision(_,_,value,_),let .planPlacement(_,_,value,_),let .planRebaseReceipt(_,_,value,_),let .assetPoseEvent(_,_,value,_),let .spatialAnchorObservation(_,_,value,_),let .evidenceContext(_,_,value,_),let .pairedObservationLink(_,_,value,_),let .lightingSystem(_,_,value,_),let .lightingObservation(_,_,value,_),let .lightingIssue(_,_,value,_),let .lightingMeasurementPlan(_,_,value,_),let .lightingClaimState(_,_,value,_),let .temporalEvidenceClip(_,_,value,_),let .timecodedEvidenceAnchor(_,_,value,_),let .acceptedLabelGenerationSnapshot(_,_,value,_),let .serviceContactPoint(_,_,value,_),let .systemHandoffIntent(_,_,value,_):return value
         case let .site(_, value, _), let .asset(_, value, _),
              let .locationNode(_, value, _), let .assetPlacementEvent(_, value, _),
              let .assetCompositionEdge(_, value, _), let .assetCompositionEvent(_, value, _),
@@ -1205,6 +1211,16 @@ struct EvidenceContextMutationReceiptV1:Codable,Equatable,Sendable{let operation
 
 extension LightingWriteOperationV1 { var mutationPostImage:MutationPostImageV1 { get throws { let c=try concurrencyIdentity;switch self {case let .appendSystem(v,_,_):return .lightingSystem(id:v.recordID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.systemSHA256);case let .appendObservation(v,_,_):return .lightingObservation(id:v.recordID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.observationSHA256);case let .appendIssue(v,_,_):return .lightingIssue(id:v.recordID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.issueSHA256);case let .appendMeasurementPlan(v,_,_):return .lightingMeasurementPlan(id:v.recordID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.planSHA256);case let .appendClaim(v,_,_):return .lightingClaimState(id:v.recordID,concurrencyIdentity:c,revision:v.revision,semanticSHA256:v.claimSHA256)}} } }
 struct LightingMutationReceiptV1:Codable,Equatable,Sendable { let operationSHA256:String;let mutationReceipt:MutationReceiptV1;init(operation:LightingWriteOperationV1,mutationReceipt:MutationReceiptV1)throws{try operation.validate();try mutationReceipt.validate();let image=try operation.mutationPostImage;guard mutationReceipt.mutationID==operation.mutationID,mutationReceipt.identity.workspaceID==operation.workspaceID,mutationReceipt.commandBodySHA256==(try WorkspaceMutationCanonicalV1.sha256(WorkspaceCommandV1.applyLighting(operation))),mutationReceipt.postImages==[image],mutationReceipt.expectedRevision.entityRevisions.first(where:{$0.identity==(try operation.concurrencyIdentity)})?.revision==operation.expectedRevision,mutationReceipt.resultingRevision.entityRevisions.first(where:{$0.identity==(try operation.affectedIdentity)})?.revision==operation.revision else{throw WorkspaceMutationFailureV1.invalidReceipt};operationSHA256=try LightingCanonicalCodecV1.sha256(operation);self.mutationReceipt=mutationReceipt} }
+
+struct OperationalContactMutationReceiptV1:Codable,Equatable,Sendable{
+    let mutationSHA256:String;let mutationReceipt:MutationReceiptV1;let affectedIdentities:[WorkspaceEntityIdentityV1];let concurrencyIdentities:[WorkspaceEntityIdentityV1]
+    init(mutation:OperationalContactMutationV1,mutationReceipt:MutationReceiptV1)throws{
+        try mutation.validate();try mutationReceipt.validate();let affected=try mutation.affectedIdentities,concurrency=try mutation.concurrencyIdentities,images=try mutation.mutationPostImages
+        let expected=Dictionary(uniqueKeysWithValues:mutationReceipt.expectedRevision.entityRevisions.map{($0.identity,$0.revision)}),resulting=Dictionary(uniqueKeysWithValues:mutationReceipt.resultingRevision.entityRevisions.map{($0.identity,$0.revision)})
+        guard mutationReceipt.mutationID==mutation.mutationID,mutationReceipt.identity.workspaceID==mutation.workspaceID,mutationReceipt.commandBodySHA256==(try WorkspaceMutationCanonicalV1.sha256(WorkspaceCommandV1.applyOperationalContact(mutation))),mutationReceipt.postImages==images,try concurrency.allSatisfy({expected[$0]==(try mutation.expectedRevision(for:$0))}),try images.allSatisfy({resulting[try $0.identity]==$0.revision}),affected==images.compactMap({try? $0.identity}) else{throw WorkspaceMutationFailureV1.invalidReceipt}
+        mutationSHA256=try OperationalContactCanonicalCodecV1.sha256(mutation);self.mutationReceipt=mutationReceipt;affectedIdentities=affected;concurrencyIdentities=concurrency
+    }
+}
 // MARK: - C32 assistance mutation receipt boundary
 
 enum C32AssistanceLifecycleBoundary_FieldEvidenceApp_Domain_Mutation_MutationReceiptV1_swift {

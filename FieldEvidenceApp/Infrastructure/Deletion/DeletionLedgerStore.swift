@@ -260,3 +260,5 @@ enum C33TemporalEvidenceConformance_FieldEvidenceApp_Infrastructure_Deletion_Del
 }
 
 enum C45AcceptedLabelDeletionLedgerStoreBoundaryV1 { static let snapshotTombstonesUseCanonicalEntityKind=true;static let scratchCreatesNoLedgerKind=true }
+
+enum C46OperationalContactBoundary_45{static let assetOrSiteCascadeDeletesPartyContacts=false;static let workspaceEraseOwnsRows=true}

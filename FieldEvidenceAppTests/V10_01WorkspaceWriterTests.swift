@@ -940,3 +940,13 @@ private final class C32AssistanceAnchorV1001WorkspaceWriter: XCTestCase {
         )
     }
 }
+private final class C46V1001WriterCompatibilityTests: XCTestCase {
+    func testC46WorkspaceWriterBindsContactConcurrencyIdentity() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "workspace-writer",
+            kind: .phone,
+            handoff: .call,
+            slot: 46101
+        )
+    }
+}

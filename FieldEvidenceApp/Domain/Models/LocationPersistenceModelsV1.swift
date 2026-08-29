@@ -277,3 +277,15 @@ enum C45AssetLabelBoundary_Row148 {
         try snapshot.validate()
     }
 }
+
+enum C46LocationPersistenceBoundaryV1 {
+    static let handoffDestinationCreatesLocationRow = false
+    static let routeOrIntentStoresAddressOrCoordinate = false
+    static let platformOutcomeCreatesLocationRow = false
+    static func validateEphemeral(_ value: SiteDirectionsTargetSnapshotV1) throws {
+        guard value.currentTarget.kind == .site else {
+            throw OperationalContactFailureV1.invalidHandoffTarget
+        }
+        _ = try value.preferredDestination()
+    }
+}

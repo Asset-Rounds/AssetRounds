@@ -1582,3 +1582,13 @@ private final class C32AssistanceAnchorV910LifecycleBoundary: XCTestCase {
         )
     }
 }
+private final class C46V910LifecycleBoundaryCompatibilityTests: XCTestCase {
+    func testC46LifecycleBoundaryKeepsHandoffOutcomeNoncanonical() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "lifecycle-boundary",
+            kind: .phone,
+            handoff: .call,
+            slot: 46010
+        )
+    }
+}

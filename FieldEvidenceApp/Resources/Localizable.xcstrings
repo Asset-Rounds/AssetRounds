@@ -3681,6 +3681,58 @@
     "asset_label.claim_boundary" : {
       "comment" : "C45 truthful output boundary.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "This does not confirm printing, delivery, or physical scanning" } } }
+    },
+    "operational_contact.action.directions" : {
+      "comment" : "C46 explicit action; opens system directions for the reviewed site.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Directions" } } }
+    },
+    "operational_contact.action.call" : {
+      "comment" : "C46 explicit action for the selected operational phone contact.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Call" } } }
+    },
+    "operational_contact.action.text" : {
+      "comment" : "C46 explicit action for the selected operational phone contact.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Text" } } }
+    },
+    "operational_contact.action.email" : {
+      "comment" : "C46 explicit action for the selected operational email contact; no subject or body is prefilled.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Email" } } }
+    },
+    "operational_contact.handoff.opens_system_app" : {
+      "comment" : "C46 accessibility hint; no outcome claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Opens the corresponding system app" } } }
+    },
+    "operational_contact.handoff.handed_off" : {
+      "comment" : "C46 OS presentation result only; does not mean sent, delivered, connected, or arrived.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Handed off to the system" } } }
+    },
+    "operational_contact.handoff.target_missing" : {
+      "comment" : "C46 live requery result.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "The selected destination is no longer available" } } }
+    },
+    "operational_contact.handoff.target_stale" : {
+      "comment" : "C46 exact-revision requery result requiring fresh review.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "The selected destination changed. Review it again." } } }
+    },
+    "operational_contact.handoff.target_invalid" : {
+      "comment" : "C46 fail-closed target result.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "The selected destination cannot be used" } } }
+    },
+    "operational_contact.handoff.system_unavailable" : {
+      "comment" : "C46 foreground/system availability result; no retry is implied.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "The system app is unavailable right now" } } }
+    },
+    "operational_contact.handoff.system_rejected" : {
+      "comment" : "C46 one-call OS rejection result; no alternate target or retry is implied.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "The system did not accept the handoff" } } }
+    },
+    "operational_contact.handoff.cancelled" : {
+      "comment" : "C46 cancellation before the OS handoff.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Handoff cancelled before opening the system app" } } }
+    },
+    "operational_contact.handoff.claim_boundary" : {
+      "comment" : "C46 truthful platform-outcome boundary.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Handoff does not confirm a call connected, a message or email was sent or delivered, or that anyone arrived." } } }
     }
   },
   "version" : "1.0"

@@ -1554,3 +1554,13 @@ private final class C32AssistanceAnchorV913PersistentKindLifecycleCoverage: XCTe
         )
     }
 }
+private final class C46V913LifecycleCompatibilityTests: XCTestCase {
+    func testC46LifecycleEnrollsOperationalContactWithoutExportDefault() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "persistent-lifecycle",
+            kind: .email,
+            handoff: .email,
+            slot: 46013
+        )
+    }
+}

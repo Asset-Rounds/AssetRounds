@@ -1,0 +1,517 @@
+{
+  "artifactDigest": "067e2f8e8e05bf2dbcb0e62f7244701f626b4dd71f907dcdb9231101be9ab5ae",
+  "authority": {
+    "allowedPathCount": 232,
+    "appBaseHead": "32533a14d2e72ee8ebc46b25473c80fc3f721424",
+    "appBaseTree": "92fc18e03142c1eaae60a1f71deeb4fea2b71606",
+    "attemptID": 1,
+    "authorizedOverlapCount": 3389,
+    "cardID": "V23-P03-C46",
+    "classification": "IMPLEMENT_NOW",
+    "contextDigest": "c6ba76edfe0a71b6d77ea9c1855c625318b0d039e7d8e8707a3360b0c2a85ebf",
+    "coordinationCASSequence": 322,
+    "coordinationHead": "55ba73a9cf6dd6ad7186079fa6273bc353f4f94a",
+    "coordinationLedgerDigest": "4d3437d14a1e8bb96337b879b4f257510e83845ec72b2429f1dc7d4629b695f3",
+    "coordinationProjectionDigest": "587e1c606e2ae475d7be14ff2ed1a357b080255c917bf8b4927cac1b0ff51852",
+    "coordinationTree": "37490d7473b271fcd50f9125f2a6ec17cf77b5ab",
+    "directPrerequisiteCards": [
+      "V23-P03-C20"
+    ],
+    "existingPathCount": 218,
+    "fenceDigest": "466e730797b35fa438c4ab60cbf9c347372680bf504d0257db4b7e952577235b",
+    "hydrationRevision": 1,
+    "hydrationTransitionDigest": "1967a15150bbc04b77a8c5bd8237250c4e5b91b70f43d46bb3b58a8bdd0f69e3",
+    "newPathCount": 14,
+    "nextCard": "V23-P03-C47",
+    "nextRegisterOrdinal": 77,
+    "planningStatus": "NOT_STARTED",
+    "prerequisiteDigest": "25a1ad5ad00aa8bd98674ba7b5ec94e3d7cb6c0b1ecc8786330783860c049988",
+    "registerOrdinal": 76,
+    "s10ReservationOverlapCount": 0,
+    "title": "Operational contact points, system-handoff intents, and privacy-separated contact import semantics",
+    "unauthorizedOverlapCount": 0
+  },
+  "mechanicalEnrollment": [
+    {
+      "classification": "APPLICATION_COORDINATION_NO_SECOND_WRITER_OR_AUTOMATIC_HANDOFF",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Application_AssetSemantics_AssetLocatorCoordinatorV1_swift",
+      "path": "FieldEvidenceApp/Application/AssetSemantics/AssetLocatorCoordinatorV1.swift"
+    },
+    {
+      "classification": "APPLICATION_COORDINATION_NO_SECOND_WRITER_OR_AUTOMATIC_HANDOFF",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Application_AssetSemantics_AssetSemanticsCoordinatorV1_swift",
+      "path": "FieldEvidenceApp/Application/AssetSemantics/AssetSemanticsCoordinatorV1.swift"
+    },
+    {
+      "classification": "APPLICATION_COORDINATION_NO_SECOND_WRITER_OR_AUTOMATIC_HANDOFF",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Application_Assistance_AssistanceCoordinatorV1_swift",
+      "path": "FieldEvidenceApp/Application/Assistance/AssistanceCoordinatorV1.swift"
+    },
+    {
+      "classification": "APPLICATION_COORDINATION_NO_SECOND_WRITER_OR_AUTOMATIC_HANDOFF",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Application_Content_TemporalEvidenceCoordinatorV1_swift",
+      "path": "FieldEvidenceApp/Application/Content/TemporalEvidenceCoordinatorV1.swift"
+    },
+    {
+      "classification": "APPLICATION_COORDINATION_NO_SECOND_WRITER_OR_AUTOMATIC_HANDOFF",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Application_Drafts_FieldDraftCoordinatorV1_swift",
+      "path": "FieldEvidenceApp/Application/Drafts/FieldDraftCoordinatorV1.swift"
+    },
+    {
+      "classification": "APPLICATION_COORDINATION_NO_SECOND_WRITER_OR_AUTOMATIC_HANDOFF",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Application_EvidenceContext_EvidenceContextCoordinatorV1_swift",
+      "path": "FieldEvidenceApp/Application/EvidenceContext/EvidenceContextCoordinatorV1.swift"
+    },
+    {
+      "classification": "APPLICATION_COORDINATION_NO_SECOND_WRITER_OR_AUTOMATIC_HANDOFF",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Application_Labels_AssetLabelCoordinatorV1_swift",
+      "path": "FieldEvidenceApp/Application/Labels/AssetLabelCoordinatorV1.swift"
+    },
+    {
+      "classification": "APPLICATION_COORDINATION_NO_SECOND_WRITER_OR_AUTOMATIC_HANDOFF",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Application_Lighting_LightingCoordinatorV1_swift",
+      "path": "FieldEvidenceApp/Application/Lighting/LightingCoordinatorV1.swift"
+    },
+    {
+      "classification": "APPLICATION_COORDINATION_NO_SECOND_WRITER_OR_AUTOMATIC_HANDOFF",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Application_Packs_FieldReferencePackCoordinatorV1_swift",
+      "path": "FieldEvidenceApp/Application/Packs/FieldReferencePackCoordinatorV1.swift"
+    },
+    {
+      "classification": "APPLICATION_COORDINATION_NO_SECOND_WRITER_OR_AUTOMATIC_HANDOFF",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Application_Packs_SurveyDefinitionCoordinatorV1_swift",
+      "path": "FieldEvidenceApp/Application/Packs/SurveyDefinitionCoordinatorV1.swift"
+    },
+    {
+      "classification": "APPLICATION_COORDINATION_NO_SECOND_WRITER_OR_AUTOMATIC_HANDOFF",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Application_Plans_PlanRebaseCoordinatorV1_swift",
+      "path": "FieldEvidenceApp/Application/Plans/PlanRebaseCoordinatorV1.swift"
+    },
+    {
+      "classification": "APPLICATION_COORDINATION_NO_SECOND_WRITER_OR_AUTOMATIC_HANDOFF",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Application_Ports_ResumableLocalJobPortV1_swift",
+      "path": "FieldEvidenceApp/Application/Ports/ResumableLocalJobPortV1.swift"
+    },
+    {
+      "classification": "APPLICATION_COORDINATION_NO_SECOND_WRITER_OR_AUTOMATIC_HANDOFF",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Application_Pose_PlacementPoseCoordinatorV1_swift",
+      "path": "FieldEvidenceApp/Application/Pose/PlacementPoseCoordinatorV1.swift"
+    },
+    {
+      "classification": "APPLICATION_COORDINATION_NO_SECOND_WRITER_OR_AUTOMATIC_HANDOFF",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Application_WorkPacket_WorkPacketManifestCoordinatorV1_swift",
+      "path": "FieldEvidenceApp/Application/WorkPacket/WorkPacketManifestCoordinatorV1.swift"
+    },
+    {
+      "classification": "APPLICATION_COORDINATION_NO_SECOND_WRITER_OR_AUTOMATIC_HANDOFF",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Application_Workflow_SurveySessionCoordinatorV1_swift",
+      "path": "FieldEvidenceApp/Application/Workflow/SurveySessionCoordinatorV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_AssetSemantics_AssetLocatorContractsV1_swift",
+      "path": "FieldEvidenceApp/Domain/AssetSemantics/AssetLocatorContractsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_AssetSemantics_AssetSemanticContractsV1_swift",
+      "path": "FieldEvidenceApp/Domain/AssetSemantics/AssetSemanticContractsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Assistance_AssistanceContractsV1_swift",
+      "path": "FieldEvidenceApp/Domain/Assistance/AssistanceContractsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Capability_CapabilityAvailabilityContractsV1_swift",
+      "path": "FieldEvidenceApp/Domain/Capability/CapabilityAvailabilityContractsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Content_ContentLocatorManifestContractsV1_swift",
+      "path": "FieldEvidenceApp/Domain/Content/ContentLocatorManifestContractsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Content_ContentProvenanceContractsV1_swift",
+      "path": "FieldEvidenceApp/Domain/Content/ContentProvenanceContractsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Content_ContentReferenceContractsV1_swift",
+      "path": "FieldEvidenceApp/Domain/Content/ContentReferenceContractsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Content_TemporalEvidenceContractsV1_swift",
+      "path": "FieldEvidenceApp/Domain/Content/TemporalEvidenceContractsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Drafts_FieldDraftContractsV1_swift",
+      "path": "FieldEvidenceApp/Domain/Drafts/FieldDraftContractsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_EvidenceContext_EvidenceContextContractsV1_swift",
+      "path": "FieldEvidenceApp/Domain/EvidenceContext/EvidenceContextContractsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_InspectionKernel_CompletedActivitySnapshotContractsV1_swift",
+      "path": "FieldEvidenceApp/Domain/InspectionKernel/CompletedActivitySnapshotContractsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_InspectionKernel_InspectionPackageReleaseV1_swift",
+      "path": "FieldEvidenceApp/Domain/InspectionKernel/InspectionPackageReleaseV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_InspectionKernel_PackageReleaseBindingV1_swift",
+      "path": "FieldEvidenceApp/Domain/InspectionKernel/PackageReleaseBindingV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_InspectionKernel_WorkPacketManifestContractsV1_swift",
+      "path": "FieldEvidenceApp/Domain/InspectionKernel/WorkPacketManifestContractsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_InspectionKernel_WorkflowGrammarContractsV1_swift",
+      "path": "FieldEvidenceApp/Domain/InspectionKernel/WorkflowGrammarContractsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Labels_AssetLabelContractsV1_swift",
+      "path": "FieldEvidenceApp/Domain/Labels/AssetLabelContractsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Lighting_LightingContractsV1_swift",
+      "path": "FieldEvidenceApp/Domain/Lighting/LightingContractsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Models_Asset_swift",
+      "path": "FieldEvidenceApp/Domain/Models/Asset.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Models_AssetLabelPersistenceModelsV1_swift",
+      "path": "FieldEvidenceApp/Domain/Models/AssetLabelPersistenceModelsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Models_AssetLocatorPersistenceModelsV1_swift",
+      "path": "FieldEvidenceApp/Domain/Models/AssetLocatorPersistenceModelsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Models_AssetSemanticPersistenceModelsV1_swift",
+      "path": "FieldEvidenceApp/Domain/Models/AssetSemanticPersistenceModelsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Models_AssistancePersistenceModelsV1_swift",
+      "path": "FieldEvidenceApp/Domain/Models/AssistancePersistenceModelsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Models_EvidenceContextPersistenceModelsV1_swift",
+      "path": "FieldEvidenceApp/Domain/Models/EvidenceContextPersistenceModelsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Models_FieldDraftPersistenceModelsV1_swift",
+      "path": "FieldEvidenceApp/Domain/Models/FieldDraftPersistenceModelsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Models_FieldReferencePackPersistenceModelsV1_swift",
+      "path": "FieldEvidenceApp/Domain/Models/FieldReferencePackPersistenceModelsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Models_LightingPersistenceModelsV1_swift",
+      "path": "FieldEvidenceApp/Domain/Models/LightingPersistenceModelsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Models_ObservationAndTimeModelsV1_swift",
+      "path": "FieldEvidenceApp/Domain/Models/ObservationAndTimeModelsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Models_PlacementPosePersistenceModelsV1_swift",
+      "path": "FieldEvidenceApp/Domain/Models/PlacementPosePersistenceModelsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Models_PlanPersistenceModelsV1_swift",
+      "path": "FieldEvidenceApp/Domain/Models/PlanPersistenceModelsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Models_SurveyDefinitionPersistenceModelsV1_swift",
+      "path": "FieldEvidenceApp/Domain/Models/SurveyDefinitionPersistenceModelsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Models_SurveySessionPersistenceModelsV1_swift",
+      "path": "FieldEvidenceApp/Domain/Models/SurveySessionPersistenceModelsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Models_TemporalEvidencePersistenceModelsV1_swift",
+      "path": "FieldEvidenceApp/Domain/Models/TemporalEvidencePersistenceModelsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Models_WorkPacketManifestPersistenceModelsV1_swift",
+      "path": "FieldEvidenceApp/Domain/Models/WorkPacketManifestPersistenceModelsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Models_WorkflowModels_swift",
+      "path": "FieldEvidenceApp/Domain/Models/WorkflowModels.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Packs_FieldReferencePackContractsV1_swift",
+      "path": "FieldEvidenceApp/Domain/Packs/FieldReferencePackContractsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Packs_SurveyDefinitionContractsV1_swift",
+      "path": "FieldEvidenceApp/Domain/Packs/SurveyDefinitionContractsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Plans_PlanContractsV1_swift",
+      "path": "FieldEvidenceApp/Domain/Plans/PlanContractsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Pose_PlacementPoseContractsV1_swift",
+      "path": "FieldEvidenceApp/Domain/Pose/PlacementPoseContractsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Replication_IntegrationEventContractsV1_swift",
+      "path": "FieldEvidenceApp/Domain/Replication/IntegrationEventContractsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Workflow_FinalizationContracts_swift",
+      "path": "FieldEvidenceApp/Domain/Workflow/FinalizationContracts.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Workflow_ReportSnapshotV1_swift",
+      "path": "FieldEvidenceApp/Domain/Workflow/ReportSnapshotV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Workflow_SurveySessionContractsV1_swift",
+      "path": "FieldEvidenceApp/Domain/Workflow/SurveySessionContractsV1.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Workflow_TimeContextRule_swift",
+      "path": "FieldEvidenceApp/Domain/Workflow/TimeContextRule.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Workflow_WorkRule_swift",
+      "path": "FieldEvidenceApp/Domain/Workflow/WorkRule.swift"
+    },
+    {
+      "classification": "DOMAIN_MODEL_AND_CONTRACT_PRIVACY_SEPARATION",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Domain_Workflow_WorkflowContracts_swift",
+      "path": "FieldEvidenceApp/Domain/Workflow/WorkflowContracts.swift"
+    },
+    {
+      "classification": "APPLICATION_COORDINATION_NO_SECOND_WRITER_OR_AUTOMATIC_HANDOFF",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Features_CheckRunner_CheckRunnerContracts_swift",
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerContracts.swift"
+    },
+    {
+      "classification": "APPLICATION_COORDINATION_NO_SECOND_WRITER_OR_AUTOMATIC_HANDOFF",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Features_CheckRunner_CheckRunnerCoordinator_swift",
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift"
+    },
+    {
+      "classification": "INFRASTRUCTURE_LIFECYCLE_NO_CONTACT_PROJECTION_OR_NETWORK_DELIVERY",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_AssetSemantics_AssetLocatorLifecycleAdapterV1_swift",
+      "path": "FieldEvidenceApp/Infrastructure/AssetSemantics/AssetLocatorLifecycleAdapterV1.swift"
+    },
+    {
+      "classification": "INFRASTRUCTURE_LIFECYCLE_NO_CONTACT_PROJECTION_OR_NETWORK_DELIVERY",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_AssetSemantics_AssetSemanticLifecycleAdapterV1_swift",
+      "path": "FieldEvidenceApp/Infrastructure/AssetSemantics/AssetSemanticLifecycleAdapterV1.swift"
+    },
+    {
+      "classification": "INFRASTRUCTURE_LIFECYCLE_NO_CONTACT_PROJECTION_OR_NETWORK_DELIVERY",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Assistance_AssistanceLifecycleAdapterV1_swift",
+      "path": "FieldEvidenceApp/Infrastructure/Assistance/AssistanceLifecycleAdapterV1.swift"
+    },
+    {
+      "classification": "INFRASTRUCTURE_LIFECYCLE_NO_CONTACT_PROJECTION_OR_NETWORK_DELIVERY",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Camera_CameraAdapter_swift",
+      "path": "FieldEvidenceApp/Infrastructure/Camera/CameraAdapter.swift"
+    },
+    {
+      "classification": "INFRASTRUCTURE_LIFECYCLE_NO_CONTACT_PROJECTION_OR_NETWORK_DELIVERY",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Content_ContentContractRegistryV1_swift",
+      "path": "FieldEvidenceApp/Infrastructure/Content/ContentContractRegistryV1.swift"
+    },
+    {
+      "classification": "INFRASTRUCTURE_LIFECYCLE_NO_CONTACT_PROJECTION_OR_NETWORK_DELIVERY",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Content_ContentIntegrityV1_swift",
+      "path": "FieldEvidenceApp/Infrastructure/Content/ContentIntegrityV1.swift"
+    },
+    {
+      "classification": "INFRASTRUCTURE_LIFECYCLE_NO_CONTACT_PROJECTION_OR_NETWORK_DELIVERY",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Content_LocalContentStoreContractsV1_swift",
+      "path": "FieldEvidenceApp/Infrastructure/Content/LocalContentStoreContractsV1.swift"
+    },
+    {
+      "classification": "INFRASTRUCTURE_LIFECYCLE_NO_CONTACT_PROJECTION_OR_NETWORK_DELIVERY",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Drafts_DraftAutosaveSchedulerV1_swift",
+      "path": "FieldEvidenceApp/Infrastructure/Drafts/DraftAutosaveSchedulerV1.swift"
+    },
+    {
+      "classification": "INFRASTRUCTURE_LIFECYCLE_NO_CONTACT_PROJECTION_OR_NETWORK_DELIVERY",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Drafts_DraftCommitSagaRecoveryV1_swift",
+      "path": "FieldEvidenceApp/Infrastructure/Drafts/DraftCommitSagaRecoveryV1.swift"
+    },
+    {
+      "classification": "INFRASTRUCTURE_LIFECYCLE_NO_CONTACT_PROJECTION_OR_NETWORK_DELIVERY",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Drafts_FieldDraftLifecycleAdapterV1_swift",
+      "path": "FieldEvidenceApp/Infrastructure/Drafts/FieldDraftLifecycleAdapterV1.swift"
+    },
+    {
+      "classification": "INFRASTRUCTURE_LIFECYCLE_NO_CONTACT_PROJECTION_OR_NETWORK_DELIVERY",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_EvidenceContext_EvidenceContextLifecycleAdapterV1_swift",
+      "path": "FieldEvidenceApp/Infrastructure/EvidenceContext/EvidenceContextLifecycleAdapterV1.swift"
+    },
+    {
+      "classification": "INFRASTRUCTURE_LIFECYCLE_NO_CONTACT_PROJECTION_OR_NETWORK_DELIVERY",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Finalization_FinalizationIntentStore_swift",
+      "path": "FieldEvidenceApp/Infrastructure/Finalization/FinalizationIntentStore.swift"
+    },
+    {
+      "classification": "INFRASTRUCTURE_LIFECYCLE_NO_CONTACT_PROJECTION_OR_NETWORK_DELIVERY",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Jobs_ResumableLocalJobRunnerV1_swift",
+      "path": "FieldEvidenceApp/Infrastructure/Jobs/ResumableLocalJobRunnerV1.swift"
+    },
+    {
+      "classification": "INFRASTRUCTURE_LIFECYCLE_NO_CONTACT_PROJECTION_OR_NETWORK_DELIVERY",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Jobs_ResumableLocalJobV1_swift",
+      "path": "FieldEvidenceApp/Infrastructure/Jobs/ResumableLocalJobV1.swift"
+    },
+    {
+      "classification": "INFRASTRUCTURE_LIFECYCLE_NO_CONTACT_PROJECTION_OR_NETWORK_DELIVERY",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Lighting_LightingLifecycleAdapterV1_swift",
+      "path": "FieldEvidenceApp/Infrastructure/Lighting/LightingLifecycleAdapterV1.swift"
+    },
+    {
+      "classification": "INFRASTRUCTURE_LIFECYCLE_NO_CONTACT_PROJECTION_OR_NETWORK_DELIVERY",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Media_EvidenceBundleStore_swift",
+      "path": "FieldEvidenceApp/Infrastructure/Media/EvidenceBundleStore.swift"
+    },
+    {
+      "classification": "INFRASTRUCTURE_LIFECYCLE_NO_CONTACT_PROJECTION_OR_NETWORK_DELIVERY",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Media_TemporalEvidenceLifecycleAdapterV1_swift",
+      "path": "FieldEvidenceApp/Infrastructure/Media/TemporalEvidenceLifecycleAdapterV1.swift"
+    },
+    {
+      "classification": "INFRASTRUCTURE_LIFECYCLE_NO_CONTACT_PROJECTION_OR_NETWORK_DELIVERY",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_OfflineReadiness_FieldReferencePackLifecycleAdapterV1_swift",
+      "path": "FieldEvidenceApp/Infrastructure/OfflineReadiness/FieldReferencePackLifecycleAdapterV1.swift"
+    },
+    {
+      "classification": "INFRASTRUCTURE_LIFECYCLE_NO_CONTACT_PROJECTION_OR_NETWORK_DELIVERY",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Packs_SurveyDefinitionLifecycleAdapterV1_swift",
+      "path": "FieldEvidenceApp/Infrastructure/Packs/SurveyDefinitionLifecycleAdapterV1.swift"
+    },
+    {
+      "classification": "INFRASTRUCTURE_LIFECYCLE_NO_CONTACT_PROJECTION_OR_NETWORK_DELIVERY",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Plans_PlanLifecycleAdapterV1_swift",
+      "path": "FieldEvidenceApp/Infrastructure/Plans/PlanLifecycleAdapterV1.swift"
+    },
+    {
+      "classification": "INFRASTRUCTURE_LIFECYCLE_NO_CONTACT_PROJECTION_OR_NETWORK_DELIVERY",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Pose_PlacementPoseLifecycleAdapterV1_swift",
+      "path": "FieldEvidenceApp/Infrastructure/Pose/PlacementPoseLifecycleAdapterV1.swift"
+    },
+    {
+      "classification": "INFRASTRUCTURE_LIFECYCLE_NO_CONTACT_PROJECTION_OR_NETWORK_DELIVERY",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Reporting_AssetLabelLifecycleAdapterV1_swift",
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/AssetLabelLifecycleAdapterV1.swift"
+    },
+    {
+      "classification": "INFRASTRUCTURE_LIFECYCLE_NO_CONTACT_PROJECTION_OR_NETWORK_DELIVERY",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Reporting_DeterministicPDFRendererV1_swift",
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/DeterministicPDFRendererV1.swift"
+    },
+    {
+      "classification": "INFRASTRUCTURE_LIFECYCLE_NO_CONTACT_PROJECTION_OR_NETWORK_DELIVERY",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_System_DeviceTimeSemanticsV1_swift",
+      "path": "FieldEvidenceApp/Infrastructure/System/DeviceTimeSemanticsV1.swift"
+    },
+    {
+      "classification": "INFRASTRUCTURE_LIFECYCLE_NO_CONTACT_PROJECTION_OR_NETWORK_DELIVERY",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_WorkPacket_WorkPacketManifestLifecycleAdapterV1_swift",
+      "path": "FieldEvidenceApp/Infrastructure/WorkPacket/WorkPacketManifestLifecycleAdapterV1.swift"
+    },
+    {
+      "classification": "INFRASTRUCTURE_LIFECYCLE_NO_CONTACT_PROJECTION_OR_NETWORK_DELIVERY",
+      "marker": "C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Workflow_SurveySessionLifecycleAdapterV1_swift",
+      "path": "FieldEvidenceApp/Infrastructure/Workflow/SurveySessionLifecycleAdapterV1.swift"
+    }
+  ],
+  "mechanicalEnrollmentDigest": "f8e7fb936c86f266610e23311bf431f495fd4a34ec4801dc6a1cfd7823ed63f4",
+  "persistence": {
+    "durableFamilies": [
+      "ServiceContactPointRow",
+      "SystemHandoffIntentRow"
+    ],
+    "persistentModelCount": 115,
+    "persistentSchemaVersion": 35,
+    "recordsSchemaVersion": 34
+  },
+  "requiredSemantics": {
+    "canonicalMutationsUseExpectedRevisionMutationIDOneWriterAndDurableReceipt": true,
+    "contactPointsArePurposeBoundAndIndependentFromSiteRoleOwnership": true,
+    "contractNames": [
+      "ServicePartyReferenceV1",
+      "ServiceContactPointV1",
+      "SystemHandoffIntentV1",
+      "PartyContactCSVRowV1",
+      "PARTY_CONTACTS_V1"
+    ],
+    "crossWorkspaceReplaceRebuildsDestinationJournalReceiptAndProjectionWithDistinctWorkspaceRegression": true,
+    "csvImportRequiresDeterministicPreviewValidationAndExplicitAcceptance": true,
+    "duplicateMutationIDAndConcurrencyGuardsFailClosed": true,
+    "durableLifecycleCoversMigrationBackupRestoreCloneForkImportExportReplaySearchDeleteEraseRetentionAndForwardFix": true,
+    "effectBeforeReceiptRecoveryIsIdempotent": true,
+    "fiveSelectors": [
+      "testV23P03C46G01CanonicalOperationalContactAndExplicitHandoffUseOneWorkspaceMutation",
+      "testV23P03C46A01CSVImportPreviewPurposeSeparationAndCancelRemainBounded",
+      "testV23P03C46H01StaleMalformedDuplicateAndMarketingIdentityInputsFailClosed",
+      "testV23P03C46I01InterruptedContactWriteAndHandoffRecoverIdempotently",
+      "testV23P03C46R01BackupRestoreCloneForkDeleteEraseExportSearchAndReplayRemainExact"
+    ],
+    "importPreviewIsBoundedCancelableNoncanonicalAndAcceptanceIsOneAtomicWriterCall": true,
+    "noNetworkProviderSecondWriterDormantMarketingOrCustomerLearningDependency": true,
+    "operationalContactsNeverBecomeSubscriberConsentCampaignOrMeasurementIdentity": true,
+    "sameWorkspaceReplaceRestorePreservesExactOperationalContactBytesAndJournalClosure": true,
+    "systemHandoffIntentRequiresExplicitUserStartAndClaimsNoDelivery": true,
+    "unicodeMailtoRecipientEncodingRejectsQueryAndHeaderInjection": true
+  },
+  "schema": "V23P03C46OperationalContactContractV1",
+  "schemaVersion": 1
+}

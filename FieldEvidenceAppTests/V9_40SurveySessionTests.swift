@@ -1596,3 +1596,13 @@ private final class C32AssistanceAnchorV940SurveySession: XCTestCase {
         )
     }
 }
+private final class C46V940SurveySessionCompatibilityTests: XCTestCase {
+    func testC46SurveySessionCannotRecordHandoffOutcome() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "survey-session",
+            kind: .phone,
+            handoff: .text,
+            slot: 46040
+        )
+    }
+}

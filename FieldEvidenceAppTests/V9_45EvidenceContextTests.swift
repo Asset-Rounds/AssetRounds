@@ -778,3 +778,13 @@ private final class C32AssistanceAnchorV945EvidenceContext: XCTestCase {
         )
     }
 }
+private final class C46V945EvidenceCompatibilityTests: XCTestCase {
+    func testC46EvidenceContextDoesNotBecomeContactProvenance() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "evidence-context",
+            kind: .email,
+            handoff: .email,
+            slot: 46045
+        )
+    }
+}

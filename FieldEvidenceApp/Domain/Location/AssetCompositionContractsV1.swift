@@ -294,3 +294,9 @@ enum C45AssetLabelBoundary_Row151 {
         try snapshot.validate()
     }
 }
+
+enum C46AssetCompositionHandoffBoundaryV1 {
+    static let compositionCreatesAlternateContactTarget = false
+    static let compositionCreatesDirectionsCoordinates = false
+    static let systemHandoffResultChangesComposition = false
+}

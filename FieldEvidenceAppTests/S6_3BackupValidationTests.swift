@@ -2320,3 +2320,13 @@ private final class C32AssistanceAnchorS63BackupValidation: XCTestCase {
         )
     }
 }
+private final class C46S63BackupValidationCompatibilityTests: XCTestCase {
+    func testC46BackupValidationRetainsContactDigestBinding() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "backup-validation",
+            kind: .phone,
+            handoff: .call,
+            slot: 46303
+        )
+    }
+}

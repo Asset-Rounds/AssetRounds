@@ -57,6 +57,12 @@ final class MutationReceiptRecoveryServiceV1 {
     /// Original/derivative content cleanup is retried only from the accepted
     /// retention receipt; recovery never invents a second content authority.
     func recoverTemporalEvidenceEffectsBeforeWriterActivation()throws{try recoverBeforeWriterActivation()}
+    /// C46 repairs contact and durable handoff-intent effects with their
+    /// canonical receipt before a writer becomes available. Platform results
+    /// are never promoted into recovery state.
+    func recoverOperationalContactEffectsBeforeWriterActivation()throws{
+        try recoverBeforeWriterActivation()
+    }
 }
 
 enum LightingMutationReceiptRecoveryPolicyV1 { static func validateRecovered(operation:LightingWriteOperationV1,receipt:MutationReceiptV1)throws{_ = try LightingMutationReceiptV1(operation:operation,mutationReceipt:receipt)} }
@@ -68,6 +74,18 @@ enum TemporalEvidenceMutationReceiptRecoveryPolicyV1 {
         try C33TemporalEvidenceJournalBoundaryV1.validate(
             mutation: mutation,
             receipt: receipt
+        )
+    }
+}
+
+enum OperationalContactMutationReceiptRecoveryPolicyV1 {
+    static func validateRecovered(
+        mutation: OperationalContactMutationV1,
+        receipt: MutationReceiptV1
+    ) throws {
+        _ = try OperationalContactMutationReceiptV1(
+            mutation: mutation,
+            mutationReceipt: receipt
         )
     }
 }
@@ -114,3 +132,5 @@ enum C32AssistanceCompatibility_Persistence_MutationJournal_MutationReceiptRecov
 }
 
 enum C45AcceptedLabelRecoveryBoundaryV1 { static let commandKind:WorkspaceCommandKindV1 = .applyAssetLabel;static let effectBeforeReceiptRecoveryIsIdempotent=true }
+
+enum C46OperationalContactBoundary_20{static let persistentFamilies=OperationalContactPersistenceEnrollmentV1.persistentFamilies;static let platformOutcomesPersistent=false}

@@ -31,6 +31,8 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case assetCompositionEvent
     case savedSmartView
     case serviceParty
+    case serviceContactPoint
+    case systemHandoffIntent
     case sitePartyRoleEvent
     case actorSnapshot
     case qualificationSnapshot
@@ -1714,6 +1716,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyAssistanceAcceptance(AssistanceAcceptanceRequestV1)
     case applyTemporalEvidence(TemporalEvidenceMutationV1)
     case applyAssetLabel(AssetLabelMutationV1)
+    case applyOperationalContact(OperationalContactMutationV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -1759,6 +1762,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyAssistanceAcceptance:.applyAssistanceAcceptance
         case .applyTemporalEvidence:.applyTemporalEvidence
         case .applyAssetLabel:.applyAssetLabel
+        case .applyOperationalContact:.applyOperationalContact
         }
     }
 }
@@ -1806,6 +1810,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyAssistanceAcceptance="apply_assistance_acceptance"
     case applyTemporalEvidence="apply_temporal_evidence"
     case applyAssetLabel="apply_asset_label"
+    case applyOperationalContact="apply_operational_contact"
 }
 
 extension WorkspaceCommandV1 {
@@ -2601,6 +2606,8 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind:.applyLighting,disposition:.compensatable,stableReason:"append_lighting_history_successor_only"),
         .init(commandKind:.applyAssistanceAcceptance,disposition:.compensatable,stableReason:"explicit_review_expected_revision_target_mutation"),
         .init(commandKind:.applyTemporalEvidence,disposition:.compensatable,stableReason:"immutable_original_with_governed_successor_or_tombstone_retention"),
+        .init(commandKind:.applyAssetLabel,disposition:.compensatable,stableReason:"immutable_accepted_label_snapshot_with_historic_reprint_only"),
+        .init(commandKind:.applyOperationalContact,disposition:.compensatable,stableReason:"append_contact_successor_or_retirement_only"),
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {

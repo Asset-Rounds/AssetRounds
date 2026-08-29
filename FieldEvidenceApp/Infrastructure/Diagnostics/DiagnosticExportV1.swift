@@ -2113,3 +2113,5 @@ extension DiagnosticExportV1 {
 }
 
 enum C45AcceptedLabelDiagnosticPrivacyBoundaryV1 { static let mayExposeCountsAndDisposition=true;static let excludesLabelTextLocatorTokensAndArtifactBytes=true }
+
+enum C46OperationalContactBoundary_23{static let defaultProjection="EXCLUDED";static let rawPhoneOrEmailEmitted=false;static let platformOutcomeClaimEmitted=false}

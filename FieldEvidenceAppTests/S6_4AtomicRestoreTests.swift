@@ -1720,3 +1720,13 @@ private final class C32AssistanceAnchorS64AtomicRestore: XCTestCase {
         )
     }
 }
+private final class C46S64AtomicRestoreCompatibilityTests: XCTestCase {
+    func testC46AtomicRestoreKeepsStableContactIdentity() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "atomic-restore",
+            kind: .email,
+            handoff: .email,
+            slot: 46404
+        )
+    }
+}

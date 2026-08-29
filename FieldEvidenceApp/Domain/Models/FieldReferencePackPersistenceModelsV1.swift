@@ -109,3 +109,11 @@ enum C45AssetLabelBoundary_Row144 {
         try snapshot.validate()
     }
 }
+
+enum C46OperationalContactConformance_FieldEvidenceApp_Domain_Models_FieldReferencePackPersistenceModelsV1_swift {
+    static let operationalContactsRemainPurposeSeparated = true
+    static let systemHandoffsRemainExplicitEphemeralAndNoncanonical = true
+    static let subscriberConsentCampaignAndMeasurementProjectionForbidden = true
+    static let contactExportExcludedByDefault = true
+    static let siteRoleOwnershipForbidden = true
+}

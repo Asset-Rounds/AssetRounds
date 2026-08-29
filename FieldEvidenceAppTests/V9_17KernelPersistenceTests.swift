@@ -520,3 +520,13 @@ private final class C32AssistanceAnchorV917KernelPersistence: XCTestCase {
         )
     }
 }
+private final class C46V917PersistenceCompatibilityTests: XCTestCase {
+    func testC46PersistenceBindsExactContactRevision() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "kernel-persistence",
+            kind: .email,
+            handoff: .email,
+            slot: 46017
+        )
+    }
+}

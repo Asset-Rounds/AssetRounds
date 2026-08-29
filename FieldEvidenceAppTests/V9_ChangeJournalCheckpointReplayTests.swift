@@ -1293,3 +1293,13 @@ private final class C32AssistanceAnchorV9ChangeJournalCheckpointReplay: XCTestCa
         )
     }
 }
+private final class C46JournalReplayCompatibilityTests: XCTestCase {
+    func testC46JournalReplayBindsContactRevisionAndHandoffTarget() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "journal-replay",
+            kind: .email,
+            handoff: .email,
+            slot: 46200
+        )
+    }
+}

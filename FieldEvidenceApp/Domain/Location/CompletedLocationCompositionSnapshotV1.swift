@@ -120,3 +120,9 @@ enum C45AssetLabelBoundary_Row152 {
         try snapshot.validate()
     }
 }
+
+enum C46CompletedCompositionHandoffBoundaryV1 {
+    static let completedSnapshotIsHistoric = true
+    static let completedSnapshotIsExecutableDestination = false
+    static let handoffRequiresCurrentCanonicalSiteRequery = true
+}

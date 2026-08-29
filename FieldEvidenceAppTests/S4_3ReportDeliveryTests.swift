@@ -1054,3 +1054,13 @@ private final class C32AssistanceAnchorS43ReportDelivery: XCTestCase {
         )
     }
 }
+private final class C46S43ReportDeliveryCompatibilityTests: XCTestCase {
+    func testC46ReportDeliveryNeverClaimsOperationalHandoffDelivery() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "report-delivery",
+            kind: .email,
+            handoff: .email,
+            slot: 46403
+        )
+    }
+}

@@ -684,3 +684,21 @@ enum C45AcceptedLabelKernelDeletionEnrollmentV1 {
         }
     }
 }
+
+enum C46OperationalContactKernelDeletionEnrollmentV1 {
+    static let durableFamilies = ["ServiceContactPointRow", "SystemHandoffIntentRow"]
+    static let ordinaryAssetOrSiteDeleteCascades = false
+    static let workspaceEraseOwnsRows = true
+    static let platformOutcomeRows = 0
+
+    static func validate() throws {
+        guard OperationalContactPersistenceEnrollmentV1.persistentSchemaVersion == 35,
+              OperationalContactPersistenceEnrollmentV1.recordsSchemaVersion == 34,
+              OperationalContactPersistenceEnrollmentV1.persistentFamilies == durableFamilies,
+              !ordinaryAssetOrSiteDeleteCascades,
+              workspaceEraseOwnsRows,
+              platformOutcomeRows == 0 else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}

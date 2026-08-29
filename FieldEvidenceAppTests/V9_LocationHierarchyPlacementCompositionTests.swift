@@ -835,3 +835,13 @@ private final class C32AssistanceAnchorV9LocationHierarchyPlacementComposition: 
         )
     }
 }
+private final class C46LocationCompatibilityTests: XCTestCase {
+    func testC46LocationHierarchyKeepsDirectionsSiteTargetExplicit() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "location-hierarchy",
+            kind: .phone,
+            handoff: .directions,
+            slot: 46410
+        )
+    }
+}

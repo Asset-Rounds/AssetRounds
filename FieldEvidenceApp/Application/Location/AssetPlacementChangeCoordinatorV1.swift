@@ -288,3 +288,10 @@ enum C45AssetLabelBoundary_Row153 {
         try snapshot.validate()
     }
 }
+
+enum C46AssetPlacementCoordinatorHandoffBoundaryV1 {
+    static let handoffInvokesPlacementMutation = false
+    static let directionsUsesStableSiteID = true
+    static let currentTargetIsRequeriedAtTap = true
+    static let permitsCurrentLocationFallback = false
+}

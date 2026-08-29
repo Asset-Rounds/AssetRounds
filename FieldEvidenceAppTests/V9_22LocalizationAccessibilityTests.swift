@@ -1994,3 +1994,13 @@ private final class C32AssistanceAnchorV922LocalizationAccessibility: XCTestCase
         )
     }
 }
+private final class C46V922AccessibilityCompatibilityTests: XCTestCase {
+    func testC46AccessibilityKeepsExplicitHandoffSemantics() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "accessibility",
+            kind: .phone,
+            handoff: .text,
+            slot: 46022
+        )
+    }
+}

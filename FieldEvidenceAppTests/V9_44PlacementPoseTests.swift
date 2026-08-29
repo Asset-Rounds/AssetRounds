@@ -1261,3 +1261,13 @@ private final class C32AssistanceAnchorV944PlacementPose: XCTestCase {
         )
     }
 }
+private final class C46V944PoseCompatibilityTests: XCTestCase {
+    func testC46PlacementPoseCannotSupplyCurrentDirectionsCoordinate() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "placement-pose",
+            kind: .phone,
+            handoff: .directions,
+            slot: 46044
+        )
+    }
+}

@@ -1236,3 +1236,9 @@ enum AssetLabelPersistentKindPolicyV1 {
 }
 
 enum C45AcceptedLabelPersistentKindEnrollmentV1 { static let kind:WorkspaceEntityKindV1 = .acceptedLabelGenerationSnapshot;static let durableFamilyCount=AssetLabelPersistenceEnrollmentV1.durableModelCount }
+
+enum OperationalContactPersistentKindPolicyV1{
+    static let durableKindIDs=Set(["PERSISTENT_MODEL:ServiceContactPointRow","PERSISTENT_MODEL:SystemHandoffIntentRow"])
+    static let nonpersistentKindIDs=Set(["PROJECTION:SystemHandoffResultV1","PROJECTION:PartyContactsImportPreviewV1"])
+    static func validateDeclaration()throws{guard durableKindIDs.count==OperationalContactPersistenceEnrollmentV1.durableModelCount,durableKindIDs.isDisjoint(with:nonpersistentKindIDs),(durableKindIDs.union(nonpersistentKindIDs)).allSatisfy(PersistentKindLifecycleValidationV1.validKindID)else{throw PersistentKindLifecycleFailureV1.invalidLifecyclePolicy}}
+}

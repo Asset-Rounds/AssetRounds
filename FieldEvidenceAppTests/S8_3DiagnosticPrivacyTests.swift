@@ -827,3 +827,13 @@ private final class C32AssistanceAnchorS83DiagnosticPrivacy: XCTestCase {
         )
     }
 }
+private final class C46S83DiagnosticPrivacyCompatibilityTests: XCTestCase {
+    func testC46DiagnosticsNeverProjectRawOperationalContact() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "diagnostic-privacy",
+            kind: .email,
+            handoff: .email,
+            slot: 46803
+        )
+    }
+}

@@ -94,6 +94,8 @@ final class BackupExportService {
         let temporalEvidenceClips: [TemporalEvidenceClipRow]
         let timecodedEvidenceAnchors: [TimecodedEvidenceAnchorRow]
         let acceptedLabelGenerationSnapshots: [AcceptedLabelGenerationSnapshotRow]
+        let serviceContactPoints: [ServiceContactPointRow]
+        let systemHandoffIntents: [SystemHandoffIntentRow]
         let fieldReferenceReleases:[FieldReferenceReleaseRow]
         let fieldReferenceBindings:[FieldReferenceBindingRow]
         let recoverabilityVerificationReceipts:[RecoverabilityVerificationReceiptRow]
@@ -1053,9 +1055,9 @@ private extension BackupExportService {
             source: .init(
                 appBuild: appBuild(),
                 appVersion: appVersion(),
-                persistentSchemaVersion: AssetLabelPersistenceEnrollmentV1.persistentSchemaVersion,
+                persistentSchemaVersion: OperationalContactPersistenceEnrollmentV1.persistentSchemaVersion,
                 replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: AssetLabelPersistenceEnrollmentV1.recordsSchemaVersion,
+                recordsSchemaVersion: OperationalContactPersistenceEnrollmentV1.recordsSchemaVersion,
                 sourceGenerationID: generationID,
                 workspaceID: sourceIdentity.workspaceID.rawValue
             )
@@ -1605,7 +1607,9 @@ private extension BackupExportService {
                  assistanceAcceptanceReceipts: try modelContext.fetch(FetchDescriptor<AssistanceAcceptanceReceiptRow>()),
                  temporalEvidenceClips: try modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>()),
                  timecodedEvidenceAnchors: try modelContext.fetch(FetchDescriptor<TimecodedEvidenceAnchorRow>()),
-                 acceptedLabelGenerationSnapshots: try modelContext.fetch(FetchDescriptor<AcceptedLabelGenerationSnapshotRow>()),
+                  acceptedLabelGenerationSnapshots: try modelContext.fetch(FetchDescriptor<AcceptedLabelGenerationSnapshotRow>()),
+                  serviceContactPoints: try modelContext.fetch(FetchDescriptor<ServiceContactPointRow>()),
+                  systemHandoffIntents: try modelContext.fetch(FetchDescriptor<SystemHandoffIntentRow>()),
                  fieldReferenceReleases:try modelContext.fetch(FetchDescriptor<FieldReferenceReleaseRow>()),
                 fieldReferenceBindings:try modelContext.fetch(FetchDescriptor<FieldReferenceBindingRow>()),
                 recoverabilityVerificationReceipts:try modelContext.fetch(FetchDescriptor<RecoverabilityVerificationReceiptRow>()),
@@ -2215,6 +2219,10 @@ private extension BackupExportService {
         let acceptedLabelGenerationSnapshots = mutationHistory == nil ? [] : try rows.acceptedLabelGenerationSnapshots
             .map { try V34BackupAcceptedLabelSnapshotRecordV1($0.value()) }
             .sorted { ($0.workspaceID.uuidString, $0.snapshotID.uuidString) < ($1.workspaceID.uuidString, $1.snapshotID.uuidString) }
+        let operationalContacts = mutationHistory == nil ? [] : try (
+            rows.serviceContactPoints.map { try V35BackupOperationalContactRecordV1($0.value()) }
+            + rows.systemHandoffIntents.map { try V35BackupOperationalContactRecordV1($0.value()) }
+        ).sorted { ($0.kind.rawValue, $0.workspaceID.uuidString, $0.id.uuidString) < ($1.kind.rawValue, $1.workspaceID.uuidString, $1.id.uuidString) }
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveys,
             assetLocators: assetLocators,
@@ -2225,6 +2233,7 @@ private extension BackupExportService {
             assistanceAcceptanceReceipts: assistanceAcceptanceReceipts,
             temporalEvidence: temporalEvidence,
             acceptedLabelGenerationSnapshots: acceptedLabelGenerationSnapshots,
+            operationalContacts: operationalContacts,
             accessibleDocumentAssessments:accessibleDocumentAssessments,
             surveyDefinitions:surveyDefinitions,
             fieldReferences:fieldReferences,
@@ -2288,7 +2297,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : AssetLabelPersistenceEnrollmentV1.recordsSchemaVersion,
+                : OperationalContactPersistenceEnrollmentV1.recordsSchemaVersion,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,

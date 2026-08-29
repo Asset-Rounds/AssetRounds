@@ -1177,3 +1177,13 @@ private final class C32AssistanceAnchorV911ObservationTemporalSemantics: XCTestC
         )
     }
 }
+private final class C46V911TemporalCompatibilityTests: XCTestCase {
+    func testC46ObservationTimeDoesNotBecomeContactEffectiveTime() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "observation-time",
+            kind: .email,
+            handoff: .email,
+            slot: 46011
+        )
+    }
+}

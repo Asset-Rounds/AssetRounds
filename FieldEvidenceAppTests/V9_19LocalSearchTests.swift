@@ -1197,3 +1197,13 @@ private final class C32AssistanceAnchorV919LocalSearch: XCTestCase {
         )
     }
 }
+private final class C46V919SearchCompatibilityTests: XCTestCase {
+    func testC46SearchBoundaryUsesContactMetadataNotDefaultExport() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "local-search",
+            kind: .email,
+            handoff: .email,
+            slot: 46019
+        )
+    }
+}

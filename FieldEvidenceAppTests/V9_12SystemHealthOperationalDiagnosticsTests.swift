@@ -1427,3 +1427,13 @@ private final class C32AssistanceAnchorV912SystemHealthOperationalDiagnostics: X
         )
     }
 }
+private final class C46V912SystemHealthCompatibilityTests: XCTestCase {
+    func testC46SystemHealthDoesNotTreatContactAsDiagnosticIdentity() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "system-health",
+            kind: .phone,
+            handoff: .call,
+            slot: 46012
+        )
+    }
+}

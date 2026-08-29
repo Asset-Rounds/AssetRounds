@@ -174,5 +174,14 @@
     "unacceptedPlansAndResultsAreLeasedScratch": true,
     "outputReceiptDoesNotClaimExternalPossession": true,
     "physicalPrintScanEvidenceOwnerPending": true
+  },
+  "c46OperationalContactCompatibility": {
+    "compatibilityCardID": "V23-P03-C46",
+    "operationalContactsArePurposeSeparated": true,
+    "siteRoleOwnershipForbidden": true,
+    "subscriberConsentCampaignAndMeasurementProjectionForbidden": true,
+    "systemHandoffsAreExplicitEphemeralAndNoncanonical": true,
+    "contactExportIsExcludedByDefault": true,
+    "importedSourceBytesRemainLeasedScratch": true
   }
 }

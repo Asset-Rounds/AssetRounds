@@ -575,6 +575,7 @@ enum KernelBackupRestoreRegistryV4 {
         try C32AssistanceBackupRestoreRegistryV1.validate()
         try C33TemporalEvidenceBackupRestoreRegistryV1.validate()
         try C45AcceptedLabelBackupRestoreRegistryV1.validate()
+        try C46OperationalContactBackupRestoreRegistryV1.validate()
         try validatePrivacyTransformLifecycle()
         try validateMeasurementIntegrityLifecycle()
         try validatePackageEvolutionLifecycle()
@@ -646,3 +647,22 @@ enum KernelBackupRestoreRegistryV4 {
 }
 
 enum C45AcceptedLabelBackupRegistryEnrollmentV1 { static let durableFamily="AcceptedLabelGenerationSnapshotRow";static let recordsSchemaVersion=AssetLabelPersistenceEnrollmentV1.recordsSchemaVersion;static let includesDerivedScratch=false }
+
+enum C46OperationalContactBackupRestoreRegistryV1 {
+    static let archiveKinds = V35BackupOperationalContactKindV1.allCases
+
+    static func validate() throws {
+        guard OperationalContactPersistenceEnrollmentV1.persistentSchemaVersion == 35,
+              OperationalContactPersistenceEnrollmentV1.recordsSchemaVersion == 34,
+              OperationalContactPersistenceEnrollmentV1.durableModelCount == 2,
+              OperationalContactPersistenceEnrollmentV1.persistentFamilies == [
+                "ServiceContactPointRow", "SystemHandoffIntentRow",
+              ],
+              archiveKinds == [.serviceContactPoint, .systemHandoffIntent],
+              Set(archiveKinds.map(\.rawValue)).count == 2 else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}
+
+enum C46OperationalContactBoundary_12{static let recordsSchemaVersion=34;static let sourceBytesPersistent=false;static let platformOutcomesPersistent=false}

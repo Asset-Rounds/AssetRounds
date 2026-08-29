@@ -46,6 +46,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             .applyAssistanceAcceptance,
             .applyTemporalEvidence,
             .applyAssetLabel,
+            .applyOperationalContact,
         ])
 
     /// C22 receipts are appended by the existing fenced journal authority;
@@ -187,6 +188,8 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             return try applyTemporalEvidence(value, temporaryRelativePath: temporaryRelativePath)
         case let .applyAssetLabel(value):
             return try applyAssetLabel(value, temporaryRelativePath: temporaryRelativePath)
+        case let .applyOperationalContact(value):
+            return try applyOperationalContact(value, temporaryRelativePath: temporaryRelativePath)
         case .deleteAsset,
              .deleteSite,
              .eraseWorkspace,
@@ -196,6 +199,157 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
              .restoreWorkspace,
              .archiveEntities:
             throw WorkspaceMutationFailureV1.unsupportedCommand
+        }
+    }
+
+    private func applyOperationalContact(
+        _ mutation: OperationalContactMutationV1,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1 {
+        do {
+            try mutation.validate()
+            let workspace = mutation.workspaceID.rawValue
+            let allRows = try modelContext.fetch(FetchDescriptor<ServiceContactPointRow>(
+                predicate: #Predicate { $0.workspaceID == workspace }
+            ))
+            var current = try Dictionary(uniqueKeysWithValues: allRows.map {
+                let value = try $0.value()
+                return (value.contactPointID, (row: $0, value: value))
+            })
+            let predecessors = Dictionary(uniqueKeysWithValues: mutation.predecessors.map {
+                ($0.contactPointID, $0)
+            })
+
+            for predecessor in mutation.predecessors {
+                guard current[predecessor.contactPointID]?.value == predecessor else {
+                    throw WorkspaceMutationFailureV1.staleEntityRevision(
+                        try WorkspaceEntityIdentityV1(kind: .serviceContactPoint, id: predecessor.contactPointID)
+                    )
+                }
+            }
+            for successor in mutation.successors {
+                let partyID = successor.party.partyID
+                let parties = try modelContext.fetch(FetchDescriptor<ServicePartyRow>(
+                    predicate: #Predicate { $0.partyID == partyID }
+                ))
+                guard parties.count == 1,
+                      let storedParty = try parties.first?.value(),
+                      storedParty == successor.party,
+                      storedParty.workspaceID == mutation.workspaceID,
+                      storedParty.state == .effective else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+                if let predecessor = predecessors[successor.contactPointID] {
+                    guard let existing = current[successor.contactPointID],
+                          existing.value == predecessor else {
+                        throw WorkspaceMutationFailureV1.staleEntityRevision(
+                            try WorkspaceEntityIdentityV1(kind: .serviceContactPoint, id: successor.contactPointID)
+                        )
+                    }
+                    try existing.row.replace(with: successor, expectedRevision: predecessor.revision)
+                    current[successor.contactPointID] = (existing.row, successor)
+                } else {
+                    guard current[successor.contactPointID] == nil else {
+                        throw WorkspaceMutationFailureV1.sequenceCollision
+                    }
+                    let row = try ServiceContactPointRow(successor)
+                    modelContext.insert(row)
+                    current[successor.contactPointID] = (row, successor)
+                }
+            }
+
+            let touchedPreferredScopeKeys = Set(
+                (mutation.predecessors + mutation.successors).map {
+                    "\($0.party.partyID.uuidString):\($0.kind.rawValue)"
+                }
+            )
+            let declaredPreferredScopeKeys = Set(mutation.preferredScopes.map {
+                "\($0.partyID.uuidString):\($0.kind.rawValue)"
+            })
+            guard touchedPreferredScopeKeys == declaredPreferredScopeKeys else {
+                throw OperationalContactFailureV1.preferredConflict
+            }
+            for scope in mutation.preferredScopes {
+                let effective = current.values.map(\.value).filter {
+                    $0.party.partyID == scope.partyID && $0.kind == scope.kind && $0.lifecycle == .effective
+                }
+                let activeIDs = effective.map(\.contactPointID).sorted { $0.uuidString < $1.uuidString }
+                let preferredIDs = effective.filter(\.preferred).map(\.contactPointID)
+                guard activeIDs == scope.activeContactPointIDs,
+                      preferredIDs.count <= 1,
+                      preferredIDs.first == scope.preferredContactPointID else {
+                    throw OperationalContactFailureV1.preferredConflict
+                }
+            }
+
+            for intent in mutation.handoffIntents {
+                guard intent.disposition == .activeSourceWorkspace else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+                let intentID = intent.intentID
+                let existing = try modelContext.fetch(FetchDescriptor<SystemHandoffIntentRow>(
+                    predicate: #Predicate { $0.workspaceID == workspace && $0.intentID == intentID }
+                ))
+                guard existing.isEmpty else { throw WorkspaceMutationFailureV1.sequenceCollision }
+                switch intent.target.kind {
+                case .serviceContactPoint:
+                    guard let target = current[intent.target.targetID]?.value,
+                          target.lifecycle == .effective,
+                          target.workspaceID == mutation.workspaceID,
+                          target.revision == intent.target.expectedRevision,
+                          target.contactPointSHA256 == intent.target.expectedSHA256 else {
+                        throw WorkspaceMutationFailureV1.invalidCommand
+                    }
+                case .site:
+                    try requireCurrentOperationalContactSiteTarget(intent.target)
+                }
+                modelContext.insert(try SystemHandoffIntentRow(intent))
+            }
+            return try WorkspaceMutationEffectV1(
+                affectedEntities: mutation.affectedIdentities,
+                temporaryRelativePath: temporaryRelativePath
+            )
+        } catch let failure as WorkspaceMutationFailureV1 {
+            modelContext.rollback()
+            throw failure
+        } catch {
+            modelContext.rollback()
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+    }
+
+    private func requireCurrentOperationalContactSiteTarget(
+        _ target: SystemHandoffTargetReferenceV1
+    ) throws {
+        let siteID = target.targetID
+        let sites = try modelContext.fetch(FetchDescriptor<Site>(
+            predicate: #Predicate { $0.id == siteID }
+        ))
+        let identity = try WorkspaceEntityIdentityV1(kind: .site, id: siteID)
+        let key = identity.stableKey
+        let revisions = try modelContext.fetch(FetchDescriptor<EntityMutationRevisionRow>(
+            predicate: #Predicate { $0.stableIdentity == key }
+        ))
+        guard sites.count == 1, let site = sites.first,
+              revisions.count == 1, let revisionRow = revisions.first,
+              revisionRow.revision > 0,
+              UInt64(revisionRow.revision) == target.expectedRevision else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        let value = V4BackupSiteDTO(
+            id: site.id, schemaVersion: site.schemaVersion, label: site.label,
+            address: site.address, timeZoneID: site.timeZoneID,
+            createdAt: site.createdAt, updatedAt: site.updatedAt
+        )
+        let digest = try WorkspaceMutationCanonicalV1.sha256(
+            OperationalContactAdapterSiteDigestBasisV1(
+                identity: identity,
+                revision: UInt64(revisionRow.revision),
+                value: value
+            )
+        )
+        guard digest == target.expectedSHA256 else {
+            throw WorkspaceMutationFailureV1.invalidCommand
         }
     }
 
@@ -2274,6 +2428,12 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
     private static func isFinite(_ value: Date) -> Bool {
         value.timeIntervalSinceReferenceDate.isFinite
     }
+}
+
+private struct OperationalContactAdapterSiteDigestBasisV1: Codable {
+    let identity: WorkspaceEntityIdentityV1
+    let revision: UInt64
+    let value: V4BackupSiteDTO
 }
 
 /// Resolves every authority embedded in a C31 admission closure to one exact

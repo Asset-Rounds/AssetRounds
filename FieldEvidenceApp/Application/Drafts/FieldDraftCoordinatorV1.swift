@@ -251,3 +251,10 @@ enum C45AssetLabelBoundary_Row162 {
         try snapshot.validate()
     }
 }
+enum C46OperationalContactConformance_FieldEvidenceApp_Application_Drafts_FieldDraftCoordinatorV1_swift {
+    static let operationalContactsRemainPurposeSeparated = true
+    static let systemHandoffsRemainExplicitEphemeralAndNoncanonical = true
+    static let subscriberConsentCampaignAndMeasurementProjectionForbidden = true
+    static let contactExportExcludedByDefault = true
+    static let noSecondWriterOrAutomaticHandoff = true
+}

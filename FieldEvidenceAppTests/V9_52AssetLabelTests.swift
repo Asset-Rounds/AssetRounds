@@ -2789,3 +2789,13 @@ private func XCTAssertThrowsErrorAsync(
         XCTFail("Expected async expression to throw", file: file, line: line)
     } catch {}
 }
+private final class C46V952LabelCompatibilityTests: XCTestCase {
+    func testC46AssetLabelCannotEncodeOperationalContact() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "asset-label",
+            kind: .email,
+            handoff: .email,
+            slot: 46052
+        )
+    }
+}

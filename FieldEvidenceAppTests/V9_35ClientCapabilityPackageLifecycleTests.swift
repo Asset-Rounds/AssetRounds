@@ -1004,3 +1004,13 @@ private final class C32AssistanceAnchorV935ClientCapabilityPackageLifecycle: XCT
         )
     }
 }
+private final class C46V935PackageCompatibilityTests: XCTestCase {
+    func testC46PackageCannotSupplyOperationalContactProvider() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "capability-package",
+            kind: .email,
+            handoff: .email,
+            slot: 46035
+        )
+    }
+}

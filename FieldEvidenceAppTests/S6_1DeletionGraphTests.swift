@@ -1023,3 +1023,13 @@ private final class C32AssistanceAnchorS61DeletionGraph: XCTestCase {
         )
     }
 }
+private final class C46S61DeletionGraphCompatibilityTests: XCTestCase {
+    func testC46DeletionGraphKeepsSiteDeletionNoncascading() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "deletion-graph",
+            kind: .phone,
+            handoff: .directions,
+            slot: 46601
+        )
+    }
+}

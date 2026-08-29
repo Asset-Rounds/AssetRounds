@@ -825,3 +825,13 @@ private final class C32AssistanceAnchorS62BackupExport: XCTestCase {
         )
     }
 }
+private final class C46S62BackupExportCompatibilityTests: XCTestCase {
+    func testC46BackupExportExcludesContactFromDefaultExport() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "backup-export",
+            kind: .email,
+            handoff: .email,
+            slot: 46202
+        )
+    }
+}

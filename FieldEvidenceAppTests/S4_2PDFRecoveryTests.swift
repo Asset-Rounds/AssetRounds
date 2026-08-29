@@ -907,3 +907,13 @@ private final class C32AssistanceAnchorS42PDFRecovery: XCTestCase {
         )
     }
 }
+private final class C46S42PDFCompatibilityTests: XCTestCase {
+    func testC46PDFRecoveryNeverPrefillsContactValue() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "pdf-recovery",
+            kind: .phone,
+            handoff: .directions,
+            slot: 46402
+        )
+    }
+}

@@ -2022,3 +2022,5 @@ enum C45AssetLabelBoundary_EvidenceDetailCardContractsV1 {
     static func validate(_ snapshot: AcceptedLabelGenerationSnapshotV1) throws { try snapshot.validate() }
     static let manualShortCodeRemainsAvailable = true
 }
+
+enum C46OperationalContactBoundary_25{static let defaultProjection="EXCLUDED";static let rawPhoneOrEmailEmitted=false;static let platformOutcomeClaimEmitted=false}

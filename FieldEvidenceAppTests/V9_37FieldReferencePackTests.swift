@@ -1137,3 +1137,13 @@ private final class C32AssistanceAnchorV937FieldReferencePack: XCTestCase {
         )
     }
 }
+private final class C46V937PackCompatibilityTests: XCTestCase {
+    func testC46ReferencePackCannotPrefillOperationalContact() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "reference-pack",
+            kind: .email,
+            handoff: .email,
+            slot: 46037
+        )
+    }
+}

@@ -822,3 +822,13 @@ private final class C32AssistanceAnchorV915ContentReferenceProvenance: XCTestCas
         )
     }
 }
+private final class C46V915ContentCompatibilityTests: XCTestCase {
+    func testC46ContentProvenanceDoesNotBecomeContactSourceBytes() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "content-provenance",
+            kind: .email,
+            handoff: .email,
+            slot: 46015
+        )
+    }
+}

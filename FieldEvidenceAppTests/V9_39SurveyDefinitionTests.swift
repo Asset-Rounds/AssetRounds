@@ -1453,3 +1453,13 @@ private final class C32AssistanceAnchorV939SurveyDefinition: XCTestCase {
         )
     }
 }
+private final class C46V939SurveyDefinitionCompatibilityTests: XCTestCase {
+    func testC46SurveyDefinitionCannotDeclareContactIdentity() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "survey-definition",
+            kind: .email,
+            handoff: .email,
+            slot: 46039
+        )
+    }
+}

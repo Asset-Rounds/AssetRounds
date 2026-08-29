@@ -220,7 +220,7 @@ enum C31LightingStreamingArchivePolicyV1 {
     static func validate(records: V4BackupRecordsV1) throws {
         guard records.recordsSchemaVersion == 30 || records.recordsSchemaVersion == 31
                 || records.recordsSchemaVersion == 32
-                || records.recordsSchemaVersion == 33,
+                || records.recordsSchemaVersion == 33 || records.recordsSchemaVersion == 34,
               archiveKinds.count == durableFamilyCount,
               canonicalRowsOnly,
               derivedProjectionDisposition == "DROP_AND_REBUILD",

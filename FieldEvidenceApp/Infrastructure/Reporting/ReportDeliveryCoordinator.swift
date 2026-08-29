@@ -2690,3 +2690,5 @@ enum C45AssetLabelBoundary_ReportDeliveryCoordinatorV1 {
     static func validate(_ snapshot: AcceptedLabelGenerationSnapshotV1) throws { try snapshot.validate() }
     static let claimsPrintOrDelivery = false
 }
+
+enum C46OperationalContactBoundary_32{static let defaultProjection="EXCLUDED";static let rawPhoneOrEmailEmitted=false;static let platformOutcomeClaimEmitted=false}

@@ -4831,3 +4831,62 @@ enum AssetLabelLocalizationPolicyV1 {
         }
     }
 }
+
+// MARK: - C46 operational system handoff localization
+
+enum OperationalContactLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
+    case directions = "operational_contact.action.directions"
+    case call = "operational_contact.action.call"
+    case text = "operational_contact.action.text"
+    case email = "operational_contact.action.email"
+    case opensSystemApp = "operational_contact.handoff.opens_system_app"
+    case handedOff = "operational_contact.handoff.handed_off"
+    case targetMissing = "operational_contact.handoff.target_missing"
+    case targetStale = "operational_contact.handoff.target_stale"
+    case targetInvalid = "operational_contact.handoff.target_invalid"
+    case systemUnavailable = "operational_contact.handoff.system_unavailable"
+    case systemRejected = "operational_contact.handoff.system_rejected"
+    case cancelled = "operational_contact.handoff.cancelled"
+    case claimBoundary = "operational_contact.handoff.claim_boundary"
+
+    var localizationKey: LocalizationKeyV1 {
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+}
+
+enum OperationalContactLocalizationPolicyV1 {
+    static let englishOnly = true
+    static let explicitUserActionRequired = true
+    static let handedOffMeansSystemAcceptedPresentationOnly = true
+    static let sentDeliveredConnectedOrArrivedClaimAllowed = false
+    static let destinationIsIncludedInLocalizedHistory = false
+    static let historicIntentIsActionable = false
+
+    static func key(
+        for disposition: SystemHandoffDispositionV1
+    ) -> OperationalContactLocalizationKeyV1 {
+        switch disposition {
+        case .handedOffToSystem: .handedOff
+        case .targetMissing: .targetMissing
+        case .targetStale: .targetStale
+        case .targetInvalid: .targetInvalid
+        case .systemUnavailable: .systemUnavailable
+        case .systemRejected: .systemRejected
+        case .cancelledBeforeHandoff: .cancelled
+        }
+    }
+
+    static func validate() throws {
+        let values = OperationalContactLocalizationKeyV1.allCases
+        guard values.map(\.rawValue).count == Set(values.map(\.rawValue)).count,
+              values.allSatisfy({ !$0.localizationKey.rawValue.isEmpty }),
+              explicitUserActionRequired,
+              handedOffMeansSystemAcceptedPresentationOnly,
+              !sentDeliveredConnectedOrArrivedClaimAllowed,
+              !destinationIsIncludedInLocalizedHistory,
+              !historicIntentIsActionable else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}

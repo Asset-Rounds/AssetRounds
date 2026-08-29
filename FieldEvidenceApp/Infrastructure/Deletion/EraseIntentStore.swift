@@ -1380,3 +1380,5 @@ enum C33TemporalEvidenceConformance_FieldEvidenceApp_Infrastructure_Deletion_Era
 }
 
 enum C45AcceptedLabelEraseStoreBoundaryV1 { static let durableSnapshotCountParticipatesInEraseInventory=true }
+
+enum C46OperationalContactBoundary_42{static let assetOrSiteCascadeDeletesPartyContacts=false;static let workspaceEraseOwnsRows=true}

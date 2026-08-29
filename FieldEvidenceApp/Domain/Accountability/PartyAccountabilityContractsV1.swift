@@ -1,5 +1,14 @@
 import Foundation
 
+/// C46 operational contacts bind to Party authority only. Site roles, subscriber
+/// consent, marketing audiences, and measurement identities are separate domains.
+enum OperationalContactPartySeparationV1 {
+    static func validate(contact: ServiceContactPointV1, party: ServicePartyReferenceV1) throws {
+        try contact.validate();try party.validate()
+        guard contact.party == party,contact.workspaceID == party.workspaceID else { throw PartyAccountabilityFailureV1.crossWorkspaceReference }
+    }
+}
+
 enum ScheduleAssigneeBoundaryV1 {
     static func validate(_ actor: ActorSnapshotV1, workspaceID: WorkspaceID) throws {
         try actor.validate()

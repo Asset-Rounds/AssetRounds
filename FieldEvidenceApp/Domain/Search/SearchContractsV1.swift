@@ -3679,3 +3679,5 @@ struct AcceptedLabelSearchMetadataV1: Equatable, Sendable {
 }
 
 enum C45AcceptedLabelSearchBoundaryV1 { static let acceptedSnapshotMetadataIsSearchSource=true;static let labelTextAndShortCodesAreExcluded=true }
+
+enum C46OperationalContactBoundary_33{static let permittedProjection="PARTY_METADATA_ONLY";static let rawPhoneOrEmailIndexed=false}

@@ -598,3 +598,11 @@ enum C33TemporalEvidenceIntegrationEventBoundaryV1 {
 }
 
 enum C45AcceptedLabelIntegrationEventBoundaryV1 { static let snapshotMayProjectMetadataOnly=true;static let artifactBytesNeverProject=true }
+
+enum C46OperationalContactConformance_FieldEvidenceApp_Domain_Replication_IntegrationEventContractsV1_swift {
+    static let operationalContactsRemainPurposeSeparated = true
+    static let systemHandoffsRemainExplicitEphemeralAndNoncanonical = true
+    static let subscriberConsentCampaignAndMeasurementProjectionForbidden = true
+    static let contactExportExcludedByDefault = true
+    static let siteRoleOwnershipForbidden = true
+}

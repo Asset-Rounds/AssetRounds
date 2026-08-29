@@ -680,3 +680,60 @@ enum C45AssetLabelBoundary_Row149 {
         try snapshot.validate()
     }
 }
+/// Ephemeral directions truth assembled by the canonical site query at tap
+/// time. It is intentionally not Codable: neither a route nor a durable
+/// handoff intent may cache an address or coordinate. Production currently
+/// supplies exactAddress from Site; coordinate is an injection point for an
+/// explicitly authoritative source, never current-location or SolarLocation.
+struct SiteDirectionsCoordinateV1: Equatable, Sendable {
+    let latitudeMicrodegrees: Int32
+    let longitudeMicrodegrees: Int32
+}
+
+struct SiteDirectionsTargetSnapshotV1: Equatable, Sendable {
+    let currentTarget: SystemHandoffTargetReferenceV1
+    let coordinate: SiteDirectionsCoordinateV1?
+    let exactAddress: String?
+
+    init(
+        currentTarget: SystemHandoffTargetReferenceV1,
+        coordinate: SiteDirectionsCoordinateV1? = nil,
+        exactAddress: String? = nil
+    ) throws {
+        guard currentTarget.kind == .site else {
+            throw OperationalContactFailureV1.invalidHandoffTarget
+        }
+        if let coordinate {
+            try SystemHandoffDestinationV1.geographicCoordinate(
+                latitudeMicrodegrees: coordinate.latitudeMicrodegrees,
+                longitudeMicrodegrees: coordinate.longitudeMicrodegrees
+            ).validate(for: .directions)
+        }
+        if let exactAddress {
+            try SystemHandoffDestinationV1.exactAddress(exactAddress)
+                .validate(for: .directions)
+        }
+        self.currentTarget = currentTarget
+        self.coordinate = coordinate
+        self.exactAddress = exactAddress
+    }
+
+    func preferredDestination() throws -> SystemHandoffDestinationV1 {
+        if let coordinate {
+            return .geographicCoordinate(
+                latitudeMicrodegrees: coordinate.latitudeMicrodegrees,
+                longitudeMicrodegrees: coordinate.longitudeMicrodegrees
+            )
+        }
+        if let exactAddress { return .exactAddress(exactAddress) }
+        throw OperationalContactFailureV1.invalidHandoffTarget
+    }
+}
+
+enum C46DirectionsLocationAuthorityBoundaryV1 {
+    static let snapshotIsPersistent = false
+    static let routeContainsAddressOrCoordinate = false
+    static let coordinatePrecedesAddressWhenExplicitlyAuthoritative = true
+    static let derivesFromSolarLocation = false
+    static let requestsCurrentLocationPermission = false
+}

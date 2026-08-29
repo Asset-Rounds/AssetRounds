@@ -590,3 +590,10 @@ private final class AssetLabelArtifactScratchStoreV1: @unchecked Sendable {
     static let replayNeverClaimsPrintOrDelivery = true
     static let migrationPreservesAcceptedManifestOnly = true
 }
+enum C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Reporting_AssetLabelLifecycleAdapterV1_swift {
+    static let operationalContactsRemainPurposeSeparated = true
+    static let systemHandoffsRemainExplicitEphemeralAndNoncanonical = true
+    static let subscriberConsentCampaignAndMeasurementProjectionForbidden = true
+    static let contactExportExcludedByDefault = true
+    static let noContactProjectionOrNetworkDelivery = true
+}

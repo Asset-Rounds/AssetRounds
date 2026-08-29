@@ -548,3 +548,5 @@ struct DeletionLedgerV2: Codable, Equatable, Sendable {
 }
 
 enum C45AcceptedLabelDeletionLedgerBoundaryV1 { static let snapshotDeletionRequiresWorkspaceGraphClosure=true;static let outputPossessionIsNeverInferred=true }
+
+enum C46OperationalContactBoundary_05{static let recordsSchemaVersion=34;static let sourceBytesPersistent=false;static let platformOutcomesPersistent=false}

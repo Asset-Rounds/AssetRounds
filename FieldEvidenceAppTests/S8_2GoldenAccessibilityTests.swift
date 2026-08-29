@@ -281,3 +281,13 @@ private final class C32AssistanceAnchorS82GoldenAccessibility: XCTestCase {
         )
     }
 }
+private final class C46S82GoldenAccessibilityCompatibilityTests: XCTestCase {
+    func testC46GoldenAccessibilityRequiresExplicitHandoff() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "golden-accessibility",
+            kind: .email,
+            handoff: .email,
+            slot: 46802
+        )
+    }
+}

@@ -949,3 +949,11 @@ enum C33TemporalEvidenceConformance_FieldEvidenceApp_Domain_Reporting_ContractMa
 }
 
 enum C45AcceptedLabelContractManifestBoundaryV1 { static let durableFamily="AcceptedLabelGenerationSnapshotRow";static let derivedOutputIsNotContractManifestTruth=true }
+
+enum C46OperationalContactContractManifestBoundaryV1{
+    static let durableFamilies=OperationalContactPersistenceEnrollmentV1.persistentFamilies
+    static let defaultExportEnabled=PartyContactsCSVContractV1.defaultExportEnabled
+    static let customerContactValuesAreReportSafe=false
+    static let systemOutcomeCreatesCommunicationClaim=false
+    static func validate()throws{guard durableFamilies==["ServiceContactPointRow","SystemHandoffIntentRow"],!defaultExportEnabled,!customerContactValuesAreReportSafe,!systemOutcomeCreatesCommunicationClaim else{throw SnapshotProjectionFailureV1.invalidValue}}
+}

@@ -4255,3 +4255,5 @@ enum TemporalEvidenceWholeSignDeletionBoundaryV1 {
 }
 
 enum C45AcceptedLabelDeletionServiceBoundaryV1 { static let resolvesSnapshotLocatorReferences=true;static let removesDerivedOutputScratch=true }
+
+enum C46OperationalContactBoundary_41{static let assetOrSiteCascadeDeletesPartyContacts=false;static let workspaceEraseOwnsRows=true}

@@ -1112,3 +1112,13 @@ enum C33TemporalEvidenceJournalBoundaryV1 {
 }
 
 enum C45AcceptedLabelChangeJournalBoundaryV1 { static let commandKind:WorkspaceCommandKindV1 = .applyAssetLabel;static let preservesCanonicalSnapshotDigest=true }
+
+enum C46OperationalContactChangeJournalBoundaryV1 {
+    static let commandKind:WorkspaceCommandKindV1 = .applyOperationalContact
+    static let durableKinds:Set<WorkspaceEntityKindV1>=[.serviceContactPoint,.systemHandoffIntent]
+    static let platformOutcomeIsCanonical=false
+    static func validate(mutation:OperationalContactMutationV1,receipt:MutationReceiptV1)throws{
+        _=try OperationalContactMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)
+        guard Set(try mutation.affectedIdentities.map(\.kind)).isSubset(of:durableKinds),!platformOutcomeIsCanonical else{throw ChangeJournalFailureV1.tamperedBatch}
+    }
+}

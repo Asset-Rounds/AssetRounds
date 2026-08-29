@@ -491,3 +491,13 @@ private final class C32AssistanceAnchorV929WorkPacketManifest: XCTestCase {
         )
     }
 }
+private final class C46V929WorkPacketCompatibilityTests: XCTestCase {
+    func testC46WorkPacketDoesNotOwnOperationalContact() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "work-packet",
+            kind: .phone,
+            handoff: .call,
+            slot: 46029
+        )
+    }
+}

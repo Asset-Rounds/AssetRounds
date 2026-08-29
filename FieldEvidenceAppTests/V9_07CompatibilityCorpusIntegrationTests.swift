@@ -905,3 +905,13 @@ private final class C32AssistanceAnchorV907CompatibilityCorpusIntegration: XCTes
         )
     }
 }
+private final class C46V907CorpusCompatibilityTests: XCTestCase {
+    func testC46CorpusCompatibilityKeepsImportPreviewNoncanonical() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "corpus-integration",
+            kind: .phone,
+            handoff: .text,
+            slot: 46107
+        )
+    }
+}

@@ -898,3 +898,13 @@ private final class C32AssistanceAnchorS44HistoryComparison: XCTestCase {
         )
     }
 }
+private final class C46S44HistoryCompatibilityTests: XCTestCase {
+    func testC46HistoryKeepsContactRevisionExplicit() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "history-comparison",
+            kind: .phone,
+            handoff: .call,
+            slot: 46404
+        )
+    }
+}

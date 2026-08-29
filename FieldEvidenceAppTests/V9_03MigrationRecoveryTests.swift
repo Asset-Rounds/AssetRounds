@@ -1699,3 +1699,13 @@ private final class C32AssistanceAnchorV903MigrationRecovery: XCTestCase {
         )
     }
 }
+private final class C46V903MigrationRecoveryCompatibilityTests: XCTestCase {
+    func testC46MigrationRecoveryKeepsOperationalEmailPurposeSeparated() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "migration-recovery",
+            kind: .email,
+            handoff: .email,
+            slot: 46_003
+        )
+    }
+}

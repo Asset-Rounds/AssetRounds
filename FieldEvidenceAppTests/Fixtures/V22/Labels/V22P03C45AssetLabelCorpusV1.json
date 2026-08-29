@@ -260,5 +260,14 @@
     "physicalEvidenceOwnerPending": true
   },
   "evidenceIDs": ["V23-P03-C45-G01", "V23-P03-C45-A01", "V23-P03-C45-H01", "V23-P03-C45-I01", "V23-P03-C45-R01"],
-  "statusFlags": {"native": false, "hosted": false, "physical": false, "adoption": false, "acceptance": false, "release": false}
+  "statusFlags": {"native": false, "hosted": false, "physical": false, "adoption": false, "acceptance": false, "release": false},
+  "c46OperationalContactCompatibility": {
+    "compatibilityCardID": "V23-P03-C46",
+    "operationalContactsArePurposeSeparated": true,
+    "siteRoleOwnershipForbidden": true,
+    "subscriberConsentCampaignAndMeasurementProjectionForbidden": true,
+    "systemHandoffsAreExplicitEphemeralAndNoncanonical": true,
+    "contactExportIsExcludedByDefault": true,
+    "importedSourceBytesRemainLeasedScratch": true
+  }
 }

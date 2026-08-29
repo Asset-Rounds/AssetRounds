@@ -2416,3 +2416,50 @@ enum AssetLabelAccessibilityPolicyV1 {
         }
     }
 }
+
+// MARK: - C46 explicit operational handoff accessibility
+
+enum OperationalContactAccessibilityIDV1: String, CaseIterable, Codable, Sendable {
+    case directions = "operational_contact.action.directions"
+    case call = "operational_contact.action.call"
+    case text = "operational_contact.action.text"
+    case email = "operational_contact.action.email"
+    case status = "operational_contact.handoff.status"
+    case claimBoundary = "operational_contact.handoff.claim_boundary"
+}
+
+enum OperationalContactAccessibilityPolicyV1 {
+    static let selectedContactLabelIsSpoken = true
+    static let actionAndSystemAppHintAreDistinct = true
+    static let statusIsNotColorOnly = true
+    static let explicitActivationIsRequired = true
+    static let historicIntentIsFocusableButNotActionable = true
+    static let sentDeliveredConnectedOrArrivalClaimAllowed = false
+
+    static func localizationKey(
+        for id: OperationalContactAccessibilityIDV1
+    ) -> OperationalContactLocalizationKeyV1 {
+        switch id {
+        case .directions: .directions
+        case .call: .call
+        case .text: .text
+        case .email: .email
+        case .status: .opensSystemApp
+        case .claimBoundary: .claimBoundary
+        }
+    }
+
+    static func validate() throws {
+        let ids = OperationalContactAccessibilityIDV1.allCases
+        guard ids.map(\.rawValue).count == Set(ids.map(\.rawValue)).count,
+              ids.allSatisfy({ !localizationKey(for: $0).rawValue.isEmpty }),
+              selectedContactLabelIsSpoken,
+              actionAndSystemAppHintAreDistinct,
+              statusIsNotColorOnly,
+              explicitActivationIsRequired,
+              historicIntentIsFocusableButNotActionable,
+              !sentDeliveredConnectedOrArrivalClaimAllowed else {
+            throw LocalizationContractFailureV1.invalidAccessibilityBinding
+        }
+    }
+}

@@ -653,3 +653,13 @@ private final class C32AssistanceAnchorV943PlanRebase: XCTestCase {
         )
     }
 }
+private final class C46V943PlanCompatibilityTests: XCTestCase {
+    func testC46PlanRebaseDoesNotRewriteContactRevision() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "plan-rebase",
+            kind: .email,
+            handoff: .email,
+            slot: 46043
+        )
+    }
+}

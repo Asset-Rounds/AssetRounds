@@ -630,3 +630,13 @@ private final class C32AssistanceAnchorV906DeletionArchiveIntegration: XCTestCas
         )
     }
 }
+private final class C46V906DeletionArchiveCompatibilityTests: XCTestCase {
+    func testC46DeletionArchiveKeepsContactPrivacyPurposeSeparated() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "deletion-archive",
+            kind: .email,
+            handoff: .email,
+            slot: 46106
+        )
+    }
+}

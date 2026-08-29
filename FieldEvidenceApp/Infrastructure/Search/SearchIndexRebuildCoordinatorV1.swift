@@ -428,17 +428,34 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         values += workPacketValues
         if includeAccountability {
             var rolesByParty: [UUID: Set<String>] = [:]
+            var contactMetadataByParty: [UUID: Set<String>] = [:]
             let roleRows = try modelContext.fetch(FetchDescriptor<SitePartyRoleEventRow>())
                 .filter { $0.workspaceID == workspaceID }
             for row in roleRows {
                 let event = try row.value()
                 rolesByParty[event.partyID, default: []].insert(event.role.rawValue)
             }
+            let contactRows = try modelContext.fetch(FetchDescriptor<ServiceContactPointRow>())
+                .filter { $0.workspaceID == workspaceID }
+            for row in contactRows {
+                let contact = try row.value()
+                guard contact.lifecycle == .effective else { continue }
+                contactMetadataByParty[contact.party.partyID, default: []].insert(
+                    "CONTACT_\(contact.kind.rawValue)"
+                )
+                if contact.preferred {
+                    contactMetadataByParty[contact.party.partyID, default: []].insert(
+                        "PREFERRED_\(contact.kind.rawValue)"
+                    )
+                }
+            }
             values += try modelContext.fetch(FetchDescriptor<ServicePartyRow>())
                 .filter { $0.workspaceID == workspaceID }
                 .map { row in
                     let party = try row.value()
-                    let roles = (rolesByParty[party.partyID] ?? []).sorted()
+                    let roles = (rolesByParty[party.partyID] ?? [])
+                        .union(contactMetadataByParty[party.partyID] ?? [])
+                        .sorted()
                     return CanonicalValue(
                         kind: .party,
                         stableID: try stableKey(kind: .serviceParty, id: party.partyID),

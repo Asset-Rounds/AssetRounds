@@ -585,3 +585,11 @@ enum C45AssetLabelBoundary_ContentProvenanceContractsV1 {
     static func validate(_ plan: AssetLabelGenerationPlanV1) throws { try plan.validate() }
     static let claimsPhysicalScanAcceptance = false
 }
+
+enum C46OperationalContactConformance_FieldEvidenceApp_Domain_Content_ContentProvenanceContractsV1_swift {
+    static let operationalContactsRemainPurposeSeparated = true
+    static let systemHandoffsRemainExplicitEphemeralAndNoncanonical = true
+    static let subscriberConsentCampaignAndMeasurementProjectionForbidden = true
+    static let contactExportExcludedByDefault = true
+    static let siteRoleOwnershipForbidden = true
+}

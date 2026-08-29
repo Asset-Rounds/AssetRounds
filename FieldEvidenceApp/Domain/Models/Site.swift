@@ -81,3 +81,10 @@ enum C45AssetLabelBoundary_Row147 {
         try snapshot.validate()
     }
 }
+
+enum C46SiteDirectionsPersistenceBoundaryV1 {
+    static let siteSchemaChangedByC46 = false
+    static let directionsUsesCurrentExactAddressOnly = true
+    static let historicSolarLocationMayBeInferred = false
+    static let coordinateIsStoredBySite = false
+}

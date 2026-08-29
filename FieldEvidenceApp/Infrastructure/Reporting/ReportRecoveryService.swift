@@ -1164,3 +1164,5 @@ enum C45AssetLabelBoundary_ReportRecoveryServiceV1 {
     static func validate(_ snapshot: AcceptedLabelGenerationSnapshotV1) throws { try snapshot.validate() }
     static let adoptsPartialOutput = false
 }
+
+enum C46OperationalContactBoundary_31{static let defaultProjection="EXCLUDED";static let rawPhoneOrEmailEmitted=false;static let platformOutcomeClaimEmitted=false}

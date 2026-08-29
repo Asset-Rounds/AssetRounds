@@ -1936,3 +1936,5 @@ enum C32AssistanceCompatibility_Finalization_ReportSnapshotEncoderV1 {
 }
 
 enum C45AcceptedLabelReportSnapshotBoundaryV1 { static let acceptedLabelSnapshotIsNotEmbeddedInReport=true;static let reprintAuthorityRemainsTypedPersistence=true }
+
+enum C46OperationalContactBoundary_54{static let defaultProjection="EXCLUDED";static let rawPhoneOrEmailEmitted=false;static let platformOutcomeClaimEmitted=false}

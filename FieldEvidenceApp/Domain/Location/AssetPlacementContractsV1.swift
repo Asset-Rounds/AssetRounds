@@ -351,3 +351,14 @@ enum C45AssetLabelBoundary_Row150 {
         try snapshot.validate()
     }
 }
+
+enum C46AssetPlacementHandoffBoundaryV1 {
+    static let directionsHandoffMutatesPlacement = false
+    static let selectedContactMutatesPlacement = false
+    static let platformOutcomeIsPlacementEvidence = false
+    static func validateTarget(_ value: SystemHandoffTargetReferenceV1) throws {
+        guard value.kind == .site else {
+            throw OperationalContactFailureV1.invalidHandoffTarget
+        }
+    }
+}

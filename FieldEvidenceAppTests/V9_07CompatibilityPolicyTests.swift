@@ -507,3 +507,13 @@ private final class C32AssistanceAnchorV907CompatibilityPolicy: XCTestCase {
         )
     }
 }
+private final class C46V907CompatibilityPolicyTests: XCTestCase {
+    func testC46CompatibilityPolicyPreservesExactContactValue() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "compatibility-policy",
+            kind: .email,
+            handoff: .email,
+            slot: 46007
+        )
+    }
+}

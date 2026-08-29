@@ -881,3 +881,10 @@ struct CheckRunnerAssetLabelPreviewV1: Equatable, Sendable {
         self.plan = plan; self.input = input; self.item = item
     }
 }
+enum C46OperationalContactConformance_FieldEvidenceApp_Features_CheckRunner_CheckRunnerContracts_swift {
+    static let operationalContactsRemainPurposeSeparated = true
+    static let systemHandoffsRemainExplicitEphemeralAndNoncanonical = true
+    static let subscriberConsentCampaignAndMeasurementProjectionForbidden = true
+    static let contactExportExcludedByDefault = true
+    static let noSecondWriterOrAutomaticHandoff = true
+}

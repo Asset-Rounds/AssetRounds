@@ -1157,3 +1157,13 @@ private final class C32AssistanceAnchorV905RestoreIdentity: XCTestCase {
         )
     }
 }
+private final class C46V905RestoreIdentityCompatibilityTests: XCTestCase {
+    func testC46RestoreIdentityKeepsStableDirectionsReference() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "restore-identity",
+            kind: .phone,
+            handoff: .directions,
+            slot: 46005
+        )
+    }
+}

@@ -2375,3 +2375,5 @@ enum C45AssetLabelBoundary_ReportProjectionRegistryV1 {
     }
     static let createsParallelRenderer = false
 }
+
+enum C46OperationalContactBoundary_26{static let defaultProjection="EXCLUDED";static let rawPhoneOrEmailEmitted=false;static let platformOutcomeClaimEmitted=false}

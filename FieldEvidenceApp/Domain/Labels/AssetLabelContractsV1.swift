@@ -783,3 +783,11 @@ extension AssetLabelCurrentBindingV1 {
 }
 
 enum AssetLabelPersistenceEnrollmentV1{static let persistentSchemaVersion=34;static let recordsSchemaVersion=33;static let durableModelCount=1;static let persistentFamilies=["AcceptedLabelGenerationSnapshotRow"];static let derivedFamilies=["AssetLabelGenerationPlanV1","LabelProjectionResultV1"];static let createsSecondLocatorStore=false;static let createsSecondRenderer=false}
+
+enum C46OperationalContactConformance_FieldEvidenceApp_Domain_Labels_AssetLabelContractsV1_swift {
+    static let operationalContactsRemainPurposeSeparated = true
+    static let systemHandoffsRemainExplicitEphemeralAndNoncanonical = true
+    static let subscriberConsentCampaignAndMeasurementProjectionForbidden = true
+    static let contactExportExcludedByDefault = true
+    static let siteRoleOwnershipForbidden = true
+}

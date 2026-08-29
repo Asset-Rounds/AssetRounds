@@ -1389,3 +1389,11 @@ enum C45AssetLabelBoundary_AssetSemanticContractsV1 {
     static let createsAssetIdentity = false
     static let claimsPhysicalApplication = false
 }
+
+enum C46OperationalContactConformance_FieldEvidenceApp_Domain_AssetSemantics_AssetSemanticContractsV1_swift {
+    static let operationalContactsRemainPurposeSeparated = true
+    static let systemHandoffsRemainExplicitEphemeralAndNoncanonical = true
+    static let subscriberConsentCampaignAndMeasurementProjectionForbidden = true
+    static let contactExportExcludedByDefault = true
+    static let siteRoleOwnershipForbidden = true
+}

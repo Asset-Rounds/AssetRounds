@@ -1181,3 +1181,13 @@ private final class C32AssistanceAnchorV901VersionedSchemaIdentity: XCTestCase {
         )
     }
 }
+private final class C46V901VersionedSchemaIdentityCompatibilityTests: XCTestCase {
+    func testC46SchemaIdentityBindsOperationalContactDurableIdentity() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "schema-identity",
+            kind: .email,
+            handoff: .email,
+            slot: 46001
+        )
+    }
+}

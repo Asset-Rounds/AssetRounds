@@ -1,0 +1,66 @@
+{
+  "schema": "V22P03C46OperationalContactCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P03-C46",
+  "classification": "IMPLEMENT_NOW",
+  "persistentSchemaVersion": 35,
+  "recordsSchemaVersion": 34,
+  "durableFamilies": ["ServiceContactPointRow", "SystemHandoffIntentRow"],
+  "contractNames": ["ServicePartyReferenceV1", "ServiceContactPointV1", "SystemHandoffIntentV1", "PartyContactCSVRowV1", "PARTY_CONTACTS_V1"],
+  "contactPointCases": [
+    {"caseID": "MULTIPLE_EMAIL_ONE_PREFERRED", "input": "two exact email revisions for one Party and kind", "expectedDisposition": "ONE_ACTIVE_PREFERRED"},
+    {"caseID": "SAME_VALUE_DISTINCT_PARTIES", "input": "same@example.com on two distinct Party IDs", "expectedDisposition": "DISTINCT_CONTACT_POINTS"},
+    {"caseID": "PLUS_CASE_UNICODE_EMAIL", "input": "Ops+Night@Example.COM and δοκιμή@παράδειγμα.δοκιμή", "expectedDisposition": "PRESERVE_EXACT_DISPLAY_VALUE"},
+    {"caseID": "INTERNATIONAL_PHONE_EXTENSION", "input": "+44 20 7946 0958 ext. 42", "expectedDisposition": "PRESERVE_EXACT_DISPLAY_VALUE"},
+    {"caseID": "RETIRED_SUPERSEDED", "input": "revision two retires revision one", "expectedDisposition": "IMMUTABLE_LINEAGE_NO_PREFERENCE"},
+    {"caseID": "DUPLICATE_PREDECESSOR_OR_WRONG_MUTATION", "input": "duplicate predecessor identities or successor mutation attribution differs from the outer mutation", "expectedDisposition": "REJECTED_WITHOUT_TRAP_OR_WRITE"},
+    {"caseID": "MULTI_KIND_SAME_PARTY_PREFERENCE", "input": "one Party has independent preferred email and phone scopes", "expectedDisposition": "ONE_UNIQUE_PARTY_CONCURRENCY_IDENTITY"},
+    {"caseID": "REPLACE_EXISTING_SUCCESSOR", "input": "same-workspace restore contains a revision-two successor with exact supersedes and mutation identity", "expectedDisposition": "PRESERVE_CANONICAL_SUCCESSOR_AND_JOURNAL"}
+  ],
+  "handoffCases": [
+    {"caseID": "SITE_COORDINATE_ONLY", "input": "current resolver projection supplies coordinate", "expectedDisposition": "DIRECTIONS_COORDINATE"},
+    {"caseID": "SITE_ADDRESS_ONLY", "input": "persisted Site supplies exact address and no coordinate", "expectedDisposition": "DIRECTIONS_EXACT_ADDRESS"},
+    {"caseID": "SITE_BOTH_COORDINATE_WINS", "input": "current resolver projection supplies coordinate and Site address", "expectedDisposition": "DIRECTIONS_COORDINATE"},
+    {"caseID": "SITE_NEITHER", "input": "current Site has no coordinate or address", "expectedDisposition": "TARGET_INVALID"},
+    {"caseID": "STALE_BETWEEN_RENDER_AND_TAP", "input": "target revision or digest changes after intent review", "expectedDisposition": "TARGET_STALE"},
+    {"caseID": "SYSTEM_REJECTED", "input": "one explicit operating-system handoff call returns false", "expectedDisposition": "SYSTEM_REJECTED_NO_RETRY"},
+    {"caseID": "UNICODE_EMAIL_RECIPIENT_ONLY", "input": "accepted NFC Unicode email address is percent-encoded only as the mailto recipient", "expectedDisposition": "ONE_SYSTEM_CALL_NO_QUERY_OR_FRAGMENT"}
+  ],
+  "csvImportCases": [
+    {"caseID": "ORDERED_SOURCE_SET", "input": "PARTY_CONTACTS_V1 source set with contiguous file order", "expectedDisposition": "BOUNDED_PREVIEW"},
+    {"caseID": "ATOMIC_MULTIROW_ACCEPTANCE", "input": "multiple valid Party contact rows share one expected revision", "expectedDisposition": "ONE_CANONICAL_MUTATION"},
+    {"caseID": "CANCEL_PREVIEW", "input": "cancel before acceptance", "expectedDisposition": "NO_CANONICAL_EFFECT"},
+    {"caseID": "MIXED_PURPOSE_SOURCE", "input": "operational rows attempt subscriber or campaign projection", "expectedDisposition": "REJECTED_PURPOSE_SEPARATION"},
+    {"caseID": "DETERMINISTIC_CANCEL_THEN_ACCEPT", "input": "identical source bytes yield an identical preview; cancel writes nothing; explicit acceptance writes both rows once", "expectedDisposition": "ONE_ATOMIC_MUTATION_NO_PARTIAL_WRITE"}
+  ],
+  "hostileCases": ["MALFORMED_ADDRESS", "UNSUPPORTED_CHANNEL", "STALE_EXPECTED_REVISION", "DUPLICATE_CONTACT_POINT", "MIXED_PURPOSE_IMPORT", "SITE_ROLE_OWNERSHIP_ATTEMPT", "SUBSCRIBER_OR_CONSENT_PROMOTION_ATTEMPT", "CAMPAIGN_AUDIENCE_ATTEMPT", "MEASUREMENT_IDENTITY_ATTEMPT", "AUTOMATIC_HANDOFF_ATTEMPT", "PROTECTED_DATA", "LOW_STORAGE", "CANCELLATION"],
+  "interruptionBoundaries": ["BEFORE_CANONICAL_CONTACT_WRITE", "AFTER_EFFECT_BEFORE_RECEIPT", "DURING_IMPORT_PREVIEW", "BEFORE_EXPLICIT_SYSTEM_HANDOFF"],
+  "lifecycle": {
+    "migration": "V34_TO_V35_EMPTY_BACKFILL_FORWARD_ONLY",
+    "backup": "CANONICAL_CONTACT_AND_INTENT_ROWS_WITH_MATCHING_MUTATION_RECEIPTS",
+    "restore": "REPLACE_PRESERVES_EXACT_ACTIVE_ROWS",
+    "cloneFork": "REBIND_CONTACTS_AND_RETAIN_NONEXECUTABLE_HISTORIC_INTENTS",
+    "importExport": "PARTY_CONTACTS_V1_EXPLICIT_ONLY_DEFAULT_EXPORT_DISABLED",
+    "journalReplay": "EFFECT_BEFORE_RECEIPT_IDEMPOTENT_RECOVERY",
+    "searchRebuild": "PRIVACY_SAFE_METADATA_WITHOUT_RAW_CONTACT_VALUES",
+    "deleteErase": "WORKSPACE_SCOPED_ROWS_NO_SITE_OR_ASSET_CASCADE",
+    "retention": "CONTACT_REVISION_LINEAGE_AND_FROZEN_INTENT_ONLY",
+    "compatibilityForwardFix": "PRESERVE_ACCEPTED_CONTACT_AND_INTENT_HISTORY"
+  },
+  "invariants": {
+    "operationalContactsNeverBecomeSubscribers": true,
+    "operationalContactsNeverBecomeConsentReceipts": true,
+    "operationalContactsNeverBecomeCampaignAudience": true,
+    "operationalContactsNeverBecomeMeasurementIdentity": true,
+    "siteRoleOwnershipForbidden": true,
+    "purposeSeparationRequired": true,
+    "explicitSystemHandoffRequired": true,
+    "oneCanonicalWriterTransaction": true,
+    "effectBeforeReceiptRecovery": true,
+    "importPreviewIsNoncanonical": true,
+    "noNetworkDeliveryClaim": true,
+    "noSecondWriter": true
+  },
+  "evidenceIDs": ["V23-P03-C46-G01", "V23-P03-C46-A01", "V23-P03-C46-H01", "V23-P03-C46-I01", "V23-P03-C46-R01"],
+  "statusFlags": {"native": false, "hosted": false, "physical": false, "adoption": false, "acceptance": false, "release": false}
+}

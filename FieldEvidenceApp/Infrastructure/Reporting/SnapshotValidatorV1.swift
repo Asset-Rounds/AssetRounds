@@ -1872,3 +1872,5 @@ enum C45AssetLabelBoundary_SnapshotValidatorV1 {
     static func validate(_ snapshot: AcceptedLabelGenerationSnapshotV1) throws { try snapshot.validate() }
     static let requiresManifestDigest = true
 }
+
+enum C46OperationalContactBoundary_28{static let defaultProjection="EXCLUDED";static let rawPhoneOrEmailEmitted=false;static let platformOutcomeClaimEmitted=false}

@@ -1340,3 +1340,13 @@ private final class C32AssistanceAnchorS41DeterministicRenderer: XCTestCase {
         )
     }
 }
+private final class C46S41RendererCompatibilityTests: XCTestCase {
+    func testC46RendererDoesNotProjectOperationalContactValue() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "renderer",
+            kind: .phone,
+            handoff: .directions,
+            slot: 46401
+        )
+    }
+}

@@ -1152,3 +1152,13 @@ private final class C32AssistanceAnchorV930FieldDraftResilience: XCTestCase {
         )
     }
 }
+private final class C46V930DraftCompatibilityTests: XCTestCase {
+    func testC46DraftScratchCannotBecomeOperationalContact() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "field-draft",
+            kind: .phone,
+            handoff: .text,
+            slot: 46030
+        )
+    }
+}

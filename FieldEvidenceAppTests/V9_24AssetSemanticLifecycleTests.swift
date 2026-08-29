@@ -760,3 +760,13 @@ private final class C32AssistanceAnchorV924AssetSemanticLifecycle: XCTestCase {
         )
     }
 }
+private final class C46V924AssetCompatibilityTests: XCTestCase {
+    func testC46AssetLifecycleDoesNotOwnPartyContact() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "asset-lifecycle",
+            kind: .email,
+            handoff: .email,
+            slot: 46024
+        )
+    }
+}

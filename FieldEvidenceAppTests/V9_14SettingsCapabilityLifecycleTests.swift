@@ -1407,3 +1407,13 @@ private final class C32AssistanceAnchorV914SettingsCapabilityLifecycle: XCTestCa
         )
     }
 }
+private final class C46V914SettingsCompatibilityTests: XCTestCase {
+    func testC46SettingsCannotActivateAutomaticHandoff() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "settings-capability",
+            kind: .phone,
+            handoff: .call,
+            slot: 46014
+        )
+    }
+}

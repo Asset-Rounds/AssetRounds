@@ -1483,3 +1483,5 @@ enum C45AcceptedLabelIndexStoreBoundaryV1 {
     static let storesShortCode=false
     static func metadata(_ snapshot:AcceptedLabelGenerationSnapshotV1)throws->AcceptedLabelSearchMetadataV1{try .init(snapshot)}
 }
+
+enum C46OperationalContactBoundary_36{static let permittedProjection="PARTY_METADATA_ONLY";static let rawPhoneOrEmailIndexed=false}

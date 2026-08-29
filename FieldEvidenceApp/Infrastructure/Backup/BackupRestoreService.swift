@@ -11,6 +11,18 @@ private struct PrivacyTransformRestoreReviewEnvelopeV1: Decodable {
     let policyID: UUID; let policyRevision: UInt64; let policySHA256: String
 }
 
+private struct OperationalContactRestoreSiteDigestBasisV1: Codable {
+    let identity: WorkspaceEntityIdentityV1
+    let revision: UInt64
+    let value: V4BackupSiteDTO
+}
+
+private struct OperationalContactRestoreSourceReceiptV1 {
+    let envelope: MutationEnvelopeV1
+    let mutation: OperationalContactMutationV1
+    let receipt: MutationReceiptV1
+}
+
 enum IntegrationProjectionBackupRestoreExclusionV1 {
     static func validate() throws {
         let coverage = IntegrationEventJournalCoverageV1()
@@ -615,6 +627,15 @@ final class BackupRestoreService {
             ).recordsAfter
         } catch {
             throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        if validatedPackage.records.recordsSchemaVersion
+            >= OperationalContactPersistenceEnrollmentV1.recordsSchemaVersion {
+            // ReplacementRestoreRule owns the generic/deletion merge. C46
+            // current rows remain incoming canonical truth while the merged
+            // journal retains both current-target and source histories.
+            expectedRecords = expectedRecords.replacingOperationalContacts(
+                validatedPackage.records.operationalContacts
+            )
         }
         if validatedPackage.manifest.source.recordsSchemaVersion <= 2,
            expectedRecords.mutationHistory == nil {
@@ -1789,7 +1810,8 @@ private extension BackupRestoreService {
             lighting: records.lighting,
             assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
             temporalEvidence: records.temporalEvidence,
-            acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots
+            acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots,
+            operationalContacts: records.operationalContacts
         )
     }
 
@@ -1859,7 +1881,8 @@ private extension BackupRestoreService {
             lighting: records.lighting,
             assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
             temporalEvidence: records.temporalEvidence,
-            acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots
+            acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots,
+            operationalContacts: records.operationalContacts
         )
     }
 
@@ -1869,7 +1892,13 @@ private extension BackupRestoreService {
         identityDecision: RestoreIdentityV1?,
         legacyWorkspaceID: UUID
     ) throws -> V4BackupRecordsV1 {
+        if records.recordsSchemaVersion >= OperationalContactPersistenceEnrollmentV1.recordsSchemaVersion {
+            _ = try records.validateC46OperationalContacts()
+        } else if !records.operationalContacts.isEmpty {
+            throw BackupRestoreServiceError.invalidPackage
+        }
         var normalized = try recordsWithObservationAndTime(records)
+            .replacingOperationalContacts(records.operationalContacts)
         normalized = try recordsWithRequirementAssurance(
             normalized,
             workspaceID: identityDecision.map { $0.targetPointer.workspaceID }
@@ -1925,6 +1954,34 @@ private extension BackupRestoreService {
                 sourceAssurancePreviews: sourcePreviews,
                 members: members
             )
+        }
+        if let identityDecision,
+           identityDecision.mode == .replaceExisting,
+           identityDecision.source.workspaceID
+            != identityDecision.targetPointer.workspaceID,
+           normalized.recordsSchemaVersion
+            >= OperationalContactPersistenceEnrollmentV1.recordsSchemaVersion {
+            normalized = try rebindingCrossWorkspaceReplacementOperationalContacts(
+                source: records,
+                destination: normalized,
+                identity: identityDecision
+            )
+            _ = try normalized.validateC46OperationalContacts()
+        }
+        if let identityDecision,
+           identityDecision.mode == .replaceExisting,
+           identityDecision.source.workspaceID
+            == identityDecision.targetPointer.workspaceID,
+           normalized.recordsSchemaVersion
+            >= OperationalContactPersistenceEnrollmentV1.recordsSchemaVersion {
+            guard normalized.operationalContacts == records.operationalContacts else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            // Re-run the complete row-to-journal receipt closure after every
+            // other materialization normalization has finished. A replacement
+            // is valid only while the preserved canonical contact bytes still
+            // match their archived applyOperationalContact envelopes.
+            _ = try normalized.validateC46OperationalContacts()
         }
         guard let history = normalized.mutationHistory else {
             throw BackupRestoreServiceError.invalidPackage
@@ -2183,7 +2240,8 @@ private extension BackupRestoreService {
             lighting: records.lighting,
             assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
             temporalEvidence: records.temporalEvidence,
-            acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots
+            acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots,
+            operationalContacts: records.operationalContacts
         )
     }
 
@@ -2454,6 +2512,12 @@ private extension BackupRestoreService {
             workspaceID: workspaceID,
             assetLocators: assetLocators
         )
+        let operationalContacts = try rebindingOperationalContacts(
+            records.operationalContacts,
+            destinationPartyAccountability: partyAccountability,
+            identity: identity,
+            workspaceID: workspaceID
+        )
         guard let archived = records.locationMigrationReceipts.first else {
             return V4BackupRecordsV1(
                 guidedSurveys:guidedSurveys,
@@ -2490,7 +2554,9 @@ private extension BackupRestoreService {
                 workflowRecords: records.workflowRecords,
                 lighting: records.lighting,
                 assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
-                temporalEvidence: temporalEvidence
+                temporalEvidence: temporalEvidence,
+                acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots,
+                operationalContacts: operationalContacts
             )
         }
         let receipt = try LocationPersistenceCodecV1.decode(
@@ -2518,7 +2584,8 @@ private extension BackupRestoreService {
            assetLocators == records.assetLocators,
            schedules == records.schedules,
            plans == records.plans,
-           reports == records.reports {
+           reports == records.reports,
+           operationalContacts == records.operationalContacts {
             return records
         }
         let rebound = try LocationMigrationReceiptV1(
@@ -2572,7 +2639,9 @@ private extension BackupRestoreService {
             workflowRecords: records.workflowRecords,
             lighting: records.lighting,
             assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
-            temporalEvidence: temporalEvidence
+            temporalEvidence: temporalEvidence,
+            acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots,
+            operationalContacts: operationalContacts
         )
     }
 
@@ -2892,6 +2961,479 @@ private extension BackupRestoreService {
         output += try receiptByID.values.map{V25BackupGuidedSurveyRecordV1(kind:.subjectPromotionReceipt,id:$0.receiptID,workspaceID:workspaceID.rawValue,revision:$0.revision,canonicalData:try SurveySessionCanonicalCodecV1.encode($0))}
         output += try publicationByID.values.map{V25BackupGuidedSurveyRecordV1(kind:.publicationSnapshot,id:$0.snapshotID,workspaceID:workspaceID.rawValue,revision:$0.revision,canonicalData:try SurveySessionCanonicalCodecV1.encode($0))}
         guard output.count==records.count else{throw BackupRestoreServiceError.invalidPackage};return output.sorted{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"<"\($1.kind.rawValue)\u{0}\($1.id.uuidString)"}
+    }
+
+    func rebindingOperationalContacts(
+        _ records: [V35BackupOperationalContactRecordV1],
+        destinationPartyAccountability: [V9BackupPartyAccountabilityRecordV1],
+        identity: RestoreIdentityV1,
+        workspaceID: WorkspaceID
+    ) throws -> [V35BackupOperationalContactRecordV1] {
+        guard !records.isEmpty else { return [] }
+        let parties = try Dictionary(uniqueKeysWithValues: destinationPartyAccountability.compactMap { record -> (UUID, ServicePartyReferenceV1)? in
+            guard record.kind == .serviceParty else { return nil }
+            let value = try PartyAccountabilitySnapshotCodecV1.decode(
+                ServicePartyReferenceV1.self, from: record.canonicalData
+            )
+            guard value.workspaceID == workspaceID else { throw BackupRestoreServiceError.invalidPackage }
+            return (value.partyID, value)
+        })
+        if identity.mode == .replaceExisting,
+           identity.source.workspaceID == workspaceID.rawValue,
+           identity.targetPointer.workspaceID == workspaceID.rawValue {
+            for record in records {
+                switch record.kind {
+                case .serviceContactPoint:
+                    let source = try record.contactValue()
+                    guard source.workspaceID == workspaceID,
+                          parties[source.party.partyID] == source.party else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                case .systemHandoffIntent:
+                    let source = try record.intentValue()
+                    guard source.workspaceID == workspaceID else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                }
+            }
+            // Replacement publishes a new generation of the same workspace,
+            // not a new contact lineage. Preserve the canonical bytes so the
+            // archived mutation receipt still closes over the exact revision,
+            // supersedes reference, mutation ID, and semantic digest.
+            return records
+        }
+        return try records.map { record in
+            switch record.kind {
+            case .serviceContactPoint:
+                let source = try record.contactValue()
+                guard let party = parties[source.party.partyID] else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                return try V35BackupOperationalContactRecordV1(source.rebound(
+                    to: workspaceID,
+                    party: party,
+                    mutationID: identity.destinationOperationalContactMutationID(for: source.mutationID)
+                ))
+            case .systemHandoffIntent:
+                let source = try record.intentValue()
+                return try V35BackupOperationalContactRecordV1(source.reboundForHistoricRestore(
+                    to: workspaceID,
+                    mutationID: identity.destinationOperationalContactMutationID(for: source.mutationID)
+                ))
+            }
+        }.sorted { ($0.kind.rawValue, $0.id.uuidString) < ($1.kind.rawValue, $1.id.uuidString) }
+    }
+
+    /// Cross-workspace replacement is an active destination projection, not
+    /// clone/fork provenance. Rebuild the V35 rows and their canonical journal
+    /// receipts together so no source-workspace command can falsely authorize
+    /// target-workspace contact or handoff state.
+    func rebindingCrossWorkspaceReplacementOperationalContacts(
+        source: V4BackupRecordsV1,
+        destination: V4BackupRecordsV1,
+        identity: RestoreIdentityV1
+    ) throws -> V4BackupRecordsV1 {
+        guard identity.mode == .replaceExisting,
+              let sourceWorkspaceUUID = identity.source.workspaceID,
+              sourceWorkspaceUUID != identity.targetPointer.workspaceID,
+              let sourceHistory = source.mutationHistory,
+              let destinationHistory = destination.mutationHistory else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        let workspaceID = WorkspaceID(rawValue: identity.targetPointer.workspaceID)
+        let replicaIdentity = try workspaceIdentity(identity)
+        let parties = try Dictionary(uniqueKeysWithValues: destination.partyAccountability.compactMap {
+            record -> (UUID, ServicePartyReferenceV1)? in
+            guard record.kind == .serviceParty else { return nil }
+            let value = try PartyAccountabilitySnapshotCodecV1.decode(
+                ServicePartyReferenceV1.self, from: record.canonicalData
+            )
+            guard value.workspaceID == workspaceID else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            return (value.partyID, value)
+        })
+
+        let sourceWorkspaceID = WorkspaceID(rawValue: sourceWorkspaceUUID)
+        var sourceReceipts: [OperationalContactRestoreSourceReceiptV1] = []
+        var sourceMutationKeys = Set<String>()
+        var retainedReceipts: [MutationHistoryReceiptRecordV1] = []
+        var retainedTargetReceipts: [MutationHistoryReceiptRecordV1] = []
+        var targetSequence = destinationHistory.lastLocalSequence
+        var targetWorkspaceRevision = destinationHistory.workspaceRevision
+        for record in sourceHistory.receipts {
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+            let receipt = try MutationReceiptV1.decodeCanonical(from: record.receiptData)
+            if case let .applyOperationalContact(mutation) = envelope.command,
+               envelope.workspaceID == sourceWorkspaceID {
+                guard record.reversalBasisData == nil,
+                      record.semanticReversalData == nil,
+                      sourceMutationKeys.insert(MutationWorkspaceKeyV1.value(
+                        workspaceID: sourceWorkspaceID,
+                        mutationID: mutation.mutationID
+                      )).inserted else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                sourceReceipts.append(.init(
+                    envelope: envelope,
+                    mutation: mutation,
+                    receipt: receipt
+                ))
+            } else {
+                retainedReceipts.append(record)
+                if case .applyOperationalContact = envelope.command,
+                   envelope.workspaceID == workspaceID {
+                    retainedTargetReceipts.append(record)
+                }
+            }
+        }
+        sourceReceipts.sort {
+            ($0.receipt.resultingRevision.workspaceRevision,
+             $0.receipt.identity.localSequence,
+             $0.mutation.mutationID.rawValue.uuidString.lowercased())
+                < ($1.receipt.resultingRevision.workspaceRevision,
+                   $1.receipt.identity.localSequence,
+                   $1.mutation.mutationID.rawValue.uuidString.lowercased())
+        }
+        let retainedTargetBytes = retainedTargetReceipts
+
+        let sourceCurrentContacts = try source.operationalContacts
+            .filter { $0.kind == .serviceContactPoint }
+            .map { try $0.contactValue() }
+        let sourceCurrentIntents = try source.operationalContacts
+            .filter { $0.kind == .systemHandoffIntent }
+            .map { try $0.intentValue() }
+        guard sourceCurrentContacts.allSatisfy({ $0.workspaceID == sourceWorkspaceID }),
+              sourceCurrentIntents.allSatisfy({ $0.workspaceID == sourceWorkspaceID }) else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        let targetMutationIDBySource = try Dictionary(uniqueKeysWithValues: sourceReceipts.map {
+            ($0.mutation.mutationID,
+             try identity.destinationOperationalContactMutationID(for: $0.mutation.mutationID))
+        })
+        guard targetMutationIDBySource.count == sourceReceipts.count else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        let retainedTargetMutationIDs = try Set(retainedTargetReceipts.map {
+            try MutationEnvelopeV1.decodeCanonical(from: $0.envelopeData).mutationID
+        })
+        guard Set(targetMutationIDBySource.values).isDisjoint(with: retainedTargetMutationIDs) else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+
+        var transformedContactBySourceRevision: [String: ServiceContactPointV1] = [:]
+        var transformedIntentBySourceID: [UUID: SystemHandoffIntentV1] = [:]
+        var transformedReceipts: [MutationHistoryReceiptRecordV1] = []
+        var transformedMutationIDs = Set<MutationIDV1>()
+
+        func contactRevisionKey(_ value: ServiceContactPointV1) -> String {
+            "\(value.contactPointID.uuidString.lowercased()):\(value.revision):\(value.contactPointSHA256)"
+        }
+        func transformedContact(_ sourceValue: ServiceContactPointV1) throws -> ServiceContactPointV1 {
+            guard let value = transformedContactBySourceRevision[contactRevisionKey(sourceValue)] else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            return value
+        }
+        func targetReference(
+            _ sourceValue: SystemHandoffTargetReferenceV1
+        ) throws -> SystemHandoffTargetReferenceV1 {
+            switch sourceValue.kind {
+            case .serviceContactPoint:
+                guard let sourceTarget = sourceReceipts.lazy
+                    .flatMap({ $0.mutation.successors })
+                    .first(where: {
+                        $0.contactPointID == sourceValue.targetID
+                            && $0.revision == sourceValue.expectedRevision
+                            && $0.contactPointSHA256 == sourceValue.expectedSHA256
+                    }) else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                let target = try transformedContact(sourceTarget)
+                return try SystemHandoffTargetReferenceV1(
+                    workspaceID: workspaceID,
+                    kind: .serviceContactPoint,
+                    targetID: target.contactPointID,
+                    expectedRevision: target.revision,
+                    expectedSHA256: target.contactPointSHA256
+                )
+            case .site:
+                let siteIdentity = try WorkspaceEntityIdentityV1(
+                    kind: .site, id: sourceValue.targetID
+                )
+                guard let site = destination.sites.first(where: { $0.id == sourceValue.targetID }),
+                      let revision = destinationHistory.entityRevisions.first(where: {
+                        $0.identity == siteIdentity
+                      })?.revision else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                let digest = try WorkspaceMutationCanonicalV1.sha256(
+                    OperationalContactRestoreSiteDigestBasisV1(
+                        identity: siteIdentity, revision: revision, value: site
+                    )
+                )
+                return try SystemHandoffTargetReferenceV1(
+                    workspaceID: workspaceID,
+                    kind: .site,
+                    targetID: site.id,
+                    expectedRevision: revision,
+                    expectedSHA256: digest
+                )
+            }
+        }
+
+        for sourceReceipt in sourceReceipts {
+            let sourceMutation = sourceReceipt.mutation
+            guard let mutationID = targetMutationIDBySource[sourceMutation.mutationID],
+                  transformedMutationIDs.insert(mutationID).inserted else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            let importSourceSet = try sourceMutation.importSourceSet.map {
+                try ImportSourceSetV1(workspaceID: workspaceID, files: $0.files)
+            }
+            let targetPredecessors = try sourceMutation.predecessors.map(transformedContact)
+            let predecessorByID = Dictionary(uniqueKeysWithValues: targetPredecessors.map {
+                ($0.contactPointID, $0)
+            })
+            var targetSuccessors: [ServiceContactPointV1] = []
+            for sourceValue in sourceMutation.successors {
+                guard let party = parties[sourceValue.party.partyID] else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                let predecessor = predecessorByID[sourceValue.contactPointID]
+                let targetValue = try ServiceContactPointV1(
+                    contactPointID: sourceValue.contactPointID,
+                    workspaceID: workspaceID,
+                    party: party,
+                    kind: sourceValue.kind,
+                    label: sourceValue.label,
+                    displayValue: sourceValue.displayValue,
+                    preferred: sourceValue.preferred,
+                    provenance: sourceValue.provenance,
+                    importSourceSetSHA256: sourceValue.provenance == .importedExternalEvidence
+                        ? importSourceSet?.sourceSetSHA256 : nil,
+                    privacyClass: sourceValue.privacyClass,
+                    lifecycle: sourceValue.lifecycle,
+                    effectiveAt: sourceValue.effectiveAt,
+                    retiredAt: sourceValue.retiredAt,
+                    revision: sourceValue.revision,
+                    supersedes: try predecessor?.revisionReference,
+                    mutationID: mutationID
+                )
+                guard transformedContactBySourceRevision.updateValue(
+                    targetValue, forKey: contactRevisionKey(sourceValue)
+                ) == nil else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                targetSuccessors.append(targetValue)
+            }
+
+            let targetIntents = try sourceMutation.handoffIntents.map { sourceValue in
+                let targetValue: SystemHandoffIntentV1
+                switch sourceValue.disposition {
+                case .activeSourceWorkspace:
+                    targetValue = try SystemHandoffIntentV1(
+                        intentID: sourceValue.intentID,
+                        workspaceID: workspaceID,
+                        kind: sourceValue.kind,
+                        target: targetReference(sourceValue.target),
+                        reviewedAt: sourceValue.reviewedAt,
+                        revision: sourceValue.revision,
+                        mutationID: mutationID,
+                        disposition: .activeSourceWorkspace
+                    )
+                case .historicReferenceOnly:
+                    targetValue = try sourceValue.reboundForHistoricRestore(
+                        to: workspaceID, mutationID: mutationID
+                    )
+                }
+                guard transformedIntentBySourceID.updateValue(
+                    targetValue, forKey: sourceValue.intentID
+                ) == nil else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                return targetValue
+            }
+            let targetScopes = try sourceMutation.preferredScopes.map { sourceScope in
+                try ServiceContactPreferredScopeV1(
+                    partyID: sourceScope.partyID,
+                    kind: sourceScope.kind,
+                    activeContactPointIDs: sourceScope.activeContactPointIDs,
+                    preferredContactPointID: sourceScope.preferredContactPointID
+                )
+            }
+            var expectedByIdentity = Dictionary(uniqueKeysWithValues:
+                sourceMutation.expectedRevision.entityRevisions.map {
+                    ($0.identity, $0.revision)
+                }
+            )
+            for scope in targetScopes {
+                guard let party = parties[scope.partyID] else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                expectedByIdentity[try .init(kind: .serviceParty, id: scope.partyID)] = party.revision
+            }
+            let expected = try WorkspaceExpectedRevisionV1(
+                workspaceID: workspaceID,
+                generationID: identity.targetPointer.generationID,
+                writerInstanceID: UUID(
+                    uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+                ),
+                workspaceRevision: targetWorkspaceRevision,
+                entityRevisions: expectedByIdentity.map {
+                    WorkspaceEntityRevisionV1(identity: $0.key, revision: $0.value)
+                }
+            )
+            let mutation = try OperationalContactMutationV1(
+                workspaceID: workspaceID,
+                mutationID: mutationID,
+                expectedRevision: expected,
+                predecessors: targetPredecessors,
+                successors: targetSuccessors,
+                preferredScopes: targetScopes,
+                handoffIntents: targetIntents,
+                importSourceSet: importSourceSet
+            )
+            let envelope = try MutationEnvelopeV1(
+                request: mutation.canonicalWorkspaceMutationRequest(),
+                identity: replicaIdentity,
+                sourceKind: .importedHistory,
+                contentDependencyIDs: sourceReceipt.envelope.contentDependencyIDs,
+                correlationID: sourceReceipt.envelope.correlationID
+            )
+            var resultingByIdentity = expectedByIdentity
+            for image in try mutation.mutationPostImages {
+                resultingByIdentity[try image.identity] = image.revision
+            }
+            let (nextWorkspaceRevision, workspaceOverflow) = targetWorkspaceRevision
+                .addingReportingOverflow(1)
+            let (nextSequence, sequenceOverflow) = targetSequence.addingReportingOverflow(1)
+            guard !workspaceOverflow, !sequenceOverflow else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            targetWorkspaceRevision = nextWorkspaceRevision
+            targetSequence = nextSequence
+            let resulting = try MutationPortableExpectedRevisionV1(
+                WorkspaceExpectedRevisionV1(
+                    workspaceID: workspaceID,
+                    generationID: identity.targetPointer.generationID,
+                    writerInstanceID: UUID(
+                        uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+                    ),
+                    workspaceRevision: targetWorkspaceRevision,
+                    entityRevisions: resultingByIdentity.map {
+                        WorkspaceEntityRevisionV1(identity: $0.key, revision: $0.value)
+                    }
+                )
+            )
+            let receipt = try MutationReceiptV1(
+                identity: MutationReceiptIdentityV1(
+                    workspaceID: workspaceID,
+                    replicaID: replicaIdentity.replicaID,
+                    localSequence: targetSequence
+                ),
+                envelope: envelope,
+                resultingRevision: resulting,
+                postImages: mutation.mutationPostImages,
+                committedAt: sourceReceipt.receipt.committedAt
+            )
+            _ = try OperationalContactMutationReceiptV1(
+                mutation: mutation, mutationReceipt: receipt
+            )
+            transformedReceipts.append(.init(
+                envelopeData: try envelope.canonicalData(),
+                receiptData: try receipt.canonicalData(),
+                reversalBasisData: nil,
+                semanticReversalData: nil
+            ))
+        }
+
+        let targetCurrentContacts = try sourceCurrentContacts.map { sourceValue in
+            guard let value = transformedContactBySourceRevision[contactRevisionKey(sourceValue)] else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            return value
+        }
+        let targetCurrentIntents = try sourceCurrentIntents.map { sourceValue in
+            guard let value = transformedIntentBySourceID[sourceValue.intentID],
+                  value.mutationID == targetMutationIDBySource[sourceValue.mutationID] else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            return value
+        }
+        guard transformedReceipts.count == sourceReceipts.count,
+              targetCurrentContacts.count == sourceCurrentContacts.count,
+              targetCurrentIntents.count == sourceCurrentIntents.count else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+
+        let targetContactRecords = try targetCurrentContacts.map {
+            try V35BackupOperationalContactRecordV1($0)
+        }
+        let targetIntentRecords = try targetCurrentIntents.map {
+            try V35BackupOperationalContactRecordV1($0)
+        }
+        let targetRecords = targetContactRecords + targetIntentRecords
+        let retainedQuarantines = sourceHistory.quarantines.filter {
+            let key = "\($0.workspaceID.rawValue.uuidString.lowercased()):\($0.mutationID.uuidString.lowercased())"
+            return !sourceMutationKeys.contains(key)
+        }
+        var entityRevisionByIdentity = Dictionary(uniqueKeysWithValues:
+            destinationHistory.entityRevisions.map { ($0.identity, $0) }
+        )
+        for value in targetCurrentContacts {
+            let entity = try WorkspaceEntityIdentityV1(
+                kind: .serviceContactPoint, id: value.contactPointID
+            )
+            entityRevisionByIdentity[entity] = .init(
+                identity: entity,
+                revision: value.revision,
+                externalProjectionSHA256: value.contactPointSHA256
+            )
+        }
+        for value in targetCurrentIntents {
+            let entity = try WorkspaceEntityIdentityV1(
+                kind: .systemHandoffIntent, id: value.intentID
+            )
+            entityRevisionByIdentity[entity] = .init(
+                identity: entity,
+                revision: value.revision,
+                externalProjectionSHA256: value.intentSHA256
+            )
+        }
+        let history = MutationHistorySnapshotV1(
+            workspaceRevision: targetWorkspaceRevision,
+            lastLocalSequence: targetSequence,
+            receipts: retainedReceipts + transformedReceipts,
+            quarantines: retainedQuarantines,
+            entityRevisions: entityRevisionByIdentity.values.sorted {
+                $0.identity.stableKey < $1.identity.stableKey
+            }
+        )
+        try MutationJournalStoreV1.validateImportedSnapshot(history)
+        let finalRetainedTargetBytes = try history.receipts.filter { record in
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+            return envelope.workspaceID == workspaceID
+                && retainedTargetMutationIDs.contains(envelope.mutationID)
+        }
+        let finalTargetReceiptCount = try history.receipts.reduce(into: 0) { count, record in
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+            if case .applyOperationalContact = envelope.command,
+               envelope.workspaceID == workspaceID {
+                count += 1
+            }
+        }
+        guard finalTargetReceiptCount
+                == retainedTargetReceipts.count + sourceReceipts.count,
+              finalRetainedTargetBytes == retainedTargetBytes,
+              history.receipts.count == sourceHistory.receipts.count else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        var rebound = destination.replacingOperationalContacts(targetRecords.sorted {
+            ($0.kind.rawValue, $0.id.uuidString) < ($1.kind.rawValue, $1.id.uuidString)
+        })
+        rebound = replacingMutationHistoryForCurrentWriter(in: rebound, with: history)
+        return rebound
     }
 
     func rebindingPartyAccountability(
@@ -5860,6 +6402,38 @@ private extension BackupRestoreService {
         } else if !records.acceptedLabelGenerationSnapshots.isEmpty {
             throw BackupRestoreServiceError.invalidPackage
         }
+        if records.recordsSchemaVersion >= OperationalContactPersistenceEnrollmentV1.recordsSchemaVersion {
+            do {
+                let historic = identityDecision.map { $0.mode == .clone || $0.mode == .fork } ?? false
+                let values: (contacts: [ServiceContactPointV1], intents: [SystemHandoffIntentV1])
+                if historic {
+                    values = (
+                        try records.operationalContacts.filter { $0.kind == .serviceContactPoint }.map { try $0.contactValue() },
+                        try records.operationalContacts.filter { $0.kind == .systemHandoffIntent }.map { try $0.intentValue() }
+                    )
+                    guard values.intents.allSatisfy({ $0.disposition == .historicReferenceOnly }) else {
+                        throw BackupRestoreServiceError.invalidRestoreAuthority
+                    }
+                } else {
+                    values = try records.validateC46OperationalContacts()
+                }
+                let targetWorkspaceID = identityDecision?.targetPointer.workspaceID
+                    ?? legacyDestinationIdentity.workspaceID.rawValue
+                guard values.contacts.allSatisfy({ $0.workspaceID.rawValue == targetWorkspaceID }),
+                      values.intents.allSatisfy({ $0.workspaceID.rawValue == targetWorkspaceID }) else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                for value in values.contacts.sorted(by: { $0.contactPointID.uuidString < $1.contactPointID.uuidString }) {
+                    context.insert(try ServiceContactPointRow(value))
+                }
+                for value in values.intents.sorted(by: { $0.intentID.uuidString < $1.intentID.uuidString }) {
+                    context.insert(try SystemHandoffIntentRow(value))
+                }
+            } catch let error as BackupRestoreServiceError { throw error }
+            catch { throw BackupRestoreServiceError.invalidPackage }
+        } else if !records.operationalContacts.isEmpty {
+            throw BackupRestoreServiceError.invalidPackage
+        }
         if let mutationHistory = records.mutationHistory {
             guard records.recordsSchemaVersion == 3
                     || records.recordsSchemaVersion == 4
@@ -5891,7 +6465,8 @@ private extension BackupRestoreService {
                     || records.recordsSchemaVersion == 30
                     || records.recordsSchemaVersion == 31
                     || records.recordsSchemaVersion == 32
-                    || records.recordsSchemaVersion == 33 else {
+                    || records.recordsSchemaVersion == 33
+                    || records.recordsSchemaVersion == 34 else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {
@@ -7453,6 +8028,8 @@ private extension BackupRestoreService {
         let temporalEvidenceClipRows = try context.fetch(FetchDescriptor<TemporalEvidenceClipRow>())
         let timecodedEvidenceAnchorRows = try context.fetch(FetchDescriptor<TimecodedEvidenceAnchorRow>())
         let acceptedLabelSnapshotRows = try context.fetch(FetchDescriptor<AcceptedLabelGenerationSnapshotRow>())
+        let serviceContactPointRows = try context.fetch(FetchDescriptor<ServiceContactPointRow>())
+        let systemHandoffIntentRows = try context.fetch(FetchDescriptor<SystemHandoffIntentRow>())
         let assetLocatorRows = try context.fetch(FetchDescriptor<AssetLocatorRow>())
         let locatorBindingReceiptRows = try context.fetch(FetchDescriptor<LocatorBindingReceiptRow>())
         let planDocumentRows = try context.fetch(FetchDescriptor<PlanDocumentRow>())
@@ -7717,6 +8294,14 @@ private extension BackupRestoreService {
             mutationHistory == nil ? [] : try acceptedLabelSnapshotRows
                 .map { try V34BackupAcceptedLabelSnapshotRecordV1($0.value()) }
                 .sorted { ($0.workspaceID.uuidString, $0.snapshotID.uuidString) < ($1.workspaceID.uuidString, $1.snapshotID.uuidString) }
+        let operationalContactRecords: [V35BackupOperationalContactRecordV1] =
+            mutationHistory == nil ? [] : try (
+                serviceContactPointRows.map { try V35BackupOperationalContactRecordV1($0.value()) }
+                + systemHandoffIntentRows.map { try V35BackupOperationalContactRecordV1($0.value()) }
+            ).sorted {
+                ("\($0.kind.rawValue):\($0.workspaceID.uuidString):\($0.id.uuidString)")
+                    < ("\($1.kind.rawValue):\($1.workspaceID.uuidString):\($1.id.uuidString)")
+            }
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveyRecords,
             assetLocators: assetLocatorRecords,
@@ -7923,7 +8508,8 @@ private extension BackupRestoreService {
                 "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
                     < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
             },
-            recordsSchemaVersion: !acceptedLabelSnapshotRecords.isEmpty ? 33
+            recordsSchemaVersion: !operationalContactRecords.isEmpty ? 34
+                : !acceptedLabelSnapshotRecords.isEmpty ? 33
                 : !temporalEvidenceRecords.isEmpty ? 32
                 : !assistanceAcceptanceReceiptRecords.isEmpty ? 31
                 : !lightingRecords.isEmpty ? 30
@@ -8003,7 +8589,8 @@ private extension BackupRestoreService {
             lighting: lightingRecords,
             assistanceAcceptanceReceipts: assistanceAcceptanceReceiptRecords,
             temporalEvidence: temporalEvidenceRecords,
-            acceptedLabelGenerationSnapshots: acceptedLabelSnapshotRecords
+            acceptedLabelGenerationSnapshots: acceptedLabelSnapshotRecords,
+            operationalContacts: operationalContactRecords
         )
     }
 

@@ -601,3 +601,5 @@ enum C32AssistanceCompatibility_Persistence_ProtectedFilePolicy {
 }
 
 enum C45AcceptedLabelProtectedFileBoundaryV1 { static let canonicalStoreRequiresCompleteProtection=true;static let leasedOutputScratchIsNotBackupAuthority=true }
+
+enum C46OperationalContactBoundary_21{static let persistentFamilies=OperationalContactPersistenceEnrollmentV1.persistentFamilies;static let platformOutcomesPersistent=false}

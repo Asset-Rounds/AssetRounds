@@ -1179,3 +1179,15 @@ extension ReleasedDataCompatibilityPolicyV1 {
 }
 
 enum C45AcceptedLabelReleasedDataCompatibilityV1 { static let persistentSchemaVersion=34;static let recordsSchemaVersion=33;static let downgradeRequiresExplicitForwardFix=true }
+
+struct OperationalContactCompatibilityPolicyV1:Codable,Equatable,Sendable{
+    static let persistentSchemaVersion=35;static let recordsSchemaVersion=34
+    static let currentPersistentWriterVersion="35.0.0";static let currentBackupWriterVersion="archive1-backup4-persistent35-records34"
+    static let downgradeDisposition="FORWARD_FIX_PRESERVE_ACCEPTED_OPERATIONAL_CONTACT_REVISIONS_AND_FROZEN_HANDOFF_HISTORY"
+    let durableFamilies=OperationalContactPersistenceEnrollmentV1.persistentFamilies
+    let partyContactsSchemaID=PartyContactCSVRowV1.schemaID
+    let platformOutcomeIsReleasedData=false
+    let historicIntentIsExecutable=false
+    func validate()throws{guard Self.persistentSchemaVersion==OperationalContactPersistenceEnrollmentV1.persistentSchemaVersion,Self.recordsSchemaVersion==OperationalContactPersistenceEnrollmentV1.recordsSchemaVersion,durableFamilies==["ServiceContactPointRow","SystemHandoffIntentRow"],partyContactsSchemaID=="PARTY_CONTACTS_V1",!platformOutcomeIsReleasedData,!historicIntentIsExecutable else{throw CompatibilityContractErrorV1.invalidSupportTable}}
+}
+extension ReleasedDataCompatibilityPolicyV1{static let operationalContactCompatibility=OperationalContactCompatibilityPolicyV1()}

@@ -1336,3 +1336,13 @@ private final class C32AssistanceAnchorS66EraseRecovery: XCTestCase {
         )
     }
 }
+private final class C46S66EraseRecoveryCompatibilityTests: XCTestCase {
+    func testC46EraseRecoveryKeepsContactWorkspaceScoped() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "erase-recovery",
+            kind: .phone,
+            handoff: .text,
+            slot: 46606
+        )
+    }
+}

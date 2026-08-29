@@ -781,3 +781,13 @@ private final class C32AssistanceAnchorV920KernelConformance: XCTestCase {
         )
     }
 }
+private final class C46V920KernelConformanceCompatibilityTests: XCTestCase {
+    func testC46KernelConformanceKeepsSoleContactWriterBoundary() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "kernel-conformance",
+            kind: .email,
+            handoff: .email,
+            slot: 46020
+        )
+    }
+}

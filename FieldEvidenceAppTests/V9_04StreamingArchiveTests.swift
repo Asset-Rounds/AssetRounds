@@ -509,3 +509,13 @@ private final class C32AssistanceAnchorV904StreamingArchive: XCTestCase {
         )
     }
 }
+private final class C46V904StreamingArchiveCompatibilityTests: XCTestCase {
+    func testC46StreamingArchiveKeepsContactValueRestricted() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "streaming-archive",
+            kind: .phone,
+            handoff: .call,
+            slot: 46004
+        )
+    }
+}

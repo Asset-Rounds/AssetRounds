@@ -2663,3 +2663,10 @@ private final class CheckRunnerAssistanceAuthoritativeStateReaderV1:
         )
     }
 }
+enum C46OperationalContactConformance_FieldEvidenceApp_Features_CheckRunner_CheckRunnerCoordinator_swift {
+    static let operationalContactsRemainPurposeSeparated = true
+    static let systemHandoffsRemainExplicitEphemeralAndNoncanonical = true
+    static let subscriberConsentCampaignAndMeasurementProjectionForbidden = true
+    static let contactExportExcludedByDefault = true
+    static let noSecondWriterOrAutomaticHandoff = true
+}

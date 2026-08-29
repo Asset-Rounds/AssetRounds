@@ -493,6 +493,20 @@ enum BundledLocalizationKeyV1: String, CaseIterable, Sendable {
     case lightingHistoryFrozen = "lighting.history.frozen"
     case lightingManualOffline = "lighting.manual_offline"
 
+    case operationalContactDirections = "operational_contact.action.directions"
+    case operationalContactCall = "operational_contact.action.call"
+    case operationalContactText = "operational_contact.action.text"
+    case operationalContactEmail = "operational_contact.action.email"
+    case operationalContactOpensSystemApp = "operational_contact.handoff.opens_system_app"
+    case operationalContactHandedOff = "operational_contact.handoff.handed_off"
+    case operationalContactTargetMissing = "operational_contact.handoff.target_missing"
+    case operationalContactTargetStale = "operational_contact.handoff.target_stale"
+    case operationalContactTargetInvalid = "operational_contact.handoff.target_invalid"
+    case operationalContactSystemUnavailable = "operational_contact.handoff.system_unavailable"
+    case operationalContactSystemRejected = "operational_contact.handoff.system_rejected"
+    case operationalContactCancelled = "operational_contact.handoff.cancelled"
+    case operationalContactClaimBoundary = "operational_contact.handoff.claim_boundary"
+
     static var functionalRelationshipDirected: Self { .functionalRelationshipDirectedSourceToTarget }
     static var functionalRelationshipActive: Self { .functionalRelationshipActiveState }
     static var functionalRelationshipEnded: Self { .functionalRelationshipEndedState }
@@ -3494,6 +3508,43 @@ extension BundledLocalizationCatalogV1 {
     static func packageEvolutionAccessibilityContracts()
         -> [PackageEvolutionAccessibilityContractV1] {
         PackageEvolutionAccessibilityPolicyV1.contracts
+    }
+}
+
+extension BundledLocalizationCatalogV1 {
+    static func operationalContactEnglish(
+        _ key: OperationalContactLocalizationKeyV1
+    ) -> String {
+        switch key {
+        case .directions: "Directions"
+        case .call: "Call"
+        case .text: "Text"
+        case .email: "Email"
+        case .opensSystemApp: "Opens the corresponding system app"
+        case .handedOff: "Handed off to the system"
+        case .targetMissing: "The selected destination is no longer available"
+        case .targetStale: "The selected destination changed. Review it again."
+        case .targetInvalid: "The selected destination cannot be used"
+        case .systemUnavailable: "The system app is unavailable right now"
+        case .systemRejected: "The system did not accept the handoff"
+        case .cancelled: "Handoff cancelled before opening the system app"
+        case .claimBoundary:
+            "Handoff does not confirm a call connected, a message or email was sent or delivered, or that anyone arrived."
+        }
+    }
+
+    static func operationalContactLocalized(
+        _ key: OperationalContactLocalizationKeyV1,
+        bundle: Bundle = .main
+    ) -> String {
+        let value = NSLocalizedString(
+            key.rawValue,
+            tableName: nil,
+            bundle: bundle,
+            value: operationalContactEnglish(key),
+            comment: "C46 explicit user-directed system handoff"
+        )
+        return value.isEmpty ? operationalContactEnglish(key) : value
     }
 }
 

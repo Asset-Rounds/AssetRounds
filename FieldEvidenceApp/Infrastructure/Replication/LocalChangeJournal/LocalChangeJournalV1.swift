@@ -1763,3 +1763,36 @@ enum TemporalEvidenceLocalChangeJournalPolicyV1 {
 }
 
 enum C45AcceptedLabelLocalJournalBoundaryV1 { static let replaysAcceptedSnapshot=true;static let replaysProjectionScratch=false }
+
+enum OperationalContactLocalChangeJournalPolicyV1 {
+    static let commandKind: WorkspaceCommandKindV1 = .applyOperationalContact
+    static let durableKinds: Set<WorkspaceEntityKindV1> = [
+        .serviceContactPoint, .systemHandoffIntent,
+    ]
+
+    static func validate(_ change: JournalChangeV1) throws {
+        guard case let .applyOperationalContact(mutation) = change.envelope.command else { return }
+        do {
+            try mutation.validate()
+            let receipt = try OperationalContactMutationReceiptV1(
+                mutation: mutation,
+                mutationReceipt: change.receipt
+            )
+            let identities = try mutation.affectedIdentities
+            guard change.envelope.commandKind == commandKind,
+                  change.envelope.mutationID == mutation.mutationID,
+                  change.receipt.postImages == (try mutation.mutationPostImages),
+                  Set(change.entityChanges.map(\.identity)) == Set(identities),
+                  change.entityChanges.map(\.postImage) == change.receipt.postImages,
+                  try change.receipt.postImages.allSatisfy {
+                    durableKinds.contains(try $0.identity.kind)
+                  },
+                  receipt.mutationID == mutation.mutationID else {
+                throw ChangeJournalFailureV1.tamperedBatch
+            }
+        } catch let failure as ChangeJournalFailureV1 { throw failure }
+        catch { throw ChangeJournalFailureV1.tamperedBatch }
+    }
+}
+
+enum C46OperationalContactBoundary_22{static let commandKind:WorkspaceCommandKindV1 = .applyOperationalContact;static let platformOutcomesProjected=false}

@@ -655,3 +655,5 @@ enum TemporalEvidenceDeletionIntentBoundaryV1 {
 }
 
 enum C45AcceptedLabelDeletionIntentBoundaryV1 { static let ordinaryAssetDeletionRemovesWholeMatchingBatch=true;static let outputCleanupIsReceiptBoundAndRetryable=true }
+
+enum C46OperationalContactBoundary_38{static let assetOrSiteCascadeDeletesPartyContacts=false;static let workspaceEraseOwnsRows=true}

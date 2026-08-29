@@ -460,3 +460,13 @@ private final class C32AssistanceAnchorS36CameraRecovery: XCTestCase {
         )
     }
 }
+private final class C46S36CameraCompatibilityTests: XCTestCase {
+    func testC46CameraRecoveryCannotInferOperationalContact() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "camera-recovery",
+            kind: .email,
+            handoff: .text,
+            slot: 46306
+        )
+    }
+}

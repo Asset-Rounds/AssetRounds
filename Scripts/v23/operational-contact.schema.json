@@ -1,0 +1,327 @@
+{
+  "$id": "https://assetrounds.invalid/v23/operational-contact.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "cardID": {
+      "const": "V23-P03-C46"
+    },
+    "classification": {
+      "const": "IMPLEMENT_NOW"
+    },
+    "contactPointCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "caseID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "expectedDisposition": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "input": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "caseID",
+          "input",
+          "expectedDisposition"
+        ],
+        "type": "object"
+      },
+      "minItems": 3,
+      "type": "array"
+    },
+    "contractNames": {
+      "const": [
+        "ServicePartyReferenceV1",
+        "ServiceContactPointV1",
+        "SystemHandoffIntentV1",
+        "PartyContactCSVRowV1",
+        "PARTY_CONTACTS_V1"
+      ]
+    },
+    "csvImportCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "caseID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "expectedDisposition": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "input": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "caseID",
+          "input",
+          "expectedDisposition"
+        ],
+        "type": "object"
+      },
+      "minItems": 3,
+      "type": "array"
+    },
+    "durableFamilies": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "evidenceIDs": {
+      "const": [
+        "V23-P03-C46-G01",
+        "V23-P03-C46-A01",
+        "V23-P03-C46-H01",
+        "V23-P03-C46-I01",
+        "V23-P03-C46-R01"
+      ]
+    },
+    "handoffCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "caseID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "expectedDisposition": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "input": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "caseID",
+          "input",
+          "expectedDisposition"
+        ],
+        "type": "object"
+      },
+      "minItems": 3,
+      "type": "array"
+    },
+    "hostileCases": {
+      "const": [
+        "MALFORMED_ADDRESS",
+        "UNSUPPORTED_CHANNEL",
+        "STALE_EXPECTED_REVISION",
+        "DUPLICATE_CONTACT_POINT",
+        "MIXED_PURPOSE_IMPORT",
+        "SITE_ROLE_OWNERSHIP_ATTEMPT",
+        "SUBSCRIBER_OR_CONSENT_PROMOTION_ATTEMPT",
+        "CAMPAIGN_AUDIENCE_ATTEMPT",
+        "MEASUREMENT_IDENTITY_ATTEMPT",
+        "AUTOMATIC_HANDOFF_ATTEMPT",
+        "PROTECTED_DATA",
+        "LOW_STORAGE",
+        "CANCELLATION"
+      ]
+    },
+    "interruptionBoundaries": {
+      "const": [
+        "BEFORE_CANONICAL_CONTACT_WRITE",
+        "AFTER_EFFECT_BEFORE_RECEIPT",
+        "DURING_IMPORT_PREVIEW",
+        "BEFORE_EXPLICIT_SYSTEM_HANDOFF"
+      ]
+    },
+    "invariants": {
+      "additionalProperties": false,
+      "properties": {
+        "effectBeforeReceiptRecovery": {
+          "const": true
+        },
+        "explicitSystemHandoffRequired": {
+          "const": true
+        },
+        "importPreviewIsNoncanonical": {
+          "const": true
+        },
+        "noNetworkDeliveryClaim": {
+          "const": true
+        },
+        "noSecondWriter": {
+          "const": true
+        },
+        "oneCanonicalWriterTransaction": {
+          "const": true
+        },
+        "operationalContactsNeverBecomeCampaignAudience": {
+          "const": true
+        },
+        "operationalContactsNeverBecomeConsentReceipts": {
+          "const": true
+        },
+        "operationalContactsNeverBecomeMeasurementIdentity": {
+          "const": true
+        },
+        "operationalContactsNeverBecomeSubscribers": {
+          "const": true
+        },
+        "purposeSeparationRequired": {
+          "const": true
+        },
+        "siteRoleOwnershipForbidden": {
+          "const": true
+        }
+      },
+      "required": [
+        "operationalContactsNeverBecomeSubscribers",
+        "operationalContactsNeverBecomeConsentReceipts",
+        "operationalContactsNeverBecomeCampaignAudience",
+        "operationalContactsNeverBecomeMeasurementIdentity",
+        "siteRoleOwnershipForbidden",
+        "purposeSeparationRequired",
+        "explicitSystemHandoffRequired",
+        "oneCanonicalWriterTransaction",
+        "effectBeforeReceiptRecovery",
+        "importPreviewIsNoncanonical",
+        "noNetworkDeliveryClaim",
+        "noSecondWriter"
+      ],
+      "type": "object"
+    },
+    "lifecycle": {
+      "additionalProperties": false,
+      "properties": {
+        "backup": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "cloneFork": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "compatibilityForwardFix": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "deleteErase": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "importExport": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "journalReplay": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "migration": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "restore": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "retention": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "searchRebuild": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "migration",
+        "backup",
+        "restore",
+        "cloneFork",
+        "importExport",
+        "journalReplay",
+        "searchRebuild",
+        "deleteErase",
+        "retention",
+        "compatibilityForwardFix"
+      ],
+      "type": "object"
+    },
+    "persistentSchemaVersion": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "recordsSchemaVersion": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "schema": {
+      "const": "V22P03C46OperationalContactCorpusV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "statusFlags": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance": {
+          "const": false
+        },
+        "adoption": {
+          "const": false
+        },
+        "hosted": {
+          "const": false
+        },
+        "native": {
+          "const": false
+        },
+        "physical": {
+          "const": false
+        },
+        "release": {
+          "const": false
+        }
+      },
+      "required": [
+        "native",
+        "hosted",
+        "physical",
+        "adoption",
+        "acceptance",
+        "release"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "classification",
+    "persistentSchemaVersion",
+    "recordsSchemaVersion",
+    "durableFamilies",
+    "contractNames",
+    "contactPointCases",
+    "handoffCases",
+    "csvImportCases",
+    "hostileCases",
+    "interruptionBoundaries",
+    "lifecycle",
+    "invariants",
+    "evidenceIDs",
+    "statusFlags"
+  ],
+  "title": "V23 P03 C46 Operational Contact Corpus",
+  "type": "object"
+}

@@ -1098,3 +1098,13 @@ private final class C32AssistanceAnchorV941AssetLocator: XCTestCase {
         )
     }
 }
+private final class C46V941LocatorCompatibilityTests: XCTestCase {
+    func testC46AssetLocatorNeverAliasesContactPointID() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "asset-locator",
+            kind: .phone,
+            handoff: .text,
+            slot: 46041
+        )
+    }
+}

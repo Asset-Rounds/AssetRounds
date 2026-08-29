@@ -674,3 +674,13 @@ private final class C32AssistanceAnchorV906DeletionRights: XCTestCase {
         )
     }
 }
+private final class C46V906DeletionRightsCompatibilityTests: XCTestCase {
+    func testC46DeletionRightsKeepContactWorkspaceScoped() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "deletion-rights",
+            kind: .phone,
+            handoff: .call,
+            slot: 46006
+        )
+    }
+}

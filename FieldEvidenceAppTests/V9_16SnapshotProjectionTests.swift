@@ -914,3 +914,13 @@ private final class C32AssistanceAnchorV916SnapshotProjection: XCTestCase {
         )
     }
 }
+private final class C46V916SnapshotCompatibilityTests: XCTestCase {
+    func testC46SnapshotProjectionExcludesRawContactValue() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "snapshot-projection",
+            kind: .phone,
+            handoff: .call,
+            slot: 46016
+        )
+    }
+}

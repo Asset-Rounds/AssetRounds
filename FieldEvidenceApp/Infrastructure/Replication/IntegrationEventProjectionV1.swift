@@ -47,6 +47,7 @@ struct IntegrationEventProjectionV1: Sendable {
             try Self.validatePlanReceiptShape(receipt)
             try Self.validatePlacementPoseReceiptShape(receipt)
             try Self.validateEvidenceContextReceiptShape(receipt)
+            try Self.validateOperationalContactReceiptShape(receipt)
             guard receipt.identity.workspaceID == workspaceID,
                   receipt.resultingRevision.workspaceID == workspaceID else {
                 throw IntegrationEventFailureV1.wrongWorkspace
@@ -162,6 +163,33 @@ struct IntegrationEventProjectionV1: Sendable {
     static let temporalEvidenceKinds = C33TemporalEvidenceIntegrationEventBoundaryV1.projectedKinds
     static func validateTemporalEvidenceReceiptShape(_ receipt:MutationReceiptV1)throws{let identities=try receipt.postImages.map{$0.identity};let present=Set(identities.map(\.kind)).intersection(temporalEvidenceKinds);guard !present.isEmpty else{return};guard Set(identities).count==identities.count,identities.allSatisfy({temporalEvidenceKinds.contains($0.kind)}),identities.count<=MutationReceiptV1.maximumPostImageCount else{throw IntegrationEventFailureV1.divergentEvent};for image in receipt.postImages{let concurrency=try image.concurrencyIdentity;guard let expected=receipt.expectedRevision.entityRevisions.first(where:{$0.identity==concurrency})?.revision,expected<UInt64.max,image.revision==expected+1 else{throw IntegrationEventFailureV1.divergentEvent}}}
     func validateTemporalEvidenceReplay(_ receipts:[MutationReceiptV1])throws{try receipts.forEach{try Self.validateTemporalEvidenceReceiptShape($0)}}
+    static let operationalContactKinds: Set<WorkspaceEntityKindV1> = [
+        .serviceContactPoint, .systemHandoffIntent,
+    ]
+    static func validateOperationalContactReceiptShape(_ receipt: MutationReceiptV1) throws {
+        let identities = try receipt.postImages.map { try $0.identity }
+        let present = Set(identities.map(\.kind)).intersection(operationalContactKinds)
+        guard !present.isEmpty else { return }
+        guard Set(identities).count == identities.count,
+              identities.allSatisfy({ operationalContactKinds.contains($0.kind) }) else {
+            throw IntegrationEventFailureV1.divergentEvent
+        }
+        for image in receipt.postImages {
+            let identity = try image.identity
+            let concurrency = try image.concurrencyIdentity
+            guard let expected = receipt.expectedRevision.entityRevisions.first(where: {
+                $0.identity == concurrency
+            })?.revision,
+            expected < UInt64.max,
+            image.revision == expected + 1,
+            identity.kind == .systemHandoffIntent ? expected == 0 : true else {
+                throw IntegrationEventFailureV1.divergentEvent
+            }
+        }
+    }
+    func validateOperationalContactReplay(_ receipts: [MutationReceiptV1]) throws {
+        try receipts.forEach { try Self.validateOperationalContactReceiptShape($0) }
+    }
 
     func validateProjectedStream(_ events: [IntegrationEventV1], workspaceID: WorkspaceID) throws -> [IntegrationEventV1] {
         let ordered = events.sorted { $0.order < $1.order }
@@ -406,3 +434,5 @@ enum C32AssistanceCompatibility_Replication_IntegrationEventProjectionV1 {
 }
 
 enum C45AcceptedLabelIntegrationProjectionBoundaryV1 { static let excludesShortCodeAndLocatorPayload=true;static let preservesSnapshotIdentity=true }
+
+enum C46OperationalContactBoundary_49{static let commandKind:WorkspaceCommandKindV1 = .applyOperationalContact;static let platformOutcomesProjected=false}

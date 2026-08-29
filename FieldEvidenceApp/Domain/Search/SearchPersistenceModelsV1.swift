@@ -1291,3 +1291,5 @@ enum C33TemporalEvidenceConformance_FieldEvidenceApp_Domain_Search_SearchPersist
 }
 
 enum C45AcceptedLabelSearchPersistenceBoundaryV1 { static let createsSearchRowFamily=false;static let canonicalSnapshotRemainsOutsideIndex=true }
+
+enum C46OperationalContactBoundary_34{static let permittedProjection="PARTY_METADATA_ONLY";static let rawPhoneOrEmailIndexed=false}

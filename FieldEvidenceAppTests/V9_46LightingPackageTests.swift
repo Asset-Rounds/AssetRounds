@@ -1714,3 +1714,13 @@ private final class C32AssistanceAnchorV946LightingPackage: XCTestCase {
         )
     }
 }
+private final class C46V946LightingCompatibilityTests: XCTestCase {
+    func testC46LightingPackageCannotOwnContactPurpose() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "lighting-package",
+            kind: .phone,
+            handoff: .call,
+            slot: 46046
+        )
+    }
+}

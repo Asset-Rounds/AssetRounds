@@ -2656,6 +2656,18 @@ extension EraseAllService {
         ) == 0 else { throw EraseAllServiceError.invalidAuthority }
         try C45AcceptedLabelKernelDeletionEnrollmentV1.validate()
     }
+
+    func validateOperationalContactEraseClosure(
+        session: StoreGenerationSession
+    ) throws {
+        guard try session.modelContext.fetchCount(
+            FetchDescriptor<ServiceContactPointRow>()
+        ) == 0,
+        try session.modelContext.fetchCount(
+            FetchDescriptor<SystemHandoffIntentRow>()
+        ) == 0 else { throw EraseAllServiceError.invalidAuthority }
+        try C46OperationalContactKernelDeletionEnrollmentV1.validate()
+    }
 }
 
 enum C45AcceptedLabelEraseAllBoundaryV1 { static let deletesAcceptedSnapshotRows=true;static let deletesLeasedLabelScratch=true }
