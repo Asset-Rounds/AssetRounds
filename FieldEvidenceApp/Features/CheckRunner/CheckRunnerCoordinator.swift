@@ -2236,6 +2236,34 @@ extension CheckRunnerCoordinator {
 
 // MARK: - C15 WorkPacket read-only check context
 
+// MARK: - C33 bounded temporal evidence review
+
+extension CheckRunnerCoordinator {
+    /// Adopts an already-staged item for review. It starts no device capture and
+    /// performs no canonical temporal-evidence write.
+    nonisolated static func temporalEvidenceReviewCandidate(
+        staged draft: CheckRunnerDraftCaptureCandidateV1,
+        facts: TemporalEvidenceMediaFactsV1,
+        profile: TemporalEvidenceLimitProfileV1,
+        accessibleDescription: String,
+        admissionReceipt: TemporalEvidenceIncrementalBudgetReceiptV1,
+        manualTranscript: String? = nil
+    ) throws -> CheckRunnerTemporalEvidenceReviewCandidateV1 {
+        try CheckRunnerTemporalEvidenceReviewCandidateV1(
+            draft: draft, facts: facts, profile: profile,
+            accessibleDescription: accessibleDescription,
+            manualTranscript: manualTranscript,
+            admissionReceipt: admissionReceipt
+        )
+    }
+
+    static let c33StartsMicrophoneOrVideoCapture = false
+    static let c33AutomaticTranscriptionEnabled = false
+    static let c33ManualFileImportFallbackPreserved = true
+}
+
+// MARK: - C15 WorkPacket read-only check context
+
 @MainActor
 extension CheckRunnerCoordinator {
     /// Resolves the immutable packet/item context used by a check without

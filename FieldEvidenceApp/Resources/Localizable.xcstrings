@@ -3597,6 +3597,54 @@
     "assistance.interrupted" : {
       "comment" : "C32 interruption state; no proposed value was saved and the manual path remains available.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Suggestion interrupted. Nothing was saved." } } }
+    },
+    "temporal_evidence.review_required" : {
+      "comment" : "C33 status before a bounded clip can be accepted into canonical evidence.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review this clip before saving" } } }
+    },
+    "temporal_evidence.kind.audio" : {
+      "comment" : "C33 non-color media-kind label.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Audio clip" } } }
+    },
+    "temporal_evidence.kind.video" : {
+      "comment" : "C33 non-color media-kind label.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Video clip" } } }
+    },
+    "temporal_evidence.limit.duration" : {
+      "comment" : "C33 truthful hard-stop reason.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Clip stopped at the duration limit" } } }
+    },
+    "temporal_evidence.limit.bytes" : {
+      "comment" : "C33 truthful hard-stop reason.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Clip stopped at the size limit" } } }
+    },
+    "temporal_evidence.limit.storage" : {
+      "comment" : "C33 low-storage state that does not claim a partial save.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Not enough protected local storage. Nothing was saved." } } }
+    },
+    "temporal_evidence.permission.denied" : {
+      "comment" : "C33 permission-denial fallback without initiating a capture runtime.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Permission not granted. You can attach a file manually." } } }
+    },
+    "temporal_evidence.interrupted" : {
+      "comment" : "C33 interruption state with truthful canonical-save status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Clip interrupted. Nothing was saved." } } }
+    },
+    "temporal_evidence.cancelled" : {
+      "comment" : "C33 cancellation state with truthful canonical-save status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Clip cancelled. Nothing was saved." } } }
+    },
+    "temporal_evidence.description.required" : {
+      "comment" : "C33 accessible-description review requirement.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Add an accessible description before saving" } } }
+    },
+    "temporal_evidence.transcript.required" : {
+      "comment" : "C33 human-authored transcript review requirement; no automatic transcription claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Add a manual transcript before saving" } } }
+    },
+    "temporal_evidence.manual_import" : {
+      "comment" : "C33 manual/offline fallback while live recording remains deferred.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Attach an audio or video file manually" } } }
     }
   },
   "version" : "1.0"

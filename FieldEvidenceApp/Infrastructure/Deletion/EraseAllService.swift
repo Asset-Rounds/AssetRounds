@@ -2532,3 +2532,50 @@ enum C32AssistanceCompatibility_Deletion_EraseAllService {
     static let interruptionNeverPromotesAProposal = true
     static let createsParallelStoreOrWriter = false
 }
+
+
+// MARK: - C33 temporal evidence Erase closure
+
+enum TemporalEvidenceEraseAllEnrollmentV1 {
+    static let durableRows = TemporalEvidenceKernelDeletionEnrollmentV1.durableRowNames
+    static let clearsCanonicalContent = true
+    static let clearsScratchAndQuarantine = true
+    static let leavesSearchProjection = false
+
+    static func validate() throws {
+        try TemporalEvidenceKernelDeletionEnrollmentV1.validate()
+        guard durableRows.count == 2, clearsCanonicalContent,
+              clearsScratchAndQuarantine, !leavesSearchProjection else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}
+
+
+@MainActor
+extension EraseAllService {
+    /// Exact post-Erase proof for the newly activated generation. The generic
+    /// generation swap performs deletion; this check prevents C33 rows or the
+    /// canonical content namespace from surviving it unnoticed.
+    func validateTemporalEvidenceEraseClosure(
+        session: StoreGenerationSession
+    ) throws {
+        guard try session.modelContext.fetchCount(
+            FetchDescriptor<TemporalEvidenceClipRow>()
+        ) == 0,
+        try session.modelContext.fetchCount(
+            FetchDescriptor<TimecodedEvidenceAnchorRow>()
+        ) == 0 else { throw EraseAllServiceError.invalidAuthority }
+        let contentRoot = session.generationRootURL.appendingPathComponent(
+            "content", isDirectory: true
+        )
+        var isDirectory: ObjCBool = false
+        if FileManager.default.fileExists(atPath: contentRoot.path, isDirectory: &isDirectory) {
+            guard isDirectory.boolValue,
+                  try FileManager.default.contentsOfDirectory(atPath: contentRoot.path).isEmpty else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        }
+        try TemporalEvidenceEraseAllEnrollmentV1.validate()
+    }
+}

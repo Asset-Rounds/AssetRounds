@@ -713,6 +713,25 @@ private final class C31LightingAnchorV924AssetSemanticLifecycleTests: XCTestCase
     }
 }
 
+private final class C33TemporalEvidenceAnchorV924AssetSemanticLifecycle: XCTestCase {
+    func testC33V924AssetSemanticLifecycleCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "asset.temporal-evidence-target",
+            kind: .video,
+            reportProjection: .typedLinkWithDerivativePreview
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "asset.temporal-evidence-target",
+            kind: .video,
+            reportProjection: .typedLinkWithDerivativePreview
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+}
+
 private final class C32AssistanceAnchorV924AssetSemanticLifecycle: XCTestCase {
     func testC32V924AssetSemanticLifecycleCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(

@@ -20,6 +20,8 @@ protocol ResumableLocalJobPortV1: Sendable {
     func eraseAll() async throws
 }
 
+enum C33TemporalEvidenceJobBoundaryV1 { static let canonicalMediaCaptureIsResumableBackgroundWork=false;static let derivativeJobsMayBeRebuilt=true;static let immutableOriginalJobsMayOverwrite=false;static let canonicalMutationKind:WorkspaceCommandKindV1 = .applyTemporalEvidence }
+
 /// Narrow C36 adapter for bounded attachment-processing work.  The request
 /// and result are job metadata only; bytes remain owned by the draft staging
 /// adapter and are never returned through this port.

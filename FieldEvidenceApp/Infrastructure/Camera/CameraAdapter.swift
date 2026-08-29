@@ -163,3 +163,16 @@ enum C32AssistanceCompatibility_Camera_CameraAdapter {
     static let interruptionNeverPromotesAProposal = true
     static let createsParallelStoreOrWriter = false
 }
+
+
+// MARK: - C33 deferred capture runtime boundary
+
+/// P03-C33 defines bounded clip storage and review contracts only. Explicit
+/// microphone/video capture intent and runtime permissions remain P04-C25.
+enum TemporalEvidenceCaptureRuntimeBoundaryV1 {
+    static let addsMicrophoneRuntime = false
+    static let addsVideoRecordingRuntime = false
+    static let backgroundCaptureAllowed = false
+    static let explicitCaptureIntentRequired = true
+    static let manualFileImportFallbackPreserved = true
+}

@@ -1177,3 +1177,33 @@ enum PlacementPosePersistentKindPolicyV1{static let durableKindIDs=Set(["PERSIST
 enum EvidenceContextPersistentKindPolicyV1{static let durableKindIDs=Set(["PERSISTENT_MODEL:EvidenceContextRow","PERSISTENT_MODEL:PairedObservationLinkRow"]);static let derivedKindIDs=Set(["PROJECTION:EvidenceContextV1","PROJECTION:PairedObservationLinkV1","PROJECTION:StoreSemanticEnvelopeV30"]);static func validateDeclaration()throws{guard durableKindIDs.count==2,derivedKindIDs.count==3,durableKindIDs.isDisjoint(with:derivedKindIDs),(durableKindIDs.union(derivedKindIDs)).allSatisfy(PersistentKindLifecycleValidationV1.validKindID)else{throw PersistentKindLifecycleFailureV1.invalidLifecyclePolicy}}}
 enum LightingPersistentKindPolicyV1{static let durableKindIDs=Set(["PERSISTENT_MODEL:LightingSystemRow","PERSISTENT_MODEL:LightingObservationRow","PERSISTENT_MODEL:LightingIssueRow","PERSISTENT_MODEL:MeasurementPlanRow","PERSISTENT_MODEL:LightingClaimStateRow"]);static let derivedKindIDs=Set(["PROJECTION:LightingTopologyV1","PROJECTION:LightingDuePreviewV1","PROJECTION:StoreSemanticEnvelopeV31"]);static func validateDeclaration()throws{guard durableKindIDs.count==5,durableKindIDs.isDisjoint(with:derivedKindIDs)else{throw PersistentKindLifecycleFailureV1.invalidLifecyclePolicy}}}
 enum AssistancePersistentKindPolicyV1{static let durableKindIDs=Set(["PERSISTENT_MODEL:AssistanceAcceptanceReceiptRow"]);static let nonpersistentKindIDs=Set(["PROJECTION:AssistanceProposalV1","PROJECTION:AssistanceCapabilityScratchV1"]);static let derivedKindIDs=Set(["PROJECTION:StoreSemanticEnvelopeV32"]);static let rejectedOrCancelledCorpusKindIDs:Set<String>=[];static func validateDeclaration()throws{guard durableKindIDs.count==1,nonpersistentKindIDs==Set(["PROJECTION:AssistanceProposalV1","PROJECTION:AssistanceCapabilityScratchV1"]),rejectedOrCancelledCorpusKindIDs.isEmpty,durableKindIDs.isDisjoint(with:nonpersistentKindIDs),durableKindIDs.isDisjoint(with:derivedKindIDs)else{throw PersistentKindLifecycleFailureV1.invalidLifecyclePolicy}}}
+enum TemporalEvidencePersistentKindPolicyV1 {
+    static let durableKindIDs = Set([
+        "PERSISTENT_MODEL:TemporalEvidenceClipRow",
+        "PERSISTENT_MODEL:TimecodedEvidenceAnchorRow",
+    ])
+    static let journalSupportingKindIDs = Set([
+        "JOURNAL:TemporalEvidenceDerivativeV1",
+        "JOURNAL:TemporalEvidenceRetentionEventV1",
+    ])
+    static let contentKindIDs = Set(["OWNED_FILE_CLASS:mediaOriginal"])
+    static let nonpersistentKindIDs = Set(["PROJECTION:TemporalEvidenceCaptureScratchV1"])
+    static let derivedKindIDs = Set(["PROJECTION:StoreSemanticEnvelopeV33"])
+
+    static func validateDeclaration() throws {
+        let persistent = durableKindIDs.union(journalSupportingKindIDs).union(contentKindIDs)
+        guard durableKindIDs.count == TemporalEvidencePersistenceEnrollmentV1.durableModelCount,
+              TemporalEvidencePersistenceEnrollmentV1.persistentFamilies == [
+                "TemporalEvidenceClipRow", "TimecodedEvidenceAnchorRow",
+              ],
+              journalSupportingKindIDs.count == 2,
+              contentKindIDs.count == 1,
+              nonpersistentKindIDs == Set(["PROJECTION:TemporalEvidenceCaptureScratchV1"]),
+              persistent.isDisjoint(with: nonpersistentKindIDs),
+              persistent.isDisjoint(with: derivedKindIDs),
+              persistent.union(nonpersistentKindIDs).union(derivedKindIDs)
+                .allSatisfy(PersistentKindLifecycleValidationV1.validKindID) else {
+            throw PersistentKindLifecycleFailureV1.invalidLifecyclePolicy
+        }
+    }
+}

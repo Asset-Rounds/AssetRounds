@@ -1380,6 +1380,25 @@ private final class C31LightingAnchorV912SystemHealthOperationalDiagnosticsTests
     }
 }
 
+private final class C33TemporalEvidenceAnchorV912SystemHealthOperationalDiagnostics: XCTestCase {
+    func testC33V912SystemHealthOperationalDiagnosticsCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "health.temporal-scratch-orphan-count",
+            kind: .audio,
+            reportProjection: .typedLinkOnly
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "health.temporal-scratch-orphan-count",
+            kind: .audio,
+            reportProjection: .typedLinkOnly
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+}
+
 private final class C32AssistanceAnchorV912SystemHealthOperationalDiagnostics: XCTestCase {
     func testC32V912SystemHealthOperationalDiagnosticsCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(

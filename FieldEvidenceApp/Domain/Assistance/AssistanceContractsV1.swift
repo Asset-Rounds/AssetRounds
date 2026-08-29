@@ -810,3 +810,10 @@ enum AssistanceCanonicalCodecV1 {
         try WorkspaceMutationCanonicalV1.sha256(value)
     }
 }
+
+enum C33TemporalEvidenceBoundary_Domain_Assistance_AssistanceContractsV1_V1 {
+    static let clipType: TemporalEvidenceClipV1.Type = TemporalEvidenceClipV1.self
+    static let anchorType: TimecodedEvidenceAnchorV1.Type = TimecodedEvidenceAnchorV1.self
+    static let persistentSchemaVersion: Int =
+        TemporalEvidencePersistenceEnrollmentV1.persistentSchemaVersion
+}

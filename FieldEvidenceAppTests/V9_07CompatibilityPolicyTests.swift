@@ -460,6 +460,25 @@ private final class C31LightingAnchorV907CompatibilityPolicyTests: XCTestCase {
     }
 }
 
+private final class C33TemporalEvidenceAnchorV907CompatibilityPolicy: XCTestCase {
+    func testC33V907CompatibilityPolicyCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "compatibility.temporal-evidence-v1",
+            kind: .audio,
+            reportProjection: .typedLinkOnly
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "compatibility.temporal-evidence-v1",
+            kind: .audio,
+            reportProjection: .typedLinkOnly
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+}
+
 private final class C32AssistanceAnchorV907CompatibilityPolicy: XCTestCase {
     func testC32V907CompatibilityPolicyCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(

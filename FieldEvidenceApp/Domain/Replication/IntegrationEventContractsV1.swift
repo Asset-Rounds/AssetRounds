@@ -580,3 +580,19 @@ enum C32AssistanceLifecycleBoundary_FieldEvidenceApp_Domain_Replication_Integrat
         try receipt.validate()
     }
 }
+
+
+// MARK: - C33 temporal evidence integration boundary
+
+enum C33TemporalEvidenceIntegrationEventBoundaryV1 {
+    static let projectedKinds: Set<WorkspaceEntityKindV1> = [
+        .temporalEvidenceClip, .timecodedEvidenceAnchor,
+    ]
+    static let originalContentBytesExcludedFromEvents = true
+    static let privateNotesAndActorsExcludedFromEvents = true
+    static let canonicalJournalReceiptIsProjectionAuthority = true
+
+    static func isTemporalEvidenceProjectionEvent(_ event: IntegrationEventV1) -> Bool {
+        projectedKinds.contains(event.subject.kind)
+    }
+}

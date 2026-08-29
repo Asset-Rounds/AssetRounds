@@ -1994,3 +1994,25 @@ enum C32AssistanceLifecycleBoundary_FieldEvidenceApp_Domain_Reporting_EvidenceDe
         try receipt.validate()
     }
 }
+
+
+// MARK: - C33 temporal evidence detail boundary
+
+enum TemporalEvidenceDetailCardBoundaryV1 {
+    static let originalBytesAreCardFields = false
+    static let privateLocatorIsCardField = false
+
+    static func validate(_ link: TemporalEvidenceReportLinkV1,
+                         clip: TemporalEvidenceClipV1) throws {
+        try link.validate(); try clip.validateIntrinsic()
+        try link.anchorBindings.forEach { try $0.validate(clip: clip) }
+        guard link.workspaceID == clip.workspaceID, link.clipID == clip.clipID,
+              link.clipRevision == clip.revision, link.clipSHA256 == clip.clipSHA256,
+              link.contentID == clip.original.contentID,
+              link.accessibleDescription == clip.accessibleDescription,
+              link.manualTranscript == clip.manualTranscript,
+              !originalBytesAreCardFields, !privateLocatorIsCardField else {
+            throw TemporalEvidenceContractFailureV1.staleSource
+        }
+    }
+}

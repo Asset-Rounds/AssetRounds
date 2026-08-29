@@ -605,6 +605,25 @@ private final class C31LightingAnchorV943PlanRebaseTests: XCTestCase {
     }
 }
 
+private final class C33TemporalEvidenceAnchorV943PlanRebase: XCTestCase {
+    func testC33V943PlanRebaseCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "plan.temporal-source-revision",
+            kind: .video,
+            reportProjection: .typedLinkOnly
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "plan.temporal-source-revision",
+            kind: .video,
+            reportProjection: .typedLinkOnly
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+}
+
 private final class C32AssistanceAnchorV943PlanRebase: XCTestCase {
     func testC32V943PlanRebaseCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(

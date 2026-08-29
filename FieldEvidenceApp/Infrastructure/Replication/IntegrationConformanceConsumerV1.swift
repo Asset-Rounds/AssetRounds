@@ -59,6 +59,7 @@ struct IntegrationConformanceConsumerV1: Sendable {
         try projection.validatePlacementPoseReplay(acceptedReceipts)
         try projection.validateEvidenceContextReplay(acceptedReceipts)
         try projection.validateLightingReplay(acceptedReceipts)
+        try projection.validateTemporalEvidenceReplay(acceptedReceipts)
         let prior = try await store.checkpoint(
             consumerID: consumer.consumerID, workspaceID: workspaceID
         )
@@ -117,6 +118,7 @@ struct IntegrationConformanceConsumerV1: Sendable {
         try projection.validatePlacementPoseReplay(acceptedReceipts)
         try projection.validateEvidenceContextReplay(acceptedReceipts)
         try projection.validateLightingReplay(acceptedReceipts)
+        try projection.validateTemporalEvidenceReplay(acceptedReceipts)
         try await store.dropDerivedProjection(
             consumerID: consumer.consumerID, workspaceID: workspaceID
         )
@@ -140,6 +142,16 @@ enum C31LightingConformanceBoundaryV1 {
     static let noPartialLightingActivation = true
     static func accepts(_ event: IntegrationEventV1) -> Bool {
         LightingIntegrationConformancePolicyV1.accepts(event)
+    }
+}
+
+
+enum C33TemporalEvidenceConformanceBoundaryV1 {
+    static let durableKinds = C33TemporalEvidenceIntegrationEventBoundaryV1.projectedKinds
+    static let derivedConsumerNeverReceivesOriginalBytes = true
+
+    static func accepts(_ event: IntegrationEventV1) -> Bool {
+        durableKinds.contains(event.subject.kind)
     }
 }
 

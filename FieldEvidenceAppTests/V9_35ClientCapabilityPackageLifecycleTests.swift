@@ -957,6 +957,25 @@ private final class C31LightingAnchorV935ClientCapabilityPackageLifecycleTests: 
     }
 }
 
+private final class C33TemporalEvidenceAnchorV935ClientCapabilityPackageLifecycle: XCTestCase {
+    func testC33V935ClientCapabilityPackageLifecycleCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "package.temporal-codec-policy",
+            kind: .video,
+            reportProjection: .typedLinkOnly
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "package.temporal-codec-policy",
+            kind: .video,
+            reportProjection: .typedLinkOnly
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+}
+
 private final class C32AssistanceAnchorV935ClientCapabilityPackageLifecycle: XCTestCase {
     func testC32V935ClientCapabilityPackageLifecycleCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(

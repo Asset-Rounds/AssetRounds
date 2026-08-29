@@ -144,3 +144,10 @@ enum C32AssistanceLifecycleBoundary_FieldEvidenceApp_Application_Lighting_Lighti
         try receipt.validate()
     }
 }
+
+enum C33TemporalEvidenceBoundary_Application_Lighting_LightingCoordinatorV1_V1 {
+    static let clipType: TemporalEvidenceClipV1.Type = TemporalEvidenceClipV1.self
+    static let anchorType: TimecodedEvidenceAnchorV1.Type = TimecodedEvidenceAnchorV1.self
+    static let persistentSchemaVersion: Int =
+        TemporalEvidencePersistenceEnrollmentV1.persistentSchemaVersion
+}

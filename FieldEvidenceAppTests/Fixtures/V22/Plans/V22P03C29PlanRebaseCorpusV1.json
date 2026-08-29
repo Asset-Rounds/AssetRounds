@@ -140,5 +140,12 @@
     "planOrDefinitionChangeExpiresProposal": true,
     "proposalNeverRebasesOrMutatesPlan": true,
     "manualPlanPathRemainsEquivalent": true
+  },
+  "c33TemporalEvidenceCompatibility": {
+    "compatibilityCardID": "V23-P03-C33",
+    "clipAndAnchorPersistentSchemaVersion": 33,
+    "planRebaseNeverRewritesImmutableOriginal": true,
+    "anchorKeepsExactClipRevisionAndDigest": true,
+    "stalePlanOrSessionRevisionFailsClosed": true
   }
 }

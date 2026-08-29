@@ -1208,6 +1208,25 @@ private final class C31LightingAnchorV944PlacementPoseTests: XCTestCase {
     }
 }
 
+private final class C33TemporalEvidenceAnchorV944PlacementPose: XCTestCase {
+    func testC33V944PlacementPoseCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "pose.temporal-anchor-context",
+            kind: .video,
+            reportProjection: .typedLinkWithDerivativePreview
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "pose.temporal-anchor-context",
+            kind: .video,
+            reportProjection: .typedLinkWithDerivativePreview
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+}
+
 private final class C32AssistanceAnchorV944PlacementPose: XCTestCase {
     func testC32V944PlacementPoseCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(

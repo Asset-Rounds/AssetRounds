@@ -91,6 +91,8 @@ final class BackupExportService {
         let lightingPlans: [MeasurementPlanRow]
         let lightingClaims: [LightingClaimStateRow]
         let assistanceAcceptanceReceipts: [AssistanceAcceptanceReceiptRow]
+        let temporalEvidenceClips: [TemporalEvidenceClipRow]
+        let timecodedEvidenceAnchors: [TimecodedEvidenceAnchorRow]
         let fieldReferenceReleases:[FieldReferenceReleaseRow]
         let fieldReferenceBindings:[FieldReferenceBindingRow]
         let recoverabilityVerificationReceipts:[RecoverabilityVerificationReceiptRow]
@@ -772,6 +774,7 @@ private extension BackupExportService {
                 placementPoses: records.placementPoses,
                 lighting: records.lighting,
                 assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
+                temporalEvidence: records.temporalEvidence,
                 fieldReferences:records.fieldReferences,
                 fieldDrafts: records.fieldDrafts,
                 workPackets: records.workPackets,
@@ -868,6 +871,41 @@ private extension BackupExportService {
                 sha256: evidence.thumbnailSHA256,
                 location: .generationRelative(evidence.thumbnailRelativePath)
             ))
+        }
+
+        var archivedTemporalOriginalPaths = Set<String>()
+        for clip in try rows.temporalEvidenceClips.map({ try $0.value() }).sorted(by: {
+            $0.clipID.uuidString.lowercased() < $1.clipID.uuidString.lowercased()
+        }) {
+            try clip.validateIntrinsic()
+            let path = try TemporalEvidenceBackupMemberV1.original(for: clip)
+            guard clip.original.byteLength >= 0,
+                  clip.original.byteLength <= archiveLimits.maximumUncompressedEntryByteCount,
+                  let digest = clip.original.digests.digest(for: .sha256)?.hexadecimalValue else {
+                throw BackupExportServiceError.invalidAuthority
+            }
+            _ = try boundedStreamingRead(
+                path,
+                expectedByteCount: clip.original.byteLength,
+                expectedSHA256: digest,
+                rootIdentity: rootIdentity
+            )
+            if archivedTemporalOriginalPaths.insert(path).inserted {
+                sources.append(.init(
+                    path: path,
+                    mimeType: clip.original.mediaType,
+                    byteCount: Int(clip.original.byteLength),
+                    sha256: digest,
+                    location: .generationRelative(path)
+                ))
+            } else {
+                guard let existing = sources.first(where: { $0.path == path }),
+                      existing.byteCount == Int(clip.original.byteLength),
+                      existing.sha256 == digest,
+                      existing.mimeType == clip.original.mediaType else {
+                    throw BackupExportServiceError.invalidAuthority
+                }
+            }
         }
 
         for item in try rows.attachmentStagingItems.map({try $0.value()}).sorted(by:{$0.stageID.uuidString<$1.stageID.uuidString}){
@@ -1013,9 +1051,9 @@ private extension BackupExportService {
             source: .init(
                 appBuild: appBuild(),
                 appVersion: appVersion(),
-                persistentSchemaVersion: AssistancePersistenceEnrollmentV1.persistentSchemaVersion,
+                persistentSchemaVersion: TemporalEvidencePersistenceEnrollmentV1.persistentSchemaVersion,
                 replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: AssistancePersistenceEnrollmentV1.recordsSchemaVersion,
+                recordsSchemaVersion: TemporalEvidencePersistenceEnrollmentV1.recordsSchemaVersion,
                 sourceGenerationID: generationID,
                 workspaceID: sourceIdentity.workspaceID.rawValue
             )
@@ -1563,6 +1601,8 @@ private extension BackupExportService {
                  lightingPlans: try modelContext.fetch(FetchDescriptor<MeasurementPlanRow>()),
                  lightingClaims: try modelContext.fetch(FetchDescriptor<LightingClaimStateRow>()),
                  assistanceAcceptanceReceipts: try modelContext.fetch(FetchDescriptor<AssistanceAcceptanceReceiptRow>()),
+                 temporalEvidenceClips: try modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>()),
+                 timecodedEvidenceAnchors: try modelContext.fetch(FetchDescriptor<TimecodedEvidenceAnchorRow>()),
                  fieldReferenceReleases:try modelContext.fetch(FetchDescriptor<FieldReferenceReleaseRow>()),
                 fieldReferenceBindings:try modelContext.fetch(FetchDescriptor<FieldReferenceBindingRow>()),
                 recoverabilityVerificationReceipts:try modelContext.fetch(FetchDescriptor<RecoverabilityVerificationReceiptRow>()),
@@ -2165,6 +2205,10 @@ private extension BackupExportService {
         let assistanceAcceptanceReceipts = mutationHistory == nil ? [] : try rows.assistanceAcceptanceReceipts
             .map { try V32BackupAssistanceAcceptanceRecordV1($0.value()) }
             .sorted { $0.receiptID.uuidString.lowercased() < $1.receiptID.uuidString.lowercased() }
+        let temporalEvidence = mutationHistory == nil ? [] : try (
+            rows.temporalEvidenceClips.map { try V33BackupTemporalEvidenceRecordV1($0.value()) }
+            + rows.timecodedEvidenceAnchors.map { try V33BackupTemporalEvidenceRecordV1($0.value()) }
+        ).sorted { ($0.kind.rawValue, $0.id.uuidString) < ($1.kind.rawValue, $1.id.uuidString) }
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveys,
             assetLocators: assetLocators,
@@ -2173,6 +2217,7 @@ private extension BackupExportService {
             placementPoses: placementPoses,
             lighting: lighting,
             assistanceAcceptanceReceipts: assistanceAcceptanceReceipts,
+            temporalEvidence: temporalEvidence,
             accessibleDocumentAssessments:accessibleDocumentAssessments,
             surveyDefinitions:surveyDefinitions,
             fieldReferences:fieldReferences,
@@ -2236,7 +2281,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : 31,
+                : TemporalEvidencePersistenceEnrollmentV1.recordsSchemaVersion,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,

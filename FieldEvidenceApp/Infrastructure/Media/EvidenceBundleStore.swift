@@ -1830,6 +1830,18 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
     }
 }
 
+
+// MARK: - C33 legacy JPEG bundle exclusion
+
+/// EvidenceBundleStore retains its existing still-image compatibility role.
+/// Temporal originals use DraftImmutableContentWriterV1 through the canonical
+/// content root; they are never represented as original.jpg/thumbnail.jpg.
+enum TemporalEvidenceLegacyBundleExclusionV1 {
+    static let evidenceBundleStoreIsTemporalClipStore = false
+    static let temporalClipUsesEvidenceFileIdentity = false
+    static let canonicalWriter = "DraftImmutableContentWriterV1"
+}
+
 // MARK: - C36 draft/media boundary
 
 /// The legacy media store remains the post-commit EvidenceID store.  C36

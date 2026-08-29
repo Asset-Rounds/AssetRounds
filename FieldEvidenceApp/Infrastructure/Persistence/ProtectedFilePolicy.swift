@@ -3,6 +3,21 @@ import Foundation
 
 enum EvidenceContextProtectedFilePolicyV1{static let durableRowNames:Set<String>=["EvidenceContextRow","PairedObservationLinkRow"];static let ownsExternalFiles=false;static let canonicalBytesRemainInProtectedDatabase=true}
 enum LightingProtectedFilePolicyV1{static let durableRowNames:Set<String>=["LightingSystemRow","LightingObservationRow","LightingIssueRow","MeasurementPlanRow","LightingClaimStateRow"];static let ownsExternalFiles=false;static let canonicalBytesRemainInProtectedDatabase=true}
+enum TemporalEvidenceProtectedFilePolicyV1 {
+    static let durableRowNames: Set<String> = ["TemporalEvidenceClipRow", "TimecodedEvidenceAnchorRow"]
+    static let originalContentFileKind: OwnedFileKindV1 = .mediaOriginal
+    static let originalBytesAreCanonicalAndIncludedInBackup = true
+    static let derivativesRemainRegenerable = true
+
+    static func validate() throws {
+        guard durableRowNames == Set(TemporalEvidencePersistenceEnrollmentV1.persistentFamilies),
+              !ProtectedFilePolicyV1.isExcludedFromBackup(for: originalContentFileKind),
+              originalBytesAreCanonicalAndIncludedInBackup,
+              derivativesRemainRegenerable else {
+            throw ProtectedFilePolicyError.invalidType
+        }
+    }
+}
 
 /// The closed set of app-owned file classes that may be passed to the
 /// persistence protection policy.  Keeping this list closed prevents a new

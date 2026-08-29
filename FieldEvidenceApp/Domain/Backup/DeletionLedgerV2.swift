@@ -440,6 +440,28 @@ enum C32AssistanceDeletionLedgerPolicyV1 {
     }
 }
 
+/// Temporal evidence is a closed clip/anchor graph. Ordinary retention removal
+/// tombstones every durable identity and schedules the exact original and
+/// derivative content references for cleanup; workspace Erase owns the same
+/// closure. Derivative and retention values remain canonical journal support,
+/// not additional deletion-ledger row families.
+enum C33TemporalEvidenceDeletionLedgerPolicyV1 {
+    static let durableFamilies = ["TemporalEvidenceClipRow", "TimecodedEvidenceAnchorRow"]
+    static let ordinaryRemovalClosesRowsJournalAndContent = true
+    static let workspaceEraseClosesRowsJournalAndContent = true
+    static let supportingValuesAreJournalEmbedded = true
+
+    static func validate() throws {
+        guard durableFamilies == TemporalEvidencePersistenceEnrollmentV1.persistentFamilies,
+              durableFamilies.count == TemporalEvidencePersistenceEnrollmentV1.durableModelCount,
+              ordinaryRemovalClosesRowsJournalAndContent,
+              workspaceEraseClosesRowsJournalAndContent,
+              supportingValuesAreJournalEmbedded else {
+            throw DeletionLedgerFailureV2.invalidSchemaVersion
+        }
+    }
+}
+
 struct DeletionLedgerV2: Codable, Equatable, Sendable {
     static let maximumEntryCount = 100_000
 
@@ -462,6 +484,7 @@ struct DeletionLedgerV2: Codable, Equatable, Sendable {
         try PlanDeletionLedgerPolicyV1.validate()
         try C31LightingDeletionLedgerPolicyV1.validate()
         try C32AssistanceDeletionLedgerPolicyV1.validate()
+        try C33TemporalEvidenceDeletionLedgerPolicyV1.validate()
         guard schemaVersion == 2 else {
             throw DeletionLedgerFailureV2.invalidSchemaVersion
         }

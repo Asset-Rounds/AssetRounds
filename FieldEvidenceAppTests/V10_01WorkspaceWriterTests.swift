@@ -893,6 +893,25 @@ private final class C31LightingAnchorV1001WorkspaceWriterTests: XCTestCase {
     }
 }
 
+private final class C33TemporalEvidenceAnchorV1001WorkspaceWriter: XCTestCase {
+    func testC33V1001WorkspaceWriterCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "writer.temporal-evidence-single-command",
+            kind: .audio,
+            reportProjection: .typedLinkOnly
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "writer.temporal-evidence-single-command",
+            kind: .audio,
+            reportProjection: .typedLinkOnly
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+}
+
 private final class C32AssistanceAnchorV1001WorkspaceWriter: XCTestCase {
     func testC32V1001WorkspaceWriterCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(

@@ -345,3 +345,32 @@ enum C32AssistanceLifecycleBoundary_FieldEvidenceApp_Domain_Content_ContentRefer
         try receipt.validate()
     }
 }
+
+// MARK: - C33 bounded temporal evidence content boundary
+
+/// C33 is metadata over the existing immutable content identity. A temporal
+/// clip never manufactures an EvidenceFile identity and a replaceable
+/// waveform/thumbnail never aliases or overwrites its source original.
+enum TemporalEvidenceContentReferenceBoundaryV1 {
+    static let usesExistingContentStore = true
+    static let legacyEvidenceFileIsClipIdentity = false
+    static let originalsRemainImmutable = true
+
+    static func validate(
+        clip: TemporalEvidenceClipV1,
+        derivatives: [TemporalEvidenceDerivativeV1]
+    ) throws {
+        try clip.validateIntrinsic()
+        guard clip.original.byteRole == .immutableOriginal,
+              derivatives.allSatisfy({
+                  $0.workspaceID == clip.workspaceID
+                    && $0.clipID == clip.clipID
+                    && $0.content.byteRole == .derivative
+                    && $0.content.contentID != clip.original.contentID
+              }),
+              Set(derivatives.map(\.content.contentID)).count == derivatives.count else {
+            throw ContentContractFailureV1.immutableOriginal
+        }
+        try derivatives.forEach { try $0.validate(clip: clip) }
+    }
+}

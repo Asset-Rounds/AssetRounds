@@ -767,6 +767,61 @@ struct V32BackupAssistanceAcceptanceRecordV1: Codable, Equatable, Sendable {
     }
 }
 
+enum V33BackupTemporalEvidenceKindV1: String, Codable, Sendable {
+    case clip = "TEMPORAL_EVIDENCE_CLIP"
+    case anchor = "TIMECODED_EVIDENCE_ANCHOR"
+}
+
+struct V33BackupTemporalEvidenceRecordV1: Codable, Equatable, Sendable {
+    let kind: V33BackupTemporalEvidenceKindV1
+    let id: UUID
+    let workspaceID: UUID
+    let revision: UInt64
+    let mutationID: UUID
+    let canonicalData: Data
+
+    init(_ value: TemporalEvidenceClipV1) throws {
+        try value.validateIntrinsic()
+        kind = .clip; id = value.clipID; workspaceID = value.workspaceID.rawValue
+        revision = value.revision; mutationID = value.mutationID.rawValue
+        canonicalData = try TemporalEvidenceCanonicalCodecV1.encode(value)
+    }
+
+    init(_ value: TimecodedEvidenceAnchorV1) throws {
+        try value.validateIntrinsic()
+        kind = .anchor; id = value.anchorID; workspaceID = value.workspaceID.rawValue
+        revision = value.revision; mutationID = value.mutationID.rawValue
+        canonicalData = try TemporalEvidenceCanonicalCodecV1.encode(value)
+    }
+
+    func clipValue() throws -> TemporalEvidenceClipV1 {
+        guard kind == .clip else { throw TemporalEvidenceContractFailureV1.invalidValue }
+        let value = try TemporalEvidenceCanonicalCodecV1.decode(TemporalEvidenceClipV1.self, from: canonicalData)
+        guard value.clipID == id, value.workspaceID.rawValue == workspaceID,
+              value.revision == revision, value.mutationID.rawValue == mutationID else {
+            throw TemporalEvidenceContractFailureV1.digestMismatch
+        }
+        try value.validateIntrinsic(); return value
+    }
+
+    func anchorValue() throws -> TimecodedEvidenceAnchorV1 {
+        guard kind == .anchor else { throw TemporalEvidenceContractFailureV1.invalidValue }
+        let value = try TemporalEvidenceCanonicalCodecV1.decode(TimecodedEvidenceAnchorV1.self, from: canonicalData)
+        guard value.anchorID == id, value.workspaceID.rawValue == workspaceID,
+              value.revision == revision, value.mutationID.rawValue == mutationID else {
+            throw TemporalEvidenceContractFailureV1.digestMismatch
+        }
+        try value.validateIntrinsic(); return value
+    }
+}
+
+enum TemporalEvidenceBackupMemberV1 {
+    static func original(for clip: TemporalEvidenceClipV1) throws -> String {
+        try clip.validateIntrinsic()
+        return "content/\(clip.workspaceID.rawValue.uuidString.lowercased())/\(clip.original.contentID)/original.bin"
+    }
+}
+
 struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     let guidedSurveys:[V25BackupGuidedSurveyRecordV1]
     let assetLocators: [V26BackupAssetLocatorRecordV1]
@@ -784,6 +839,9 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     /// C32 durable acceptance provenance. Proposals and leased scratch remain
     /// process-local and therefore have no records-envelope representation.
     let assistanceAcceptanceReceipts: [V32BackupAssistanceAcceptanceRecordV1]
+    /// C33 carries two durable metadata families. Immutable original bytes are
+    /// direct archive members named by `TemporalEvidenceBackupMemberV1`.
+    let temporalEvidence: [V33BackupTemporalEvidenceRecordV1]
     let surveyDefinitions:[V24BackupSurveyDefinitionRecordV1]
     let accessibleDocumentAssessments:[V23BackupAccessibleDocumentAssessmentRecordV1]
     let fieldReferences:[V22BackupFieldReferenceRecordV1]
@@ -862,7 +920,8 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         evidenceContexts: [V30BackupEvidenceContextRecordV1] = [],
         pairedObservationLinks: [V30BackupEvidenceContextRecordV1] = [],
         lighting: [V31BackupLightingRecordV1] = [],
-        assistanceAcceptanceReceipts: [V32BackupAssistanceAcceptanceRecordV1] = []
+        assistanceAcceptanceReceipts: [V32BackupAssistanceAcceptanceRecordV1] = [],
+        temporalEvidence: [V33BackupTemporalEvidenceRecordV1] = []
     ) {
         self.guidedSurveys=guidedSurveys
         self.assetLocators = assetLocators
@@ -873,6 +932,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         self.pairedObservationLinks = pairedObservationLinks
         self.lighting = lighting
         self.assistanceAcceptanceReceipts = assistanceAcceptanceReceipts
+        self.temporalEvidence = temporalEvidence
         self.surveyDefinitions=surveyDefinitions
         self.accessibleDocumentAssessments=accessibleDocumentAssessments
         self.fieldReferences=fieldReferences
@@ -915,7 +975,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         case locationMigrationReceipts, locationNodes, mutationHistory, packets, partyAccountability
         case recordsSchemaVersion, reports, requirementAssurance, savedSmartViews, sites
          case workflowRecords, evidenceContexts, pairedObservationLinks, lighting
-         case assistanceAcceptanceReceipts
+         case assistanceAcceptanceReceipts, temporalEvidence
     }
 
     init(from decoder: Decoder) throws {
@@ -1002,12 +1062,170 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
             assistanceAcceptanceReceipts: try values.decodeIfPresent(
                 [V32BackupAssistanceAcceptanceRecordV1].self,
                 forKey: .assistanceAcceptanceReceipts
+            ) ?? [],
+            temporalEvidence: try values.decodeIfPresent(
+                [V33BackupTemporalEvidenceRecordV1].self,
+                forKey: .temporalEvidence
             ) ?? []
         )
     }
 }
 
 extension V4BackupRecordsV1{
+    func validateC33TemporalEvidence() throws -> (
+        clips: [TemporalEvidenceClipV1], anchors: [TimecodedEvidenceAnchorV1]
+    ) {
+        if recordsSchemaVersion < TemporalEvidencePersistenceEnrollmentV1.recordsSchemaVersion {
+            guard temporalEvidence.isEmpty else { throw TemporalEvidenceContractFailureV1.invalidValue }
+            return ([], [])
+        }
+        guard recordsSchemaVersion == TemporalEvidencePersistenceEnrollmentV1.recordsSchemaVersion,
+              Set(temporalEvidence.map(\.id)).count == temporalEvidence.count else {
+            throw TemporalEvidenceContractFailureV1.invalidValue
+        }
+        let clips = try temporalEvidence.filter { $0.kind == .clip }.map { try $0.clipValue() }
+        let anchors = try temporalEvidence.filter { $0.kind == .anchor }.map { try $0.anchorValue() }
+        let clipsByID = Dictionary(uniqueKeysWithValues: clips.map { ($0.clipID, $0) })
+        let anchorsByID = Dictionary(uniqueKeysWithValues: anchors.map { ($0.anchorID, $0) })
+        for anchor in anchors {
+            guard let clip = clipsByID[anchor.clipID] else { throw TemporalEvidenceContractFailureV1.staleSource }
+            try anchor.validate(clip: clip)
+            if let predecessorID = anchor.supersedesAnchorID {
+                guard let predecessor = anchorsByID[predecessorID],
+                      predecessor.clipID == anchor.clipID,
+                      predecessor.revision < UInt64.max,
+                      anchor.revision == predecessor.revision + 1,
+                      anchor.predecessorAnchorSHA256 == predecessor.anchorSHA256 else {
+                    throw TemporalEvidenceContractFailureV1.staleSource
+                }
+            }
+        }
+        guard let mutationHistory else {
+            guard temporalEvidence.isEmpty else { throw TemporalEvidenceContractFailureV1.invalidValue }
+            return (clips, anchors)
+        }
+        let archivedByMutation = Dictionary(grouping: temporalEvidence, by: \.mutationID)
+        guard archivedByMutation.values.allSatisfy({ $0.count == 1 }) else {
+            throw TemporalEvidenceContractFailureV1.digestMismatch
+        }
+        var removedByMutation: [UUID: V33BackupTemporalEvidenceRecordV1] = [:]
+        for row in mutationHistory.receipts {
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
+            guard case let .applyTemporalEvidence(mutation) = envelope.command,
+                  case let .removeClip(_, clips, anchors, _, _) = mutation.payload else { continue }
+            for value in clips {
+                let record = try V33BackupTemporalEvidenceRecordV1(value)
+                guard removedByMutation.updateValue(record, forKey: record.mutationID) == nil else {
+                    throw TemporalEvidenceContractFailureV1.digestMismatch
+                }
+            }
+            for value in anchors {
+                let record = try V33BackupTemporalEvidenceRecordV1(value)
+                guard removedByMutation.updateValue(record, forKey: record.mutationID) == nil else {
+                    throw TemporalEvidenceContractFailureV1.digestMismatch
+                }
+            }
+        }
+        var journalMutationIDs = Set<UUID>()
+        var durableJournalMutationIDs = Set<UUID>()
+        var consumedRemovedMutationIDs = Set<UUID>()
+        for row in mutationHistory.receipts {
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
+            guard case let .applyTemporalEvidence(mutation) = envelope.command else { continue }
+            try mutation.validate()
+            let receipt = try MutationReceiptV1.decodeCanonical(from: row.receiptData)
+            _ = try TemporalEvidenceMutationReceiptV1(mutation: mutation, mutationReceipt: receipt)
+            guard receipt.postImages == (try mutation.mutationPostImages),
+                  journalMutationIDs.insert(mutation.mutationID.rawValue).inserted else {
+                throw TemporalEvidenceContractFailureV1.digestMismatch
+            }
+            switch mutation.payload {
+            case let .acceptClip(value, _, _),
+                 let .registerDerivative(value, _, _, _),
+                 let .applyRetention(value, _, _, _):
+                if let removed = removedByMutation[mutation.mutationID.rawValue] {
+                    guard archivedByMutation[mutation.mutationID.rawValue] == nil,
+                          consumedRemovedMutationIDs.insert(mutation.mutationID.rawValue).inserted,
+                          removed.kind == .clip,
+                          removed.canonicalData == (try TemporalEvidenceCanonicalCodecV1.encode(value)),
+                          try removed.clipValue() == value else {
+                        throw TemporalEvidenceContractFailureV1.digestMismatch
+                    }
+                    continue
+                }
+                guard durableJournalMutationIDs.insert(mutation.mutationID.rawValue).inserted,
+                      let archived = archivedByMutation[mutation.mutationID.rawValue]?.first,
+                      archived.kind == .clip else {
+                    throw TemporalEvidenceContractFailureV1.digestMismatch
+                }
+                let archivedValue = try archived.clipValue()
+                if archivedValue != value {
+                    let rebound = try value.rebound(
+                        to: archivedValue.workspaceID,
+                        target: archivedValue.target,
+                        profile: archivedValue.limitProfile,
+                        recordedBy: archivedValue.recordedBy
+                    )
+                    guard rebound == archivedValue else {
+                        throw TemporalEvidenceContractFailureV1.digestMismatch
+                    }
+                } else if archived.canonicalData != (try TemporalEvidenceCanonicalCodecV1.encode(value)) {
+                    throw TemporalEvidenceContractFailureV1.digestMismatch
+                }
+            case let .appendAnchor(value, _, _):
+                if let removed = removedByMutation[mutation.mutationID.rawValue] {
+                    guard archivedByMutation[mutation.mutationID.rawValue] == nil,
+                          consumedRemovedMutationIDs.insert(mutation.mutationID.rawValue).inserted,
+                          removed.kind == .anchor,
+                          removed.canonicalData == (try TemporalEvidenceCanonicalCodecV1.encode(value)),
+                          try removed.anchorValue() == value else {
+                        throw TemporalEvidenceContractFailureV1.digestMismatch
+                    }
+                    continue
+                }
+                guard durableJournalMutationIDs.insert(mutation.mutationID.rawValue).inserted,
+                      let archived = archivedByMutation[mutation.mutationID.rawValue]?.first,
+                      archived.kind == .anchor else {
+                    throw TemporalEvidenceContractFailureV1.digestMismatch
+                }
+                let archivedValue = try archived.anchorValue()
+                if archivedValue != value {
+                    guard let archivedClip = clipsByID[archivedValue.clipID] else {
+                        throw TemporalEvidenceContractFailureV1.staleSource
+                    }
+                    let archivedPredecessor = value.supersedesAnchorID.flatMap { anchorsByID[$0] }
+                    let rebound = try TimecodedEvidenceAnchorV1(
+                        anchorID: value.anchorID,
+                        clip: archivedClip,
+                        offsetMilliseconds: value.offsetMilliseconds,
+                        label: value.label,
+                        note: value.note,
+                        author: archivedValue.author,
+                        recordedAt: value.recordedAt,
+                        supersedesAnchorID: archivedPredecessor?.anchorID,
+                        predecessorAnchorSHA256: archivedPredecessor?.anchorSHA256,
+                        revision: value.revision,
+                        mutationID: value.mutationID
+                    )
+                    guard rebound == archivedValue else {
+                        throw TemporalEvidenceContractFailureV1.digestMismatch
+                    }
+                } else if archived.canonicalData != (try TemporalEvidenceCanonicalCodecV1.encode(value)) {
+                    throw TemporalEvidenceContractFailureV1.digestMismatch
+                }
+            case .removeClip:
+                guard archivedByMutation[mutation.mutationID.rawValue] == nil else {
+                    throw TemporalEvidenceContractFailureV1.digestMismatch
+                }
+            }
+        }
+        guard Set(archivedByMutation.keys) == durableJournalMutationIDs,
+              Set(removedByMutation.keys) == consumedRemovedMutationIDs else {
+            throw TemporalEvidenceContractFailureV1.digestMismatch
+        }
+        return (clips, anchors)
+    }
+
     /// C32 persists only accepted receipts. The receipt's canonical mutation
     /// identity remains the authority; transient proposals never enter this
     /// closure and cannot be reconstructed by restore.
@@ -1018,7 +1236,7 @@ extension V4BackupRecordsV1{
             }
             return
         }
-        guard recordsSchemaVersion == 31,
+        guard (31...32).contains(recordsSchemaVersion),
               Set(assistanceAcceptanceReceipts.map(\.receiptID)).count == assistanceAcceptanceReceipts.count,
               Set(assistanceAcceptanceReceipts.map(\.mutationID)).count == assistanceAcceptanceReceipts.count,
               Set(assistanceAcceptanceReceipts.map(\.proposalID)).count == assistanceAcceptanceReceipts.count else {
@@ -1079,7 +1297,8 @@ extension V4BackupRecordsV1{
             guard lighting.isEmpty else { throw LightingContractFailureV1.invalidValue }
             return
         }
-        guard recordsSchemaVersion == 30 || recordsSchemaVersion == 31 else {
+        guard recordsSchemaVersion == 30 || recordsSchemaVersion == 31
+                || recordsSchemaVersion == 32 else {
             throw LightingContractFailureV1.invalidValue
         }
         let decodedLighting = try LightingBackupRecordSetV1.decode(lighting)
@@ -1101,7 +1320,8 @@ extension V4BackupRecordsV1{
             }
             return
         }
-        guard recordsSchemaVersion == 29 || recordsSchemaVersion == 30 || recordsSchemaVersion == 31 else {
+        guard recordsSchemaVersion == 29 || recordsSchemaVersion == 30
+                || recordsSchemaVersion == 31 || recordsSchemaVersion == 32 else {
             throw EvidenceContextFailureV1.incompatibleVersion
         }
         guard evidenceContexts.allSatisfy({ $0.kind == .evidenceContext }),
@@ -1156,7 +1376,7 @@ extension V4BackupRecordsV1{
              evidenceContexts: evidenceContexts,
              pairedObservationLinks: pairedObservationLinks,
              lighting: lighting,
-             assistanceAcceptanceReceipts: assistanceAcceptanceReceipts)
+             assistanceAcceptanceReceipts: assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence)
     }
 
     func replacingSchedules(_ values: [V27BackupScheduleRecordV1]) -> Self {
@@ -1185,7 +1405,7 @@ extension V4BackupRecordsV1{
               evidenceContexts: evidenceContexts,
               pairedObservationLinks: pairedObservationLinks,
               lighting: lighting,
-              assistanceAcceptanceReceipts: assistanceAcceptanceReceipts)
+              assistanceAcceptanceReceipts: assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence)
     }
 
     func replacingPlans(_ values: [V28BackupPlanRecordV1]) -> Self {
@@ -1215,7 +1435,7 @@ extension V4BackupRecordsV1{
               evidenceContexts: evidenceContexts,
               pairedObservationLinks: pairedObservationLinks,
               lighting: lighting,
-              assistanceAcceptanceReceipts: assistanceAcceptanceReceipts)
+              assistanceAcceptanceReceipts: assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence)
     }
 
     func replacingPlacementPoses(_ values: [V29BackupPlacementPoseRecordV1]) -> Self {
@@ -1245,12 +1465,13 @@ extension V4BackupRecordsV1{
               evidenceContexts: evidenceContexts,
               pairedObservationLinks: pairedObservationLinks,
               lighting: lighting,
-              assistanceAcceptanceReceipts: assistanceAcceptanceReceipts)
+              assistanceAcceptanceReceipts: assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence)
     }
 
-     func replacingAccessibleDocumentAssessments(_ values:[V23BackupAccessibleDocumentAssessmentRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:values,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts)}
-     func replacingSurveyDefinitions(_ values:[V24BackupSurveyDefinitionRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:values,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts)}
-     func replacingGuidedSurveys(_ values:[V25BackupGuidedSurveyRecordV1])->Self{Self(guidedSurveys:values,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts)}
+     func replacingAccessibleDocumentAssessments(_ values:[V23BackupAccessibleDocumentAssessmentRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:values,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence)}
+     func replacingSurveyDefinitions(_ values:[V24BackupSurveyDefinitionRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:values,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence)}
+     func replacingGuidedSurveys(_ values:[V25BackupGuidedSurveyRecordV1])->Self{Self(guidedSurveys:values,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence)}
+     func replacingTemporalEvidence(_ values:[V33BackupTemporalEvidenceRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts,temporalEvidence:values)}
 }
 
 struct V4BackupEntryV1: Codable, Equatable, Sendable {

@@ -462,6 +462,25 @@ extension V9_04StreamingArchiveTests {
     }
 }
 
+private final class C33TemporalEvidenceAnchorV904StreamingArchive: XCTestCase {
+    func testC33V904StreamingArchiveCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "streaming.temporal-content-bytes",
+            kind: .video,
+            reportProjection: .typedLinkOnly
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "streaming.temporal-content-bytes",
+            kind: .video,
+            reportProjection: .typedLinkOnly
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+}
+
 private final class C32AssistanceAnchorV904StreamingArchive: XCTestCase {
     func testC32V904StreamingArchiveCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(

@@ -44,6 +44,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             .applyEvidenceContext,
             .applyLighting,
             .applyAssistanceAcceptance,
+            .applyTemporalEvidence,
         ])
 
     /// C22 receipts are appended by the existing fenced journal authority;
@@ -181,6 +182,8 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             case let .surveySession(mutation):
                 return try applySurveySession(mutation, temporaryRelativePath: temporaryRelativePath)
             }
+        case let .applyTemporalEvidence(value):
+            return try applyTemporalEvidence(value, temporaryRelativePath: temporaryRelativePath)
         case .deleteAsset,
              .deleteSite,
              .eraseWorkspace,
@@ -191,6 +194,197 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
              .archiveEntities:
             throw WorkspaceMutationFailureV1.unsupportedCommand
         }
+    }
+
+    private func applyTemporalEvidence(
+        _ mutation: TemporalEvidenceMutationV1,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1 {
+        do {
+            try mutation.validate()
+            switch mutation.payload {
+            case let .acceptClip(value, review, predecessor):
+                try validateTemporalEvidenceAuthority(value)
+                try review.validate()
+                guard review.workspaceID == value.workspaceID,
+                      review.clipID == value.clipID,
+                      review.decision == .accept,
+                      review.reviewedAt == value.acceptedAt else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+                let id = value.clipID
+                let rows = try modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>(
+                    predicate: #Predicate { $0.clipID == id }
+                ))
+                guard rows.isEmpty else { throw WorkspaceMutationFailureV1.sequenceCollision }
+                if let predecessor {
+                    let predecessorID = predecessor.clipID
+                    let predecessorRows = try modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>(
+                        predicate: #Predicate { $0.clipID == predecessorID }
+                    ))
+                    let all = try modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>())
+                        .map { try $0.value() }
+                    guard predecessorRows.count == 1,
+                          try predecessorRows.first?.value() == predecessor,
+                          all.allSatisfy({ $0.supersedesClipID != predecessorID }) else {
+                        throw WorkspaceMutationFailureV1.staleEntityRevision(
+                            try .init(kind: .temporalEvidenceClip, id: predecessorID)
+                        )
+                    }
+                }
+                modelContext.insert(try TemporalEvidenceClipRow(value))
+            case let .registerDerivative(value, derivative, predecessor, predecessorDerivative):
+                try validateTemporalEvidenceAuthority(predecessor)
+                try derivative.validate(clip: predecessor)
+                if let predecessorDerivative { try predecessorDerivative.validate(clip: predecessor) }
+                try appendTemporalEvidenceClipSuccessor(value, predecessor: predecessor)
+            case let .applyRetention(value, event, predecessor, predecessorEvent):
+                try validateTemporalEvidenceAuthority(predecessor)
+                try event.validate(clip: predecessor)
+                if let predecessorEvent { try predecessorEvent.validate(clip: predecessor) }
+                try appendTemporalEvidenceClipSuccessor(value, predecessor: predecessor)
+            case let .removeClip(event, clips, anchors, derivatives, predecessorEvent):
+                try clips.forEach(validateTemporalEvidenceAuthority)
+                guard let predecessor = clips.first(where: {
+                    $0.clipID == event.clipID && $0.revision == event.clipRevision
+                        && $0.clipSHA256 == event.clipSHA256
+                }) else { throw WorkspaceMutationFailureV1.invalidCommand }
+                try event.validate(clip: predecessor)
+                if let predecessorEvent { try predecessorEvent.validate(clip: predecessor) }
+                let persistedClipRows = try modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>())
+                let persistedClips = try persistedClipRows.map { try $0.value() }
+                let removalContentIDs = Set(clips.map { $0.original.contentID })
+                let storedRemovalClips = persistedClips.filter {
+                    removalContentIDs.contains($0.original.contentID)
+                }
+                let persistedAnchorRows = try modelContext.fetch(FetchDescriptor<TimecodedEvidenceAnchorRow>())
+                let persistedAnchors = try persistedAnchorRows.map { try $0.value() }
+                let clipIDs = Set(clips.map(\.clipID))
+                let storedRemovalAnchors = persistedAnchors.filter { clipIDs.contains($0.clipID) }
+                guard Set(storedRemovalClips.map(\.clipID)) == Set(clips.map(\.clipID)),
+                      Set(storedRemovalAnchors.map(\.anchorID)) == Set(anchors.map(\.anchorID)),
+                      storedRemovalClips.allSatisfy({ clips.contains($0) }),
+                      storedRemovalAnchors.allSatisfy({ anchors.contains($0) }),
+                      Set(clips.flatMap { $0.derivativeReferences.map(\.derivativeID) })
+                        == Set(derivatives.map(\.derivativeID)) else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+                for row in persistedAnchorRows where anchors.contains(where: { $0.anchorID == row.anchorID }) {
+                    modelContext.delete(row)
+                }
+                for row in persistedClipRows where clips.contains(where: { $0.clipID == row.clipID }) {
+                    modelContext.delete(row)
+                }
+            case let .appendAnchor(value, clip, predecessor):
+                try validateTemporalEvidenceAuthority(clip)
+                let clipID = clip.clipID
+                let clipRows = try modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>(
+                    predicate: #Predicate { $0.clipID == clipID }
+                ))
+                guard clipRows.count == 1, try clipRows.first?.value() == clip else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+                let anchorID = value.anchorID
+                guard try modelContext.fetch(FetchDescriptor<TimecodedEvidenceAnchorRow>(
+                    predicate: #Predicate { $0.anchorID == anchorID }
+                )).isEmpty else { throw WorkspaceMutationFailureV1.sequenceCollision }
+                if let predecessor {
+                    let predecessorID = predecessor.anchorID
+                    let predecessorRows = try modelContext.fetch(FetchDescriptor<TimecodedEvidenceAnchorRow>(
+                        predicate: #Predicate { $0.anchorID == predecessorID }
+                    ))
+                    let all = try modelContext.fetch(FetchDescriptor<TimecodedEvidenceAnchorRow>())
+                        .map { try $0.value() }
+                    guard predecessorRows.count == 1,
+                          try predecessorRows.first?.value() == predecessor,
+                          all.allSatisfy({ $0.supersedesAnchorID != predecessorID }) else {
+                        throw WorkspaceMutationFailureV1.staleEntityRevision(
+                            try .init(kind: .timecodedEvidenceAnchor, id: predecessorID)
+                        )
+                    }
+                }
+                modelContext.insert(try TimecodedEvidenceAnchorRow(value))
+            }
+            return try WorkspaceMutationEffectV1(
+                affectedEntities: mutation.affectedIdentities,
+                temporaryRelativePath: temporaryRelativePath
+            )
+        } catch let failure as WorkspaceMutationFailureV1 {
+            modelContext.rollback()
+            throw failure
+        } catch {
+            modelContext.rollback()
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+    }
+
+    private func validateTemporalEvidenceAuthority(_ clip: TemporalEvidenceClipV1) throws {
+        try clip.validateIntrinsic()
+        let sessionID = clip.target.sessionID
+        let sessions = try modelContext.fetch(FetchDescriptor<SurveySessionRow>(
+            predicate: #Predicate { $0.sessionID == sessionID }
+        ))
+        guard sessions.count == 1, let session = try sessions.first?.value(),
+              session.workspaceID == clip.workspaceID,
+              session.revision == clip.target.sessionRevision,
+              session.sessionSHA256 == clip.target.sessionSHA256 else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        let releaseID = clip.target.definitionRelease.releaseID
+        let definitions = try modelContext.fetch(FetchDescriptor<SurveyDefinitionReleaseRow>(
+            predicate: #Predicate { $0.releaseID == releaseID }
+        ))
+        guard definitions.count == 1, let definition = try definitions.first?.value(),
+              definition.workspaceID == clip.workspaceID,
+              try SurveyDefinitionReleaseReferenceV1(definition) == clip.target.definitionRelease,
+              definition.sections.flatMap(\.facts).contains(where: { $0.factID == clip.target.factID }) else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        let promotedRows = try modelContext.fetch(FetchDescriptor<PromotedPackageReleaseRow>())
+        let promoted = try promotedRows.map { try $0.value() }.filter {
+            $0.workspaceID == clip.workspaceID
+                && $0.packageRelease.packageReleaseID == clip.limitProfile.packageRelease.packageReleaseID
+        }
+        guard promoted.count == 1, let promotedRelease = promoted.first,
+              try SurveyPackageReleaseReferenceV1(promotedRelease.packageRelease)
+                == clip.limitProfile.packageRelease,
+              session.authority.packageRelease == clip.limitProfile.packageRelease,
+              session.authority.definitionRelease == clip.limitProfile.definitionRelease,
+              clip.limitProfile.definitionRelease == clip.target.definitionRelease else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        let pointerRows = try modelContext.fetch(FetchDescriptor<ActivePackageRegistryPointerRow>())
+        let pointers = try pointerRows.map { try $0.value() }
+        let active = pointers.filter { pointer in
+            pointer.workspaceID == clip.workspaceID
+                && pointer.activeReleaseRecordID == promotedRelease.releaseRecordID
+                && pointer.activePackageReleaseID == promotedRelease.packageRelease.packageReleaseID
+                && !pointers.contains(where: { $0.supersedesPointerID == pointer.pointerID })
+        }
+        guard active.count == 1 else { throw WorkspaceMutationFailureV1.invalidCommand }
+    }
+
+    private func appendTemporalEvidenceClipSuccessor(
+        _ value: TemporalEvidenceClipV1,
+        predecessor: TemporalEvidenceClipV1
+    ) throws {
+        let id = value.clipID
+        guard try modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>(
+            predicate: #Predicate { $0.clipID == id }
+        )).isEmpty else { throw WorkspaceMutationFailureV1.sequenceCollision }
+        let predecessorID = predecessor.clipID
+        let predecessorRows = try modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>(
+            predicate: #Predicate { $0.clipID == predecessorID }
+        ))
+        let all = try modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>()).map { try $0.value() }
+        guard predecessorRows.count == 1,
+              try predecessorRows.first?.value() == predecessor,
+              all.allSatisfy({ $0.supersedesClipID != predecessorID }) else {
+            throw WorkspaceMutationFailureV1.staleEntityRevision(
+                try .init(kind: .temporalEvidenceClip, id: predecessorID)
+            )
+        }
+        modelContext.insert(try TemporalEvidenceClipRow(value))
     }
 
     private func applyFieldReference(_ mutation:FieldReferenceMutationV1,temporaryRelativePath:String)throws->WorkspaceMutationEffectV1{do{try mutation.validate();let affected=try mutation.affectedIdentity,concurrency=try mutation.concurrencyIdentity;guard try fieldReferenceValue(affected)==nil else{throw WorkspaceMutationFailureV1.sequenceCollision};if mutation.expectedRevision>0{guard let prior=try fieldReferenceValue(concurrency),try !fieldReferenceSuccessorExists(concurrency)else{throw WorkspaceMutationFailureV1.staleEntityRevision(concurrency)};switch(mutation,prior){case let (.importRelease(v),.release(p)):try v.validateSuccessor(of:p);case let (.bind(v,r),.binding(p)):try v.validateSuccessor(of:p,release:r);default:throw WorkspaceMutationFailureV1.invalidCommand}};switch mutation{case let .importRelease(v):modelContext.insert(try FieldReferenceReleaseRow(v));case let .bind(v,r):let id=r.releaseID,rows=try modelContext.fetch(FetchDescriptor<FieldReferenceReleaseRow>(predicate:#Predicate{$0.releaseID==id}));guard rows.count==1,let stored=try rows.first?.value(),stored==r else{throw WorkspaceMutationFailureV1.invalidCommand};let releaseIdentity=try WorkspaceEntityIdentityV1(kind:.fieldReferenceRelease,id:id);guard try !fieldReferenceSuccessorExists(releaseIdentity)else{throw WorkspaceMutationFailureV1.staleEntityRevision(releaseIdentity)};modelContext.insert(try FieldReferenceBindingRow(v,release:r))};return try WorkspaceMutationEffectV1(affectedEntities:[affected],temporaryRelativePath:temporaryRelativePath)}catch let f as WorkspaceMutationFailureV1{modelContext.rollback();throw f}catch{modelContext.rollback();throw WorkspaceMutationFailureV1.invalidCommand}}

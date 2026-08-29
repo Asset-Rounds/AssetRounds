@@ -163,6 +163,27 @@ enum DraftConfigurationCloneDispositionV1:String,Codable,Hashable,Sendable{
     case restoreRequiresUserReview="RESTORE_REQUIRES_USER_REVIEW"
 }
 
+
+// MARK: - C33 temporal evidence draft adoption
+
+enum TemporalEvidenceDraftAdoptionBoundaryV1 {
+    static let stageIsCanonicalClip = false
+    static let reservationIsCanonicalClip = false
+    static let explicitReviewRequired = true
+
+    static func validate(reservation: DraftContentReservationV1,
+                         clip: TemporalEvidenceClipV1) throws {
+        try reservation.validate(); try clip.validateIntrinsic()
+        guard reservation.workspaceID == clip.workspaceID,
+              reservation.locator == clip.locator,
+              reservation.contentDigest
+                == clip.original.digests.digest(for: reservation.contentDigest.algorithm),
+              reservation.reconciliationState == .associated,
+              explicitReviewRequired, !stageIsCanonicalClip,
+              !reservationIsCanonicalClip else { throw FieldDraftFailureV1.invalidValue }
+    }
+}
+
 /// A restore supplies the complete, deterministic identity map. No UUID is
 /// generated while decoding or rebinding, so retrying the same restore is byte stable.
 struct DraftRestoreIdentityMapV1:Codable,Equatable,Sendable{

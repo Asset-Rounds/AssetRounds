@@ -402,7 +402,8 @@ private extension ReplacementRestoreRule {
             savedSmartViews: records.savedSmartViews,
             sites: sites,
             workflowRecords: workflow,
-            assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts
+            assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
+            temporalEvidence: records.temporalEvidence
         )
         guard validReferences(result), noDeletedLiveIdentity(result, ledger: ledger),
               validLocationReferences(result, ledger: ledger) else {
@@ -452,7 +453,8 @@ private extension ReplacementRestoreRule {
             savedSmartViews: records.savedSmartViews,
             sites: records.sites,
             workflowRecords: records.workflowRecords,
-            assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts
+            assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
+            temporalEvidence: records.temporalEvidence
         )
     }
 
@@ -500,7 +502,8 @@ private extension ReplacementRestoreRule {
             savedSmartViews: records.savedSmartViews,
             sites: records.sites,
             workflowRecords: records.workflowRecords,
-            assistanceAcceptanceReceipts: assistanceAcceptanceReceipts
+            assistanceAcceptanceReceipts: assistanceAcceptanceReceipts,
+            temporalEvidence: mutationHistory == nil ? [] : records.temporalEvidence
         )
     }
 
@@ -539,7 +542,8 @@ private extension ReplacementRestoreRule {
             reports: records.reports, requirementAssurance: requirementAssurance,
             savedSmartViews: records.savedSmartViews, sites: records.sites,
             workflowRecords: records.workflowRecords,
-            assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts
+            assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
+            temporalEvidence: records.temporalEvidence
         )
     }
 

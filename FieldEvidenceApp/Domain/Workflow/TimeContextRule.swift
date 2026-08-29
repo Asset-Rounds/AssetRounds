@@ -10,6 +10,8 @@ struct FrozenTimeContext: Equatable, Sendable {
     let localTime: String
 }
 
+enum C33TemporalEvidenceTimeContextBoundaryV1 { static let clipRelativeOffsetUsesSiteTimeZone=false;static let captureInstantRemainsRecordedContext=true;static let canonicalMutationKind:WorkspaceCommandKindV1 = .applyTemporalEvidence }
+
 enum TimeContextRuleError: Error, Equatable {
     case invalidTimeZoneID
 }

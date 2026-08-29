@@ -473,6 +473,25 @@ private final class C31LightingAnchorV917KernelPersistenceTests: XCTestCase {
     }
 }
 
+private final class C33TemporalEvidenceAnchorV917KernelPersistence: XCTestCase {
+    func testC33V917KernelPersistenceCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "persistence.temporal-clip-anchor",
+            kind: .video,
+            reportProjection: .typedLinkOnly
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "persistence.temporal-clip-anchor",
+            kind: .video,
+            reportProjection: .typedLinkOnly
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+}
+
 private final class C32AssistanceAnchorV917KernelPersistence: XCTestCase {
     func testC32V917KernelPersistenceCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(

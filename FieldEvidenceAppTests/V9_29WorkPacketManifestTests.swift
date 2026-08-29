@@ -444,6 +444,25 @@ private final class C31LightingAnchorV929WorkPacketManifestTests: XCTestCase {
     }
 }
 
+private final class C33TemporalEvidenceAnchorV929WorkPacketManifest: XCTestCase {
+    func testC33V929WorkPacketManifestCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "work-packet.temporal-limit-profile",
+            kind: .audio,
+            reportProjection: .typedLinkOnly
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "work-packet.temporal-limit-profile",
+            kind: .audio,
+            reportProjection: .typedLinkOnly
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+}
+
 private final class C32AssistanceAnchorV929WorkPacketManifest: XCTestCase {
     func testC32V929WorkPacketManifestCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(

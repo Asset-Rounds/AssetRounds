@@ -53,9 +53,24 @@ final class MutationReceiptRecoveryServiceV1 {
     /// C31 recovery revalidates persisted topology and claim admission
     /// authorities through MutationJournalStoreV1 before activating a writer.
     func recoverLightingEffectsBeforeWriterActivation()throws{try recoverBeforeWriterActivation()}
+    /// C33 repairs clip/anchor effects and their canonical receipt together.
+    /// Original/derivative content cleanup is retried only from the accepted
+    /// retention receipt; recovery never invents a second content authority.
+    func recoverTemporalEvidenceEffectsBeforeWriterActivation()throws{try recoverBeforeWriterActivation()}
 }
 
 enum LightingMutationReceiptRecoveryPolicyV1 { static func validateRecovered(operation:LightingWriteOperationV1,receipt:MutationReceiptV1)throws{_ = try LightingMutationReceiptV1(operation:operation,mutationReceipt:receipt)} }
+enum TemporalEvidenceMutationReceiptRecoveryPolicyV1 {
+    static func validateRecovered(
+        mutation: TemporalEvidenceMutationV1,
+        receipt: MutationReceiptV1
+    ) throws {
+        try C33TemporalEvidenceJournalBoundaryV1.validate(
+            mutation: mutation,
+            receipt: receipt
+        )
+    }
+}
 
 /// C32 keeps assistance candidates outside every durable and derived surface;
 /// only explicit acceptance may reach the existing canonical writer/receipt path.

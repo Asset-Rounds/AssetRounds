@@ -1784,7 +1784,8 @@ private extension BackupRestoreService {
             sites: records.sites,
             workflowRecords: records.workflowRecords,
             lighting: records.lighting,
-            assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts
+            assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
+            temporalEvidence: records.temporalEvidence
         )
     }
 
@@ -1806,6 +1807,7 @@ private extension BackupRestoreService {
             + records.surveyDefinitions.map(\.id)
             + records.placementPoses.map(\.id)
             + records.lighting.map(\.id)
+            + records.temporalEvidence.map(\.id)
         return Set(ids).count == ids.count
     }
 
@@ -1851,7 +1853,8 @@ private extension BackupRestoreService {
             sites: records.sites,
             workflowRecords: records.workflowRecords,
             lighting: records.lighting,
-            assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts
+            assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
+            temporalEvidence: records.temporalEvidence
         )
     }
 
@@ -2114,7 +2117,8 @@ private extension BackupRestoreService {
             savedSmartViews: records.savedSmartViews, sites: records.sites,
             workflowRecords: records.workflowRecords,
             lighting: records.lighting,
-            assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts
+            assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
+            temporalEvidence: records.temporalEvidence
         )
     }
 
@@ -2315,20 +2319,6 @@ private extension BackupRestoreService {
             records.evidenceAssurance, workspaceID: workspaceID,
             sourcePreviews: sourceAssurancePreviews
         )
-        let reports = try rebindingReportDTOs(
-            records.reports, members: members, workspaceID: workspaceID
-        )
-        let inspectionReview = try rebindingInspectionReview(
-            records.inspectionReview, workspaceID: workspaceID,
-            sourceEvidenceAssurance: records.evidenceAssurance,
-            evidenceAssurance: evidenceAssurance,
-            sourceAuthorityCriterion: records.authorityCriterion,
-            authorityCriterion: authorityCriterion,
-            sourceFunctionalRelationships: records.functionalRelationships,
-            functionalRelationships: functionalRelationships,
-            sourceReports: records.reports, reboundReports: reports,
-            members: members
-        )
         let workPackets = try rebindingWorkPackets(records.workPackets, workspaceID:workspaceID)
         let fieldDrafts = try rebindingFieldDrafts(records.fieldDrafts, identity: identity)
         let packageEvolution = try rebindingPackageEvolution(
@@ -2352,6 +2342,34 @@ private extension BackupRestoreService {
             workspaceID: workspaceID
         )
         let guidedSurveys = try rebindingGuidedSurveys(records.guidedSurveys,surveyDefinitions:surveyDefinitions,packageEvolution:packageEvolution,history:records.mutationHistory,workspaceID:workspaceID)
+        let temporalEvidence = try rebindingTemporalEvidence(
+            records.temporalEvidence,
+            guidedSurveys: guidedSurveys,
+            workspaceID: workspaceID
+        )
+        let reboundTemporalValues = try decodedTemporalEvidenceRows(
+            records.replacingTemporalEvidence(temporalEvidence)
+        )
+        let reports = try rebindingReportDTOs(
+            records.reports,
+            members: members,
+            workspaceID: workspaceID,
+            temporalClips: reboundTemporalValues.clips,
+            temporalAnchors: reboundTemporalValues.anchors
+        )
+        let inspectionReview = try rebindingInspectionReview(
+            records.inspectionReview, workspaceID: workspaceID,
+            sourceEvidenceAssurance: records.evidenceAssurance,
+            evidenceAssurance: evidenceAssurance,
+            sourceAuthorityCriterion: records.authorityCriterion,
+            authorityCriterion: authorityCriterion,
+            sourceFunctionalRelationships: records.functionalRelationships,
+            functionalRelationships: functionalRelationships,
+            sourceReports: records.reports, reboundReports: reports,
+            members: members,
+            temporalClips: reboundTemporalValues.clips,
+            temporalAnchors: reboundTemporalValues.anchors
+        )
         let assetLocators = try rebindingAssetLocators(
             records.assetLocators,
             identity: identity,
@@ -2406,7 +2424,8 @@ private extension BackupRestoreService {
                 savedSmartViews: savedSmartViews,
                 workflowRecords: records.workflowRecords,
                 lighting: records.lighting,
-                assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts
+                assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
+                temporalEvidence: temporalEvidence
             )
         }
         let receipt = try LocationPersistenceCodecV1.decode(
@@ -2487,8 +2506,151 @@ private extension BackupRestoreService {
             sites: records.sites,
             workflowRecords: records.workflowRecords,
             lighting: records.lighting,
-            assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts
+            assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
+            temporalEvidence: temporalEvidence
         )
+    }
+
+    func rebindingTemporalEvidence(
+        _ records: [V33BackupTemporalEvidenceRecordV1],
+        guidedSurveys: [V25BackupGuidedSurveyRecordV1],
+        workspaceID: WorkspaceID
+    ) throws -> [V33BackupTemporalEvidenceRecordV1] {
+        guard !records.isEmpty else { return [] }
+        let sourceClips = try records.filter { $0.kind == .clip }.map { try $0.clipValue() }
+        let sourceAnchors = try records.filter { $0.kind == .anchor }.map { try $0.anchorValue() }
+        let sourceWorkspaceIDs = Set(sourceClips.map(\.workspaceID) + sourceAnchors.map(\.workspaceID))
+        guard sourceWorkspaceIDs.count == 1 else { throw BackupRestoreServiceError.invalidPackage }
+        if sourceWorkspaceIDs == Set([workspaceID]) { return records }
+
+        let sessions = try guidedSurveys.filter { $0.kind == .session }.map {
+            try SurveySessionCanonicalCodecV1.decode(SurveySessionV1.self, from: $0.canonicalData)
+        }
+
+        func actor(_ source: ActorSnapshotV1) throws -> ActorSnapshotV1 {
+            let local = try LocalActorReferenceV1(
+                actorReferenceID: source.actor.actorReferenceID,
+                workspaceID: workspaceID,
+                partyID: source.actor.partyID,
+                displayName: source.actor.displayName
+            )
+            return try ActorSnapshotV1(
+                snapshotID: source.snapshotID,
+                workspaceID: workspaceID,
+                actor: local,
+                responsibility: source.responsibility,
+                displayNameAtTime: source.displayNameAtTime,
+                capturedAt: source.capturedAt
+            )
+        }
+
+        var clipsByID: [UUID: TemporalEvidenceClipV1] = [:]
+        for source in sourceClips.sorted(by: {
+            ($0.revision, $0.clipID.uuidString.lowercased())
+                < ($1.revision, $1.clipID.uuidString.lowercased())
+        }) {
+            guard let session = sessions.first(where: {
+                $0.sessionID == source.target.sessionID
+                    && $0.revision == source.target.sessionRevision
+            }), sessions.filter({
+                $0.sessionID == source.target.sessionID
+                    && $0.revision == source.target.sessionRevision
+            }).count == 1, source.limitProfile.revision < UInt64.max else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            let target = try TemporalEvidenceTargetV1(
+                workspaceID: workspaceID,
+                sessionID: session.sessionID,
+                sessionRevision: session.revision,
+                sessionSHA256: session.sessionSHA256,
+                definitionRelease: session.authority.definitionRelease,
+                factID: source.target.factID,
+                repeatCoordinates: source.target.repeatCoordinates
+            )
+            let value = try source.rebound(
+                to: workspaceID,
+                target: target,
+                packageRelease: session.authority.packageRelease,
+                profileRevision: source.limitProfile.revision + 1,
+                recordedBy: actor(source.recordedBy)
+            )
+            guard clipsByID.updateValue(value, forKey: value.clipID) == nil else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+        }
+
+        var anchorsByID: [UUID: TimecodedEvidenceAnchorV1] = [:]
+        for source in sourceAnchors.sorted(by: {
+            ($0.revision, $0.anchorID.uuidString.lowercased())
+                < ($1.revision, $1.anchorID.uuidString.lowercased())
+        }) {
+            guard let clip = clipsByID[source.clipID] else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            let predecessor = source.supersedesAnchorID.flatMap { anchorsByID[$0] }
+            guard (source.supersedesAnchorID == nil) == (predecessor == nil) else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            let value = try TimecodedEvidenceAnchorV1(
+                anchorID: source.anchorID,
+                clip: clip,
+                offsetMilliseconds: source.offsetMilliseconds,
+                label: source.label,
+                note: source.note,
+                author: actor(source.author),
+                recordedAt: source.recordedAt,
+                supersedesAnchorID: predecessor?.anchorID,
+                predecessorAnchorSHA256: predecessor?.anchorSHA256,
+                revision: source.revision,
+                mutationID: source.mutationID
+            )
+            guard anchorsByID.updateValue(value, forKey: value.anchorID) == nil else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+        }
+        let output = try (
+            clipsByID.values.map(V33BackupTemporalEvidenceRecordV1.init)
+                + anchorsByID.values.map(V33BackupTemporalEvidenceRecordV1.init)
+        ).sorted {
+            "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
+                < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
+        }
+        guard output.count == records.count else { throw BackupRestoreServiceError.invalidPackage }
+        return output
+    }
+
+    /// Validates normalized materialization rows independently of the source
+    /// journal. For clone/fork that journal intentionally remains immutable
+    /// historic provenance; its exact source closure was already checked by
+    /// BackupPackageValidatorV1 before canonical destination rebinding.
+    func decodedTemporalEvidenceRows(
+        _ records: V4BackupRecordsV1
+    ) throws -> (clips: [TemporalEvidenceClipV1], anchors: [TimecodedEvidenceAnchorV1]) {
+        guard records.recordsSchemaVersion
+                >= TemporalEvidencePersistenceEnrollmentV1.recordsSchemaVersion else {
+            guard records.temporalEvidence.isEmpty else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            return ([], [])
+        }
+        let clips = try records.temporalEvidence.filter { $0.kind == .clip }
+            .map { try $0.clipValue() }
+        let anchors = try records.temporalEvidence.filter { $0.kind == .anchor }
+            .map { try $0.anchorValue() }
+        guard clips.count + anchors.count == records.temporalEvidence.count,
+              Set(clips.map(\.clipID)).count == clips.count,
+              Set(anchors.map(\.anchorID)).count == anchors.count else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        let clipsByID = Dictionary(uniqueKeysWithValues: clips.map { ($0.clipID, $0) })
+        for anchor in anchors {
+            guard let clip = clipsByID[anchor.clipID],
+                  clip.clipSHA256 == anchor.clipSHA256 else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            try anchor.validate(clip: clip)
+        }
+        return (clips, anchors)
     }
 
     func rebindingSurveyDefinitions(
@@ -3688,45 +3850,98 @@ private extension BackupRestoreService {
     }
 
     func reboundReportSnapshotData(
-        _ data: Data, workspaceID: WorkspaceID
+        _ data: Data,
+        workspaceID: WorkspaceID,
+        temporalClips: [TemporalEvidenceClipV1],
+        temporalAnchors: [TimecodedEvidenceAnchorV1]
     ) throws -> Data {
         var snapshot = try ReportSnapshotEncoderV1().decode(data)
-        guard let source = snapshot.assurance else { return data }
-        let visibilities = try source.visibilities.map { visibility in
-            visibility.workspaceID == workspaceID ? visibility : try visibility.rebound(to: workspaceID)
-        }
-        let visibilityByID = Dictionary(uniqueKeysWithValues: visibilities.map { ($0.visibilityID, $0) })
-        let sourceLinks = source.preview.includedLinks + source.preview.excludedLinks
-        let links = try sourceLinks.map { link -> ClaimEvidenceLinkV1 in
-            guard let visibility = visibilityByID[link.visibilityID] else {
-                throw BackupRestoreServiceError.invalidPackage
+        if let sourceLinks = snapshot.temporalEvidenceLinks {
+            let clipsByID = Dictionary(uniqueKeysWithValues: temporalClips.map { ($0.clipID, $0) })
+            let anchorsByID = Dictionary(uniqueKeysWithValues: temporalAnchors.map { ($0.anchorID, $0) })
+            snapshot.temporalEvidenceLinks = try sourceLinks.map { sourceLink in
+                try sourceLink.validate()
+                guard let clip = clipsByID[sourceLink.clipID] else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                let anchors = try sourceLink.anchorBindings.map { sourceBinding in
+                    guard let anchor = anchorsByID[sourceBinding.anchorID],
+                          anchor.clipID == clip.clipID,
+                          anchor.revision == sourceBinding.revision,
+                          anchor.sourceContentID == sourceBinding.sourceContentID,
+                          anchor.sourceSHA256 == sourceBinding.sourceSHA256 else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                    try anchor.validate(clip: clip)
+                    return anchor
+                }
+                let rebound = try TemporalEvidenceReportLinkV1(
+                    clip: clip,
+                    anchors: anchors,
+                    profile: clip.limitProfile
+                )
+                guard sourceLink.clipRevision == rebound.clipRevision,
+                      sourceLink.contentID == rebound.contentID,
+                      sourceLink.mediaKind == rebound.mediaKind,
+                      sourceLink.durationMilliseconds == rebound.durationMilliseconds,
+                      sourceLink.anchorBindings.map({
+                          "\($0.anchorID.uuidString.lowercased()):\($0.revision)"
+                      }) == rebound.anchorBindings.map({
+                          "\($0.anchorID.uuidString.lowercased()):\($0.revision)"
+                      }),
+                      sourceLink.accessibleDescription == rebound.accessibleDescription,
+                      sourceLink.manualTranscript == rebound.manualTranscript,
+                      sourceLink.projection == rebound.projection,
+                      sourceLink.embedsOriginalBytes == rebound.embedsOriginalBytes else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                return rebound
             }
-            return link.workspaceID == workspaceID ? link : try link.rebound(to: workspaceID, visibility: visibility)
         }
-        let preview = try source.preview.rebound(to: workspaceID, links: links)
-        let manifest = try source.manifest.map {
-            $0.workspaceID == workspaceID ? $0 : try $0.rebound(to: workspaceID, preview: preview)
+        if let source = snapshot.assurance {
+            let visibilities = try source.visibilities.map { visibility in
+                visibility.workspaceID == workspaceID ? visibility : try visibility.rebound(to: workspaceID)
+            }
+            let visibilityByID = Dictionary(uniqueKeysWithValues: visibilities.map { ($0.visibilityID, $0) })
+            let sourceLinks = source.preview.includedLinks + source.preview.excludedLinks
+            let links = try sourceLinks.map { link -> ClaimEvidenceLinkV1 in
+                guard let visibility = visibilityByID[link.visibilityID] else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                return link.workspaceID == workspaceID ? link : try link.rebound(to: workspaceID, visibility: visibility)
+            }
+            let preview = try source.preview.rebound(to: workspaceID, links: links)
+            let manifest = try source.manifest.map {
+                $0.workspaceID == workspaceID ? $0 : try $0.rebound(to: workspaceID, preview: preview)
+            }
+            let attestations = try source.attestations.map { value -> AttestationV1 in
+                guard let manifest else { throw BackupRestoreServiceError.invalidPackage }
+                return value.workspaceID == workspaceID ? value : try value.rebound(to: workspaceID, manifest: manifest)
+            }
+            snapshot.assurance = try ReportEvidenceAssuranceProjectionV1(
+                preview: preview, manifest: manifest,
+                visibilities: visibilities, attestations: attestations
+            )
         }
-        let attestations = try source.attestations.map { value -> AttestationV1 in
-            guard let manifest else { throw BackupRestoreServiceError.invalidPackage }
-            return value.workspaceID == workspaceID ? value : try value.rebound(to: workspaceID, manifest: manifest)
-        }
-        snapshot.assurance = try ReportEvidenceAssuranceProjectionV1(
-            preview: preview, manifest: manifest,
-            visibilities: visibilities, attestations: attestations
-        )
         return try ReportSnapshotEncoderV1().encode(snapshot).data
     }
 
     func rebindingReportDTOs(
         _ reports: [V4BackupReportDTO], members: ValidatedV4BackupMembersV1,
-        workspaceID: WorkspaceID
+        workspaceID: WorkspaceID,
+        temporalClips: [TemporalEvidenceClipV1],
+        temporalAnchors: [TimecodedEvidenceAnchorV1]
     ) throws -> [V4BackupReportDTO] {
         try reports.map { report in
             guard let source = members[report.snapshotRelativePath] else {
                 throw BackupRestoreServiceError.invalidPackage
             }
-            let data = try reboundReportSnapshotData(source, workspaceID: workspaceID)
+            let data = try reboundReportSnapshotData(
+                source,
+                workspaceID: workspaceID,
+                temporalClips: temporalClips,
+                temporalAnchors: temporalAnchors
+            )
             return .init(
                 id: report.id, schemaVersion: report.schemaVersion, packetID: report.packetID,
                 sourceRecordID: report.sourceRecordID,
@@ -4058,7 +4273,9 @@ private extension BackupRestoreService {
         sourceFunctionalRelationships: [V12BackupFunctionalRelationshipRecordV1],
         functionalRelationships: [V12BackupFunctionalRelationshipRecordV1],
         sourceReports: [V4BackupReportDTO], reboundReports: [V4BackupReportDTO],
-        members: ValidatedV4BackupMembersV1
+        members: ValidatedV4BackupMembersV1,
+        temporalClips: [TemporalEvidenceClipV1],
+        temporalAnchors: [TimecodedEvidenceAnchorV1]
     ) throws -> [V14BackupInspectionReviewRecordV1] {
         let reboundPolicies = try Dictionary(uniqueKeysWithValues: records.compactMap { record -> (UUID, CorrectiveActionPolicyV1)? in
             guard record.kind == .correctiveActionPolicy else { return nil }
@@ -4097,7 +4314,12 @@ private extension BackupRestoreService {
                 bind("completedActivitySnapshot", id, UInt64(source.snapshotSchemaVersion), source.snapshotSHA256, rebound.snapshotSHA256)
             }
             if let old = snapshot.functionalRelationships {
-                let reboundData = try reboundReportSnapshotData(bytes, workspaceID: workspaceID)
+                let reboundData = try reboundReportSnapshotData(
+                    bytes,
+                    workspaceID: workspaceID,
+                    temporalClips: temporalClips,
+                    temporalAnchors: temporalAnchors
+                )
                 if let new = try ReportSnapshotEncoderV1().decode(reboundData).functionalRelationships {
                     bind("functionalRelationshipSnapshot", old.snapshotID.uuidString,
                          UInt64(old.schemaVersion), old.snapshotSHA256, new.snapshotSHA256)
@@ -4715,7 +4937,8 @@ private extension BackupRestoreService {
                 || records.recordsSchemaVersion == 28
                 || records.recordsSchemaVersion == 29
                 || records.recordsSchemaVersion == 30
-                || records.recordsSchemaVersion == 31)
+                || records.recordsSchemaVersion == 31
+                || records.recordsSchemaVersion == 32)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -5514,6 +5737,40 @@ private extension BackupRestoreService {
                 throw BackupRestoreServiceError.invalidPackage
             }
         }
+        if records.recordsSchemaVersion >= TemporalEvidencePersistenceEnrollmentV1.recordsSchemaVersion {
+            do {
+                // The imported package was already validated against its exact
+                // source journal before normalization. Clone/fork rows are now
+                // destination projections while that journal remains immutable
+                // historic-source provenance, so decode the normalized rows
+                // without incorrectly requiring byte equality to source effects.
+                let values = try decodedTemporalEvidenceRows(records)
+                let expectedWorkspaceID = identityDecision.map {
+                    WorkspaceID(rawValue: $0.targetPointer.workspaceID)
+                } ?? legacyDestinationIdentity.workspaceID
+                guard values.clips.allSatisfy({ $0.workspaceID == expectedWorkspaceID }),
+                      values.anchors.allSatisfy({ $0.workspaceID == expectedWorkspaceID }) else {
+                    // `recordsForMaterialization` has already used the closed
+                    // canonical rebind constructors for clone/fork. Reject any
+                    // source-workspace row that survives that normalization.
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                for value in values.clips.sorted(by: { $0.clipID.uuidString < $1.clipID.uuidString }) {
+                    context.insert(try TemporalEvidenceClipRow(value))
+                }
+                for value in values.anchors.sorted(by: { $0.anchorID.uuidString < $1.anchorID.uuidString }) {
+                    context.insert(try TimecodedEvidenceAnchorRow(value))
+                }
+            } catch let error as BackupRestoreServiceError {
+                throw error
+            } catch {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+        } else {
+            guard records.temporalEvidence.isEmpty else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+        }
         if let mutationHistory = records.mutationHistory {
             guard records.recordsSchemaVersion == 3
                     || records.recordsSchemaVersion == 4
@@ -5543,7 +5800,8 @@ private extension BackupRestoreService {
                     || records.recordsSchemaVersion == 28
                     || records.recordsSchemaVersion == 29
                     || records.recordsSchemaVersion == 30
-                    || records.recordsSchemaVersion == 31 else {
+                    || records.recordsSchemaVersion == 31
+                    || records.recordsSchemaVersion == 32 else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {
@@ -5605,6 +5863,52 @@ private extension BackupRestoreService {
                 generationID: generationID
             )
         }
+        let temporal = try decodedTemporalEvidenceRows(records)
+        _ = try value.records.validateC33TemporalEvidence()
+        let destinationWorkspaceID = temporal.clips.first?.workspaceID
+            ?? temporal.anchors.first?.workspaceID
+        if let destinationWorkspaceID {
+            let expectedRecords = try rebindingTemporalEvidence(
+                value.records.temporalEvidence,
+                guidedSurveys: records.guidedSurveys,
+                workspaceID: destinationWorkspaceID
+            )
+            guard expectedRecords == records.temporalEvidence else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+        } else if !value.records.temporalEvidence.isEmpty {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        if !temporal.clips.isEmpty, value.manifest.source.workspaceID == nil {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        var restoredTemporalOriginalPaths = Set<String>()
+        for clip in temporal.clips {
+            guard let sourceWorkspaceID = value.manifest.source.workspaceID else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            guard let digest = clip.original.digests.digest(for: .sha256)?.hexadecimalValue else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            let sourcePath = "content/\(sourceWorkspaceID.uuidString.lowercased())/\(clip.original.contentID)/original.bin"
+            let targetPath = try TemporalEvidenceBackupMemberV1.original(for: clip)
+            guard let bytes = value.members[sourcePath], Int64(bytes.count) == clip.original.byteLength else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            if restoredTemporalOriginalPaths.insert(targetPath).inserted {
+                try protectStagingDirectory(
+                    root: root,
+                    relativePath: "content/\(clip.workspaceID.rawValue.uuidString.lowercased())/\(clip.original.contentID)",
+                    generationID: generationID
+                )
+                try writeExact(
+                    bytes,
+                    to: root.appendingPathComponent(targetPath),
+                    expectedHash: digest,
+                    generationID: generationID
+                )
+            }
+        }
         if !records.reports.isEmpty {
             try protectStagingDirectory(
                 root: root,
@@ -5622,11 +5926,16 @@ private extension BackupRestoreService {
         for report in records.reports {
             var snapshotData = value.members[report.snapshotRelativePath]
             if let source = snapshotData,
-               CanonicalJSONV1.sha256(source) != report.snapshotSHA256,
-               let rawWorkspaceID = records.evidenceAssurance.first?.workspaceID {
+               CanonicalJSONV1.sha256(source) != report.snapshotSHA256 {
+                guard let workspaceID = temporal.clips.first?.workspaceID
+                    ?? records.evidenceAssurance.first.map({ WorkspaceID(rawValue: $0.workspaceID) }) else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
                 snapshotData = try reboundReportSnapshotData(
                     source,
-                    workspaceID: WorkspaceID(rawValue: rawWorkspaceID)
+                    workspaceID: workspaceID,
+                    temporalClips: temporal.clips,
+                    temporalAnchors: temporal.anchors
                 )
             }
             try writeExact(
@@ -6390,7 +6699,7 @@ private extension BackupRestoreService {
         _ tree: StoreRestoreGenerationAuthority.Tree,
         records: V4BackupRecordsV1
     ) throws {
-        let expected = expectedGenerationTree(records: records)
+        let expected = try expectedGenerationTree(records: records)
         let allowedDirectories = expected.directories.union(
             allowedEmptyStagingDirectories
         )
@@ -6414,7 +6723,7 @@ private extension BackupRestoreService {
         )
         let frozenRecords = try records(in: session.modelContext)
         let tree = try generationAuthority.installedTree(id: id)
-        let expected = expectedGenerationTree(records: frozenRecords)
+        let expected = try expectedGenerationTree(records: frozenRecords)
         guard tree.directories.isSubset(
                   of: expected.directories.union(allowedEmptyStagingDirectories)
               ),
@@ -6435,7 +6744,7 @@ private extension BackupRestoreService {
         )
         let frozenRecords = try records(in: session.modelContext)
         let tree = try generationAuthority.stagingTree(id: id)
-        let expected = expectedGenerationTree(records: frozenRecords)
+        let expected = try expectedGenerationTree(records: frozenRecords)
         guard tree.directories.isSubset(
                   of: expected.directories.union(allowedEmptyStagingDirectories)
               ),
@@ -6446,7 +6755,7 @@ private extension BackupRestoreService {
 
     func expectedGenerationTree(
         records: V4BackupRecordsV1
-    ) -> (
+    ) throws -> (
         directories: Set<String>,
         files: Set<String>,
         optionalFiles: Set<String>
@@ -6460,6 +6769,15 @@ private extension BackupRestoreService {
             expectedDirectories.insert("evidence/\(canonical(evidence.id))")
             expectedFiles.insert(evidence.relativePath)
             expectedFiles.insert(evidence.thumbnailRelativePath)
+        }
+        let temporal = try decodedTemporalEvidenceRows(records)
+        for clip in temporal.clips {
+            let workspace = clip.workspaceID.rawValue.uuidString.lowercased()
+            let contentID = clip.original.contentID
+            expectedDirectories.insert("content")
+            expectedDirectories.insert("content/\(workspace)")
+            expectedDirectories.insert("content/\(workspace)/\(contentID)")
+            expectedFiles.insert("content/\(workspace)/\(contentID)/original.bin")
         }
         if !records.reports.isEmpty {
             expectedDirectories.insert("snapshots")
@@ -6908,6 +7226,8 @@ private extension BackupRestoreService {
         let surveyDefinitionIdentities=try context.fetch(FetchDescriptor<SurveyDefinitionIdentityRow>())
         let surveyDefinitionReleases=try context.fetch(FetchDescriptor<SurveyDefinitionReleaseRow>())
         let surveySessions=try context.fetch(FetchDescriptor<SurveySessionRow>()),factCaptures=try context.fetch(FetchDescriptor<FactCaptureRow>()),provisionalSubjects=try context.fetch(FetchDescriptor<ProvisionalSubjectRow>()),subjectPromotionReceipts=try context.fetch(FetchDescriptor<SubjectPromotionReceiptRow>()),surveyPublicationSnapshots=try context.fetch(FetchDescriptor<SurveyPublicationSnapshotRow>())
+        let temporalEvidenceClipRows = try context.fetch(FetchDescriptor<TemporalEvidenceClipRow>())
+        let timecodedEvidenceAnchorRows = try context.fetch(FetchDescriptor<TimecodedEvidenceAnchorRow>())
         let assetLocatorRows = try context.fetch(FetchDescriptor<AssetLocatorRow>())
         let locatorBindingReceiptRows = try context.fetch(FetchDescriptor<LocatorBindingReceiptRow>())
         let planDocumentRows = try context.fetch(FetchDescriptor<PlanDocumentRow>())
@@ -7160,6 +7480,14 @@ private extension BackupRestoreService {
         let assistanceAcceptanceReceiptRecords = try assistanceAcceptanceReceiptRows
             .map { try V32BackupAssistanceAcceptanceRecordV1($0.value()) }
             .sorted { $0.receiptID.uuidString.lowercased() < $1.receiptID.uuidString.lowercased() }
+        let temporalEvidenceRecords: [V33BackupTemporalEvidenceRecordV1] =
+            mutationHistory == nil ? [] : try (
+                temporalEvidenceClipRows.map { try V33BackupTemporalEvidenceRecordV1($0.value()) }
+                + timecodedEvidenceAnchorRows.map { try V33BackupTemporalEvidenceRecordV1($0.value()) }
+            ).sorted {
+                "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
+                    < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
+            }
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveyRecords,
             assetLocators: assetLocatorRecords,
@@ -7366,7 +7694,8 @@ private extension BackupRestoreService {
                 "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
                     < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
             },
-            recordsSchemaVersion: !assistanceAcceptanceReceiptRecords.isEmpty ? 31
+            recordsSchemaVersion: !temporalEvidenceRecords.isEmpty ? 32
+                : !assistanceAcceptanceReceiptRecords.isEmpty ? 31
                 : !lightingRecords.isEmpty ? 30
                 : !planArchiveRecords.isEmpty ? 27
                 : mutationHistory != nil && !(surveySessions.isEmpty
@@ -7442,7 +7771,8 @@ private extension BackupRestoreService {
                 return workflowDTO(record, observationAndTime: companion)
             }.sorted { canonical($0.id) < canonical($1.id) },
             lighting: lightingRecords,
-            assistanceAcceptanceReceipts: assistanceAcceptanceReceiptRecords
+            assistanceAcceptanceReceipts: assistanceAcceptanceReceiptRecords,
+            temporalEvidence: temporalEvidenceRecords
         )
     }
 

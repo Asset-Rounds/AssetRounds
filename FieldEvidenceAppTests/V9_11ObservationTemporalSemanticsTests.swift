@@ -1130,6 +1130,25 @@ private final class C31LightingAnchorV911ObservationTemporalSemanticsTests: XCTe
     }
 }
 
+private final class C33TemporalEvidenceAnchorV911ObservationTemporalSemantics: XCTestCase {
+    func testC33V911ObservationTemporalSemanticsCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "observation.monotonic-anchor-offset",
+            kind: .video,
+            reportProjection: .typedLinkWithDerivativePreview
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "observation.monotonic-anchor-offset",
+            kind: .video,
+            reportProjection: .typedLinkWithDerivativePreview
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+}
+
 private final class C32AssistanceAnchorV911ObservationTemporalSemantics: XCTestCase {
     func testC32V911ObservationTemporalSemanticsCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(

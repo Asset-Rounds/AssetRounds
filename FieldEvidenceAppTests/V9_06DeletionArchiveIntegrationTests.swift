@@ -583,6 +583,25 @@ private final class C31LightingAnchorV906DeletionArchiveIntegrationTests: XCTest
     }
 }
 
+private final class C33TemporalEvidenceAnchorV906DeletionArchiveIntegration: XCTestCase {
+    func testC33V906DeletionArchiveIntegrationCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "archive.temporal-evidence-closure",
+            kind: .video,
+            reportProjection: .typedLinkOnly
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "archive.temporal-evidence-closure",
+            kind: .video,
+            reportProjection: .typedLinkOnly
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+}
+
 private final class C32AssistanceAnchorV906DeletionArchiveIntegration: XCTestCase {
     func testC32V906DeletionArchiveIntegrationCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(

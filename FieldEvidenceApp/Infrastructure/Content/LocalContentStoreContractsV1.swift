@@ -311,3 +311,191 @@ enum C32AssistanceCompatibility_Content_LocalContentStoreContractsV1 {
     static let interruptionNeverPromotesAProposal = true
     static let createsParallelStoreOrWriter = false
 }
+
+// MARK: - C33 incremental temporal-media admission
+
+/// Admission is incremental and uses the current store capacity at every
+/// boundary. This is not a byte writer and cannot make partial scratch bytes
+/// canonical.
+enum TemporalEvidenceLocalContentAdmissionV1 {
+    static let secondByteStoreAllowed = false
+
+    static func validate(
+        facts: TemporalEvidenceMediaFactsV1,
+        profile: TemporalEvidenceLimitProfileV1,
+        availability: LocalContentStoreAvailabilityV1
+    ) throws {
+        try facts.validate(against: profile.limit(for: facts.kind))
+        switch availability {
+        case .available(let remainingByteCapacity):
+            guard facts.byteCount <= UInt64(Int64.max),
+                  profile.minimumFreeByteCount <= UInt64(Int64.max) else {
+                throw ContentContractFailureV1.limitExceeded
+            }
+            let requiredBytes = Int64(facts.byteCount)
+            let reserveBytes = Int64(profile.minimumFreeByteCount)
+            guard remainingByteCapacity >= requiredBytes,
+                  remainingByteCapacity - requiredBytes >= reserveBytes else {
+                throw ContentContractFailureV1.limitExceeded
+            }
+        case .protectedDataUnavailable, .permissionDenied, .cancelled:
+            throw ContentContractFailureV1.limitExceeded
+        }
+    }
+}
+
+
+enum TemporalEvidenceIncrementalBudgetStateV1: Equatable, Sendable {
+    case recording
+    case stopped(TemporalEvidenceStopReasonV1)
+    case completed
+
+    var isTerminal: Bool {
+        switch self { case .recording: false; case .stopped, .completed: true }
+    }
+}
+
+/// Immutable receipt for one incremental boundary evaluation. A stopped or
+/// completed receipt cannot resume, and simultaneous bounds use this fixed
+/// first-reason order: explicit terminal state, codec/resolution, counts,
+/// storage, duration, then bytes.
+struct TemporalEvidenceIncrementalBudgetReceiptV1: Equatable, Sendable {
+    let profileSHA256: String
+    let kind: TemporalEvidenceMediaKindV1
+    let durationMilliseconds: UInt64
+    let byteCount: UInt64
+    let availableByteCount: UInt64
+    let clipsForRequirement: Int
+    let clipsForSession: Int
+    let codec: TemporalEvidenceCodecV1
+    let containerMediaType: String
+    let pixelWidth: Int?
+    let pixelHeight: Int?
+    let state: TemporalEvidenceIncrementalBudgetStateV1
+    let canonicalReceipt: TemporalEvidenceIncrementalAdmissionReceiptV1
+
+    func validate(profile: TemporalEvidenceLimitProfileV1) throws {
+        try profile.validate(); let limit = profile.limit(for: kind)
+        guard profileSHA256 == profile.profileSHA256,
+              clipsForRequirement >= 0, clipsForSession >= clipsForRequirement,
+              containerMediaType == codec.mediaType,
+              canonicalReceipt.profileSHA256 == profileSHA256,
+              canonicalReceipt.kind == kind, canonicalReceipt.codec == codec,
+              canonicalReceipt.observedDurationMilliseconds
+                == min(durationMilliseconds, limit.maximumDurationMilliseconds),
+              canonicalReceipt.observedByteCount
+                == min(byteCount, limit.maximumByteCount),
+              canonicalReceipt.captureCompleted == {
+                switch state {
+                case .completed, .stopped(.durationBound), .stopped(.byteBound): true
+                default: false
+                }
+              }(),
+              state.isTerminal || (durationMilliseconds < limit.maximumDurationMilliseconds
+                && byteCount < limit.maximumByteCount) else {
+            throw TemporalEvidenceContractFailureV1.invalidValue
+        }
+        try canonicalReceipt.validate(profile: profile)
+    }
+
+    func validateCompleted(facts: TemporalEvidenceMediaFactsV1,
+                           profile: TemporalEvidenceLimitProfileV1) throws {
+        try validate(profile: profile); try facts.validate(against: profile.limit(for: facts.kind))
+        let isAcceptedTerminal: Bool
+        switch state {
+        case .completed, .stopped(.durationBound), .stopped(.byteBound):
+            isAcceptedTerminal = true
+        default: isAcceptedTerminal = false
+        }
+        guard isAcceptedTerminal, kind == facts.kind,
+              durationMilliseconds == facts.durationMilliseconds,
+              byteCount == facts.byteCount, codec == facts.codec,
+              pixelWidth == facts.pixelWidth, pixelHeight == facts.pixelHeight else {
+            throw TemporalEvidenceContractFailureV1.invalidTransition
+        }
+        try canonicalReceipt.validateTerminal(facts: facts, profile: profile)
+    }
+}
+
+enum TemporalEvidenceIncrementalAdmissionEvaluatorV1 {
+    static func evaluate(
+        profile: TemporalEvidenceLimitProfileV1,
+        kind: TemporalEvidenceMediaKindV1,
+        durationMilliseconds: UInt64,
+        byteCount: UInt64,
+        availableByteCount: UInt64,
+        clipsForRequirement: Int,
+        clipsForSession: Int,
+        codec: TemporalEvidenceCodecV1,
+        containerMediaType: String,
+        pixelWidth: Int? = nil,
+        pixelHeight: Int? = nil,
+        explicitStop: TemporalEvidenceStopReasonV1? = nil,
+        captureCompleted: Bool = false,
+        predecessor: TemporalEvidenceIncrementalBudgetReceiptV1? = nil
+    ) throws -> TemporalEvidenceIncrementalBudgetReceiptV1 {
+        try profile.validate(); let limit = profile.limit(for: kind)
+        if let predecessor {
+            try predecessor.validate(profile: profile)
+            guard !predecessor.state.isTerminal,
+                  predecessor.profileSHA256 == profile.profileSHA256,
+                  predecessor.kind == kind,
+                  durationMilliseconds >= predecessor.durationMilliseconds,
+                  byteCount >= predecessor.byteCount else {
+                throw TemporalEvidenceContractFailureV1.invalidTransition
+            }
+        }
+        let supportedResolution: Bool
+        switch kind {
+        case .audio:
+            supportedResolution = pixelWidth == nil && pixelHeight == nil
+        case .video:
+            if let pixelWidth, let pixelHeight,
+               let maximumPixelWidth = limit.maximumPixelWidth,
+               let maximumPixelHeight = limit.maximumPixelHeight {
+                supportedResolution = pixelWidth > 0 && pixelHeight > 0
+                    && pixelWidth <= maximumPixelWidth
+                    && pixelHeight <= maximumPixelHeight
+            } else { supportedResolution = false }
+        }
+        let unsupportedMedia = !limit.acceptedCodecs.contains(codec)
+            || containerMediaType.lowercased() != codec.mediaType
+            || !supportedResolution
+        let reserveFits = availableByteCount >= profile.minimumFreeByteCount
+            && byteCount <= availableByteCount - profile.minimumFreeByteCount
+        let state: TemporalEvidenceIncrementalBudgetStateV1
+        if let explicitStop { state = .stopped(explicitStop) }
+        else if unsupportedMedia { state = .stopped(.codecUnavailable) }
+        else if clipsForRequirement >= profile.maximumClipsPerRequirement {
+            state = .stopped(.requirementCountBound)
+        } else if clipsForSession >= profile.maximumClipsPerSession {
+            state = .stopped(.sessionCountBound)
+        } else if !reserveFits { state = .stopped(.insufficientStorage) }
+        else if durationMilliseconds >= limit.maximumDurationMilliseconds {
+            state = .stopped(.durationBound)
+        } else if byteCount >= limit.maximumByteCount { state = .stopped(.byteBound) }
+        else if captureCompleted { state = .completed }
+        else { state = .recording }
+        let canonical = try TemporalEvidenceIncrementalAdmissionReceiptV1(
+            profile: profile, kind: kind, codec: codec,
+            observedDurationMilliseconds: durationMilliseconds,
+            observedByteCount: byteCount,
+            sequence: (predecessor?.canonicalReceipt.sequence ?? 0) + 1,
+            captureCompleted: captureCompleted
+                || durationMilliseconds >= limit.maximumDurationMilliseconds
+                || byteCount >= limit.maximumByteCount,
+            prior: predecessor?.canonicalReceipt
+        )
+        let receipt = TemporalEvidenceIncrementalBudgetReceiptV1(
+            profileSHA256: profile.profileSHA256, kind: kind,
+            durationMilliseconds: durationMilliseconds, byteCount: byteCount,
+            availableByteCount: availableByteCount,
+            clipsForRequirement: clipsForRequirement, clipsForSession: clipsForSession,
+            codec: codec, containerMediaType: containerMediaType.lowercased(),
+            pixelWidth: pixelWidth, pixelHeight: pixelHeight,
+            state: state, canonicalReceipt: canonical
+        )
+        try receipt.validate(profile: profile)
+        return receipt
+    }
+}

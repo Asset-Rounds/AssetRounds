@@ -1764,3 +1764,15 @@ enum C32AssistanceCompatibility_Reporting_ReportRenderService {
     static let interruptionNeverPromotesAProposal = true
     static let createsParallelStoreOrWriter = false
 }
+
+enum C33TemporalEvidenceConformance_FieldEvidenceApp_Infrastructure_Reporting_ReportRenderService_swift {
+    static let durableFamilyCount = TemporalEvidencePersistenceEnrollmentV1.durableModelCount
+    static func validate(clip: TemporalEvidenceClipV1,
+                         anchor: TimecodedEvidenceAnchorV1) throws {
+        try clip.validateIntrinsic()
+        try anchor.validate(clip: clip)
+        guard durableFamilyCount == 2 else {
+            throw TemporalEvidenceContractFailureV1.invalidValue
+        }
+    }
+}

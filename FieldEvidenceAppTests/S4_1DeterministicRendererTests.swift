@@ -1292,6 +1292,25 @@ extension S4_1DeterministicRendererTests {
     }
 }
 
+private final class C33TemporalEvidenceAnchorS41DeterministicRenderer: XCTestCase {
+    func testC33S41DeterministicRendererCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "renderer.temporal-typed-link",
+            kind: .video,
+            reportProjection: .typedLinkWithDerivativePreview
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "renderer.temporal-typed-link",
+            kind: .video,
+            reportProjection: .typedLinkWithDerivativePreview
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+}
+
 private final class C32AssistanceAnchorS41DeterministicRenderer: XCTestCase {
     func testC32S41DeterministicRendererCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(

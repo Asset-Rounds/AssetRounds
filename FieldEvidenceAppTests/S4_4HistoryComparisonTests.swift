@@ -852,6 +852,25 @@ extension S4_4HistoryComparisonTests {
     }
 }
 
+private final class C33TemporalEvidenceAnchorS44HistoryComparison: XCTestCase {
+    func testC33S44HistoryComparisonCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "history.temporal-source-revision",
+            kind: .video,
+            reportProjection: .typedLinkWithDerivativePreview
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "history.temporal-source-revision",
+            kind: .video,
+            reportProjection: .typedLinkWithDerivativePreview
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+}
+
 private final class C32AssistanceAnchorS44HistoryComparison: XCTestCase {
     func testC32S44HistoryComparisonCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(

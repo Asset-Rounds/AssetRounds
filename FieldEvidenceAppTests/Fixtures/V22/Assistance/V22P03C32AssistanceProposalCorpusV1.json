@@ -143,5 +143,13 @@
     "phase10PollingDuringParallelExecution": false,
     "release": false,
     "releaseReadiness": false
+  },
+  "c33TemporalEvidenceCompatibility": {
+    "compatibilityCardID": "V23-P03-C33",
+    "clipAndAnchorPersistentSchemaVersion": 33,
+    "assistanceProposalNeverStartsCapture": true,
+    "explicitTemporalCaptureIntentRequired": true,
+    "noAutomaticTranscriptionOrRedaction": true,
+    "manualPathRemainsAvailable": true
   }
 }

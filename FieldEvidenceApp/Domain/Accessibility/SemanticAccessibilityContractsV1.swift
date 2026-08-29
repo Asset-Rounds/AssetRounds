@@ -2355,3 +2355,38 @@ enum C32AssistanceAccessibilityPolicyV1 {
         }
     }
 }
+
+
+// MARK: - C33 temporal evidence accessibility
+
+enum TemporalEvidenceAccessibilityIDV1: String, CaseIterable, Codable, Sendable {
+    case reviewRequired = "temporal_evidence.review_required"
+    case playback = "temporal_evidence.playback"
+    case duration = "temporal_evidence.duration"
+    case anchor = "temporal_evidence.anchor"
+    case description = "temporal_evidence.description"
+    case transcript = "temporal_evidence.transcript"
+    case stoppedAtLimit = "temporal_evidence.stopped_at_limit"
+    case permissionDenied = "temporal_evidence.permission.denied"
+    case interrupted = "temporal_evidence.interrupted"
+    case manualImport = "temporal_evidence.manual_import"
+}
+
+enum TemporalEvidenceAccessibilityPolicyV1 {
+    static let playbackControlsAreNamed = true
+    static let elapsedAndAnchorTimesAreSpoken = true
+    static let stateIsNotColorOnly = true
+    static let motionOnlyStateAllowed = false
+    static let manualFallbackRemainsFocusable = true
+    static let interruptionHasActionableRecovery = true
+
+    static func validate() throws {
+        let ids = TemporalEvidenceAccessibilityIDV1.allCases.map(\.rawValue)
+        guard ids.count == Set(ids).count, playbackControlsAreNamed,
+              elapsedAndAnchorTimesAreSpoken, stateIsNotColorOnly,
+              !motionOnlyStateAllowed, manualFallbackRemainsFocusable,
+              interruptionHasActionableRecovery else {
+            throw LocalizationContractFailureV1.invalidAccessibilityBinding
+        }
+    }
+}

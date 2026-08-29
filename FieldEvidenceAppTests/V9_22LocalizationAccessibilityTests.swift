@@ -1947,6 +1947,25 @@ extension V9_22LocalizationAccessibilityTests {
     }
 }
 
+private final class C33TemporalEvidenceAnchorV922LocalizationAccessibility: XCTestCase {
+    func testC33V922LocalizationAccessibilityCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "accessibility.temporal-description",
+            kind: .audio,
+            reportProjection: .typedLinkWithDerivativePreview
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "accessibility.temporal-description",
+            kind: .audio,
+            reportProjection: .typedLinkWithDerivativePreview
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+}
+
 private final class C32AssistanceAnchorV922LocalizationAccessibility: XCTestCase {
     func testC32V922LocalizationAccessibilityCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(

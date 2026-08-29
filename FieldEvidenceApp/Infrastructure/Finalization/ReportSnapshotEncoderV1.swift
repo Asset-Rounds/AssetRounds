@@ -493,6 +493,19 @@ struct ReportSnapshotEncoderV1: Sendable {
                 return false
             }
         }
+        if let links = snapshot.temporalEvidenceLinks {
+            guard links.count <= 512,
+                  links.allSatisfy({ (try? $0.validate()) != nil }),
+                  links.allSatisfy({ $0.clipRevision <= UInt64(Int.max)
+                      && $0.durationMilliseconds <= UInt64(Int.max)
+                      && $0.anchorBindings.allSatisfy({
+                          $0.revision <= UInt64(Int.max)
+                              && $0.clipRevision <= UInt64(Int.max)
+                      }) }),
+                  links.allSatisfy({ $0.workspaceID == links.first?.workspaceID }) else {
+                return false
+            }
+        }
 
         guard validObservationAndTime(
             basis: snapshot.observationBasis,
@@ -649,7 +662,50 @@ extension CanonicalJSONV1 {
         if let placementPose = value.placementPose {
             object["placementPose"] = Self.placementPose(placementPose)
         }
+        if let links = value.temporalEvidenceLinks {
+            object["temporalEvidenceLinks"] = .array(
+                links.map(Self.temporalEvidenceLink)
+            )
+        }
         return .object(object)
+    }
+
+    private static func temporalEvidenceLink(
+        _ value: TemporalEvidenceReportLinkV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "schemaVersion": .integer(value.schemaVersion),
+            "workspaceID": uuid(value.workspaceID),
+            "clipID": uuid(value.clipID),
+            "clipRevision": .integer(Int(value.clipRevision)),
+            "clipSHA256": .string(value.clipSHA256),
+            "contentID": .string(value.contentID),
+            "mediaKind": .string(value.mediaKind.rawValue),
+            "durationMilliseconds": .integer(Int(value.durationMilliseconds)),
+            "anchorCount": .integer(value.anchorCount),
+            "anchorBindings": .array(
+                value.anchorBindings.map(Self.temporalEvidenceAnchorBinding)
+            ),
+            "accessibleDescription": .string(value.accessibleDescription),
+            "manualTranscript": optionalString(value.manualTranscript),
+            "projection": .string(value.projection.rawValue),
+            "embedsOriginalBytes": .bool(value.embedsOriginalBytes),
+        ])
+    }
+
+    private static func temporalEvidenceAnchorBinding(
+        _ value: TemporalEvidenceReportAnchorBindingV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "anchorID": uuid(value.anchorID),
+            "revision": .integer(Int(value.revision)),
+            "anchorSHA256": .string(value.anchorSHA256),
+            "clipID": uuid(value.clipID),
+            "clipRevision": .integer(Int(value.clipRevision)),
+            "clipSHA256": .string(value.clipSHA256),
+            "sourceContentID": .string(value.sourceContentID),
+            "sourceSHA256": .string(value.sourceSHA256),
+        ])
     }
 
     private static func scheduleProjection(

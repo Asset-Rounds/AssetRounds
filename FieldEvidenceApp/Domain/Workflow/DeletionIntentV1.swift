@@ -397,3 +397,22 @@ enum C32AssistanceLifecycleBoundary_FieldEvidenceApp_Domain_Workflow_DeletionInt
         try receipt.validate()
     }
 }
+
+
+// MARK: - C33 temporal evidence deletion intent
+
+enum TemporalEvidenceDeletionIntentBoundaryV1 {
+    static let deleteIncludesAnchors = true
+    static let deleteIncludesRegenerableDerivatives = true
+    static let originalRemovedOnlyThroughCanonicalContentAuthority = true
+
+    static func validate(_ event: TemporalEvidenceRetentionEventV1,
+                         clip: TemporalEvidenceClipV1) throws {
+        try event.validate(clip: clip)
+        guard event.disposition == .deleteClip,
+              deleteIncludesAnchors, deleteIncludesRegenerableDerivatives,
+              originalRemovedOnlyThroughCanonicalContentAuthority else {
+            throw TemporalEvidenceContractFailureV1.invalidTransition
+        }
+    }
+}

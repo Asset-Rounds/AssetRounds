@@ -726,6 +726,74 @@ private final class C31LightingAnchorV915ContentReferenceProvenanceTests: XCTest
     }
 }
 
+private final class C33TemporalEvidenceAnchorV915ContentReferenceProvenance: XCTestCase {
+    func testC33V915ContentReferenceProvenanceCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "content.temporal-immutable-original",
+            kind: .video,
+            reportProjection: .typedLinkWithDerivativePreview
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "content.temporal-immutable-original",
+            kind: .video,
+            reportProjection: .typedLinkWithDerivativePreview
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+
+    func testC33WaveformTaggedCodableRoundTripsAndRejectsUnknownOrTamperedPayloads() throws {
+        let waveform = ContentDerivativeTransformV1.waveform(
+            try WaveformDerivativeV1(
+                rendererID: "temporal.waveform.renderer",
+                rendererVersion: "v1",
+                sampleCount: 2_048
+            )
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let encoded = try encoder.encode(waveform)
+        XCTAssertEqual(
+            try JSONDecoder().decode(ContentDerivativeTransformV1.self, from: encoded),
+            waveform
+        )
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+        )
+        XCTAssertEqual(object["kind"] as? String, "WAVEFORM")
+        let payload = try XCTUnwrap(object["waveform"] as? [String: Any])
+        XCTAssertEqual(payload["rendererID"] as? String, "temporal.waveform.renderer")
+        XCTAssertEqual(payload["rendererVersion"] as? String, "v1")
+        XCTAssertEqual(payload["sampleCount"] as? Int, 2_048)
+
+        let unknown = Data(#"{"kind":"SPECTROGRAM","waveform":{"rendererID":"temporal.waveform.renderer","rendererVersion":"v1","sampleCount":2048}}"#.utf8)
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(ContentDerivativeTransformV1.self, from: unknown)
+        ) { error in
+            XCTAssertEqual(error as? ContentContractFailureV1, .invalidProvenance)
+        }
+
+        let mixed = Data(#"{"kind":"WAVEFORM","thumbnail":{"pixelHeight":180,"pixelWidth":320,"rendererID":"temporal.waveform.renderer","rendererVersion":"v1"},"waveform":{"rendererID":"temporal.waveform.renderer","rendererVersion":"v1","sampleCount":2048}}"#.utf8)
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(ContentDerivativeTransformV1.self, from: mixed)
+        )
+
+        let tamperedInner = Data(#"{"kind":"WAVEFORM","waveform":{"rendererID":"temporal.waveform.renderer","rendererVersion":"v1","sampleCount":2048,"untrustedSamples":"embedded"}}"#.utf8)
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(ContentDerivativeTransformV1.self, from: tamperedInner)
+        )
+
+        let invalidPayload = Data(#"{"kind":"WAVEFORM","waveform":{"rendererID":"temporal.waveform.renderer","rendererVersion":"v1","sampleCount":0}}"#.utf8)
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(ContentDerivativeTransformV1.self, from: invalidPayload)
+        ) { error in
+            XCTAssertEqual(error as? ContentContractFailureV1, .invalidValue)
+        }
+    }
+}
+
 private final class C32AssistanceAnchorV915ContentReferenceProvenance: XCTestCase {
     func testC32V915ContentReferenceProvenanceCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(

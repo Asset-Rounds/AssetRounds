@@ -665,3 +665,35 @@ enum C32AssistanceCompatibility_Content_ContentIntegrityV1 {
     static let interruptionNeverPromotesAProposal = true
     static let createsParallelStoreOrWriter = false
 }
+
+// MARK: - C33 temporal evidence integrity
+
+enum TemporalEvidenceContentIntegrityV1 {
+    static func verifyOriginal(
+        clip: TemporalEvidenceClipV1,
+        observed: ContentObservedBytesV1
+    ) throws {
+        try clip.validateIntrinsic()
+        try ContentIntegrityV1.verify(
+            reference: clip.original,
+            locator: clip.locator,
+            observed: observed
+        )
+    }
+
+    static func verifyDerivative(
+        _ derivative: TemporalEvidenceDerivativeV1,
+        clip: TemporalEvidenceClipV1,
+        observed: ContentObservedBytesV1
+    ) throws {
+        try TemporalEvidenceProvenanceBoundaryV1.validate(
+            clip: clip,
+            derivative: derivative
+        )
+        try ContentIntegrityV1.verify(
+            reference: derivative.content,
+            locator: derivative.locator,
+            observed: observed
+        )
+    }
+}

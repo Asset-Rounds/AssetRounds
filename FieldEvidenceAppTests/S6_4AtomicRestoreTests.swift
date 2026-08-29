@@ -1051,6 +1051,7 @@ extension S6_4AtomicRestoreTests {
     func testC32RealBackupRestorePreservesImmutableAcceptanceAndRebindsOnlyTargetFacts() async throws {
         for (offset, mode) in [
             BackupRestoreMode.emptyInstall,
+            .replaceExisting,
             .clone,
             .fork
         ].enumerated() {
@@ -1307,6 +1308,328 @@ extension S6_4AtomicRestoreTests {
 
 extension S6_4AtomicRestoreTests {
     @MainActor
+    func testC33RealBackupRestoreCloneForkCarryDirectOriginalBytesAndTypedRows() async throws {
+        let sourceRoot = fileManager.temporaryDirectory.appendingPathComponent(
+            "c33-real-backup-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        defer { try? fileManager.removeItem(at: sourceRoot) }
+        let sourceSupport = sourceRoot.appendingPathComponent("Application Support", isDirectory: true)
+        try fileManager.createDirectory(at: sourceSupport, withIntermediateDirectories: true)
+        let sourceSession = try StoreGenerationFactory(
+            applicationSupportURL: sourceSupport
+        ).openOrBootstrapCurrent()
+        let source = try await C33TemporalEvidenceTestSupport.commitPersistentClip(
+            in: sourceSession,
+            slot: 730
+        )
+        let sourceAnchors = try C33TemporalEvidenceTestSupport.commitPersistentAnchors(
+            in: sourceSession,
+            clip: source.clip,
+            slots: [731, 732, 733]
+        )
+        let sourceSnapshots = try C33TemporalEvidenceTestSupport.persistReportSnapshots(
+            in: sourceSession,
+            clip: source.clip,
+            anchorSubsets: [
+                [sourceAnchors[0], sourceAnchors[1]],
+                [sourceAnchors[1], sourceAnchors[2]]
+            ],
+            slot: 740
+        )
+        try sourceSession.modelContext.save()
+        let sourceSnapshotsByID = Dictionary(
+            uniqueKeysWithValues: sourceSnapshots.map { ($0.reportID, $0) }
+        )
+        let sourceSnapshotSHAByID = try Dictionary(uniqueKeysWithValues: sourceSnapshots.map {
+            ($0.reportID, try ReportSnapshotEncoderV1().encode($0).sha256)
+        })
+        let sourceRow = try XCTUnwrap(
+            sourceSession.modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>()).first
+        )
+        let sourceCanonicalData = sourceRow.canonicalData
+        let sourceOriginalDigest = try XCTUnwrap(
+            source.clip.original.digests.digest(for: .sha256)
+        )
+        let sourceBytes = C33TemporalEvidenceTestSupport.bytes(for: source.clip.facts.kind)
+        let exportDirectory = sourceRoot.appendingPathComponent("Export", isDirectory: true)
+        try fileManager.createDirectory(at: exportDirectory, withIntermediateDirectories: true)
+        let exporter = BackupExportService(
+            modelContext: sourceSession.modelContext,
+            generationRootURL: sourceSession.generationRootURL,
+            now: { C33TemporalEvidenceTestSupport.fixedDate.addingTimeInterval(100) }
+        )
+        let preview = try exporter.prepare()
+        let package = try exporter.export(previewID: preview.id, to: exportDirectory)
+
+        for (offset, mode) in [
+            BackupRestoreMode.emptyInstall,
+            .clone,
+            .fork
+        ].enumerated() {
+            let harness = try makeHarness("c33-real-restore-\(offset)")
+            defer { try? fileManager.removeItem(at: harness.root) }
+            let validated = try importPackage(package, into: harness.session)
+            XCTAssertEqual(validated.manifest.source.persistentSchemaVersion, 33)
+            XCTAssertEqual(validated.records.recordsSchemaVersion, 32)
+            XCTAssertEqual(validated.records.temporalEvidence.count, 1)
+            XCTAssertEqual(validated.records.reports.count, 2)
+            let archived = try XCTUnwrap(validated.records.temporalEvidence.first).clipValue()
+            XCTAssertEqual(archived, source.clip)
+            XCTAssertEqual(
+                try XCTUnwrap(validated.records.temporalEvidence.first).canonicalData,
+                sourceCanonicalData
+            )
+            let sourceMember = try TemporalEvidenceBackupMemberV1.original(for: source.clip)
+            XCTAssertEqual(validated.members[sourceMember], sourceBytes)
+
+            if offset == 0 {
+                let profile = try C33TemporalEvidenceTestSupport.profile(
+                    workspaceID: source.clip.workspaceID,
+                    reportProjection: .typedLinkOnly
+                )
+                let conflictingClip = try TemporalEvidenceClipV1(
+                    clipID: source.clip.clipID,
+                    workspaceID: source.clip.workspaceID,
+                    target: source.clip.target,
+                    original: source.clip.original,
+                    originalProvenance: source.clip.originalProvenance,
+                    locator: source.clip.locator,
+                    facts: source.clip.facts,
+                    profile: profile,
+                    accessibleDescription: source.clip.accessibleDescription + " Conflicting envelope.",
+                    manualTranscript: source.clip.manualTranscript,
+                    recordedBy: source.clip.recordedBy,
+                    capturedAt: source.clip.capturedAt,
+                    acceptedAt: source.clip.acceptedAt,
+                    supersedesClipID: source.clip.supersedesClipID,
+                    revision: source.clip.revision,
+                    mutationID: source.clip.mutationID
+                )
+                var recordsObject = try XCTUnwrap(
+                    JSONSerialization.jsonObject(
+                        with: JSONEncoder().encode(validated.records)
+                    ) as? [String: Any]
+                )
+                recordsObject["temporalEvidence"] = try JSONSerialization.jsonObject(
+                    with: JSONEncoder().encode([
+                        try V33BackupTemporalEvidenceRecordV1(conflictingClip)
+                    ])
+                )
+                let conflictingRecords = try JSONDecoder().decode(
+                    V4BackupRecordsV1.self,
+                    from: JSONSerialization.data(withJSONObject: recordsObject)
+                )
+                XCTAssertThrowsError(try conflictingRecords.validateC33TemporalEvidence())
+                let conflictingPackage = ValidatedV4BackupPackageV1(
+                    stagedPackageURL: validated.stagedPackageURL,
+                    manifest: validated.manifest,
+                    records: conflictingRecords,
+                    members: validated.members,
+                    summary: validated.summary
+                )
+                do {
+                    _ = try await BackupRestoreService(
+                        applicationSupportURL: harness.support,
+                        storagePreflight: StoragePreflightService(capacityProvider: { _ in .max })
+                    ).restore(
+                        validatedPackage: conflictingPackage,
+                        currentModelContext: harness.session.modelContext,
+                        currentGenerationID: harness.session.generationID,
+                        currentGenerationRootURL: harness.session.generationRootURL,
+                        mode: .emptyInstall
+                    )
+                    XCTFail("mismatched temporal record/envelope pair restored")
+                } catch { }
+                XCTAssertEqual(
+                    try harness.session.modelContext.fetchCount(
+                        FetchDescriptor<TemporalEvidenceClipRow>()
+                    ),
+                    0
+                )
+            }
+
+            let restored = try await BackupRestoreService(
+                applicationSupportURL: harness.support,
+                storagePreflight: StoragePreflightService(capacityProvider: { _ in .max })
+            ).restore(
+                validatedPackage: validated,
+                currentModelContext: harness.session.modelContext,
+                currentGenerationID: harness.session.generationID,
+                currentGenerationRootURL: harness.session.generationRootURL,
+                mode: mode
+            )
+            let rows = try restored.modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>())
+            XCTAssertEqual(rows.count, 1)
+            let clip = try XCTUnwrap(rows.first).value()
+            let restoredAnchors = try restored.modelContext.fetch(
+                FetchDescriptor<TimecodedEvidenceAnchorRow>()
+            ).map { try $0.value() }
+            XCTAssertEqual(restoredAnchors.count, 3)
+            XCTAssertEqual(clip.workspaceID, restored.workspaceID)
+            XCTAssertEqual(clip.original.contentID, source.clip.original.contentID)
+            XCTAssertEqual(clip.original.digests.digest(for: .sha256), sourceOriginalDigest)
+            XCTAssertEqual(clip.facts, source.clip.facts)
+            XCTAssertEqual(
+                try Data(contentsOf: restored.generationRootURL.appendingPathComponent(
+                    try TemporalEvidenceBackupMemberV1.original(for: clip)
+                )),
+                sourceBytes
+            )
+            if mode == .emptyInstall || mode == .replaceExisting {
+                XCTAssertEqual(clip.workspaceID, source.clip.workspaceID)
+                XCTAssertEqual(rows[0].canonicalData, sourceCanonicalData)
+                XCTAssertEqual(clip.limitProfile, source.clip.limitProfile)
+            } else {
+                XCTAssertNotEqual(clip.workspaceID, source.clip.workspaceID)
+                XCTAssertNotEqual(rows[0].canonicalData, sourceCanonicalData)
+                XCTAssertEqual(clip.limitProfile.profileID, source.clip.limitProfile.profileID)
+                XCTAssertEqual(
+                    clip.limitProfile.revision,
+                    source.clip.limitProfile.revision + 1
+                )
+                XCTAssertEqual(clip.limitProfile.audio, source.clip.limitProfile.audio)
+                XCTAssertEqual(clip.limitProfile.video, source.clip.limitProfile.video)
+                XCTAssertEqual(
+                    clip.limitProfile.maximumClipsPerRequirement,
+                    source.clip.limitProfile.maximumClipsPerRequirement
+                )
+                XCTAssertEqual(
+                    clip.limitProfile.maximumClipsPerSession,
+                    source.clip.limitProfile.maximumClipsPerSession
+                )
+                XCTAssertEqual(
+                    clip.limitProfile.minimumFreeByteCount,
+                    source.clip.limitProfile.minimumFreeByteCount
+                )
+                XCTAssertEqual(
+                    clip.limitProfile.reportProjection,
+                    source.clip.limitProfile.reportProjection
+                )
+                XCTAssertEqual(
+                    clip.limitProfile.requiresAccessibleDescription,
+                    source.clip.limitProfile.requiresAccessibleDescription
+                )
+                XCTAssertEqual(
+                    clip.limitProfile.requiresManualTranscript,
+                    source.clip.limitProfile.requiresManualTranscript
+                )
+                XCTAssertEqual(clip.limitProfile.definitionRelease, clip.target.definitionRelease)
+                XCTAssertNotEqual(
+                    clip.limitProfile.definitionRelease,
+                    source.clip.limitProfile.definitionRelease
+                )
+                XCTAssertNotEqual(
+                    clip.limitProfile.packageRelease,
+                    source.clip.limitProfile.packageRelease
+                )
+                XCTAssertNotEqual(
+                    clip.limitProfile.profileSHA256,
+                    source.clip.limitProfile.profileSHA256
+                )
+                XCTAssertNotEqual(clip.clipSHA256, source.clip.clipSHA256)
+            }
+            let journal = try MutationJournalStoreV1(
+                modelContext: restored.modelContext,
+                identity: restored.workspaceIdentity,
+                generationID: restored.generationID,
+                allowStateBootstrap: false
+            )
+            try journal.validateAll()
+
+            let reportRows = try restored.modelContext.fetch(FetchDescriptor<Report>(
+                sortBy: [SortDescriptor(\.id)]
+            ))
+            XCTAssertEqual(reportRows.count, 2)
+            var restoredSnapshots: [ReportSnapshotV1] = []
+            for report in reportRows {
+                let data = try Data(contentsOf: restored.generationRootURL.appendingPathComponent(
+                    report.snapshotRelativePath
+                ))
+                XCTAssertEqual(KernelCanonicalHashV1.sha256(data), report.snapshotSHA256)
+                let snapshot = try ReportSnapshotEncoderV1().decode(data)
+                let sourceSnapshot = try XCTUnwrap(sourceSnapshotsByID[snapshot.reportID])
+                let sourceLink = try XCTUnwrap(sourceSnapshot.temporalEvidenceLinks?.first)
+                let link = try XCTUnwrap(snapshot.temporalEvidenceLinks?.first)
+                XCTAssertEqual(link.workspaceID, clip.workspaceID)
+                XCTAssertEqual(link.clipID, clip.clipID)
+                XCTAssertEqual(link.clipRevision, clip.revision)
+                XCTAssertEqual(link.clipSHA256, clip.clipSHA256)
+                XCTAssertEqual(link.contentID, clip.original.contentID)
+                XCTAssertEqual(link.contentID, sourceLink.contentID)
+                XCTAssertEqual(link.accessibleDescription, sourceLink.accessibleDescription)
+                XCTAssertEqual(link.manualTranscript, sourceLink.manualTranscript)
+                let selectedDestinationAnchors = try sourceLink.anchorBindings.map { binding in
+                    try XCTUnwrap(restoredAnchors.first(where: {
+                        $0.anchorID == binding.anchorID && $0.revision == binding.revision
+                    }))
+                }
+                let expectedBindings = try selectedDestinationAnchors.map {
+                    try TemporalEvidenceReportAnchorBindingV1(anchor: $0, clip: clip)
+                }.sorted()
+                XCTAssertEqual(link.anchorBindings, expectedBindings)
+                XCTAssertEqual(
+                    link.anchorBindings.map {
+                        "\($0.anchorID.uuidString.lowercased()):\($0.revision)"
+                    },
+                    sourceLink.anchorBindings.map {
+                        "\($0.anchorID.uuidString.lowercased()):\($0.revision)"
+                    }
+                )
+                try link.validate(clip: clip, anchors: selectedDestinationAnchors)
+                XCTAssertEqual(snapshot.assurance == nil, sourceSnapshot.assurance == nil)
+                if let assurance = snapshot.assurance {
+                    XCTAssertEqual(assurance.preview.workspaceID, clip.workspaceID)
+                    try assurance.validate()
+                }
+                if mode == .clone || mode == .fork {
+                    XCTAssertNotEqual(
+                        report.snapshotSHA256,
+                        sourceSnapshotSHAByID[snapshot.reportID]
+                    )
+                }
+                restoredSnapshots.append(snapshot)
+            }
+            let restoredLinks = restoredSnapshots.compactMap {
+                $0.temporalEvidenceLinks?.first
+            }
+            XCTAssertEqual(restoredLinks.count, 2)
+            XCTAssertEqual(restoredLinks[0].anchorCount, restoredLinks[1].anchorCount)
+            XCTAssertNotEqual(
+                Set(restoredLinks[0].anchorBindings.map(\.anchorID)),
+                Set(restoredLinks[1].anchorBindings.map(\.anchorID))
+            )
+
+            if mode == .clone || mode == .fork {
+                let boundRevision = try journal.currentRevision(
+                    writerInstanceID: C33TemporalEvidenceTestSupport.id(9_900 + offset)
+                )
+                let recovery = try TemporalEvidencePromotionRecoveryFileAdapterV1(
+                    generationRootURL: restored.generationRootURL,
+                    workspaceID: clip.workspaceID,
+                    verify: { _, _, _ in false },
+                    remove: { _, _, _ in }
+                )
+                let deletionReferences = try await TemporalEvidenceDeletionExternalReferenceResolverV1(
+                    modelContext: restored.modelContext,
+                    generationRootURL: restored.generationRootURL,
+                    journal: journal,
+                    recovery: recovery
+                ).temporalEvidenceReferences(
+                    workspaceID: clip.workspaceID,
+                    boundRevision: boundRevision
+                )
+                XCTAssertEqual(
+                    deletionReferences.reportLinks,
+                    restoredSnapshots.flatMap { $0.temporalEvidenceLinks ?? [] }
+                )
+            }
+        }
+    }
+}
+
+extension S6_4AtomicRestoreTests {
+    @MainActor
     func testV23P03C42AtomicRestorePublishesACompleteTypedReceipt() async throws {
         let receipts = [
             try CompositeAreaSafetyArchetypeV1.run(),
@@ -1347,6 +1670,25 @@ extension S6_4AtomicRestoreTests {
             XCTAssertNotEqual(restoredSession.generationID, harness.session.generationID)
             XCTAssertNil(try RestoreIntentStore(applicationSupportURL: harness.support).load())
         }
+    }
+}
+
+private final class C33TemporalEvidenceAnchorS64AtomicRestore: XCTestCase {
+    func testC33S64AtomicRestoreCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "restore.atomic.temporal-evidence",
+            kind: .video,
+            reportProjection: .typedLinkOnly
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "restore.atomic.temporal-evidence",
+            kind: .video,
+            reportProjection: .typedLinkOnly
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
     }
 }
 

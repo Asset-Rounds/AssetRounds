@@ -867,6 +867,25 @@ extension V9_16SnapshotProjectionTests {
     }
 }
 
+private final class C33TemporalEvidenceAnchorV916SnapshotProjection: XCTestCase {
+    func testC33V916SnapshotProjectionCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "snapshot.temporal-evidence-link",
+            kind: .audio,
+            reportProjection: .typedLinkOnly
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "snapshot.temporal-evidence-link",
+            kind: .audio,
+            reportProjection: .typedLinkOnly
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+}
+
 private final class C32AssistanceAnchorV916SnapshotProjection: XCTestCase {
     func testC32V916SnapshotProjectionCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(

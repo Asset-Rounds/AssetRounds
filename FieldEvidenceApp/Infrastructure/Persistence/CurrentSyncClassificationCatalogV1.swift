@@ -116,10 +116,11 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
     static let v30PersistentModelNames=["EvidenceContextRow","PairedObservationLinkRow"]
     static let v31PersistentModelNames=["LightingSystemRow","LightingObservationRow","LightingIssueRow","MeasurementPlanRow","LightingClaimStateRow"]
     static let v32PersistentModelNames=["AssistanceAcceptanceReceiptRow"]
+    static let v33PersistentModelNames=["TemporalEvidenceClipRow","TimecodedEvidenceAnchorRow"]
     static let activePersistentModelNames =
         (persistentModelNames + v6PersistentModelNames + v7PersistentModelNames
             + v8PersistentModelNames + v9PersistentModelNames + v10PersistentModelNames
-            + v11PersistentModelNames + v12PersistentModelNames + v13PersistentModelNames + v14PersistentModelNames + v15PersistentModelNames + v16PersistentModelNames + v17PersistentModelNames + v18PersistentModelNames + v19PersistentModelNames + v20PersistentModelNames + v21PersistentModelNames + v22PersistentModelNames + v23PersistentModelNames + v24PersistentModelNames + v25PersistentModelNames + v26PersistentModelNames + v27PersistentModelNames + v28PersistentModelNames + v29PersistentModelNames + v30PersistentModelNames + v31PersistentModelNames + v32PersistentModelNames).sorted()
+            + v11PersistentModelNames + v12PersistentModelNames + v13PersistentModelNames + v14PersistentModelNames + v15PersistentModelNames + v16PersistentModelNames + v17PersistentModelNames + v18PersistentModelNames + v19PersistentModelNames + v20PersistentModelNames + v21PersistentModelNames + v22PersistentModelNames + v23PersistentModelNames + v24PersistentModelNames + v25PersistentModelNames + v26PersistentModelNames + v27PersistentModelNames + v28PersistentModelNames + v29PersistentModelNames + v30PersistentModelNames + v31PersistentModelNames + v32PersistentModelNames + v33PersistentModelNames).sorted()
 
     static let ownedFileClassNames = [
         "cache", "commerceEntitlementCache", "database", "databaseSHM", "databaseWAL",
@@ -192,6 +193,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "AssetLocatorV1","LocatorBindingReceiptV1","AssetLocatorLifecycleClosureV1",
         "ScheduleDefinitionReleaseV1","OccurrenceHistoryEventV1",
         "AssistanceAcceptanceReceiptV1",
+        "TemporalEvidenceClipV1","TimecodedEvidenceAnchorV1",
     ]
 
     static let derivedIndexNames = [
@@ -249,7 +251,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "StoreSemanticEnvelopeV27","OccurrenceGenerationPlanV1","DueQueueProjectionV1","ReminderProjectionV1",
         "StoreSemanticEnvelopeV28","PlanDocumentV1","PlanRevisionV1","SpatialReferenceFrameV1","PlanPlacementV1","RebasePreviewV1","RebaseReceiptV1",
         "StoreSemanticEnvelopeV29","PoseAxisDescriptorRegistryV1","AssetPoseCurrentTipV1","CompletedPlacementPoseSnapshotV1",
-        "StoreSemanticEnvelopeV30","EvidenceContextV1","PairedObservationLinkV1","StoreSemanticEnvelopeV31","LightingTopologyV1","LightingDuePreviewV1","StoreSemanticEnvelopeV32",
+        "StoreSemanticEnvelopeV30","EvidenceContextV1","PairedObservationLinkV1","StoreSemanticEnvelopeV31","LightingTopologyV1","LightingDuePreviewV1","StoreSemanticEnvelopeV32","StoreSemanticEnvelopeV33",
         "WorkspaceMutationStateSemanticV1",
         "entityMutationRevision",
         "workspaceMutationState",
@@ -258,7 +260,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
     /// Proposals are workspace-scoped scratch only. They are declared so the
     /// lifecycle catalog can prove their absence from schema, backup, export,
     /// search, sync, journal history, diagnostics, and durable rejection data.
-    static let ephemeralProjectionNames = ["AssistanceProposalV1", "AssistanceCapabilityScratchV1"]
+    static let ephemeralProjectionNames = ["AssistanceProposalV1", "AssistanceCapabilityScratchV1", "TemporalEvidenceCaptureScratchV1"]
 
     static let journalRecoveryNames = [
         "CurrentGenerationPointerV2",
@@ -271,6 +273,8 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "MutationHistoryQuarantineRecordV1",
         "MutationReceiptV1",
         "SurveyDefinitionLifecycleEventV1",
+        "TemporalEvidenceDerivativeV1",
+        "TemporalEvidenceRetentionEventV1",
         "PreparedMigrationEnvelopeV1",
         "RestoreIntentV1",
         "ReversalBasisV1",
@@ -1480,8 +1484,9 @@ private extension CurrentSyncClassificationCatalogV1 {
             EvidenceContextRow.self,PairedObservationLinkRow.self,
             LightingSystemRow.self,LightingObservationRow.self,LightingIssueRow.self,MeasurementPlanRow.self,LightingClaimStateRow.self,
             AssistanceAcceptanceReceiptRow.self,
+            TemporalEvidenceClipRow.self,TimecodedEvidenceAnchorRow.self,
         ]
-        let runtimeNames = PersistentSchemaV32.models.map { modelType in
+        let runtimeNames = PersistentSchemaV33.models.map { modelType in
             String(describing: modelType)
                 .split(separator: ".")
                 .last
@@ -1494,9 +1499,9 @@ private extension CurrentSyncClassificationCatalogV1 {
               Set(PersistentSchemaV5.models.map { ObjectIdentifier($0) })
                 == Set(frozenV5.map { ObjectIdentifier($0) }),
               frozenNames == persistentModelNames,
-              PersistentSchemaV32.models.count == 110,
-              PersistentSchemaV32.models.count == expected.count,
-              Set(PersistentSchemaV32.models.map { ObjectIdentifier($0) })
+              PersistentSchemaV33.models.count == 112,
+              PersistentSchemaV33.models.count == expected.count,
+              Set(PersistentSchemaV33.models.map { ObjectIdentifier($0) })
                 == Set(expected.map { ObjectIdentifier($0) }),
               runtimeNames.count == Set(runtimeNames).count,
               runtimeNames.allSatisfy(ReplicationContractValidationV1.validToken),

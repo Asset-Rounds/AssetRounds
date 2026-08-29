@@ -122,3 +122,10 @@ enum C32AssistanceLifecycleBoundary_FieldEvidenceApp_Application_Pose_PlacementP
         try receipt.validate()
     }
 }
+
+enum C33TemporalEvidenceBoundary_Application_Pose_PlacementPoseCoordinatorV1_V1 {
+    static let clipType: TemporalEvidenceClipV1.Type = TemporalEvidenceClipV1.self
+    static let anchorType: TimecodedEvidenceAnchorV1.Type = TimecodedEvidenceAnchorV1.self
+    static let persistentSchemaVersion: Int =
+        TemporalEvidencePersistenceEnrollmentV1.persistentSchemaVersion
+}

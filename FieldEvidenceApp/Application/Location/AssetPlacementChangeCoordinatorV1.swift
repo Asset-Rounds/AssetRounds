@@ -273,3 +273,10 @@ enum AssistanceLocationProposalBoundaryV1 {
         return receipt.acceptedValue
     }
 }
+
+enum C33TemporalEvidenceBoundary_Application_Location_AssetPlacementChangeCoordinatorV1_V1 {
+    static let clipType: TemporalEvidenceClipV1.Type = TemporalEvidenceClipV1.self
+    static let anchorType: TimecodedEvidenceAnchorV1.Type = TimecodedEvidenceAnchorV1.self
+    static let persistentSchemaVersion: Int =
+        TemporalEvidencePersistenceEnrollmentV1.persistentSchemaVersion
+}

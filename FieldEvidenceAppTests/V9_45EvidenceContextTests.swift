@@ -731,6 +731,25 @@ private final class C31LightingAnchorV945EvidenceContextTests: XCTestCase {
     }
 }
 
+private final class C33TemporalEvidenceAnchorV945EvidenceContext: XCTestCase {
+    func testC33V945EvidenceContextCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "context.temporal-evidence-binding",
+            kind: .audio,
+            reportProjection: .typedLinkWithDerivativePreview
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "context.temporal-evidence-binding",
+            kind: .audio,
+            reportProjection: .typedLinkWithDerivativePreview
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+}
+
 private final class C32AssistanceAnchorV945EvidenceContext: XCTestCase {
     func testC32V945EvidenceContextCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(

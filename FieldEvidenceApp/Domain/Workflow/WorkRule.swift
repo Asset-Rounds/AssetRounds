@@ -7,6 +7,8 @@ enum ScheduleWorkStartRuleV1 {
     }
 }
 
+enum C33TemporalEvidenceWorkRuleBoundaryV1 { static let temporalEvidenceIsEvidenceContent=true;static let reportProjectionEmbedsLargeMedia=false;static let accessibleDescriptionIsManual=true;static let canonicalMutationKind:WorkspaceCommandKindV1 = .applyTemporalEvidence }
+
 struct WorkRuleSubmission: Equatable, Sendable {
     let performedLocalDate: String
     let description: String

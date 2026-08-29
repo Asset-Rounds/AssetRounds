@@ -49,7 +49,8 @@ enum C31LightingBackupImportPolicyV1 {
               !acceptsCrossWorkspaceRows,
               restoresHistoryBeforeProjection,
               ((manifest.persistentSchemaVersion == persistentSchemaVersion && records.recordsSchemaVersion == recordsSchemaVersion)
-                || (manifest.persistentSchemaVersion == 32 && records.recordsSchemaVersion == 31)) else {
+                || (manifest.persistentSchemaVersion == 32 && records.recordsSchemaVersion == 31)
+                || (manifest.persistentSchemaVersion == 33 && records.recordsSchemaVersion == 32)) else {
             throw BackupImportServiceError.invalidGeneration
         }
         do {
@@ -88,6 +89,23 @@ enum C32AssistanceBackupImportPolicyV1 {
                 receipts: package.records.assistanceAcceptanceReceipts
             )
             try package.records.validateC32AssistanceAcceptanceReceipts()
+        } catch {
+            throw BackupImportServiceError.invalidGeneration
+        }
+    }
+}
+
+enum C33TemporalEvidenceBackupImportPolicyV1 {
+    static func validate(_ package: ValidatedV4BackupPackageV1) throws {
+        guard package.records.recordsSchemaVersion >= TemporalEvidencePersistenceEnrollmentV1.recordsSchemaVersion
+                || package.manifest.source.persistentSchemaVersion >= TemporalEvidencePersistenceEnrollmentV1.persistentSchemaVersion else {
+            guard package.records.temporalEvidence.isEmpty else { throw BackupImportServiceError.invalidGeneration }
+            return
+        }
+        do {
+            try C33TemporalEvidencePackageValidationV1.validate(
+                package.records, manifest: package.manifest, members: package.members
+            )
         } catch {
             throw BackupImportServiceError.invalidGeneration
         }
@@ -571,6 +589,7 @@ private extension BackupImportService {
             )
             try C31LightingBackupImportPolicyV1.validate(temporaryValue)
             try C32AssistanceBackupImportPolicyV1.validate(temporaryValue)
+            try C33TemporalEvidenceBackupImportPolicyV1.validate(temporaryValue)
             guard temporaryValue.manifest == source.manifest,
                   try BackupPackageAnchoredFile.rootIdentity(at: sourceURL)
                     == source.rootIdentity else {
@@ -609,6 +628,7 @@ private extension BackupImportService {
             )
             try C31LightingBackupImportPolicyV1.validate(value)
             try C32AssistanceBackupImportPolicyV1.validate(value)
+            try C33TemporalEvidenceBackupImportPolicyV1.validate(value)
             guard value.manifest == source.manifest else {
                 throw BackupImportServiceError.invalidSource
             }
@@ -720,6 +740,7 @@ private extension BackupImportService {
             )
             try C31LightingBackupImportPolicyV1.validate(temporaryValue)
             try C32AssistanceBackupImportPolicyV1.validate(temporaryValue)
+            try C33TemporalEvidenceBackupImportPolicyV1.validate(temporaryValue)
             let indexByPath = Dictionary(
                 uniqueKeysWithValues: extraction.index.entries.map { ($0.path, $0) }
             )
@@ -761,6 +782,7 @@ private extension BackupImportService {
             )
             try C31LightingBackupImportPolicyV1.validate(value)
             try C32AssistanceBackupImportPolicyV1.validate(value)
+            try C33TemporalEvidenceBackupImportPolicyV1.validate(value)
             guard value.manifest == temporaryValue.manifest,
                   value.records == temporaryValue.records,
                   value.members.keys == temporaryValue.members.keys else {

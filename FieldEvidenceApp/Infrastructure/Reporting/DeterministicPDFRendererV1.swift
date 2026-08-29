@@ -808,3 +808,15 @@ extension DeterministicPDFRendererV1 {
         return lines
     }
 }
+
+enum C33TemporalEvidenceConformance_FieldEvidenceApp_Infrastructure_Reporting_DeterministicPDFRendererV1_swift {
+    static let durableFamilyCount = TemporalEvidencePersistenceEnrollmentV1.durableModelCount
+    static func validate(clip: TemporalEvidenceClipV1,
+                         anchor: TimecodedEvidenceAnchorV1) throws {
+        try clip.validateIntrinsic()
+        try anchor.validate(clip: clip)
+        guard durableFamilyCount == 2 else {
+            throw TemporalEvidenceContractFailureV1.invalidValue
+        }
+    }
+}

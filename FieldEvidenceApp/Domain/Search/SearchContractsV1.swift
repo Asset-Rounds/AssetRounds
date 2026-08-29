@@ -3607,3 +3607,54 @@ enum AssistanceSearchIsolationPolicyV1 {
         return false
     }
 }
+
+
+// MARK: - C33 temporal evidence search metadata
+
+struct TemporalEvidenceSearchRecordV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let workspaceID: WorkspaceID
+    let clipID: UUID
+    let clipRevision: UInt64
+    let clipSHA256: String
+    let mediaKind: TemporalEvidenceMediaKindV1
+    let durationMilliseconds: UInt64
+    let accessibleDescription: String
+    let anchorLabels: [String]
+    let includesTranscript: Bool
+
+    init(clip: TemporalEvidenceClipV1, anchors: [TimecodedEvidenceAnchorV1]) throws {
+        try clip.validateIntrinsic(); try anchors.forEach { try $0.validate(clip: clip) }
+        schemaVersion = Self.schemaVersion; workspaceID = clip.workspaceID
+        clipID = clip.clipID; clipRevision = clip.revision; clipSHA256 = clip.clipSHA256
+        mediaKind = clip.facts.kind; durationMilliseconds = clip.facts.durationMilliseconds
+        accessibleDescription = clip.accessibleDescription
+        anchorLabels = anchors.map(\.label).sorted()
+        includesTranscript = clip.manualTranscript?.isEmpty == false
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion, clipID != .zero, clipRevision > 0,
+              MutationEnvelopeV1.isSHA256(clipSHA256), durationMilliseconds > 0,
+              accessibleDescription.utf8.count <= 4_096,
+              anchorLabels == anchorLabels.sorted(),
+              anchorLabels.allSatisfy({ !$0.isEmpty && $0.utf8.count <= 256 }) else {
+            throw TemporalEvidenceContractFailureV1.invalidValue
+        }
+    }
+}
+
+enum TemporalEvidenceSearchProjectionPolicyV1 {
+    static let metadataOnly = true
+    static let excludesOriginalBytes = true
+    static let excludesPrivateLocators = true
+    static let excludesTranscriptBody = true
+
+    static func validate(_ record: TemporalEvidenceSearchRecordV1) throws {
+        try record.validate()
+        guard metadataOnly, excludesOriginalBytes, excludesPrivateLocators,
+              excludesTranscriptBody else { throw SearchContractFailureV1.forbiddenField }
+    }
+}

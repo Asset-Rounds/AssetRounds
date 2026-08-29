@@ -586,6 +586,7 @@ final class LocalChangeJournalV1 {
             try EvidenceContextJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)
             try LightingJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)
             try AssistanceLocalChangeJournalPolicyV1.validate(change)
+            try TemporalEvidenceLocalChangeJournalPolicyV1.validate(change)
             let disposition: MutationReplayDispositionV1
             if blocked {
                 disposition = try .init(mutationID: change.envelope.mutationID, disposition: .deferredGap, reasonCode: "PRIOR_CAUSAL_GAP")
@@ -1727,6 +1728,33 @@ enum AssistanceLocalChangeJournalPolicyV1 {
                   affected == imageIdentities,
                   Set(affected) == Set(change.entityChanges.map(\.identity)),
                   projected.mutationID == request.mutationID else {
+                throw ChangeJournalFailureV1.tamperedBatch
+            }
+        } catch let failure as ChangeJournalFailureV1 { throw failure }
+        catch { throw ChangeJournalFailureV1.tamperedBatch }
+    }
+}
+
+
+enum TemporalEvidenceLocalChangeJournalPolicyV1 {
+    static let commandKind: WorkspaceCommandKindV1 = .applyTemporalEvidence
+    static let originalContentTravelsOnlyByDigestVerifiedCheckpointMember = true
+
+    static func validate(_ change: JournalChangeV1) throws {
+        guard case let .applyTemporalEvidence(mutation) = change.envelope.command else { return }
+        do {
+            try C33TemporalEvidenceJournalBoundaryV1.validate(
+                mutation: mutation,
+                receipt: change.receipt
+            )
+            let affected = try mutation.affectedIdentities
+            guard change.envelope.commandKind == commandKind,
+                  change.envelope.mutationID == mutation.mutationID,
+                  change.receipt.mutationID == mutation.mutationID,
+                  change.receipt.postImages == (try mutation.mutationPostImages),
+                  Set(change.entityChanges.map(\.identity)) == Set(affected),
+                  change.entityChanges.map(\.postImage) == change.receipt.postImages,
+                  originalContentTravelsOnlyByDigestVerifiedCheckpointMember else {
                 throw ChangeJournalFailureV1.tamperedBatch
             }
         } catch let failure as ChangeJournalFailureV1 { throw failure }

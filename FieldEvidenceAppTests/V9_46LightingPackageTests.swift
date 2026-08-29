@@ -1667,6 +1667,25 @@ private final class C31InterruptedLightingWriter: LightingCanonicalWorkspaceWrit
     }
 }
 
+private final class C33TemporalEvidenceAnchorV946LightingPackage: XCTestCase {
+    func testC33V946LightingPackageCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "lighting.temporal-evidence-claim",
+            kind: .video,
+            reportProjection: .typedLinkWithDerivativePreview
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "lighting.temporal-evidence-claim",
+            kind: .video,
+            reportProjection: .typedLinkWithDerivativePreview
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+}
+
 private final class C32AssistanceAnchorV946LightingPackage: XCTestCase {
     func testC32V946LightingPackageCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(

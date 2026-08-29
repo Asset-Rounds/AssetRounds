@@ -1,0 +1,337 @@
+{
+  "$id": "https://assetrounds.invalid/v23/temporal-evidence.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "anchorCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "offsetMilliseconds": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "sourceBinding": {
+            "const": "EXACT_CLIP_REVISION_AND_ORIGINAL_DIGEST"
+          }
+        },
+        "required": [
+          "id",
+          "offsetMilliseconds",
+          "sourceBinding"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "captureProfiles": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "codecs": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "containers": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "kind": {
+            "enum": [
+              "AUDIO",
+              "VIDEO"
+            ]
+          },
+          "maximumByteCount": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "maximumClipsPerRequirement": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "maximumClipsPerSession": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "maximumDurationMilliseconds": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "maximumPixelHeight": {
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "maximumPixelWidth": {
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "minimumFreeByteCount": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "profileID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "reportProjection": {
+            "const": "TYPED_LINK_ONLY"
+          }
+        },
+        "required": [
+          "profileID",
+          "kind",
+          "maximumDurationMilliseconds",
+          "maximumByteCount",
+          "containers",
+          "codecs",
+          "maximumPixelWidth",
+          "maximumPixelHeight",
+          "maximumClipsPerRequirement",
+          "maximumClipsPerSession",
+          "minimumFreeByteCount",
+          "reportProjection"
+        ],
+        "type": "object"
+      },
+      "minItems": 2,
+      "type": "array"
+    },
+    "cardID": {
+      "const": "V23-P03-C33"
+    },
+    "clipCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "canonicalMutationCount": {
+            "const": 1
+          },
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "AUDIO",
+              "VIDEO"
+            ]
+          },
+          "originalDisposition": {
+            "const": "IMMUTABLE_CONTENT_REFERENCE"
+          },
+          "review": {
+            "const": "EXPLICIT"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "review",
+          "originalDisposition",
+          "canonicalMutationCount"
+        ],
+        "type": "object"
+      },
+      "minItems": 2,
+      "type": "array"
+    },
+    "derivativeCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "WAVEFORM",
+              "THUMBNAIL"
+            ]
+          },
+          "replacement": {
+            "const": "REGENERABLE_WITHOUT_ORIGINAL_REWRITE"
+          },
+          "sourceKind": {
+            "enum": [
+              "AUDIO",
+              "VIDEO"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "sourceKind",
+          "replacement"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "durableFamilies": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "evidenceIDs": {
+      "const": [
+        "V23-P03-C33-G01",
+        "V23-P03-C33-A01",
+        "V23-P03-C33-H01",
+        "V23-P03-C33-I01",
+        "V23-P03-C33-R01"
+      ]
+    },
+    "hostileCases": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 7,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "invariants": {
+      "additionalProperties": false,
+      "properties": {
+        "captureRequiresExplicitIntent": {
+          "const": true
+        },
+        "noAutomaticRedaction": {
+          "const": true
+        },
+        "noAutomaticTranscription": {
+          "const": true
+        },
+        "noBackgroundSurveillance": {
+          "const": true
+        },
+        "noRuntimeProvider": {
+          "const": true
+        },
+        "noSecondByteStore": {
+          "const": true
+        },
+        "noUnboundedRecording": {
+          "const": true
+        },
+        "oneCanonicalMutationPerAcceptance": {
+          "const": true
+        }
+      },
+      "required": [
+        "oneCanonicalMutationPerAcceptance",
+        "captureRequiresExplicitIntent",
+        "noUnboundedRecording",
+        "noBackgroundSurveillance",
+        "noSecondByteStore",
+        "noAutomaticTranscription",
+        "noAutomaticRedaction",
+        "noRuntimeProvider"
+      ],
+      "type": "object"
+    },
+    "lifecycle": {
+      "additionalProperties": false,
+      "properties": {
+        "contentBytesArchive": {
+          "const": "DIRECT_WITH_METADATA"
+        },
+        "deleteErase": {
+          "const": "WORKSPACE_SCOPED_NO_ORPHANS"
+        },
+        "retention": {
+          "const": "POLICY_BOUND_ORIGINAL_AND_REGENERABLE_DERIVATIVE"
+        },
+        "retry": {
+          "const": "SAME_EFFECT_AND_RECEIPT_OR_NO_EFFECT"
+        },
+        "runtimeProvider": {
+          "const": "NONE"
+        },
+        "scratch": {
+          "const": "DELETE_ON_CANCEL_CRASH_PERMISSION_LOSS_OR_DISK_PRESSURE"
+        }
+      },
+      "required": [
+        "contentBytesArchive",
+        "retry",
+        "scratch",
+        "retention",
+        "deleteErase",
+        "runtimeProvider"
+      ],
+      "type": "object"
+    },
+    "persistentSchemaVersion": {
+      "const": 33
+    },
+    "recordsSchemaVersion": {
+      "const": 32
+    },
+    "schema": {
+      "const": "V22P03C33TemporalEvidenceCorpusV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "statusFlags": {
+      "additionalProperties": {
+        "const": false
+      },
+      "type": "object"
+    },
+    "writerBoundaries": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 3,
+      "type": "array",
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "persistentSchemaVersion",
+    "recordsSchemaVersion",
+    "durableFamilies",
+    "captureProfiles",
+    "clipCases",
+    "anchorCases",
+    "derivativeCases",
+    "writerBoundaries",
+    "hostileCases",
+    "lifecycle",
+    "invariants",
+    "evidenceIDs",
+    "statusFlags"
+  ],
+  "title": "V23 P03 C33 Temporal Evidence Corpus",
+  "type": "object"
+}

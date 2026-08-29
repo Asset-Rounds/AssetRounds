@@ -940,3 +940,10 @@ struct AssistanceFeaturePolicyBindingV1: Equatable, Sendable {
         )
     }
 }
+
+enum C33TemporalEvidenceBoundary_Domain_Capability_CapabilityAvailabilityContractsV1_V1 {
+    static let clipType: TemporalEvidenceClipV1.Type = TemporalEvidenceClipV1.self
+    static let anchorType: TimecodedEvidenceAnchorV1.Type = TimecodedEvidenceAnchorV1.self
+    static let persistentSchemaVersion: Int =
+        TemporalEvidencePersistenceEnrollmentV1.persistentSchemaVersion
+}

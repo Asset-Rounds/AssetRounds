@@ -92,6 +92,26 @@ struct ThumbnailDerivativeV1: Codable, Equatable, Sendable {
     }
 }
 
+/// Canonical transform metadata for a bounded, regenerable waveform.  This is
+/// descriptive provenance only; it does not authorize audio capture or retain
+/// a second copy of the source bytes.
+struct WaveformDerivativeV1: Codable, Equatable, Sendable {
+    let rendererID: String
+    let rendererVersion: String
+    let sampleCount: Int
+
+    init(rendererID: String, rendererVersion: String, sampleCount: Int) throws {
+        guard ContentContractValidationV1.validID(rendererID),
+              ContentContractValidationV1.validVersion(rendererVersion),
+              (1...1_000_000).contains(sampleCount) else {
+            throw ContentContractFailureV1.invalidValue
+        }
+        self.rendererID = rendererID
+        self.rendererVersion = rendererVersion
+        self.sampleCount = sampleCount
+    }
+}
+
 struct AnnotationDerivativeV1: Codable, Equatable, Sendable {
     let rendererID: String
     let rendererVersion: String
@@ -142,6 +162,7 @@ struct PrivacyDerivativeV1: Codable, Equatable, Sendable {
 enum ContentDerivativeTransformV1: Codable, Equatable, Sendable {
     case sanitized(SanitizedDerivativeV1)
     case thumbnail(ThumbnailDerivativeV1)
+    case waveform(WaveformDerivativeV1)
     case annotation(AnnotationDerivativeV1)
     case sequence(SequenceDerivativeV1)
     case privacy(PrivacyDerivativeV1)
@@ -150,6 +171,7 @@ enum ContentDerivativeTransformV1: Codable, Equatable, Sendable {
         switch self {
         case .sanitized: return "SANITIZED"
         case .thumbnail: return "THUMBNAIL"
+        case .waveform: return "WAVEFORM"
         case .annotation: return "ANNOTATION"
         case .sequence: return "SEQUENCE"
         case .privacy: return "PRIVACY"
@@ -290,7 +312,7 @@ enum ContentProvenanceGraphV1 {
 
 // Strict tagged coding prevents an unknown derivative kind from being treated as an original.
 extension ContentDerivativeTransformV1 {
-    private enum CodingKeys: String, CodingKey, CaseIterable { case kind, sanitized, thumbnail, annotation, sequence, privacy }
+    private enum CodingKeys: String, CodingKey, CaseIterable { case kind, sanitized, thumbnail, waveform, annotation, sequence, privacy }
     init(from decoder: any Decoder) throws {
         let raw = try decoder.container(keyedBy: CodingKeys.self).decode(String.self, forKey: .kind)
         switch raw {
@@ -302,6 +324,10 @@ extension ContentDerivativeTransformV1 {
             try ContentClosedCodingV1.requireExact(decoder, keys: ["kind", "thumbnail"])
             let c = try decoder.container(keyedBy: CodingKeys.self)
             self = .thumbnail(try c.decode(ThumbnailDerivativeV1.self, forKey: .thumbnail))
+        case "WAVEFORM":
+            try ContentClosedCodingV1.requireExact(decoder, keys: ["kind", "waveform"])
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            self = .waveform(try c.decode(WaveformDerivativeV1.self, forKey: .waveform))
         case "ANNOTATION":
             try ContentClosedCodingV1.requireExact(decoder, keys: ["kind", "annotation"])
             let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -324,6 +350,7 @@ extension ContentDerivativeTransformV1 {
         switch self {
         case .sanitized(let value): try c.encode(value, forKey: .sanitized)
         case .thumbnail(let value): try c.encode(value, forKey: .thumbnail)
+        case .waveform(let value): try c.encode(value, forKey: .waveform)
         case .annotation(let value): try c.encode(value, forKey: .annotation)
         case .sequence(let value): try c.encode(value, forKey: .sequence)
         case .privacy(let value): try c.encode(value, forKey: .privacy)
@@ -361,6 +388,21 @@ extension ThumbnailDerivativeV1 {
     init(from decoder: any Decoder) throws {
         try ContentClosedCodingV1.requireExact(decoder, keys: CodingKeys.allCases.map(\.rawValue)); let c = try decoder.container(keyedBy: CodingKeys.self)
         try self.init(rendererID: c.decode(String.self, forKey: .rendererID), rendererVersion: c.decode(String.self, forKey: .rendererVersion), pixelWidth: c.decode(Int.self, forKey: .pixelWidth), pixelHeight: c.decode(Int.self, forKey: .pixelHeight))
+    }
+}
+
+extension WaveformDerivativeV1 {
+    private enum CodingKeys: String, CodingKey, CaseIterable { case rendererID, rendererVersion, sampleCount }
+    init(from decoder: any Decoder) throws {
+        try ContentClosedCodingV1.requireExact(decoder, keys: CodingKeys.allCases.map(\.rawValue)); let c = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(rendererID: c.decode(String.self, forKey: .rendererID), rendererVersion: c.decode(String.self, forKey: .rendererVersion), sampleCount: c.decode(Int.self, forKey: .sampleCount))
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(rendererID, forKey: .rendererID)
+        try c.encode(rendererVersion, forKey: .rendererVersion)
+        try c.encode(sampleCount, forKey: .sampleCount)
     }
 }
 
@@ -482,5 +524,58 @@ enum C32AssistanceLifecycleBoundary_FieldEvidenceApp_Domain_Content_ContentProve
 
     static func validateAcceptanceReceipt(_ receipt: AssistanceAcceptanceReceiptV1) throws {
         try receipt.validate()
+    }
+}
+
+// MARK: - C33 temporal evidence derivative provenance
+
+enum TemporalEvidenceProvenanceBoundaryV1 {
+    static let originalCanBeOverwrittenByDerivative = false
+    static let derivativesAreRegenerable = true
+    static let maximumDerivativeByteCount: Int64 = 64 * 1_024 * 1_024
+
+    static func validate(
+        clip: TemporalEvidenceClipV1,
+        derivative: TemporalEvidenceDerivativeV1
+    ) throws {
+        try clip.validateIntrinsic()
+        try derivative.validate(clip: clip)
+        let provenance = derivative.provenance
+        let expectedTransform: Bool
+        switch (derivative.kind, provenance.transform) {
+        case (.thumbnail, .thumbnail): expectedTransform = true
+        case (.waveform, .waveform): expectedTransform = true
+        default: expectedTransform = false
+        }
+        let compatibleMedia: Bool
+        switch derivative.kind {
+        case .thumbnail:
+            compatibleMedia = clip.facts.kind == .video
+                && derivative.content.mediaType.hasPrefix("image/")
+        case .waveform:
+            compatibleMedia = clip.facts.kind == .audio
+                && (derivative.content.mediaType.hasPrefix("image/")
+                    || derivative.content.mediaType == "application/json")
+        }
+        guard derivative.source.contentID == clip.original.contentID,
+              clip.original.digests.digest(for: derivative.source.digest.algorithm)
+                == derivative.source.digest,
+              derivative.content.byteRole == .derivative,
+              derivative.content.contentID != clip.original.contentID,
+              derivative.content.byteLength >= 0,
+              derivative.content.byteLength <= maximumDerivativeByteCount,
+              provenance.workspaceID == clip.original.workspaceID,
+              provenance.sources == [derivative.source],
+              provenance.derivativeContentID == derivative.content.contentID,
+              provenance.derivativeDigest
+                == derivative.content.digests.digest(for: provenance.derivativeDigest.algorithm),
+              expectedTransform, compatibleMedia else {
+            throw ContentContractFailureV1.orphanEvidence
+        }
+        try ContentProvenanceGraphV1.validate(
+            references: [clip.original, derivative.content],
+            originals: [clip.originalProvenance],
+            derivatives: [provenance]
+        )
     }
 }

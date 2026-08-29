@@ -1081,3 +1081,32 @@ enum C32AssistanceJournalBoundaryV1 {
         try receipt.validate()
     }
 }
+
+
+// MARK: - C33 temporal evidence journal boundary
+
+enum C33TemporalEvidenceJournalBoundaryV1 {
+    static let acceptedMutationKind: WorkspaceCommandKindV1 = .applyTemporalEvidence
+    static let durableEntityKinds: Set<WorkspaceEntityKindV1> = [
+        .temporalEvidenceClip, .timecodedEvidenceAnchor,
+    ]
+    static let supportingDerivativeAndRetentionValuesRemainEnvelopeBound = true
+    static let removalUsesCanonicalTombstonePostImages = true
+
+    static func validate(
+        mutation: TemporalEvidenceMutationV1,
+        receipt: MutationReceiptV1
+    ) throws {
+        try mutation.validate()
+        _ = try TemporalEvidenceMutationReceiptV1(
+            mutation: mutation,
+            mutationReceipt: receipt
+        )
+        let affected = try mutation.affectedIdentities
+        guard Set(affected.map(\.kind)).isSubset(of: durableEntityKinds),
+              supportingDerivativeAndRetentionValuesRemainEnvelopeBound,
+              removalUsesCanonicalTombstonePostImages else {
+            throw ChangeJournalFailureV1.tamperedBatch
+        }
+    }
+}

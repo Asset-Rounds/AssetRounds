@@ -858,6 +858,25 @@ extension V9_07CompatibilityCorpusIntegrationTests {
     }
 }
 
+private final class C33TemporalEvidenceAnchorV907CompatibilityCorpusIntegration: XCTestCase {
+    func testC33V907CompatibilityCorpusIntegrationCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "compatibility.temporal-evidence-corpus",
+            kind: .video,
+            reportProjection: .typedLinkOnly
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "compatibility.temporal-evidence-corpus",
+            kind: .video,
+            reportProjection: .typedLinkOnly
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+}
+
 private final class C32AssistanceAnchorV907CompatibilityCorpusIntegration: XCTestCase {
     func testC32V907CompatibilityCorpusIntegrationCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(

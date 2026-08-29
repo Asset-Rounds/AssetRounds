@@ -1463,3 +1463,17 @@ enum AssistanceSearchIndexBoundaryV1 {
         }
     }
 }
+
+
+// MARK: - C33 disposable temporal evidence search adapter
+
+extension LocalSearchIndexStoreV1 {
+    nonisolated static func temporalEvidenceRecord(
+        clip: TemporalEvidenceClipV1,
+        anchors: [TimecodedEvidenceAnchorV1]
+    ) throws -> TemporalEvidenceSearchRecordV1 {
+        let record = try TemporalEvidenceSearchRecordV1(clip: clip, anchors: anchors)
+        try TemporalEvidenceSearchProjectionPolicyV1.validate(record)
+        return record
+    }
+}

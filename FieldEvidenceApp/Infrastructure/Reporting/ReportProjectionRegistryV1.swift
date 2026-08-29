@@ -2338,3 +2338,24 @@ enum AssistanceReportProjectionBoundaryV1 {
         return false
     }
 }
+
+
+// MARK: - C33 temporal evidence projection registry
+
+enum TemporalEvidenceReportProjectionRegistryV1 {
+    static let contractID = "temporal-evidence.typed-link.v1"
+    static let metadataOnly = true
+    static let largeMediaEmbeddingRequired = false
+
+    static func projection(clip: TemporalEvidenceClipV1,
+                           anchors: [TimecodedEvidenceAnchorV1],
+                           profile: TemporalEvidenceLimitProfileV1) throws
+        -> TemporalEvidenceReportLinkV1 {
+        let link = try TemporalEvidenceReportLinkV1(
+            clip: clip, anchors: anchors, profile: profile
+        )
+        try link.validate(clip: clip, anchors: anchors)
+        try TemporalEvidenceReportProjectionPolicyV1.validate(link)
+        return link
+    }
+}

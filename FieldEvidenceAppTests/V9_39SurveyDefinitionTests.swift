@@ -1402,6 +1402,25 @@ private final class C31LightingAnchorV939SurveyDefinitionTests: XCTestCase {
     }
 }
 
+private final class C33TemporalEvidenceAnchorV939SurveyDefinition: XCTestCase {
+    func testC33V939SurveyDefinitionCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "definition.temporal-limit-binding",
+            kind: .video,
+            reportProjection: .typedLinkOnly
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "definition.temporal-limit-binding",
+            kind: .video,
+            reportProjection: .typedLinkOnly
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+}
+
 private final class C32AssistanceAnchorV939SurveyDefinition: XCTestCase {
     func testC32V939SurveyDefinitionCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(

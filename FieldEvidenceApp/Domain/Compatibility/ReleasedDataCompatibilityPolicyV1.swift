@@ -1110,3 +1110,36 @@ enum C32AssistanceLifecycleBoundary_FieldEvidenceApp_Domain_Compatibility_Releas
         try receipt.validate()
     }
 }
+
+struct TemporalEvidenceCompatibilityPolicyV1: Codable, Equatable, Sendable {
+    static let persistentSchemaVersion = 33
+    static let recordsSchemaVersion = 32
+    static let currentPersistentWriterVersion = "33.0.0"
+    static let currentBackupWriterVersion = "archive1-backup4-persistent33-records32"
+    static let downgradeDisposition = "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_FIRST_V33_WRITE"
+    static let readablePersistentWriterVersions = (1...33).map { "\($0).0.0" }
+    static let readableBackupWriterVersions = SurveySessionCompatibilityPolicyV1.readableBackupWriterVersions
+        + (26...32).map { "archive1-backup4-persistent\($0 + 1)-records\($0)" }
+
+    let durableFamilies = TemporalEvidencePersistenceEnrollmentV1.persistentFamilies
+    let originalContentBytesAreCanonical = true
+    let secondByteStoreAllowed = TemporalEvidencePersistenceEnrollmentV1.secondByteStoreAllowed
+    let historicOriginalDigestsRemainImmutable = true
+    let unknownVersionsFailClosed = true
+
+    func validate() throws {
+        guard Self.persistentSchemaVersion == TemporalEvidencePersistenceEnrollmentV1.persistentSchemaVersion,
+              Self.recordsSchemaVersion == TemporalEvidencePersistenceEnrollmentV1.recordsSchemaVersion,
+              durableFamilies == ["TemporalEvidenceClipRow", "TimecodedEvidenceAnchorRow"],
+              originalContentBytesAreCanonical, !secondByteStoreAllowed,
+              historicOriginalDigestsRemainImmutable, unknownVersionsFailClosed,
+              Self.readablePersistentWriterVersions.last == Self.currentPersistentWriterVersion,
+              Self.readableBackupWriterVersions.last == Self.currentBackupWriterVersion else {
+            throw CompatibilityContractErrorV1.invalidSupportTable
+        }
+    }
+}
+
+extension ReleasedDataCompatibilityPolicyV1 {
+    static let temporalEvidenceCompatibility = TemporalEvidenceCompatibilityPolicyV1()
+}

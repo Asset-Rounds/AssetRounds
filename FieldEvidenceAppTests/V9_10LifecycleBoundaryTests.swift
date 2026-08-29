@@ -1535,6 +1535,25 @@ extension V9_10LifecycleBoundaryTests {
     }
 }
 
+private final class C33TemporalEvidenceAnchorV910LifecycleBoundary: XCTestCase {
+    func testC33V910LifecycleBoundaryCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "lifecycle.temporal-protected-data",
+            kind: .audio,
+            reportProjection: .typedLinkOnly
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "lifecycle.temporal-protected-data",
+            kind: .audio,
+            reportProjection: .typedLinkOnly
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+}
+
 private final class C32AssistanceAnchorV910LifecycleBoundary: XCTestCase {
     func testC32V910LifecycleBoundaryCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(

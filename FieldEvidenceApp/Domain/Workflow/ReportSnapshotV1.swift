@@ -131,6 +131,11 @@ struct ReportSnapshotV1: Codable, Equatable, Sendable {
     /// metadata; it never infers facing, alignment, accuracy, or compliance.
     var placementPose: C37PlacementPoseFrozenSnapshotV1? = nil
 
+    /// Optional C33 typed links into canonical temporal evidence. The snapshot
+    /// carries bounded metadata and manual accessible text, never original
+    /// bytes or private content locators.
+    var temporalEvidenceLinks: [TemporalEvidenceReportLinkV1]? = nil
+
     var planHistoryProjection: PlanReportProjectionV1? {
         planProjection
     }

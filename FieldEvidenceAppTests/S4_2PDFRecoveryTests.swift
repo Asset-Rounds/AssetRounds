@@ -859,6 +859,25 @@ private final class C31LightingAnchorS42PDFRecoveryTests: XCTestCase {
     }
 }
 
+private final class C33TemporalEvidenceAnchorS42PDFRecovery: XCTestCase {
+    func testC33S42PDFRecoveryCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "pdf.temporal-link-recovery",
+            kind: .audio,
+            reportProjection: .typedLinkOnly
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "pdf.temporal-link-recovery",
+            kind: .audio,
+            reportProjection: .typedLinkOnly
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+}
+
 private final class C32AssistanceAnchorS42PDFRecovery: XCTestCase {
     func testC32S42PDFRecoveryCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(

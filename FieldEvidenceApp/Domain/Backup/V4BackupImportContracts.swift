@@ -121,8 +121,9 @@ enum V26AssetLocatorImportBoundaryV1 {
     static let cloneForkBindingPolicy = "HISTORIC_REBIND_SOURCE_SIGNATURE_INACTIVE"
 
     static func validate(persistent: Int, records: Int) throws {
-        guard persistent == persistentSchemaVersion,
-              records == recordsSchemaVersion,
+        guard ((persistent == persistentSchemaVersion && records == recordsSchemaVersion)
+                || (persistent == TemporalEvidencePersistenceEnrollmentV1.persistentSchemaVersion
+                    && records == TemporalEvidencePersistenceEnrollmentV1.recordsSchemaVersion)),
               durableFamilyCount == V26BackupAssetLocatorRecordV1.Kind.allCases.count,
               lifecycleHistoryStorage == "MUTATION_HISTORY_ONLY",
               cloneForkBindingPolicy == "HISTORIC_REBIND_SOURCE_SIGNATURE_INACTIVE" else {
@@ -291,7 +292,7 @@ enum V32AssistanceImportBoundaryV1 {
             throw BackupCanonicalDecodingErrorV1.invalidRecords
         }
         guard Set(receipts.map(\.receiptID)).count == receipts.count,
-              Set(receipts.map { $0.mutationID.rawValue }).count == receipts.count else {
+              Set(receipts.map(\.mutationID)).count == receipts.count else {
             throw BackupCanonicalDecodingErrorV1.invalidRecords
         }
         for receipt in receipts { _ = try receipt.value() }

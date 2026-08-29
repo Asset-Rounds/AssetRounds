@@ -780,6 +780,25 @@ private final class C31LightingAnchorS83DiagnosticPrivacyTests: XCTestCase {
     }
 }
 
+private final class C33TemporalEvidenceAnchorS83DiagnosticPrivacy: XCTestCase {
+    func testC33S83DiagnosticPrivacyCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "diagnostics.temporal-metadata-only",
+            kind: .video,
+            reportProjection: .typedLinkOnly
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "diagnostics.temporal-metadata-only",
+            kind: .video,
+            reportProjection: .typedLinkOnly
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+}
+
 private final class C32AssistanceAnchorS83DiagnosticPrivacy: XCTestCase {
     func testC32S83DiagnosticPrivacyCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(

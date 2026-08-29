@@ -69,6 +69,24 @@ enum C32AssistanceBackupRestoreRegistryV1 {
     }
 }
 
+enum C33TemporalEvidenceBackupRestoreRegistryV1 {
+    static let durableFamilies = TemporalEvidencePersistenceEnrollmentV1.persistentFamilies
+    static let archiveDisposition = "CANONICAL_METADATA_PLUS_DIRECT_CONTENT_BYTES"
+    static let contentMemberAuthority = "content/<workspace>/<contentID>/original.bin"
+    static let cloneForkDisposition = "REBIND_METADATA_PRESERVE_ORIGINAL_CONTENT_DIGEST"
+    static let derivedContentDisposition = "EXISTING_CONTENT_AUTHORITY_REGENERABLE"
+
+    static func validate() throws {
+        guard durableFamilies == ["TemporalEvidenceClipRow", "TimecodedEvidenceAnchorRow"],
+              archiveDisposition == "CANONICAL_METADATA_PLUS_DIRECT_CONTENT_BYTES",
+              contentMemberAuthority.contains("content"),
+              cloneForkDisposition == "REBIND_METADATA_PRESERVE_ORIGINAL_CONTENT_DIGEST",
+              derivedContentDisposition == "EXISTING_CONTENT_AUTHORITY_REGENERABLE" else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}
+
 /// C28 schedule backup/restore is a two-family closure: immutable definition
 /// releases plus append-only occurrence history. Projection queues and
 /// reminders are rebuilt after restore and never enter the kernel archive.
@@ -536,6 +554,7 @@ enum KernelBackupRestoreRegistryV4 {
         try validatePlacementPoseLifecycle()
         try validateLightingLifecycle()
         try C32AssistanceBackupRestoreRegistryV1.validate()
+        try C33TemporalEvidenceBackupRestoreRegistryV1.validate()
         try validatePrivacyTransformLifecycle()
         try validateMeasurementIntegrityLifecycle()
         try validatePackageEvolutionLifecycle()

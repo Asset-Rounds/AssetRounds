@@ -338,3 +338,28 @@ enum C32AssistanceCompatibility_Content_ContentContractRegistryV1 {
     static let interruptionNeverPromotesAProposal = true
     static let createsParallelStoreOrWriter = false
 }
+
+// MARK: - C33 canonical content contract enrollment
+
+enum TemporalEvidenceContentContractEnrollmentV1 {
+    static let requiredContracts = [
+        "ContentReferenceV1",
+        "ContentLocatorV1",
+        "ContentOriginalProvenanceV1",
+        "ContentDerivativeProvenanceV1",
+        "ContentProvenanceGraphV1",
+        "DraftImmutableContentWriterV1"
+    ]
+    static let usesExistingCanonicalWriter = true
+    static let addsSecondByteStore = false
+
+    static func validate() throws {
+        guard Set(requiredContracts).count == requiredContracts.count,
+              usesExistingCanonicalWriter,
+              !addsSecondByteStore,
+              TemporalEvidencePersistenceEnrollmentV1.secondByteStoreAllowed == false,
+              TemporalEvidencePersistenceEnrollmentV1.immutableOriginalsAreRewritten == false else {
+            throw ContentContractFailureV1.invalidValue
+        }
+    }
+}

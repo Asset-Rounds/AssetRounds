@@ -60,6 +60,8 @@ final class ObservationAndTimeRow {
     }
 }
 
+enum C33TemporalEvidenceTimeModelBoundaryV1 { static let anchorTimeBase="CLIP_RELATIVE_MONOTONIC_MILLISECONDS";static let wallClockDefinesAnchorOrdering=false;static let canonicalMutationKind:WorkspaceCommandKindV1 = .applyTemporalEvidence }
+
 enum ObservationAndTimeRowFailureV1: Error, Equatable, Sendable {
     case missingRow(UUID)
     case duplicateRow(UUID)

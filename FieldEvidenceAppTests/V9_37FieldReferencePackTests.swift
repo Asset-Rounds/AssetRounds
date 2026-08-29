@@ -1086,6 +1086,25 @@ private final class C31LightingAnchorV937FieldReferencePackTests: XCTestCase {
     }
 }
 
+private final class C33TemporalEvidenceAnchorV937FieldReferencePack: XCTestCase {
+    func testC33V937FieldReferencePackCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "reference-pack.temporal-source-link",
+            kind: .video,
+            reportProjection: .typedLinkOnly
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "reference-pack.temporal-source-link",
+            kind: .video,
+            reportProjection: .typedLinkOnly
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+}
+
 private final class C32AssistanceAnchorV937FieldReferencePack: XCTestCase {
     func testC32V937FieldReferencePackCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(

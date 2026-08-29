@@ -1209,6 +1209,105 @@ extension S6_6EraseRecoveryTests {
     }
 }
 
+extension S6_6EraseRecoveryTests {
+    @MainActor
+    func testC33RealEraseRemovesTemporalRowsJournalAndCanonicalOriginalBytes() async throws {
+        let harness = try await makeHarness("c33-temporal-evidence")
+        defer { cleanup(harness) }
+        let coordinator = try XCTUnwrap(harness.coordinator)
+        let fixture = try C33TemporalEvidenceTestSupport.clip(
+            slot: 760,
+            workspaceID: coordinator.workspaceIdentity.workspaceID,
+            reportProjection: .typedLinkOnly
+        )
+        let current = try coordinator.workspaceWriter.currentRevision()
+        let expected = try C33TemporalEvidenceTestSupport.expectedRevision(
+            for: fixture.clip,
+            generationID: current.generationID,
+            writerInstanceID: current.writerInstanceID,
+            workspaceRevision: current.revision
+        )
+        let digest = try XCTUnwrap(fixture.clip.original.digests.digest(for: .sha256))
+        let contentRequest = try DraftImmutableContentWriteRequestV1(
+            workspaceID: fixture.clip.workspaceID,
+            contentID: fixture.clip.original.contentID,
+            digest: digest,
+            byteLength: fixture.clip.original.byteLength,
+            mediaType: fixture.clip.original.mediaType,
+            mutationID: fixture.clip.mutationID,
+            createdAt: fixture.clip.original.createdAt
+        )
+        _ = try await EvidenceBundleStore(
+            generationRootURL: coordinator.generationRootURL
+        ).persistImmutableOriginal(
+            bytes: C33TemporalEvidenceTestSupport.bytes(for: fixture.clip.facts.kind),
+            request: contentRequest
+        )
+        _ = try coordinator.workspaceWriter.commitTemporalEvidence(TemporalEvidenceMutationV1(
+            workspaceID: fixture.clip.workspaceID,
+            expectedRevision: expected,
+            mutationID: fixture.clip.mutationID,
+            payload: .acceptClip(
+                fixture.clip,
+                review: C33TemporalEvidenceTestSupport.review(for: fixture.clip),
+                predecessor: nil
+            )
+        ))
+        XCTAssertEqual(
+            try coordinator.modelContext.fetchCount(FetchDescriptor<TemporalEvidenceClipRow>()),
+            1
+        )
+        let originalURL = coordinator.generationRootURL.appendingPathComponent(
+            try TemporalEvidenceBackupMemberV1.original(for: fixture.clip)
+        )
+        XCTAssertTrue(fileManager.fileExists(atPath: originalURL.path))
+
+        let service = EraseAllService(
+            applicationSupportURL: harness.support,
+            cachesDirectoryURL: harness.caches,
+            temporaryDirectoryURL: harness.temporary,
+            userDefaults: harness.defaults,
+            bundleIdentifier: bundleID,
+            makeUUID: sequence([
+                uuid("66000000-0000-0000-0000-00000000c331"),
+                uuid("66000000-0000-0000-0000-00000000c332")
+            ])
+        )
+        let outcome = try await service.erase(
+            confirmation: "ERASE",
+            coordinator: coordinator,
+            diagnosticsStore: harness.diagnostics
+        ) { session in
+            coordinator.activate(session: session)
+        }
+        try service.validateTemporalEvidenceEraseClosure(session: outcome.session)
+        XCTAssertEqual(
+            try outcome.session.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()),
+            0
+        )
+        XCTAssertFalse(fileManager.fileExists(atPath: originalURL.path))
+    }
+}
+
+private final class C33TemporalEvidenceAnchorS66EraseRecovery: XCTestCase {
+    func testC33S66EraseRecoveryCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "erase.temporal-evidence-no-orphan",
+            kind: .audio,
+            reportProjection: .typedLinkOnly
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "erase.temporal-evidence-no-orphan",
+            kind: .audio,
+            reportProjection: .typedLinkOnly
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+}
+
 private final class C32AssistanceAnchorS66EraseRecovery: XCTestCase {
     func testC32S66EraseRecoveryCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(

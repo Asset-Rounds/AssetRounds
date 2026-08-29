@@ -567,3 +567,10 @@ enum C32AssistanceSearchBoundaryV1_Application_Search_SearchCoordinatorV1 {
         try receipt.validate()
     }
 }
+
+enum C33TemporalEvidenceBoundary_Application_Search_SearchCoordinatorV1_V1 {
+    static let clipType: TemporalEvidenceClipV1.Type = TemporalEvidenceClipV1.self
+    static let anchorType: TimecodedEvidenceAnchorV1.Type = TimecodedEvidenceAnchorV1.self
+    static let persistentSchemaVersion: Int =
+        TemporalEvidencePersistenceEnrollmentV1.persistentSchemaVersion
+}

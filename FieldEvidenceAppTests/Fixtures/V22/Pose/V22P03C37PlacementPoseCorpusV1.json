@@ -137,5 +137,12 @@
     "oneShotLocationProposalNeverPromotesPose": true,
     "workspaceSwitchAndSourceDeletionExpireProposal": true,
     "manualPlacementPathRemainsEquivalent": true
+  },
+  "c33TemporalEvidenceCompatibility": {
+    "compatibilityCardID": "V23-P03-C33",
+    "clipAndAnchorPersistentSchemaVersion": 33,
+    "poseAndClipSourceRevisionsAreIndependent": true,
+    "timecodedAnchorNeverMutatesPlacementPose": true,
+    "workspaceOrSourceMismatchFailsClosed": true
   }
 }

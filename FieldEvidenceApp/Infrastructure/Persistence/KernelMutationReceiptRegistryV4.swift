@@ -308,6 +308,15 @@ enum KernelMutationReceiptRegistryV4 {
     static func validateFieldReference(mutation:FieldReferenceMutationV1,receipt:MutationReceiptV1)throws{_ = try FieldReferenceMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)}
     static func validateAccessibleDocumentAssessment(mutation:AccessibleDocumentMutationV1,receipt:MutationReceiptV1)throws{_ = try AccessibleDocumentMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)}
     static func validateSurveyDefinition(mutation:SurveyDefinitionMutationV1,receipt:MutationReceiptV1)throws{_ = try SurveyDefinitionMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)}
+    static func validateTemporalEvidence(
+        mutation: TemporalEvidenceMutationV1,
+        receipt: MutationReceiptV1
+    ) throws {
+        try C33TemporalEvidenceJournalBoundaryV1.validate(
+            mutation: mutation,
+            receipt: receipt
+        )
+    }
     static let registrations: [KernelMutationRegistrationV4] = {
         do {
             return try KernelPersistenceV4RecordKind.allCases.map { kind in

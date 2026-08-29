@@ -1,3 +1,4 @@
+import CryptoKit
 import Darwin
 import Foundation
 
@@ -180,6 +181,31 @@ struct FieldDraftOrphanCleanupProofV1: Equatable, Sendable {
     let removableReservationIDs: [UUID]
 }
 
+/// Closed, revision-bound retention proof assembled by the canonical deletion
+/// service.  File cleanup receives this single proof instead of independently
+/// optional caller arrays, so omitting one owner class cannot authorize byte
+/// removal.
+struct TemporalEvidenceLiveReferenceClosureV1: Equatable, Sendable {
+    let boundRevision: WorkspaceRevisionV1
+    let liveClipContentIDs: Set<String>
+    let liveJournalContentIDs: Set<String>
+    let liveReportContentIDs: Set<String>
+    let reservedContentIDs: Set<String>
+    let recoveryContentIDs: Set<String>
+
+    func validate(workspaceID: WorkspaceID) throws {
+        let all = liveClipContentIDs
+            .union(liveJournalContentIDs)
+            .union(liveReportContentIDs)
+            .union(reservedContentIDs)
+            .union(recoveryContentIDs)
+        guard boundRevision.workspaceID == workspaceID,
+              all.allSatisfy(ContentContractValidationV1.validID) else {
+            throw OrphanFileCleanupServiceError.invalidReference
+        }
+    }
+}
+
 final class OrphanFileCleanupReplacementInjection {
     private let lock = NSLock()
     private var operation: ((URL) throws -> Void)?
@@ -281,6 +307,77 @@ final class OrphanFileCleanupService {
             throw OrphanFileCleanupServiceError.nonterminalDraftContent
         }
         return .init(removableStageIDs: removableStages, removableReservationIDs: removableReservations)
+    }
+
+    /// Removes one exact canonical content object only after every durable and
+    /// recovery owner has been projected. Active clips, report links, draft
+    /// reservations, and recovery holds are all retention authorities.
+    func removeCanonicalContentIfUnreferenced(
+        reference: ContentReferenceV1,
+        locator: ContentLocatorV1,
+        authoritySnapshot: TemporalEvidenceLiveReferenceClosureV1
+    ) throws -> OrphanFileCleanupSummary {
+        try locator.validate(against: reference)
+        guard let rawWorkspaceID = UUID(uuidString: reference.workspaceID) else {
+            throw OrphanFileCleanupServiceError.invalidReference
+        }
+        let workspaceID = WorkspaceID(rawValue: rawWorkspaceID)
+        try authoritySnapshot.validate(workspaceID: workspaceID)
+        let retained = authoritySnapshot.liveClipContentIDs
+            .union(authoritySnapshot.liveJournalContentIDs)
+            .union(authoritySnapshot.liveReportContentIDs)
+            .union(authoritySnapshot.reservedContentIDs)
+            .union(authoritySnapshot.recoveryContentIDs)
+        if retained.contains(reference.contentID) {
+            return .init(inspectedFileCount: 1, removedFileCount: 0,
+                         removedByteCount: 0, removedDirectoryCount: 0)
+        }
+        guard ContentContractValidationV1.validID(reference.contentID),
+              UUID(uuidString: reference.workspaceID)?.uuidString.lowercased()
+                == reference.workspaceID,
+              locator.relativePath
+                == "content/\(reference.workspaceID)/\(reference.contentID)/original.bin" else {
+            throw OrphanFileCleanupServiceError.invalidReference
+        }
+        let root = try openPinnedRoot(); defer { Darwin.close(root) }
+        guard let content = try openRootIfPresent(parent: root, name: "content") else {
+            return .init(inspectedFileCount: 0, removedFileCount: 0,
+                         removedByteCount: 0, removedDirectoryCount: 0)
+        }
+        defer { Darwin.close(content.descriptor) }
+        guard let workspace = try openRootIfPresent(
+            parent: content.descriptor, name: reference.workspaceID
+        ) else {
+            return .init(inspectedFileCount: 0, removedFileCount: 0,
+                         removedByteCount: 0, removedDirectoryCount: 0)
+        }
+        defer { Darwin.close(workspace.descriptor) }
+        guard let object = try openRootIfPresent(
+            parent: workspace.descriptor, name: reference.contentID
+        ) else {
+            return .init(inspectedFileCount: 0, removedFileCount: 0,
+                         removedByteCount: 0, removedDirectoryCount: 0)
+        }
+        defer { Darwin.close(object.descriptor) }
+        guard try boundedNames(in: object.descriptor) == ["original.bin"] else {
+            throw OrphanFileCleanupServiceError.invalidOwnedLayout
+        }
+        let leaf = try inspectLeaf(parent: object.descriptor, name: "original.bin")
+        guard leaf.byteCount == reference.byteLength else {
+            throw OrphanFileCleanupServiceError.identityChanged
+        }
+        try verifySHA256(parent: object.descriptor, leaf: leaf, reference: reference)
+        try removeLeaf(parent: object.descriptor, expectedParent: object.identity,
+                       leaf: leaf, relativePath: locator.relativePath)
+        guard try boundedNames(in: object.descriptor).isEmpty,
+              Darwin.unlinkat(workspace.descriptor, reference.contentID, AT_REMOVEDIR) == 0,
+              Self.entryIsAbsent(parent: workspace.descriptor, name: reference.contentID),
+              try Self.identity(workspace.descriptor, directory: true) == workspace.identity,
+              Darwin.fsync(workspace.descriptor) == 0 else {
+            throw OrphanFileCleanupServiceError.identityChanged
+        }
+        return .init(inspectedFileCount: 1, removedFileCount: 1,
+                     removedByteCount: reference.byteLength, removedDirectoryCount: 1)
     }
 
     /// The local search projection is derived and has no canonical row-owned
@@ -723,6 +820,50 @@ private extension OrphanFileCleanupService {
         }
     }
 
+    func verifySHA256(
+        parent: Int32,
+        leaf: Leaf,
+        reference: ContentReferenceV1
+    ) throws {
+        guard let expected = reference.digests.digest(for: .sha256) else {
+            throw OrphanFileCleanupServiceError.invalidReference
+        }
+        let descriptor = Darwin.openat(parent, leaf.name, O_RDONLY | O_NOFOLLOW)
+        guard descriptor >= 0 else {
+            throw OrphanFileCleanupServiceError.identityChanged
+        }
+        defer { Darwin.close(descriptor) }
+        var initial = stat()
+        guard Darwin.fstat(descriptor, &initial) == 0,
+              (initial.st_mode & S_IFMT) == S_IFREG,
+              initial.st_nlink == 1,
+              Identity(device: initial.st_dev, inode: initial.st_ino) == leaf.identity,
+              Int64(initial.st_size) == leaf.byteCount else {
+            throw OrphanFileCleanupServiceError.identityChanged
+        }
+        var hasher = SHA256()
+        var buffer = [UInt8](repeating: 0, count: 64 * 1_024)
+        while true {
+            let count = buffer.withUnsafeMutableBytes { bytes in
+                Darwin.read(descriptor, bytes.baseAddress, bytes.count)
+            }
+            if count < 0, errno == EINTR { continue }
+            guard count >= 0 else {
+                throw OrphanFileCleanupServiceError.identityChanged
+            }
+            if count == 0 { break }
+            hasher.update(data: Data(buffer[0..<count]))
+        }
+        var after = stat()
+        let observed = hasher.finalize().map { String(format: "%02x", $0) }.joined()
+        guard observed == expected.hexadecimalValue,
+              Darwin.fstat(descriptor, &after) == 0,
+              after.st_dev == initial.st_dev, after.st_ino == initial.st_ino,
+              after.st_size == initial.st_size, after.st_nlink == 1 else {
+            throw OrphanFileCleanupServiceError.identityChanged
+        }
+    }
+
     func inspectLeaf(parent: Int32, name: String) throws -> Leaf {
         let descriptor = Darwin.openat(parent, name, O_RDONLY | O_NOFOLLOW)
         guard descriptor >= 0 else {
@@ -874,4 +1015,32 @@ enum C32AssistanceCompatibility_Deletion_OrphanFileCleanupService {
     static let manualFallbackRemainsAvailable = true
     static let interruptionNeverPromotesAProposal = true
     static let createsParallelStoreOrWriter = false
+}
+
+
+// MARK: - C33 temporal evidence orphan cleanup
+
+enum TemporalEvidenceOrphanCleanupPolicyV1 {
+    static let missingOriginalCannotDeleteClipRow = true
+    static let regenerableDerivativeMayBeRemoved = true
+    static let unacceptedScratchIsAlwaysDisposable = true
+    static let acceptedOriginalUsesCanonicalReferenceReachability = true
+
+    static func mayRemoveDerivative(
+        _ derivative: TemporalEvidenceDerivativeV1,
+        clip: TemporalEvidenceClipV1,
+        hasLiveReference: Bool
+    ) throws -> Bool {
+        try derivative.validate(clip: clip)
+        return regenerableDerivativeMayBeRemoved && !hasLiveReference
+    }
+
+    static func validate() throws {
+        guard missingOriginalCannotDeleteClipRow,
+              regenerableDerivativeMayBeRemoved,
+              unacceptedScratchIsAlwaysDisposable,
+              acceptedOriginalUsesCanonicalReferenceReachability else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
 }

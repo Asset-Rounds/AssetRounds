@@ -159,6 +159,23 @@ struct AssistanceDiagnosticMetadataV1: Codable, Equatable, Sendable {
     }
 }
 
+/// Aggregate-only C33 health. Canonical media bytes, transcript/description,
+/// timecodes, notes, content IDs, digests, and actor identities are excluded.
+struct TemporalEvidenceDiagnosticMetadataV1: Codable, Equatable, Sendable {
+    let clipCount: Int
+    let anchorCount: Int
+    let metadataOnly: Bool
+    let contentBytesExcluded: Bool
+    let transcriptAndNotesExcluded: Bool
+    let identifiersAndDigestsExcluded: Bool
+
+    var isValid: Bool {
+        [clipCount, anchorCount].allSatisfy { $0 >= 0 && $0 <= 100_000 }
+            && metadataOnly && contentBytesExcluded && transcriptAndNotesExcluded
+            && identifiersAndDigestsExcluded
+    }
+}
+
 struct DiagnosticExportV1: Codable, Equatable, Sendable {
     let app: DiagnosticAppContextV1
     let counters: DiagnosticsV1
@@ -209,6 +226,8 @@ struct DiagnosticExportV1: Codable, Equatable, Sendable {
     var placementPose: PlacementPoseDiagnosticMetadataV1? = nil
     /// Optional C32 aggregate-only assistance health.
     var assistance: AssistanceDiagnosticMetadataV1? = nil
+    /// Optional C33 aggregate-only temporal evidence health.
+    var temporalEvidence: TemporalEvidenceDiagnosticMetadataV1? = nil
 
     /// Integration event payloads, subjects, cursors, and checkpoint bytes are
     /// never diagnostic material. Diagnostics may describe only the static
@@ -242,6 +261,7 @@ struct DiagnosticExportV1: Codable, Equatable, Sendable {
             && (plan?.isValid ?? true)
             && (placementPose?.isValid ?? true)
             && (assistance?.isValid ?? true)
+            && (temporalEvidence?.isValid ?? true)
             && integrationProjectionPayloadExcluded
     }
 
@@ -302,6 +322,10 @@ enum IntegrationProjectionDiagnosticExclusionV1 {
         "proposalID", "proposalSHA256", "valueSHA256", "requestSHA256",
         "targetMutationSHA256", "canonicalEffectIdentities", "acceptedValue",
         "acceptedBy", "target", "source", "capability", "privacyClass",
+        // C33 content, transcription, anchors, provenance, and digests are
+        // private work evidence and never diagnostic payload.
+        "manualTranscript", "accessibleDescription", "offsetMilliseconds",
+        "note", "clipSHA256", "anchorSHA256", "sourceSHA256",
     ]
 
     static func validate(_ data: Data) throws {
@@ -533,6 +557,16 @@ enum DiagnosticExportCanonicalEncoderV1 {
         }
         if let assistance = value.assistance {
             object["assistance"] = assistanceValue(assistance)
+        }
+        if let temporalEvidence = value.temporalEvidence {
+            object["temporalEvidence"] = .object([
+                "anchorCount": .integer(temporalEvidence.anchorCount),
+                "clipCount": .integer(temporalEvidence.clipCount),
+                "contentBytesExcluded": .bool(temporalEvidence.contentBytesExcluded),
+                "identifiersAndDigestsExcluded": .bool(temporalEvidence.identifiersAndDigestsExcluded),
+                "metadataOnly": .bool(temporalEvidence.metadataOnly),
+                "transcriptAndNotesExcluded": .bool(temporalEvidence.transcriptAndNotesExcluded),
+            ])
         }
         let data = try CanonicalJSONV1.encode(.object(object))
         try IntegrationProjectionDiagnosticExclusionV1.validate(data)

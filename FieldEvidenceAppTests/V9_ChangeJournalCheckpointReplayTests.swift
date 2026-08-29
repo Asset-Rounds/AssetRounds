@@ -1246,6 +1246,25 @@ extension V9_ChangeJournalCheckpointReplayTests {
     }
 }
 
+private final class C33TemporalEvidenceAnchorV9ChangeJournalCheckpointReplay: XCTestCase {
+    func testC33V9ChangeJournalCheckpointReplayCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "journal.temporal-evidence-replay",
+            kind: .audio,
+            reportProjection: .typedLinkOnly
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "journal.temporal-evidence-replay",
+            kind: .audio,
+            reportProjection: .typedLinkOnly
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+}
+
 private final class C32AssistanceAnchorV9ChangeJournalCheckpointReplay: XCTestCase {
     func testC32V9ChangeJournalCheckpointReplayCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(

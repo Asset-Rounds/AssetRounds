@@ -158,5 +158,12 @@
     "proposalNeverBecomesDraftAuthority": true,
     "userEnteredTextSurvivesProposalExpiry": true,
     "rejectCancelAndRelaunchDeleteOnlyProposalScratch": true
+  },
+  "c33TemporalEvidenceCompatibility": {
+    "compatibilityCardID": "V23-P03-C33",
+    "clipAndAnchorPersistentSchemaVersion": 33,
+    "leasedAudioVideoScratchIsNonpersistent": true,
+    "promotionUsesOneCanonicalWorkspaceMutation": true,
+    "cancelCrashPermissionLossAndDiskPressureLeaveNoOrphan": true
   }
 }

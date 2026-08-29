@@ -79,5 +79,12 @@
     "proposalRemainsUnverifiedUntilAcceptance": true,
     "proposalNeverMutatesEvidenceContext": true,
     "acceptedValueUsesExpectedRevisionWriter": true
+  },
+  "c33TemporalEvidenceCompatibility": {
+    "compatibilityCardID": "V23-P03-C33",
+    "clipAndAnchorPersistentSchemaVersion": 33,
+    "accessibleDescriptionIsExplicitTypedMetadata": true,
+    "evidenceContextNeverAliasesTemporalOriginalBytes": true,
+    "expectedRevisionBindsContextAndClipTargets": true
   }
 }

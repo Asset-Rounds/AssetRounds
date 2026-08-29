@@ -63,3 +63,10 @@ enum AssistancePersistenceEnrollmentV1 {
     static let proposalIsPersistent = false
     static let rejectedProposalCorpusIsPersistent = false
 }
+
+enum C33TemporalEvidenceBoundary_Domain_Models_AssistancePersistenceModelsV1_V1 {
+    static let clipType: TemporalEvidenceClipV1.Type = TemporalEvidenceClipV1.self
+    static let anchorType: TimecodedEvidenceAnchorV1.Type = TimecodedEvidenceAnchorV1.self
+    static let persistentSchemaVersion: Int =
+        TemporalEvidencePersistenceEnrollmentV1.persistentSchemaVersion
+}

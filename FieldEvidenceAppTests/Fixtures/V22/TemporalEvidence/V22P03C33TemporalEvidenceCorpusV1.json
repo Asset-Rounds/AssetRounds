@@ -1,0 +1,148 @@
+{
+  "schema": "V22P03C33TemporalEvidenceCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P03-C33",
+  "persistentSchemaVersion": 33,
+  "recordsSchemaVersion": 32,
+  "durableFamilies": [
+    "TemporalEvidenceClipRow",
+    "TimecodedEvidenceAnchorRow"
+  ],
+  "captureProfiles": [
+    {
+      "profileID": "AUDIO_REVIEWED_EVIDENCE_V1",
+      "kind": "AUDIO",
+      "maximumDurationMilliseconds": 120000,
+      "maximumByteCount": 8388608,
+      "containers": ["m4a"],
+      "codecs": ["aac-lc"],
+      "maximumPixelWidth": null,
+      "maximumPixelHeight": null,
+      "maximumClipsPerRequirement": 4,
+      "maximumClipsPerSession": 16,
+      "minimumFreeByteCount": 134217728,
+      "reportProjection": "TYPED_LINK_ONLY"
+    },
+    {
+      "profileID": "VIDEO_REVIEWED_EVIDENCE_V1",
+      "kind": "VIDEO",
+      "maximumDurationMilliseconds": 60000,
+      "maximumByteCount": 67108864,
+      "containers": ["mp4"],
+      "codecs": ["h264"],
+      "maximumPixelWidth": 1920,
+      "maximumPixelHeight": 1080,
+      "maximumClipsPerRequirement": 4,
+      "maximumClipsPerSession": 16,
+      "minimumFreeByteCount": 134217728,
+      "reportProjection": "TYPED_LINK_ONLY"
+    }
+  ],
+  "clipCases": [
+    {
+      "id": "AUDIO_ACCEPTED",
+      "kind": "AUDIO",
+      "review": "EXPLICIT",
+      "originalDisposition": "IMMUTABLE_CONTENT_REFERENCE",
+      "canonicalMutationCount": 1
+    },
+    {
+      "id": "VIDEO_ACCEPTED",
+      "kind": "VIDEO",
+      "review": "EXPLICIT",
+      "originalDisposition": "IMMUTABLE_CONTENT_REFERENCE",
+      "canonicalMutationCount": 1
+    }
+  ],
+  "anchorCases": [
+    {
+      "id": "BEGINNING",
+      "offsetMilliseconds": 0,
+      "sourceBinding": "EXACT_CLIP_REVISION_AND_ORIGINAL_DIGEST"
+    },
+    {
+      "id": "END_INCLUSIVE",
+      "offsetMilliseconds": 30000,
+      "sourceBinding": "EXACT_CLIP_REVISION_AND_ORIGINAL_DIGEST"
+    }
+  ],
+  "derivativeCases": [
+    {
+      "kind": "WAVEFORM",
+      "sourceKind": "AUDIO",
+      "replacement": "REGENERABLE_WITHOUT_ORIGINAL_REWRITE"
+    },
+    {
+      "kind": "THUMBNAIL",
+      "sourceKind": "VIDEO",
+      "replacement": "REGENERABLE_WITHOUT_ORIGINAL_REWRITE"
+    }
+  ],
+  "writerBoundaries": [
+    "BEFORE_VALIDATION",
+    "AFTER_VALIDATION_BEFORE_SCRATCH_PROMOTION",
+    "AFTER_ORIGINAL_PROMOTION_BEFORE_CANONICAL_EFFECT",
+    "AFTER_CANONICAL_EFFECT_BEFORE_RECEIPT",
+    "AFTER_RECEIPT_BEFORE_SCRATCH_CLEANUP",
+    "AFTER_DERIVATIVE_WRITE_BEFORE_PUBLICATION",
+    "AFTER_ASSOCIATION_COMMIT_BEFORE_RECEIPT"
+  ],
+  "hostileCases": [
+    "INCOMING_CALL_INTERRUPTION",
+    "LOW_DISK",
+    "CODEC_UNAVAILABLE",
+    "PROTECTED_DATA_LOCKED",
+    "APP_BACKGROUNDED",
+    "CLIP_SOURCE_REVISION_MISMATCH",
+    "OVERSIZED_IMPORT",
+    "PERMISSION_DENIED",
+    "CAPTURE_CANCELLED",
+    "CONTENT_DIGEST_TAMPERED",
+    "WRONG_WORKSPACE",
+    "EXPECTED_GENERATION_STALE",
+    "EXPECTED_WRITER_STALE",
+    "EXPECTED_WORKSPACE_REVISION_STALE",
+    "EXPECTED_ENTITY_REVISION_STALE",
+    "ANCHOR_OUTSIDE_CLIP_DURATION",
+    "UNKNOWN_SCHEMA_VERSION"
+  ],
+  "lifecycle": {
+    "contentBytesArchive": "DIRECT_WITH_METADATA",
+    "retry": "SAME_EFFECT_AND_RECEIPT_OR_NO_EFFECT",
+    "scratch": "DELETE_ON_CANCEL_CRASH_PERMISSION_LOSS_OR_DISK_PRESSURE",
+    "retention": "POLICY_BOUND_ORIGINAL_AND_REGENERABLE_DERIVATIVE",
+    "deleteErase": "WORKSPACE_SCOPED_NO_ORPHANS",
+    "runtimeProvider": "NONE"
+  },
+  "invariants": {
+    "oneCanonicalMutationPerAcceptance": true,
+    "captureRequiresExplicitIntent": true,
+    "noUnboundedRecording": true,
+    "noBackgroundSurveillance": true,
+    "noSecondByteStore": true,
+    "noAutomaticTranscription": true,
+    "noAutomaticRedaction": true,
+    "noRuntimeProvider": true
+  },
+  "evidenceIDs": [
+    "V23-P03-C33-G01",
+    "V23-P03-C33-A01",
+    "V23-P03-C33-H01",
+    "V23-P03-C33-I01",
+    "V23-P03-C33-R01"
+  ],
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "physicalDeviceEvidence": false,
+    "phase10PollingDuringParallelExecution": false,
+    "release": false,
+    "releaseReadiness": false
+  }
+}

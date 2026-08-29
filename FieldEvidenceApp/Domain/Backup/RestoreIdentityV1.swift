@@ -649,3 +649,34 @@ enum C32AssistanceRestoreIdentityPolicyV1 {
         for record in records { _ = try record.value() }
     }
 }
+
+/// C33 metadata is rebound for clone/fork, while the immutable original bytes
+/// and their content digest are preserved exactly. Supporting derivative and
+/// retention lineage remains inside the rebound clip and canonical journal.
+enum C33TemporalEvidenceRestoreIdentityPolicyV1 {
+    static let persistentSchemaVersion = 33
+    static let recordsSchemaVersion = 32
+    static let durableFamilyCount = 2
+    static let directOriginalBytesRemainDigestIdentical = true
+    static let cloneForkRebindsWorkspaceAndTargetAuthority = true
+
+    static func validate(
+        _ records: [V33BackupTemporalEvidenceRecordV1],
+        mode: BackupRestoreMode
+    ) throws {
+        guard persistentSchemaVersion == TemporalEvidencePersistenceEnrollmentV1.persistentSchemaVersion,
+              recordsSchemaVersion == TemporalEvidencePersistenceEnrollmentV1.recordsSchemaVersion,
+              durableFamilyCount == TemporalEvidencePersistenceEnrollmentV1.durableModelCount,
+              directOriginalBytesRemainDigestIdentical,
+              cloneForkRebindsWorkspaceAndTargetAuthority else {
+            throw TemporalEvidenceContractFailureV1.invalidValue
+        }
+        for record in records {
+            switch record.kind {
+            case .clip: _ = try record.clipValue()
+            case .anchor: _ = try record.anchorValue()
+            }
+        }
+        _ = mode
+    }
+}

@@ -30,6 +30,32 @@ enum C32AssistanceKernelDeletionEnrollmentV1 {
     }
 }
 
+
+/// C33 has exactly two SwiftData rows. Derivative and retention values are
+/// journal/content support, not additional row families.
+enum TemporalEvidenceKernelDeletionEnrollmentV1 {
+    static let durableRowNames: Set<String> = [
+        "TemporalEvidenceClipRow", "TimecodedEvidenceAnchorRow"
+    ]
+    static let journalSupportValueNames: Set<String> = [
+        "TemporalEvidenceDerivativeV1", "TemporalEvidenceRetentionEventV1"
+    ]
+    static let ordinaryDeleteRemovesClipGraph = true
+    static let eraseClearsRowsAndOwnedContent = true
+    static let missingBytesNeverDeleteCanonicalRows = true
+
+    static func validate() throws {
+        guard durableRowNames.count == 2,
+              journalSupportValueNames.count == 2,
+              durableRowNames.isDisjoint(with: journalSupportValueNames),
+              ordinaryDeleteRemovesClipGraph,
+              eraseClearsRowsAndOwnedContent,
+              missingBytesNeverDeleteCanonicalRows else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}
+
 enum C30EvidenceContextKernelDeletionEnrollmentV1 {
     static let persistentRowNames: Set<String> = ["EvidenceContextRow", "PairedObservationLinkRow"]
     static let derivedNames: Set<String> = ["DerivedSolarContextV1", "PairedObservationMismatchPreviewV1"]
@@ -537,6 +563,7 @@ enum KernelDeletionEraseRegistryV4 {
     }
 
     static func validate() throws {
+        try TemporalEvidenceKernelDeletionEnrollmentV1.validate()
         try AssetLocatorKernelDeletionEnrollmentV1.validate()
         try validateSurveyDefinitionLifecycle()
         try SurveySessionKernelDeletionEnrollmentV1.validate()

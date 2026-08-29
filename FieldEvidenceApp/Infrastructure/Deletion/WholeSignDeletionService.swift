@@ -134,6 +134,219 @@ enum WholeSignDeletionServiceError: Error, Equatable {
     case retainedPrivacyTransformReferences([String])
 }
 
+/// Report snapshots and recovery journals are separate canonical authorities
+/// from the SwiftData clip/reservation rows.  Their adapter must return the
+/// complete reference set at the requested workspace revision or throw.
+struct TemporalEvidenceExternalReferenceSnapshotV1: Equatable, Sendable {
+    let boundRevision: WorkspaceRevisionV1
+    let reportLinks: [TemporalEvidenceReportLinkV1]
+    let journalContentIDs: Set<String>
+    let recoveryContentIDs: Set<String>
+    let reportAuthoritySHA256: String
+    let journalAuthoritySHA256: String
+    let recoveryAuthoritySHA256: String
+
+    func validate(workspaceID: WorkspaceID) throws {
+        try reportLinks.forEach { try $0.validate() }
+        guard boundRevision.workspaceID == workspaceID,
+              reportLinks.allSatisfy({ $0.workspaceID == workspaceID }),
+              journalContentIDs.allSatisfy(ContentContractValidationV1.validID),
+              recoveryContentIDs.allSatisfy(ContentContractValidationV1.validID),
+              KernelCanonicalHashV1.validSHA256(reportAuthoritySHA256),
+              KernelCanonicalHashV1.validSHA256(journalAuthoritySHA256),
+              KernelCanonicalHashV1.validSHA256(recoveryAuthoritySHA256) else {
+            throw WholeSignDeletionServiceError.recoveryRequired
+        }
+    }
+}
+
+@MainActor
+protocol TemporalEvidenceDeletionExternalReferenceResolvingV1: AnyObject {
+    /// Reads all live report-snapshot and journal/recovery content owners at
+    /// exactly `boundRevision`; partial or unavailable authorities must throw.
+    func temporalEvidenceReferences(
+        workspaceID: WorkspaceID,
+        boundRevision: WorkspaceRevisionV1
+    ) async throws -> TemporalEvidenceExternalReferenceSnapshotV1
+}
+
+/// Production adapter over the canonical report snapshots, mutation journal,
+/// and promotion-recovery authority. It never accepts a prefiltered reference
+/// list from a deletion caller.
+@MainActor
+final class TemporalEvidenceDeletionExternalReferenceResolverV1:
+    TemporalEvidenceDeletionExternalReferenceResolvingV1 {
+    private let modelContext: ModelContext
+    private let generationRootURL: URL
+    private let journal: MutationJournalStoreV1
+    private let recovery: any TemporalEvidencePromotionRecoveryPortV1
+
+    init(modelContext: ModelContext, generationRootURL: URL,
+         journal: MutationJournalStoreV1,
+         recovery: any TemporalEvidencePromotionRecoveryPortV1) {
+        self.modelContext = modelContext
+        self.generationRootURL = generationRootURL.standardizedFileURL
+        self.journal = journal
+        self.recovery = recovery
+    }
+
+    func temporalEvidenceReferences(
+        workspaceID: WorkspaceID,
+        boundRevision: WorkspaceRevisionV1
+    ) async throws -> TemporalEvidenceExternalReferenceSnapshotV1 {
+        guard !modelContext.hasChanges,
+              generationRootURL.isFileURL,
+              generationRootURL.lastPathComponent
+                == boundRevision.generationID.uuidString.lowercased(),
+              try journal.currentRevision(
+                writerInstanceID: boundRevision.writerInstanceID
+              ) == boundRevision else {
+            throw WholeSignDeletionServiceError.recoveryRequired
+        }
+        let reports = try modelContext.fetch(FetchDescriptor<Report>(
+            sortBy: [SortDescriptor(\.id)]
+        ))
+        guard Set(reports.map(\.id)).count == reports.count else {
+            throw WholeSignDeletionServiceError.recoveryRequired
+        }
+        let rootIdentity = try ReportPDFAnchoredFile.rootIdentity(
+            at: generationRootURL
+        )
+        var links: [TemporalEvidenceReportLinkV1] = []
+        for report in reports {
+            let expectedPath = "snapshots/\(report.id.uuidString.lowercased()).json"
+            guard report.schemaVersion == 1,
+                  report.snapshotRelativePath == expectedPath,
+                  KernelCanonicalHashV1.validSHA256(report.snapshotSHA256) else {
+                throw WholeSignDeletionServiceError.recoveryRequired
+            }
+            let bytes = try ReportPDFAnchoredFile.readRegularFile(
+                at: generationRootURL.appendingPathComponent(expectedPath),
+                within: generationRootURL, rootIdentity: rootIdentity
+            )
+            let digest = SHA256.hash(data: bytes)
+                .map { String(format: "%02x", $0) }.joined()
+            let snapshot = try ReportSnapshotEncoderV1().decode(bytes)
+            guard digest == report.snapshotSHA256,
+                  snapshot.reportID == report.id,
+                  snapshot.packetID == report.packetID,
+                  snapshot.sourceRecordID == report.sourceRecordID,
+                  snapshot.snapshotSchemaVersion == report.snapshotSchemaVersion else {
+                throw WholeSignDeletionServiceError.recoveryRequired
+            }
+            let snapshotLinks = snapshot.temporalEvidenceLinks ?? []
+            try snapshotLinks.forEach { try $0.validate() }
+            guard snapshotLinks.allSatisfy({ $0.workspaceID == workspaceID }) else {
+                throw WholeSignDeletionServiceError.recoveryRequired
+            }
+            links.append(contentsOf: snapshotLinks)
+        }
+        let pending = try await recovery.recoverPending()
+        let workspacePending = pending.filter { $0.workspaceID == workspaceID }
+        let recoveryIDs = Set(workspacePending.map(\.contentID))
+        let liveClips = try modelContext.fetch(
+            FetchDescriptor<TemporalEvidenceClipRow>()
+        ).map { try $0.value() }.filter { $0.workspaceID == workspaceID }
+        let liveDerivativeReferences = Set(liveClips.flatMap(\.derivativeReferences))
+        var journalContentIDs = Set<String>()
+        var clipHistory: [String: TemporalEvidenceClipV1] = [:]
+        var anchorHistory: [String: TimecodedEvidenceAnchorV1] = [:]
+        func record(_ clip: TemporalEvidenceClipV1) throws {
+            try clip.validateIntrinsic()
+            let key = "\(clip.clipID.uuidString.lowercased())|\(clip.revision)|\(clip.clipSHA256)"
+            if let existing = clipHistory[key], existing != clip {
+                throw WholeSignDeletionServiceError.recoveryRequired
+            }
+            clipHistory[key] = clip
+        }
+        func record(_ anchor: TimecodedEvidenceAnchorV1) throws {
+            try anchor.validateIntrinsic()
+            let key = "\(anchor.anchorID.uuidString.lowercased())|\(anchor.revision)|\(anchor.anchorSHA256)"
+            if let existing = anchorHistory[key], existing != anchor {
+                throw WholeSignDeletionServiceError.recoveryRequired
+            }
+            anchorHistory[key] = anchor
+        }
+        let receiptRows = try modelContext.fetch(FetchDescriptor<MutationReceiptRow>())
+            .filter { $0.workspaceID == workspaceID.rawValue }
+        for row in receiptRows {
+            guard row.commandKind == WorkspaceCommandKindV1.applyTemporalEvidence.rawValue
+            else { continue }
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
+            guard case let .applyTemporalEvidence(mutation) = envelope.command,
+                  envelope.workspaceID == workspaceID,
+                  envelope.mutationID.rawValue == row.mutationID,
+                  try envelope.canonicalSHA256() == row.envelopeSHA256 else {
+                throw WholeSignDeletionServiceError.recoveryRequired
+            }
+            let generic = try MutationReceiptV1.decodeCanonical(from: row.receiptData)
+            _ = try TemporalEvidenceMutationReceiptV1(
+                mutation: mutation, mutationReceipt: generic
+            )
+            guard try generic.canonicalSHA256() == row.receiptSHA256 else {
+                throw WholeSignDeletionServiceError.recoveryRequired
+            }
+            if case .registerDerivative(_, let derivative, _, _) = mutation.payload,
+               liveDerivativeReferences.contains(try derivative.reference) {
+                journalContentIDs.insert(derivative.content.contentID)
+            }
+            switch mutation.payload {
+            case .acceptClip(let value, _, let predecessor):
+                try record(value); if let predecessor { try record(predecessor) }
+            case .appendAnchor(let value, let clip, let predecessor):
+                try record(clip); try record(value)
+                if let predecessor { try record(predecessor) }
+            case .registerDerivative(let successor, _, let predecessor, _),
+                 .applyRetention(let successor, _, let predecessor, _):
+                try record(successor); try record(predecessor)
+            case .removeClip(_, let clips, let anchors, _, _):
+                try clips.forEach(record); try anchors.forEach(record)
+            }
+        }
+        for link in links {
+            let clipKey = "\(link.clipID.uuidString.lowercased())|\(link.clipRevision)|\(link.clipSHA256)"
+            guard let clip = clipHistory[clipKey] else {
+                throw WholeSignDeletionServiceError.recoveryRequired
+            }
+            let projectedAnchors = try link.anchorBindings.map { binding in
+                let key = "\(binding.anchorID.uuidString.lowercased())|\(binding.revision)|\(binding.anchorSHA256)"
+                guard let anchor = anchorHistory[key],
+                      try binding.matches(anchor, clip: clip) else {
+                    throw WholeSignDeletionServiceError.recoveryRequired
+                }
+                return anchor
+            }
+            try link.validate(clip: clip, anchors: projectedAnchors)
+        }
+        guard recoveryIDs.allSatisfy(ContentContractValidationV1.validID),
+              !modelContext.hasChanges,
+              try journal.currentRevision(
+                writerInstanceID: boundRevision.writerInstanceID
+              ) == boundRevision else {
+            throw WholeSignDeletionServiceError.recoveryRequired
+        }
+        let reportDigest = try WorkspaceMutationCanonicalV1.sha256(
+            reports.map { "\($0.id.uuidString.lowercased())|\($0.snapshotSHA256)" }
+        )
+        let recoveryDigest = try WorkspaceMutationCanonicalV1.sha256(
+            workspacePending.map {
+                "\($0.mutationID.rawValue.uuidString.lowercased())|\($0.contentID)|\($0.state.rawValue)"
+            }.sorted()
+        )
+        let journalDigest = try WorkspaceMutationCanonicalV1.sha256(
+            journalContentIDs.sorted()
+        )
+        return TemporalEvidenceExternalReferenceSnapshotV1(
+            boundRevision: boundRevision, reportLinks: links,
+            journalContentIDs: journalContentIDs,
+            recoveryContentIDs: recoveryIDs,
+            reportAuthoritySHA256: reportDigest,
+            journalAuthoritySHA256: journalDigest,
+            recoveryAuthoritySHA256: recoveryDigest
+        )
+    }
+}
+
 enum WholeSignDeletionFailurePoint: Equatable, Sendable {
     case preparedJournal
     case databaseSave
@@ -212,6 +425,13 @@ private enum WholeSignDeletionLifecycleRouteV1 {
             } catch {
                 throw WholeSignDeletionServiceError.graphInvalid
             }
+        }
+    }
+
+    func currentRevision() throws -> WorkspaceRevisionV1 {
+        switch self {
+        case .live(let dependencies): return try dependencies.writer.currentRevision()
+        case .expiringCompatibility: throw WholeSignDeletionServiceError.recoveryRequired
         }
     }
 }
@@ -953,6 +1173,180 @@ final class WholeSignDeletionService {
         for id in evidenceIDs {
             do { try files.removeEvidenceBundleIfEmpty(id: id) }
             catch { throw WholeSignDeletionServiceError.cleanupFailed }
+        }
+    }
+}
+
+
+@MainActor
+extension WholeSignDeletionService {
+    func makeTemporalEvidenceDeletionExternalReferenceResolver(
+        journal: MutationJournalStoreV1,
+        recovery: any TemporalEvidencePromotionRecoveryPortV1
+    ) -> TemporalEvidenceDeletionExternalReferenceResolverV1 {
+        TemporalEvidenceDeletionExternalReferenceResolverV1(
+            modelContext: modelContext, generationRootURL: generationRootURL,
+            journal: journal, recovery: recovery
+        )
+    }
+
+    func makeTemporalEvidenceRetentionContentCleanup(
+        externalReferences: any TemporalEvidenceDeletionExternalReferenceResolvingV1,
+        cleanup: OrphanFileCleanupService
+    ) -> TemporalEvidenceRetentionContentCleanupAdapterV1 {
+        let resolver = TemporalEvidenceCanonicalRetentionCleanupResolverV1(
+            deletion: self, externalReferences: externalReferences,
+            cleanup: cleanup
+        )
+        return TemporalEvidenceRetentionContentCleanupAdapterV1(
+            resolver: resolver
+        )
+    }
+
+    /// Post-commit byte cleanup for a governed C33 delete. The canonical writer
+    /// must already have removed the clip and its anchors; this service cannot
+    /// use a missing file to authorize row deletion.
+    func cleanupTemporalContentAfterCanonicalDelete(
+        clip: TemporalEvidenceClipV1,
+        externalReferences: any TemporalEvidenceDeletionExternalReferenceResolvingV1,
+        cleanup: OrphanFileCleanupService
+    ) async throws -> OrphanFileCleanupSummary {
+        try clip.validateIntrinsic()
+        let clipID = clip.clipID
+        guard try modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>(
+            predicate: #Predicate { $0.clipID == clipID }
+        )).isEmpty,
+        try modelContext.fetch(FetchDescriptor<TimecodedEvidenceAnchorRow>(
+            predicate: #Predicate { $0.clipID == clipID }
+        )).isEmpty else {
+            throw WholeSignDeletionServiceError.recoveryRequired
+        }
+        let closure = try await temporalEvidenceReferenceClosure(
+            workspaceID: clip.workspaceID, externalReferences: externalReferences
+        )
+        return try cleanup.removeCanonicalContentIfUnreferenced(
+            reference: clip.original, locator: clip.locator,
+            authoritySnapshot: closure
+        )
+    }
+
+    func cleanupTemporalDerivativeAfterCanonicalDelete(
+        derivative: TemporalEvidenceDerivativeV1,
+        deletedClip: TemporalEvidenceClipV1,
+        externalReferences: any TemporalEvidenceDeletionExternalReferenceResolvingV1,
+        cleanup: OrphanFileCleanupService
+    ) async throws -> OrphanFileCleanupSummary {
+        try derivative.validate(clip: deletedClip)
+        let clipID = deletedClip.clipID
+        guard try modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>(
+            predicate: #Predicate { $0.clipID == clipID }
+        )).isEmpty else { throw WholeSignDeletionServiceError.recoveryRequired }
+        let closure = try await temporalEvidenceReferenceClosure(
+            workspaceID: derivative.workspaceID,
+            externalReferences: externalReferences
+        )
+        return try cleanup.removeCanonicalContentIfUnreferenced(
+            reference: derivative.content, locator: derivative.locator,
+            authoritySnapshot: closure
+        )
+    }
+
+    private func temporalEvidenceReferenceClosure(
+        workspaceID: WorkspaceID,
+        externalReferences: any TemporalEvidenceDeletionExternalReferenceResolvingV1
+    ) async throws -> TemporalEvidenceLiveReferenceClosureV1 {
+        let revisionBefore = try lifecycleRoute.currentRevision()
+        guard revisionBefore.workspaceID == workspaceID,
+              revisionBefore.generationID == generationID else {
+            throw WholeSignDeletionServiceError.recoveryRequired
+        }
+        let external = try await externalReferences.temporalEvidenceReferences(
+            workspaceID: workspaceID,
+            boundRevision: revisionBefore
+        )
+        try external.validate(workspaceID: workspaceID)
+        guard external.boundRevision == revisionBefore else {
+            throw WholeSignDeletionServiceError.recoveryRequired
+        }
+        let liveClips = try modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>())
+            .map { try $0.value() }
+        let liveReservations = try modelContext.fetch(
+            FetchDescriptor<DraftContentReservationRow>()
+        ).map { try $0.value() }.filter {
+            $0.workspaceID == workspaceID && $0.reconciliationState != .deleted
+        }
+        guard !modelContext.hasChanges,
+              try lifecycleRoute.currentRevision() == revisionBefore else {
+            throw WholeSignDeletionServiceError.recoveryRequired
+        }
+        let liveClipContentIDs = Set(liveClips.map(\.original.contentID))
+        let reportContentIDs = Set(external.reportLinks.map(\.contentID))
+        let reservedContentIDs = Set(liveReservations.map(\.locator.contentID))
+        return TemporalEvidenceLiveReferenceClosureV1(
+            boundRevision: revisionBefore,
+            liveClipContentIDs: liveClipContentIDs,
+            liveJournalContentIDs: external.journalContentIDs,
+            liveReportContentIDs: reportContentIDs,
+            reservedContentIDs: reservedContentIDs,
+            recoveryContentIDs: external.recoveryContentIDs
+        )
+    }
+}
+
+/// Resolver injected into the core retention adapter. The canonical tombstone
+/// receipt is validated before any byte work, and replay is idempotent because
+/// the anchored cleanup treats an already-absent exact content object as done.
+@MainActor
+final class TemporalEvidenceCanonicalRetentionCleanupResolverV1:
+    TemporalEvidenceRetentionContentCleanupResolvingV1 {
+    private let deletion: WholeSignDeletionService
+    private let externalReferences:
+        any TemporalEvidenceDeletionExternalReferenceResolvingV1
+    private let cleanup: OrphanFileCleanupService
+
+    init(deletion: WholeSignDeletionService,
+         externalReferences: any TemporalEvidenceDeletionExternalReferenceResolvingV1,
+         cleanup: OrphanFileCleanupService) {
+        self.deletion = deletion
+        self.externalReferences = externalReferences
+        self.cleanup = cleanup
+    }
+
+    func removeCommittedContent(
+        for mutation: TemporalEvidenceMutationV1,
+        receipt: TemporalEvidenceMutationReceiptV1
+    ) async throws {
+        try mutation.validate()
+        try receipt.validate(mutation: mutation)
+        guard case let .removeClip(event, clips, anchors, derivatives, _) =
+                mutation.payload,
+              event.disposition == .deleteClip
+                || event.disposition == .eraseWorkspace,
+              receipt.mutationReceipt.resultingRevision.workspaceID
+                == mutation.workspaceID else {
+            throw TemporalEvidenceContractFailureV1.invalidTransition
+        }
+        let clipByID = Dictionary(uniqueKeysWithValues: clips.map { ($0.clipID, $0) })
+        guard anchors.allSatisfy({ clipByID[$0.clipID] != nil }),
+              derivatives.allSatisfy({ clipByID[$0.clipID] != nil }) else {
+            throw TemporalEvidenceContractFailureV1.invalidValue
+        }
+        for clip in clips.sorted(by: { $0.clipID.uuidString < $1.clipID.uuidString }) {
+            _ = try await deletion.cleanupTemporalContentAfterCanonicalDelete(
+                clip: clip, externalReferences: externalReferences,
+                cleanup: cleanup
+            )
+        }
+        for derivative in derivatives.sorted(by: {
+            $0.derivativeID.uuidString < $1.derivativeID.uuidString
+        }) {
+            guard let clip = clipByID[derivative.clipID] else {
+                throw TemporalEvidenceContractFailureV1.invalidValue
+            }
+            _ = try await deletion.cleanupTemporalDerivativeAfterCanonicalDelete(
+                derivative: derivative, deletedClip: clip,
+                externalReferences: externalReferences, cleanup: cleanup
+            )
         }
     }
 }
@@ -3687,4 +4081,28 @@ enum C32AssistanceCompatibility_Deletion_WholeSignDeletionService {
     static let manualFallbackRemainsAvailable = true
     static let interruptionNeverPromotesAProposal = true
     static let createsParallelStoreOrWriter = false
+}
+
+
+// MARK: - C33 temporal evidence whole-sign deletion
+
+enum TemporalEvidenceWholeSignDeletionBoundaryV1 {
+    static let removesClipGraphAtomically = true
+    static let rebuildsDerivedSearchAndReportViews = true
+    static let neverUsesLegacyEvidenceFileAsClipIdentity = true
+
+    static func validate(clip: TemporalEvidenceClipV1,
+                         anchors: [TimecodedEvidenceAnchorV1],
+                         derivatives: [TemporalEvidenceDerivativeV1]) throws {
+        try clip.validateIntrinsic()
+        try anchors.forEach { try $0.validate(clip: clip) }
+        try TemporalEvidenceContentReferenceBoundaryV1.validate(
+            clip: clip, derivatives: derivatives
+        )
+        guard removesClipGraphAtomically,
+              rebuildsDerivedSearchAndReportViews,
+              neverUsesLegacyEvidenceFileAsClipIdentity else {
+            throw TemporalEvidenceContractFailureV1.invalidTransition
+        }
+    }
 }

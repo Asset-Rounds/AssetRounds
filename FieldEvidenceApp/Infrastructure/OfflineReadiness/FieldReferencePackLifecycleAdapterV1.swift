@@ -205,3 +205,15 @@ enum C32AssistanceCompatibility_OfflineReadiness_FieldReferencePackLifecycleAdap
     static let interruptionNeverPromotesAProposal = true
     static let createsParallelStoreOrWriter = false
 }
+
+enum C33TemporalEvidenceConformance_FieldEvidenceApp_Infrastructure_OfflineReadiness_FieldReferencePackLifecycleAdapterV1_swift {
+    static let durableFamilyCount = TemporalEvidencePersistenceEnrollmentV1.durableModelCount
+    static func validate(clip: TemporalEvidenceClipV1,
+                         anchor: TimecodedEvidenceAnchorV1) throws {
+        try clip.validateIntrinsic()
+        try anchor.validate(clip: clip)
+        guard durableFamilyCount == 2 else {
+            throw TemporalEvidenceContractFailureV1.invalidValue
+        }
+    }
+}

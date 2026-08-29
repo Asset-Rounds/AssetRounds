@@ -369,3 +369,25 @@ enum C32AssistanceLifecycleBoundary_FieldEvidenceApp_Domain_Content_ContentLocat
         try receipt.validate()
     }
 }
+
+// MARK: - C33 temporal evidence locator closure
+
+enum TemporalEvidenceLocatorBoundaryV1 {
+    static let locatorsRemainPrivateStorageCoordinates = true
+    static let reportsContainLocators = false
+
+    static func validate(
+        clip: TemporalEvidenceClipV1,
+        derivatives: [TemporalEvidenceDerivativeV1]
+    ) throws {
+        try clip.locator.validate(against: clip.original)
+        try derivatives.forEach {
+            try $0.validate(clip: clip)
+            try $0.locator.validate(against: $0.content)
+        }
+        let allIDs = [clip.original.contentID] + derivatives.map(\.content.contentID)
+        guard Set(allIDs).count == allIDs.count else {
+            throw ContentContractFailureV1.duplicateIdentity
+        }
+    }
+}

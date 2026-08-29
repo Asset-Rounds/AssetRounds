@@ -4765,3 +4765,43 @@ enum C32AssistanceLocalizationPolicyV1 {
         }
     }
 }
+
+
+// MARK: - C33 temporal evidence localization
+
+enum TemporalEvidenceLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
+    case reviewRequired = "temporal_evidence.review_required"
+    case audio = "temporal_evidence.kind.audio"
+    case video = "temporal_evidence.kind.video"
+    case durationLimit = "temporal_evidence.limit.duration"
+    case byteLimit = "temporal_evidence.limit.bytes"
+    case storageLimit = "temporal_evidence.limit.storage"
+    case permissionDenied = "temporal_evidence.permission.denied"
+    case interrupted = "temporal_evidence.interrupted"
+    case cancelled = "temporal_evidence.cancelled"
+    case descriptionRequired = "temporal_evidence.description.required"
+    case transcriptRequired = "temporal_evidence.transcript.required"
+    case manualImport = "temporal_evidence.manual_import"
+
+    var localizationKey: LocalizationKeyV1 {
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+}
+
+enum TemporalEvidenceLocalizationPolicyV1 {
+    static let visibleLimitReasonRequired = true
+    static let interruptionStatesMustSayNothingWasSaved = true
+    static let permissionDenialNamesManualFallback = true
+    static let transcriptIsHumanAuthored = true
+    static let stateIsNotColorOnly = true
+
+    static func validate() throws {
+        let values = TemporalEvidenceLocalizationKeyV1.allCases
+        guard values.map(\.rawValue).count == Set(values.map(\.rawValue)).count,
+              values.allSatisfy({ !$0.localizationKey.rawValue.isEmpty }),
+              visibleLimitReasonRequired, interruptionStatesMustSayNothingWasSaved,
+              permissionDenialNamesManualFallback, transcriptIsHumanAuthored,
+              stateIsNotColorOnly else { throw LocalizationContractFailureV1.invalidValue }
+    }
+}

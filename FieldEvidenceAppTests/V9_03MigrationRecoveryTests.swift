@@ -1652,6 +1652,25 @@ private final class C31LightingAnchorV903MigrationRecoveryTests: XCTestCase {
     }
 }
 
+private final class C33TemporalEvidenceAnchorV903MigrationRecovery: XCTestCase {
+    func testC33V903MigrationRecoveryCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "migration.v33-temporal-evidence",
+            kind: .audio,
+            reportProjection: .typedLinkOnly
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "migration.v33-temporal-evidence",
+            kind: .audio,
+            reportProjection: .typedLinkOnly
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+}
+
 private final class C32AssistanceAnchorV903MigrationRecovery: XCTestCase {
     func testC32V903MigrationRecoveryCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(

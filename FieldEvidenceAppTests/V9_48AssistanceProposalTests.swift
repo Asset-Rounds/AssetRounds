@@ -856,6 +856,26 @@ private final class C32PersistentAcceptanceHarness {
 }
 
 @MainActor
+private final class C33TemporalEvidenceAnchorV948AssistanceProposal: XCTestCase {
+    func testC33V948AssistanceProposalCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "assistance.temporal-manual-fallback",
+            kind: .audio,
+            reportProjection: .typedLinkOnly
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "assistance.temporal-manual-fallback",
+            kind: .audio,
+            reportProjection: .typedLinkOnly
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+}
+
+@MainActor
 final class V9_48AssistanceProposalTests: XCTestCase {
     private func corpus() throws -> C32AssistanceCorpusV1 {
         let url: URL

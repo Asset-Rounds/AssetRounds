@@ -580,6 +580,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             } catch {
                 throw WorkspaceMutationFailureV1.invalidCommand
             }
+        case .applyTemporalEvidence(let value):
+            do{try value.validate();guard value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,value.expectedRevision==request.expectedRevision else{throw WorkspaceMutationFailureV1.invalidCommand}}catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
         default:
             break
         }
@@ -814,6 +816,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
                     entityRevisions[try image.identity] = image.revision
                 }
             }
+        } else if case let .applyTemporalEvidence(mutation) = request.command {
+            for image in try mutation.mutationPostImages{entityRevisions[try image.identity]=image.revision}
         } else {
             for target in targets { entityRevisions[target, default: 0] += 1 }
         }
@@ -1308,6 +1312,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             try value.validate();values=[try value.affectedIdentity]
         case let .applyAssistanceAcceptance(value):
             try value.validate();values=try value.targetMutation.affectedIdentities
+        case let .applyTemporalEvidence(value):
+            try value.validate();values=try value.affectedIdentities
         }
         guard Set(values).count == values.count else {
             throw WorkspaceMutationFailureV1.invalidCommand
@@ -1360,6 +1366,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         if case let .applyEvidenceContext(value)=command{try value.validate();return[try value.concurrencyIdentity]}
         if case let .applyLighting(value)=command{try value.validate();return[try value.concurrencyIdentity]}
         if case let .applyAssistanceAcceptance(value)=command{try value.validate();return try value.targetMutation.concurrencyIdentities}
+        if case let .applyTemporalEvidence(value)=command{try value.validate();return try value.concurrencyIdentities}
         return try targetIdentities(for: command)
     }
 
@@ -1519,4 +1526,11 @@ extension WorkspaceWriterV1: AssistanceCanonicalWorkspaceWritingV1 {
         guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
         return try journalStore.assistanceAcceptanceReceipt(mutationID: mutationID)
     }
+}
+
+// MARK: - C33 bounded temporal-evidence canonical writer
+
+extension WorkspaceWriterV1:TemporalEvidenceCanonicalWorkspaceWritingV1{
+    func commitTemporalEvidence(_ mutation:TemporalEvidenceMutationV1)throws->TemporalEvidenceMutationReceiptV1{try mutation.validate();guard isActive else{throw WorkspaceMutationFailureV1.writerInvalidated};guard let journalStore else{throw WorkspaceMutationFailureV1.persistenceFailed};if let existing=try journalStore.receipt(mutationID:mutation.mutationID){return try .init(mutation:mutation,mutationReceipt:existing)};let current=try currentRevision();guard mutation.expectedRevision.workspaceID==current.workspaceID,mutation.expectedRevision.generationID==current.generationID,mutation.expectedRevision.writerInstanceID==current.writerInstanceID,mutation.expectedRevision.workspaceRevision==current.revision else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision};_ = try execute(mutation.canonicalWorkspaceMutationRequest());guard let receipt=try journalStore.receipt(mutationID:mutation.mutationID)else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return try .init(mutation:mutation,mutationReceipt:receipt)}
+    func temporalEvidenceReceipt(mutationID:MutationIDV1)throws->MutationReceiptV1?{guard isActive else{throw WorkspaceMutationFailureV1.writerInvalidated};guard let journalStore else{throw WorkspaceMutationFailureV1.persistenceFailed};return try journalStore.receipt(mutationID:mutationID)}
 }

@@ -125,5 +125,13 @@
     "photoOrExifProposalNeverBecomesMeasurement": true,
     "confidencePolicyIsCapabilityLocal": true,
     "manualLightingPathRemainsEquivalent": true
+  },
+  "c33TemporalEvidenceCompatibility": {
+    "compatibilityCardID": "V23-P03-C33",
+    "clipAndAnchorPersistentSchemaVersion": 33,
+    "temporalClipNeverBecomesMeasurement": true,
+    "temporalOriginalNeverCreatesComplianceClaim": true,
+    "reportProjectionIsTypedLinkOnly": true,
+    "manualLightingPathRemainsEquivalent": true
   }
 }

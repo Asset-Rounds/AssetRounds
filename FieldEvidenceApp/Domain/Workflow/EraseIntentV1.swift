@@ -608,3 +608,24 @@ enum C32AssistanceLifecycleBoundary_FieldEvidenceApp_Domain_Workflow_EraseIntent
         try receipt.validate()
     }
 }
+
+
+// MARK: - C33 temporal evidence Erase intent
+
+enum TemporalEvidenceEraseIntentBoundaryV1 {
+    static let clearsClipRows = true
+    static let clearsAnchorRows = true
+    static let clearsOwnedOriginalsAndDerivatives = true
+    static let clearsInterruptedScratch = true
+
+    static func validate(_ event: TemporalEvidenceRetentionEventV1,
+                         clip: TemporalEvidenceClipV1) throws {
+        try event.validate(clip: clip)
+        guard event.disposition == .eraseWorkspace,
+              clearsClipRows, clearsAnchorRows,
+              clearsOwnedOriginalsAndDerivatives,
+              clearsInterruptedScratch else {
+            throw TemporalEvidenceContractFailureV1.invalidTransition
+        }
+    }
+}

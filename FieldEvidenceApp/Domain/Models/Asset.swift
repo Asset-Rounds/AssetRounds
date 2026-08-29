@@ -99,3 +99,10 @@ enum C32AssistanceLifecycleBoundary_FieldEvidenceApp_Domain_Models_Asset_swift {
         try receipt.validate()
     }
 }
+
+enum C33TemporalEvidenceBoundary_Domain_Models_Asset_V1 {
+    static let clipType: TemporalEvidenceClipV1.Type = TemporalEvidenceClipV1.self
+    static let anchorType: TimecodedEvidenceAnchorV1.Type = TimecodedEvidenceAnchorV1.self
+    static let persistentSchemaVersion: Int =
+        TemporalEvidencePersistenceEnrollmentV1.persistentSchemaVersion
+}

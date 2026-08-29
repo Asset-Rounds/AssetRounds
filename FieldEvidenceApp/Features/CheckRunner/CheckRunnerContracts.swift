@@ -373,6 +373,51 @@ enum CheckRunnerDraftBridgeV1 {
     }
 }
 
+
+// MARK: - C33 temporal evidence review boundary
+
+enum CheckRunnerTemporalEvidenceReviewStateV1: String, Equatable, Sendable {
+    case reviewRequired = "REVIEW_REQUIRED"
+}
+
+struct CheckRunnerTemporalEvidenceReviewCandidateV1: Equatable, Sendable {
+    let draft: CheckRunnerDraftCaptureCandidateV1
+    let facts: TemporalEvidenceMediaFactsV1
+    let profile: TemporalEvidenceLimitProfileV1
+    let accessibleDescription: String
+    let manualTranscript: String?
+    let admissionReceipt: TemporalEvidenceIncrementalBudgetReceiptV1
+    let state: CheckRunnerTemporalEvidenceReviewStateV1
+
+    init(draft: CheckRunnerDraftCaptureCandidateV1,
+         facts: TemporalEvidenceMediaFactsV1,
+         profile: TemporalEvidenceLimitProfileV1,
+         accessibleDescription: String,
+         manualTranscript: String?,
+         admissionReceipt: TemporalEvidenceIncrementalBudgetReceiptV1) throws {
+        self.draft = draft; self.facts = facts; self.profile = profile
+        self.accessibleDescription = accessibleDescription
+        self.manualTranscript = manualTranscript; self.admissionReceipt = admissionReceipt
+        state = .reviewRequired
+        try validate()
+    }
+
+    func validate() throws {
+        try facts.validate(against: profile.limit(for: facts.kind))
+        try admissionReceipt.validateCompleted(facts: facts, profile: profile)
+        let expectedKind: DraftAttachmentKindV1 = facts.kind == .audio ? .audio : .video
+        guard draft.attachmentKind == expectedKind,
+              draft.legacyBridgeDisposition == .draftOwnedUntilCanonicalCommit,
+              state == .reviewRequired,
+              accessibleDescription.utf8.count <= 4_096,
+              (manualTranscript?.utf8.count ?? 0) <= 65_536,
+              !profile.requiresAccessibleDescription || !accessibleDescription.isEmpty,
+              !profile.requiresManualTranscript || manualTranscript?.isEmpty == false else {
+            throw TemporalEvidenceContractFailureV1.invalidValue
+        }
+    }
+}
+
 enum CheckRunnerCoordinatorFailurePoint: Equatable, Sendable {
     case evidenceModelSave
 }

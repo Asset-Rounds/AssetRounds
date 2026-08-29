@@ -170,3 +170,5 @@ enum C32AssistanceCompatibility_System_DeviceTimeSemanticsV1 {
     static let interruptionNeverPromotesAProposal = true
     static let createsParallelStoreOrWriter = false
 }
+
+enum C33TemporalEvidenceDeviceTimeBoundaryV1 { static let anchorClockIsMonotonicAndClipRelative=true;static let deviceWallClockMayRewriteAnchorOffset=false;static let canonicalMutationKind:WorkspaceCommandKindV1 = .applyTemporalEvidence }

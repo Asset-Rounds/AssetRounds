@@ -1105,6 +1105,25 @@ private final class C31LightingAnchorV930FieldDraftResilienceTests: XCTestCase {
     }
 }
 
+private final class C33TemporalEvidenceAnchorV930FieldDraftResilience: XCTestCase {
+    func testC33V930FieldDraftResilienceCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "draft.temporal-scratch-promotion",
+            kind: .audio,
+            reportProjection: .typedLinkWithDerivativePreview
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "draft.temporal-scratch-promotion",
+            kind: .audio,
+            reportProjection: .typedLinkWithDerivativePreview
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+}
+
 private final class C32AssistanceAnchorV930FieldDraftResilience: XCTestCase {
     func testC32V930FieldDraftResilienceCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(

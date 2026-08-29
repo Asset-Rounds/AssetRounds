@@ -8,6 +8,8 @@ protocol ApplicationClock: Sendable {
     func now() -> Date
 }
 
+enum C33TemporalEvidenceRuntimeBoundaryV1 { static let runtimeCaptureProviderOwnedByC33=false;static let automaticTranscriptionEnabled=false;static let clockIsInjected=true;static let canonicalMutationKind:WorkspaceCommandKindV1 = .applyTemporalEvidence }
+
 /// An in-process monotonic instant. It deliberately has no Codable
 /// conformance because monotonic ticks have no meaning after process restart.
 struct ApplicationMonotonicInstantV1: Equatable, Comparable, Sendable {

@@ -110,6 +110,8 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case lightingIssue
     case lightingMeasurementPlan
     case lightingClaimState
+    case temporalEvidenceClip
+    case timecodedEvidenceAnchor
     case workflowRecord
     case evidenceFile
     case issue
@@ -1581,6 +1583,38 @@ extension LightingWriteOperationV1 {
     var revision: UInt64 { switch self { case .appendSystem(let v,_,_):v.revision;case .appendObservation(let v,_,_):v.revision;case .appendIssue(let v,_,_):v.revision;case .appendMeasurementPlan(let v,_,_):v.revision;case .appendClaim(let v,_,_):v.revision } }
 }
 
+enum TemporalEvidenceMutationPayloadV1: Codable, Equatable, Sendable {
+    case acceptClip(TemporalEvidenceClipV1, review:TemporalEvidenceCaptureReviewV1, predecessor: TemporalEvidenceClipV1?)
+    case appendAnchor(TimecodedEvidenceAnchorV1, clip: TemporalEvidenceClipV1, predecessor: TimecodedEvidenceAnchorV1?)
+    case registerDerivative(TemporalEvidenceClipV1, derivative:TemporalEvidenceDerivativeV1, predecessorClip:TemporalEvidenceClipV1, predecessorDerivative:TemporalEvidenceDerivativeV1?)
+    case applyRetention(TemporalEvidenceClipV1, event:TemporalEvidenceRetentionEventV1, predecessorClip:TemporalEvidenceClipV1, predecessorEvent:TemporalEvidenceRetentionEventV1?)
+    case removeClip(event:TemporalEvidenceRetentionEventV1, clips:[TemporalEvidenceClipV1], anchors:[TimecodedEvidenceAnchorV1], derivatives:[TemporalEvidenceDerivativeV1], predecessorEvent:TemporalEvidenceRetentionEventV1?)
+
+    var workspaceID:WorkspaceID{switch self{case .acceptClip(let v,_,_),.registerDerivative(let v,_,_,_),.applyRetention(let v,_,_,_):v.workspaceID;case .appendAnchor(let v,_,_):v.workspaceID;case .removeClip(let e,_,_,_,_):e.workspaceID}}
+    var mutationID:MutationIDV1{switch self{case .acceptClip(let v,_,_),.registerDerivative(let v,_,_,_),.applyRetention(let v,_,_,_):v.mutationID;case .appendAnchor(let v,_,_):v.mutationID;case .removeClip(let e,_,_,_,_):e.mutationID}}
+    var affectedIdentities:[WorkspaceEntityIdentityV1]{get throws{let values:[WorkspaceEntityIdentityV1];switch self{case .acceptClip(let v,_,_),.registerDerivative(let v,_,_,_),.applyRetention(let v,_,_,_):values=[try .init(kind:.temporalEvidenceClip,id:v.clipID)];case .appendAnchor(let v,_,_):values=[try .init(kind:.timecodedEvidenceAnchor,id:v.anchorID)];case .removeClip(_,let clips,let anchors,_,_):values=try clips.map{try .init(kind:.temporalEvidenceClip,id:$0.clipID)}+anchors.map{try .init(kind:.timecodedEvidenceAnchor,id:$0.anchorID)}};let ordered=values.sorted{$0.stableKey<$1.stableKey};guard !ordered.isEmpty,Set(ordered).count==ordered.count,ordered.count<=MutationReceiptV1.maximumPostImageCount else{throw WorkspaceMutationContractFailureV1.invalidPlan};return ordered}}
+    var concurrencyIdentities:[WorkspaceEntityIdentityV1]{get throws{switch self{case .acceptClip(let v,_,let p):return[try .init(kind:.temporalEvidenceClip,id:p?.clipID ?? v.clipID)];case .registerDerivative(_,_,let p,_),.applyRetention(_,_,let p,_):return[try .init(kind:.temporalEvidenceClip,id:p.clipID)];case .appendAnchor(let v,_,let p):return[try .init(kind:.timecodedEvidenceAnchor,id:p?.anchorID ?? v.anchorID)];case .removeClip:return try affectedIdentities}}}
+    func expectedRevision(for identity:WorkspaceEntityIdentityV1)throws->UInt64{switch self{case .acceptClip(_,_,let p):guard identity == (try concurrencyIdentities)[0]else{break};return p?.revision ?? 0;case .registerDerivative(_,_,let p,_),.applyRetention(_,_,let p,_):guard identity == (try concurrencyIdentities)[0]else{break};return p.revision;case .appendAnchor(_,_,let p):guard identity == (try concurrencyIdentities)[0]else{break};return p?.revision ?? 0;case .removeClip(_,let clips,let anchors,_,_):if identity.kind == .temporalEvidenceClip,let value=clips.first(where:{$0.clipID==identity.id}){return value.revision};if identity.kind == .timecodedEvidenceAnchor,let value=anchors.first(where:{$0.anchorID==identity.id}){return value.revision}};throw WorkspaceMutationContractFailureV1.invalidPlan}
+    func validate()throws{switch self{case .acceptClip(let value,let review,let predecessor):try value.validateIntrinsic();try review.validate();guard review.workspaceID==value.workspaceID,review.clipID==value.clipID,review.decision == .accept,review.reviewedAt==value.acceptedAt else{throw WorkspaceMutationContractFailureV1.invalidPlan};if let predecessor{try predecessor.validateIntrinsic();guard value.workspaceID==predecessor.workspaceID,value.supersedesClipID==predecessor.clipID,value.revision==predecessor.revision+1,value.original==predecessor.original,value.originalProvenance==predecessor.originalProvenance,value.locator==predecessor.locator else{throw WorkspaceMutationContractFailureV1.invalidPlan}}else{guard value.revision==1,value.supersedesClipID==nil else{throw WorkspaceMutationContractFailureV1.invalidPlan}}
+        case .appendAnchor(let value,let clip,let predecessor):try value.validate(clip:clip);if let predecessor{try predecessor.validateIntrinsic();guard value.workspaceID==predecessor.workspaceID,value.clipID==predecessor.clipID,value.supersedesAnchorID==predecessor.anchorID,value.predecessorAnchorSHA256==predecessor.anchorSHA256,value.revision==predecessor.revision+1 else{throw WorkspaceMutationContractFailureV1.invalidPlan}}else{guard value.revision==1,value.supersedesAnchorID==nil else{throw WorkspaceMutationContractFailureV1.invalidPlan}}
+        case .registerDerivative(let successor,let derivative,let predecessor,let priorDerivative):try predecessor.validateIntrinsic();try successor.validateIntrinsic();try derivative.validate(clip:predecessor);if let priorDerivative{try priorDerivative.validate(clip:predecessor);guard derivative.supersedesDerivativeID==priorDerivative.derivativeID,derivative.revision==priorDerivative.revision+1}else{guard derivative.revision==1,derivative.supersedesDerivativeID==nil else{throw WorkspaceMutationContractFailureV1.invalidPlan}};guard successor.supersedesClipID==predecessor.clipID,successor.revision==predecessor.revision+1,successor.original==predecessor.original,successor.target==predecessor.target,successor.derivativeReferences.contains(where:{$0.derivativeID==derivative.derivativeID&&$0.derivativeSHA256==derivative.derivativeSHA256}),successor.retentionReference==predecessor.retentionReference else{throw WorkspaceMutationContractFailureV1.invalidPlan}
+        case .applyRetention(let successor,let event,let predecessor,let priorEvent):try predecessor.validateIntrinsic();try successor.validateIntrinsic();try event.validate(clip:predecessor);try Self.validateRetentionChain(event,predecessor:predecessor,priorEvent:priorEvent);let referencesMatch=event.disposition == .retain ? successor.derivativeReferences==predecessor.derivativeReferences : successor.derivativeReferences.isEmpty;guard event.disposition == .retain || event.disposition == .removeRegenerableDerivatives,referencesMatch,successor.supersedesClipID==predecessor.clipID,successor.revision==predecessor.revision+1,successor.original==predecessor.original,successor.target==predecessor.target,successor.retentionReference?.eventID==event.eventID,successor.retentionReference?.eventSHA256==event.eventSHA256 else{throw WorkspaceMutationContractFailureV1.invalidPlan}
+        case .removeClip(let event,let clips,let anchors,let derivatives,let priorEvent):try clips.forEach{$0.validateIntrinsic()};guard !clips.isEmpty,Set(clips.map(\.clipID)).count==clips.count,Set(anchors.map(\.anchorID)).count==anchors.count,Set(derivatives.map(\.derivativeID)).count==derivatives.count,let predecessor=clips.first(where:{$0.clipID==event.clipID&&$0.revision==event.clipRevision&&$0.clipSHA256==event.clipSHA256})else{throw WorkspaceMutationContractFailureV1.invalidPlan};try event.validate(clip:predecessor);try Self.validateRetentionChain(event,predecessor:predecessor,priorEvent:priorEvent);let byID=Dictionary(uniqueKeysWithValues:clips.map{($0.clipID,$0)});try anchors.forEach{guard let clip=byID[$0.clipID]else{throw WorkspaceMutationContractFailureV1.invalidPlan};try $0.validate(clip:clip)};try derivatives.forEach{guard let clip=byID[$0.clipID]else{throw WorkspaceMutationContractFailureV1.invalidPlan};try $0.validate(clip:clip)};guard event.disposition == .deleteClip || event.disposition == .eraseWorkspace,clips.allSatisfy({$0.workspaceID==event.workspaceID&&$0.revision<UInt64.max}),anchors.allSatisfy({$0.workspaceID==event.workspaceID}),derivatives.allSatisfy({$0.workspaceID==event.workspaceID}) else{throw WorkspaceMutationContractFailureV1.invalidPlan}}}
+    private static func validateRetentionChain(_ event:TemporalEvidenceRetentionEventV1,predecessor:TemporalEvidenceClipV1,priorEvent:TemporalEvidenceRetentionEventV1?)throws{if let priorEvent{try priorEvent.validate(clip:predecessor);guard event.supersedesEventID==priorEvent.eventID,event.predecessorEventSHA256==priorEvent.eventSHA256,event.revision==priorEvent.revision+1 else{throw WorkspaceMutationContractFailureV1.invalidPlan}}else{guard event.revision==1,event.supersedesEventID==nil,event.predecessorEventSHA256==nil else{throw WorkspaceMutationContractFailureV1.invalidPlan}}}
+}
+
+struct TemporalEvidenceMutationV1: Codable, Equatable, Sendable {
+    static let schemaVersion=1
+    let schemaVersion:Int;let workspaceID:WorkspaceID;let expectedRevision:WorkspaceExpectedRevisionV1;let mutationID:MutationIDV1;let payload:TemporalEvidenceMutationPayloadV1
+    init(workspaceID:WorkspaceID,expectedRevision:WorkspaceExpectedRevisionV1,mutationID:MutationIDV1,payload:TemporalEvidenceMutationPayloadV1)throws{schemaVersion=Self.schemaVersion;self.workspaceID=workspaceID;self.expectedRevision=expectedRevision;self.mutationID=mutationID;self.payload=payload;try validate()}
+    func validate()throws{try payload.validate();let targets=try payload.concurrencyIdentities;guard schemaVersion==Self.schemaVersion,workspaceID==payload.workspaceID,workspaceID==expectedRevision.workspaceID,mutationID==payload.mutationID,expectedRevision.entityRevisions.filter({targets.contains($0.identity)}).count==targets.count,try targets.allSatisfy({identity in expectedRevision.entityRevisions.first(where:{$0.identity==identity})?.revision == payload.expectedRevision(for:identity)})else{throw WorkspaceMutationContractFailureV1.invalidPlan}}
+    var affectedIdentities:[WorkspaceEntityIdentityV1]{get throws{try payload.affectedIdentities}}
+    var concurrencyIdentities:[WorkspaceEntityIdentityV1]{get throws{try payload.concurrencyIdentities}}
+    func expectedRevision(for identity:WorkspaceEntityIdentityV1)throws->UInt64{try payload.expectedRevision(for:identity)}
+    var mutationPostImages:[MutationPostImageV1]{get throws{let concurrency=try payload.concurrencyIdentities;switch payload{case .acceptClip(let v,_,_),.registerDerivative(let v,_,_,_),.applyRetention(let v,_,_,_):return[.temporalEvidenceClip(id:v.clipID,concurrencyIdentity:concurrency[0],revision:v.revision,semanticSHA256:v.clipSHA256)];case .appendAnchor(let v,_,_):return[.timecodedEvidenceAnchor(id:v.anchorID,concurrencyIdentity:concurrency[0],revision:v.revision,semanticSHA256:v.anchorSHA256)];case .removeClip(let event,let clips,let anchors,_,_):return try (clips.map{let identity=try WorkspaceEntityIdentityV1(kind:.temporalEvidenceClip,id:$0.clipID);return MutationPostImageV1.tombstone(identity:identity,revision:$0.revision+1,semanticSHA256:event.eventSHA256)}+anchors.map{let identity=try WorkspaceEntityIdentityV1(kind:.timecodedEvidenceAnchor,id:$0.anchorID);return MutationPostImageV1.tombstone(identity:identity,revision:$0.revision+1,semanticSHA256:event.eventSHA256)}).sorted{try $0.identity.stableKey<$1.identity.stableKey}}}}
+    func canonicalWorkspaceMutationRequest()throws->WorkspaceMutationRequestV1{try validate();return .init(mutationID:mutationID,expectedRevision:expectedRevision,command:.applyTemporalEvidence(self))}
+}
+
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
     case createCheckDraft(CheckDraftMutationV1)
@@ -1622,6 +1656,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyEvidenceContext(EvidenceContextWriteOperationV1)
     case applyLighting(LightingWriteOperationV1)
     case applyAssistanceAcceptance(AssistanceAcceptanceRequestV1)
+    case applyTemporalEvidence(TemporalEvidenceMutationV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -1665,6 +1700,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyEvidenceContext:.applyEvidenceContext
         case .applyLighting:.applyLighting
         case .applyAssistanceAcceptance:.applyAssistanceAcceptance
+        case .applyTemporalEvidence:.applyTemporalEvidence
         }
     }
 }
@@ -1710,6 +1746,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyEvidenceContext="apply_evidence_context"
     case applyLighting="apply_lighting"
     case applyAssistanceAcceptance="apply_assistance_acceptance"
+    case applyTemporalEvidence="apply_temporal_evidence"
 }
 
 extension WorkspaceCommandV1 {
@@ -2504,6 +2541,7 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind:.applyEvidenceContext,disposition:.compensatable,stableReason:"append_evidence_context_history_successor_only"),
         .init(commandKind:.applyLighting,disposition:.compensatable,stableReason:"append_lighting_history_successor_only"),
         .init(commandKind:.applyAssistanceAcceptance,disposition:.compensatable,stableReason:"explicit_review_expected_revision_target_mutation"),
+        .init(commandKind:.applyTemporalEvidence,disposition:.compensatable,stableReason:"immutable_original_with_governed_successor_or_tombstone_retention"),
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {

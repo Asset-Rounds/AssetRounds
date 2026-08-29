@@ -200,3 +200,21 @@ extension SurveySessionCoordinatorV1 {
         return receipt.acceptedValue
     }
 }
+
+
+// MARK: - C33 accepted temporal evidence session boundary
+
+extension SurveySessionCoordinatorV1 {
+    func validateTemporalEvidenceTarget(
+        clip: TemporalEvidenceClipV1,
+        profile: TemporalEvidenceLimitProfileV1,
+        session: SurveySessionV1,
+        definition: SurveyDefinitionReleaseV1,
+        existingClips: [TemporalEvidenceClipV1]
+    ) throws {
+        try SurveyTemporalEvidenceBindingV1.validate(
+            clip: clip, profile: profile, session: session,
+            definition: definition, existingClips: existingClips
+        )
+    }
+}

@@ -973,6 +973,25 @@ private final class C31LightingAnchorS61DeletionGraphTests: XCTestCase {
     }
 }
 
+private final class C33TemporalEvidenceAnchorS61DeletionGraph: XCTestCase {
+    func testC33S61DeletionGraphCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "deletion.temporal-content-graph",
+            kind: .audio,
+            reportProjection: .typedLinkOnly
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "deletion.temporal-content-graph",
+            kind: .audio,
+            reportProjection: .typedLinkOnly
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+}
+
 private final class C32AssistanceAnchorS61DeletionGraph: XCTestCase {
     func testC32S61DeletionGraphCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(

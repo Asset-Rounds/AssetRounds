@@ -295,3 +295,36 @@ enum C32AssistanceLifecycleBoundary_FieldEvidenceApp_Domain_Workflow_SurveySessi
         try receipt.validate()
     }
 }
+
+
+// MARK: - C33 temporal evidence survey binding
+
+enum SurveyTemporalEvidenceBindingV1 {
+    static func validate(
+        clip: TemporalEvidenceClipV1,
+        profile: TemporalEvidenceLimitProfileV1,
+        session: SurveySessionV1,
+        definition: SurveyDefinitionReleaseV1,
+        existingClips: [TemporalEvidenceClipV1]
+    ) throws {
+        try session.validate(definition: definition); try clip.validate(profile: profile)
+        try existingClips.forEach { try $0.validateIntrinsic() }
+        let target = clip.target
+        let requirementCount = existingClips.filter {
+            $0.target.sessionID == target.sessionID
+                && $0.target.factID == target.factID
+                && $0.target.repeatCoordinates == target.repeatCoordinates
+        }.count
+        let sessionCount = existingClips.filter { $0.target.sessionID == target.sessionID }.count
+        guard target.workspaceID == session.workspaceID,
+              target.sessionID == session.sessionID,
+              target.sessionRevision == session.revision,
+              target.sessionSHA256 == session.sessionSHA256,
+              target.definitionRelease == session.authority.definitionRelease,
+              target.definitionRelease == (try SurveyDefinitionReleaseReferenceV1(definition)),
+              requirementCount < profile.maximumClipsPerRequirement,
+              sessionCount < profile.maximumClipsPerSession else {
+            throw TemporalEvidenceContractFailureV1.staleSource
+        }
+    }
+}

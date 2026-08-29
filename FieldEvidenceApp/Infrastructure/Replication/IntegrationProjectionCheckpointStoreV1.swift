@@ -48,6 +48,7 @@ actor IntegrationProjectionCheckpointStoreV1: IntegrationProjectionOperationalSt
             try IntegrationProjectionCheckpointStoreV1.validatePlacementPoseEventPage(events)
             try IntegrationProjectionCheckpointStoreV1.validateEvidenceContextEventPage(events)
             try IntegrationProjectionCheckpointStoreV1.validateLightingEventPage(events)
+            try IntegrationProjectionCheckpointStoreV1.validateTemporalEvidenceEventPage(events)
             guard schemaVersion == Self.schemaVersion,
                   generationID == expectedGenerationID,
                   workspaceID == expectedWorkspaceID,
@@ -161,6 +162,7 @@ actor IntegrationProjectionCheckpointStoreV1: IntegrationProjectionOperationalSt
     private static func validatePlacementPoseEventPage(_ events:[IntegrationEventV1])throws{let grouped=Dictionary(grouping:events,by:\.sourceReceiptID);for page in grouped.values{let subjects=page.map(\.subject),present=Set(subjects.map(\.kind)).intersection(IntegrationEventProjectionV1.placementPoseKinds);guard present.isEmpty || (!page.isEmpty&&page.count<=MutationReceiptV1.maximumPostImageCount&&Set(subjects).count==subjects.count&&subjects.allSatisfy{IntegrationEventProjectionV1.placementPoseKinds.contains($0.kind)})else{throw IntegrationEventFailureV1.divergentEvent}}}
     private static func validateEvidenceContextEventPage(_ events:[IntegrationEventV1])throws{let grouped=Dictionary(grouping:events,by:\.sourceReceiptID);for page in grouped.values{let subjects=page.map(\.subject),present=Set(subjects.map(\.kind)).intersection(IntegrationEventProjectionV1.evidenceContextKinds);guard present.isEmpty || (page.count==1&&Set(subjects).count==1&&subjects.allSatisfy{IntegrationEventProjectionV1.evidenceContextKinds.contains($0.kind)})else{throw IntegrationEventFailureV1.divergentEvent}}}
     private static func validateLightingEventPage(_ events:[IntegrationEventV1])throws{let grouped=Dictionary(grouping:events,by:\.sourceReceiptID);for page in grouped.values{let subjects=page.map(\.subject),present=Set(subjects.map(\.kind)).intersection(IntegrationEventProjectionV1.lightingKinds);guard present.isEmpty || (page.count==1&&Set(subjects).count==1&&subjects.allSatisfy{IntegrationEventProjectionV1.lightingKinds.contains($0.kind)})else{throw IntegrationEventFailureV1.divergentEvent}}}
+    private static func validateTemporalEvidenceEventPage(_ events:[IntegrationEventV1])throws{let grouped=Dictionary(grouping:events,by:\.sourceReceiptID);for page in grouped.values{let subjects=page.map(\.subject),present=Set(subjects.map(\.kind)).intersection(IntegrationEventProjectionV1.temporalEvidenceKinds);guard present.isEmpty || (!page.isEmpty&&page.count<=MutationReceiptV1.maximumPostImageCount&&Set(subjects).count==subjects.count&&subjects.allSatisfy{IntegrationEventProjectionV1.temporalEvidenceKinds.contains($0.kind)})else{throw IntegrationEventFailureV1.divergentEvent}}}
 
     init(generationRootURL: URL, generationID: UUID, workspaceID: WorkspaceID,
          limits: IntegrationEventLimitsV1 = try! IntegrationEventLimitsV1(),
@@ -370,6 +372,14 @@ enum C31LightingIntegrationCheckpointBoundaryV1 {
     static let rebuildsFromCanonicalLightingHistory = true
     static let checkpointNeverCarriesLightingBytes = true
     static let checkpointNeverCarriesActorIdentity = true
+}
+
+
+enum C33TemporalEvidenceIntegrationCheckpointBoundaryV1 {
+    static let checkpointIsDisposable = true
+    static let rebuildsFromCanonicalTemporalEvidenceHistory = true
+    static let checkpointNeverCarriesOriginalOrDerivativeBytes = true
+    static let checkpointNeverCarriesNotesOrActorIdentity = true
 }
 
 /// C32 keeps assistance candidates outside every durable and derived surface;

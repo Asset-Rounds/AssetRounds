@@ -5000,3 +5000,153 @@ enum C32AssistanceReportProjectionPolicyV1 {
         }
     }
 }
+
+// MARK: - C33 bounded temporal evidence report link
+
+/// A report carries typed metadata and human-authored accessible text. It does
+/// not carry a private locator or imply that the original media is embedded.
+struct TemporalEvidenceReportAnchorBindingV1:
+    Codable, Equatable, Hashable, Comparable, Sendable {
+    let anchorID: UUID
+    let revision: UInt64
+    let anchorSHA256: String
+    let clipID: UUID
+    let clipRevision: UInt64
+    let clipSHA256: String
+    let sourceContentID: String
+    let sourceSHA256: String
+
+    init(anchor: TimecodedEvidenceAnchorV1,
+         clip: TemporalEvidenceClipV1) throws {
+        try anchor.validate(clip: clip)
+        anchorID = anchor.anchorID; revision = anchor.revision
+        anchorSHA256 = anchor.anchorSHA256; clipID = anchor.clipID
+        clipRevision = anchor.clipRevision; clipSHA256 = anchor.clipSHA256
+        sourceContentID = anchor.sourceContentID
+        sourceSHA256 = anchor.sourceSHA256
+        try validate(clip: clip)
+    }
+
+    func validate(clip: TemporalEvidenceClipV1) throws {
+        try clip.validateIntrinsic()
+        guard anchorID != .zero, revision > 0,
+              MutationEnvelopeV1.isSHA256(anchorSHA256),
+              clipID == clip.clipID, clipRevision == clip.revision,
+              clipSHA256 == clip.clipSHA256,
+              sourceContentID == clip.original.contentID,
+              sourceSHA256 == clip.original.digests.digest(for: .sha256)?.hexadecimalValue
+        else { throw TemporalEvidenceContractFailureV1.staleSource }
+    }
+
+    func matches(_ anchor: TimecodedEvidenceAnchorV1,
+                 clip: TemporalEvidenceClipV1) throws -> Bool {
+        try anchor.validate(clip: clip); try validate(clip: clip)
+        return anchorID == anchor.anchorID && revision == anchor.revision
+            && anchorSHA256 == anchor.anchorSHA256
+            && clipID == anchor.clipID && clipRevision == anchor.clipRevision
+            && clipSHA256 == anchor.clipSHA256
+            && sourceContentID == anchor.sourceContentID
+            && sourceSHA256 == anchor.sourceSHA256
+    }
+
+    static func < (lhs: Self, rhs: Self) -> Bool {
+        if lhs.anchorID != rhs.anchorID {
+            return lhs.anchorID.uuidString < rhs.anchorID.uuidString
+        }
+        return lhs.revision < rhs.revision
+    }
+}
+
+struct TemporalEvidenceReportLinkV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let workspaceID: WorkspaceID
+    let clipID: UUID
+    let clipRevision: UInt64
+    let clipSHA256: String
+    let contentID: String
+    let mediaKind: TemporalEvidenceMediaKindV1
+    let durationMilliseconds: UInt64
+    let anchorBindings: [TemporalEvidenceReportAnchorBindingV1]
+    let accessibleDescription: String
+    let manualTranscript: String?
+    let projection: TemporalEvidenceReportProjectionV1
+    let embedsOriginalBytes: Bool
+
+    var anchorCount: Int { anchorBindings.count }
+
+    init(clip: TemporalEvidenceClipV1, anchors: [TimecodedEvidenceAnchorV1],
+         profile: TemporalEvidenceLimitProfileV1) throws {
+        try clip.validate(profile: profile)
+        try anchors.forEach { try $0.validate(clip: clip) }
+        guard Set(anchors.map(\.anchorID)).count == anchors.count else {
+            throw TemporalEvidenceContractFailureV1.invalidValue
+        }
+        schemaVersion = Self.schemaVersion; workspaceID = clip.workspaceID
+        clipID = clip.clipID; clipRevision = clip.revision; clipSHA256 = clip.clipSHA256
+        contentID = clip.original.contentID; mediaKind = clip.facts.kind
+        durationMilliseconds = clip.facts.durationMilliseconds
+        anchorBindings = try anchors.map {
+            try TemporalEvidenceReportAnchorBindingV1(anchor: $0, clip: clip)
+        }.sorted()
+        accessibleDescription = clip.accessibleDescription
+        manualTranscript = clip.manualTranscript; projection = profile.reportProjection
+        embedsOriginalBytes = false
+        try validate()
+    }
+
+    func validate() throws {
+        let description = accessibleDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard schemaVersion == Self.schemaVersion, clipID != .zero, clipRevision > 0,
+              MutationEnvelopeV1.isSHA256(clipSHA256),
+              ContentContractValidationV1.validID(contentID), durationMilliseconds > 0,
+              anchorBindings == anchorBindings.sorted(),
+              anchorBindings.count <= 512,
+              Set(anchorBindings.map(\.anchorID)).count == anchorBindings.count,
+              !description.isEmpty,
+              description == accessibleDescription,
+              accessibleDescription.utf8.count <= 4_096,
+              (manualTranscript?.utf8.count ?? 0) <= 65_536,
+              !embedsOriginalBytes else { throw TemporalEvidenceContractFailureV1.invalidValue }
+        try anchorBindings.forEach {
+            guard $0.clipID == clipID, $0.clipRevision == clipRevision,
+                  $0.clipSHA256 == clipSHA256,
+                  $0.sourceContentID == contentID,
+                  MutationEnvelopeV1.isSHA256($0.sourceSHA256),
+                  MutationEnvelopeV1.isSHA256($0.anchorSHA256),
+                  $0.revision > 0 else {
+                throw TemporalEvidenceContractFailureV1.staleSource
+            }
+        }
+    }
+
+    func validate(clip: TemporalEvidenceClipV1,
+                  anchors: [TimecodedEvidenceAnchorV1]) throws {
+        try validate(); try clip.validateIntrinsic()
+        guard workspaceID == clip.workspaceID, clipID == clip.clipID,
+              clipRevision == clip.revision, clipSHA256 == clip.clipSHA256,
+              contentID == clip.original.contentID,
+              Set(anchors.map(\.anchorID)).count == anchors.count else {
+            throw TemporalEvidenceContractFailureV1.staleSource
+        }
+        let expected = try anchors.map {
+            try TemporalEvidenceReportAnchorBindingV1(anchor: $0, clip: clip)
+        }.sorted()
+        guard anchorBindings == expected else {
+            throw TemporalEvidenceContractFailureV1.staleSource
+        }
+    }
+}
+
+enum TemporalEvidenceReportProjectionPolicyV1 {
+    static let includesPrivateLocator = false
+    static let embedsLargeMediaByDefault = false
+    static let automaticTranscriptAllowed = false
+    static func validate(_ link: TemporalEvidenceReportLinkV1) throws {
+        try link.validate()
+        guard !includesPrivateLocator, !embedsLargeMediaByDefault,
+              !automaticTranscriptAllowed else {
+            throw TemporalEvidenceContractFailureV1.invalidValue
+        }
+    }
+}

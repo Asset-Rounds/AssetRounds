@@ -785,6 +785,25 @@ private final class C31LightingAnchorV9LocationHierarchyPlacementCompositionTest
     }
 }
 
+private final class C33TemporalEvidenceAnchorV9LocationHierarchyPlacementComposition: XCTestCase {
+    func testC33V9LocationHierarchyPlacementCompositionCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "location.temporal-evidence-placement",
+            kind: .audio,
+            reportProjection: .typedLinkWithDerivativePreview
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "location.temporal-evidence-placement",
+            kind: .audio,
+            reportProjection: .typedLinkWithDerivativePreview
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+}
+
 private final class C32AssistanceAnchorV9LocationHierarchyPlacementComposition: XCTestCase {
     func testC32V9LocationHierarchyPlacementCompositionCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
