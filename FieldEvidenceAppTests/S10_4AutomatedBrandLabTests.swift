@@ -121,7 +121,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         try assertFile(
             workflowPath,
             byteCount: 227_055,
-            sha256: "F36C9000DBD1B717238FD6CD865DB5439509705F9EA84D13B74234A1D5CFE3D8"
+            sha256: "52F4B7B870DEE6F6616B918130AAA380F16495467A111E0A8AD0FEEB94B0E666"
         )
         let workflowSource = try text(workflowPath)
         let currentF25WatchdogTuple = "] == [300, 900, 1200, 1920, 4500]"
