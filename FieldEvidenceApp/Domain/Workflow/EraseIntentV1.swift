@@ -633,3 +633,4 @@ enum TemporalEvidenceEraseIntentBoundaryV1 {
 enum C45AcceptedLabelEraseIntentBoundaryV1 { static let eraseRemovesAcceptedSnapshots=true;static let scratchCleanupIsRetryable=true }
 
 enum C46OperationalContactBoundary_39{static let assetOrSiteCascadeDeletesPartyContacts=false;static let workspaceEraseOwnsRows=true}
+enum C47ActivityContractEraseIntentBoundaryV2 { static let clearsFiveNewRows=true;static let clearsReleasedCompletedSnapshotThroughExistingReportLifecycle=true;static let clearsDerivedSearchProjection=true }

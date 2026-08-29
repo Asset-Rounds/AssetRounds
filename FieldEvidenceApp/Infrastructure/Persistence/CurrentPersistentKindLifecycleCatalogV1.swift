@@ -256,6 +256,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
         let c71=TemporalOriginV1(card:"V23_P03_C33",ordinal:71)
         let c72=TemporalOriginV1(card:"V23_P03_C45",ordinal:72)
         let c73=TemporalOriginV1(card:"V23_P03_C46",ordinal:73)
+        let c74=TemporalOriginV1(card:"V23_P03_C47",ordinal:74)
         let groups: [(TemporalOriginV1, [String])] = [
             (c16, [
                 "JOURNAL:CurrentGenerationPointerV2",
@@ -426,6 +427,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
             (c71,["PERSISTENT_MODEL:TemporalEvidenceClipRow","PERSISTENT_MODEL:TimecodedEvidenceAnchorRow","JOURNAL:TemporalEvidenceDerivativeV1","JOURNAL:TemporalEvidenceRetentionEventV1","PROJECTION:TemporalEvidenceClipV1","PROJECTION:TimecodedEvidenceAnchorV1","PROJECTION:TemporalEvidenceCaptureScratchV1","PROJECTION:StoreSemanticEnvelopeV33"]),
             (c72,["PERSISTENT_MODEL:AcceptedLabelGenerationSnapshotRow","PROJECTION:StoreSemanticEnvelopeV34"]),
             (c73,["PERSISTENT_MODEL:ServiceContactPointRow","PERSISTENT_MODEL:SystemHandoffIntentRow","PROJECTION:StoreSemanticEnvelopeV35"]),
+            (c74,["PERSISTENT_MODEL:ActivitySessionEnvelopeRow","PERSISTENT_MODEL:ActivityStateTransitionRow","PERSISTENT_MODEL:InstallationTaskResultRow","PERSISTENT_MODEL:InstallationAsBuiltSnapshotRow","PERSISTENT_MODEL:PunchReviewBasisSnapshotRow","PROJECTION:StoreSemanticEnvelopeV36"]),
         ]
         return groups.reduce(into: [:]) { result, group in
             for kindID in group.1 {
@@ -520,6 +522,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
         let c33KindIDs=TemporalEvidencePersistentKindPolicyV1.durableKindIDs.union(TemporalEvidencePersistentKindPolicyV1.journalSupportingKindIDs).union(TemporalEvidencePersistentKindPolicyV1.nonpersistentKindIDs).union(TemporalEvidencePersistentKindPolicyV1.derivedKindIDs).union(["PROJECTION:TemporalEvidenceClipV1","PROJECTION:TimecodedEvidenceAnchorV1"])
         let c45KindIDs=AssetLabelPersistentKindPolicyV1.durableKindIDs.union(AssetLabelPersistentKindPolicyV1.derivedKindIDs)
         let c46OperationalContactKindIDs=OperationalContactPersistentKindPolicyV1.durableKindIDs.union(["PROJECTION:StoreSemanticEnvelopeV35"])
+        let c47ActivityContractKindIDs=Set(["PERSISTENT_MODEL:ActivitySessionEnvelopeRow","PERSISTENT_MODEL:ActivityStateTransitionRow","PERSISTENT_MODEL:InstallationTaskResultRow","PERSISTENT_MODEL:InstallationAsBuiltSnapshotRow","PERSISTENT_MODEL:PunchReviewBasisSnapshotRow","PROJECTION:StoreSemanticEnvelopeV36"])
         let c17KindIDs = Set([
             "PROJECTION:IntegrationConformanceConsumerV1",
             "PROJECTION:IntegrationContractRegistryV1",
@@ -528,9 +531,9 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
             "PROJECTION:IntegrationProjectionCheckpointStoreV1",
             "PROJECTION:ProjectionCheckpointV1",
         ])
-        guard kindIDs.count == 352,
+        guard kindIDs.count == 358,
               Set(kindIDs).count == kindIDs.count,
-              laterTemporalOrigins.count == 289,
+              laterTemporalOrigins.count == 295,
               c09KindIDs.isSubset(of: Set(kindIDs)),
               c12KindIDs.isSubset(of: Set(kindIDs)),
               c38KindIDs.isSubset(of: Set(kindIDs)),
@@ -558,6 +561,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
               c33KindIDs.isSubset(of:Set(kindIDs)),
               c45KindIDs.isSubset(of:Set(kindIDs)),
               c46OperationalContactKindIDs.isSubset(of:Set(kindIDs)),
+              c47ActivityContractKindIDs.isSubset(of:Set(kindIDs)),
               Set(laterTemporalOrigins.keys).isSubset(of: Set(kindIDs)) else {
             throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage
         }
@@ -566,7 +570,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
                 registration.subject
             ) ? registration.subject.canonicalKey : nil
         })
-        guard durableKindIDs.count == 169 else {
+        guard durableKindIDs.count == 174 else {
             throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage
         }
         let universeBytes = try CompatibilityCanonicalV1.encode(
@@ -594,6 +598,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
                     && !c33KindIDs.contains($0)
                     && !c45KindIDs.contains($0)
                     && !c46OperationalContactKindIDs.contains($0)
+                    && !c47ActivityContractKindIDs.contains($0)
             }
         )
         guard CompatibilityCanonicalV1.sha256(universeBytes)
@@ -1029,3 +1034,4 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
 enum C45AcceptedLabelPersistentLifecycleEnrollmentV1 { static let durableKind:WorkspaceEntityKindV1 = .acceptedLabelGenerationSnapshot;static let derivedPlansAreDurable=false }
 
 enum C46OperationalContactBoundary_16{static let persistentFamilies=OperationalContactPersistenceEnrollmentV1.persistentFamilies;static let platformOutcomesPersistent=false}
+enum C47ActivityContractPersistentLifecycleEnrollmentV2 { static let durableFamilies=ActivityContractPersistenceEnrollmentV2.persistentFamilies;static let newRowCount=5;static let completedSnapshotUsesReleasedFileLifecycle=true }

@@ -481,3 +481,28 @@ extension S8_1SecondPackZeroForkTests {
         XCTAssertNoThrow(try V25GuidedSurveyImportBoundaryV1.validate(persistent: 25, records: 24))
     }
 }
+
+
+private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_S8_1SecondPackZeroForkTests_swift {
+    static let compatibilityCardID = "V23-P03-C47"
+    static let sharedEnvelopeDoesNotCollapseFamilyTruth = true
+    static let installationAndPunchReceiptsRemainIndependent = true
+    static let noPlanFallbackIsExplicit = true
+    static let surveyDefinitionOwnershipIsPreserved = true
+    static let legacyInspectionTruthIsNotRewritten = true
+    static let threeReceiptIsolationIsRequired = true
+}
+
+private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S8_1SecondPackZeroForkTests_swift_Tests: XCTestCase {
+    func testC47S81SecondPackZeroForkTestsOwnerCompatibilityIsTyped() {
+        XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_S8_1SecondPackZeroForkTests_swift.compatibilityCardID, "V23-P03-C47")
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S8_1SecondPackZeroForkTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S8_1SecondPackZeroForkTests_swift.installationAndPunchReceiptsRemainIndependent)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S8_1SecondPackZeroForkTests_swift.noPlanFallbackIsExplicit)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S8_1SecondPackZeroForkTests_swift.surveyDefinitionOwnershipIsPreserved)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S8_1SecondPackZeroForkTests_swift.legacyInspectionTruthIsNotRewritten)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S8_1SecondPackZeroForkTests_swift.threeReceiptIsolationIsRequired)
+        XCTAssertEqual(ActivityKindV1CompatibilityAdapterV2.disposition(.survey), .exactV1)
+        XCTAssertEqual(ActivityKindV1CompatibilityAdapterV2.v1(.survey), .survey)
+    }
+}

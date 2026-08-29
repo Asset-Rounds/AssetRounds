@@ -1134,3 +1134,4 @@ struct AssetLabelDerivedScratchCleanupV1 {
 enum C45AcceptedLabelOrphanCleanupBoundaryV1 { static let cleansOnlyLeasedDerivedArtifacts=true;static let neverDeletesCanonicalLocatorTruth=true }
 
 enum C46OperationalContactBoundary_46{static let assetOrSiteCascadeDeletesPartyContacts=false;static let workspaceEraseOwnsRows=true}
+enum C47ActivityContractOrphanCleanupBoundaryV2 { static let canonicalRowsAreNeverOrphanFiles=true;static let releasedCompletedSnapshotUsesExistingReportCleanup=true;static let derivedSearchAndScratchMayBeRebuilt=true }

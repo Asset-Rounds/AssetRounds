@@ -932,3 +932,14 @@ enum C45AssetLabelBoundary_ReportHistoryCoordinatorV1 {
 }
 
 enum C46OperationalContactBoundary_29{static let defaultProjection="EXCLUDED";static let rawPhoneOrEmailEmitted=false;static let platformOutcomeClaimEmitted=false}
+
+enum C47ActivityContractConformance_FieldEvidenceApp_Infrastructure_Reporting_ReportHistoryCoordinator_swift {
+    static let integrationRole = "HISTORIC_UNKNOWN_KIND_EXPORT"
+    static let sharedReceipt = SharedActivityEnvelopeReceiptV1.self
+    static let installationReceipt = InstallationActivityContractReceiptV1.self
+    static let punchReceipt = PunchActivityContractReceiptV1.self
+    static let noPlanFallback = NoPlanFallbackV1.self
+    static let usesExistingReportInfrastructure = true
+    static let createsSecondRendererWriterOrStore = false
+    static func validateReadable(_ value: ActivitySessionEnvelopeV2) throws { try value.validateForRead() }
+}

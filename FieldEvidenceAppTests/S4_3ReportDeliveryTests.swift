@@ -1064,3 +1064,28 @@ private final class C46S43ReportDeliveryCompatibilityTests: XCTestCase {
         )
     }
 }
+
+
+private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_3ReportDeliveryTests_swift {
+    static let compatibilityCardID = "V23-P03-C47"
+    static let sharedEnvelopeDoesNotCollapseFamilyTruth = true
+    static let installationAndPunchReceiptsRemainIndependent = true
+    static let noPlanFallbackIsExplicit = true
+    static let surveyDefinitionOwnershipIsPreserved = true
+    static let legacyInspectionTruthIsNotRewritten = true
+    static let threeReceiptIsolationIsRequired = true
+}
+
+private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_3ReportDeliveryTests_swift_Tests: XCTestCase {
+    func testC47S43ReportDeliveryTestsOwnerCompatibilityIsTyped() {
+        XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_3ReportDeliveryTests_swift.compatibilityCardID, "V23-P03-C47")
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_3ReportDeliveryTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_3ReportDeliveryTests_swift.installationAndPunchReceiptsRemainIndependent)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_3ReportDeliveryTests_swift.noPlanFallbackIsExplicit)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_3ReportDeliveryTests_swift.surveyDefinitionOwnershipIsPreserved)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_3ReportDeliveryTests_swift.legacyInspectionTruthIsNotRewritten)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_3ReportDeliveryTests_swift.threeReceiptIsolationIsRequired)
+        XCTAssertFalse(ActivityContractPersistenceEnrollmentV2.completionClaimsCommissioningComplianceApprovalOrCertification)
+        XCTAssertEqual(Set(ActivityContractPersistenceEnrollmentV2.nonpersistentFamilies).count, 3)
+    }
+}

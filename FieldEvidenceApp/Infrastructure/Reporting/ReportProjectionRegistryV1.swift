@@ -2377,3 +2377,71 @@ enum C45AssetLabelBoundary_ReportProjectionRegistryV1 {
 }
 
 enum C46OperationalContactBoundary_26{static let defaultProjection="EXCLUDED";static let rawPhoneOrEmailEmitted=false;static let platformOutcomeClaimEmitted=false}
+
+enum C47ActivityContractConformance_FieldEvidenceApp_Infrastructure_Reporting_ReportProjectionRegistryV1_swift {
+    static let integrationRole = "SOLE_REPORT_REGISTRY"
+    static let sharedReceipt = SharedActivityEnvelopeReceiptV1.self
+    static let installationReceipt = InstallationActivityContractReceiptV1.self
+    static let punchReceipt = PunchActivityContractReceiptV1.self
+    static let noPlanFallback = NoPlanFallbackV1.self
+    static let usesExistingReportInfrastructure = true
+    static let createsSecondRendererWriterOrStore = false
+    static func validateReadable(_ value: ActivitySessionEnvelopeV2) throws { try value.validateForRead() }
+    static func validate(_ projection: ActivityContractReportProjectionV2) throws {
+        _ = try ActivityContractReportProjectionV2(
+            envelope: projection.envelope, completed: projection.completed,
+            installation: projection.installation, punch: projection.punch
+        )
+    }
+}
+
+extension ReportProjectionRegistryV1 {
+    func renderActivityContract(
+        _ projection: ActivityContractReportProjectionV2,
+        manifest: ContractManifestV1,
+        reportProfile: ReportLayoutProfileV1,
+        exportProfile: ExportProfileV1
+    ) throws -> ReportProjectionBundleV1 {
+        guard let completed = projection.completed else {
+            throw SnapshotProjectionFailureV1.missingBinding
+        }
+        guard try projection.canonicalCompletedSnapshotBytes() != nil else {
+            throw SnapshotProjectionFailureV1.missingBinding
+        }
+        guard case .complete = try render(
+            snapshot: completed, manifest: manifest,
+            reportProfile: reportProfile, exportProfile: exportProfile
+        ) else { throw SnapshotProjectionFailureV1.projectionDisagreement }
+        let semantic = try ReportSemanticProjectorV1.project(
+            activityContract: projection, manifest: manifest
+        )
+        let openJSON = try DeterministicOpenJSONRendererV1.render(semantic)
+        let pdf = try DeterministicPDFRendererV1.render(semantic, layoutProfile: reportProfile)
+        let structuredText = try DeterministicOpenJSONRendererV1.renderStructuredText(semantic)
+        let renderedBytes = [openJSON, pdf, structuredText].reduce(Int64(0)) {
+            $0 + Int64($1.data.count)
+        }
+        guard renderedBytes <= exportProfile.maximumArchiveBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        return try ReportProjectionBundleV1(
+            snapshot: completed, semanticProjection: semantic,
+            pdf: pdf, openJSON: openJSON, structuredText: structuredText
+        )
+    }
+
+    func recoverActivityContract(
+        _ projection: ActivityContractReportProjectionV2,
+        manifest: ContractManifestV1,
+        reportProfile: ReportLayoutProfileV1,
+        exportProfile: ExportProfileV1,
+        storedBundle: ReportProjectionBundleV1?
+    ) throws -> ReportProjectionBundleV1 {
+        let regenerated = try renderActivityContract(
+            projection, manifest: manifest,
+            reportProfile: reportProfile, exportProfile: exportProfile
+        )
+        if let storedBundle, storedBundle == regenerated { return storedBundle }
+        return regenerated
+    }
+}

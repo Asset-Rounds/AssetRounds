@@ -3681,3 +3681,80 @@ struct AcceptedLabelSearchMetadataV1: Equatable, Sendable {
 enum C45AcceptedLabelSearchBoundaryV1 { static let acceptedSnapshotMetadataIsSearchSource=true;static let labelTextAndShortCodesAreExcluded=true }
 
 enum C46OperationalContactBoundary_33{static let permittedProjection="PARTY_METADATA_ONLY";static let rawPhoneOrEmailIndexed=false}
+
+enum C47ActivityContractConformance_FieldEvidenceApp_Domain_Search_SearchContractsV1_swift {
+    static let integrationRole = "SEARCH_READ_EXPORT_UNKNOWN_KIND_WITHOUT_MUTATION"
+    static let sharedReceipt = SharedActivityEnvelopeReceiptV1.self
+    static let installationReceipt = InstallationActivityContractReceiptV1.self
+    static let punchReceipt = PunchActivityContractReceiptV1.self
+    static let explicitNoPlanFallback = NoPlanFallbackV1.self
+    static let usesSoleWorkspaceWriter = true
+    static let createsSecondRendererStoreOrRoute = false
+    static let inspectionStorageAliasingAllowed = false
+    static let planOrScanRequired = false
+    static let approvalComplianceCertificationClaimAllowed = false
+    static func validateReadable(_ envelope: ActivitySessionEnvelopeV2) throws {
+        try envelope.validateForRead()
+    }
+}
+
+/// Derived C47 metadata only. Unknown activity kinds remain visible for read/export,
+/// while mutation continues to fail in ActivityKindV2.requireKnownForMutation().
+struct ActivityContractSearchProjectionV2: Codable, Equatable, Sendable {
+    let workspaceID: WorkspaceID
+    let activityID: UUID
+    let kind: ActivityKindV2
+    let state: ActivityStateV2
+    let title: String
+    let revision: UInt64
+    let envelopeSHA256: String
+    let completedSnapshotReference: CompletedActivitySnapshotV2CompatibilityReferenceV1?
+    let sourceCloseoutSHA256: String?
+    let targetCloseoutSHA256: String?
+    let installationCloseout: InstallationCloseoutV1?
+    let punchReviewCloseout: PunchReviewCloseoutV1?
+    let closeoutKind: String?
+    let closeoutDisposition: String?
+    let closeoutSHA256: String?
+    let recordedFindingCount: Int
+    let reviewedScopeItemCount: Int
+
+    init(envelope: ActivitySessionEnvelopeV2) throws {
+        try envelope.validateForRead()
+        workspaceID = envelope.workspaceID
+        activityID = envelope.activityID
+        kind = envelope.kind
+        state = envelope.state
+        title = envelope.title
+        revision = envelope.revision
+        envelopeSHA256 = envelope.envelopeSHA256
+        completedSnapshotReference = envelope.completedSnapshotReference
+        sourceCloseoutSHA256 = envelope.completedSnapshotReference?.sourceCloseoutSHA256
+        targetCloseoutSHA256 = envelope.completedSnapshotReference?.targetCloseoutSHA256
+        installationCloseout = envelope.installationCloseout
+        punchReviewCloseout = envelope.punchReviewCloseout
+        if let closeout = envelope.installationCloseout {
+            closeoutKind = "INSTALLATION"
+            closeoutDisposition = closeout.completion.rawValue
+            closeoutSHA256 = closeout.closeoutSHA256
+            recordedFindingCount = closeout.openFindings.count
+            reviewedScopeItemCount = 0
+        } else if let closeout = envelope.punchReviewCloseout {
+            closeoutKind = "PUNCH_REVIEW"
+            closeoutDisposition = closeout.completion.rawValue
+            closeoutSHA256 = closeout.closeoutSHA256
+            recordedFindingCount = closeout.scope.reduce(0) { $0 + $1.findingLinks.count }
+            reviewedScopeItemCount = closeout.scope.count
+        } else {
+            closeoutKind = nil
+            closeoutDisposition = nil
+            closeoutSHA256 = nil
+            recordedFindingCount = 0
+            reviewedScopeItemCount = 0
+        }
+    }
+
+    static let includesEvidenceAnswersActorIdentityOrPrivateLocators = false
+    static let indexesFindingStatusDueDateOrSeverity = false
+    static let cloneForkSourceAndTargetSnapshotIdentityRemainDistinct = true
+}

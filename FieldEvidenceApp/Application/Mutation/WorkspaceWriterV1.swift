@@ -14,6 +14,12 @@ protocol WorkspaceWriterAdapterPortV1: AnyObject {
         identities: [WorkspaceEntityIdentityV1],
         packageBindings: [WorkspacePackageBindingV1]
     )
+    func persistedActivityContractEffectMatches(
+        _ mutation: ActivityContractMutationV2
+    ) throws -> Bool
+    func persistAppliedActivityContractEffect(
+        _ mutation: ActivityContractMutationV2
+    ) throws
     func rollback()
 }
 
@@ -29,6 +35,18 @@ extension WorkspaceWriterAdapterPortV1 {
         packageBindings: [WorkspacePackageBindingV1]
     ) {
         throw WorkspaceMutationFailureV1.unsupportedCommand
+    }
+
+    func persistedActivityContractEffectMatches(
+        _ mutation: ActivityContractMutationV2
+    ) throws -> Bool {
+        false
+    }
+
+    func persistAppliedActivityContractEffect(
+        _ mutation: ActivityContractMutationV2
+    ) throws {
+        throw WorkspaceMutationFailureV1.persistenceFailed
     }
 
     func rollback() {}
@@ -587,6 +605,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             do{try value.validate();guard value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,value.expectedRevision==request.expectedRevision else{throw WorkspaceMutationFailureV1.invalidCommand}}catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
         case .applyOperationalContact(let value):
             do{try value.validate();guard value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,value.expectedRevision==request.expectedRevision else{throw WorkspaceMutationFailureV1.invalidCommand}}catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
+        case .applyActivityContract(let value):
+            do{try value.validateForCanonicalMutation();guard C47ActivityContractPersistenceBoundaryV2.acceptsCanonicalRow(kind:value.successorEnvelope.kind),value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,value.expectedRevision==request.expectedRevision else{throw WorkspaceMutationFailureV1.invalidCommand}}catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
         default:
             break
         }
@@ -697,6 +717,12 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             )
             guard applied == effect else {
                 throw WorkspaceMutationFailureV1.persistenceFailed
+            }
+            if case let .applyActivityContract(mutation) = request.command {
+                guard journalStore != nil else {
+                    throw WorkspaceMutationFailureV1.persistenceFailed
+                }
+                try adapter.persistAppliedActivityContractEffect(mutation)
             }
             if let journalStore {
                 try journalStore.reach(.afterEffectBeforeReceipt)
@@ -827,6 +853,10 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             let image = try mutation.mutationPostImage
             entityRevisions[try image.identity] = image.revision
         } else if case let .applyOperationalContact(mutation) = request.command {
+            for image in try mutation.mutationPostImages {
+                entityRevisions[try image.identity] = image.revision
+            }
+        } else if case let .applyActivityContract(mutation) = request.command {
             for image in try mutation.mutationPostImages {
                 entityRevisions[try image.identity] = image.revision
             }
@@ -1330,6 +1360,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             try value.validate();values=[try value.affectedIdentity]
         case let .applyOperationalContact(value):
             try value.validate();values=try value.affectedIdentities
+        case let .applyActivityContract(value):
+            try value.validateForCanonicalMutation();values=try value.affectedIdentities
         }
         guard Set(values).count == values.count else {
             throw WorkspaceMutationFailureV1.invalidCommand
@@ -1385,6 +1417,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         if case let .applyTemporalEvidence(value)=command{try value.validate();return try value.concurrencyIdentities}
         if case let .applyAssetLabel(value)=command{try value.validate();return[try value.affectedIdentity]}
         if case let .applyOperationalContact(value)=command{try value.validate();return try value.concurrencyIdentities}
+        if case let .applyActivityContract(value)=command{try value.validateForCanonicalMutation();return try value.concurrencyIdentities}
         return try targetIdentities(for: command)
     }
 
@@ -1626,5 +1659,83 @@ extension WorkspaceWriterV1: OperationalContactMutationCommittingV1 {
             throw WorkspaceMutationFailureV1.persistenceFailed
         }
         return try journalStore.operationalContactReceipt(mutationID: mutationID)
+    }
+}
+
+// MARK: - C47 activity-contract sole writer
+
+extension WorkspaceWriterV1: ActivityContractCanonicalWorkspaceWritingV2 {
+    func commitActivityContract(_ mutation: ActivityContractMutationV2) async throws -> MutationReceiptV1 {
+        try mutation.validateForCanonicalMutation()
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        if let existing = try journalStore.receipt(mutationID: mutation.mutationID) {
+            _ = try ActivityContractMutationReceiptV2(mutation: mutation, mutationReceipt: existing)
+            return existing
+        }
+        let current = try currentRevision()
+        guard mutation.expectedRevision.workspaceID == current.workspaceID,
+              mutation.expectedRevision.generationID == current.generationID,
+              mutation.expectedRevision.writerInstanceID == current.writerInstanceID,
+              mutation.expectedRevision.workspaceRevision == current.revision else {
+            throw WorkspaceMutationFailureV1.staleWorkspaceRevision
+        }
+        let request = try mutation.canonicalWorkspaceMutationRequest()
+        if let recovered = try reconcileActivityContractEffectBeforeReceipt(
+            mutation: mutation,
+            request: request,
+            journalStore: journalStore
+        ) {
+            return recovered
+        }
+        _ = try execute(request)
+        guard let receipt = try journalStore.receipt(mutationID: mutation.mutationID) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        _ = try ActivityContractMutationReceiptV2(mutation: mutation, mutationReceipt: receipt)
+        return receipt
+    }
+
+    /// C47's effect is persisted before the journal receipt boundary.  A
+    /// restarted writer must therefore adopt only an effect whose canonical
+    /// post-images exactly recreate the requested receipt; it must never
+    /// execute the duplicate activity rows or retain process-local replay
+    /// state.
+    private func reconcileActivityContractEffectBeforeReceipt(
+        mutation: ActivityContractMutationV2,
+        request: WorkspaceMutationRequestV1,
+        journalStore: MutationJournalStoreV1
+    ) throws -> MutationReceiptV1? {
+        guard try adapter.persistedActivityContractEffectMatches(mutation) else {
+            return nil
+        }
+        let envelope = try MutationEnvelopeV1(
+            request: request,
+            identity: identity,
+            sourceKind: .localUser
+        )
+        let receipt = try journalStore.commit(
+            envelope: envelope,
+            writerInstanceID: writerInstanceID,
+            affectedEntities: try mutation.affectedIdentities,
+            committedAt: clock.now()
+        )
+        _ = try ActivityContractMutationReceiptV2(
+            mutation: mutation,
+            mutationReceipt: receipt
+        )
+        return receipt
+    }
+
+    func durableActivityContractReceipt(
+        workspaceID: WorkspaceID,
+        mutationID: MutationIDV1
+    ) async throws -> MutationReceiptV1? {
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard try currentRevision().workspaceID == workspaceID else {
+            throw WorkspaceMutationFailureV1.wrongWorkspace
+        }
+        guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        return try journalStore.receipt(mutationID: mutationID)
     }
 }

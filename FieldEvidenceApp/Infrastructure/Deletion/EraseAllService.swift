@@ -621,6 +621,16 @@ final class EraseAllService {
                   coordinator.modelContext === session.modelContext else {
                 throw EraseAllServiceError.recoveryRequired
             }
+            let activityContractProjections = ActivityContractDerivedProjectionBridgeV2(
+                searchStore: coordinator.searchIndexStore,
+                searchRebuildCoordinator: coordinator.searchServices.rebuildCoordinator
+            )
+            try await activityContractProjections.purgeActivityContractProjections(.init(
+                workspaceID: WorkspaceID(rawValue: oldPointer.workspaceID),
+                activityID: nil,
+                axes: [.shared, .installation, .punch],
+                event: .erase
+            ))
             guard try await waitForDrain(drainProof) else {
                 return EraseAllOutcome(
                     session: session,
@@ -1415,6 +1425,7 @@ private extension EraseAllService {
         try PlacementPoseEraseAllPolicyV1.validatePublishedEmptyGeneration(
             session.modelContext
         )
+        try validateActivityContractEraseClosure(session: session)
         if let identity {
             let history = try MutationJournalStoreV1(
                 modelContext: session.modelContext,
@@ -2667,6 +2678,19 @@ extension EraseAllService {
             FetchDescriptor<SystemHandoffIntentRow>()
         ) == 0 else { throw EraseAllServiceError.invalidAuthority }
         try C46OperationalContactKernelDeletionEnrollmentV1.validate()
+    }
+
+    func validateActivityContractEraseClosure(
+        session: StoreGenerationSession
+    ) throws {
+        guard try session.modelContext.fetchCount(FetchDescriptor<ActivitySessionEnvelopeRow>()) == 0,
+              try session.modelContext.fetchCount(FetchDescriptor<ActivityStateTransitionRow>()) == 0,
+              try session.modelContext.fetchCount(FetchDescriptor<InstallationTaskResultRow>()) == 0,
+              try session.modelContext.fetchCount(FetchDescriptor<InstallationAsBuiltSnapshotRow>()) == 0,
+              try session.modelContext.fetchCount(FetchDescriptor<PunchReviewBasisSnapshotRow>()) == 0 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try C47ActivityContractKernelDeletionEnrollmentV2.validate()
     }
 }
 

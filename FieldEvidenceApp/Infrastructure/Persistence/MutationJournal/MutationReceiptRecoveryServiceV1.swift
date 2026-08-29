@@ -134,3 +134,4 @@ enum C32AssistanceCompatibility_Persistence_MutationJournal_MutationReceiptRecov
 enum C45AcceptedLabelRecoveryBoundaryV1 { static let commandKind:WorkspaceCommandKindV1 = .applyAssetLabel;static let effectBeforeReceiptRecoveryIsIdempotent=true }
 
 enum C46OperationalContactBoundary_20{static let persistentFamilies=OperationalContactPersistenceEnrollmentV1.persistentFamilies;static let platformOutcomesPersistent=false}
+enum C47ActivityContractRecoveryBoundaryV2 { static let commandKind:WorkspaceCommandKindV1 = .applyActivityContract;static let effectBeforeReceiptRecoveryIsIdempotent=true;static let completedSnapshotBytesAreNeverReencoded=true }

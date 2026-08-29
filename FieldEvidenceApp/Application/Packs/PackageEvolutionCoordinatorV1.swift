@@ -234,3 +234,153 @@ extension PackageEvolutionCoordinatorV1 {
         return try SurveyDefinitionReleaseReferenceV1(release)
     }
 }
+
+enum C47ActivityContractConformance_FieldEvidenceApp_Application_Packs_PackageEvolutionCoordinatorV1_swift {
+    static let integrationRole = "SHARED_INVALIDATION_THROUGH_PACKAGE_EVOLUTION"
+    static let sharedReceipt = SharedActivityEnvelopeReceiptV1.self
+    static let installationReceipt = InstallationActivityContractReceiptV1.self
+    static let punchReceipt = PunchActivityContractReceiptV1.self
+    static let noPlanFallback = NoPlanFallbackV1.self
+    static let usesExistingWriterRendererStoreAndPackageInfrastructure = true
+    static let createsSecondRouteOrInspectionAlias = false
+    static func validateReadable(_ value: ActivitySessionEnvelopeV2) throws { try value.validateForRead() }
+}
+
+enum ActivityWorkflowReleaseUseV2: String, Codable, CaseIterable, Hashable, Sendable {
+    case start = "START"
+    case export = "EXPORT"
+    case read = "READ"
+    case recovery = "RECOVERY"
+}
+
+enum BundledActivityWorkflowReleaseV2: Equatable, Sendable {
+    case installation(InstallationWorkflowDefinitionReleaseV1)
+    case punch(PunchReviewWorkflowDefinitionReleaseV1)
+
+    var kind: ActivityKindV2 {
+        switch self {
+        case .installation: return .installation
+        case .punch: return .punchReview
+        }
+    }
+
+    var workspaceID: WorkspaceID {
+        switch self {
+        case let .installation(value): return value.workspaceID
+        case let .punch(value): return value.workspaceID
+        }
+    }
+
+    func validate() throws {
+        switch self {
+        case let .installation(value):
+            try value.validate()
+            guard value.bundledRelease == .installationV1 else {
+                throw InspectionPackageFailureV2.incompatiblePackage
+            }
+        case let .punch(value):
+            try value.validate()
+            guard value.bundledRelease == .punchReviewV1 else {
+                throw InspectionPackageFailureV2.incompatiblePackage
+            }
+        }
+    }
+}
+
+struct BundledActivityWorkflowReleaseSelectionV2: Equatable, Sendable {
+    let packageID: String
+    let release: BundledActivityWorkflowReleaseV2
+
+    func validate(registry: InspectionPackageRegistryV2) throws {
+        _ = try registry.package(id: packageID)
+        try release.validate()
+    }
+}
+
+struct ActivityWorkflowReleasePublicationV2: Equatable, Sendable {
+    let packageRegistryReceipt: InspectionPackageRegistryPublicationReceiptV2
+    let selection: BundledActivityWorkflowReleaseSelectionV2
+
+    init(registry: InspectionPackageRegistryV2,
+         selection: BundledActivityWorkflowReleaseSelectionV2) throws {
+        try selection.validate(registry: registry)
+        let receipt = try registry.publicationReceipt(adoptedExisting: true)
+        guard receipt.orderedPackageIDs.contains(selection.packageID),
+              !receipt.persistentWriteOccurred else {
+            throw InspectionPackageFailureV2.incompatiblePackage
+        }
+        packageRegistryReceipt = receipt
+        self.selection = selection
+    }
+}
+
+extension InspectionPackageRegistryV2 {
+    func bundledActivityWorkflowRelease(
+        kind: ActivityKindV2,
+        packageID: String,
+        workspaceID: WorkspaceID
+    ) throws -> BundledActivityWorkflowReleaseSelectionV2 {
+        _ = try package(id: packageID)
+        func uuid(_ value: String) throws -> UUID {
+            guard let result = UUID(uuidString: value) else {
+                throw InspectionPackageFailureV2.invalidValue
+            }
+            return result
+        }
+        let release: BundledActivityWorkflowReleaseV2
+        switch kind {
+        case .installation:
+            release = .installation(try InstallationWorkflowDefinitionReleaseV1(
+                releaseID: uuid("c4700000-0000-4000-8000-000000000101"),
+                workspaceID: workspaceID,
+                tasks: [
+                    InstallationTaskDefinitionV1(
+                        taskID: "identify-subject", ordinal: 0, title: "Confirm the selected subject",
+                        evidencePurposes: [.subjectIdentity]
+                    ),
+                    InstallationTaskDefinitionV1(
+                        taskID: "record-placement", ordinal: 1, title: "Record placement context",
+                        evidencePurposes: [.placementContext]
+                    ),
+                    InstallationTaskDefinitionV1(
+                        taskID: "record-as-built", ordinal: 2, title: "Record the as-built condition",
+                        evidencePurposes: [.asBuiltOverview, .asBuiltDetail]
+                    ),
+                ],
+                readinessPolicy: InstallationReadinessPolicyV1(
+                    requiredFacets: [.subject, .site, .material, .equipment]
+                ),
+                revision: 1,
+                mutationID: MutationIDV1(rawValue: uuid("c4700000-0000-4000-8000-000000000102"))
+            ))
+        case .punchReview:
+            release = .punch(try PunchReviewWorkflowDefinitionReleaseV1(
+                releaseID: uuid("c4700000-0000-4000-8000-000000000201"),
+                workspaceID: workspaceID,
+                scope: [
+                    PunchReviewScopeItemV1(
+                        scopeItemID: "review-recorded-scope", ordinal: 0,
+                        title: "Review the recorded scope"
+                    ),
+                    PunchReviewScopeItemV1(
+                        scopeItemID: "record-findings", ordinal: 1,
+                        title: "Link any recorded findings"
+                    ),
+                ],
+                readinessPolicy: PunchReviewReadinessPolicyV1(
+                    requiredFacets: [.subject, .site]
+                ),
+                revision: 1,
+                mutationID: MutationIDV1(rawValue: uuid("c4700000-0000-4000-8000-000000000202"))
+            ))
+        default:
+            throw InspectionPackageFailureV2.incompatiblePackage
+        }
+        let selection = BundledActivityWorkflowReleaseSelectionV2(
+            packageID: packageID, release: release
+        )
+        try selection.validate(registry: self)
+        return selection
+    }
+
+}

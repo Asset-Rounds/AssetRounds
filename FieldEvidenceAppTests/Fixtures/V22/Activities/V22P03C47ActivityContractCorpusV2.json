@@ -1,0 +1,111 @@
+{
+  "schema": "V22P03C47ActivityContractCorpusV2",
+  "schemaVersion": 2,
+  "cardID": "V23-P03-C47",
+  "classification": "IMPLEMENT_NOW",
+  "persistentSchemaVersion": 36,
+  "recordsSchemaVersion": 35,
+  "durableFamilies": [
+    "ActivitySessionEnvelopeV2",
+    "ActivityStateTransitionV2",
+    "CompletedActivitySnapshotV2",
+    "InstallationTaskResultV1",
+    "InstallationAsBuiltSnapshotV1",
+    "PunchReviewBasisSnapshotV1"
+  ],
+  "contractNames": [
+    "SharedActivityEnvelopeReceiptV1",
+    "InstallationActivityContractReceiptV1",
+    "PunchActivityContractReceiptV1",
+    "NoPlanFallbackV1"
+  ],
+  "activityKinds": [
+    "INSPECTION",
+    "SURVEY",
+    "PREVENTIVE_MAINTENANCE",
+    "REPAIR",
+    "OPERATIONAL_RECHECK",
+    "INSTALLATION",
+    "PUNCH_REVIEW"
+  ],
+  "sharedEnvelopeCases": [
+    { "caseID": "SHARED-DRAFT", "input": "DRAFT", "expectedDisposition": "PREFLIGHT_REQUIRED_OR_CANCELLED" },
+    { "caseID": "SHARED-START", "input": "READY", "expectedDisposition": "IN_PROGRESS_WITH_KIND_FROZEN" },
+    { "caseID": "SHARED-FINAL", "input": "READY_FOR_REVIEW", "expectedDisposition": "FINALIZED_RECORDED_FACTS_ONLY" }
+  ],
+  "installationCases": [
+    { "caseID": "INSTALL-COMPLETE", "input": "COMPLETED", "expectedDisposition": "COMPLETED_AS_RECORDED" },
+    { "caseID": "INSTALL-DEFERRED", "input": "MATERIAL_UNAVAILABLE", "expectedDisposition": "DEFERRED_WITH_TYPED_REASON" },
+    { "caseID": "INSTALL-UNABLE", "input": "UNSAFE_RECORDED_CONDITION", "expectedDisposition": "UNABLE_ATTEMPT_RECORDED" }
+  ],
+  "punchCases": [
+    { "caseID": "PUNCH-STANDALONE", "input": "NO_INSTALLATION_REFERENCE", "expectedDisposition": "STANDALONE_FJ04_COMPLETE" },
+    { "caseID": "PUNCH-NONE", "input": "REVIEWED_NO_ITEM_RECORDED", "expectedDisposition": "SCOPE_AND_TIME_LIMITATION_RETAINED" },
+    { "caseID": "PUNCH-ITEMS", "input": "REVIEWED_WITH_ITEMS", "expectedDisposition": "EXISTING_FINDING_TRUTH_LINKED" }
+  ],
+  "readinessCases": [
+    { "caseID": "READY", "input": "ACCESS_READY", "expectedDisposition": "READY" },
+    { "caseID": "BLOCKED", "input": "SITE_BLOCKED", "expectedDisposition": "BLOCKED_WITH_RECORDED_REASON" },
+    { "caseID": "NOT-APPLICABLE", "input": "WEATHER_NOT_APPLICABLE", "expectedDisposition": "NOT_APPLICABLE" }
+  ],
+  "variationCases": [
+    { "caseID": "VARIATION-APPEND", "input": "FINALIZED_CORRECTION", "expectedDisposition": "APPEND_SUCCESSOR" },
+    { "caseID": "VARIATION-RETIRE", "input": "PACKAGE_RETIRED", "expectedDisposition": "HISTORIC_READ_EXPORT_PRESERVED" },
+    { "caseID": "VARIATION-UNKNOWN", "input": "FUTURE_ACTIVITY_KIND", "expectedDisposition": "READ_EXPORT_ONLY_MUTATION_REJECTED" }
+  ],
+  "hostileCases": [
+    "INSPECTION_PASS_COMPLIANT_CERTIFIED_APPROVED_VOCABULARY_LEAKAGE",
+    "STALE_OR_TAMPERED_BASIS",
+    "MISSING_SUBJECT_OR_REFERENCE",
+    "UNSAFE_ACCESS_SITE_MATERIAL_WEATHER_OR_EQUIPMENT_BLOCKER",
+    "DUPLICATE_FINDING_TRUTH",
+    "PLAN_REBASE_OR_PHYSICAL_MOVE_DURING_WORK",
+    "PACKAGE_UPDATE_OR_RETIREMENT",
+    "PARTIAL_FINALIZATION_RACE"
+  ],
+  "interruptionBoundaries": [
+    "EVERY_LIFECYCLE_TRANSITION",
+    "TASK_OR_ITEM_SAVE",
+    "EVIDENCE_PROMOTION",
+    "PLACEMENT_OR_FINDING_MUTATION",
+    "FINALIZATION",
+    "REPORT_BOUNDARY"
+  ],
+  "lifecycle": {
+    "migration": "V1_BYTES_PRESERVED_V2_ADAPTER_EXPLICIT",
+    "backupRestoreCloneFork": "SIX_DURABLE_FAMILIES_CLOSED_AND_REBOUND",
+    "journalReplay": "EFFECT_BEFORE_RECEIPT_IDEMPOTENT",
+    "searchRebuild": "TYPED_ACTIVITY_METADATA_ONLY",
+    "reportExport": "FINALIZED_RECORDED_FACTS_WITHOUT_OVERCLAIMS",
+    "deleteEraseRetention": "WORKSPACE_SCOPED_COMPLETE_CLOSURE",
+    "interruptionRecovery": "SAME_EFFECT_AND_RECEIPT_OR_NO_EFFECT",
+    "compatibilityForwardFix": "UNKNOWN_KIND_READ_EXPORT_ONLY_AND_RELEASED_BYTES_PRESERVED"
+  },
+  "invariants": {
+    "threeReceiptFamiliesAreIndependent": true,
+    "sharedEnvelopeCannotWriteFamilyTruth": true,
+    "installationCannotWritePunchTruth": true,
+    "punchCannotWriteInstallationTruth": true,
+    "noPlanFallbackIsExplicit": true,
+    "readinessIsTyped": true,
+    "variationIsAppendOnly": true,
+    "closeoutNeverClaimsApprovalCertificationOrAuthorization": true,
+    "oneCanonicalWriterPerReceipt": true,
+    "noSecondRendererStoreOrStatusDatabase": true
+  },
+  "evidenceIDs": [
+    "V23-P03-C47-G01",
+    "V23-P03-C47-A01",
+    "V23-P03-C47-H01",
+    "V23-P03-C47-I01",
+    "V23-P03-C47-R01"
+  ],
+  "statusFlags": {
+    "native": false,
+    "hosted": false,
+    "physical": false,
+    "adoption": false,
+    "acceptance": false,
+    "release": false
+  }
+}

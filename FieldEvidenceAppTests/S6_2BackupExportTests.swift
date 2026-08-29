@@ -835,3 +835,28 @@ private final class C46S62BackupExportCompatibilityTests: XCTestCase {
         )
     }
 }
+
+
+private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_2BackupExportTests_swift {
+    static let compatibilityCardID = "V23-P03-C47"
+    static let sharedEnvelopeDoesNotCollapseFamilyTruth = true
+    static let installationAndPunchReceiptsRemainIndependent = true
+    static let noPlanFallbackIsExplicit = true
+    static let surveyDefinitionOwnershipIsPreserved = true
+    static let legacyInspectionTruthIsNotRewritten = true
+    static let threeReceiptIsolationIsRequired = true
+}
+
+private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_2BackupExportTests_swift_Tests: XCTestCase {
+    func testC47S62BackupExportTestsOwnerCompatibilityIsTyped() {
+        XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_2BackupExportTests_swift.compatibilityCardID, "V23-P03-C47")
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_2BackupExportTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_2BackupExportTests_swift.installationAndPunchReceiptsRemainIndependent)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_2BackupExportTests_swift.noPlanFallbackIsExplicit)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_2BackupExportTests_swift.surveyDefinitionOwnershipIsPreserved)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_2BackupExportTests_swift.legacyInspectionTruthIsNotRewritten)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_2BackupExportTests_swift.threeReceiptIsolationIsRequired)
+        XCTAssertEqual(ActivityContractPersistenceEnrollmentV2.persistentFamilies.count, 6)
+        XCTAssertTrue(ActivityContractPersistenceEnrollmentV2.usesSoleWorkspaceWriter)
+    }
+}

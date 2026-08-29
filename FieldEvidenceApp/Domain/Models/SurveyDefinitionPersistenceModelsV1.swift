@@ -63,6 +63,7 @@ enum SurveyDefinitionPersistenceFailureV1: Error { case corruptRow }
         canonicalData=try SurveyDefinitionCanonicalCodecV1.encode(value)
     }
 }
+enum C47ActivityContractSurveyDefinitionPersistenceBoundaryV2 { static let activityRowsDoNotCreatePackageReleaseRows=true;static let referencedPackageTruthUsesExistingSurveyDefinitionAuthority=true;static let noPlanFallbackIsNonpersistent=true }
 
 @Model final class SurveyDefinitionReleaseRow {
     @Attribute(.unique) var releaseID: UUID

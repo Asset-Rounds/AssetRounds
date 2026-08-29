@@ -387,6 +387,29 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
                 severityLevelSummary: authority?.severityLevels.sorted().joined(separator: " ") ?? "",
                 measurementProtocolSummary: authority?.measurementProtocols.sorted().joined(separator: " ") ?? "")
         }
+        values += try modelContext.fetch(FetchDescriptor<ActivitySessionEnvelopeRow>())
+            .filter { $0.workspaceID == workspaceID }
+            .map { row in
+                let envelope = try row.value()
+                let projection = try ActivityContractSearchProjectionV2(envelope: envelope)
+                let closeoutSummary = [
+                    projection.closeoutKind,
+                    projection.closeoutDisposition,
+                ].compactMap { $0 }.joined(separator: " ")
+                return CanonicalValue(
+                    kind: .work,
+                    stableID: try stableKey(kind: .activitySessionEnvelope, id: projection.activityID),
+                    display: projection.title,
+                    summary: ([projection.kind.rawValue, projection.title, closeoutSummary]
+                        .filter { !$0.isEmpty }
+                        .joined(separator: " ")),
+                    breadcrumb: [],
+                    status: ([projection.state.rawValue, closeoutSummary]
+                        .filter { !$0.isEmpty }
+                        .joined(separator: " ")),
+                    dueAt: nil, timestamp: envelope.finalizedAt ?? envelope.startedAt
+                )
+            }
         values += try modelContext.fetch(FetchDescriptor<Issue>()).map {
             CanonicalValue(kind: .work, stableID: try stableKey(kind: .issue, id: $0.id),
                 display: $0.labelDisplaySnapshot, summary: $0.labelDisplaySnapshot,

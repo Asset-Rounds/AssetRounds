@@ -61,6 +61,15 @@ struct PackageSemanticReleaseBindingsV1: Codable, Equatable, Sendable {
     }
 }
 
+enum C47ActivityContractCompatibility_FieldEvidenceApp_Domain_Packs_PackageEvolutionContractsV1_swift {
+    static let sharedEnvelopeDoesNotCollapseFamilyTruth = true
+    static let installationAndPunchReceiptsRemainIndependent = true
+    static let noPlanFallbackIsExplicit = true
+    static let surveyDefinitionOwnershipIsPreserved = true
+    static let legacyInspectionTruthIsNotRewritten = true
+    static let threeReceiptIsolationIsRequired = true
+}
+
 struct PackageSemanticChangeV1: Codable, Equatable, Hashable, Sendable {
     let kind: PackageSemanticChangeKindV1
     let stableSubjectID: String

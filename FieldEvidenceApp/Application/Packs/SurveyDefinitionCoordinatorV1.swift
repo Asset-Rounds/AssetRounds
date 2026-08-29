@@ -352,9 +352,25 @@ enum C45AssetLabelBoundary_Row131 {
     }
 }
 enum C46OperationalContactConformance_FieldEvidenceApp_Application_Packs_SurveyDefinitionCoordinatorV1_swift {
+    static let c47IntegrationRole = "SURVEY_DEFINITION_OWNERSHIP_PRESERVED"
+    static let c47SharedReceipt = SharedActivityEnvelopeReceiptV1.self
+    static let c47InstallationReceipt = InstallationActivityContractReceiptV1.self
+    static let c47PunchReceipt = PunchActivityContractReceiptV1.self
+    static let c47NoPlanFallback = NoPlanFallbackV1.self
+    static let c47UsesExistingWriterRendererStoreAndPackageInfrastructure = true
+    static let c47CreatesSecondRouteOrInspectionAlias = false
     static let operationalContactsRemainPurposeSeparated = true
     static let systemHandoffsRemainExplicitEphemeralAndNoncanonical = true
     static let subscriberConsentCampaignAndMeasurementProjectionForbidden = true
     static let contactExportExcludedByDefault = true
     static let noSecondWriterOrAutomaticHandoff = true
+}
+
+enum C47ActivityContractConformance_FieldEvidenceApp_Application_Packs_SurveyDefinitionCoordinatorV1_swift {
+    static let sharedReceipt = SharedActivityEnvelopeReceiptV1.self
+    static let installationReceipt = InstallationActivityContractReceiptV1.self
+    static let punchReceipt = PunchActivityContractReceiptV1.self
+    static let noPlanFallback = NoPlanFallbackV1.self
+    static let usesExistingInfrastructureOnly = true
+    static let createsSecondWriterRendererStoreRouteOrInspectionAlias = false
 }

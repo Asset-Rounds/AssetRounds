@@ -3263,3 +3263,195 @@ enum C45AssetLabelBoundary_DeterministicOpenJSONRendererV1 {
 }
 
 enum C46OperationalContactBoundary_27{static let defaultProjection="EXCLUDED";static let rawPhoneOrEmailEmitted=false;static let platformOutcomeClaimEmitted=false}
+
+enum C47ActivityContractConformance_FieldEvidenceApp_Infrastructure_Reporting_DeterministicOpenJSONRendererV1_swift {
+    static let integrationRole = "UNKNOWN_KIND_READ_EXPORT"
+    static let sharedReceipt = SharedActivityEnvelopeReceiptV1.self
+    static let installationReceipt = InstallationActivityContractReceiptV1.self
+    static let punchReceipt = PunchActivityContractReceiptV1.self
+    static let noPlanFallback = NoPlanFallbackV1.self
+    static let usesExistingReportInfrastructure = true
+    static let createsSecondRendererWriterOrStore = false
+    static func validateReadable(_ value: ActivitySessionEnvelopeV2) throws { try value.validateForRead() }
+    static func metadata(_ projection: ActivityContractReportProjectionV2) throws -> [String: String] {
+        try projection.envelope.validateForRead()
+        return ["activity_id": projection.envelope.activityID.uuidString.lowercased(),
+                "activity_kind": projection.envelope.kind.rawValue,
+                "activity_state": projection.envelope.state.rawValue,
+                "activity_revision": String(projection.envelope.revision),
+                "envelope_sha256": projection.envelope.envelopeSHA256]
+    }
+}
+
+extension ReportSemanticProjectorV1 {
+    static func project(
+        activityContract projection: ActivityContractReportProjectionV2,
+        manifest: ContractManifestV1
+    ) throws -> ReportSemanticProjectionV1 {
+        guard let completed = projection.completed else {
+            throw SnapshotProjectionFailureV1.missingBinding
+        }
+        guard let reference = projection.envelope.completedSnapshotReference else {
+            throw SnapshotProjectionFailureV1.missingBinding
+        }
+        try reference.validate(snapshot: completed)
+        guard reference.workspaceID == projection.envelope.workspaceID,
+              reference.activityID == projection.envelope.activityID else {
+            throw SnapshotProjectionFailureV1.missingBinding
+        }
+        let base = try project(snapshot: completed, manifest: manifest)
+        let section = base.nodes.contains(where: { $0.sectionID == "service" })
+            ? "service" : (base.nodes.first?.sectionID ?? "identity")
+        var nodes = base.nodes
+        nodes += [
+            try ReportSemanticNodeV1(semanticID: "c47-activity-kind", sectionID: section,
+                                     role: "fact", label: "Activity kind",
+                                     value: projection.envelope.kind.rawValue),
+            try ReportSemanticNodeV1(semanticID: "c47-activity-state", sectionID: section,
+                                     role: "fact", label: "Activity state",
+                                     value: projection.envelope.state.rawValue),
+            try ReportSemanticNodeV1(semanticID: "c47-activity-title", sectionID: section,
+                                     role: "fact", label: "Activity",
+                                     value: projection.envelope.title),
+            try ReportSemanticNodeV1(semanticID: "c47-activity-revision", sectionID: section,
+                                     role: "fact", label: "Activity revision",
+                                     value: String(projection.envelope.revision)),
+        ]
+        if let reference = projection.completedSnapshotReference {
+            nodes += [
+                try ReportSemanticNodeV1(
+                    semanticID: "c47-snapshot-target-workspace", sectionID: section,
+                    role: "identity", label: "Snapshot target workspace",
+                    value: reference.workspaceID.rawValue.uuidString.lowercased()
+                ),
+                try ReportSemanticNodeV1(
+                    semanticID: "c47-snapshot-target-activity", sectionID: section,
+                    role: "identity", label: "Snapshot target activity",
+                    value: reference.activityID.uuidString.lowercased()
+                ),
+                try ReportSemanticNodeV1(
+                    semanticID: "c47-snapshot-source-workspace", sectionID: section,
+                    role: "identity", label: "Snapshot source workspace",
+                    value: reference.sourceWorkspaceID.rawValue.uuidString.lowercased()
+                ),
+                try ReportSemanticNodeV1(
+                    semanticID: "c47-snapshot-source-activity", sectionID: section,
+                    role: "identity", label: "Snapshot source activity",
+                    value: reference.sourceActivityID.uuidString.lowercased()
+                ),
+                try ReportSemanticNodeV1(
+                    semanticID: "c47-snapshot-source-revision", sectionID: section,
+                    role: "fact", label: "Snapshot source revision",
+                    value: String(reference.sourceActivityRevision)
+                ),
+                try ReportSemanticNodeV1(
+                    semanticID: "c47-snapshot-source-closeout", sectionID: section,
+                    role: "digest", label: "Snapshot source closeout SHA-256",
+                    value: reference.sourceCloseoutSHA256
+                ),
+                try ReportSemanticNodeV1(
+                    semanticID: "c47-snapshot-target-closeout", sectionID: section,
+                    role: "digest", label: "Snapshot target closeout SHA-256",
+                    value: reference.targetCloseoutSHA256
+                ),
+            ]
+        }
+        if let installation = projection.installation {
+            nodes.append(try ReportSemanticNodeV1(
+                semanticID: "c47-installation-completion", sectionID: section,
+                role: "fact", label: "Installation completion",
+                value: installation.completion.rawValue
+            ))
+        }
+        if let closeout = projection.installationCloseout {
+            nodes += [
+                try ReportSemanticNodeV1(
+                    semanticID: "c47-installation-closeout-completion", sectionID: section,
+                    role: "fact", label: "Installation closeout",
+                    value: closeout.completion.rawValue
+                ),
+                try ReportSemanticNodeV1(
+                    semanticID: "c47-installation-closeout-as-built", sectionID: section,
+                    role: "digest", label: "As-built snapshot SHA-256",
+                    value: closeout.asBuiltSnapshotSHA256
+                ),
+                try ReportSemanticNodeV1(
+                    semanticID: "c47-installation-closeout-open-findings", sectionID: section,
+                    role: "fact", label: "Open recorded findings",
+                    value: String(closeout.openFindings.count)
+                ),
+                try ReportSemanticNodeV1(
+                    semanticID: "c47-installation-closeout-sha256", sectionID: section,
+                    role: "digest", label: "Installation closeout SHA-256",
+                    value: closeout.closeoutSHA256
+                ),
+            ]
+            if let limitation = closeout.limitation {
+                nodes.append(try ReportSemanticNodeV1(
+                    semanticID: "c47-installation-closeout-limitation", sectionID: section,
+                    role: "limitation", label: "Installation limitation", value: limitation
+                ))
+            }
+            for link in closeout.openFindings {
+                nodes.append(try ReportSemanticNodeV1(
+                    semanticID: "c47-installation-finding-\(link.findingID.uuidString.lowercased())",
+                    sectionID: section, role: "digest", label: "Recorded finding SHA-256",
+                    value: link.findingSHA256
+                ))
+            }
+        }
+        if let punch = projection.punch {
+            nodes.append(try ReportSemanticNodeV1(
+                semanticID: "c47-punch-basis", sectionID: section,
+                role: "digest", label: "Punch review basis SHA-256",
+                value: punch.basisSHA256
+            ))
+        }
+        if let closeout = projection.punchReviewCloseout {
+            nodes += [
+                try ReportSemanticNodeV1(
+                    semanticID: "c47-punch-closeout-completion", sectionID: section,
+                    role: "fact", label: "Punch review closeout",
+                    value: closeout.completion.rawValue
+                ),
+                try ReportSemanticNodeV1(
+                    semanticID: "c47-punch-closeout-basis", sectionID: section,
+                    role: "digest", label: "Punch review basis SHA-256",
+                    value: closeout.basisSHA256
+                ),
+                try ReportSemanticNodeV1(
+                    semanticID: "c47-punch-closeout-limitation", sectionID: section,
+                    role: "limitation", label: "Punch review scope and time limitation",
+                    value: closeout.scopeAndTimeLimitation
+                ),
+                try ReportSemanticNodeV1(
+                    semanticID: "c47-punch-closeout-sha256", sectionID: section,
+                    role: "digest", label: "Punch review closeout SHA-256",
+                    value: closeout.closeoutSHA256
+                ),
+            ]
+            for (itemIndex, item) in closeout.scope.enumerated() {
+                nodes.append(try ReportSemanticNodeV1(
+                    semanticID: "c47-punch-item-\(itemIndex)", sectionID: section,
+                    role: "fact", label: "Punch scope item \(item.scopeItemID)",
+                    value: "\(item.disposition.rawValue)|findings=\(item.findingLinks.count)"
+                ))
+                for (findingIndex, link) in item.findingLinks.enumerated() {
+                    nodes.append(try ReportSemanticNodeV1(
+                        semanticID: "c47-punch-item-\(itemIndex)-finding-\(findingIndex)",
+                        sectionID: section, role: "digest", label: "Recorded finding SHA-256",
+                        value: link.findingSHA256
+                    ))
+                }
+            }
+        }
+        return try ReportSemanticProjectionV1(
+            projectionVersion: "activity-contract-report-v2",
+            snapshotID: base.snapshotID,
+            snapshotSHA256: base.snapshotSHA256,
+            manifestSHA256: base.manifestSHA256,
+            profileBindingSHA256: base.profileBindingSHA256,
+            nodes: nodes.sorted()
+        )
+    }
+}

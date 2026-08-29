@@ -184,6 +184,15 @@ struct ResponseFieldDefinitionV1: Codable, Equatable, Sendable {
     }
 }
 
+enum C47ActivityContractCompatibility_FieldEvidenceApp_Domain_InspectionKernel_ResponseFieldDefinitionV1_swift {
+    static let sharedEnvelopeDoesNotCollapseFamilyTruth = true
+    static let installationAndPunchReceiptsRemainIndependent = true
+    static let noPlanFallbackIsExplicit = true
+    static let surveyDefinitionOwnershipIsPreserved = true
+    static let legacyInspectionTruthIsNotRewritten = true
+    static let threeReceiptIsolationIsRequired = true
+}
+
 struct RepeatResponseBindingV1: Codable, Equatable, Sendable {
     static let schemaVersion = 1
     let schemaVersion: Int

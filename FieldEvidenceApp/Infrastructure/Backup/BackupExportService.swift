@@ -96,6 +96,11 @@ final class BackupExportService {
         let acceptedLabelGenerationSnapshots: [AcceptedLabelGenerationSnapshotRow]
         let serviceContactPoints: [ServiceContactPointRow]
         let systemHandoffIntents: [SystemHandoffIntentRow]
+        let activitySessionEnvelopes: [ActivitySessionEnvelopeRow]
+        let activityStateTransitions: [ActivityStateTransitionRow]
+        let installationTaskResults: [InstallationTaskResultRow]
+        let installationAsBuiltSnapshots: [InstallationAsBuiltSnapshotRow]
+        let punchReviewBasisSnapshots: [PunchReviewBasisSnapshotRow]
         let fieldReferenceReleases:[FieldReferenceReleaseRow]
         let fieldReferenceBindings:[FieldReferenceBindingRow]
         let recoverabilityVerificationReceipts:[RecoverabilityVerificationReceiptRow]
@@ -775,10 +780,6 @@ private extension BackupExportService {
                 schedules: records.schedules,
                 plans: records.plans,
                 placementPoses: records.placementPoses,
-                lighting: records.lighting,
-                assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
-                temporalEvidence: records.temporalEvidence,
-                acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots,
                 fieldReferences:records.fieldReferences,
                 fieldDrafts: records.fieldDrafts,
                 workPackets: records.workPackets,
@@ -804,7 +805,12 @@ private extension BackupExportService {
                 requirementAssurance: records.requirementAssurance,
                 savedSmartViews: records.savedSmartViews,
                 sites: records.sites,
-                workflowRecords: records.workflowRecords
+                workflowRecords: records.workflowRecords,
+                lighting: records.lighting,
+                assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
+                temporalEvidence: records.temporalEvidence,
+                acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots,
+                activityContracts: records.activityContracts
             )
             semanticRecordsData = try BackupCanonicalEncoderV1()
                 .encodeSemanticRecords(semanticRecords).data
@@ -1055,9 +1061,9 @@ private extension BackupExportService {
             source: .init(
                 appBuild: appBuild(),
                 appVersion: appVersion(),
-                persistentSchemaVersion: OperationalContactPersistenceEnrollmentV1.persistentSchemaVersion,
+                persistentSchemaVersion: C47ActivityContractPersistenceBoundaryV2.persistentSchemaVersion,
                 replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: OperationalContactPersistenceEnrollmentV1.recordsSchemaVersion,
+                recordsSchemaVersion: C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion,
                 sourceGenerationID: generationID,
                 workspaceID: sourceIdentity.workspaceID.rawValue
             )
@@ -1610,6 +1616,11 @@ private extension BackupExportService {
                   acceptedLabelGenerationSnapshots: try modelContext.fetch(FetchDescriptor<AcceptedLabelGenerationSnapshotRow>()),
                   serviceContactPoints: try modelContext.fetch(FetchDescriptor<ServiceContactPointRow>()),
                   systemHandoffIntents: try modelContext.fetch(FetchDescriptor<SystemHandoffIntentRow>()),
+                  activitySessionEnvelopes: try modelContext.fetch(FetchDescriptor<ActivitySessionEnvelopeRow>()),
+                  activityStateTransitions: try modelContext.fetch(FetchDescriptor<ActivityStateTransitionRow>()),
+                  installationTaskResults: try modelContext.fetch(FetchDescriptor<InstallationTaskResultRow>()),
+                  installationAsBuiltSnapshots: try modelContext.fetch(FetchDescriptor<InstallationAsBuiltSnapshotRow>()),
+                  punchReviewBasisSnapshots: try modelContext.fetch(FetchDescriptor<PunchReviewBasisSnapshotRow>()),
                  fieldReferenceReleases:try modelContext.fetch(FetchDescriptor<FieldReferenceReleaseRow>()),
                 fieldReferenceBindings:try modelContext.fetch(FetchDescriptor<FieldReferenceBindingRow>()),
                 recoverabilityVerificationReceipts:try modelContext.fetch(FetchDescriptor<RecoverabilityVerificationReceiptRow>()),
@@ -2223,17 +2234,20 @@ private extension BackupExportService {
             rows.serviceContactPoints.map { try V35BackupOperationalContactRecordV1($0.value()) }
             + rows.systemHandoffIntents.map { try V35BackupOperationalContactRecordV1($0.value()) }
         ).sorted { ($0.kind.rawValue, $0.workspaceID.uuidString, $0.id.uuidString) < ($1.kind.rawValue, $1.workspaceID.uuidString, $1.id.uuidString) }
+        let activityContracts = mutationHistory == nil ? [] : try (
+            rows.activitySessionEnvelopes.map { try V36BackupActivityContractRecordV2($0.value()) }
+            + rows.activityStateTransitions.map { try V36BackupActivityContractRecordV2($0.value()) }
+            + rows.installationTaskResults.map { try V36BackupActivityContractRecordV2($0.value()) }
+            + rows.installationAsBuiltSnapshots.map { try V36BackupActivityContractRecordV2($0.value()) }
+            + rows.punchReviewBasisSnapshots.map { try V36BackupActivityContractRecordV2($0.value()) }
+        ).sorted { ($0.kind.rawValue, $0.workspaceID.uuidString, $0.id.uuidString)
+            < ($1.kind.rawValue, $1.workspaceID.uuidString, $1.id.uuidString) }
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveys,
             assetLocators: assetLocators,
             schedules: schedules,
             plans: plans,
             placementPoses: placementPoses,
-            lighting: lighting,
-            assistanceAcceptanceReceipts: assistanceAcceptanceReceipts,
-            temporalEvidence: temporalEvidence,
-            acceptedLabelGenerationSnapshots: acceptedLabelGenerationSnapshots,
-            operationalContacts: operationalContacts,
             accessibleDocumentAssessments:accessibleDocumentAssessments,
             surveyDefinitions:surveyDefinitions,
             fieldReferences:fieldReferences,
@@ -2297,7 +2311,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : OperationalContactPersistenceEnrollmentV1.recordsSchemaVersion,
+                : C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -2327,7 +2341,13 @@ private extension BackupExportService {
                     throw BackupExportServiceError.invalidAuthority
                 }
                 return workflowDTO(record, observationAndTime: companion)
-            }.sorted(by: dtoOrder)
+            }.sorted(by: dtoOrder),
+            lighting: lighting,
+            assistanceAcceptanceReceipts: assistanceAcceptanceReceipts,
+            temporalEvidence: temporalEvidence,
+            acceptedLabelGenerationSnapshots: acceptedLabelGenerationSnapshots,
+            operationalContacts: operationalContacts,
+            activityContracts: activityContracts
         )
     }
 

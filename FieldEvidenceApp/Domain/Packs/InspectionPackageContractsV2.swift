@@ -468,6 +468,15 @@ struct InspectionPackageV2: Codable, Equatable, Sendable {
     }
 }
 
+enum C47ActivityContractCompatibility_FieldEvidenceApp_Domain_Packs_InspectionPackageContractsV2_swift {
+    static let sharedEnvelopeDoesNotCollapseFamilyTruth = true
+    static let installationAndPunchReceiptsRemainIndependent = true
+    static let noPlanFallbackIsExplicit = true
+    static let surveyDefinitionOwnershipIsPreserved = true
+    static let legacyInspectionTruthIsNotRewritten = true
+    static let threeReceiptIsolationIsRequired = true
+}
+
 enum InspectionPackageRegistrySchemaV2 {
     static let name = "PACKAGE_REGISTRY_V2"
     static let version = 2

@@ -233,3 +233,12 @@ extension WorkflowDefinitionV1 {
         _ = try WorkflowGraphValidatorV1.validate(self)
     }
 }
+
+enum C47ActivityContractCompatibility_FieldEvidenceApp_Domain_InspectionKernel_WorkflowDefinitionV1_swift {
+    static let sharedEnvelopeDoesNotCollapseFamilyTruth = true
+    static let installationAndPunchReceiptsRemainIndependent = true
+    static let noPlanFallbackIsExplicit = true
+    static let surveyDefinitionOwnershipIsPreserved = true
+    static let legacyInspectionTruthIsNotRewritten = true
+    static let threeReceiptIsolationIsRequired = true
+}

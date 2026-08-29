@@ -20,6 +20,7 @@ enum ChangeJournalFailureV1: Error, Equatable, Sendable {
     case invalidReversal
     case incompleteCheckpoint
 }
+enum ActivityContractChangeJournalPolicyV2 { static let commandKind:WorkspaceCommandKindV1 = .applyActivityContract;static let durableSemanticFamilyCount=6;static let newRowPostimageFamilyCount=5;static let conformanceReceiptsAreIsolated=true }
 
 /// C17 lifecycle declaration. Integration events and consumer checkpoints are
 /// derived only: accepted mutation receipts/journal history are the exclusive

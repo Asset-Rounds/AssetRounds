@@ -403,7 +403,8 @@ private extension ReplacementRestoreRule {
             sites: sites,
             workflowRecords: workflow,
             assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
-            temporalEvidence: records.temporalEvidence
+            temporalEvidence: records.temporalEvidence,
+            activityContracts: records.activityContracts
         )
         guard validReferences(result), noDeletedLiveIdentity(result, ledger: ledger),
               validLocationReferences(result, ledger: ledger) else {
@@ -454,7 +455,8 @@ private extension ReplacementRestoreRule {
             sites: records.sites,
             workflowRecords: records.workflowRecords,
             assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
-            temporalEvidence: records.temporalEvidence
+            temporalEvidence: records.temporalEvidence,
+            activityContracts: records.activityContracts
         )
     }
 
@@ -503,7 +505,8 @@ private extension ReplacementRestoreRule {
             sites: records.sites,
             workflowRecords: records.workflowRecords,
             assistanceAcceptanceReceipts: assistanceAcceptanceReceipts,
-            temporalEvidence: mutationHistory == nil ? [] : records.temporalEvidence
+            temporalEvidence: mutationHistory == nil ? [] : records.temporalEvidence,
+            activityContracts: records.activityContracts
         )
     }
 
@@ -543,7 +546,8 @@ private extension ReplacementRestoreRule {
             savedSmartViews: records.savedSmartViews, sites: records.sites,
             workflowRecords: records.workflowRecords,
             assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
-            temporalEvidence: records.temporalEvidence
+            temporalEvidence: records.temporalEvidence,
+            activityContracts: records.activityContracts
         )
     }
 
@@ -1199,3 +1203,4 @@ enum C32AssistanceReplacementRestorePolicyV1 {
 enum C45AcceptedLabelReplacementBoundaryV1 { static let snapshotFollowsWorkspaceReplacement=true;static let projectionScratchIsRestored=false }
 
 enum C46OperationalContactBoundary_04{static let recordsSchemaVersion=34;static let sourceBytesPersistent=false;static let platformOutcomesPersistent=false}
+enum C47ActivityContractReplacementBoundaryV2 { static let recordsSchemaVersion=35;static let sameWorkspacePreservesCanonicalBytes=true;static let crossWorkspaceRebindsFullMutationHistory=true;static let completedSnapshotDigestIsPreserved=true }

@@ -1565,3 +1565,4 @@ final class StoreMigrationFailureInjection {
 
 enum C45AcceptedLabelMigrationBoundaryV1 { static let sourceVersion=33;static let targetVersion=AssetLabelPersistenceEnrollmentV1.persistentSchemaVersion;static let backfillCreatesSnapshots=false }
 enum C46OperationalContactMigrationBoundaryV1 { static let sourceVersion=34;static let targetVersion=OperationalContactPersistenceEnrollmentV1.persistentSchemaVersion;static let backfillCreatesContactsOrHandoffIntents=false;static let handoffOutcomesAndImportSourceBytesAreExcluded=true }
+enum C47ActivityContractMigrationBoundaryV2 { static let sourceVersion=35;static let targetVersion=36;static let recordsVersion=35;static let backfillCreatesActivityTruth=false;static let reusesReleasedCompletedSnapshotStorage=true }

@@ -46,8 +46,9 @@ struct BackupCanonicalEncoderV1: Sendable {
         return try encoded(.object(Self.recordFields(records)))
     }
 
-    /// Canonical business-state projection used only by replication checkpoints.
-    /// Shipping backup transport continues to require its mutation history.
+    /// Canonical business-state projection used by replication checkpoints and
+    /// other read/export representations. Shipping backup transport continues
+    /// to require its mutation history.
     func encodeSemanticRecords(
         _ records: V4BackupRecordsV1
     ) throws -> EncodedBackupJSONV1 {
@@ -183,6 +184,11 @@ struct BackupCanonicalEncoderV1: Sendable {
                 records.operationalContacts.map(Self.operationalContactRecord)
             )
         }
+        if records.recordsSchemaVersion >= 35 {
+            fields["activityContracts"] = .array(
+                records.activityContracts.map(Self.activityContractRecord)
+            )
+        }
         if let deletionLedger = records.deletionLedger {
             fields["deletionLedger"] = Self.deletionLedger(deletionLedger)
         }
@@ -242,7 +248,7 @@ enum C30EvidenceContextBackupEncoderV1 {
 
 private extension BackupCanonicalEncoderV1 {
     static func validSemantic(_ records: V4BackupRecordsV1) -> Bool {
-        guard (4...34).contains(records.recordsSchemaVersion),
+        guard (4...C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               records.mutationHistory == nil,
               let ledger = records.deletionLedger,
               (try? ledger.validate()) != nil else {
@@ -279,6 +285,7 @@ private extension BackupCanonicalEncoderV1 {
             && validC33TemporalEvidence(records)
             && validC45AcceptedLabelSemantic(records)
             && validC46OperationalContacts(records)
+            && validC47ActivityContractSemantic(records)
             && sortedUniqueIDs(records.assets.map(\.id))
             && records.assets.allSatisfy({ $0.schemaVersion == 1 })
             && sortedUniqueIDs(records.evidenceFiles.map(\.id))
@@ -314,7 +321,7 @@ private extension BackupCanonicalEncoderV1 {
              (13, let ledger?, let history?), (14, let ledger?, let history?),
              (15, let ledger?, let history?), (16, let ledger?, let history?),
              (17, let ledger?, let history?), (18, let ledger?, let history?), (19, let ledger?, let history?),
-             (20, let ledger?, let history?), (21, let ledger?, let history?), (22, let ledger?, let history?), (23, let ledger?, let history?), (24, let ledger?, let history?), (25, let ledger?, let history?), (26, let ledger?, let history?), (27, let ledger?, let history?), (28, let ledger?, let history?), (29, let ledger?, let history?), (30, let ledger?, let history?), (31, let ledger?, let history?), (32, let ledger?, let history?), (33, let ledger?, let history?), (34, let ledger?, let history?):
+             (20, let ledger?, let history?), (21, let ledger?, let history?), (22, let ledger?, let history?), (23, let ledger?, let history?), (24, let ledger?, let history?), (25, let ledger?, let history?), (26, let ledger?, let history?), (27, let ledger?, let history?), (28, let ledger?, let history?), (29, let ledger?, let history?), (30, let ledger?, let history?), (31, let ledger?, let history?), (32, let ledger?, let history?), (33, let ledger?, let history?), (34, let ledger?, let history?), (35, let ledger?, let history?):
             ledgerIsValid = (try? ledger.validate()) != nil
                 && (try? MutationJournalStoreV1.validateImportedSnapshot(history)) != nil
                 && validMutationHistoryOrder(history)
@@ -352,6 +359,7 @@ private extension BackupCanonicalEncoderV1 {
             && validC33TemporalEvidence(records)
             && validC45AcceptedLabelSnapshots(records)
             && validC46OperationalContacts(records)
+            && validC47ActivityContracts(records)
             && sortedUniqueIDs(records.assets.map(\.id))
             && records.assets.allSatisfy({ $0.schemaVersion == 1 })
             && sortedUniqueIDs(records.evidenceFiles.map(\.id))
@@ -374,7 +382,7 @@ private extension BackupCanonicalEncoderV1 {
                 $0.observationBasisV1Data == nil && $0.temporalContextV1Data == nil
             }
         }
-        guard (4...34).contains(records.recordsSchemaVersion) else { return false }
+        guard (4...C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion).contains(records.recordsSchemaVersion) else { return false }
         return records.workflowRecords.allSatisfy { record in
             guard let basisData = record.observationBasisV1Data,
                   let temporalData = record.temporalContextV1Data else { return false }
@@ -510,7 +518,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validSavedSmartViews(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 6 { return records.savedSmartViews.isEmpty }
-        guard (6...34).contains(records.recordsSchemaVersion),
+        guard (6...C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               records.savedSmartViews.map(\.id.uuidString)
                 == records.savedSmartViews.map(\.id.uuidString).sorted(),
               Set(records.savedSmartViews.map(\.id)).count == records.savedSmartViews.count else {
@@ -528,7 +536,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validRequirementAssurance(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 7 { return records.requirementAssurance.isEmpty }
-        guard (7...34).contains(records.recordsSchemaVersion),
+        guard (7...C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               records.requirementAssurance.map(\.workflowRecordID.uuidString)
                 == records.requirementAssurance.map(\.workflowRecordID.uuidString).sorted(),
               Set(records.requirementAssurance.map(\.workflowRecordID)).count
@@ -542,7 +550,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validPartyAccountability(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 8 { return records.partyAccountability.isEmpty }
-        guard (8...34).contains(records.recordsSchemaVersion),
+        guard (8...C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               records.partyAccountability.map({ "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" })
                 == records.partyAccountability.map({ "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }).sorted(),
               Set(records.partyAccountability.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }).count
@@ -557,7 +565,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validAssetSemantics(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 9 { return records.assetSemantics.isEmpty }
-        guard (9...34).contains(records.recordsSchemaVersion) else { return false }
+        guard (9...C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion).contains(records.recordsSchemaVersion) else { return false }
         let keys = records.assetSemantics.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
         return keys == keys.sorted() && Set(keys).count == keys.count
@@ -569,7 +577,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validAuthorityCriterion(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 10 { return records.authorityCriterion.isEmpty }
-        guard (10...34).contains(records.recordsSchemaVersion) else { return false }
+        guard (10...C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion).contains(records.recordsSchemaVersion) else { return false }
         let keys = records.authorityCriterion.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
         return keys == keys.sorted() && Set(keys).count == keys.count
@@ -580,7 +588,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validFunctionalRelationships(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 11 { return records.functionalRelationships.isEmpty }
-        guard (11...34).contains(records.recordsSchemaVersion) else { return false }
+        guard (11...C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion).contains(records.recordsSchemaVersion) else { return false }
         let keys = records.functionalRelationships.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
         return keys == keys.sorted() && Set(keys).count == keys.count
@@ -592,7 +600,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validEvidenceAssurance(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 12 { return records.evidenceAssurance.isEmpty }
-        guard (12...34).contains(records.recordsSchemaVersion) else { return false }
+        guard (12...C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion).contains(records.recordsSchemaVersion) else { return false }
         let keys = records.evidenceAssurance.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
         return keys == keys.sorted() && Set(keys).count == keys.count
@@ -604,7 +612,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validInspectionReview(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 13 { return records.inspectionReview.isEmpty }
-        guard (13...34).contains(records.recordsSchemaVersion) else { return false }
+        guard (13...C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion).contains(records.recordsSchemaVersion) else { return false }
         let keys = records.inspectionReview.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
         return records.inspectionReview.count <= InspectionReviewLimitsV1.maximumHistory
@@ -617,7 +625,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validWorkPackets(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 14 { return records.workPackets.isEmpty }
-        guard (14...34).contains(records.recordsSchemaVersion) else { return false }
+        guard (14...C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion).contains(records.recordsSchemaVersion) else { return false }
         let keys = records.workPackets.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
         return records.workPackets.count <= WorkPacketLimitsV1.maximumHistory
@@ -630,7 +638,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validFieldDrafts(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 15 { return records.fieldDrafts.isEmpty }
-        guard (15...34).contains(records.recordsSchemaVersion) else { return false }
+        guard (15...C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion).contains(records.recordsSchemaVersion) else { return false }
         let keys = records.fieldDrafts.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
         return records.fieldDrafts.count <= 100_000
@@ -643,7 +651,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validPackageEvolution(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 16 { return records.packageEvolution.isEmpty }
-        guard (16...34).contains(records.recordsSchemaVersion) else { return false }
+        guard (16...C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion).contains(records.recordsSchemaVersion) else { return false }
         let keys = records.packageEvolution.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
         return records.packageEvolution.count <= 100_000 && Set(keys).count == keys.count
@@ -654,7 +662,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validMeasurementIntegrity(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 17 { return records.measurementIntegrity.isEmpty }
-        guard (17...34).contains(records.recordsSchemaVersion) else { return false }
+        guard (17...C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion).contains(records.recordsSchemaVersion) else { return false }
         let keys = records.measurementIntegrity.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
         return records.measurementIntegrity.count <= 100_000 && keys == keys.sorted()
@@ -667,7 +675,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validPrivacyTransforms(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 18 { return records.privacyTransforms.isEmpty }
-        guard (18...34).contains(records.recordsSchemaVersion) else { return false }
+        guard (18...C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion).contains(records.recordsSchemaVersion) else { return false }
         let keys = records.privacyTransforms.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
         return records.privacyTransforms.count <= 100_000 && keys == keys.sorted()
@@ -680,25 +688,25 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validClientCapabilities(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 19 { return records.clientCapabilities.isEmpty }
-        guard (19...34).contains(records.recordsSchemaVersion) else { return false }
+        guard (19...C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion).contains(records.recordsSchemaVersion) else { return false }
         let keys=records.clientCapabilities.map{"\($0.kind.rawValue)\u{0}\($0.id.uuidString)"};let zero=UUID(uuid:(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
         return records.clientCapabilities.count<=100_000 && keys==keys.sorted() && Set(keys).count==keys.count && records.clientCapabilities.allSatisfy{$0.id != zero && $0.workspaceID != zero && $0.revision>0 && $0.revision<=UInt64(Int.max) && !$0.canonicalData.isEmpty}
     }
     static func clientCapabilityRecord(_ value:V20BackupClientCapabilityRecordV1)throws->CanonicalJSONValueV1{guard let revision=Int(exactly:value.revision),!value.canonicalData.isEmpty else{throw BackupCanonicalEncodingErrorV1.invalidRecords};return .object(["canonicalData":.string(value.canonicalData.base64EncodedString()),"id":CanonicalJSONV1.uuid(value.id),"kind":.string(value.kind.rawValue),"revision":.integer(revision),"workspaceID":CanonicalJSONV1.uuid(value.workspaceID)])}
 
-    static func validRecoverabilityReceipts(_ records:V4BackupRecordsV1)->Bool{if records.recordsSchemaVersion<20{return records.recoverabilityReceipts.isEmpty};guard (20...34).contains(records.recordsSchemaVersion) else{return false};let keys=records.recoverabilityReceipts.map{$0.id.uuidString};let zero=UUID(uuid:(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0));return records.recoverabilityReceipts.count<=100_000 && keys==keys.sorted() && Set(keys).count==keys.count && records.recoverabilityReceipts.allSatisfy{$0.id != zero && $0.workspaceID != zero && $0.revision>0 && $0.revision<=UInt64(Int.max) && !$0.canonicalData.isEmpty}}
+    static func validRecoverabilityReceipts(_ records:V4BackupRecordsV1)->Bool{if records.recordsSchemaVersion<20{return records.recoverabilityReceipts.isEmpty};guard (20...C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion).contains(records.recordsSchemaVersion) else{return false};let keys=records.recoverabilityReceipts.map{$0.id.uuidString};let zero=UUID(uuid:(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0));return records.recoverabilityReceipts.count<=100_000 && keys==keys.sorted() && Set(keys).count==keys.count && records.recoverabilityReceipts.allSatisfy{$0.id != zero && $0.workspaceID != zero && $0.revision>0 && $0.revision<=UInt64(Int.max) && !$0.canonicalData.isEmpty}}
     static func recoverabilityReceiptRecord(_ value:V21BackupRecoverabilityReceiptRecordV1)throws->CanonicalJSONValueV1{guard let revision=Int(exactly:value.revision),!value.canonicalData.isEmpty else{throw BackupCanonicalEncodingErrorV1.invalidRecords};return .object(["canonicalData":.string(value.canonicalData.base64EncodedString()),"id":CanonicalJSONV1.uuid(value.id),"revision":.integer(revision),"workspaceID":CanonicalJSONV1.uuid(value.workspaceID)])}
-    static func validFieldReferences(_ records:V4BackupRecordsV1)->Bool{if records.recordsSchemaVersion<21{return records.fieldReferences.isEmpty};guard records.recordsSchemaVersion<=34 else{return false};let keys=records.fieldReferences.map{"\($0.kind.rawValue)|\($0.id.uuidString)"};let zero=UUID(uuid:(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0));return records.fieldReferences.count<=100_000 && keys==keys.sorted() && Set(keys).count==keys.count && records.fieldReferences.allSatisfy{$0.id != zero && $0.workspaceID != zero && $0.revision>0 && $0.revision<=UInt64(Int.max) && !$0.canonicalData.isEmpty}}
+    static func validFieldReferences(_ records:V4BackupRecordsV1)->Bool{if records.recordsSchemaVersion<21{return records.fieldReferences.isEmpty};guard records.recordsSchemaVersion<=C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion else{return false};let keys=records.fieldReferences.map{"\($0.kind.rawValue)|\($0.id.uuidString)"};let zero=UUID(uuid:(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0));return records.fieldReferences.count<=100_000 && keys==keys.sorted() && Set(keys).count==keys.count && records.fieldReferences.allSatisfy{$0.id != zero && $0.workspaceID != zero && $0.revision>0 && $0.revision<=UInt64(Int.max) && !$0.canonicalData.isEmpty}}
     static func fieldReferenceRecord(_ value:V22BackupFieldReferenceRecordV1)throws->CanonicalJSONValueV1{guard let revision=Int(exactly:value.revision),!value.canonicalData.isEmpty else{throw BackupCanonicalEncodingErrorV1.invalidRecords};return .object(["canonicalData":.string(value.canonicalData.base64EncodedString()),"id":CanonicalJSONV1.uuid(value.id),"kind":.string(value.kind.rawValue),"revision":.integer(revision),"workspaceID":CanonicalJSONV1.uuid(value.workspaceID)])}
     static func validAccessibleDocumentAssessments(_ records:V4BackupRecordsV1)->Bool{if records.recordsSchemaVersion<22{return records.accessibleDocumentAssessments.isEmpty};let keys=records.accessibleDocumentAssessments.map{$0.id.uuidString};let zero=UUID(uuid:(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0));return records.accessibleDocumentAssessments.count<=100_000 && keys==keys.sorted() && Set(keys).count==keys.count && records.accessibleDocumentAssessments.allSatisfy{$0.id != zero && $0.workspaceID != zero && $0.revision>0 && $0.revision<=UInt64(Int.max) && !$0.canonicalData.isEmpty}}
     static func accessibleDocumentAssessmentRecord(_ value:V23BackupAccessibleDocumentAssessmentRecordV1)throws->CanonicalJSONValueV1{guard let revision=Int(exactly:value.revision),!value.canonicalData.isEmpty else{throw BackupCanonicalEncodingErrorV1.invalidRecords};return .object(["canonicalData":.string(value.canonicalData.base64EncodedString()),"id":CanonicalJSONV1.uuid(value.id),"revision":.integer(revision),"workspaceID":CanonicalJSONV1.uuid(value.workspaceID)])}
-    static func validSurveyDefinitions(_ records:V4BackupRecordsV1)->Bool{if records.recordsSchemaVersion<23{return records.surveyDefinitions.isEmpty};guard (23...34).contains(records.recordsSchemaVersion) else{return false};if records.mutationHistory==nil{return records.surveyDefinitions.isEmpty};let keys=records.surveyDefinitions.map{"\($0.kind.rawValue)|\($0.id.uuidString)"};let zero=UUID(uuid:(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0));return records.surveyDefinitions.count<=200_000&&keys==keys.sorted()&&Set(keys).count==keys.count&&records.surveyDefinitions.allSatisfy{$0.id != zero&&$0.workspaceID != zero&&$0.revision>0&&$0.revision<=UInt64(Int.max)&&!$0.canonicalData.isEmpty}}
+    static func validSurveyDefinitions(_ records:V4BackupRecordsV1)->Bool{if records.recordsSchemaVersion<23{return records.surveyDefinitions.isEmpty};guard (23...C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion).contains(records.recordsSchemaVersion) else{return false};if records.mutationHistory==nil{return records.surveyDefinitions.isEmpty};let keys=records.surveyDefinitions.map{"\($0.kind.rawValue)|\($0.id.uuidString)"};let zero=UUID(uuid:(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0));return records.surveyDefinitions.count<=200_000&&keys==keys.sorted()&&Set(keys).count==keys.count&&records.surveyDefinitions.allSatisfy{$0.id != zero&&$0.workspaceID != zero&&$0.revision>0&&$0.revision<=UInt64(Int.max)&&!$0.canonicalData.isEmpty}}
     static func surveyDefinitionRecord(_ value:V24BackupSurveyDefinitionRecordV1)throws->CanonicalJSONValueV1{guard let revision=Int(exactly:value.revision),!value.canonicalData.isEmpty else{throw BackupCanonicalEncodingErrorV1.invalidRecords};return .object(["canonicalData":.string(value.canonicalData.base64EncodedString()),"id":CanonicalJSONV1.uuid(value.id),"kind":.string(value.kind.rawValue),"revision":.integer(revision),"workspaceID":CanonicalJSONV1.uuid(value.workspaceID)])}
-    static func validGuidedSurveys(_ records:V4BackupRecordsV1)->Bool{if records.recordsSchemaVersion<24{return records.guidedSurveys.isEmpty};guard (24...34).contains(records.recordsSchemaVersion) else{return false};if records.mutationHistory == nil{return records.guidedSurveys.isEmpty};let keys=records.guidedSurveys.map{"\($0.kind.rawValue)|\($0.id.uuidString)"};let zero=UUID(uuid:(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0));return records.guidedSurveys.count<=200_000&&keys==keys.sorted()&&Set(keys).count==keys.count&&records.guidedSurveys.allSatisfy{$0.id != zero&&$0.workspaceID != zero&&$0.revision>0&&$0.revision<=UInt64(Int.max)&&!$0.canonicalData.isEmpty}}
+    static func validGuidedSurveys(_ records:V4BackupRecordsV1)->Bool{if records.recordsSchemaVersion<24{return records.guidedSurveys.isEmpty};guard (24...C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion).contains(records.recordsSchemaVersion) else{return false};if records.mutationHistory == nil{return records.guidedSurveys.isEmpty};let keys=records.guidedSurveys.map{"\($0.kind.rawValue)|\($0.id.uuidString)"};let zero=UUID(uuid:(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0));return records.guidedSurveys.count<=200_000&&keys==keys.sorted()&&Set(keys).count==keys.count&&records.guidedSurveys.allSatisfy{$0.id != zero&&$0.workspaceID != zero&&$0.revision>0&&$0.revision<=UInt64(Int.max)&&!$0.canonicalData.isEmpty}}
     static func guidedSurveyRecord(_ value:V25BackupGuidedSurveyRecordV1)throws->CanonicalJSONValueV1{guard let revision=Int(exactly:value.revision),!value.canonicalData.isEmpty else{throw BackupCanonicalEncodingErrorV1.invalidRecords};return .object(["canonicalData":.string(value.canonicalData.base64EncodedString()),"id":CanonicalJSONV1.uuid(value.id),"kind":.string(value.kind.rawValue),"revision":.integer(revision),"workspaceID":CanonicalJSONV1.uuid(value.workspaceID)])}
     static func validAssetLocators(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 25 { return records.assetLocators.isEmpty }
-        guard records.recordsSchemaVersion <= 34 else { return false }
+        guard records.recordsSchemaVersion <= C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion else { return false }
         let keys = records.assetLocators.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())" }
         let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
         return records.assetLocators.count <= 200_000
@@ -724,7 +732,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validSchedules(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 26 { return records.schedules.isEmpty }
-        guard (26...34).contains(records.recordsSchemaVersion),
+        guard (26...C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               records.schedules.count <= 200_000 else { return false }
         let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
         let keys = records.schedules.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())" }
@@ -752,7 +760,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validPlans(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 27 { return records.plans.isEmpty }
-        guard (27...34).contains(records.recordsSchemaVersion),
+        guard (27...C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               records.plans.count <= PlanLimitsV1.maximumPlacements * 5,
               (try? PlanBackupRecordSetV1.decode(records.plans)) != nil else { return false }
         let keys = records.plans.map {
@@ -777,7 +785,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validPlacementPoses(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 28 { return records.placementPoses.isEmpty }
-        guard (28...34).contains(records.recordsSchemaVersion),
+        guard (28...C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               records.placementPoses.count <= PlacementPoseLimitsV1.maximumEventsPerClosure * 2,
               (try? PlacementPoseBackupRecordSetV1.decode(records.placementPoses)) != nil else {
             return false
@@ -808,7 +816,7 @@ private extension BackupCanonicalEncoderV1 {
         if records.recordsSchemaVersion < 29 {
             return records.evidenceContexts.isEmpty && records.pairedObservationLinks.isEmpty
         }
-        guard (29...34).contains(records.recordsSchemaVersion),
+        guard (29...C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               records.evidenceContexts.allSatisfy({ $0.kind == .evidenceContext }),
               records.pairedObservationLinks.allSatisfy({ $0.kind == .pairedObservationLink }) else {
             return false
@@ -819,7 +827,8 @@ private extension BackupCanonicalEncoderV1 {
     static func validC31Lighting(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 30 { return records.lighting.isEmpty }
         guard records.recordsSchemaVersion == 30 || records.recordsSchemaVersion == 31
-                || records.recordsSchemaVersion == 32 || records.recordsSchemaVersion == 33 || records.recordsSchemaVersion == 34,
+                || records.recordsSchemaVersion == 32 || records.recordsSchemaVersion == 33 || records.recordsSchemaVersion == 34
+                || records.recordsSchemaVersion == C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion,
               records.lighting.count <= 100_000,
               records.lighting.allSatisfy({
                   $0.id != LightingLimitsV1.zero && $0.workspaceID != LightingLimitsV1.zero
@@ -839,7 +848,8 @@ private extension BackupCanonicalEncoderV1 {
             return records.assistanceAcceptanceReceipts.isEmpty
         }
         guard records.recordsSchemaVersion == 31 || records.recordsSchemaVersion == 32
-                || records.recordsSchemaVersion == 33 || records.recordsSchemaVersion == 34,
+                || records.recordsSchemaVersion == 33 || records.recordsSchemaVersion == 34
+                || records.recordsSchemaVersion == C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion,
               records.assistanceAcceptanceReceipts.count <= 100_000 else { return false }
         let keys = records.assistanceAcceptanceReceipts.map { $0.receiptID.uuidString.lowercased() }
         return keys == keys.sorted()
@@ -861,7 +871,8 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validC33TemporalEvidence(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 32 { return records.temporalEvidence.isEmpty }
-        guard records.recordsSchemaVersion == 32 || records.recordsSchemaVersion == 33 || records.recordsSchemaVersion == 34,
+        guard records.recordsSchemaVersion == 32 || records.recordsSchemaVersion == 33 || records.recordsSchemaVersion == 34
+                || records.recordsSchemaVersion == C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion,
               records.temporalEvidence.count <= 200_000 else { return false }
         let keys = records.temporalEvidence.map {
             "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
@@ -873,7 +884,8 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validC45AcceptedLabelSnapshots(_ records:V4BackupRecordsV1)->Bool {
         if records.recordsSchemaVersion < 33 { return records.acceptedLabelGenerationSnapshots.isEmpty }
-        guard records.recordsSchemaVersion == 33 || records.recordsSchemaVersion == 34,
+        guard records.recordsSchemaVersion == 33 || records.recordsSchemaVersion == 34
+                || records.recordsSchemaVersion == C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion,
               records.acceptedLabelGenerationSnapshots.count <= 100_000 else { return false }
         let keys=records.acceptedLabelGenerationSnapshots.map{"\($0.workspaceID.uuidString.lowercased())|\($0.snapshotID.uuidString.lowercased())"}
         return keys==keys.sorted() && Set(keys).count==keys.count
@@ -883,7 +895,8 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validC45AcceptedLabelSemantic(_ records:V4BackupRecordsV1)->Bool {
         if records.recordsSchemaVersion < 33 { return records.acceptedLabelGenerationSnapshots.isEmpty }
-        guard records.recordsSchemaVersion == 33 || records.recordsSchemaVersion == 34,
+        guard records.recordsSchemaVersion == 33 || records.recordsSchemaVersion == 34
+                || records.recordsSchemaVersion == C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion,
               records.acceptedLabelGenerationSnapshots.count <= 100_000 else { return false }
         let keys=records.acceptedLabelGenerationSnapshots.map{"\($0.workspaceID.uuidString.lowercased())|\($0.snapshotID.uuidString.lowercased())"}
         let deleted=Set((records.deletionLedger?.entries ?? []).compactMap {
@@ -914,13 +927,291 @@ private extension BackupCanonicalEncoderV1 {
         if records.recordsSchemaVersion < OperationalContactPersistenceEnrollmentV1.recordsSchemaVersion {
             return records.operationalContacts.isEmpty
         }
-        guard records.recordsSchemaVersion == OperationalContactPersistenceEnrollmentV1.recordsSchemaVersion,
+        guard (OperationalContactPersistenceEnrollmentV1.recordsSchemaVersion...
+            C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               records.operationalContacts.count <= 200_000 else { return false }
         let keys = records.operationalContacts.map {
             "\($0.kind.rawValue)|\($0.workspaceID.uuidString.lowercased())|\($0.id.uuidString.lowercased())"
         }
         return keys == keys.sorted() && Set(keys).count == keys.count
             && (try? records.validateC46OperationalContacts()) != nil
+    }
+
+    static func activityContractRecord(_ value: V36BackupActivityContractRecordV2) -> CanonicalJSONValueV1 {
+        // Keep the canonical payload and digest opaque here. In particular,
+        // an unknown ActivityKindV2 is preserved inside canonicalData rather
+        // than normalized through a closed writable-kind switch.
+        .object([
+            "activityID": CanonicalJSONV1.uuid(value.activityID),
+            "canonicalData": .string(value.canonicalData.base64EncodedString()),
+            "id": CanonicalJSONV1.uuid(value.id), "kind": .string(value.kind.rawValue),
+            "mutationID": CanonicalJSONV1.uuid(value.mutationID),
+            "revision": .number(String(value.revision)),
+            "semanticSHA256": .string(value.semanticSHA256),
+            "workspaceID": CanonicalJSONV1.uuid(value.workspaceID),
+        ])
+    }
+
+    /// Semantic checkpoints carry the C47 current-state row families directly.
+    /// Their journal-bound mutation history is intentionally absent, so this
+    /// projection validates each canonical row and its transport identity.
+    /// An unknown activity kind is an opaque read/export row: its canonical
+    /// bytes and digest remain transportable, but it cannot infer a C47 family
+    /// or enter the current-state graph. Full backup transport continues
+    /// through `validC47ActivityContracts`, which retains the
+    /// journal/reference closure and known-kind writable gate.
+    static func validC47ActivityContractSemantic(_ records: V4BackupRecordsV1) -> Bool {
+        if records.recordsSchemaVersion < C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion {
+            return records.activityContracts.isEmpty
+        }
+        guard records.recordsSchemaVersion == C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion,
+              records.activityContracts.count <= 400_000 else { return false }
+        let keys = records.activityContracts.map {
+            "\($0.kind.rawValue)|\($0.workspaceID.uuidString.lowercased())|\($0.id.uuidString.lowercased())"
+        }
+        guard keys == keys.sorted() && Set(keys).count == keys.count else { return false }
+
+        let envelopes: [ActivitySessionEnvelopeV2]
+        let transitions: [ActivityStateTransitionV2]
+        let taskResults: [InstallationTaskResultV1]
+        let asBuiltSnapshots: [InstallationAsBuiltSnapshotV1]
+        let punchBasisSnapshots: [PunchReviewBasisSnapshotV1]
+        do {
+            envelopes = try records.activityContracts
+                .filter { $0.kind == .sessionEnvelope }
+                .map { try $0.envelopeValue() }
+            transitions = try records.activityContracts
+                .filter { $0.kind == .stateTransition }
+                .map { try $0.transitionValue() }
+            taskResults = try records.activityContracts
+                .filter { $0.kind == .installationTaskResult }
+                .map { try $0.installationTaskResultValue() }
+            asBuiltSnapshots = try records.activityContracts
+                .filter { $0.kind == .installationAsBuiltSnapshot }
+                .map { try $0.installationAsBuiltSnapshotValue() }
+            punchBasisSnapshots = try records.activityContracts
+                .filter { $0.kind == .punchReviewBasisSnapshot }
+                .map { try $0.punchReviewBasisSnapshotValue() }
+        } catch {
+            return false
+        }
+
+        func activityKey(_ workspaceID: WorkspaceID, _ activityID: UUID) -> String {
+            "\(workspaceID.rawValue.uuidString.lowercased())|\(activityID.uuidString.lowercased())"
+        }
+
+        guard envelopes.allSatisfy({
+                  if case .unknown = $0.kind { return true }
+                  return C47ActivityContractPersistenceBoundaryV2
+                      .acceptsCanonicalRow(kind: $0.kind)
+              }),
+              Set(envelopes.map { activityKey($0.workspaceID, $0.activityID) }).count == envelopes.count,
+              Set(envelopes.map(\.envelopeSHA256)).count == envelopes.count else {
+            return false
+        }
+        let envelopeByActivity = Dictionary(uniqueKeysWithValues: envelopes.map {
+            (activityKey($0.workspaceID, $0.activityID), $0)
+        })
+
+        // Every transition is historical state-change evidence for one current
+        // envelope. The semantic projection has no predecessor envelope rows,
+        // so it checks the available upper-bound/current-revision identity and
+        // lets the full journal validator prove the complete transition chain.
+        var transitionRevisionKeys = Set<String>()
+        for transition in transitions {
+            let key = activityKey(transition.workspaceID, transition.activityID)
+            guard let envelope = envelopeByActivity[key],
+                  envelope.kind == transition.kind,
+                  transition.revision <= envelope.revision else {
+                return false
+            }
+            if transition.revision == envelope.revision {
+                guard transition.mutationID == envelope.mutationID else { return false }
+            }
+            guard transitionRevisionKeys.insert("\(key)|\(transition.revision)").inserted else {
+                return false
+            }
+        }
+
+        let taskResultsByActivity = Dictionary(grouping: taskResults) {
+            activityKey($0.workspaceID, $0.activityID)
+        }
+        let transitionsByActivity = Dictionary(grouping: transitions) {
+            activityKey($0.workspaceID, $0.activityID)
+        }
+        let asBuiltByActivity = Dictionary(grouping: asBuiltSnapshots) {
+            activityKey($0.workspaceID, $0.activityID)
+        }
+        let punchBasisByActivity = Dictionary(grouping: punchBasisSnapshots) {
+            activityKey($0.workspaceID, $0.activityID)
+        }
+
+        // Row families are intentionally disjoint. This catches an otherwise
+        // validly encoded row that is attached to an envelope of the wrong
+        // workflow family or to an absent envelope.
+        guard taskResults.allSatisfy({
+                  envelopeByActivity[activityKey($0.workspaceID, $0.activityID)]?.kind == .installation
+              }),
+              asBuiltSnapshots.allSatisfy({
+                  envelopeByActivity[activityKey($0.workspaceID, $0.activityID)]?.kind == .installation
+              }),
+              punchBasisSnapshots.allSatisfy({
+                  envelopeByActivity[activityKey($0.workspaceID, $0.activityID)]?.kind == .punchReview
+              }) else {
+            return false
+        }
+
+        // Task rows are a persisted lineage, not a journal sidecar. Rebuild
+        // each activity's current task heads so as-built references can be
+        // resolved without requiring mutation history.
+        var taskHeadsByActivity: [String: [String: InstallationTaskResultV1]] = [:]
+        for (key, values) in taskResultsByActivity {
+            guard let heads = try? InstallationTaskResultLineageV1
+                .validateAndCurrentHeads(values) else {
+                return false
+            }
+            taskHeadsByActivity[key] = heads
+        }
+
+        // Punch basis rows carry their own predecessor references, so their
+        // current head can be proved directly from the semantic projection.
+        var punchHeadsByActivity: [String: PunchReviewBasisSnapshotV1] = [:]
+        for (key, values) in punchBasisByActivity {
+            let ordered = values.sorted {
+                if $0.revision != $1.revision { return $0.revision < $1.revision }
+                return $0.basisID.uuidString.lowercased() < $1.basisID.uuidString.lowercased()
+            }
+            guard Set(ordered.map(\.basisID)).count == ordered.count,
+                  Set(ordered.map(\.basisSHA256)).count == ordered.count else {
+                return false
+            }
+            for (index, value) in ordered.enumerated() {
+                guard (try? value.validate()) != nil else { return false }
+                if index == 0 {
+                    guard value.revision == 1,
+                          value.predecessorBasisID == nil,
+                          value.predecessorBasisSHA256 == nil else {
+                        return false
+                    }
+                } else {
+                    guard (try? value.validateSuccessor(of: ordered[index - 1])) != nil else {
+                        return false
+                    }
+                }
+            }
+            guard let head = ordered.last else { return false }
+            punchHeadsByActivity[key] = head
+        }
+
+        // Resolve the current-state graph against the one envelope per
+        // workspace/activity. Installation basis snapshots are journal-owned
+        // and are not in the C47 records envelope; when an as-built row is
+        // present, its basis reference is the available installation basis
+        // head and must match the envelope's current reference.
+        for envelope in envelopes {
+            let key = activityKey(envelope.workspaceID, envelope.activityID)
+            let activityTasks = taskResultsByActivity[key] ?? []
+            let activityTaskHeads = taskHeadsByActivity[key] ?? [:]
+            let activityTransitions = transitionsByActivity[key] ?? []
+            let activityAsBuilt = asBuiltByActivity[key] ?? []
+            let activityPunchHead = punchHeadsByActivity[key]
+
+            switch envelope.kind {
+            case .installation:
+                guard activityPunchHead == nil,
+                      punchBasisByActivity[key] == nil,
+                      activityAsBuilt.count <= 1,
+                      activityAsBuilt.allSatisfy({
+                          $0.workspaceID == envelope.workspaceID
+                              && $0.activityID == envelope.activityID
+                      }) else {
+                    return false
+                }
+                if let asBuilt = activityAsBuilt.first {
+                    guard case let .installation(reference)? = envelope.currentBasisReference,
+                          reference == asBuilt.basisReference,
+                          let closeout = envelope.installationCloseout,
+                          closeout.asBuiltSnapshotSHA256 == asBuilt.snapshotSHA256,
+                          closeout.completion == asBuilt.completion,
+                          Set(asBuilt.taskResultSHA256s)
+                              == Set(activityTaskHeads.values.map(\.resultSHA256)) else {
+                        return false
+                    }
+                } else {
+                    guard envelope.installationCloseout == nil else { return false }
+                }
+                if envelope.currentBasisReference == nil {
+                    guard activityTasks.isEmpty,
+                          envelope.state == .draft || envelope.state == .preflightRequired else {
+                        return false
+                    }
+                } else {
+                    guard let currentBasisReference = envelope.currentBasisReference,
+                          case .installation = currentBasisReference else { return false }
+                }
+
+            case .punchReview:
+                guard activityTasks.isEmpty,
+                      activityTaskHeads.isEmpty,
+                      activityAsBuilt.isEmpty,
+                      envelope.installationCloseout == nil else {
+                    return false
+                }
+                if let punchHead = activityPunchHead {
+                    guard case let .punchReview(reference)? = envelope.currentBasisReference,
+                          reference.workspaceID == punchHead.workspaceID,
+                          reference.activityID == punchHead.activityID,
+                          reference.basisID == punchHead.basisID,
+                          reference.revision == punchHead.revision,
+                          reference.basisSHA256 == punchHead.basisSHA256 else {
+                        return false
+                    }
+                    if let closeout = envelope.punchReviewCloseout {
+                        guard closeout.basisSHA256 == punchHead.basisSHA256 else { return false }
+                    }
+                } else {
+                    guard envelope.currentBasisReference == nil,
+                          envelope.punchReviewCloseout == nil,
+                          envelope.state == .draft || envelope.state == .preflightRequired else {
+                        return false
+                    }
+                }
+
+            case .unknown:
+                // Unknown kinds are read/export-only. They must remain an
+                // opaque envelope and may not acquire a known-family row,
+                // transition, basis, or closeout through inference.
+                guard activityTransitions.isEmpty,
+                      activityTasks.isEmpty,
+                      activityAsBuilt.isEmpty,
+                      activityPunchHead == nil,
+                      punchBasisByActivity[key] == nil,
+                      envelope.readinessPolicy == nil,
+                      envelope.currentBasisReference == nil,
+                      envelope.installationCloseout == nil,
+                      envelope.punchReviewCloseout == nil else {
+                    return false
+                }
+
+            case .inspection, .survey, .preventiveMaintenance, .repair,
+                 .operationalRecheck:
+                return false
+            }
+        }
+        return true
+    }
+
+    static func validC47ActivityContracts(_ records: V4BackupRecordsV1) -> Bool {
+        if records.recordsSchemaVersion < C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion {
+            return records.activityContracts.isEmpty
+        }
+        guard records.recordsSchemaVersion == C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion,
+              records.activityContracts.count <= 400_000 else { return false }
+        let keys = records.activityContracts.map {
+            "\($0.kind.rawValue)|\($0.workspaceID.uuidString.lowercased())|\($0.id.uuidString.lowercased())"
+        }
+        return keys == keys.sorted() && Set(keys).count == keys.count
+            && (try? records.validateC47ActivityContracts()) != nil
     }
 
     static func temporalEvidenceRecord(

@@ -882,9 +882,74 @@ struct CheckRunnerAssetLabelPreviewV1: Equatable, Sendable {
     }
 }
 enum C46OperationalContactConformance_FieldEvidenceApp_Features_CheckRunner_CheckRunnerContracts_swift {
+    static let c47IntegrationRole = "PROVIDER_NEUTRAL_CHECK_RUNNER"
+    static let c47SharedReceipt = SharedActivityEnvelopeReceiptV1.self
+    static let c47InstallationReceipt = InstallationActivityContractReceiptV1.self
+    static let c47PunchReceipt = PunchActivityContractReceiptV1.self
+    static let c47NoPlanFallback = NoPlanFallbackV1.self
+    static let c47UsesExistingWriterRendererStoreAndPackageInfrastructure = true
+    static let c47CreatesSecondRouteOrInspectionAlias = false
     static let operationalContactsRemainPurposeSeparated = true
     static let systemHandoffsRemainExplicitEphemeralAndNoncanonical = true
     static let subscriberConsentCampaignAndMeasurementProjectionForbidden = true
     static let contactExportExcludedByDefault = true
     static let noSecondWriterOrAutomaticHandoff = true
+}
+
+enum C47ActivityContractConformance_FieldEvidenceApp_Features_CheckRunner_CheckRunnerContracts_swift {
+    static let sharedReceipt = SharedActivityEnvelopeReceiptV1.self
+    static let installationReceipt = InstallationActivityContractReceiptV1.self
+    static let punchReceipt = PunchActivityContractReceiptV1.self
+    static let noPlanFallback = NoPlanFallbackV1.self
+    static let usesExistingInfrastructureOnly = true
+    static let createsSecondWriterRendererStoreRouteOrInspectionAlias = false
+}
+
+struct ActivityContractReviewCandidateV2: Equatable, Sendable {
+    let envelope: ActivitySessionEnvelopeV2
+    let noPlanFallback: NoPlanFallbackV1?
+    init(envelope: ActivitySessionEnvelopeV2, noPlanFallback: NoPlanFallbackV1?) throws {
+        try envelope.validateForRead(); try noPlanFallback?.validate()
+        self.envelope = envelope; self.noPlanFallback = noPlanFallback
+    }
+    var mayStart: Bool { envelope.kind.isKnown && envelope.state == .ready }
+    var installationCloseout: InstallationCloseoutV1? { envelope.installationCloseout }
+    var punchReviewCloseout: PunchReviewCloseoutV1? { envelope.punchReviewCloseout }
+    var recordedFindingCount: Int {
+        if let closeout = envelope.installationCloseout { return closeout.openFindings.count }
+        return envelope.punchReviewCloseout?.scope.reduce(0) { $0 + $1.findingLinks.count } ?? 0
+    }
+    static let presentsP04ScreenOrScanRoute = false
+    static let derivesPunchFindingTruthFromExistingFindingAuthority = true
+    static let createsSecondFindingStatusDueDateOrSeverityStore = false
+}
+
+enum ActivityRouteCanonicalRegistryV2 {
+    static let supportedKinds: [ActivityKindV2] = [
+        .inspection, .survey, .preventiveMaintenance, .repair,
+        .operationalRecheck, .installation, .punchReview,
+    ]
+    static let maximumRouteBytes = 4_096
+
+    static func encode(_ route: ActivityRouteV2) throws -> Data {
+        guard supportedKinds.contains(route.kind) else {
+            throw ActivityContractFailureV2.unknownKindMutation
+        }
+        let data = try route.canonicalData()
+        guard !data.isEmpty, data.count <= maximumRouteBytes else {
+            throw ActivityContractFailureV2.invalidValue
+        }
+        return data
+    }
+
+    static func decode(_ data: Data) throws -> ActivityRouteV2 {
+        guard !data.isEmpty, data.count <= maximumRouteBytes else {
+            throw ActivityContractFailureV2.invalidValue
+        }
+        let route = try ActivityRouteV2.decodeCanonical(data)
+        guard supportedKinds.contains(route.kind) else {
+            throw ActivityContractFailureV2.unknownKindMutation
+        }
+        return route
+    }
 }

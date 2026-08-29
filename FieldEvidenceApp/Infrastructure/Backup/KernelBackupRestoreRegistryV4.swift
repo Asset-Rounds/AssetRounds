@@ -666,3 +666,4 @@ enum C46OperationalContactBackupRestoreRegistryV1 {
 }
 
 enum C46OperationalContactBoundary_12{static let recordsSchemaVersion=34;static let sourceBytesPersistent=false;static let platformOutcomesPersistent=false}
+enum C47ActivityContractKernelBackupRestoreEnrollmentV2 { static let persistentSchemaVersion=36;static let recordsSchemaVersion=35;static let semanticFamilyCount=6;static let newRowCount=5;static let completedSnapshotReusesReleasedArchiveLifecycle=true }

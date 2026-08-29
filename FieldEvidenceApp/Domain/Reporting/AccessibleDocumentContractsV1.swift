@@ -335,3 +335,14 @@ enum SurveyDefinitionAccessibilityPolicyV1 {
         }
     }
 }
+
+enum C47ActivityContractConformance_FieldEvidenceApp_Domain_Reporting_AccessibleDocumentContractsV1_swift {
+    static let integrationRole = "ACCESSIBLE_STATE_LIMITATIONS"
+    static let sharedReceipt = SharedActivityEnvelopeReceiptV1.self
+    static let installationReceipt = InstallationActivityContractReceiptV1.self
+    static let punchReceipt = PunchActivityContractReceiptV1.self
+    static let noPlanFallback = NoPlanFallbackV1.self
+    static let usesExistingWriterRendererStoreAndPackageInfrastructure = true
+    static let createsSecondRouteOrInspectionAlias = false
+    static func validateReadable(_ value: ActivitySessionEnvelopeV2) throws { try value.validateForRead() }
+}

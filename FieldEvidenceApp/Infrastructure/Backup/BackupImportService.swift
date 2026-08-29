@@ -52,7 +52,8 @@ enum C31LightingBackupImportPolicyV1 {
                 || (manifest.persistentSchemaVersion == 32 && records.recordsSchemaVersion == 31)
                 || (manifest.persistentSchemaVersion == 33 && records.recordsSchemaVersion == 32)
                 || (manifest.persistentSchemaVersion == 34 && records.recordsSchemaVersion == 33)
-                || (manifest.persistentSchemaVersion == 35 && records.recordsSchemaVersion == 34)) else {
+                || (manifest.persistentSchemaVersion == 35 && records.recordsSchemaVersion == 34)
+                || (manifest.persistentSchemaVersion == 36 && records.recordsSchemaVersion == 35)) else {
             throw BackupImportServiceError.invalidGeneration
         }
         do {

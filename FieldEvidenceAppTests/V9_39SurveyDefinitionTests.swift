@@ -1463,3 +1463,28 @@ private final class C46V939SurveyDefinitionCompatibilityTests: XCTestCase {
         )
     }
 }
+
+
+private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_39SurveyDefinitionTests_swift {
+    static let compatibilityCardID = "V23-P03-C47"
+    static let sharedEnvelopeDoesNotCollapseFamilyTruth = true
+    static let installationAndPunchReceiptsRemainIndependent = true
+    static let noPlanFallbackIsExplicit = true
+    static let surveyDefinitionOwnershipIsPreserved = true
+    static let legacyInspectionTruthIsNotRewritten = true
+    static let threeReceiptIsolationIsRequired = true
+}
+
+private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_39SurveyDefinitionTests_swift_Tests: XCTestCase {
+    func testC47V939SurveyDefinitionTestsOwnerCompatibilityIsTyped() {
+        XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_39SurveyDefinitionTests_swift.compatibilityCardID, "V23-P03-C47")
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_39SurveyDefinitionTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_39SurveyDefinitionTests_swift.installationAndPunchReceiptsRemainIndependent)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_39SurveyDefinitionTests_swift.noPlanFallbackIsExplicit)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_39SurveyDefinitionTests_swift.surveyDefinitionOwnershipIsPreserved)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_39SurveyDefinitionTests_swift.legacyInspectionTruthIsNotRewritten)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_39SurveyDefinitionTests_swift.threeReceiptIsolationIsRequired)
+        XCTAssertEqual(ActivityKindV1CompatibilityAdapterV2.disposition(.survey), .exactV1)
+        XCTAssertEqual(ActivityKindV1CompatibilityAdapterV2.v1(.survey), .survey)
+    }
+}

@@ -168,3 +168,18 @@ enum SurveySessionFeaturePolicyBoundaryV1 {
             && excludesPublicationPayloadFromFeatureMetadata
     }
 }
+
+enum C47ActivityContractConformance_FieldEvidenceApp_Infrastructure_Settings_FeaturePolicyLoaderV1_swift {
+    static let integrationRole = "PROVIDER_NEUTRAL_FEATURE_POLICY"
+    static let sharedReceipt = SharedActivityEnvelopeReceiptV1.self
+    static let installationReceipt = InstallationActivityContractReceiptV1.self
+    static let punchReceipt = PunchActivityContractReceiptV1.self
+    static let noPlanFallback = NoPlanFallbackV1.self
+    static let usesExistingWriterRendererStoreAndPackageInfrastructure = true
+    static let createsSecondRouteOrInspectionAlias = false
+    static func validateReadable(_ value: ActivitySessionEnvelopeV2) throws { try value.validateForRead() }
+    static func canonicalCloseoutIsPresent(_ value: ActivitySessionEnvelopeV2) throws -> Bool {
+        try ActivityContractCloseoutSettingsPolicyV2.validateCanonicalPresentation(value)
+        return value.installationCloseout != nil || value.punchReviewCloseout != nil
+    }
+}

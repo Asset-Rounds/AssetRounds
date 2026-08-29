@@ -168,6 +168,20 @@ enum PlacementPoseRestoreIdentityPolicyV1 {
 }
 
 extension RestoreIdentityV1 {
+    func destinationActivityContractMutationID(for sourceID: MutationIDV1) throws -> MutationIDV1 {
+        let digest = CanonicalJSONV1.sha256(Data(
+            "activity-contract-restore\u{0}\(sourceID.rawValue.uuidString.lowercased())\u{0}\(targetPointer.workspaceID.uuidString.lowercased())\u{0}\(targetPointer.generationID.uuidString.lowercased())".utf8
+        ))
+        var bytes = stride(from: 0, to: 32, by: 2).map {
+            UInt8(digest.dropFirst($0).prefix(2), radix: 16) ?? 0
+        }
+        bytes[6] = (bytes[6] & 0x0f) | 0x50; bytes[8] = (bytes[8] & 0x3f) | 0x80
+        return try MutationIDV1(rawValue: UUID(uuid: (
+            bytes[0],bytes[1],bytes[2],bytes[3],bytes[4],bytes[5],bytes[6],bytes[7],
+            bytes[8],bytes[9],bytes[10],bytes[11],bytes[12],bytes[13],bytes[14],bytes[15]
+        )))
+    }
+
     func destinationOperationalContactMutationID(for sourceID: MutationIDV1) throws -> MutationIDV1 {
         let digest = CanonicalJSONV1.sha256(Data(
             "operational-contact-restore\u{0}\(sourceID.rawValue.uuidString.lowercased())\u{0}\(targetPointer.workspaceID.uuidString.lowercased())\u{0}\(targetPointer.generationID.uuidString.lowercased())".utf8

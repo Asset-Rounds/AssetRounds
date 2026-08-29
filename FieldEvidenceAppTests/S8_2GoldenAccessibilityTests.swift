@@ -291,3 +291,28 @@ private final class C46S82GoldenAccessibilityCompatibilityTests: XCTestCase {
         )
     }
 }
+
+
+private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_S8_2GoldenAccessibilityTests_swift {
+    static let compatibilityCardID = "V23-P03-C47"
+    static let sharedEnvelopeDoesNotCollapseFamilyTruth = true
+    static let installationAndPunchReceiptsRemainIndependent = true
+    static let noPlanFallbackIsExplicit = true
+    static let surveyDefinitionOwnershipIsPreserved = true
+    static let legacyInspectionTruthIsNotRewritten = true
+    static let threeReceiptIsolationIsRequired = true
+}
+
+private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S8_2GoldenAccessibilityTests_swift_Tests: XCTestCase {
+    func testC47S82GoldenAccessibilityTestsOwnerCompatibilityIsTyped() {
+        XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_S8_2GoldenAccessibilityTests_swift.compatibilityCardID, "V23-P03-C47")
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S8_2GoldenAccessibilityTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S8_2GoldenAccessibilityTests_swift.installationAndPunchReceiptsRemainIndependent)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S8_2GoldenAccessibilityTests_swift.noPlanFallbackIsExplicit)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S8_2GoldenAccessibilityTests_swift.surveyDefinitionOwnershipIsPreserved)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S8_2GoldenAccessibilityTests_swift.legacyInspectionTruthIsNotRewritten)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S8_2GoldenAccessibilityTests_swift.threeReceiptIsolationIsRequired)
+        XCTAssertFalse(ActivityContractPersistenceEnrollmentV2.completionClaimsCommissioningComplianceApprovalOrCertification)
+        XCTAssertEqual(Set(ActivityContractPersistenceEnrollmentV2.nonpersistentFamilies).count, 3)
+    }
+}

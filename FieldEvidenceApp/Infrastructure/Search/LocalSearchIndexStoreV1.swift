@@ -1485,3 +1485,4 @@ enum C45AcceptedLabelIndexStoreBoundaryV1 {
 }
 
 enum C46OperationalContactBoundary_36{static let permittedProjection="PARTY_METADATA_ONLY";static let rawPhoneOrEmailIndexed=false}
+enum C47ActivityContractLocalSearchBoundaryV2 { static let projectsCurrentEnvelopeHeads=true;static let permittedFields=["work_identifier","work_summary","status"];static let transitionReceiptAndNoPlanBytesAreExcluded=true;static let indexIsDerivedAndBackupExcluded=true }

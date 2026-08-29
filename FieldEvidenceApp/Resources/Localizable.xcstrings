@@ -3730,6 +3730,38 @@
       "comment" : "C46 cancellation before the OS handoff.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Handoff cancelled before opening the system app" } } }
     },
+    "activity.contract.installation" : {
+      "comment" : "C47 independent installation activity family name.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Installation" } } }
+    },
+    "activity.contract.punch_review" : {
+      "comment" : "C47 standalone punch-review activity family name.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Punch review" } } }
+    },
+    "activity.contract.no_plan_fallback" : {
+      "comment" : "C47 complete no-plan fallback; manual selection is required and scanning is not.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "No plan is linked. Select the subject manually. Scanning is not required." } } }
+    },
+    "activity.contract.deferred" : {
+      "comment" : "C47 truthful deferred state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Deferred" } } }
+    },
+    "activity.contract.unable_to_complete" : {
+      "comment" : "C47 truthful unable-to-complete state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Unable to complete" } } }
+    },
+    "activity.contract.field_complete" : {
+      "comment" : "C47 field work state; not an approval claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Field complete" } } }
+    },
+    "activity.contract.ready_for_review" : {
+      "comment" : "C47 review readiness state; not approved or certified.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Ready for review" } } }
+    },
+    "activity.contract.claim_boundary" : {
+      "comment" : "C47 truthful completion boundary.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Completion does not claim approval, certification, compliance, commissioning, or safety clearance." } } }
+    },
     "operational_contact.handoff.claim_boundary" : {
       "comment" : "C46 truthful platform-outcome boundary.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Handoff does not confirm a call connected, a message or email was sent or delivered, or that anyone arrived." } } }

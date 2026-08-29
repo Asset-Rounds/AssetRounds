@@ -2664,9 +2664,57 @@ private final class CheckRunnerAssistanceAuthoritativeStateReaderV1:
     }
 }
 enum C46OperationalContactConformance_FieldEvidenceApp_Features_CheckRunner_CheckRunnerCoordinator_swift {
+    static let c47IntegrationRole = "EXPLICIT_START_NO_P04_ROUTE"
+    static let c47SharedReceipt = SharedActivityEnvelopeReceiptV1.self
+    static let c47InstallationReceipt = InstallationActivityContractReceiptV1.self
+    static let c47PunchReceipt = PunchActivityContractReceiptV1.self
+    static let c47NoPlanFallback = NoPlanFallbackV1.self
+    static let c47UsesExistingWriterRendererStoreAndPackageInfrastructure = true
+    static let c47CreatesSecondRouteOrInspectionAlias = false
+    static func c47ValidateExplicitStart(_ candidate: ActivityContractReviewCandidateV2) throws {
+        try candidate.envelope.kind.requireKnownForMutation()
+        guard candidate.mayStart else { throw ActivityContractFailureV2.invalidTransition }
+    }
     static let operationalContactsRemainPurposeSeparated = true
     static let systemHandoffsRemainExplicitEphemeralAndNoncanonical = true
     static let subscriberConsentCampaignAndMeasurementProjectionForbidden = true
     static let contactExportExcludedByDefault = true
     static let noSecondWriterOrAutomaticHandoff = true
+}
+
+extension CheckRunnerCoordinator {
+    static func activityContractReviewCandidate(
+        envelope: ActivitySessionEnvelopeV2,
+        noPlanFallback: NoPlanFallbackV1?
+    ) throws -> ActivityContractReviewCandidateV2 {
+        try ActivityContractCloseoutSettingsPolicyV2.validateCanonicalPresentation(envelope)
+        return try ActivityContractReviewCandidateV2(
+            envelope: envelope, noPlanFallback: noPlanFallback
+        )
+    }
+
+    static func restoreActivityRoute(
+        from canonicalData: Data,
+        querying query: any ActivityContractCurrentStateQueryingV2
+    ) async throws -> ActivityRouteV2 {
+        let route = try ActivityRouteCanonicalRegistryV2.decode(canonicalData)
+        guard let current = try await query.currentActivityContract(
+            workspaceID: route.workspaceID, activityID: route.activityID
+        ), let envelope = current.envelope,
+              envelope.workspaceID == route.workspaceID,
+              envelope.activityID == route.activityID,
+              envelope.kind == route.kind else {
+            throw ActivityContractCoordinatorFailureV2.targetMissing
+        }
+        return route
+    }
+}
+
+enum C47ActivityContractConformance_FieldEvidenceApp_Features_CheckRunner_CheckRunnerCoordinator_swift {
+    static let sharedReceipt = SharedActivityEnvelopeReceiptV1.self
+    static let installationReceipt = InstallationActivityContractReceiptV1.self
+    static let punchReceipt = PunchActivityContractReceiptV1.self
+    static let noPlanFallback = NoPlanFallbackV1.self
+    static let usesExistingInfrastructureOnly = true
+    static let createsSecondWriterRendererStoreRouteOrInspectionAlias = false
 }

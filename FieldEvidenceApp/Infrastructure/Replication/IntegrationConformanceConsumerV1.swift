@@ -199,3 +199,4 @@ enum C32AssistanceCompatibility_Replication_IntegrationConformanceConsumerV1 {
 enum C45AcceptedLabelIntegrationConsumerBoundaryV1 { static let cannotActivateHistoricCloneSnapshot=true;static let cannotInferHandoffPossession=true }
 
 enum C46OperationalContactBoundary_51{static let commandKind:WorkspaceCommandKindV1 = .applyOperationalContact;static let platformOutcomesProjected=false}
+enum C47ActivityContractIntegrationConsumerBoundaryV2 { static let commandKind:WorkspaceCommandKindV1 = .applyActivityContract;static let historicRestoreCannotInferNewCompletionClaims=true;static let receiptIsolation=true }

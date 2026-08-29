@@ -1874,3 +1874,20 @@ enum C45AssetLabelBoundary_SnapshotValidatorV1 {
 }
 
 enum C46OperationalContactBoundary_28{static let defaultProjection="EXCLUDED";static let rawPhoneOrEmailEmitted=false;static let platformOutcomeClaimEmitted=false}
+
+enum C47ActivityContractConformance_FieldEvidenceApp_Infrastructure_Reporting_SnapshotValidatorV1_swift {
+    static let integrationRole = "READ_VALIDATE_MUTATION_FAIL_CLOSED"
+    static let sharedReceipt = SharedActivityEnvelopeReceiptV1.self
+    static let installationReceipt = InstallationActivityContractReceiptV1.self
+    static let punchReceipt = PunchActivityContractReceiptV1.self
+    static let noPlanFallback = NoPlanFallbackV1.self
+    static let usesExistingReportInfrastructure = true
+    static let createsSecondRendererWriterOrStore = false
+    static func validateReadable(_ value: ActivitySessionEnvelopeV2) throws { try value.validateForRead() }
+    static func validate(_ projection: ActivityContractReportProjectionV2) throws {
+        _ = try ActivityContractReportProjectionV2(
+            envelope: projection.envelope, completed: projection.completed,
+            installation: projection.installation, punch: projection.punch
+        )
+    }
+}

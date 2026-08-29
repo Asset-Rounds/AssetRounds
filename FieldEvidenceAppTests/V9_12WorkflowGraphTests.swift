@@ -930,3 +930,28 @@ extension V9_12WorkflowGraphTests {
         XCTAssertNoThrow(try V25GuidedSurveyImportBoundaryV1.validate(persistent: 25, records: 24))
     }
 }
+
+
+private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_12WorkflowGraphTests_swift {
+    static let compatibilityCardID = "V23-P03-C47"
+    static let sharedEnvelopeDoesNotCollapseFamilyTruth = true
+    static let installationAndPunchReceiptsRemainIndependent = true
+    static let noPlanFallbackIsExplicit = true
+    static let surveyDefinitionOwnershipIsPreserved = true
+    static let legacyInspectionTruthIsNotRewritten = true
+    static let threeReceiptIsolationIsRequired = true
+}
+
+private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_12WorkflowGraphTests_swift_Tests: XCTestCase {
+    func testC47V912WorkflowGraphTestsOwnerCompatibilityIsTyped() {
+        XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_12WorkflowGraphTests_swift.compatibilityCardID, "V23-P03-C47")
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_12WorkflowGraphTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_12WorkflowGraphTests_swift.installationAndPunchReceiptsRemainIndependent)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_12WorkflowGraphTests_swift.noPlanFallbackIsExplicit)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_12WorkflowGraphTests_swift.surveyDefinitionOwnershipIsPreserved)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_12WorkflowGraphTests_swift.legacyInspectionTruthIsNotRewritten)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_12WorkflowGraphTests_swift.threeReceiptIsolationIsRequired)
+        XCTAssertEqual(ActivityStateMachineV2.exhaustiveTable.count, ActivityStateV2.allCases.count)
+        XCTAssertFalse(ActivityStateMachineV2.permits(from: .finalized, to: .draft))
+    }
+}

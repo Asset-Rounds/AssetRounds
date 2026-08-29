@@ -908,3 +908,28 @@ private final class C46S44HistoryCompatibilityTests: XCTestCase {
         )
     }
 }
+
+
+private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_4HistoryComparisonTests_swift {
+    static let compatibilityCardID = "V23-P03-C47"
+    static let sharedEnvelopeDoesNotCollapseFamilyTruth = true
+    static let installationAndPunchReceiptsRemainIndependent = true
+    static let noPlanFallbackIsExplicit = true
+    static let surveyDefinitionOwnershipIsPreserved = true
+    static let legacyInspectionTruthIsNotRewritten = true
+    static let threeReceiptIsolationIsRequired = true
+}
+
+private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_4HistoryComparisonTests_swift_Tests: XCTestCase {
+    func testC47S44HistoryComparisonTestsOwnerCompatibilityIsTyped() {
+        XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_4HistoryComparisonTests_swift.compatibilityCardID, "V23-P03-C47")
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_4HistoryComparisonTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_4HistoryComparisonTests_swift.installationAndPunchReceiptsRemainIndependent)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_4HistoryComparisonTests_swift.noPlanFallbackIsExplicit)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_4HistoryComparisonTests_swift.surveyDefinitionOwnershipIsPreserved)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_4HistoryComparisonTests_swift.legacyInspectionTruthIsNotRewritten)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_4HistoryComparisonTests_swift.threeReceiptIsolationIsRequired)
+        XCTAssertEqual(ActivityKindV2.knownCases.count, 7)
+        XCTAssertFalse(ActivityContractPersistenceEnrollmentV2.planOrScanProviderRequired)
+    }
+}

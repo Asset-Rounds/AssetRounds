@@ -793,3 +793,14 @@ extension WorklightPDFRendererV1 {
     static let surveyDefinitionDoesNotClaimCompliance = true
     static let surveyDefinitionDoesNotClaimInspectionResult = true
 }
+
+enum C47ActivityContractConformance_FieldEvidenceApp_Infrastructure_Reporting_WorklightPDFRendererV1_swift {
+    static let integrationRole = "SOLE_WORKLIGHT_RENDERER"
+    static let sharedReceipt = SharedActivityEnvelopeReceiptV1.self
+    static let installationReceipt = InstallationActivityContractReceiptV1.self
+    static let punchReceipt = PunchActivityContractReceiptV1.self
+    static let noPlanFallback = NoPlanFallbackV1.self
+    static let usesExistingWriterRendererStoreAndPackageInfrastructure = true
+    static let createsSecondRouteOrInspectionAlias = false
+    static func validateReadable(_ value: ActivitySessionEnvelopeV2) throws { try value.validateForRead() }
+}

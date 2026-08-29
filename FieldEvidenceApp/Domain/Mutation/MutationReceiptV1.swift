@@ -150,6 +150,11 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
     case acceptedLabelGenerationSnapshot(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case serviceContactPoint(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case systemHandoffIntent(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case activitySessionEnvelope(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case activityStateTransition(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case installationTaskResult(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case installationAsBuiltSnapshot(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case punchReviewBasisSnapshot(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case workflowRecord(id: UUID, revision: UInt64, semanticSHA256: String)
     case evidenceFile(id: UUID, revision: UInt64, semanticSHA256: String)
     case issue(id: UUID, revision: UInt64, semanticSHA256: String)
@@ -253,6 +258,11 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
             case let .acceptedLabelGenerationSnapshot(id,_,_,_):return try .init(kind:.acceptedLabelGenerationSnapshot,id:id)
             case let .serviceContactPoint(id,_,_,_):return try .init(kind:.serviceContactPoint,id:id)
             case let .systemHandoffIntent(id,_,_,_):return try .init(kind:.systemHandoffIntent,id:id)
+            case let .activitySessionEnvelope(id,_,_,_):return try .init(kind:.activitySessionEnvelope,id:id)
+            case let .activityStateTransition(id,_,_,_):return try .init(kind:.activityStateTransition,id:id)
+            case let .installationTaskResult(id,_,_,_):return try .init(kind:.installationTaskResult,id:id)
+            case let .installationAsBuiltSnapshot(id,_,_,_):return try .init(kind:.installationAsBuiltSnapshot,id:id)
+            case let .punchReviewBasisSnapshot(id,_,_,_):return try .init(kind:.punchReviewBasisSnapshot,id:id)
             case let .workflowRecord(id, _, _): return try .init(kind: .workflowRecord, id: id)
             case let .evidenceFile(id, _, _): return try .init(kind: .evidenceFile, id: id)
             case let .issue(id, _, _): return try .init(kind: .issue, id: id)
@@ -266,7 +276,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
 
     var semanticSHA256: String {
         switch self {
-        case let .accessibleDocumentAssessmentReceipt(_,_,_,value),let .surveyDefinitionIdentity(_,_,_,value),let .surveyDefinitionRelease(_,_,_,value),let .surveySession(_,_,_,value),let .factCapture(_,_,_,value),let .provisionalSubject(_,_,_,value),let .subjectPromotionReceipt(_,_,_,value),let .surveyPublicationSnapshot(_,_,_,value),let .assetLocator(_,_,_,value),let .locatorBindingReceipt(_,_,_,value),let .scheduleDefinitionRelease(_,_,_,value),let .occurrenceHistoryEvent(_,_,_,value),let .planDocument(_,_,_,value),let .planRevision(_,_,_,value),let .planPlacement(_,_,_,value),let .planRebaseReceipt(_,_,_,value),let .assetPoseEvent(_,_,_,value),let .spatialAnchorObservation(_,_,_,value),let .evidenceContext(_,_,_,value),let .pairedObservationLink(_,_,_,value),let .lightingSystem(_,_,_,value),let .lightingObservation(_,_,_,value),let .lightingIssue(_,_,_,value),let .lightingMeasurementPlan(_,_,_,value),let .lightingClaimState(_,_,_,value),let .temporalEvidenceClip(_,_,_,value),let .timecodedEvidenceAnchor(_,_,_,value),let .acceptedLabelGenerationSnapshot(_,_,_,value),let .serviceContactPoint(_,_,_,value),let .systemHandoffIntent(_,_,_,value):return value
+        case let .accessibleDocumentAssessmentReceipt(_,_,_,value),let .surveyDefinitionIdentity(_,_,_,value),let .surveyDefinitionRelease(_,_,_,value),let .surveySession(_,_,_,value),let .factCapture(_,_,_,value),let .provisionalSubject(_,_,_,value),let .subjectPromotionReceipt(_,_,_,value),let .surveyPublicationSnapshot(_,_,_,value),let .assetLocator(_,_,_,value),let .locatorBindingReceipt(_,_,_,value),let .scheduleDefinitionRelease(_,_,_,value),let .occurrenceHistoryEvent(_,_,_,value),let .planDocument(_,_,_,value),let .planRevision(_,_,_,value),let .planPlacement(_,_,_,value),let .planRebaseReceipt(_,_,_,value),let .assetPoseEvent(_,_,_,value),let .spatialAnchorObservation(_,_,_,value),let .evidenceContext(_,_,_,value),let .pairedObservationLink(_,_,_,value),let .lightingSystem(_,_,_,value),let .lightingObservation(_,_,_,value),let .lightingIssue(_,_,_,value),let .lightingMeasurementPlan(_,_,_,value),let .lightingClaimState(_,_,_,value),let .temporalEvidenceClip(_,_,_,value),let .timecodedEvidenceAnchor(_,_,_,value),let .acceptedLabelGenerationSnapshot(_,_,_,value),let .serviceContactPoint(_,_,_,value),let .systemHandoffIntent(_,_,_,value),let .activitySessionEnvelope(_,_,_,value),let .activityStateTransition(_,_,_,value),let .installationTaskResult(_,_,_,value),let .installationAsBuiltSnapshot(_,_,_,value),let .punchReviewBasisSnapshot(_,_,_,value):return value
         case let .site(_, _, value), let .asset(_, _, value), let .locationNode(_, _, value),
              let .assetPlacementEvent(_, _, value), let .assetCompositionEdge(_, _, value),
              let .assetCompositionEvent(_, _, value), let .savedSmartView(_, _, value),
@@ -386,6 +396,11 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
             case let .acceptedLabelGenerationSnapshot(_,v,_,_):guard v.kind == .acceptedLabelGenerationSnapshot else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             case let .serviceContactPoint(_,v,_,_):guard v.kind == .serviceContactPoint else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             case let .systemHandoffIntent(_,v,_,_):guard v.kind == .systemHandoffIntent else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+            case let .activitySessionEnvelope(_,v,_,_):guard v.kind == .activitySessionEnvelope else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+            case let .activityStateTransition(_,v,_,_):guard v.kind == .activityStateTransition else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+            case let .installationTaskResult(_,v,_,_):guard v.kind == .installationTaskResult else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+            case let .installationAsBuiltSnapshot(_,v,_,_):guard v.kind == .installationAsBuiltSnapshot else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+            case let .punchReviewBasisSnapshot(_,v,_,_):guard v.kind == .punchReviewBasisSnapshot else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             default:
                 return try identity
             }
@@ -394,7 +409,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
 
     var revision: UInt64 {
         switch self {
-        case let .accessibleDocumentAssessmentReceipt(_,_,value,_),let .surveyDefinitionIdentity(_,_,value,_),let .surveyDefinitionRelease(_,_,value,_),let .surveySession(_,_,value,_),let .factCapture(_,_,value,_),let .provisionalSubject(_,_,value,_),let .subjectPromotionReceipt(_,_,value,_),let .surveyPublicationSnapshot(_,_,value,_),let .assetLocator(_,_,value,_),let .locatorBindingReceipt(_,_,value,_),let .scheduleDefinitionRelease(_,_,value,_),let .occurrenceHistoryEvent(_,_,value,_),let .planDocument(_,_,value,_),let .planRevision(_,_,value,_),let .planPlacement(_,_,value,_),let .planRebaseReceipt(_,_,value,_),let .assetPoseEvent(_,_,value,_),let .spatialAnchorObservation(_,_,value,_),let .evidenceContext(_,_,value,_),let .pairedObservationLink(_,_,value,_),let .lightingSystem(_,_,value,_),let .lightingObservation(_,_,value,_),let .lightingIssue(_,_,value,_),let .lightingMeasurementPlan(_,_,value,_),let .lightingClaimState(_,_,value,_),let .temporalEvidenceClip(_,_,value,_),let .timecodedEvidenceAnchor(_,_,value,_),let .acceptedLabelGenerationSnapshot(_,_,value,_),let .serviceContactPoint(_,_,value,_),let .systemHandoffIntent(_,_,value,_):return value
+        case let .accessibleDocumentAssessmentReceipt(_,_,value,_),let .surveyDefinitionIdentity(_,_,value,_),let .surveyDefinitionRelease(_,_,value,_),let .surveySession(_,_,value,_),let .factCapture(_,_,value,_),let .provisionalSubject(_,_,value,_),let .subjectPromotionReceipt(_,_,value,_),let .surveyPublicationSnapshot(_,_,value,_),let .assetLocator(_,_,value,_),let .locatorBindingReceipt(_,_,value,_),let .scheduleDefinitionRelease(_,_,value,_),let .occurrenceHistoryEvent(_,_,value,_),let .planDocument(_,_,value,_),let .planRevision(_,_,value,_),let .planPlacement(_,_,value,_),let .planRebaseReceipt(_,_,value,_),let .assetPoseEvent(_,_,value,_),let .spatialAnchorObservation(_,_,value,_),let .evidenceContext(_,_,value,_),let .pairedObservationLink(_,_,value,_),let .lightingSystem(_,_,value,_),let .lightingObservation(_,_,value,_),let .lightingIssue(_,_,value,_),let .lightingMeasurementPlan(_,_,value,_),let .lightingClaimState(_,_,value,_),let .temporalEvidenceClip(_,_,value,_),let .timecodedEvidenceAnchor(_,_,value,_),let .acceptedLabelGenerationSnapshot(_,_,value,_),let .serviceContactPoint(_,_,value,_),let .systemHandoffIntent(_,_,value,_),let .activitySessionEnvelope(_,_,value,_),let .activityStateTransition(_,_,value,_),let .installationTaskResult(_,_,value,_),let .installationAsBuiltSnapshot(_,_,value,_),let .punchReviewBasisSnapshot(_,_,value,_):return value
         case let .site(_, value, _), let .asset(_, value, _),
              let .locationNode(_, value, _), let .assetPlacementEvent(_, value, _),
              let .assetCompositionEdge(_, value, _), let .assetCompositionEvent(_, value, _),
@@ -416,8 +431,20 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
              let .fieldDraftCheckpoint(_,_,value,_),let .attachmentStagingItem(_,_,value,_),let .draftCommitSaga(_,_,value,_),let .draftContentReservation(_,_,value,_),let .draftCommitReceipt(_,_,value,_),let .draftDiscardReceipt(_,_,value,_),let .promotedPackageRelease(_,_,value,_),let .packageSandboxRun(_,_,value,_),let .packagePromotionReceipt(_,_,value,_),let .activePackageRegistryPointer(_,_,value,_),let .instrumentReference(_,_,value,_),let .calibrationStatusSnapshot(_,_,value,_),let .measurementCapture(_,_,value,_),let .measurementSeries(_,_,value,_),let .measurementQualityAssessment(_,_,value,_),let .privacyTransformPolicy(_,_,value,_),let .privacyRegion(_,_,value,_),let .privacyTransformManifest(_,_,value,_),let .privacyReviewReceipt(_,_,value,_),let .clientCapabilityProfile(_,_,value,_),let .clientCapabilityAdmissionDecision(_,_,value,_),let .packageLifecyclePolicy(_,_,value,_),let .packageLifecycleDisposition(_,_,value,_),let .fieldReferenceRelease(_,_,value,_),let .fieldReferenceBinding(_,_,value,_),
              let .workflowRecord(_, value, _), let .evidenceFile(_, value, _),
              let .issue(_, value, _), let .packet(_, value, _),
-             let .report(_, value, _), let .deletionLedgerEntry(_, value, _),
-             let .tombstone(_, value, _): return value
+              let .report(_, value, _), let .deletionLedgerEntry(_, value, _),
+              let .tombstone(_, value, _): return value
+        }
+    }
+
+    private var isC47IndependentRevisionImage: Bool {
+        switch self {
+        case .activityStateTransition(_, _, _, _),
+             .installationTaskResult(_, _, _, _),
+             .installationAsBuiltSnapshot(_, _, _, _),
+             .punchReviewBasisSnapshot(_, _, _, _):
+            return true
+        default:
+            return false
         }
     }
 }
@@ -486,6 +513,10 @@ struct MutationReceiptV1: Codable, Equatable, Sendable {
         let resultingByIdentity = Dictionary(
             uniqueKeysWithValues: resultingRevision.entityRevisions.map { ($0.identity, $0.revision) }
         )
+        let hasActivityContractEnvelope = postImages.contains { image in
+            guard let identity = try? image.identity else { return false }
+            return identity.kind == .activitySessionEnvelope
+        }
         guard schemaVersion == Self.schemaVersion,
               identity.workspaceID == expectedRevision.workspaceID,
               expectedRevision.workspaceID == resultingRevision.workspaceID,
@@ -500,10 +531,24 @@ struct MutationReceiptV1: Codable, Equatable, Sendable {
               identities.map(\.stableKey) == identities.map(\.stableKey).sorted(),
               postImages.allSatisfy({ image in
                   guard let identity = try? image.identity,
-                        let concurrencyIdentity = try? image.concurrencyIdentity,
-                        let before = expectedByIdentity[concurrencyIdentity],
-                        before < .max else { return false }
-                  return image.revision == before + 1
+                        let concurrencyIdentity = try? image.concurrencyIdentity else { return false }
+                  let before: UInt64
+                  if let explicit = expectedByIdentity[concurrencyIdentity] {
+                      before = explicit
+                  } else if hasActivityContractEnvelope,
+                            image.isC47IndependentRevisionImage,
+                            identity == concurrencyIdentity {
+                      before = 0
+                  } else {
+                      return false
+                  }
+                  guard before < .max else { return false }
+                  let independentRevision = hasActivityContractEnvelope
+                    && image.isC47IndependentRevisionImage
+                    && identity == concurrencyIdentity
+                    && before == 0
+                    && image.revision > 0
+                  return (independentRevision || image.revision == before + 1)
                     && resultingByIdentity[identity] == image.revision
               }),
               contentDependencyIDs.count <= MutationEnvelopeV1.maximumDependencyCount,
@@ -1219,6 +1264,34 @@ struct OperationalContactMutationReceiptV1:Codable,Equatable,Sendable{
         let expected=Dictionary(uniqueKeysWithValues:mutationReceipt.expectedRevision.entityRevisions.map{($0.identity,$0.revision)}),resulting=Dictionary(uniqueKeysWithValues:mutationReceipt.resultingRevision.entityRevisions.map{($0.identity,$0.revision)})
         guard mutationReceipt.mutationID==mutation.mutationID,mutationReceipt.identity.workspaceID==mutation.workspaceID,mutationReceipt.commandBodySHA256==(try WorkspaceMutationCanonicalV1.sha256(WorkspaceCommandV1.applyOperationalContact(mutation))),mutationReceipt.postImages==images,try concurrency.allSatisfy({expected[$0]==(try mutation.expectedRevision(for:$0))}),try images.allSatisfy({resulting[try $0.identity]==$0.revision}),affected==images.compactMap({try? $0.identity}) else{throw WorkspaceMutationFailureV1.invalidReceipt}
         mutationSHA256=try OperationalContactCanonicalCodecV1.sha256(mutation);self.mutationReceipt=mutationReceipt;affectedIdentities=affected;concurrencyIdentities=concurrency
+    }
+}
+
+struct ActivityContractMutationReceiptV2: Codable, Equatable, Sendable {
+    let mutationSHA256: String
+    let mutationReceipt: MutationReceiptV1
+    let affectedIdentities: [WorkspaceEntityIdentityV1]
+
+    init(mutation: ActivityContractMutationV2, mutationReceipt: MutationReceiptV1) throws {
+        try mutation.validateForCanonicalMutation()
+        try mutationReceipt.validate()
+        let affected = try mutation.affectedIdentities
+        let concurrency = try mutation.concurrencyIdentities
+        let images = try mutation.mutationPostImages
+        let expected = Dictionary(uniqueKeysWithValues: mutationReceipt.expectedRevision.entityRevisions.map { ($0.identity, $0.revision) })
+        let resulting = Dictionary(uniqueKeysWithValues: mutationReceipt.resultingRevision.entityRevisions.map { ($0.identity, $0.revision) })
+        guard mutationReceipt.mutationID == mutation.mutationID,
+              mutationReceipt.identity.workspaceID == mutation.workspaceID,
+              mutationReceipt.commandBodySHA256 == (try WorkspaceMutationCanonicalV1.sha256(WorkspaceCommandV1.applyActivityContract(mutation))),
+              mutationReceipt.postImages == images,
+              try concurrency.allSatisfy({ (expected[$0] ?? 0) == (try mutation.expectedRevision(for: $0)) }),
+              try images.allSatisfy({ resulting[try $0.identity] == $0.revision }),
+              affected == images.compactMap({ try? $0.identity }) else {
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+        mutationSHA256 = mutation.mutationSHA256
+        self.mutationReceipt = mutationReceipt
+        affectedIdentities = affected
     }
 }
 // MARK: - C32 assistance mutation receipt boundary

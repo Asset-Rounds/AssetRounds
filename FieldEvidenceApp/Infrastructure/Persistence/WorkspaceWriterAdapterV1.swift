@@ -47,6 +47,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             .applyTemporalEvidence,
             .applyAssetLabel,
             .applyOperationalContact,
+            .applyActivityContract,
         ])
 
     /// C22 receipts are appended by the existing fenced journal authority;
@@ -62,12 +63,24 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
 
     private let modelContext: ModelContext
     private let assetSemanticLifecycleAdapter: AssetSemanticLifecycleAdapterV1
+    private let completedActivitySnapshotResolver:
+        ((CompletedActivitySnapshotV2CompatibilityReferenceV1) throws
+            -> CompletedActivitySnapshotResolutionContextV2)?
+    private let activityFindingEvidenceResolver:
+        (([PunchFindingLinkV1]) throws -> [FindingLifecycleCanonicalEvidenceV1])?
 
     init(
         modelContext: ModelContext,
-        assetSemanticLifecycleAdapter: AssetSemanticLifecycleAdapterV1? = nil
+        assetSemanticLifecycleAdapter: AssetSemanticLifecycleAdapterV1? = nil,
+        completedActivitySnapshotResolver:
+            ((CompletedActivitySnapshotV2CompatibilityReferenceV1) throws
+                -> CompletedActivitySnapshotResolutionContextV2)? = nil,
+        activityFindingEvidenceResolver:
+            (([PunchFindingLinkV1]) throws -> [FindingLifecycleCanonicalEvidenceV1])? = nil
     ) {
         self.modelContext = modelContext
+        self.completedActivitySnapshotResolver = completedActivitySnapshotResolver
+        self.activityFindingEvidenceResolver = activityFindingEvidenceResolver
         if let assetSemanticLifecycleAdapter {
             self.assetSemanticLifecycleAdapter = assetSemanticLifecycleAdapter
         } else {
@@ -190,6 +203,8 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             return try applyAssetLabel(value, temporaryRelativePath: temporaryRelativePath)
         case let .applyOperationalContact(value):
             return try applyOperationalContact(value, temporaryRelativePath: temporaryRelativePath)
+        case let .applyActivityContract(value):
+            return try applyActivityContract(value, temporaryRelativePath: temporaryRelativePath)
         case .deleteAsset,
              .deleteSite,
              .eraseWorkspace,
@@ -200,6 +215,524 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
              .archiveEntities:
             throw WorkspaceMutationFailureV1.unsupportedCommand
         }
+    }
+
+    /// Read-only C47 recovery preflight.  Returning `false` is reserved for
+    /// a wholly absent effect; every partial or noncanonical persisted shape
+    /// fails closed so a retry cannot compound it.
+    func persistedActivityContractEffectMatches(
+        _ mutation: ActivityContractMutationV2
+    ) throws -> Bool {
+        try mutation.validateForCanonicalMutation()
+        let mutationID = mutation.mutationID.rawValue
+        let workspace = mutation.workspaceID.rawValue
+        let envelopeRows = try modelContext.fetch(FetchDescriptor<ActivitySessionEnvelopeRow>(
+            predicate: #Predicate { $0.mutationID == mutationID }
+        ))
+        let transitionRows = try modelContext.fetch(FetchDescriptor<ActivityStateTransitionRow>(
+            predicate: #Predicate { $0.mutationID == mutationID }
+        ))
+        let resultRows = try modelContext.fetch(FetchDescriptor<InstallationTaskResultRow>(
+            predicate: #Predicate { $0.mutationID == mutationID }
+        ))
+        let snapshotRows = try modelContext.fetch(FetchDescriptor<InstallationAsBuiltSnapshotRow>(
+            predicate: #Predicate { $0.mutationID == mutationID }
+        ))
+        let basisRows = try modelContext.fetch(FetchDescriptor<PunchReviewBasisSnapshotRow>(
+            predicate: #Predicate { $0.mutationID == mutationID }
+        ))
+        let rowCount = envelopeRows.count + transitionRows.count + resultRows.count
+            + snapshotRows.count + basisRows.count
+        guard rowCount > 0 else { return false }
+        guard envelopeRows.allSatisfy({ $0.workspaceID == workspace }),
+              transitionRows.allSatisfy({ $0.workspaceID == workspace }),
+              resultRows.allSatisfy({ $0.workspaceID == workspace }),
+              snapshotRows.allSatisfy({ $0.workspaceID == workspace }),
+              basisRows.allSatisfy({ $0.workspaceID == workspace }),
+              envelopeRows.count == 1,
+              transitionRows.count == (mutation.transition == nil ? 0 : 1),
+              resultRows.count == mutation.installationTaskResults.count,
+              snapshotRows.count == (mutation.installationAsBuiltSnapshot == nil ? 0 : 1),
+              basisRows.count == (mutation.punchReviewBasisSnapshot == nil ? 0 : 1),
+              let envelopeRow = envelopeRows.first,
+              try envelopeRow.value() == mutation.successorEnvelope else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        let transition = try transitionRows.first.map { try $0.value() }
+        let results = try resultRows.map { try $0.value() }.sorted {
+            $0.resultID.uuidString < $1.resultID.uuidString
+        }
+        let snapshot = try snapshotRows.first.map { try $0.value() }
+        let basis = try basisRows.first.map { try $0.value() }
+        guard transition == mutation.transition,
+              results == mutation.installationTaskResults,
+              snapshot == mutation.installationAsBuiltSnapshot,
+              basis == mutation.punchReviewBasisSnapshot else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        let persisted = try ActivityContractMutationV2(
+            workspaceID: mutation.workspaceID,
+            expectedRevision: mutation.expectedRevision,
+            mutationID: mutation.mutationID,
+            predecessorEnvelope: mutation.predecessorEnvelope,
+            successorEnvelope: try envelopeRow.value(),
+            transition: transition,
+            completedSnapshotReference: mutation.completedSnapshotReference,
+            installationBasisSnapshot: mutation.installationBasisSnapshot,
+            installationTaskResults: results,
+            installationAsBuiltSnapshot: snapshot,
+            punchReviewBasisSnapshot: basis
+        )
+        guard persisted.mutationSHA256 == mutation.mutationSHA256,
+              try persisted.affectedIdentities == mutation.affectedIdentities,
+              try persisted.mutationPostImages == mutation.mutationPostImages else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        return true
+    }
+
+    /// C47 alone commits its already-validated effect at the explicit
+    /// effect-before-receipt interruption boundary.  `apply` starts from a
+    /// clean context, and the exact preflight below proves this save contains
+    /// the complete C47 effect rather than unrelated pending changes.
+    func persistAppliedActivityContractEffect(
+        _ mutation: ActivityContractMutationV2
+    ) throws {
+        guard modelContext.hasChanges,
+              try persistedActivityContractEffectMatches(mutation) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        do {
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            throw WorkspaceMutationFailureV1.persistenceFailed
+        }
+    }
+
+    private func applyActivityContract(
+        _ mutation: ActivityContractMutationV2,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1 {
+        do {
+            try mutation.validateForCanonicalMutation()
+            guard C47ActivityContractPersistenceBoundaryV2.acceptsCanonicalRow(
+                kind: mutation.successorEnvelope.kind
+            ) else { throw WorkspaceMutationFailureV1.invalidCommand }
+            let workspace = mutation.workspaceID.rawValue
+            let activityID = mutation.successorEnvelope.activityID
+            let envelopeRows = try modelContext.fetch(FetchDescriptor<ActivitySessionEnvelopeRow>(
+                predicate: #Predicate { $0.workspaceID == workspace && $0.activityID == activityID }
+            ))
+            guard envelopeRows.count <= 1 else { throw WorkspaceMutationFailureV1.sequenceCollision }
+            let persistedTaskResults = try modelContext.fetch(FetchDescriptor<InstallationTaskResultRow>(
+                predicate: #Predicate { $0.workspaceID == workspace && $0.activityID == activityID }
+            )).map { try $0.value() }
+            let currentTaskHeads = try InstallationTaskResultLineageV1
+                .validateAndCurrentHeads(persistedTaskResults)
+            let taskHeadContext = try InstallationTaskCurrentHeadContextV1(
+                workspaceID: mutation.workspaceID,
+                activityID: activityID,
+                currentHeads: Array(currentTaskHeads.values)
+            )
+            let completedSnapshotContext = try mutation.completedSnapshotReference.map {
+                try resolveCompletedActivitySnapshot($0)
+            }
+            let basisHeads = try resolveActivityBasisHeads(mutation)
+            let workflowReleaseContext = try resolveActivityWorkflowRelease(mutation, basisHeads: basisHeads)
+            let installationReferenceContext = try resolveInstallationReferences(mutation)
+            let closeoutContext = try resolveActivityCloseout(mutation)
+            try mutation.validateResolved(
+                completedSnapshot: completedSnapshotContext,
+                installationTaskHeads: taskHeadContext,
+                currentInstallationBasis: basisHeads.installation,
+                currentPunchBasis: basisHeads.punch,
+                workflowReleaseContext: workflowReleaseContext,
+                installationReferenceContext: installationReferenceContext,
+                closeoutContext: closeoutContext
+            )
+            if let predecessor = mutation.predecessorEnvelope {
+                guard let row = envelopeRows.first, try row.value() == predecessor else {
+                    throw WorkspaceMutationFailureV1.staleEntityRevision(
+                        try .init(kind: .activitySessionEnvelope, id: activityID)
+                    )
+                }
+                try row.replace(with: mutation.successorEnvelope)
+            } else {
+                guard envelopeRows.isEmpty else { throw WorkspaceMutationFailureV1.sequenceCollision }
+                modelContext.insert(try ActivitySessionEnvelopeRow(mutation.successorEnvelope))
+            }
+
+            if let transition = mutation.transition {
+                let id = transition.transitionID
+                guard try modelContext.fetch(FetchDescriptor<ActivityStateTransitionRow>(
+                    predicate: #Predicate { $0.workspaceID == workspace && $0.transitionID == id }
+                )).isEmpty else { throw WorkspaceMutationFailureV1.sequenceCollision }
+                modelContext.insert(try ActivityStateTransitionRow(transition))
+            }
+            for result in mutation.installationTaskResults {
+                let id = result.resultID
+                guard try modelContext.fetch(FetchDescriptor<InstallationTaskResultRow>(
+                    predicate: #Predicate { $0.workspaceID == workspace && $0.resultID == id }
+                )).isEmpty else { throw WorkspaceMutationFailureV1.sequenceCollision }
+                modelContext.insert(try InstallationTaskResultRow(result))
+            }
+            if let snapshot = mutation.installationAsBuiltSnapshot {
+                let id = snapshot.snapshotID
+                guard try modelContext.fetch(FetchDescriptor<InstallationAsBuiltSnapshotRow>(
+                        predicate: #Predicate { $0.workspaceID == workspace && $0.snapshotID == id }
+                      )).isEmpty else { throw WorkspaceMutationFailureV1.invalidCommand }
+                modelContext.insert(try InstallationAsBuiltSnapshotRow(snapshot))
+            }
+            if let basis = mutation.punchReviewBasisSnapshot {
+                let id = basis.basisID
+                guard try modelContext.fetch(FetchDescriptor<PunchReviewBasisSnapshotRow>(
+                    predicate: #Predicate { $0.workspaceID == workspace && $0.basisID == id }
+                )).isEmpty else { throw WorkspaceMutationFailureV1.sequenceCollision }
+                modelContext.insert(try PunchReviewBasisSnapshotRow(basis))
+            }
+            return try WorkspaceMutationEffectV1(
+                affectedEntities: mutation.affectedIdentities,
+                temporaryRelativePath: temporaryRelativePath
+            )
+        } catch let failure as WorkspaceMutationFailureV1 {
+            modelContext.rollback(); throw failure
+        } catch {
+            modelContext.rollback(); throw WorkspaceMutationFailureV1.invalidCommand
+        }
+    }
+
+    private func resolveActivityBasisHeads(
+        _ mutation: ActivityContractMutationV2
+    ) throws -> (installation: InstallationBasisSnapshotV1?, punch: PunchReviewBasisSnapshotV1?) {
+        let workspace = mutation.workspaceID.rawValue
+        let activityID = mutation.successorEnvelope.activityID
+        let receiptRows = try modelContext.fetch(FetchDescriptor<MutationReceiptRow>(
+            predicate: #Predicate { $0.workspaceID == workspace }
+        ))
+        var installationValues: [InstallationBasisSnapshotV1] = []
+        for row in receiptRows {
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
+            guard case let .applyActivityContract(prior) = envelope.command,
+                  prior.successorEnvelope.activityID == activityID,
+                  let basis = prior.installationBasisSnapshot else { continue }
+            try basis.validate()
+            installationValues.append(basis)
+        }
+        let installation = try currentInstallationBasis(in: installationValues)
+        let punchValues = try modelContext.fetch(FetchDescriptor<PunchReviewBasisSnapshotRow>(
+            predicate: #Predicate { $0.workspaceID == workspace && $0.activityID == activityID }
+        )).map { try $0.value() }
+        let punch = try currentPunchBasis(in: punchValues)
+        return (installation, punch)
+    }
+
+    private func currentInstallationBasis(
+        in values: [InstallationBasisSnapshotV1]
+    ) throws -> InstallationBasisSnapshotV1? {
+        guard Set(values.map(\.basisID)).count == values.count,
+              Set(values.map(\.basisSHA256)).count == values.count else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        let ordered = values.sorted { $0.revision < $1.revision }
+        for (index, value) in ordered.enumerated() {
+            try value.validate()
+            if index == 0 {
+                guard value.revision == 1, value.predecessorBasisID == nil,
+                      value.predecessorBasisSHA256 == nil else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            } else {
+                try value.validateSuccessor(of: ordered[index - 1])
+            }
+        }
+        return ordered.last
+    }
+
+    private func currentPunchBasis(
+        in values: [PunchReviewBasisSnapshotV1]
+    ) throws -> PunchReviewBasisSnapshotV1? {
+        guard Set(values.map(\.basisID)).count == values.count,
+              Set(values.map(\.basisSHA256)).count == values.count else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        let ordered = values.sorted { $0.revision < $1.revision }
+        for (index, value) in ordered.enumerated() {
+            try value.validate()
+            if index == 0 {
+                guard value.revision == 1, value.predecessorBasisID == nil,
+                      value.predecessorBasisSHA256 == nil else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            } else {
+                try value.validateSuccessor(of: ordered[index - 1])
+            }
+        }
+        return ordered.last
+    }
+
+    private func resolveActivityWorkflowRelease(
+        _ mutation: ActivityContractMutationV2,
+        basisHeads: (installation: InstallationBasisSnapshotV1?, punch: PunchReviewBasisSnapshotV1?)
+    ) throws -> ActivityWorkflowReleaseResolutionContextV2? {
+        let reference: ActivityWorkflowReleaseReferenceV2
+        switch mutation.successorEnvelope.kind {
+        case .installation:
+            guard let basis = mutation.installationBasisSnapshot ?? basisHeads.installation else { return nil }
+            reference = basis.workflowReleaseReference
+        case .punchReview:
+            guard let basis = mutation.punchReviewBasisSnapshot ?? basisHeads.punch else { return nil }
+            reference = basis.workflowReleaseReference
+        default:
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        let forStart = mutation.predecessorEnvelope?.startedAt == nil
+            && mutation.successorEnvelope.startedAt != nil
+        return try PackageEvolutionLifecycleAdapterV1.resolveActivityWorkflowRelease(
+            reference: reference,
+            kind: mutation.successorEnvelope.kind,
+            forStart: forStart,
+            modelContext: modelContext
+        )
+    }
+
+    private func resolveInstallationReferences(
+        _ mutation: ActivityContractMutationV2
+    ) throws -> ActivityInstallationReferenceResolutionContextV2? {
+        guard mutation.successorEnvelope.kind == .installation else { return nil }
+        let requestedContent = mutation.installationTaskResults.flatMap(\.evidenceReferences)
+        let requestedPlacements = mutation.installationAsBuiltSnapshot?.placementReferences ?? []
+        let evidenceRows = try modelContext.fetch(FetchDescriptor<EvidenceFile>())
+        let instantFormatter = ISO8601DateFormatter()
+        instantFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let resolvedContent = try requestedContent.map { reference -> ContentReferenceV1 in
+            guard let id = UUID(uuidString: reference.contentID) else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            let matches = evidenceRows.filter { $0.id == id }
+            guard matches.count == 1, let row = matches.first,
+                  reference.workspaceID.lowercased() == mutation.workspaceID.rawValue.uuidString.lowercased(),
+                  reference.byteLength == Int64(row.byteCount), reference.mediaType == row.mimeType,
+                  reference.digests.digest(for: .sha256)?.hexadecimalValue == row.sha256,
+                  reference.byteRole == .immutableOriginal,
+                  reference.createdAt == instantFormatter.string(from: row.createdAt) else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            return reference
+        }
+        var plans: [PlanPlacementV1] = []
+        var poses: [AssetPoseEventV1] = []
+        for requested in requestedPlacements {
+            switch requested {
+            case let .plan(reference):
+                let rows = try modelContext.fetch(FetchDescriptor<PlanPlacementRow>()).map { try $0.value() }
+                    .filter { $0.placementID == reference.placementID && $0.revision == reference.revision && $0.placementSHA256 == reference.placementSHA256 }
+                guard rows.count == 1, let value = rows.first else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+                plans.append(value)
+            case let .pose(reference):
+                let rows = try modelContext.fetch(FetchDescriptor<AssetPoseEventRow>()).map { try $0.value() }
+                    .filter { $0.reference == reference }
+                guard rows.count == 1, let value = rows.first else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+                poses.append(value)
+            }
+        }
+        return try ActivityInstallationReferenceResolutionContextV2(
+            contentReferences: resolvedContent, planPlacements: plans, poseEvents: poses
+        )
+    }
+
+    private func resolveActivityCloseout(
+        _ mutation: ActivityContractMutationV2
+    ) throws -> ActivityCloseoutResolutionContextV2? {
+        let links: [PunchFindingLinkV1]
+        if let closeout = mutation.successorEnvelope.installationCloseout {
+            links = closeout.openFindings
+        } else if let closeout = mutation.successorEnvelope.punchReviewCloseout {
+            links = closeout.scope.flatMap(\.findingLinks)
+        } else {
+            return nil
+        }
+        let workspace = mutation.workspaceID.rawValue
+        let activityID = mutation.successorEnvelope.activityID
+        let findings: [FindingV1]
+        if links.isEmpty {
+            findings = []
+        } else {
+            guard let activityFindingEvidenceResolver else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            let evidence = try activityFindingEvidenceResolver(links)
+            try evidence.forEach { try $0.validate() }
+            findings = evidence.map(\.finding)
+            try validateResolvedActivityFindings(findings, links: links)
+        }
+        let receiptRows = try modelContext.fetch(FetchDescriptor<MutationReceiptRow>(
+            predicate: #Predicate { $0.workspaceID == workspace }
+        ))
+        let receiptHistory = try receiptRows.map { row in
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
+            let receipt = try MutationReceiptV1.decodeCanonical(from: row.receiptData)
+            guard receipt.mutationID == envelope.mutationID,
+                  receipt.identity.workspaceID == envelope.workspaceID,
+                  receipt.envelopeSHA256 == envelope.envelopeSHA256,
+                  receipt.commandBodySHA256
+                    == (try WorkspaceMutationCanonicalV1.sha256(envelope.command)) else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            return (envelope: envelope, receipt: receipt)
+        }
+        let requestedSourceSHA256s = Set(links.map(\.sourceContext.activitySHA256))
+        var sourceEnvelopesBySHA256: [String: ActivitySessionEnvelopeV2] = [:]
+        for entry in receiptHistory {
+            guard case let .applyActivityContract(prior) = entry.envelope.command,
+                  prior.workspaceID == mutation.workspaceID else { continue }
+            var candidates = [prior.successorEnvelope]
+            if let predecessor = prior.predecessorEnvelope {
+                candidates.append(predecessor)
+            }
+            for candidate in candidates where requestedSourceSHA256s.contains(candidate.envelopeSHA256) {
+                if let existing = sourceEnvelopesBySHA256[candidate.envelopeSHA256],
+                   existing != candidate {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+                sourceEnvelopesBySHA256[candidate.envelopeSHA256] = candidate
+            }
+        }
+        guard sourceEnvelopesBySHA256.keys.count == requestedSourceSHA256s.count else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        let supportingRecords = try resolveActivitySupportingRecords(
+            links, receiptHistory: receiptHistory,
+            workspaceID: mutation.workspaceID
+        )
+        let asBuilt: InstallationAsBuiltSnapshotV1?
+        if let candidate = mutation.installationAsBuiltSnapshot {
+            asBuilt = candidate
+        } else if let digest = mutation.successorEnvelope.installationCloseout?.asBuiltSnapshotSHA256 {
+            let matches = try modelContext.fetch(FetchDescriptor<InstallationAsBuiltSnapshotRow>(
+                predicate: #Predicate { $0.workspaceID == workspace && $0.activityID == activityID }
+            )).map { try $0.value() }.filter { $0.snapshotSHA256 == digest }
+            guard matches.count == 1 else { throw WorkspaceMutationFailureV1.invalidCommand }
+            asBuilt = matches.first
+        } else {
+            asBuilt = nil
+        }
+        return try ActivityCloseoutResolutionContextV2(
+            findings: findings, supportingRecords: supportingRecords,
+            sourceEnvelopes: Array(sourceEnvelopesBySHA256.values),
+            installationAsBuiltSnapshot: asBuilt
+        )
+    }
+
+    private func validateResolvedActivityFindings(
+        _ findings: [FindingV1],
+        links: [PunchFindingLinkV1]
+    ) throws {
+        let requested = Dictionary(grouping: links, by: \.findingID)
+        guard requested.values.allSatisfy({ values in
+                  Set(values.map { "\($0.findingRevision)|\($0.findingSHA256)" }).count == 1
+              }),
+              Set(findings.compactMap { UUID(uuidString: $0.findingID) }).count == findings.count,
+              findings.count == requested.count else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        for finding in findings {
+            guard let findingID = UUID(uuidString: finding.findingID),
+                  let links = requested[findingID], let link = links.first,
+                  finding.revision == link.findingRevision,
+                  try WorkspaceMutationCanonicalV1.sha256(finding) == link.findingSHA256 else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+        }
+    }
+
+    private func resolveActivitySupportingRecords(
+        _ links: [PunchFindingLinkV1],
+        receiptHistory: [(envelope: MutationEnvelopeV1, receipt: MutationReceiptV1)],
+        workspaceID: WorkspaceID
+    ) throws -> [ActivitySupportingRecordReferenceV2] {
+        var resolved = Set<ActivitySupportingRecordReferenceV2>()
+        for link in links {
+            for reference in link.supportingRecords {
+                switch reference.kind {
+                case .correctiveAction:
+                    let recordID = reference.recordID
+                    let rows = try modelContext.fetch(FetchDescriptor<CorrectiveActionEventRow>(
+                        predicate: #Predicate { $0.eventID == recordID }
+                    ))
+                    guard rows.count == 1, let event = try rows.first?.value(),
+                          event.workspaceID == workspaceID,
+                          event.revision == reference.revision,
+                          event.eventSHA256 == reference.recordSHA256,
+                          event.source.kind == .finding,
+                          event.source.itemID.lowercased() == link.findingID.uuidString.lowercased(),
+                          event.source.itemRevision == UInt64(link.findingRevision),
+                          event.source.itemSHA256 == link.findingSHA256 else {
+                        throw WorkspaceMutationFailureV1.invalidCommand
+                    }
+                case .operationalRecheck:
+                    let recordID = reference.recordID
+                    let rows = try modelContext.fetch(FetchDescriptor<WorkflowRecord>(
+                        predicate: #Predicate { $0.id == recordID }
+                    ))
+                    guard rows.count == 1, let row = rows.first,
+                          row.stage == WorkflowStage.recheck.rawValue,
+                          row.issueID == link.findingID else {
+                        throw WorkspaceMutationFailureV1.invalidCommand
+                    }
+                    let matches = receiptHistory.flatMap { $0.receipt.postImages }.filter { image in
+                        guard case let .workflowRecord(id, revision, sha256) = image else { return false }
+                        return id == reference.recordID && revision == reference.revision
+                            && sha256 == reference.recordSHA256
+                    }
+                    guard matches.count == 1 else { throw WorkspaceMutationFailureV1.invalidCommand }
+                }
+                resolved.insert(reference)
+            }
+        }
+        return resolved.sorted {
+            ($0.kind.rawValue, $0.recordID.uuidString, $0.revision)
+                < ($1.kind.rawValue, $1.recordID.uuidString, $1.revision)
+        }
+    }
+
+    private func resolveCompletedActivitySnapshot(
+        _ reference: CompletedActivitySnapshotV2CompatibilityReferenceV1
+    ) throws -> CompletedActivitySnapshotResolutionContextV2 {
+        if let completedActivitySnapshotResolver {
+            return try completedActivitySnapshotResolver(reference)
+        }
+        let configurations = Array(modelContext.container.configurations)
+        guard configurations.count == 1 else { throw WorkspaceMutationFailureV1.invalidCommand }
+        let generationRootURL = configurations[0].url.deletingLastPathComponent()
+        let rootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: generationRootURL)
+        let reports = try modelContext.fetch(FetchDescriptor<Report>()).filter {
+            $0.snapshotSchemaVersion == CompletedActivitySnapshotV2.schemaVersion
+        }
+        var matches: [CompletedActivitySnapshotResolutionContextV2] = []
+        for report in reports {
+            let url = generationRootURL.appendingPathComponent(report.snapshotRelativePath)
+            let data = try ReportPDFAnchoredFile.readRegularFile(
+                at: url, within: generationRootURL, rootIdentity: rootIdentity
+            )
+            guard KernelCanonicalHashV1.sha256(data) == report.snapshotSHA256 else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            let snapshot = try CompletedActivitySnapshotCanonicalCodecV2.decode(data)
+            if let context = try? CompletedActivitySnapshotResolutionContextV2(
+                reference: reference, snapshot: snapshot
+            ) {
+                matches.append(context)
+            }
+        }
+        guard matches.count == 1, let value = matches.first else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        return value
     }
 
     private func applyOperationalContact(
@@ -1416,6 +1949,91 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             case .serviceParty:
                 let values = try modelContext.fetch(FetchDescriptor<ServicePartyRow>(predicate: #Predicate { $0.partyID == id }))
                 guard values.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }; exists = values.count == 1
+            case .activitySessionEnvelope:
+                let values = try modelContext.fetch(FetchDescriptor<ActivitySessionEnvelopeRow>(
+                    predicate: #Predicate { $0.activityID == id }
+                ))
+                guard values.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }
+                do {
+                    if let row = values.first {
+                        let value = try row.value()
+                        guard value.activityID == id, value.revision == row.revision,
+                              value.envelopeSHA256 == row.envelopeSHA256 else {
+                            throw WorkspaceMutationFailureV1.persistenceFailed
+                        }
+                    }
+                } catch {
+                    throw WorkspaceMutationFailureV1.persistenceFailed
+                }
+                exists = values.count == 1
+            case .activityStateTransition:
+                let values = try modelContext.fetch(FetchDescriptor<ActivityStateTransitionRow>(
+                    predicate: #Predicate { $0.transitionID == id }
+                ))
+                guard values.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }
+                do {
+                    if let row = values.first {
+                        let value = try row.value()
+                        guard value.transitionID == id, value.revision == row.revision,
+                              value.transitionSHA256 == row.transitionSHA256 else {
+                            throw WorkspaceMutationFailureV1.persistenceFailed
+                        }
+                    }
+                } catch {
+                    throw WorkspaceMutationFailureV1.persistenceFailed
+                }
+                exists = values.count == 1
+            case .installationTaskResult:
+                let values = try modelContext.fetch(FetchDescriptor<InstallationTaskResultRow>(
+                    predicate: #Predicate { $0.resultID == id }
+                ))
+                guard values.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }
+                do {
+                    if let row = values.first {
+                        let value = try row.value()
+                        guard value.resultID == id, value.revision == row.revision,
+                              value.resultSHA256 == row.resultSHA256 else {
+                            throw WorkspaceMutationFailureV1.persistenceFailed
+                        }
+                    }
+                } catch {
+                    throw WorkspaceMutationFailureV1.persistenceFailed
+                }
+                exists = values.count == 1
+            case .installationAsBuiltSnapshot:
+                let values = try modelContext.fetch(FetchDescriptor<InstallationAsBuiltSnapshotRow>(
+                    predicate: #Predicate { $0.snapshotID == id }
+                ))
+                guard values.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }
+                do {
+                    if let row = values.first {
+                        let value = try row.value()
+                        guard value.snapshotID == id, value.revision == row.revision,
+                              value.snapshotSHA256 == row.snapshotSHA256 else {
+                            throw WorkspaceMutationFailureV1.persistenceFailed
+                        }
+                    }
+                } catch {
+                    throw WorkspaceMutationFailureV1.persistenceFailed
+                }
+                exists = values.count == 1
+            case .punchReviewBasisSnapshot:
+                let values = try modelContext.fetch(FetchDescriptor<PunchReviewBasisSnapshotRow>(
+                    predicate: #Predicate { $0.basisID == id }
+                ))
+                guard values.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }
+                do {
+                    if let row = values.first {
+                        let value = try row.value()
+                        guard value.basisID == id, value.revision == row.revision,
+                              value.basisSHA256 == row.basisSHA256 else {
+                            throw WorkspaceMutationFailureV1.persistenceFailed
+                        }
+                    }
+                } catch {
+                    throw WorkspaceMutationFailureV1.persistenceFailed
+                }
+                exists = values.count == 1
             case .sitePartyRoleEvent:
                 let values = try modelContext.fetch(FetchDescriptor<SitePartyRoleEventRow>(predicate: #Predicate { $0.eventID == id }))
                 guard values.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }; exists = values.count == 1

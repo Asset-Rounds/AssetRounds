@@ -1581,9 +1581,50 @@ extension DeterministicPDFRendererV1 {
     }
 }
 enum C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Reporting_DeterministicPDFRendererV1_swift {
+    static let c47IntegrationRole = "SOLE_PDF_RENDERER"
+    static let c47SharedReceipt = SharedActivityEnvelopeReceiptV1.self
+    static let c47InstallationReceipt = InstallationActivityContractReceiptV1.self
+    static let c47PunchReceipt = PunchActivityContractReceiptV1.self
+    static let c47NoPlanFallback = NoPlanFallbackV1.self
+    static let c47UsesExistingWriterRendererStoreAndPackageInfrastructure = true
+    static let c47CreatesSecondRouteOrInspectionAlias = false
+    static func c47ActivityLines(_ projection: ActivityContractReportProjectionV2) throws -> [String] {
+        try projection.envelope.validateForRead()
+        var lines = [projection.envelope.title, projection.envelope.kind.rawValue,
+                     projection.envelope.state.rawValue]
+        if let completed = projection.completed {
+            lines.append(completed.payload.activity.completedAt)
+        }
+        if let reference = projection.completedSnapshotReference {
+            lines += ["source_closeout_sha256=\(reference.sourceCloseoutSHA256)",
+                      "target_closeout_sha256=\(reference.targetCloseoutSHA256)"]
+        }
+        if let closeout = projection.installationCloseout {
+            lines += [closeout.completion.rawValue, closeout.asBuiltSnapshotSHA256,
+                      "recorded_findings=\(closeout.openFindings.count)", closeout.closeoutSHA256]
+            if let limitation = closeout.limitation { lines.append(limitation) }
+        }
+        if let closeout = projection.punchReviewCloseout {
+            lines += [closeout.completion.rawValue, closeout.basisSHA256,
+                      closeout.scopeAndTimeLimitation, closeout.closeoutSHA256]
+            lines += closeout.scope.map {
+                "\($0.scopeItemID)|\($0.disposition.rawValue)|findings=\($0.findingLinks.count)"
+            }
+        }
+        return lines
+    }
     static let operationalContactsRemainPurposeSeparated = true
     static let systemHandoffsRemainExplicitEphemeralAndNoncanonical = true
     static let subscriberConsentCampaignAndMeasurementProjectionForbidden = true
     static let contactExportExcludedByDefault = true
     static let noContactProjectionOrNetworkDelivery = true
+}
+
+enum C47ActivityContractConformance_FieldEvidenceApp_Infrastructure_Reporting_DeterministicPDFRendererV1_swift {
+    static let sharedReceipt = SharedActivityEnvelopeReceiptV1.self
+    static let installationReceipt = InstallationActivityContractReceiptV1.self
+    static let punchReceipt = PunchActivityContractReceiptV1.self
+    static let noPlanFallback = NoPlanFallbackV1.self
+    static let usesExistingInfrastructureOnly = true
+    static let createsSecondWriterRendererStoreRouteOrInspectionAlias = false
 }

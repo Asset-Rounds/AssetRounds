@@ -436,3 +436,4 @@ enum C32AssistanceCompatibility_Replication_IntegrationEventProjectionV1 {
 enum C45AcceptedLabelIntegrationProjectionBoundaryV1 { static let excludesShortCodeAndLocatorPayload=true;static let preservesSnapshotIdentity=true }
 
 enum C46OperationalContactBoundary_49{static let commandKind:WorkspaceCommandKindV1 = .applyOperationalContact;static let platformOutcomesProjected=false}
+enum C47ActivityContractIntegrationProjectionBoundaryV2 { static let commandKind:WorkspaceCommandKindV1 = .applyActivityContract;static let projectsCanonicalPostimagesOnly=true;static let conformanceReceiptsProjected=false }

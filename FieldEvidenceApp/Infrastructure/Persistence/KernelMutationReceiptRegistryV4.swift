@@ -459,3 +459,4 @@ enum C32AssistanceCompatibility_Persistence_KernelMutationReceiptRegistryV4 {
 enum C45AcceptedLabelMutationReceiptEnrollmentV1 { static let commandKind:WorkspaceCommandKindV1 = .applyAssetLabel;static let effectBeforeReceipt=true }
 
 enum C46OperationalContactBoundary_48{static let persistentFamilies=OperationalContactPersistenceEnrollmentV1.persistentFamilies;static let platformOutcomesPersistent=false}
+enum C47ActivityContractMutationReceiptEnrollmentV2 { static let commandKind:WorkspaceCommandKindV1 = .applyActivityContract;static let receiptValidatesExactFiveRowPostimages=true;static let completedSnapshotReferenceIsCompatibilityOnly=true }

@@ -307,3 +307,4 @@ enum C45AcceptedLabelImportBoundaryV1 {
 }
 
 enum C46OperationalContactBoundary_02{static let recordsSchemaVersion=34;static let sourceBytesPersistent=false;static let platformOutcomesPersistent=false}
+enum C47ActivityContractImportBoundaryV2 { static let persistentSchemaVersion=36;static let recordsSchemaVersion=35;static let canonicalFiveRowRecordsImportable=true;static let completedSnapshotUsesReleasedArchiveMember=true;static let conformanceReceiptsImportable=false }

@@ -118,6 +118,15 @@ struct InspectionPackageRegistryV2: Equatable, Sendable {
     }
 }
 
+enum C47ActivityContractCompatibility_FieldEvidenceApp_Domain_Packs_InspectionPackageRegistryV2_swift {
+    static let sharedEnvelopeDoesNotCollapseFamilyTruth = true
+    static let installationAndPunchReceiptsRemainIndependent = true
+    static let noPlanFallbackIsExplicit = true
+    static let surveyDefinitionOwnershipIsPreserved = true
+    static let legacyInspectionTruthIsNotRewritten = true
+    static let threeReceiptIsolationIsRequired = true
+}
+
 enum InspectionPackageRegistryPublicationBoundaryV2: String, CaseIterable, Sendable {
     case beforeValidation = "BEFORE_VALIDATION"
     case afterValidationBeforePublication = "AFTER_VALIDATION_BEFORE_PUBLICATION"

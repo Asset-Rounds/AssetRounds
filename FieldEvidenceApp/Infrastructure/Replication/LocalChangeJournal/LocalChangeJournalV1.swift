@@ -1796,3 +1796,4 @@ enum OperationalContactLocalChangeJournalPolicyV1 {
 }
 
 enum C46OperationalContactBoundary_22{static let commandKind:WorkspaceCommandKindV1 = .applyOperationalContact;static let platformOutcomesProjected=false}
+enum C47ActivityContractLocalJournalBoundaryV2 { static let commandKind:WorkspaceCommandKindV1 = .applyActivityContract;static let replayUsesExactMutationPostimages=true;static let completedSnapshotReferenceDoesNotDuplicateBytes=true }

@@ -4890,3 +4890,27 @@ enum OperationalContactLocalizationPolicyV1 {
         }
     }
 }
+
+enum ActivityContractLocalizationKeyV2: String, Codable, CaseIterable, Hashable, Sendable {
+    case installation = "activity.contract.installation"
+    case punchReview = "activity.contract.punch_review"
+    case noPlanFallback = "activity.contract.no_plan_fallback"
+    case deferred = "activity.contract.deferred"
+    case unableToComplete = "activity.contract.unable_to_complete"
+    case fieldComplete = "activity.contract.field_complete"
+    case readyForReview = "activity.contract.ready_for_review"
+    case claimBoundary = "activity.contract.claim_boundary"
+
+    var localizationKey: LocalizationKeyV1 { get throws { try .init(rawValue) } }
+}
+
+enum C47ActivityContractConformance_FieldEvidenceApp_Domain_Localization_LocalizationContractsV1_swift {
+    static let integrationRole = "TRUTHFUL_FAMILY_WORDING"
+    static let sharedReceipt = SharedActivityEnvelopeReceiptV1.self
+    static let installationReceipt = InstallationActivityContractReceiptV1.self
+    static let punchReceipt = PunchActivityContractReceiptV1.self
+    static let noPlanFallback = NoPlanFallbackV1.self
+    static let usesExistingWriterRendererStoreAndPackageInfrastructure = true
+    static let createsSecondRouteOrInspectionAlias = false
+    static func validateReadable(_ value: ActivitySessionEnvelopeV2) throws { try value.validateForRead() }
+}

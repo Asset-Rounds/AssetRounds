@@ -19,6 +19,11 @@ enum WorkflowRecordAssetLocatorBoundaryV1 {
     }
 }
 
+enum C47ActivityContractWorkflowModelBoundaryV2 {
+    static let canonicalFamilies = ActivityContractPersistenceEnrollmentV2.persistentFamilies
+    static let noPlanFallbackAndConformanceReceiptsAreNonpersistent = true
+}
+
 @Model
 final class DeletionLedgerRow {
     var schemaVersion: Int

@@ -1784,3 +1784,29 @@ enum C45AssetLabelBoundary_ReportRenderServiceV1 {
 }
 
 enum C46OperationalContactBoundary_30{static let defaultProjection="EXCLUDED";static let rawPhoneOrEmailEmitted=false;static let platformOutcomeClaimEmitted=false}
+
+enum C47ActivityContractConformance_FieldEvidenceApp_Infrastructure_Reporting_ReportRenderService_swift {
+    static let integrationRole = "SOLE_RENDER_SERVICE"
+    static let sharedReceipt = SharedActivityEnvelopeReceiptV1.self
+    static let installationReceipt = InstallationActivityContractReceiptV1.self
+    static let punchReceipt = PunchActivityContractReceiptV1.self
+    static let noPlanFallback = NoPlanFallbackV1.self
+    static let usesExistingReportInfrastructure = true
+    static let createsSecondRendererWriterOrStore = false
+    static func validateReadable(_ value: ActivitySessionEnvelopeV2) throws { try value.validateForRead() }
+}
+
+extension ReportRenderService {
+    func renderActivityContract(
+        _ projection: ActivityContractReportProjectionV2,
+        manifest: ContractManifestV1,
+        reportProfile: ReportLayoutProfileV1,
+        exportProfile: ExportProfileV1
+    ) throws -> ReportProjectionBundleV1 {
+        _ = try projection.canonicalCompletedSnapshotBytes()
+        return try ReportProjectionRegistryV1().renderActivityContract(
+            projection, manifest: manifest,
+            reportProfile: reportProfile, exportProfile: exportProfile
+        )
+    }
+}

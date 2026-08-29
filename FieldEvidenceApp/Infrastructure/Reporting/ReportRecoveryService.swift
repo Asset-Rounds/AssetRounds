@@ -1166,3 +1166,30 @@ enum C45AssetLabelBoundary_ReportRecoveryServiceV1 {
 }
 
 enum C46OperationalContactBoundary_31{static let defaultProjection="EXCLUDED";static let rawPhoneOrEmailEmitted=false;static let platformOutcomeClaimEmitted=false}
+
+enum C47ActivityContractConformance_FieldEvidenceApp_Infrastructure_Reporting_ReportRecoveryService_swift {
+    static let integrationRole = "RECOVER_DURABLE_ONLY"
+    static let sharedReceipt = SharedActivityEnvelopeReceiptV1.self
+    static let installationReceipt = InstallationActivityContractReceiptV1.self
+    static let punchReceipt = PunchActivityContractReceiptV1.self
+    static let noPlanFallback = NoPlanFallbackV1.self
+    static let usesExistingReportInfrastructure = true
+    static let createsSecondRendererWriterOrStore = false
+    static func validateReadable(_ value: ActivitySessionEnvelopeV2) throws { try value.validateForRead() }
+}
+
+extension ReportRecoveryService {
+    static func reopenActivityContract(
+        _ projection: ActivityContractReportProjectionV2,
+        manifest: ContractManifestV1,
+        reportProfile: ReportLayoutProfileV1,
+        exportProfile: ExportProfileV1,
+        storedBundle: ReportProjectionBundleV1?
+    ) throws -> ReportProjectionBundleV1 {
+        _ = try projection.canonicalCompletedSnapshotBytes()
+        return try ReportProjectionRegistryV1().recoverActivityContract(
+            projection, manifest: manifest, reportProfile: reportProfile,
+            exportProfile: exportProfile, storedBundle: storedBundle
+        )
+    }
+}

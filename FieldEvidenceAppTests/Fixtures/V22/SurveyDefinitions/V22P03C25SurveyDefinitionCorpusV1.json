@@ -65,5 +65,14 @@
     "persistentKindLifecycleModelCount": 92,
     "compatibility": "HISTORIC_C25_DEFINITION_READABLE_NEW_SESSION_WORK_REQUIRES_EXACT_PUBLISHED_PACKAGE_RELEASE",
     "admission": "SURVEY_ONLY_EXACT_WORKSPACE_DEFINITION_AND_PACKAGE_BINDING"
+  },
+  "c47ActivityContractCompatibility": {
+    "compatibilityCardID": "V23-P03-C47",
+    "sharedEnvelopeDoesNotCollapseFamilyTruth": true,
+    "installationAndPunchReceiptsRemainIndependent": true,
+    "noPlanFallbackIsExplicit": true,
+    "surveyDefinitionOwnershipIsPreserved": true,
+    "legacyInspectionTruthIsNotRewritten": true,
+    "threeReceiptIsolationIsRequired": true
   }
 }

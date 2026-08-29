@@ -1,0 +1,374 @@
+{
+  "$id": "https://assetrounds.invalid/v23/activity-contract-families.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "activityKinds": {
+      "const": [
+        "INSPECTION",
+        "SURVEY",
+        "PREVENTIVE_MAINTENANCE",
+        "REPAIR",
+        "OPERATIONAL_RECHECK",
+        "INSTALLATION",
+        "PUNCH_REVIEW"
+      ]
+    },
+    "cardID": {
+      "const": "V23-P03-C47"
+    },
+    "classification": {
+      "const": "IMPLEMENT_NOW"
+    },
+    "contractNames": {
+      "const": [
+        "SharedActivityEnvelopeReceiptV1",
+        "InstallationActivityContractReceiptV1",
+        "PunchActivityContractReceiptV1",
+        "NoPlanFallbackV1"
+      ]
+    },
+    "durableFamilies": {
+      "const": [
+        "ActivitySessionEnvelopeV2",
+        "ActivityStateTransitionV2",
+        "CompletedActivitySnapshotV2",
+        "InstallationTaskResultV1",
+        "InstallationAsBuiltSnapshotV1",
+        "PunchReviewBasisSnapshotV1"
+      ]
+    },
+    "evidenceIDs": {
+      "const": [
+        "V23-P03-C47-G01",
+        "V23-P03-C47-A01",
+        "V23-P03-C47-H01",
+        "V23-P03-C47-I01",
+        "V23-P03-C47-R01"
+      ]
+    },
+    "hostileCases": {
+      "const": [
+        "INSPECTION_PASS_COMPLIANT_CERTIFIED_APPROVED_VOCABULARY_LEAKAGE",
+        "STALE_OR_TAMPERED_BASIS",
+        "MISSING_SUBJECT_OR_REFERENCE",
+        "UNSAFE_ACCESS_SITE_MATERIAL_WEATHER_OR_EQUIPMENT_BLOCKER",
+        "DUPLICATE_FINDING_TRUTH",
+        "PLAN_REBASE_OR_PHYSICAL_MOVE_DURING_WORK",
+        "PACKAGE_UPDATE_OR_RETIREMENT",
+        "PARTIAL_FINALIZATION_RACE"
+      ]
+    },
+    "installationCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "caseID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "expectedDisposition": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "input": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "caseID",
+          "input",
+          "expectedDisposition"
+        ],
+        "type": "object"
+      },
+      "minItems": 3,
+      "type": "array"
+    },
+    "interruptionBoundaries": {
+      "const": [
+        "EVERY_LIFECYCLE_TRANSITION",
+        "TASK_OR_ITEM_SAVE",
+        "EVIDENCE_PROMOTION",
+        "PLACEMENT_OR_FINDING_MUTATION",
+        "FINALIZATION",
+        "REPORT_BOUNDARY"
+      ]
+    },
+    "invariants": {
+      "additionalProperties": false,
+      "properties": {
+        "closeoutNeverClaimsApprovalCertificationOrAuthorization": {
+          "const": true
+        },
+        "installationCannotWritePunchTruth": {
+          "const": true
+        },
+        "noPlanFallbackIsExplicit": {
+          "const": true
+        },
+        "noSecondRendererStoreOrStatusDatabase": {
+          "const": true
+        },
+        "oneCanonicalWriterPerReceipt": {
+          "const": true
+        },
+        "punchCannotWriteInstallationTruth": {
+          "const": true
+        },
+        "readinessIsTyped": {
+          "const": true
+        },
+        "sharedEnvelopeCannotWriteFamilyTruth": {
+          "const": true
+        },
+        "threeReceiptFamiliesAreIndependent": {
+          "const": true
+        },
+        "variationIsAppendOnly": {
+          "const": true
+        }
+      },
+      "required": [
+        "threeReceiptFamiliesAreIndependent",
+        "sharedEnvelopeCannotWriteFamilyTruth",
+        "installationCannotWritePunchTruth",
+        "punchCannotWriteInstallationTruth",
+        "noPlanFallbackIsExplicit",
+        "readinessIsTyped",
+        "variationIsAppendOnly",
+        "closeoutNeverClaimsApprovalCertificationOrAuthorization",
+        "oneCanonicalWriterPerReceipt",
+        "noSecondRendererStoreOrStatusDatabase"
+      ],
+      "type": "object"
+    },
+    "lifecycle": {
+      "additionalProperties": false,
+      "properties": {
+        "backupRestoreCloneFork": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "compatibilityForwardFix": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "deleteEraseRetention": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "interruptionRecovery": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "journalReplay": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "migration": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "reportExport": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "searchRebuild": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "migration",
+        "backupRestoreCloneFork",
+        "journalReplay",
+        "searchRebuild",
+        "reportExport",
+        "deleteEraseRetention",
+        "interruptionRecovery",
+        "compatibilityForwardFix"
+      ],
+      "type": "object"
+    },
+    "persistentSchemaVersion": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "punchCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "caseID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "expectedDisposition": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "input": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "caseID",
+          "input",
+          "expectedDisposition"
+        ],
+        "type": "object"
+      },
+      "minItems": 3,
+      "type": "array"
+    },
+    "readinessCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "caseID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "expectedDisposition": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "input": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "caseID",
+          "input",
+          "expectedDisposition"
+        ],
+        "type": "object"
+      },
+      "minItems": 3,
+      "type": "array"
+    },
+    "recordsSchemaVersion": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "schema": {
+      "const": "V22P03C47ActivityContractCorpusV2"
+    },
+    "schemaVersion": {
+      "const": 2
+    },
+    "sharedEnvelopeCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "caseID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "expectedDisposition": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "input": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "caseID",
+          "input",
+          "expectedDisposition"
+        ],
+        "type": "object"
+      },
+      "minItems": 3,
+      "type": "array"
+    },
+    "statusFlags": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance": {
+          "const": false
+        },
+        "adoption": {
+          "const": false
+        },
+        "hosted": {
+          "const": false
+        },
+        "native": {
+          "const": false
+        },
+        "physical": {
+          "const": false
+        },
+        "release": {
+          "const": false
+        }
+      },
+      "required": [
+        "native",
+        "hosted",
+        "physical",
+        "adoption",
+        "acceptance",
+        "release"
+      ],
+      "type": "object"
+    },
+    "variationCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "caseID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "expectedDisposition": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "input": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "caseID",
+          "input",
+          "expectedDisposition"
+        ],
+        "type": "object"
+      },
+      "minItems": 3,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "classification",
+    "persistentSchemaVersion",
+    "recordsSchemaVersion",
+    "durableFamilies",
+    "contractNames",
+    "activityKinds",
+    "sharedEnvelopeCases",
+    "installationCases",
+    "punchCases",
+    "readinessCases",
+    "variationCases",
+    "hostileCases",
+    "interruptionBoundaries",
+    "lifecycle",
+    "invariants",
+    "evidenceIDs",
+    "statusFlags"
+  ],
+  "title": "V23 P03 C47 Activity Contract Corpus V2",
+  "type": "object"
+}

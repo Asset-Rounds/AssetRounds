@@ -33,6 +33,11 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case serviceParty
     case serviceContactPoint
     case systemHandoffIntent
+    case activitySessionEnvelope
+    case activityStateTransition
+    case installationTaskResult
+    case installationAsBuiltSnapshot
+    case punchReviewBasisSnapshot
     case sitePartyRoleEvent
     case actorSnapshot
     case qualificationSnapshot
@@ -1673,6 +1678,156 @@ extension AssetLabelMutationV1 {
     }
 }
 
+extension ActivityContractMutationV2 {
+    var affectedIdentities: [WorkspaceEntityIdentityV1] {
+        get throws {
+            var values = [try WorkspaceEntityIdentityV1(
+                kind: .activitySessionEnvelope,
+                id: successorEnvelope.activityID
+            )]
+            if let transition {
+                values.append(try .init(kind: .activityStateTransition, id: transition.transitionID))
+            }
+            values += try installationTaskResults.map {
+                try .init(kind: .installationTaskResult, id: $0.resultID)
+            }
+            if let installationAsBuiltSnapshot {
+                values.append(try .init(kind: .installationAsBuiltSnapshot, id: installationAsBuiltSnapshot.snapshotID))
+            }
+            if let punchReviewBasisSnapshot {
+                values.append(try .init(kind: .punchReviewBasisSnapshot, id: punchReviewBasisSnapshot.basisID))
+            }
+            let ordered = values.sorted { $0.stableKey < $1.stableKey }
+            guard ordered.count <= MutationReceiptV1.maximumPostImageCount,
+                  Set(ordered).count == ordered.count else {
+                throw WorkspaceMutationContractFailureV1.invalidPlan
+            }
+            return ordered
+        }
+    }
+
+    var concurrencyIdentities: [WorkspaceEntityIdentityV1] {
+        get throws {
+            try affectedIdentities
+        }
+    }
+
+    func expectedRevision(for identity: WorkspaceEntityIdentityV1) throws -> UInt64 {
+        guard (try concurrencyIdentities).contains(identity) else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+        if let revision = expectedRevision.entityRevisions.first(where: { $0.identity == identity })?.revision {
+            return revision
+        }
+        guard identity.kind != .activitySessionEnvelope else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+        return 0
+    }
+
+    var mutationPostImages: [MutationPostImageV1] {
+        get throws {
+            let envelopeIdentity = try WorkspaceEntityIdentityV1(
+                kind: .activitySessionEnvelope,
+                id: successorEnvelope.activityID
+            )
+            var values: [MutationPostImageV1] = [
+                .activitySessionEnvelope(
+                    id: successorEnvelope.activityID,
+                    concurrencyIdentity: envelopeIdentity,
+                    revision: successorEnvelope.revision,
+                    semanticSHA256: successorEnvelope.envelopeSHA256
+                )
+            ]
+            if let transition {
+                let identity = try WorkspaceEntityIdentityV1(
+                    kind: .activityStateTransition,
+                    id: transition.transitionID
+                )
+                values.append(.activityStateTransition(
+                    id: transition.transitionID,
+                    concurrencyIdentity: identity,
+                    revision: transition.revision,
+                    semanticSHA256: transition.transitionSHA256
+                ))
+            }
+            values += try installationTaskResults.map { result in
+                let identity = try WorkspaceEntityIdentityV1(
+                    kind: .installationTaskResult,
+                    id: result.resultID
+                )
+                return .installationTaskResult(
+                    id: result.resultID,
+                    concurrencyIdentity: identity,
+                    revision: result.revision,
+                    semanticSHA256: result.resultSHA256
+                )
+            }
+            if let installationAsBuiltSnapshot {
+                let identity = try WorkspaceEntityIdentityV1(
+                    kind: .installationAsBuiltSnapshot,
+                    id: installationAsBuiltSnapshot.snapshotID
+                )
+                values.append(.installationAsBuiltSnapshot(
+                    id: installationAsBuiltSnapshot.snapshotID,
+                    concurrencyIdentity: identity,
+                    revision: installationAsBuiltSnapshot.revision,
+                    semanticSHA256: installationAsBuiltSnapshot.snapshotSHA256
+                ))
+            }
+            if let punchReviewBasisSnapshot {
+                let identity = try WorkspaceEntityIdentityV1(
+                    kind: .punchReviewBasisSnapshot,
+                    id: punchReviewBasisSnapshot.basisID
+                )
+                values.append(.punchReviewBasisSnapshot(
+                    id: punchReviewBasisSnapshot.basisID,
+                    concurrencyIdentity: identity,
+                    revision: punchReviewBasisSnapshot.revision,
+                    semanticSHA256: punchReviewBasisSnapshot.basisSHA256
+                ))
+            }
+            let ordered = try values.sorted { try $0.identity.stableKey < $1.identity.stableKey }
+            guard ordered.count <= MutationReceiptV1.maximumPostImageCount,
+                  Set(try ordered.map { try $0.identity }).count == ordered.count,
+                  Set(try ordered.map { try $0.concurrencyIdentity }).count == ordered.count,
+                  try ordered.allSatisfy({ try $0.identity == $0.concurrencyIdentity }) else {
+                throw WorkspaceMutationContractFailureV1.invalidPlan
+            }
+            return ordered
+        }
+    }
+
+    func validateForCanonicalMutation() throws {
+        try validate()
+        let identities = try concurrencyIdentities
+        let activityIdentity = try WorkspaceEntityIdentityV1(
+            kind: .activitySessionEnvelope,
+            id: successorEnvelope.activityID
+        )
+        let expectedByIdentity = Dictionary(uniqueKeysWithValues: expectedRevision.entityRevisions.map {
+            ($0.identity, $0.revision)
+        })
+        guard expectedRevision.workspaceID == workspaceID,
+              expectedByIdentity.count == expectedRevision.entityRevisions.count,
+              expectedByIdentity[activityIdentity] == (predecessorEnvelope?.revision ?? 0),
+              identities.filter({ $0 != activityIdentity }).allSatisfy({
+                  expectedByIdentity[$0, default: 0] == 0
+              }) else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+    }
+
+    func canonicalWorkspaceMutationRequest() throws -> WorkspaceMutationRequestV1 {
+        try validateForCanonicalMutation()
+        return try WorkspaceMutationRequestV1(
+            mutationID: mutationID,
+            expectedRevision: expectedRevision,
+            command: .applyActivityContract(self)
+        )
+    }
+}
+
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
     case createCheckDraft(CheckDraftMutationV1)
@@ -1717,6 +1872,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyTemporalEvidence(TemporalEvidenceMutationV1)
     case applyAssetLabel(AssetLabelMutationV1)
     case applyOperationalContact(OperationalContactMutationV1)
+    case applyActivityContract(ActivityContractMutationV2)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -1763,6 +1919,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyTemporalEvidence:.applyTemporalEvidence
         case .applyAssetLabel:.applyAssetLabel
         case .applyOperationalContact:.applyOperationalContact
+        case .applyActivityContract:.applyActivityContract
         }
     }
 }
@@ -1811,6 +1968,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyTemporalEvidence="apply_temporal_evidence"
     case applyAssetLabel="apply_asset_label"
     case applyOperationalContact="apply_operational_contact"
+    case applyActivityContract="apply_activity_contract_v2"
 }
 
 extension WorkspaceCommandV1 {

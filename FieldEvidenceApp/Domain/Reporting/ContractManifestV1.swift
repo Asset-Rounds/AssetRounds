@@ -5,6 +5,17 @@ enum GuidedSurveyContractManifestBoundaryV1 {
     static let surveyOutcomeSemantics = "COMPLETION_ONLY_NO_PASS_FAIL"
 }
 
+enum C47ActivityContractConformance_FieldEvidenceApp_Domain_Reporting_ContractManifestV1_swift {
+    static let integrationRole = "REPORT_CONTRACT_MANIFEST"
+    static let sharedReceipt = SharedActivityEnvelopeReceiptV1.self
+    static let installationReceipt = InstallationActivityContractReceiptV1.self
+    static let punchReceipt = PunchActivityContractReceiptV1.self
+    static let noPlanFallback = NoPlanFallbackV1.self
+    static let usesExistingReportInfrastructure = true
+    static let createsSecondRendererWriterOrStore = false
+    static func validateReadable(_ value: ActivitySessionEnvelopeV2) throws { try value.validateForRead() }
+}
+
 private struct ContractManifestCodingKeyV1: CodingKey {
     let stringValue: String
     let intValue: Int? = nil

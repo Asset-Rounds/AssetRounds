@@ -5158,3 +5158,86 @@ enum C45AssetLabelBoundary_ReportProjectionContractsV1 {
 }
 
 enum C46OperationalContactBoundary_24{static let defaultProjection="EXCLUDED";static let rawPhoneOrEmailEmitted=false;static let platformOutcomeClaimEmitted=false}
+
+enum C47ActivityContractConformance_FieldEvidenceApp_Domain_Reporting_ReportProjectionContractsV1_swift {
+    static let integrationRole = "REPORT_TYPED_INDEPENDENT_PROJECTIONS"
+    static let sharedReceipt = SharedActivityEnvelopeReceiptV1.self
+    static let installationReceipt = InstallationActivityContractReceiptV1.self
+    static let punchReceipt = PunchActivityContractReceiptV1.self
+    static let noPlanFallback = NoPlanFallbackV1.self
+    static let usesExistingReportInfrastructure = true
+    static let createsSecondRendererWriterOrStore = false
+    static func validateReadable(_ value: ActivitySessionEnvelopeV2) throws { try value.validateForRead() }
+}
+
+struct ActivityContractReportProjectionV2: Equatable, Sendable {
+    let envelope: ActivitySessionEnvelopeV2
+    let completed: CompletedActivitySnapshotV2?
+    let installation: InstallationAsBuiltSnapshotV1?
+    let punch: PunchReviewBasisSnapshotV1?
+
+    var installationCloseout: InstallationCloseoutV1? { envelope.installationCloseout }
+    var punchReviewCloseout: PunchReviewCloseoutV1? { envelope.punchReviewCloseout }
+    var completedSnapshotReference: CompletedActivitySnapshotV2CompatibilityReferenceV1? {
+        envelope.completedSnapshotReference
+    }
+    var targetSnapshotWorkspaceID: WorkspaceID? { completedSnapshotReference?.workspaceID }
+    var targetSnapshotActivityID: UUID? { completedSnapshotReference?.activityID }
+    var sourceSnapshotWorkspaceID: WorkspaceID? { completedSnapshotReference?.sourceWorkspaceID }
+    var sourceSnapshotActivityID: UUID? { completedSnapshotReference?.sourceActivityID }
+    var sourceSnapshotRevision: Int? { completedSnapshotReference?.sourceActivityRevision }
+    var sourceSnapshotCloseoutSHA256: String? { completedSnapshotReference?.sourceCloseoutSHA256 }
+    var targetSnapshotCloseoutSHA256: String? { completedSnapshotReference?.targetCloseoutSHA256 }
+
+    init(envelope: ActivitySessionEnvelopeV2,
+         completed: CompletedActivitySnapshotV2? = nil,
+         installation: InstallationAsBuiltSnapshotV1? = nil,
+         punch: PunchReviewBasisSnapshotV1? = nil) throws {
+        try envelope.validateForRead()
+        try completed?.validate()
+        try installation?.validate()
+        try punch?.validate()
+        guard (completed == nil) == (envelope.completedSnapshotReference == nil),
+              installation.map({ $0.workspaceID == envelope.workspaceID && $0.activityID == envelope.activityID }) ?? true,
+              punch.map({ $0.workspaceID == envelope.workspaceID && $0.activityID == envelope.activityID }) ?? true else {
+            throw ActivityContractFailureV2.invalidValue
+        }
+        if let completed, let reference = envelope.completedSnapshotReference {
+            try reference.validate(snapshot: completed)
+            guard reference.workspaceID == envelope.workspaceID,
+                  reference.activityID == envelope.activityID else {
+                throw ActivityContractFailureV2.missingReference
+            }
+        }
+        switch envelope.kind {
+        case .installation:
+            guard punch == nil, envelope.punchReviewCloseout == nil else {
+                throw ActivityContractFailureV2.invalidValue
+            }
+        case .punchReview:
+            guard installation == nil, envelope.installationCloseout == nil else {
+                throw ActivityContractFailureV2.invalidValue
+            }
+        default:
+            guard installation == nil, punch == nil else { throw ActivityContractFailureV2.invalidValue }
+        }
+        self.envelope = envelope
+        self.completed = completed
+        self.installation = installation
+        self.punch = punch
+    }
+
+    func canonicalCompletedSnapshotBytes() throws -> Data? {
+        guard let completed else { return nil }
+        let bytes = try CompletedActivitySnapshotCanonicalCodecV2.encode(completed)
+        guard try CompletedActivitySnapshotCanonicalCodecV2.decode(bytes) == completed else {
+            throw ActivityContractFailureV2.invalidValue
+        }
+        return bytes
+    }
+
+    static let usesExistingReportRenderer = true
+    static let delegatesCompletedSnapshotBytesToReleasedV2Codec = true
+    static let cloneForkSourceAndTargetSnapshotIdentityRemainDistinct = true
+    static let completionClaimsApprovalComplianceOrCertification = false
+}

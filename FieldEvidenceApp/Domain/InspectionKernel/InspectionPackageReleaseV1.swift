@@ -569,3 +569,12 @@ enum C46OperationalContactConformance_FieldEvidenceApp_Domain_InspectionKernel_I
     static let contactExportExcludedByDefault = true
     static let siteRoleOwnershipForbidden = true
 }
+
+enum C47ActivityContractCompatibility_FieldEvidenceApp_Domain_InspectionKernel_InspectionPackageReleaseV1_swift {
+    static let sharedEnvelopeDoesNotCollapseFamilyTruth = true
+    static let installationAndPunchReceiptsRemainIndependent = true
+    static let noPlanFallbackIsExplicit = true
+    static let surveyDefinitionOwnershipIsPreserved = true
+    static let legacyInspectionTruthIsNotRewritten = true
+    static let threeReceiptIsolationIsRequired = true
+}

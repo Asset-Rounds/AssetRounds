@@ -457,6 +457,7 @@ final class WholeSignDeletionService {
     private let failureInjection: WholeSignDeletionFailureInjection?
     private let lifecycleRoute: WholeSignDeletionLifecycleRouteV1
     private let searchIndexStore: LocalSearchIndexStoreV1
+    private let activityContractProjectionBridge: ActivityContractDerivedProjectionBridgeV2?
     private let fileManager: FileManager
     private let assetLabelPublishedOutputRemoval: AssetLabelPublishedOutputRemovalV1
 
@@ -542,6 +543,37 @@ final class WholeSignDeletionService {
             )
         } catch {
             preconditionFailure("Search-index lifecycle could not be bound: \(error)")
+        }
+        switch lifecycleRoute {
+        case let .live(dependencies):
+            do {
+                let searchServices = try ProductionSearchServicesV1(
+                    store: searchIndexStore,
+                    modelContext: modelContext,
+                    workspaceID: dependencies.workspaceID.rawValue,
+                    generationID: dependencies.generationID,
+                    revisionProvider: {
+                        let revision = try dependencies.writer.currentRevision()
+                        guard revision.workspaceID == dependencies.workspaceID,
+                              revision.generationID == dependencies.generationID else {
+                            throw WorkspaceMutationFailureV1.wrongGeneration
+                        }
+                        return try SearchSourceRevisionV1(
+                            workspaceID: revision.workspaceID.rawValue,
+                            generationID: revision.generationID,
+                            commitRevision: revision.revision
+                        )
+                    }
+                )
+                activityContractProjectionBridge = ActivityContractDerivedProjectionBridgeV2(
+                    searchStore: searchIndexStore,
+                    searchRebuildCoordinator: searchServices.rebuildCoordinator
+                )
+            } catch {
+                preconditionFailure("C47 projection lifecycle could not be bound: \(error)")
+            }
+        case .expiringCompatibility:
+            activityContractProjectionBridge = nil
         }
 #if DEBUG
         let canonicalCurrentPointer = applicationSupport
@@ -919,6 +951,21 @@ final class WholeSignDeletionService {
         }
         guard let workspaceID else { return }
         do {
+            if let activityContractProjectionBridge {
+                let scope = ActivityContractProjectionScopeV2(
+                    workspaceID: WorkspaceID(rawValue: workspaceID),
+                    activityID: nil,
+                    axes: [.shared, .installation, .punch],
+                    event: .delete
+                )
+                try await activityContractProjectionBridge
+                    .invalidateActivityContractProjections(scope)
+                try await activityContractProjectionBridge
+                    .rebuildActivityContractSearch(scope)
+                try await activityContractProjectionBridge
+                    .rebuildActivityContractReports(scope)
+                return
+            }
             try await searchIndexStore.purgeWorkspace(workspaceID)
         } catch {
             throw WholeSignDeletionServiceError.cleanupFailed
@@ -1842,6 +1889,11 @@ private extension WholeSignDeletionService {
         let packets: [Packet]
         let reports: [Report]
         let acceptedLabelSnapshots: [AcceptedLabelGenerationSnapshotRow]
+        let activitySessionEnvelopes: [ActivitySessionEnvelopeRow]
+        let activityStateTransitions: [ActivityStateTransitionRow]
+        let installationTaskResults: [InstallationTaskResultRow]
+        let installationAsBuiltSnapshots: [InstallationAsBuiltSnapshotRow]
+        let punchReviewBasisSnapshots: [PunchReviewBasisSnapshotRow]
     }
 
     func fetchRows() throws -> Rows {
@@ -1912,7 +1964,12 @@ private extension WholeSignDeletionService {
                 issues: try boundedFetch(Issue.self),
                 packets: try boundedFetch(Packet.self),
                 reports: try boundedFetch(Report.self),
-                acceptedLabelSnapshots: try boundedFetch(AcceptedLabelGenerationSnapshotRow.self)
+                acceptedLabelSnapshots: try boundedFetch(AcceptedLabelGenerationSnapshotRow.self),
+                activitySessionEnvelopes: try boundedFetch(ActivitySessionEnvelopeRow.self),
+                activityStateTransitions: try boundedFetch(ActivityStateTransitionRow.self),
+                installationTaskResults: try boundedFetch(InstallationTaskResultRow.self),
+                installationAsBuiltSnapshots: try boundedFetch(InstallationAsBuiltSnapshotRow.self),
+                punchReviewBasisSnapshots: try boundedFetch(PunchReviewBasisSnapshotRow.self)
             )
         } catch {
             throw WholeSignDeletionServiceError.graphInvalid
@@ -2806,6 +2863,11 @@ private extension WholeSignDeletionService {
     }
 
     func apply(plan: WholeSignDeletionPlan, rows: Rows) throws {
+        guard plan.intent.ledgerEntries.contains(where: {
+            $0.identity.kind == .asset && $0.identity.id == plan.assetID
+        }) else {
+            throw WholeSignDeletionServiceError.graphInvalid
+        }
         let evidenceIDs = Set(plan.evidenceIDs)
         let issueIDs = Set(plan.issueIDs)
         let reportIDs = Set(plan.reportIDs)
@@ -2822,6 +2884,33 @@ private extension WholeSignDeletionService {
             }
             return row
         }
+        let activityValues = try rows.activitySessionEnvelopes.map { try $0.value() }
+        let immutableActivityIDs = Set(
+            rows.activityStateTransitions.map(\.activityID)
+                + rows.installationTaskResults.map(\.activityID)
+                + rows.installationAsBuiltSnapshots.map(\.activityID)
+                + rows.punchReviewBasisSnapshots.map(\.activityID)
+                + activityValues.compactMap { value in
+                    guard value.installationCloseout != nil
+                        || value.punchReviewCloseout != nil
+                        || value.completedSnapshotReference != nil else {
+                        return nil
+                    }
+                    return value.activityID
+                }
+        )
+        let removableActivityIDs = Set(activityValues.compactMap { value -> UUID? in
+            guard value.subjectID == plan.assetID,
+                  !immutableActivityIDs.contains(value.activityID) else {
+                return nil
+            }
+            switch value.state {
+            case .finalized, .superseded, .cancelled, .unableToComplete:
+                return nil
+            default:
+                return value.activityID
+            }
+        })
         let deletedLocatorIDs = Set(rows.assetLocators.filter {
             $0.assetID == plan.assetID
         }.map(\.locatorID))
@@ -2858,6 +2947,16 @@ private extension WholeSignDeletionService {
         rows.records.filter { recordIDs.contains($0.id) }.forEach { modelContext.delete($0) }
         rows.packets.filter { packetDeleteIDs.contains($0.id) }.forEach { modelContext.delete($0) }
         labelSnapshots.forEach { modelContext.delete($0) }
+        rows.activityStateTransitions.filter { removableActivityIDs.contains($0.activityID) }
+            .forEach { modelContext.delete($0) }
+        rows.installationTaskResults.filter { removableActivityIDs.contains($0.activityID) }
+            .forEach { modelContext.delete($0) }
+        rows.installationAsBuiltSnapshots.filter { removableActivityIDs.contains($0.activityID) }
+            .forEach { modelContext.delete($0) }
+        rows.punchReviewBasisSnapshots.filter { removableActivityIDs.contains($0.activityID) }
+            .forEach { modelContext.delete($0) }
+        rows.activitySessionEnvelopes.filter { removableActivityIDs.contains($0.activityID) }
+            .forEach { modelContext.delete($0) }
         for packet in rows.packets {
             if let tombstone = tombstones[packet.id] {
                 packet.currentRecordID = nil

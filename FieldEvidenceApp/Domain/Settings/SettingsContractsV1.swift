@@ -1079,3 +1079,45 @@ enum SurveySessionDevicePersistenceBoundaryV1 {
             && Set(canonicalKeyPrefixes).count == canonicalKeyPrefixes.count
     }
 }
+
+enum C47ActivityContractConformance_FieldEvidenceApp_Domain_Settings_SettingsContractsV1_swift {
+    static let integrationRole = "INDEPENDENT_START_POLICY"
+    static let sharedReceipt = SharedActivityEnvelopeReceiptV1.self
+    static let installationReceipt = InstallationActivityContractReceiptV1.self
+    static let punchReceipt = PunchActivityContractReceiptV1.self
+    static let noPlanFallback = NoPlanFallbackV1.self
+    static let usesExistingWriterRendererStoreAndPackageInfrastructure = true
+    static let createsSecondRouteOrInspectionAlias = false
+    static func validateReadable(_ value: ActivitySessionEnvelopeV2) throws { try value.validateForRead() }
+}
+
+struct ActivityContractStartPolicyV2: Codable, Equatable, Sendable {
+    let installationStartEnabled: Bool
+    let punchReviewStartEnabled: Bool
+    let noPlanFallbackEnabled: Bool
+    let unknownKindReadExportEnabled: Bool
+
+    func permitsNewStart(for kind: ActivityKindV2) -> Bool {
+        switch kind {
+        case .installation: return installationStartEnabled
+        case .punchReview: return punchReviewStartEnabled
+        case .unknown: return false
+        default: return true
+        }
+    }
+
+    static let disablesReadExportRecoveryWhenStartDisabled = false
+    static let requiresPlanOrScanProvider = false
+}
+
+/// Closeout presentation is canonical envelope truth and cannot be hidden,
+/// reclassified, or replaced by a device preference.
+enum ActivityContractCloseoutSettingsPolicyV2 {
+    static func validateCanonicalPresentation(_ envelope: ActivitySessionEnvelopeV2) throws {
+        try envelope.validateForRead()
+        try envelope.installationCloseout?.validate()
+        try envelope.punchReviewCloseout?.validate()
+    }
+    static let devicePreferenceMayHideCloseout = false
+    static let devicePreferenceMayOverrideFindingTruth = false
+}

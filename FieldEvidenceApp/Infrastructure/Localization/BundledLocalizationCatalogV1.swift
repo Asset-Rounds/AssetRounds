@@ -4561,3 +4561,29 @@ extension BundledLocalizationCatalogV1 {
         }
     }
 }
+
+extension BundledLocalizationCatalogV1 {
+    static func activityContractEnglish(_ key: ActivityContractLocalizationKeyV2) -> String {
+        switch key {
+        case .installation: return "Installation"
+        case .punchReview: return "Punch review"
+        case .noPlanFallback: return "No plan is linked. Select the subject manually. Scanning is not required."
+        case .deferred: return "Deferred"
+        case .unableToComplete: return "Unable to complete"
+        case .fieldComplete: return "Field complete"
+        case .readyForReview: return "Ready for review"
+        case .claimBoundary: return "Completion does not claim approval, certification, compliance, commissioning, or safety clearance."
+        }
+    }
+}
+
+enum C47ActivityContractConformance_FieldEvidenceApp_Infrastructure_Localization_BundledLocalizationCatalogV1_swift {
+    static let integrationRole = "BUNDLED_LOCALIZATION"
+    static let sharedReceipt = SharedActivityEnvelopeReceiptV1.self
+    static let installationReceipt = InstallationActivityContractReceiptV1.self
+    static let punchReceipt = PunchActivityContractReceiptV1.self
+    static let noPlanFallback = NoPlanFallbackV1.self
+    static let usesExistingWriterRendererStoreAndPackageInfrastructure = true
+    static let createsSecondRouteOrInspectionAlias = false
+    static func validateReadable(_ value: ActivitySessionEnvelopeV2) throws { try value.validateForRead() }
+}

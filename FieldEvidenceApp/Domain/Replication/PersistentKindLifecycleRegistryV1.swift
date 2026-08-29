@@ -13,6 +13,11 @@ enum PersistentKindLifecycleFailureV1: Error, Equatable, Sendable {
     case unresolvedAuthority
     case noncanonicalValue
 }
+enum ActivityContractPersistentKindPolicyV2 {
+    static let durableKindIDs=Set(ActivityContractPersistenceEnrollmentV2.persistentFamilies.map{"PERSISTENT_FAMILY:\($0)"})
+    static let nonpersistentKindIDs=Set(ActivityContractPersistenceEnrollmentV2.nonpersistentFamilies.map{"NONPERSISTENT_RECEIPT:\($0)"})
+    static let completedSnapshotReusesReleasedFileLifecycle=true
+}
 
 enum PersistentKindStorageDispositionV1: String, Codable, CaseIterable, Sendable {
     case swiftDataModel = "SWIFT_DATA_MODEL"

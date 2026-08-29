@@ -702,3 +702,26 @@ enum C46OperationalContactKernelDeletionEnrollmentV1 {
         }
     }
 }
+
+enum C47ActivityContractKernelDeletionEnrollmentV2 {
+    static let newlyRowBackedFamilies = C47ActivityContractPersistenceBoundaryV2.newlyEnrolledRows
+    static let reusedCompletedSnapshotFamily = C47ActivityContractPersistenceBoundaryV2.reusedDurableFamily
+    static let ordinaryAssetDeletionRemovesOnlyUnfinalizedMatchingSubjects = true
+    static let finalizedAndSupersededHistoryIsRetained = true
+    static let workspaceEraseOwnsAllFiveRowsAndReleasedSnapshotFiles = true
+    static let conformanceReceiptsAndNoPlanFallbackAreNonpersistent = true
+
+    static func validate() throws {
+        guard C47ActivityContractPersistenceBoundaryV2.persistentSchemaVersion == 36,
+              C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion == 35,
+              C47ActivityContractPersistenceBoundaryV2.durableModelCount == 6,
+              newlyRowBackedFamilies.count == 5,
+              reusedCompletedSnapshotFamily == "CompletedActivitySnapshotV2",
+              ordinaryAssetDeletionRemovesOnlyUnfinalizedMatchingSubjects,
+              finalizedAndSupersededHistoryIsRetained,
+              workspaceEraseOwnsAllFiveRowsAndReleasedSnapshotFiles,
+              conformanceReceiptsAndNoPlanFallbackAreNonpersistent else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}

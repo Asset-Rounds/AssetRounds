@@ -460,3 +460,14 @@ extension PackageSandboxRunnerV1 {
     static let surveyDefinitionReplayDisposition =
         "DROP_UNACCEPTED_PREVIEW_AND_REBUILD_DERIVED_CONSUMERS"
 }
+
+enum C47ActivityContractConformance_FieldEvidenceApp_Infrastructure_Packs_PackageSandboxRunnerV1_swift {
+    static let integrationRole = "NONPERSISTENT_SANDBOX_PREVIEW"
+    static let sharedReceipt = SharedActivityEnvelopeReceiptV1.self
+    static let installationReceipt = InstallationActivityContractReceiptV1.self
+    static let punchReceipt = PunchActivityContractReceiptV1.self
+    static let noPlanFallback = NoPlanFallbackV1.self
+    static let usesExistingWriterRendererStoreAndPackageInfrastructure = true
+    static let createsSecondRouteOrInspectionAlias = false
+    static func validateReadable(_ value: ActivitySessionEnvelopeV2) throws { try value.validateForRead() }
+}

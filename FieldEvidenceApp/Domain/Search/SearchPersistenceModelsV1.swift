@@ -1293,3 +1293,12 @@ enum C33TemporalEvidenceConformance_FieldEvidenceApp_Domain_Search_SearchPersist
 enum C45AcceptedLabelSearchPersistenceBoundaryV1 { static let createsSearchRowFamily=false;static let canonicalSnapshotRemainsOutsideIndex=true }
 
 enum C46OperationalContactBoundary_34{static let permittedProjection="PARTY_METADATA_ONLY";static let rawPhoneOrEmailIndexed=false}
+
+enum C47ActivityContractSearchPersistenceBoundaryV2 {
+    static let sourceFamily = "ActivitySessionEnvelopeV2"
+    static let currentEnvelopeHeadsOnly = true
+    static let transitionAndReceiptHistoryIndexed = false
+    static let conformanceReceiptsIndexed = false
+    static let noPlanFallbackIndexed = false
+    static let projectionIsDerivedAndBackupExcluded = true
+}
