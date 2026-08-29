@@ -1953,16 +1953,40 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                             if maximumShift > -minimumGestureDistance {
                                 let recognizedResidualDistance =
                                     -minimumGestureDistance
+                                let previousCommandMinusObservedResidual =
+                                    previousCommandedDragDistance.flatMap {
+                                        command in
+                                        previousObservedMovement.map { movement in
+                                            command - movement
+                                        }
+                                    }
+                                let predictedRecognizedMovement =
+                                    previousCommandMinusObservedResidual.map {
+                                        residual in
+                                        recognizedResidualDistance - residual
+                                    }
                                 if minimumShift > recognizedResidualDistance {
-                                    let optionalNumber: (CGFloat?) -> Any = {
-                                        value in
-                                        value.map { Double($0) } ?? NSNull()
-                                    }
-                                    let optionalString: (String?) -> Any = {
-                                        value in
-                                        value.map { $0 as Any } ?? NSNull()
-                                    }
-                                    let diagnosticContext: [String: Any] = [
+                                    guard let previousCommandedDragDistance,
+                                          let previousObservedMovement,
+                                          let previousCommandMinusObservedResidual,
+                                          let predictedRecognizedMovement,
+                                          previousCommandedDragDistance
+                                            <= -minimumGestureDistance,
+                                          previousObservedMovement < 0,
+                                          previousCommandMinusObservedResidual < 0,
+                                          predictedRecognizedMovement
+                                            >= minimumShift,
+                                          predictedRecognizedMovement
+                                            <= maximumShift else {
+                                        let optionalNumber: (CGFloat?) -> Any = {
+                                            value in
+                                            value.map { Double($0) } ?? NSNull()
+                                        }
+                                        let optionalString: (String?) -> Any = {
+                                            value in
+                                            value.map { $0 as Any } ?? NSNull()
+                                        }
+                                        let diagnosticContext: [String: Any] = [
                                         "schemaVersion": 1,
                                         "acceptanceEligible": false,
                                         "shardID": optionalString(
@@ -2025,14 +2049,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                             optionalNumber(previousObservedMovement),
                                         "previousCommandMinusObservedResidual":
                                             optionalNumber(
-                                                previousCommandedDragDistance.flatMap {
-                                                    command in
-                                                    previousObservedMovement.map {
-                                                        movement in
-                                                        command - movement
-                                                    }
-                                                }
+                                                previousCommandMinusObservedResidual
                                             ),
+                                        "predictedRecognizedMovement": optionalNumber(
+                                            predictedRecognizedMovement
+                                        ),
                                         "positioningDirection": optionalNumber(
                                             preflightPositioningDirection
                                         ),
@@ -2090,8 +2111,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                             "inputAssistantViews":
                                                 inputAssistantViews.count,
                                         ],
-                                    ]
-                                    printJSONLine(
+                                        ]
+                                        printJSONLine(
                                         prefix:
                                             "S10_4_MINIMUM_DOUBLE_LENGTH_PREFLIGHT_RESIDUAL_DIAGNOSTIC",
                                         object: diagnosticContext
@@ -2126,7 +2147,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                     XCTFail(
                                         "S10.4 minimum double-length preflight residual diagnostic completed nonaccepting"
                                     )
-                                    return
+                                        return
+                                    }
                                 }
                                 dragDistance = recognizedResidualDistance
                             } else if abs(maximumShift) <= receiverCapacity {

@@ -2428,10 +2428,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     preflightQuickPathSource.endIndex
             ]
         )
-        XCTAssertEqual(preflightMinimumSource.utf8.count, 65_666)
+        XCTAssertEqual(preflightMinimumSource.utf8.count, 67_175)
         XCTAssertEqual(
             Data(preflightMinimumSource.utf8).sha256,
-            "D4C8075D7534B294E2A3972A6C5E30702111EE4FD10CBDEF9D6F0850ABF248FA"
+            "5BEC29D90B62A988206A16AE9F11E1B63603C2F7CBA8926249866A97A2D51B4F"
         )
         XCTAssertEqual(currentProfilePreflightQuickPathSource.utf8.count, 29_876)
         XCTAssertEqual(
@@ -5135,10 +5135,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 preflightOffAppSource.startIndex..<minimumDoubleLengthPositioningStartRange.lowerBound
             ]
         )
-        XCTAssertEqual(minimumDoubleLengthPositioningSource.utf8.count, 28_881)
+        XCTAssertEqual(minimumDoubleLengthPositioningSource.utf8.count, 30_390)
         XCTAssertEqual(
             Data(minimumDoubleLengthPositioningSource.utf8).sha256,
-            "4512C01EF79F52664869E1268E135788D193B4C9C8255E828DD8CEF77CBD678F"
+            "F2DC03D10092F7FECC239610C277984D6EC19C4E7FB8A4232A7C28DD3C531728"
         )
         XCTAssertEqual(
             preflightOffAppSource.components(
@@ -5272,7 +5272,31 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "if maximumShift > -minimumGestureDistance {",
             "let recognizedResidualDistance =\n" +
                 "-minimumGestureDistance",
+            "let previousCommandMinusObservedResidual =\n" +
+                "previousCommandedDragDistance.flatMap {\n" +
+                "command in\n" +
+                "previousObservedMovement.map { movement in\n" +
+                "command - movement\n" +
+                "}\n" +
+                "}",
+            "let predictedRecognizedMovement =\n" +
+                "previousCommandMinusObservedResidual.map {\n" +
+                "residual in\n" +
+                "recognizedResidualDistance - residual\n" +
+                "}",
             "if minimumShift > recognizedResidualDistance {",
+            "guard let previousCommandedDragDistance,\n" +
+                "let previousObservedMovement,\n" +
+                "let previousCommandMinusObservedResidual,\n" +
+                "let predictedRecognizedMovement,\n" +
+                "previousCommandedDragDistance\n" +
+                "<= -minimumGestureDistance,\n" +
+                "previousObservedMovement < 0,\n" +
+                "previousCommandMinusObservedResidual < 0,\n" +
+                "predictedRecognizedMovement\n" +
+                ">= minimumShift,\n" +
+                "predictedRecognizedMovement\n" +
+                "<= maximumShift else {",
             "dragDistance = recognizedResidualDistance",
             "} else if abs(maximumShift) <= receiverCapacity {\n" +
                 "dragDistance = maximumShift\n" +
@@ -5410,10 +5434,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     residualDiagnosticEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(minimumDoubleLengthResidualDiagnosticSource.utf8.count, 11_880)
+        XCTAssertEqual(minimumDoubleLengthResidualDiagnosticSource.utf8.count, 12_648)
         XCTAssertEqual(
             Data(minimumDoubleLengthResidualDiagnosticSource.utf8).sha256,
-            "43ACF7A4D553724088D750D0CE7333E4AEFF0624953F060BB6EEA9200254FBC0"
+            "95ABBDC66A633FEE6BEA9482E30788FB9373DD68338E439A091A183ACD70B3F3"
         )
         for diagnosticLock in [
             "\"schemaVersion\": 1",
@@ -5434,6 +5458,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "\"previousConfirmationMinYAfterDrag\":",
             "\"previousObservedMovement\":",
             "\"previousCommandMinusObservedResidual\":",
+            "\"predictedRecognizedMovement\": optionalNumber(",
             "\"positioningDirection\": optionalNumber(",
             "\"route\": [",
             "\"queryCounts\": [",
@@ -5502,10 +5527,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("keyboardIsAbsentOrInertOffApp(in: app)", 3),
             ("preflightPositioningDirection", 5),
             ("attemptIndex", 2),
-            ("previousCommandedDragDistance", 5),
+            ("previousCommandedDragDistance", 7),
             ("previousConfirmationMinYBeforeDrag", 4),
             ("previousConfirmationMinYAfterDrag", 4),
-            ("previousObservedMovement", 5),
+            ("previousObservedMovement", 7),
+            ("previousCommandMinusObservedResidual", 6),
+            ("predictedRecognizedMovement", 6),
             ("dragDirection", 3),
             ("dragStartPoint", 4),
             ("CGPoint(", 1),
@@ -20517,10 +20544,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 767_788)
+        XCTAssertEqual(uiSource.utf8.count, 769_297)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "563271082343B0CF92E154B41956B331345F81E7F4183303E581C53F2891F1F3"
+            "68D6E70E4A471EF81E48C4EE1F420B26D724E1B824ECD0419A5EA40CEADEB4BE"
         )
         let assertControlSource = try boundedSource(
             uiSource,
