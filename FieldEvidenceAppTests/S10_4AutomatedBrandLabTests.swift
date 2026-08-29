@@ -20797,10 +20797,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 779_590)
+        XCTAssertEqual(uiSource.utf8.count, 781_182)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "8A3B5303D0A18E03B072698DB38CB9263B833FE16C0645A5DE42EF74790DA5DB"
+            "129947AB3327D8C6D378F5DD870CF48B503E963D3583D6CB81FE2D6CEEE6270F"
         )
         let assertControlSource = try boundedSource(
             uiSource,
@@ -21097,10 +21097,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "\n    @MainActor\n" +
                     "    private func diagnoseSegment2AXTextRecheckOutcomeDifferentIssueInterval("
         )
-        XCTAssertEqual(alternativeRecheckSource.utf8.count, 17_674)
+        XCTAssertEqual(alternativeRecheckSource.utf8.count, 19_266)
         XCTAssertEqual(
             Data(alternativeRecheckSource.utf8).sha256,
-            "CAC823D4F71A7B5084B276F0BE7D7EF0CC917B3188A8B6A1176AD4886182751D"
+            "D9DDAD7E72D690815C9935CEA4817E277136A5164082D00B91A37CDA509F0CF5"
         )
         for exact in [
             "emitsEvidence: Bool = true",
@@ -21116,16 +21116,33 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "return false",
             "let acceptsAXTextLowerSelectionComposition: () -> Bool = {",
             #"self.automationShard?.shardID == "s10.4.current.ax-text""#,
+            "let expectedSegment2MigratedStateIDs = Array(",
+            "Self.segmentedRouteStateIDs[22..<47]",
+            "let expectedSegment2ContrastExceptionStateIDs = [",
+            "let expectedFullShardMigratedStateIDs = Array(",
+            "Self.segmentedRouteStateIDs.prefix(47)",
+            "let expectedFullShardContrastExceptionStateIDs = [",
+            "let hasExpectedSegment2Provenance =",
             "self.automationSegment == .segment2",
             "self.automationSegment.replayCount == 22",
             "self.automationSegment.ownedStartOrdinal == 23",
             "self.automationSegment.ownedCount == 28",
             "self.automationSegment.finalOrdinal == 50",
+            "== expectedSegment2MigratedStateIDs",
+            "== expectedSegment2MigratedStateIDs.sorted()",
+            "== expectedSegment2ContrastExceptionStateIDs",
+            "let hasExpectedFullShardProvenance =",
+            "self.automationSegment == .none",
+            "self.segmentedRouteStateCursor == 0",
+            "== expectedFullShardMigratedStateIDs",
+            "== expectedFullShardMigratedStateIDs.sorted()",
+            "== expectedFullShardContrastExceptionStateIDs",
+            "&& (hasExpectedSegment2Provenance",
+            "|| hasExpectedFullShardProvenance)",
             "Self.segmentedRouteStateIDs.count == 67",
             "Set(Self.segmentedRouteStateIDs).count == 67",
             #"== "state.recheck-outcome.different-issue""#,
             "self.segmentedRouteStateCursor == 47",
-            "self.migratedStateIDs == expectedMigratedStateIDs",
             "self.automationAXTreeDigests.keys.sorted()",
             "self.automationContrastExceptions.keys.sorted()",
             "!self.automatedSegmentFinished",
@@ -21167,10 +21184,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             before:
                 "                let usesAXTextLowerSelectionComposition ="
         )
-        XCTAssertEqual(lowerSelectionCompositionSource.utf8.count, 6_325)
+        XCTAssertEqual(lowerSelectionCompositionSource.utf8.count, 7_134)
         XCTAssertEqual(
             Data(lowerSelectionCompositionSource.utf8).sha256,
-            "D7EF6706C97D0471399570BD795C26DA409F6AEBF99023B6CB4CC425E5727AAD"
+            "6B8A461419E5FD07A88555796C7AF714F06753268854839D2DCD489E77624EAE"
         )
         for prohibitedLowerSelectionToken in [
             "performAccessibilityAudit", "ContrastAuditExceptionSignature(",

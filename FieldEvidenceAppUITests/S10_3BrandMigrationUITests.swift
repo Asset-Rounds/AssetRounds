@@ -6513,16 +6513,32 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 let physicalDamageQuery = app.descendants(matching: .any).matching(
                     identifier: "s3.outcome.issue.physical_damage"
                 )
-                let expectedMigratedStateIDs = Array(
+                let expectedSegment2MigratedStateIDs = Array(
                     Self.segmentedRouteStateIDs[22..<47]
                 )
-                let expectedContrastExceptionStateIDs = [
+                let expectedSegment2ContrastExceptionStateIDs = [
                     "state.issue.open",
                     "state.issue.recheck-due",
                     "state.issue.resolved",
                     "state.paywall.purchase-complete",
                     "state.recheck-capture.wide-ready",
                     "state.recheck-preflight.ready",
+                    "state.work.validation-error",
+                ]
+                let expectedFullShardMigratedStateIDs = Array(
+                    Self.segmentedRouteStateIDs.prefix(47)
+                )
+                let expectedFullShardContrastExceptionStateIDs = [
+                    "state.check-preflight.ready",
+                    "state.issue.open",
+                    "state.issue.recheck-due",
+                    "state.issue.resolved",
+                    "state.new-sign.editing",
+                    "state.paywall.purchase-complete",
+                    "state.recheck-capture.wide-ready",
+                    "state.recheck-preflight.ready",
+                    "state.report-history.ready",
+                    "state.reports-index.ready",
                     "state.work.validation-error",
                 ]
                 let acceptsAXTextLowerSelectionComposition: () -> Bool = {
@@ -6546,22 +6562,35 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                             frame.height,
                         ].allSatisfy(\.isFinite)
                     }
-                    return self.automationShard?.shardID == "s10.4.current.ax-text"
-                        && self.automationSegment == .segment2
+                    let hasExpectedSegment2Provenance =
+                        self.automationSegment == .segment2
                         && self.automationSegment.replayCount == 22
                         && self.automationSegment.ownedStartOrdinal == 23
                         && self.automationSegment.ownedCount == 28
                         && self.automationSegment.finalOrdinal == 50
+                        && self.segmentedRouteStateCursor == 47
+                        && self.migratedStateIDs
+                            == expectedSegment2MigratedStateIDs
+                        && self.automationAXTreeDigests.keys.sorted()
+                            == expectedSegment2MigratedStateIDs.sorted()
+                        && self.automationContrastExceptions.keys.sorted()
+                            == expectedSegment2ContrastExceptionStateIDs
+                    let hasExpectedFullShardProvenance =
+                        self.automationSegment == .none
+                        && self.segmentedRouteStateCursor == 0
+                        && self.migratedStateIDs
+                            == expectedFullShardMigratedStateIDs
+                        && self.automationAXTreeDigests.keys.sorted()
+                            == expectedFullShardMigratedStateIDs.sorted()
+                        && self.automationContrastExceptions.keys.sorted()
+                            == expectedFullShardContrastExceptionStateIDs
+                    return self.automationShard?.shardID == "s10.4.current.ax-text"
+                        && (hasExpectedSegment2Provenance
+                            || hasExpectedFullShardProvenance)
                         && Self.segmentedRouteStateIDs.count == 67
                         && Set(Self.segmentedRouteStateIDs).count == 67
                         && Self.segmentedRouteStateIDs[47]
                             == "state.recheck-outcome.different-issue"
-                        && self.segmentedRouteStateCursor == 47
-                        && self.migratedStateIDs == expectedMigratedStateIDs
-                        && self.automationAXTreeDigests.keys.sorted()
-                            == expectedMigratedStateIDs.sorted()
-                        && self.automationContrastExceptions.keys.sorted()
-                            == expectedContrastExceptionStateIDs
                         && !self.automatedSegmentFinished
                         && app.state == .runningForeground
                         && outcomeScreenQuery.count == 1
