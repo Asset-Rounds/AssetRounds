@@ -1,0 +1,44 @@
+{
+  "$id": "https://assetrounds.invalid/v23/cross-market-conformance.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "archetypes": {
+      "const": [
+        "CompositeAreaSafetyArchetypeV1",
+        "ControllerZoneDistributionArchetypeV1"
+      ]
+    },
+    "cardID": {
+      "const": "V23-P03-C42"
+    },
+    "hostileCases": {
+      "minItems": 1,
+      "type": "array"
+    },
+    "modelBounds": {
+      "type": "object"
+    },
+    "promotedCounterexamples": {
+      "minItems": 1,
+      "type": "array"
+    },
+    "schema": {
+      "const": "V22P03C42CrossMarketConformanceCorpusV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "archetypes",
+    "modelBounds",
+    "hostileCases",
+    "promotedCounterexamples"
+  ],
+  "title": "V23 P03 C42 Cross-Market Conformance Corpus",
+  "type": "object"
+}

@@ -691,3 +691,45 @@ private final class C31LightingAnchorV920KernelConformanceTests: XCTestCase {
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
     }
 }
+
+extension V9_20KernelConformanceTests {
+    func testC42CrossMarketCorpusReusesPinnedKernelAndCompatibilityOwners() throws {
+        let corpus = try KernelConformanceFixtureHarnessV1.loadC42CrossMarketCorpus()
+        let lock = try PortableContractToolLockReaderV1.readForCrossMarketConformance(
+            at: KernelConformanceFixtureHarnessV1.toolLockURL()
+        )
+        let portableReceipts = try PortableContractValidatorAdapterV1(toolLock: lock)
+            .validateCrossMarketCorpus(corpus.portableCases)
+        let historicDigests = try V907CompatibilitySupport.crossMarketHistoricReportDigests()
+        let composite = try CompositeAreaSafetyArchetypeV1.run()
+        let controller = try ControllerZoneDistributionArchetypeV1.run()
+        let hostileReceipts = try KernelConformanceFixtureHarnessV1.executeC42HostileCases(
+            corpus.hostileCases
+        )
+
+        XCTAssertEqual(portableReceipts.count, corpus.portableCases.count)
+        XCTAssertEqual(hostileReceipts.count, CrossMarketHostileVectorV1.allCases.count)
+        XCTAssertEqual(Set(hostileReceipts.map(\.vector)), Set(CrossMarketHostileVectorV1.allCases))
+        XCTAssertEqual(
+            corpus.releaseScanInputs.map(\.surface),
+            ReleaseExclusionReceiptV1.requiredSurfaces
+        )
+        XCTAssertTrue(corpus.releaseScanInputs.allSatisfy {
+            $0.evidenceKind == $0.surface.requiredEvidenceKind
+                && $0.sourceIdentity == $0.surface.requiredSourceIdentity
+        })
+        XCTAssertFalse(historicDigests.isEmpty)
+        XCTAssertEqual(composite.generatorVersion, corpus.generatorVersion)
+        XCTAssertEqual(controller.generatorVersion, corpus.generatorVersion)
+        XCTAssertEqual(composite.executedCaseCount, corpus.modelBounds.maximumCases)
+        XCTAssertEqual(controller.executedCaseCount, corpus.modelBounds.maximumCases)
+        XCTAssertEqual(composite.caseResultSHA256s.count, composite.executedCaseCount)
+        XCTAssertEqual(controller.caseResultSHA256s.count, controller.executedCaseCount)
+        XCTAssertGreaterThan(composite.scratchBytesRemoved, 0)
+        XCTAssertGreaterThan(controller.scratchBytesRemoved, 0)
+        XCTAssertTrue(composite.scratchCleanupComplete)
+        XCTAssertTrue(controller.scratchCleanupComplete)
+        XCTAssertFalse(composite.acceptanceCredit)
+        XCTAssertFalse(controller.acceptanceCredit)
+    }
+}

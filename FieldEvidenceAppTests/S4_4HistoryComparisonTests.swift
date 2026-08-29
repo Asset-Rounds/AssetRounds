@@ -808,3 +808,46 @@ private final class C31LightingAnchorS44HistoryComparisonTests: XCTestCase {
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
     }
 }
+
+extension S4_4HistoryComparisonTests {
+    @MainActor
+    func testV23P03C42HistorySurfaceKeepsTypedSupersessionAndReportProjectionDistinct() async throws {
+        let scenario = try CompositeAreaSafetyArchetypeV1.scenario()
+        let receipt = try CompositeAreaSafetyArchetypeV1.run()
+        let signoff = try XCTUnwrap(scenario.operations.first { $0.entityKind == .signoffSnapshot })
+        let report = try XCTUnwrap(scenario.operations.first { $0.entityKind == .report })
+        let supersede = try XCTUnwrap(scenario.operations.first { $0.kind == .supersede })
+        let projection = try XCTUnwrap(scenario.operations.first { $0.kind == .rebuildProjection })
+        let staleRevision = try XCTUnwrap(scenario.operations.first { $0.kind == .rejectStaleRevision })
+
+        let harness = try await makeHarness("c42-history")
+        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        harness.siteA.label = scenario.archetypeID
+        harness.assetA.label = receipt.normalizedResultSHA256
+        try harness.context.save()
+        let first = try await addVisit(
+            to: harness,
+            completedAt: Fixture.baseDate,
+            site: harness.siteA,
+            asset: harness.assetA,
+            seed: UInt8(signoff.ordinal)
+        )
+        let second = try await addVisit(
+            to: harness,
+            completedAt: Fixture.baseDate.addingTimeInterval(Double(projection.ordinal)),
+            site: harness.siteA,
+            asset: harness.assetA,
+            seed: UInt8(report.ordinal)
+        )
+        let owner = try historyCoordinator(in: harness)
+        let history = try XCTUnwrap(owner.signHistory(assetID: harness.assetA.id))
+        let comparison = try XCTUnwrap(owner.comparison(stableRootID: second.packet.stableRootID))
+        XCTAssertEqual(history.siteLabel, scenario.archetypeID)
+        XCTAssertEqual(history.assetLabel, receipt.normalizedResultSHA256)
+        XCTAssertEqual(history.visits.map(\.reportID), [second.report.id, first.report.id])
+        XCTAssertEqual(comparison.then.reportID, first.report.id)
+        XCTAssertEqual(comparison.now.reportID, second.report.id)
+        XCTAssertEqual(supersede.resultingRevision, 2)
+        XCTAssertEqual(staleRevision.expectedDisposition, .rejectedPrecondition)
+    }
+}

@@ -817,3 +817,52 @@ private final class C31LightingAnchorV916SnapshotProjectionTests: XCTestCase {
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
     }
 }
+
+extension V9_16SnapshotProjectionTests {
+    func testV23P03C42SnapshotProjectionRebuildsFromTypedArchetypeState() throws {
+        let scenarios = [
+            try CompositeAreaSafetyArchetypeV1.scenario(),
+            try ControllerZoneDistributionArchetypeV1.scenario()
+        ]
+        let registry = ReportProjectionRegistryV1()
+
+        for (index, scenario) in scenarios.enumerated() {
+            XCTAssertTrue(scenario.operations.contains { $0.kind == .rebuildProjection })
+            let typedState = ([scenario.archetypeID] + scenario.capabilities.map(\.rawValue))
+                .joined(separator: " ")
+            let fixture = try makeFixture(
+                snapshotRevision: index + 1,
+                snapshotID: "c42-snapshot-\(index + 1)",
+                serviceStatus: typedState
+            )
+            guard case .complete(let projected) = try registry.render(
+                snapshot: fixture.snapshot,
+                manifest: fixture.manifest,
+                reportProfile: fixture.layout,
+                exportProfile: fixture.export
+            ) else {
+                return XCTFail("C42 typed state must produce one complete projection")
+            }
+            let serviceNode = try XCTUnwrap(projected.semanticProjection.nodes.first {
+                $0.sectionID == "service" && $0.label == "Service status"
+            })
+            XCTAssertEqual(serviceNode.value, typedState)
+            XCTAssertEqual(
+                try DeterministicOpenJSONRendererV1.reopen(projected.openJSON.data),
+                projected.semanticProjection
+            )
+            XCTAssertEqual(
+                try DeterministicPDFRendererV1.reopen(projected.pdf.data),
+                projected.semanticProjection
+            )
+            let rebuilt = try registry.recover(
+                snapshot: fixture.snapshot,
+                manifest: fixture.manifest,
+                reportProfile: fixture.layout,
+                exportProfile: fixture.export,
+                storedBundle: nil
+            )
+            XCTAssertEqual(rebuilt, projected)
+        }
+    }
+}

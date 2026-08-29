@@ -407,3 +407,57 @@ private final class C31LightingAnchorV904StreamingArchiveTests: XCTestCase {
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
     }
 }
+
+extension V9_04StreamingArchiveTests {
+    func testV23P03C42StreamingArchivePreservesTypedCanonicalReceiptsWithinBounds() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = root.appendingPathComponent("source", isDirectory: true)
+        let staging = root.appendingPathComponent("staging", isDirectory: true)
+        let output = root.appendingPathComponent("output", isDirectory: true)
+        try makeDirectories(source, output)
+        try makeProtectedStaging(staging)
+
+        let values = [
+            try CompositeAreaSafetyArchetypeV1.run(),
+            try ControllerZoneDistributionArchetypeV1.run(),
+        ]
+        let bytes = try values.enumerated().map { offset, value in
+            let data = try CrossMarketCanonicalV1.data(value)
+            try data.write(to: source.appendingPathComponent("receipt-\(offset)"))
+            return data
+        }
+        let entries = try bytes.enumerated().map { offset, data in
+            try writeEntry(
+                path: "c42-receipt-\(offset).json",
+                source: source.appendingPathComponent("receipt-\(offset)"),
+                data: data
+            )
+        }
+        let service = StreamingArchiveService(
+            limits: limits(entryBytes: 131_072, aggregateBytes: 262_144),
+            makeOperationID: UUIDSequence().next
+        )
+        let archive = output.appendingPathComponent("c42.fieldrecordbackup")
+        let written = try service.write(
+            .init(entries: entries, stagingDirectoryURL: staging),
+            to: archive
+        )
+        let extractionRoot = output.appendingPathComponent("extracted", isDirectory: true)
+        let extracted = try service.extract(archive, to: extractionRoot)
+
+        XCTAssertEqual(extracted.archiveSHA256, written.archiveSHA256)
+        XCTAssertEqual(written.index.entries.map(\.path), ["c42-receipt-0.json", "c42-receipt-1.json"])
+        for (offset, expected) in values.enumerated() {
+            let archivedBytes = try Data(
+                contentsOf: extractionRoot.appendingPathComponent("c42-receipt-\(offset).json")
+            )
+            XCTAssertEqual(archivedBytes, bytes[offset])
+            XCTAssertEqual(
+                try CrossMarketCanonicalV1.decode(ModelRunReceiptV1.self, from: archivedBytes),
+                expected
+            )
+        }
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: staging.path), [])
+    }
+}

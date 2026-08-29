@@ -1491,3 +1491,46 @@ private final class C31LightingAnchorV910LifecycleBoundaryTests: XCTestCase {
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
     }
 }
+
+extension V9_10LifecycleBoundaryTests {
+    func testV23P03C42LifecycleBoundariesReplayEveryRecoverableEffect() async throws {
+        let scenarios = [
+            try CompositeAreaSafetyArchetypeV1.scenario(),
+            try ControllerZoneDistributionArchetypeV1.scenario(),
+        ]
+        for scenario in scenarios {
+            let receipt = try ModelConformanceRunnerV1.run(
+                scenario,
+                expectedInvariant: scenario.archetypeID == CompositeAreaSafetyArchetypeV1.archetypeID
+                    ? .replayConverges
+                    : .boundedExecution
+            )
+            let interruption = try XCTUnwrap(receipt.operations.first { $0.kind == .interruptAfterEffectBeforeReceipt })
+            let replay = try XCTUnwrap(receipt.operations.first { $0.kind == .replay })
+            XCTAssertEqual(interruption.expectedDisposition, .interruptedRecoverableEffect)
+            XCTAssertEqual(replay.expectedDisposition, .idempotentReplay)
+            XCTAssertLessThan(interruption.ordinal, replay.ordinal)
+
+            let port = V910LifecyclePortProbe()
+            let coordinator = try await DeviceLifecycleCoordinatorV1.bootstrap(
+                jobs: port,
+                initialState: .initiallyActive
+            )
+            let suspended = try await coordinator.handle(.sceneEnteredBackground)
+            let duplicateSuspend = try await coordinator.handle(.sceneEnteredBackground)
+            let resumed = try await coordinator.handle(.sceneBecameActive)
+            let duplicateResume = try await coordinator.handle(.sceneBecameActive)
+            XCTAssertEqual(suspended.action, .suspend(.sceneBackground))
+            XCTAssertEqual(duplicateSuspend.action, .none)
+            XCTAssertEqual(resumed.action, .resume(.sceneBackground))
+            XCTAssertEqual(duplicateResume.action, .none)
+            let finalState = await coordinator.currentState()
+            let actions = await port.actions()
+            XCTAssertEqual(finalState, .initiallyActive)
+            XCTAssertEqual(
+                actions,
+                [.suspend(.sceneBackground), .resume(.sceneBackground)]
+            )
+        }
+    }
+}

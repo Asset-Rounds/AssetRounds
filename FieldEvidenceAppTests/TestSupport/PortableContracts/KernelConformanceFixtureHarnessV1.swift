@@ -539,6 +539,564 @@ extension KernelConformanceFixtureHarnessV1 {
     }
 }
 
+struct CrossMarketCorpusBoundsV1: Decodable, Equatable, Sendable {
+    let maximumCases: Int
+    let maximumOperationsPerCase: Int
+    let maximumShrinkSteps: Int
+    let maximumScratchBytes: Int
+    let maximumDurationMilliseconds: Int
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case maximumCases, maximumOperationsPerCase, maximumShrinkSteps
+        case maximumScratchBytes, maximumDurationMilliseconds
+    }
+
+    init(from decoder: any Decoder) throws {
+        try StrictPortableContractCodingV1.requireExactKeys(decoder, CodingKeys.self)
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        maximumCases = try values.decode(Int.self, forKey: .maximumCases)
+        maximumOperationsPerCase = try values.decode(Int.self, forKey: .maximumOperationsPerCase)
+        maximumShrinkSteps = try values.decode(Int.self, forKey: .maximumShrinkSteps)
+        maximumScratchBytes = try values.decode(Int.self, forKey: .maximumScratchBytes)
+        maximumDurationMilliseconds = try values.decode(Int.self, forKey: .maximumDurationMilliseconds)
+    }
+}
+
+enum CrossMarketHostileVectorV1: String, Codable, CaseIterable, Hashable, Sendable {
+    case invalidUTF8 = "INVALID_UTF8"
+    case unknownFutureVersion = "UNKNOWN_FUTURE_VERSION"
+    case noncanonicalKeyOrder = "NONCANONICAL_KEY_ORDER"
+    case nondeterministicTimeUUID = "NONDETERMINISTIC_TIME_UUID"
+    case unicodeNonnormalized = "UNICODE_NONNORMALIZED"
+    case rtlControlInjection = "RTL_CONTROL_INJECTION"
+    case longTextLimit = "LONG_TEXT_LIMIT"
+    case dstTimezoneBoundary = "DST_TIMEZONE_BOUNDARY"
+    case unitThresholdRounding = "UNIT_THRESHOLD_ROUNDING"
+    case unknownBranchRepeatLimit = "UNKNOWN_BRANCH_REPEAT_LIMIT"
+    case staleRevision = "STALE_REVISION"
+    case pathInvalidation = "PATH_INVALIDATION"
+    case relationshipCardinality = "RELATIONSHIP_CARDINALITY"
+    case relationshipCycle = "RELATIONSHIP_CYCLE"
+    case qualificationExpired = "QUALIFICATION_EXPIRED"
+    case conflictingAuthorities = "CONFLICTING_AUTHORITIES"
+    case duplicateProductIdentity = "DUPLICATE_PRODUCT_IDENTITY"
+    case missingProductIdentity = "MISSING_PRODUCT_IDENTITY"
+    case cloneForkIdentity = "CLONE_FORK_IDENTITY"
+    case lowStorage = "LOW_STORAGE"
+    case archivePathTraversal = "ARCHIVE_PATH_TRAVERSAL"
+    case symlinkEscape = "SYMLINK_ESCAPE"
+    case decompressionBomb = "DECOMPRESSION_BOMB"
+    case resourceExhaustion = "RESOURCE_EXHAUSTION"
+    case tamperedBytes = "TAMPERED_BYTES"
+    case interruptedEffectBeforeReceipt = "INTERRUPTED_EFFECT_BEFORE_RECEIPT"
+    case recoveryFrontierDrift = "RECOVERY_FRONTIER_DRIFT"
+    case releaseMembershipLeak = "RELEASE_MEMBERSHIP_LEAK"
+}
+
+enum CrossMarketHostileDispositionV1: String, Codable, Equatable, Sendable {
+    case accepted = "ACCEPTED"
+    case rejected = "REJECTED"
+    case recoveredExactlyOnce = "RECOVERED_EXACTLY_ONCE"
+}
+
+struct CrossMarketHostileInputV1: Codable, Equatable, Sendable {
+    let primaryText: String?
+    let secondaryText: String?
+    let integer: Int?
+    let secondaryInteger: Int?
+    let decimal: String?
+    let path: String?
+    let timeZoneID: String?
+    let instant: String?
+    let entityIDs: [String]
+    let edges: [String]
+    let bytesUTF8Hex: String?
+    let digest: String?
+    let expectedDigest: String?
+    let actualByteCount: Int?
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case primaryText, secondaryText, integer, secondaryInteger, decimal
+        case path, timeZoneID, instant, entityIDs, edges, bytesUTF8Hex
+        case digest, expectedDigest, actualByteCount
+    }
+
+    init(from decoder: any Decoder) throws {
+        try StrictPortableContractCodingV1.requireExactKeys(decoder, CodingKeys.self)
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        primaryText = try values.decodeIfPresent(String.self, forKey: .primaryText)
+        secondaryText = try values.decodeIfPresent(String.self, forKey: .secondaryText)
+        integer = try values.decodeIfPresent(Int.self, forKey: .integer)
+        secondaryInteger = try values.decodeIfPresent(Int.self, forKey: .secondaryInteger)
+        decimal = try values.decodeIfPresent(String.self, forKey: .decimal)
+        path = try values.decodeIfPresent(String.self, forKey: .path)
+        timeZoneID = try values.decodeIfPresent(String.self, forKey: .timeZoneID)
+        instant = try values.decodeIfPresent(String.self, forKey: .instant)
+        entityIDs = try values.decode([String].self, forKey: .entityIDs)
+        edges = try values.decode([String].self, forKey: .edges)
+        bytesUTF8Hex = try values.decodeIfPresent(String.self, forKey: .bytesUTF8Hex)
+        digest = try values.decodeIfPresent(String.self, forKey: .digest)
+        expectedDigest = try values.decodeIfPresent(String.self, forKey: .expectedDigest)
+        actualByteCount = try values.decodeIfPresent(Int.self, forKey: .actualByteCount)
+    }
+}
+
+struct CrossMarketHostileExpectedResultV1: Codable, Equatable, Sendable {
+    let disposition: CrossMarketHostileDispositionV1
+    let code: String
+    let canonicalValue: String?
+    let exactlyOnceEffectCount: Int
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case disposition, code, canonicalValue, exactlyOnceEffectCount
+    }
+
+    init(from decoder: any Decoder) throws {
+        try StrictPortableContractCodingV1.requireExactKeys(decoder, CodingKeys.self)
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        disposition = try values.decode(CrossMarketHostileDispositionV1.self, forKey: .disposition)
+        code = try values.decode(String.self, forKey: .code)
+        canonicalValue = try values.decodeIfPresent(String.self, forKey: .canonicalValue)
+        exactlyOnceEffectCount = try values.decode(Int.self, forKey: .exactlyOnceEffectCount)
+    }
+}
+
+struct CrossMarketHostileCaseFixtureV1: Codable, Equatable, Sendable {
+    let id: String
+    let vector: CrossMarketHostileVectorV1
+    let input: CrossMarketHostileInputV1
+    let expected: CrossMarketHostileExpectedResultV1
+
+    private enum CodingKeys: String, CodingKey, CaseIterable { case id, vector, input, expected }
+
+    init(from decoder: any Decoder) throws {
+        try StrictPortableContractCodingV1.requireExactKeys(decoder, CodingKeys.self)
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(String.self, forKey: .id)
+        vector = try values.decode(CrossMarketHostileVectorV1.self, forKey: .vector)
+        input = try values.decode(CrossMarketHostileInputV1.self, forKey: .input)
+        expected = try values.decode(CrossMarketHostileExpectedResultV1.self, forKey: .expected)
+    }
+}
+
+struct CrossMarketHostileExecutionReceiptV1: Equatable, Sendable {
+    let id: String
+    let vector: CrossMarketHostileVectorV1
+    let inputSHA256: String
+    let disposition: CrossMarketHostileDispositionV1
+    let code: String
+    let canonicalValue: String?
+    let exactlyOnceEffectCount: Int
+}
+
+struct CrossMarketReleaseScanInputFixtureV1: Codable, Equatable, Sendable {
+    let surface: ReleaseExclusionSurfaceV1
+    let evidenceKind: ReleaseExclusionEvidenceKindV1
+    let sourceIdentity: ReleaseExclusionEvidenceSourceV1
+    let repositoryRelativeInputs: [String]
+    let expectedDisposition: ReleaseExclusionDispositionV1
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case surface, evidenceKind, sourceIdentity, repositoryRelativeInputs
+        case expectedDisposition
+    }
+
+    init(from decoder: any Decoder) throws {
+        try StrictPortableContractCodingV1.requireExactKeys(decoder, CodingKeys.self)
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        surface = try values.decode(ReleaseExclusionSurfaceV1.self, forKey: .surface)
+        evidenceKind = try values.decode(ReleaseExclusionEvidenceKindV1.self, forKey: .evidenceKind)
+        sourceIdentity = try values.decode(ReleaseExclusionEvidenceSourceV1.self, forKey: .sourceIdentity)
+        repositoryRelativeInputs = try values.decode([String].self, forKey: .repositoryRelativeInputs)
+        expectedDisposition = try values.decode(
+            ReleaseExclusionDispositionV1.self, forKey: .expectedDisposition
+        )
+    }
+}
+
+struct CrossMarketPromotedCounterexampleFixtureV1: Decodable, Equatable, Sendable {
+    let id: String
+    let seed: String
+    let invariant: String
+    let operationKinds: [String]
+    let immutable: Bool
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case id, seed, invariant, operationKinds, immutable
+    }
+
+    init(from decoder: any Decoder) throws {
+        try StrictPortableContractCodingV1.requireExactKeys(decoder, CodingKeys.self)
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(String.self, forKey: .id)
+        seed = try values.decode(String.self, forKey: .seed)
+        invariant = try values.decode(String.self, forKey: .invariant)
+        operationKinds = try values.decode([String].self, forKey: .operationKinds)
+        immutable = try values.decode(Bool.self, forKey: .immutable)
+    }
+}
+
+struct CrossMarketConformanceCorpusFixtureV1: Decodable, Equatable, Sendable {
+    let schema: String
+    let schemaVersion: Int
+    let cardID: String
+    let fixtureID: String
+    let generatorVersion: String
+    let archetypes: [String]
+    let fixedSeeds: [String: String]
+    let modelBounds: CrossMarketCorpusBoundsV1
+    let portableCases: [PortableContractCaseV1]
+    let hostileCases: [CrossMarketHostileCaseFixtureV1]
+    let coverageTokens: [String]
+    let promotedCounterexamples: [CrossMarketPromotedCounterexampleFixtureV1]
+    let releaseExclusionSurfaces: [String]
+    let releaseScanInputs: [CrossMarketReleaseScanInputFixtureV1]
+    let migrationIsolatedCopies: Bool
+    let historicSignReportByteParity: Bool
+    let historicLightingReportByteParity: Bool
+    let offlineSharedKernel: Bool
+    let productPersistence: Bool
+    let runtimeProductPersistence: Bool
+    let containsCustomerData: Bool
+    let containsLicensedContent: Bool
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schema, schemaVersion, cardID, fixtureID, generatorVersion, archetypes
+        case fixedSeeds, modelBounds, portableCases, hostileCases, coverageTokens
+        case promotedCounterexamples, releaseExclusionSurfaces, releaseScanInputs
+        case migrationIsolatedCopies
+        case historicSignReportByteParity, historicLightingReportByteParity
+        case offlineSharedKernel, productPersistence, runtimeProductPersistence
+        case containsCustomerData, containsLicensedContent
+    }
+
+    init(from decoder: any Decoder) throws {
+        try StrictPortableContractCodingV1.requireExactKeys(decoder, CodingKeys.self)
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        schema = try values.decode(String.self, forKey: .schema)
+        schemaVersion = try values.decode(Int.self, forKey: .schemaVersion)
+        cardID = try values.decode(String.self, forKey: .cardID)
+        fixtureID = try values.decode(String.self, forKey: .fixtureID)
+        generatorVersion = try values.decode(String.self, forKey: .generatorVersion)
+        archetypes = try values.decode([String].self, forKey: .archetypes)
+        fixedSeeds = try values.decode([String: String].self, forKey: .fixedSeeds)
+        modelBounds = try values.decode(CrossMarketCorpusBoundsV1.self, forKey: .modelBounds)
+        portableCases = try values.decode([PortableContractCaseV1].self, forKey: .portableCases)
+        hostileCases = try values.decode([CrossMarketHostileCaseFixtureV1].self, forKey: .hostileCases)
+        coverageTokens = try values.decode([String].self, forKey: .coverageTokens)
+        promotedCounterexamples = try values.decode(
+            [CrossMarketPromotedCounterexampleFixtureV1].self,
+            forKey: .promotedCounterexamples
+        )
+        releaseExclusionSurfaces = try values.decode([String].self, forKey: .releaseExclusionSurfaces)
+        releaseScanInputs = try values.decode(
+            [CrossMarketReleaseScanInputFixtureV1].self, forKey: .releaseScanInputs
+        )
+        migrationIsolatedCopies = try values.decode(Bool.self, forKey: .migrationIsolatedCopies)
+        historicSignReportByteParity = try values.decode(Bool.self, forKey: .historicSignReportByteParity)
+        historicLightingReportByteParity = try values.decode(Bool.self, forKey: .historicLightingReportByteParity)
+        offlineSharedKernel = try values.decode(Bool.self, forKey: .offlineSharedKernel)
+        productPersistence = try values.decode(Bool.self, forKey: .productPersistence)
+        runtimeProductPersistence = try values.decode(Bool.self, forKey: .runtimeProductPersistence)
+        containsCustomerData = try values.decode(Bool.self, forKey: .containsCustomerData)
+        containsLicensedContent = try values.decode(Bool.self, forKey: .containsLicensedContent)
+    }
+}
+
+extension KernelConformanceFixtureHarnessV1 {
+    static let c42EvidenceIDs = [
+        "V23-P03-C42-G01", "V23-P03-C42-A01", "V23-P03-C42-H01",
+        "V23-P03-C42-I01", "V23-P03-C42-R01",
+    ]
+
+    static func c42CrossMarketCorpusURL() -> URL {
+        sourceRoot().appendingPathComponent(
+            "FieldEvidenceAppTests/Fixtures/V22/CrossMarketConformance/V22P03C42CrossMarketConformanceCorpusV1.json"
+        )
+    }
+
+    static func loadC42CrossMarketCorpus() throws -> CrossMarketConformanceCorpusFixtureV1 {
+        let data = try readRequiredData(c42CrossMarketCorpusURL(), maximumBytes: 1_048_576)
+        let corpus: CrossMarketConformanceCorpusFixtureV1
+        do {
+            corpus = try JSONDecoder().decode(CrossMarketConformanceCorpusFixtureV1.self, from: data)
+        } catch {
+            throw KernelConformanceFixtureFailureV1.invalidArtifact("V22P03C42CrossMarketConformanceCorpusV1")
+        }
+        let expectedSurfaces = ReleaseExclusionSurfaceV1.allCases
+            .map(\.rawValue).sorted()
+        guard corpus.schema == "V22P03C42CrossMarketConformanceCorpusV1",
+              corpus.schemaVersion == 1,
+              corpus.cardID == "V23-P03-C42",
+              corpus.fixtureID == "V22-P03-C42-CROSS-MARKET-CONFORMANCE-CORPUS-V1",
+              corpus.generatorVersion == ModelRunReceiptV1.generatorVersion,
+              corpus.archetypes == [
+                  "CompositeAreaSafetyArchetypeV1",
+                  "ControllerZoneDistributionArchetypeV1",
+              ],
+              corpus.fixedSeeds["CompositeAreaSafetyArchetypeV1"]
+                == String(CompositeAreaSafetyArchetypeV1.defaultSeed),
+              corpus.fixedSeeds["ControllerZoneDistributionArchetypeV1"]
+                == String(ControllerZoneDistributionArchetypeV1.defaultSeed),
+              !corpus.portableCases.isEmpty,
+              Set(corpus.portableCases.map(\.id)).count == corpus.portableCases.count,
+              Set(corpus.portableCases.map(\.expectedClass)) == [.accepted, .rejected],
+              corpus.hostileCases.count == CrossMarketHostileVectorV1.allCases.count,
+              Set(corpus.hostileCases.map(\.id)).count == corpus.hostileCases.count,
+              Set(corpus.hostileCases.map(\.vector)) == Set(CrossMarketHostileVectorV1.allCases),
+              corpus.hostileCases.allSatisfy({ hostileCase in
+                  !hostileCase.id.isEmpty
+                      && hostileCase.expected.code == hostileCase.vector.rawValue
+                      && hostileCase.expected.exactlyOnceEffectCount >= 0
+                      && (hostileCase.expected.disposition == .recoveredExactlyOnce
+                          ? hostileCase.expected.exactlyOnceEffectCount == 1
+                          : hostileCase.expected.exactlyOnceEffectCount == 0)
+              }),
+              corpus.promotedCounterexamples.count >= 2,
+              corpus.promotedCounterexamples.allSatisfy({
+                  $0.immutable && !$0.operationKinds.isEmpty
+              }),
+              corpus.releaseExclusionSurfaces.sorted() == expectedSurfaces,
+              corpus.releaseScanInputs.count == ReleaseExclusionSurfaceV1.allCases.count,
+              corpus.releaseScanInputs.map(\.surface.rawValue) == expectedSurfaces,
+              corpus.releaseScanInputs.allSatisfy({ input in
+                  input.evidenceKind == input.surface.requiredEvidenceKind
+                      && input.sourceIdentity == input.surface.requiredSourceIdentity
+                      && !input.repositoryRelativeInputs.isEmpty
+                      && input.repositoryRelativeInputs == input.repositoryRelativeInputs.sorted()
+                      && Set(input.repositoryRelativeInputs).count == input.repositoryRelativeInputs.count
+                      && input.expectedDisposition == (input.surface.requiresNativeOrExternalEvidence
+                          ? .staticPendingNative : .provenAbsent)
+              }),
+              corpus.migrationIsolatedCopies,
+              corpus.historicSignReportByteParity,
+              corpus.historicLightingReportByteParity,
+              corpus.offlineSharedKernel,
+              !corpus.productPersistence,
+              !corpus.runtimeProductPersistence,
+              !corpus.containsCustomerData,
+              !corpus.containsLicensedContent else {
+            throw KernelConformanceFixtureFailureV1.invalidArtifact(corpus.fixtureID)
+        }
+        return corpus
+    }
+
+    static func executeC42HostileCases(
+        _ cases: [CrossMarketHostileCaseFixtureV1]
+    ) throws -> [CrossMarketHostileExecutionReceiptV1] {
+        guard cases.count == CrossMarketHostileVectorV1.allCases.count,
+              Set(cases.map(\.id)).count == cases.count,
+              Set(cases.map(\.vector)) == Set(CrossMarketHostileVectorV1.allCases) else {
+            throw KernelConformanceFixtureFailureV1.invalidArtifact("c42-hostile-inventory")
+        }
+        return try cases.map(executeC42HostileCase)
+    }
+
+    static func executeC42HostileCase(
+        _ fixture: CrossMarketHostileCaseFixtureV1
+    ) throws -> CrossMarketHostileExecutionReceiptV1 {
+        let input = fixture.input
+        var observedDisposition: CrossMarketHostileDispositionV1 = .rejected
+        var observedCanonicalValue: String?
+        var observedEffectCount = 0
+
+        switch fixture.vector {
+        case .invalidUTF8:
+            let bytes = try decodeC42Hex(required(input.bytesUTF8Hex, fixture.vector))
+            observedDisposition = String(data: bytes, encoding: .utf8) == nil ? .rejected : .accepted
+        case .unknownFutureVersion:
+            observedDisposition = required(input.integer, fixture.vector) == 1 ? .accepted : .rejected
+        case .noncanonicalKeyOrder:
+            let text = required(input.primaryText, fixture.vector)
+            let bytes = Data(text.utf8)
+            let object = try JSONSerialization.jsonObject(with: bytes)
+            let canonical = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+            observedDisposition = bytes == canonical ? .accepted : .rejected
+        case .nondeterministicTimeUUID:
+            let text = required(input.primaryText, fixture.vector)
+            let forbidden = ["Date.now", "UUID()", "CFAbsoluteTimeGetCurrent"]
+            observedDisposition = forbidden.contains(where: text.contains) ? .rejected : .accepted
+        case .unicodeNonnormalized:
+            observedCanonicalValue = required(input.primaryText, fixture.vector)
+                .precomposedStringWithCanonicalMapping
+            observedDisposition = .accepted
+        case .rtlControlInjection:
+            let text = required(input.primaryText, fixture.vector)
+            let hasBidiControl = text.unicodeScalars.contains {
+                (0x202A...0x202E).contains($0.value) || (0x2066...0x2069).contains($0.value)
+            }
+            observedDisposition = hasBidiControl ? .rejected : .accepted
+        case .longTextLimit:
+            observedDisposition = required(input.integer, fixture.vector)
+                > required(input.secondaryInteger, fixture.vector) ? .rejected : .accepted
+        case .dstTimezoneBoundary:
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime]
+            let date = try required(formatter.date(from: required(input.instant, fixture.vector)), fixture.vector)
+            let output = DateFormatter()
+            output.locale = Locale(identifier: "en_US_POSIX")
+            output.calendar = Calendar(identifier: .gregorian)
+            output.timeZone = try required(TimeZone(identifier: required(input.timeZoneID, fixture.vector)), fixture.vector)
+            output.dateFormat = "yyyy-MM-dd'T'HH:mm:ssXXX"
+            observedCanonicalValue = output.string(from: date)
+            observedDisposition = .accepted
+        case .unitThresholdRounding:
+            let locale = Locale(identifier: "en_US_POSIX")
+            guard var value = Decimal(string: required(input.decimal, fixture.vector), locale: locale) else {
+                throw KernelConformanceFixtureFailureV1.invalidArtifact(fixture.id)
+            }
+            var rounded = Decimal()
+            let scale = required(input.integer, fixture.vector)
+            NSDecimalRound(&rounded, &value, scale, .plain)
+            let formatter = NumberFormatter()
+            formatter.locale = locale
+            formatter.numberStyle = .decimal
+            formatter.usesGroupingSeparator = false
+            formatter.minimumFractionDigits = scale
+            formatter.maximumFractionDigits = scale
+            observedCanonicalValue = try required(
+                formatter.string(from: NSDecimalNumber(decimal: rounded)), fixture.vector
+            )
+            observedDisposition = .accepted
+        case .unknownBranchRepeatLimit, .staleRevision, .relationshipCardinality,
+             .lowStorage, .resourceExhaustion, .recoveryFrontierDrift:
+            observedDisposition = required(input.integer, fixture.vector)
+                > required(input.secondaryInteger, fixture.vector) ? .rejected : .accepted
+        case .pathInvalidation:
+            observedDisposition = required(input.path, fixture.vector) == "ACTIVE" ? .accepted : .rejected
+        case .relationshipCycle:
+            observedDisposition = try c42GraphContainsCycle(input.edges) ? .rejected : .accepted
+        case .qualificationExpired:
+            let formatter = ISO8601DateFormatter()
+            let expires = try required(
+                formatter.date(from: required(input.primaryText, fixture.vector)), fixture.vector
+            )
+            let observed = try required(
+                formatter.date(from: required(input.instant, fixture.vector)), fixture.vector
+            )
+            observedDisposition = observed > expires ? .rejected : .accepted
+        case .conflictingAuthorities:
+            let samePriority = input.integer == input.secondaryInteger
+            let differentDisposition = input.primaryText != input.secondaryText
+            observedDisposition = samePriority && differentDisposition ? .rejected : .accepted
+        case .duplicateProductIdentity:
+            observedDisposition = Set(input.entityIDs).count == input.entityIDs.count
+                ? .accepted : .rejected
+        case .missingProductIdentity:
+            observedDisposition = input.entityIDs.isEmpty ? .rejected : .accepted
+        case .cloneForkIdentity:
+            if input.entityIDs.count == 3, Set(input.entityIDs).count == 3 {
+                observedCanonicalValue = input.entityIDs.joined(separator: "|")
+                observedDisposition = .accepted
+            }
+        case .archivePathTraversal:
+            let path = required(input.path, fixture.vector)
+            let components = path.replacingOccurrences(of: "\\", with: "/")
+                .split(separator: "/", omittingEmptySubsequences: false)
+            observedDisposition = path.hasPrefix("/") || components.contains("..")
+                ? .rejected : .accepted
+        case .symlinkEscape:
+            let target = required(input.primaryText, fixture.vector)
+            let components = target.replacingOccurrences(of: "\\", with: "/")
+                .split(separator: "/", omittingEmptySubsequences: false)
+            observedDisposition = target.hasPrefix("/") || components.contains("..")
+                ? .rejected : .accepted
+        case .decompressionBomb:
+            let compressed = required(input.integer, fixture.vector)
+            let expanded = required(input.secondaryInteger, fixture.vector)
+            observedDisposition = compressed <= 0 || expanded > compressed * 128
+                ? .rejected : .accepted
+        case .tamperedBytes:
+            let bytes = try decodeC42Hex(required(input.bytesUTF8Hex, fixture.vector))
+            let actual = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
+            let declared = required(input.digest, fixture.vector)
+            let expected = required(input.expectedDigest, fixture.vector)
+            observedDisposition = actual == declared && declared == expected ? .accepted : .rejected
+        case .interruptedEffectBeforeReceipt:
+            let staged = required(input.integer, fixture.vector)
+            let relaunched = required(input.secondaryInteger, fixture.vector)
+            if staged == 1, relaunched == 1, input.entityIDs.count == 1 {
+                observedEffectCount = 1
+                observedCanonicalValue = input.entityIDs[0]
+                observedDisposition = .recoveredExactlyOnce
+            }
+        case .releaseMembershipLeak:
+            let text = required(input.primaryText, fixture.vector)
+            observedDisposition = ReleaseExclusionReceiptV1.forbiddenReleaseSymbols.contains(where: text.contains)
+                ? .rejected : .accepted
+        }
+
+        let observed = CrossMarketHostileExecutionReceiptV1(
+            id: fixture.id,
+            vector: fixture.vector,
+            inputSHA256: try CrossMarketCanonicalV1.sha256(input),
+            disposition: observedDisposition,
+            code: fixture.vector.rawValue,
+            canonicalValue: observedCanonicalValue,
+            exactlyOnceEffectCount: observedEffectCount
+        )
+        guard observed.disposition == fixture.expected.disposition,
+              observed.code == fixture.expected.code,
+              observed.canonicalValue == fixture.expected.canonicalValue,
+              observed.exactlyOnceEffectCount == fixture.expected.exactlyOnceEffectCount else {
+            throw KernelConformanceFixtureFailureV1.incompleteCoverage(fixture.id)
+        }
+        return observed
+    }
+
+    private static func required<T>(
+        _ value: T?, _ vector: CrossMarketHostileVectorV1
+    ) throws -> T {
+        guard let value else {
+            throw KernelConformanceFixtureFailureV1.invalidArtifact(vector.rawValue)
+        }
+        return value
+    }
+
+    private static func decodeC42Hex(_ value: String) throws -> Data {
+        guard value.count.isMultiple(of: 2), value.allSatisfy({ $0.isHexDigit }) else {
+            throw KernelConformanceFixtureFailureV1.invalidArtifact("c42-hex")
+        }
+        var result = Data()
+        var cursor = value.startIndex
+        while cursor < value.endIndex {
+            let end = value.index(cursor, offsetBy: 2)
+            guard let byte = UInt8(value[cursor..<end], radix: 16) else {
+                throw KernelConformanceFixtureFailureV1.invalidArtifact("c42-hex")
+            }
+            result.append(byte)
+            cursor = end
+        }
+        return result
+    }
+
+    private static func c42GraphContainsCycle(_ edges: [String]) throws -> Bool {
+        var adjacency: [String: [String]] = [:]
+        for edge in edges {
+            let parts = edge.split(separator: ">", omittingEmptySubsequences: false).map(String.init)
+            guard parts.count == 2, parts.allSatisfy({ !$0.isEmpty }) else {
+                throw KernelConformanceFixtureFailureV1.invalidArtifact("c42-edge")
+            }
+            adjacency[parts[0], default: []].append(parts[1])
+            adjacency[parts[1], default: []] += []
+        }
+        var visiting = Set<String>()
+        var visited = Set<String>()
+        func visit(_ node: String) -> Bool {
+            if visiting.contains(node) { return true }
+            if visited.contains(node) { return false }
+            visiting.insert(node)
+            for successor in adjacency[node, default: []].sorted() where visit(successor) {
+                return true
+            }
+            visiting.remove(node)
+            visited.insert(node)
+            return false
+        }
+        return adjacency.keys.sorted().contains(where: visit)
+    }
+}
+
 /// Test-only C40 mutation boundary evidence.  The helper exercises the
 /// coordinator, typed predecessor/concurrency identity, canonical mutation
 /// replay, and the journal-owned receipt binding without opening a second
@@ -781,6 +1339,20 @@ struct KernelConformanceLifecycleTraceV1: Equatable, Sendable {
     let restoredReportCount: Int
     let deletionID: UUID
     let erasedWorkspaceIsEmpty: Bool
+}
+
+struct KernelConformanceCrossMarketLifecycleReceiptV1: Equatable, Sendable {
+    let archetypeID: String
+    let semanticStateSHA256: String
+    let semanticEntityCount: Int
+    let writerBindingLabel: String
+    let lifecycle: KernelConformanceLifecycleTraceV1
+    let canonicalWriterExecuted: Bool
+    let packageRegistryExecuted: Bool
+    let rendererExecuted: Bool
+    let archiveRestoreExecuted: Bool
+    let searchExecuted: Bool
+    let deleteEraseExecuted: Bool
 }
 
 struct KernelConformanceNormalizedReplicaProjectionV1: Equatable, Hashable, Sendable {
@@ -1070,7 +1642,8 @@ final class KernelConformanceProductionHarnessV1 {
     }
 
     func exerciseFullLifecycle(
-        shape: KernelConformanceFixtureShapeV1
+        shape: KernelConformanceFixtureShapeV1,
+        writerBindingLabel: String? = nil
     ) async throws -> KernelConformanceLifecycleTraceV1 {
         var actions: [String] = []
         let validationProfile = try Self.profile(for: shape)
@@ -1082,7 +1655,10 @@ final class KernelConformanceProductionHarnessV1 {
         }
         _ = try coordinator.packageLifecycleDependencies(profileRegistry: validationRegistry)
         actions.append("VALIDATE")
-        try await createFirstSign(assetLabel: shape.shapeID, profile: validationProfile)
+        try await createFirstSign(
+            assetLabel: writerBindingLabel ?? shape.shapeID,
+            profile: validationProfile
+        )
         actions.append(contentsOf: try await exercisePackageLifecycle(
             shape: shape, profile: validationProfile
         ))
@@ -1153,6 +1729,93 @@ final class KernelConformanceProductionHarnessV1 {
             restoredReportCount: restoredReportCount,
             deletionID: deletion.deletionID,
             erasedWorkspaceIsEmpty: empty
+        )
+    }
+
+    func exerciseCrossMarketArchetype(
+        _ scenario: CrossMarketArchetypeScenarioV1
+    ) async throws -> KernelConformanceCrossMarketLifecycleReceiptV1 {
+        try scenario.validate()
+        try scenario.semanticState.validate()
+        let entities = try scenario.semanticState.semanticEntities()
+        let semanticSHA256 = try CrossMarketCanonicalV1.sha256(scenario.semanticState)
+        let shape: KernelConformanceFixtureShapeV1
+        let bindingComponents: [String]
+        switch scenario.semanticState {
+        case let .compositeAreaSafety(model):
+            try model.validate()
+            guard model.location.siteID == model.site.id,
+                  model.area.parentLocationID == model.location.id,
+                  model.composition.subjectAssetID == model.asset.id,
+                  model.finding.criterionConflictID == model.criterionConflict.id,
+                  model.repair.findingID == model.finding.id,
+                  model.recheck.repairID == model.repair.id,
+                  model.signoff.recheckID == model.recheck.id,
+                  model.report.signoffID == model.signoff.id else {
+                throw KernelConformanceFixtureFailureV1.incompleteCoverage(
+                    "c42-composite-semantic-binding"
+                )
+            }
+            shape = .checklist
+            bindingComponents = [
+                model.site.stableLabel, model.location.stableLabel,
+                model.asset.stableLabel, String(model.criteria.count),
+                model.recheck.outcome.rawValue,
+            ]
+        case let .controllerZoneDistribution(model):
+            try model.validate()
+            let destinations = Set(model.relationships.map(\.destinationAssetID))
+            guard model.zones.count == 2,
+                  destinations.isSuperset(of: Set(model.zones.map(\.id))),
+                  destinations.contains(model.sharedComponent.id),
+                  model.maintenanceOccurrence.scheduleID == model.maintenanceSchedule.id,
+                  model.measurementCapture.planID == model.measurementPlan.id,
+                  model.measurementQuality.captureID == model.measurementCapture.id,
+                  model.measurementClaim.qualityAssessmentID == model.measurementQuality.id else {
+                throw KernelConformanceFixtureFailureV1.incompleteCoverage(
+                    "c42-controller-semantic-binding"
+                )
+            }
+            shape = .measurementRepeat
+            bindingComponents = [
+                model.controller.stableLabel, model.sharedComponent.stableLabel,
+                String(model.zones.count), String(model.relationships.count),
+                "\(model.measurementCapture.exactValue.numerator)/\(model.measurementCapture.exactValue.denominator)",
+                model.measurementCapture.exactValue.unit.rawValue,
+            ]
+        }
+        let writerBindingLabel = (
+            bindingComponents + [String(semanticSHA256.prefix(16))]
+        ).joined(separator: "|")
+        let lifecycle = try await exerciseFullLifecycle(
+            shape: shape, writerBindingLabel: writerBindingLabel
+        )
+        let actionSet = Set(lifecycle.executedActions)
+        guard lifecycle.shapeID == shape.shapeID,
+              lifecycle.restoredAssetCount > 0,
+              lifecycle.restoredReportCount > 0,
+              lifecycle.indexedRecordCount > 0,
+              lifecycle.erasedWorkspaceIsEmpty,
+              actionSet.isSuperset(of: [
+                  "VALIDATE", "START", "PROJECT", "ARCHIVE", "RESTORE", "SEARCH",
+                  "DELETE", "ERASE", "RECOVER",
+              ]) else {
+            throw KernelConformanceFixtureFailureV1.incompleteCoverage(
+                "c42-production-semantic-journey"
+            )
+        }
+        return .init(
+            archetypeID: scenario.archetypeID,
+            semanticStateSHA256: semanticSHA256,
+            semanticEntityCount: entities.count,
+            writerBindingLabel: writerBindingLabel,
+            lifecycle: lifecycle,
+            canonicalWriterExecuted: actionSet.contains("START"),
+            packageRegistryExecuted: actionSet.contains("VALIDATE"),
+            rendererExecuted: actionSet.contains("PROJECT"),
+            archiveRestoreExecuted: actionSet.isSuperset(of: ["ARCHIVE", "RESTORE"]),
+            searchExecuted: actionSet.contains("SEARCH"),
+            deleteEraseExecuted: actionSet.isSuperset(of: ["DELETE", "ERASE"])
         )
     }
 

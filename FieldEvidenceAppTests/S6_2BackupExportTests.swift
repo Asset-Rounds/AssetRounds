@@ -439,7 +439,10 @@ private extension S6_2BackupExportTests {
     }
 
     @MainActor
-    func makeMixedHarness(_ label: String) async throws -> Harness {
+    func makeMixedHarness(
+        _ label: String,
+        siteAddress: String? = nil
+    ) async throws -> Harness {
         let support = fileManager.temporaryDirectory.appendingPathComponent("S6_2BackupExportTests-\(label)-\(UUID().uuidString)", isDirectory: true)
         try fileManager.createDirectory(at: support, withIntermediateDirectories: false)
         let session = try StoreGenerationFactory(applicationSupportURL: support).openOrBootstrapCurrent()
@@ -447,7 +450,7 @@ private extension S6_2BackupExportTests {
         let pack = SignPack.illuminatedSignV1
         let siteID = UUID(uuidString: "62000000-0000-0000-0000-000000000001")!
         let assetID = UUID(uuidString: "62000000-0000-0000-0000-000000000002")!
-        context.insert(Site(id: siteID, label: "Backup Site", address: nil, timeZoneID: "America/New_York", createdAt: Date(timeIntervalSince1970: 1_776_420_000)))
+        context.insert(Site(id: siteID, label: "Backup Site", address: siteAddress, timeZoneID: "America/New_York", createdAt: Date(timeIntervalSince1970: 1_776_420_000)))
         context.insert(Asset(id: assetID, siteID: siteID, packID: pack.packID, packSchemaVersion: pack.schemaVersion, packContentVersion: pack.contentVersion, label: "One Live Sign", createdAt: Date(timeIntervalSince1970: 1_776_420_001)))
         let state = try XCTUnwrap(context.fetch(FetchDescriptor<WorkspaceMutationStateRow>()).first)
         let initialPlacement = try AssetPlacementEventV1(
@@ -739,5 +742,38 @@ private final class C31LightingAnchorS62BackupExportTests: XCTestCase {
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
         XCTAssertTrue(LightingIssueKindV1.allCases.contains(.cameraBandingOnly))
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
+    }
+}
+
+extension S6_2BackupExportTests {
+    @MainActor
+    func testV23P03C42BackupExportRoundTripsTypedReceiptAndReleaseExclusion() async throws {
+        let receipt = try ControllerZoneDistributionArchetypeV1.run()
+        let c42Bytes = try CrossMarketCanonicalV1.data(receipt)
+        let payload = c42Bytes.base64EncodedString()
+        let harness = try await makeMixedHarness("c42-export", siteAddress: payload)
+        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        let destination = harness.applicationSupportURL.appendingPathComponent("c42-export", isDirectory: true)
+        try fileManager.createDirectory(at: destination, withIntermediateDirectories: false)
+        let exporter = makeService(harness, capacity: .max)
+        let preview = try exporter.prepare()
+        let package = try exporter.export(previewID: preview.id, to: destination)
+        let importer = try BackupImportService(
+            generationRootURL: harness.session.generationRootURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
+            scopedAccess: .alreadyAuthorized
+        )
+        let validated = try importer.stageAndValidate(selectedPackageURL: package)
+        defer { try? importer.discard(validated) }
+        let restoredPayload = try XCTUnwrap(validated.records.sites.first?.address)
+        XCTAssertEqual(restoredPayload, payload)
+        XCTAssertEqual(
+            try CrossMarketCanonicalV1.decode(
+                ModelRunReceiptV1.self,
+                from: try XCTUnwrap(Data(base64Encoded: restoredPayload))
+            ),
+            receipt
+        )
+        XCTAssertEqual(validated.members["records.json"], try BackupCanonicalEncoderV1().encodeRecords(validated.records).data)
     }
 }

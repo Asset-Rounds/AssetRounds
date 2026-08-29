@@ -1161,3 +1161,87 @@ private final class C31LightingAnchorV9ChangeJournalCheckpointReplayTests: XCTes
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
     }
 }
+
+extension V9_ChangeJournalCheckpointReplayTests {
+    @MainActor
+    func testV23P03C42ChangeJournalReplayRetainsTypedRevisionAndMutationIdentity() throws {
+        let receipts = [try CompositeAreaSafetyArchetypeV1.run(), try ControllerZoneDistributionArchetypeV1.run()]
+        for (offset, receipt) in receipts.enumerated() {
+            let c42Bytes = try CrossMarketCanonicalV1.data(receipt)
+            let payload = c42Bytes.base64EncodedString()
+            let supersede = try XCTUnwrap(receipt.operations.first { $0.kind == .supersede })
+            let stale = try XCTUnwrap(receipt.operations.first { $0.kind == .rejectStaleRevision })
+            let mutationID = try XCTUnwrap(receipt.operations.compactMap(\.mutationID).first)
+            let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+                "V9-ChangeJournal-C42-\(offset)-\(UUID().uuidString)",
+                isDirectory: true
+            )
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+            defer { try? FileManager.default.removeItem(at: root) }
+            let session = try StoreGenerationFactory(applicationSupportURL: root).openOrBootstrapCurrent()
+            let siteID = UUID()
+            session.modelContext.insert(Site(
+                id: siteID,
+                label: receipt.archetypeID,
+                address: payload,
+                timeZoneID: "UTC",
+                createdAt: Date(timeIntervalSince1970: 1_800_420_000 + Double(offset))
+            ))
+            try session.modelContext.save()
+            let coordinator = StoreSessionCoordinator(session: session)
+            let writer = coordinator.workspaceWriter
+            let before = try writer.currentRevision()
+            let expected = try WorkspaceExpectedRevisionV1(
+                workspaceID: before.workspaceID,
+                generationID: before.generationID,
+                writerInstanceID: before.writerInstanceID,
+                workspaceRevision: before.revision,
+                entityRevisions: [try WorkspaceEntityRevisionV1(
+                    identity: WorkspaceEntityIdentityV1(kind: .site, id: siteID),
+                    revision: 0
+                )]
+            )
+            let request = WorkspaceMutationRequestV1(
+                mutationID: mutationID,
+                expectedRevision: expected,
+                command: .updateSiteTimeZone(.init(
+                    siteID: siteID,
+                    timeZoneID: "Europe/Paris",
+                    confirmedAt: Date(timeIntervalSince1970: 1_800_420_100 + Double(offset))
+                ))
+            )
+            let firstOutcome = try writer.execute(request)
+            let replayOutcome = try writer.execute(request)
+            let journal = try MutationJournalStoreV1(
+                modelContext: session.modelContext,
+                identity: session.workspaceIdentity,
+                generationID: session.generationID,
+                allowStateBootstrap: false
+            )
+            let durableReceipt = try XCTUnwrap(journal.receipt(mutationID: mutationID))
+            let backup = BackupExportService(
+                modelContext: session.modelContext,
+                generationRootURL: session.generationRootURL,
+                storagePreflight: StoragePreflightService(capacityProvider: { _ in .max })
+            )
+            let checkpoint = try backup.canonicalCheckpointBasis()
+            let records = try BackupCanonicalDecoderV1().decodeRecords(checkpoint.recordsData)
+            let restoredPayload = try XCTUnwrap(records.sites.first?.address)
+
+            XCTAssertEqual(restoredPayload, payload)
+            XCTAssertEqual(
+                try CrossMarketCanonicalV1.decode(
+                    ModelRunReceiptV1.self,
+                    from: try XCTUnwrap(Data(base64Encoded: restoredPayload))
+                ),
+                receipt
+            )
+            XCTAssertEqual(replayOutcome, firstOutcome)
+            XCTAssertEqual(durableReceipt.mutationID, mutationID)
+            XCTAssertEqual(checkpoint.workspaceRevision, firstOutcome.after.revision)
+            XCTAssertEqual(try journal.exportSnapshot().workspaceRevision, firstOutcome.after.revision)
+            XCTAssertEqual(supersede.resultingRevision, 2)
+            XCTAssertEqual(stale.entityID, supersede.entityID)
+        }
+    }
+}

@@ -831,7 +831,11 @@ private extension S6_4AtomicRestoreTests {
     }
 
     @MainActor
-    func makeSourcePackage(in root: URL, name: String) throws -> URL {
+    func makeSourcePackage(
+        in root: URL,
+        name: String,
+        siteAddress: String? = nil
+    ) throws -> URL {
         let support = root.appendingPathComponent(
             "\(name)-support",
             isDirectory: true
@@ -844,7 +848,7 @@ private extension S6_4AtomicRestoreTests {
         session.modelContext.insert(Site(
             id: siteID,
             label: "North lot",
-            address: nil,
+            address: siteAddress,
             timeZoneID: "America/New_York",
             createdAt: Date(timeIntervalSince1970: 1_786_708_800)
         ))
@@ -1037,5 +1041,50 @@ private final class C31LightingAnchorS64AtomicRestoreTests: XCTestCase {
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
         XCTAssertTrue(LightingIssueKindV1.allCases.contains(.cameraBandingOnly))
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
+    }
+}
+
+extension S6_4AtomicRestoreTests {
+    @MainActor
+    func testV23P03C42AtomicRestorePublishesACompleteTypedReceipt() async throws {
+        let receipts = [
+            try CompositeAreaSafetyArchetypeV1.run(),
+            try ControllerZoneDistributionArchetypeV1.run()
+        ]
+
+        for (offset, receipt) in receipts.enumerated() {
+            let payload = try CrossMarketCanonicalV1.data(receipt).base64EncodedString()
+            let harness = try makeHarness("c42-atomic-\(offset)")
+            defer { try? fileManager.removeItem(at: harness.root) }
+            let package = try makeSourcePackage(
+                in: harness.root,
+                name: "c42-source-\(offset)",
+                siteAddress: payload
+            )
+            let validated = try importPackage(package, into: harness.session)
+            let restoredSession = try await BackupRestoreService(
+                applicationSupportURL: harness.support,
+                storagePreflight: StoragePreflightService(capacityProvider: { _ in .max })
+            ).restore(
+                validatedPackage: validated,
+                currentModelContext: harness.session.modelContext,
+                currentGenerationID: harness.session.generationID,
+                currentGenerationRootURL: harness.session.generationRootURL,
+                mode: .emptyInstall
+            )
+            let restoredPayload = try XCTUnwrap(
+                restoredSession.modelContext.fetch(FetchDescriptor<Site>()).first?.address
+            )
+            XCTAssertEqual(restoredPayload, payload)
+            XCTAssertEqual(
+                try CrossMarketCanonicalV1.decode(
+                    ModelRunReceiptV1.self,
+                    from: try XCTUnwrap(Data(base64Encoded: restoredPayload))
+                ),
+                receipt
+            )
+            XCTAssertNotEqual(restoredSession.generationID, harness.session.generationID)
+            XCTAssertNil(try RestoreIntentStore(applicationSupportURL: harness.support).load())
+        }
     }
 }

@@ -1,0 +1,73 @@
+{
+  "artifactDigest": "91cebe1b1a787e7d373bab11164ce6641349b48d1a1c15b458905135ff6ae7ca",
+  "authority": {
+    "allowedPathCount": 35,
+    "appBaseHead": "0ef5a09d9255a3f633bf7506de49ba9d564619f1",
+    "appBaseTree": "3e7970fbde803e7d485b2eb8d789c0d032aa5f1f",
+    "attemptID": 1,
+    "authorizedOverlapCount": 306,
+    "cardID": "V23-P03-C42",
+    "contextDigest": "33147aa41417cdb6adeba7aa2be91f50b4346d9b15546cba96b8ac03ce6e1770",
+    "coordinationCASSequence": 298,
+    "coordinationHead": "bc21e4f468dca4ba2ef32430a897270fbe4ed72d",
+    "coordinationLedgerDigest": "9124ffb600d58ee77f8ea4eb2fc83e6ce32e918b1fe80ebc1a95f8ab7b1598f2",
+    "coordinationProjectionDigest": "8833695ad009cc2a6db4bee4511f4dac8eb086178096fc48c9ece36d93bcf3d4",
+    "coordinationTree": "de17cc0002ea6b41c98c910f86781b06c1012289",
+    "directPrerequisiteCards": [
+      "V23-P03-C10"
+    ],
+    "existingPathCount": 21,
+    "fenceDigest": "0d3fd318d75b5dc512ee7d9d2152118b3a2fb5cbc83cd666029126fa519271dd",
+    "hydrationRevision": 1,
+    "hydrationTransitionDigest": "402d18960a017697808c032257a00e768c0bd95fae17f5ab087631e27a9c8eb8",
+    "newPathCount": 14,
+    "nextCard": "V23-P03-C32",
+    "prerequisiteDigest": "cb2720d424ec94999332fd6df38ebd0a0fbf6b94f0fdca98fa12ab34faa5057d",
+    "registerOrdinal": 70,
+    "title": "Deterministic cross-market archetype, model-based state, codec, interruption, and Release-exclusion conformance corpus",
+    "unauthorizedOverlapCount": 0
+  },
+  "persistence": {
+    "durableFamilyCount": 0,
+    "fixtureDisposition": "IMMUTABLE_VERSIONED_TEST_INPUT_APPEND_ONLY",
+    "generatedScratchDisposition": "BOUNDED_AND_REMOVED_AFTER_RUN",
+    "mode": "NONPERSISTENT_TESTSUPPORT_ONLY",
+    "persistedFamilies": [],
+    "persistentKindLifecycleModelCount": 0,
+    "persistentSchemaVersion": null,
+    "productBackupRecordDelta": false,
+    "productSchemaBehaviorDelta": false,
+    "recordsSchemaVersion": null
+  },
+  "requiredSemantics": {
+    "acceptedSharedKernelOnly": true,
+    "boundedModelAndShrink": true,
+    "contractNames": [
+      "CompositeAreaSafetyArchetypeV1",
+      "ControllerZoneDistributionArchetypeV1",
+      "ModelOperationV1",
+      "ModelRunReceiptV1",
+      "DeterministicRegressionPromotionReceiptV1",
+      "ReleaseExclusionReceiptV1"
+    ],
+    "counterexamplePromotionIsImmutable": true,
+    "customerAndLicensedDataForbidden": true,
+    "exactTwoSyntheticNonshippingArchetypes": true,
+    "fiveSelectors": [
+      "testV23P03C42G01BothArchetypesCompleteOfflineSharedKernelJourney",
+      "testV23P03C42A01FixedSeedModelRunsAreByteIdenticalAndBounded",
+      "testV23P03C42H01HostileCorpusAndReleaseLeakageFailClosed",
+      "testV23P03C42I01EveryStagedBoundaryConvergesAfterInterruption",
+      "testV23P03C42R01PromotedCounterexamplesReplayAndReleaseExclusionRemainsExact"
+    ],
+    "fixedSeedByteIdenticalOperationSequence": true,
+    "futureMarketVocabularyForbidden": true,
+    "isolatedCodecMigrationAndLifecycleCopies": true,
+    "noProductStoreMutation": true,
+    "productionDependencyForbidden": true,
+    "randomOnlySuccessCannotAccept": true,
+    "releaseExclusionSurfaceEnumerationExact": true
+  },
+  "schema": "V23P03C42CrossMarketConformanceContractV1",
+  "schemaVersion": 1
+}

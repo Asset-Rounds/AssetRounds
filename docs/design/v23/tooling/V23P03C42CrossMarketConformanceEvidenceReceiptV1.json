@@ -1,0 +1,40 @@
+{
+  "artifactDigest": "08fe19b77803aa7c2853fcc5b397e88fa314a46c6bd81c25761b6f33b9afa780",
+  "cardID": "V23-P03-C42",
+  "evidenceIDs": [
+    "V23-P03-C42-G01",
+    "V23-P03-C42-A01",
+    "V23-P03-C42-H01",
+    "V23-P03-C42-I01",
+    "V23-P03-C42-R01"
+  ],
+  "releaseExclusion": {
+    "compiledArchive": "NOT_RUN",
+    "runtimeEnumeration": "NOT_RUN",
+    "sourceMembership": "STATIC_REQUIRED",
+    "targetDependencyGraph": "STATIC_REQUIRED"
+  },
+  "requiredSemanticsDigest": "500d9fc40964da0bcfa8335df7ddd3b41ce8ef461694fd86f79e5e50fdc1de61",
+  "schema": "V23P03C42CrossMarketConformanceEvidenceReceiptV1",
+  "schemaVersion": 1,
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "testSelectors": [
+    "testV23P03C42G01BothArchetypesCompleteOfflineSharedKernelJourney",
+    "testV23P03C42A01FixedSeedModelRunsAreByteIdenticalAndBounded",
+    "testV23P03C42H01HostileCorpusAndReleaseLeakageFailClosed",
+    "testV23P03C42I01EveryStagedBoundaryConvergesAfterInterruption",
+    "testV23P03C42R01PromotedCounterexamplesReplayAndReleaseExclusionRemainsExact"
+  ]
+}

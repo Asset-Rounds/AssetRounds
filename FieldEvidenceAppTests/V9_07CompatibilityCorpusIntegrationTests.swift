@@ -818,3 +818,42 @@ private final class C31LightingAnchorV907CompatibilityCorpusIntegrationTests: XC
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
     }
 }
+
+extension V9_07CompatibilityCorpusIntegrationTests {
+    @MainActor
+    func testV23P03C42CompatibilityCorpusBindsExactlyTwoTypedArchetypes() async throws {
+        let receipts = [try CompositeAreaSafetyArchetypeV1.run(), try ControllerZoneDistributionArchetypeV1.run()]
+        for (offset, receipt) in receipts.enumerated() {
+            let payload = try CrossMarketCanonicalV1.data(receipt).base64EncodedString()
+            let source = try V906Integration.makeHarness("c42-corpus-source-\(offset)", withAsset: true)
+            let target = try V906Integration.makeHarness("c42-corpus-target-\(offset)", withAsset: false)
+            defer {
+                V906Integration.remove(source.root)
+                V906Integration.remove(target.root)
+            }
+            let sourceSite = try XCTUnwrap(source.session.modelContext.fetch(FetchDescriptor<Site>()).first)
+            sourceSite.address = payload
+            try source.session.modelContext.save()
+            let archive = try V906Integration.exportStreaming(source)
+            let restored = try await V906Integration.restore(
+                archive,
+                into: target,
+                mode: .emptyInstall,
+                ids: V906Integration.restoreIDs(.emptyInstall, offset: 90 + offset)
+            )
+            let restoredPayload = try XCTUnwrap(
+                restored.modelContext.fetch(FetchDescriptor<Site>()).first?.address
+            )
+            XCTAssertEqual(restoredPayload, payload)
+            XCTAssertEqual(
+                try CrossMarketCanonicalV1.decode(
+                    ModelRunReceiptV1.self,
+                    from: try XCTUnwrap(Data(base64Encoded: restoredPayload))
+                ),
+                receipt
+            )
+            XCTAssertEqual(restored.workspaceID.rawValue, source.session.workspaceID.rawValue)
+            XCTAssertNotEqual(restored.replicaID.rawValue, source.session.replicaID.rawValue)
+        }
+    }
+}

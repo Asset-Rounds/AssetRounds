@@ -1,0 +1,260 @@
+{
+  "artifactDigest": "0ff08dfa9221a7bfe66acb725cbe9836e4f60836dfc810c6ccb558bd6517828a",
+  "artifactSetDigest": "045bc379cad803d3b964a0b0c194d7722af26a9eae4818b67f59498bf6621ddf",
+  "artifacts": [
+    {
+      "byteCount": 341541,
+      "path": "FieldEvidenceAppTests/TestSupport/PortableContracts/KernelConformanceFixtureHarnessV1.swift",
+      "sha256": "b46f3451070fa34089592b2d333b60f3ce58bdc9c6008597a98242c70592d0f4"
+    },
+    {
+      "byteCount": 11409,
+      "path": "FieldEvidenceAppTests/TestSupport/PortableContracts/PortableContractValidatorAdapterV1.swift",
+      "sha256": "c6ee6b65aac27cc32494a6689fb99441cfd53daad26d35d5a115081a366453e8"
+    },
+    {
+      "byteCount": 12498,
+      "path": "FieldEvidenceAppTests/TestSupport/PortableContracts/PortableContractToolLockReaderV1.swift",
+      "sha256": "ecef8aec2e6930db4c16ec7cd8106b50558b8c436c7524bbc0543e0b5fe586ee"
+    },
+    {
+      "byteCount": 39536,
+      "path": "FieldEvidenceAppTests/V9_20KernelConformanceTests.swift",
+      "sha256": "40cb6ea6032fd24dbc59268e8bfe781edd94dc4a45152f74a3f9bee9aa19b93f"
+    },
+    {
+      "byteCount": 17003,
+      "path": "FieldEvidenceAppTests/CompatibilityCorpusSupportV1.swift",
+      "sha256": "ff7353af4f9d9f1b82b637f06a24f702268a525e80d8f5812f0834d1344404c7"
+    },
+    {
+      "byteCount": 24952,
+      "path": "FieldEvidenceAppTests/V9_04StreamingArchiveTests.swift",
+      "sha256": "d13ede7f4e83ccca5ca01b8d8210800ee62f877bd458f9193213c165633fe404"
+    },
+    {
+      "byteCount": 55967,
+      "path": "FieldEvidenceAppTests/V9_05RestoreIdentityTests.swift",
+      "sha256": "f95cba9e51d6c9d32e457286bebbb89be6b8fb829f277a671d4d269731c358b3"
+    },
+    {
+      "byteCount": 41892,
+      "path": "FieldEvidenceAppTests/V9_07CompatibilityCorpusIntegrationTests.swift",
+      "sha256": "b613586da188be0743d0e1902ada7d884f9e3d3b3b2e27e8ceb6e4782554d893"
+    },
+    {
+      "byteCount": 65394,
+      "path": "FieldEvidenceAppTests/V9_10LifecycleBoundaryTests.swift",
+      "sha256": "d64b0940230ba3254964fa8785b562b3c5168f8c4fc39b9b0e0941292e40df83"
+    },
+    {
+      "byteCount": 58157,
+      "path": "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests.swift",
+      "sha256": "5e9e4934dcd65351764470fb8db72299c7dcd4ba87df15949d73f4b1f7f09a83"
+    },
+    {
+      "byteCount": 59505,
+      "path": "FieldEvidenceAppTests/S4_1DeterministicRendererTests.swift",
+      "sha256": "bb7968971f5597401900a47f8dd502de68183d2144dea18437f907bf1e111340"
+    },
+    {
+      "byteCount": 38887,
+      "path": "FieldEvidenceAppTests/S4_4HistoryComparisonTests.swift",
+      "sha256": "ba8b1a51e1f526f642e64030b22228788300e45961f61269ddf7ea7f6e9e3ed0"
+    },
+    {
+      "byteCount": 44518,
+      "path": "FieldEvidenceAppTests/S6_2BackupExportTests.swift",
+      "sha256": "581c9498da5e7889a71c80dd8b6543ae04004448497e007272f5ad1215eda0e2"
+    },
+    {
+      "byteCount": 103851,
+      "path": "FieldEvidenceAppTests/S6_3BackupValidationTests.swift",
+      "sha256": "1c0a0abcbb30831210739452efc494ead31d371b4ea2b08070e1f214730df6b3"
+    },
+    {
+      "byteCount": 49136,
+      "path": "FieldEvidenceAppTests/S6_4AtomicRestoreTests.swift",
+      "sha256": "10875b87a3bc9e629fd6aa5907a3bcf552f21655fb24dc0874c1bab686c2bd24"
+    },
+    {
+      "byteCount": 52535,
+      "path": "FieldEvidenceAppTests/S6_6EraseRecoveryTests.swift",
+      "sha256": "b38d644e8ff420b98487159fd85124ee05de8859d5181c280a8304b34f57aea9"
+    },
+    {
+      "byteCount": 49122,
+      "path": "FieldEvidenceAppTests/V9_16SnapshotProjectionTests.swift",
+      "sha256": "2693dc7e1dace3c7fd17c4330ca5225bac90d011803410fb431ccccb6170e239"
+    },
+    {
+      "byteCount": 58234,
+      "path": "FieldEvidenceAppTests/V9_19LocalSearchTests.swift",
+      "sha256": "8f83a6e4460e663296c15db8d4f6a01a1585f142b9be70707d0b6ca6869132d2"
+    },
+    {
+      "byteCount": 95499,
+      "path": "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift",
+      "sha256": "55de84146685214bcf22fc209b38bb905ff9363f0d8e61cfc8b25c4bd04fee2e"
+    },
+    {
+      "byteCount": 11281,
+      "path": "FieldEvidenceAppTests/S8_2GoldenAccessibilityTests.swift",
+      "sha256": "76917ca2e8e1409ae1626af18e0bdb660d464e63affc9a1a3cb1d8389f65e387"
+    },
+    {
+      "byteCount": 33113,
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "sha256": "194583465b03694055c72ad4fe79e755a7cc5f44e1c0f4ce650274d469cc23bb"
+    },
+    {
+      "byteCount": 16679,
+      "path": "FieldEvidenceAppTests/TestSupport/CrossMarketConformance/CompositeAreaSafetyArchetypeV1.swift",
+      "sha256": "8be7805940ecd41d93fab9df7d21758d20dbcbba19a9bcb431405f3ea8caef97"
+    },
+    {
+      "byteCount": 18461,
+      "path": "FieldEvidenceAppTests/TestSupport/CrossMarketConformance/ControllerZoneDistributionArchetypeV1.swift",
+      "sha256": "80135e6419af6e7e4a87063c5af8776829da66787c708f9429783161e21eec5a"
+    },
+    {
+      "byteCount": 62577,
+      "path": "FieldEvidenceAppTests/TestSupport/CrossMarketConformance/ModelBasedConformanceContractsV1.swift",
+      "sha256": "c377f6bad6651bb9be13751b9c8819271792daabc8fa6c5c0962188789604be8"
+    },
+    {
+      "byteCount": 21454,
+      "path": "FieldEvidenceAppTests/TestSupport/CrossMarketConformance/ReleaseExclusionReceiptV1.swift",
+      "sha256": "b1790ca5b1658e0cdfa7132d7d7e297a04d570a0d94cc9bc1a34d3d58cc78619"
+    },
+    {
+      "byteCount": 37151,
+      "path": "FieldEvidenceAppTests/V9_47CrossMarketConformanceTests.swift",
+      "sha256": "44543d2af26c68bf9d5c98cf4d940d6518edd6e39e044f540dcd6464ebaa0bdf"
+    },
+    {
+      "byteCount": 24553,
+      "path": "FieldEvidenceAppTests/Fixtures/V22/CrossMarketConformance/V22P03C42CrossMarketConformanceCorpusV1.json",
+      "sha256": "344703f7a56de6b261db43822179767bfa0b1a48288da195df2c3cab7cf8b50d"
+    },
+    {
+      "byteCount": 17496,
+      "path": "Scripts/v23/p03_c42_contracts.py",
+      "sha256": "d2a7aa5586add09ee18f495a7f4a3116d5713d8f81c22e14617f6ae05be618c5"
+    },
+    {
+      "byteCount": 1248,
+      "path": "Scripts/v23/generate_p03_c42_contracts.py",
+      "sha256": "f1b4637a904f6aa1a8436cac46f2675fd36c3652d2dcdc17b44b95459bdf0f93"
+    },
+    {
+      "byteCount": 2376,
+      "path": "Scripts/v23/verify_p03_c42_contracts.py",
+      "sha256": "5a4c27e73937a6767b0db2c851103515b20a516d7d580856394928b97849c765"
+    },
+    {
+      "byteCount": 962,
+      "path": "Scripts/v23/cross-market-conformance.schema.json",
+      "sha256": "36b446d4001a587d3473a27cf10ec7114d59a64f4cc664dd303ac62674b6b1d6"
+    },
+    {
+      "byteCount": 3233,
+      "path": "docs/design/v23/tooling/V23P03C42CrossMarketConformanceContractV1.json",
+      "sha256": "c40b90a246be1fb04d6f438f6efdeacb3ce5c4e19f4c08fde166fea4e5a672ae"
+    },
+    {
+      "byteCount": 1353,
+      "path": "docs/design/v23/tooling/V23P03C42CrossMarketConformanceEvidenceReceiptV1.json",
+      "sha256": "23bfdc3d19716bc749740d4b6d15c9b94420b465050a5501e26623f83cff662b"
+    },
+    {
+      "byteCount": 667,
+      "path": "docs/design/v23/tooling/V23P03C42BrandImpactManifestV1.json",
+      "sha256": "8412183fab22cdf1d60b86ac0eb50822ab0c32c9b8f45b0d2f7a66b6380632c4"
+    }
+  ],
+  "authority": {
+    "allowedPathCount": 35,
+    "appBaseHead": "0ef5a09d9255a3f633bf7506de49ba9d564619f1",
+    "appBaseTree": "3e7970fbde803e7d485b2eb8d789c0d032aa5f1f",
+    "attemptID": 1,
+    "authorizedOverlapCount": 306,
+    "cardID": "V23-P03-C42",
+    "contextDigest": "33147aa41417cdb6adeba7aa2be91f50b4346d9b15546cba96b8ac03ce6e1770",
+    "coordinationCASSequence": 298,
+    "coordinationHead": "bc21e4f468dca4ba2ef32430a897270fbe4ed72d",
+    "coordinationLedgerDigest": "9124ffb600d58ee77f8ea4eb2fc83e6ce32e918b1fe80ebc1a95f8ab7b1598f2",
+    "coordinationProjectionDigest": "8833695ad009cc2a6db4bee4511f4dac8eb086178096fc48c9ece36d93bcf3d4",
+    "coordinationTree": "de17cc0002ea6b41c98c910f86781b06c1012289",
+    "directPrerequisiteCards": [
+      "V23-P03-C10"
+    ],
+    "existingPathCount": 21,
+    "fenceDigest": "0d3fd318d75b5dc512ee7d9d2152118b3a2fb5cbc83cd666029126fa519271dd",
+    "hydrationRevision": 1,
+    "hydrationTransitionDigest": "402d18960a017697808c032257a00e768c0bd95fae17f5ab087631e27a9c8eb8",
+    "newPathCount": 14,
+    "nextCard": "V23-P03-C32",
+    "prerequisiteDigest": "cb2720d424ec94999332fd6df38ebd0a0fbf6b94f0fdca98fa12ab34faa5057d",
+    "registerOrdinal": 70,
+    "title": "Deterministic cross-market archetype, model-based state, codec, interruption, and Release-exclusion conformance corpus",
+    "unauthorizedOverlapCount": 0
+  },
+  "authorizedOverlapCount": 306,
+  "existingPathCount": 21,
+  "newPathCount": 14,
+  "pathFence": [
+    "FieldEvidenceAppTests/TestSupport/PortableContracts/KernelConformanceFixtureHarnessV1.swift",
+    "FieldEvidenceAppTests/TestSupport/PortableContracts/PortableContractValidatorAdapterV1.swift",
+    "FieldEvidenceAppTests/TestSupport/PortableContracts/PortableContractToolLockReaderV1.swift",
+    "FieldEvidenceAppTests/V9_20KernelConformanceTests.swift",
+    "FieldEvidenceAppTests/CompatibilityCorpusSupportV1.swift",
+    "FieldEvidenceAppTests/V9_04StreamingArchiveTests.swift",
+    "FieldEvidenceAppTests/V9_05RestoreIdentityTests.swift",
+    "FieldEvidenceAppTests/V9_07CompatibilityCorpusIntegrationTests.swift",
+    "FieldEvidenceAppTests/V9_10LifecycleBoundaryTests.swift",
+    "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests.swift",
+    "FieldEvidenceAppTests/S4_1DeterministicRendererTests.swift",
+    "FieldEvidenceAppTests/S4_4HistoryComparisonTests.swift",
+    "FieldEvidenceAppTests/S6_2BackupExportTests.swift",
+    "FieldEvidenceAppTests/S6_3BackupValidationTests.swift",
+    "FieldEvidenceAppTests/S6_4AtomicRestoreTests.swift",
+    "FieldEvidenceAppTests/S6_6EraseRecoveryTests.swift",
+    "FieldEvidenceAppTests/V9_16SnapshotProjectionTests.swift",
+    "FieldEvidenceAppTests/V9_19LocalSearchTests.swift",
+    "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift",
+    "FieldEvidenceAppTests/S8_2GoldenAccessibilityTests.swift",
+    "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+    "FieldEvidenceAppTests/TestSupport/CrossMarketConformance/CompositeAreaSafetyArchetypeV1.swift",
+    "FieldEvidenceAppTests/TestSupport/CrossMarketConformance/ControllerZoneDistributionArchetypeV1.swift",
+    "FieldEvidenceAppTests/TestSupport/CrossMarketConformance/ModelBasedConformanceContractsV1.swift",
+    "FieldEvidenceAppTests/TestSupport/CrossMarketConformance/ReleaseExclusionReceiptV1.swift",
+    "FieldEvidenceAppTests/V9_47CrossMarketConformanceTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V22/CrossMarketConformance/V22P03C42CrossMarketConformanceCorpusV1.json",
+    "Scripts/v23/p03_c42_contracts.py",
+    "Scripts/v23/generate_p03_c42_contracts.py",
+    "Scripts/v23/verify_p03_c42_contracts.py",
+    "Scripts/v23/cross-market-conformance.schema.json",
+    "docs/design/v23/tooling/V23P03C42CrossMarketConformanceContractV1.json",
+    "docs/design/v23/tooling/V23P03C42CrossMarketConformanceEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23P03C42BrandImpactManifestV1.json",
+    "docs/design/v23/tooling/V23-P03-C42-tooling-manifest.json"
+  ],
+  "pathFenceCount": 35,
+  "schema": "V23P03C42ToolingManifestV1",
+  "schemaVersion": 1,
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "unauthorizedOverlapCount": 0
+}

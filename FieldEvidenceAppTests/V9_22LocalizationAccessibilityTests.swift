@@ -1917,3 +1917,32 @@ private final class C31LightingAnchorV922LocalizationAccessibilityTests: XCTestC
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
     }
 }
+
+extension V9_22LocalizationAccessibilityTests {
+    func testV23P03C42LocalizationPresentsTypedArchetypeDispositionThroughShippingCatalog() throws {
+        let scenarios = [
+            try CompositeAreaSafetyArchetypeV1.scenario(),
+            try ControllerZoneDistributionArchetypeV1.scenario()
+        ]
+        let localization = try BundledLocalizationCatalogV1.registry()
+        try localization.validate()
+
+        for scenario in scenarios {
+            let replay = try XCTUnwrap(scenario.operations.first { $0.kind == .replay })
+            let key: BundledLocalizationKeyV1 =
+                replay.expectedDisposition == .idempotentReplay ? .commonDone : .mailMessageLabel
+            let definition = try XCTUnwrap(
+                localization.definitions.first { $0.key.rawValue == key.rawValue }
+            )
+            let localized = BundledLocalizationCatalogV1.localized(key)
+            XCTAssertEqual(localized, definition.englishDefaultValue)
+            XCTAssertEqual(localized, "Done")
+            XCTAssertFalse(localized.localizedCaseInsensitiveContains(scenario.archetypeID))
+            XCTAssertFalse(
+                localized.localizedCaseInsensitiveContains(
+                    scenario.capabilities.map(\.rawValue).joined(separator: " ")
+                )
+            )
+        }
+    }
+}

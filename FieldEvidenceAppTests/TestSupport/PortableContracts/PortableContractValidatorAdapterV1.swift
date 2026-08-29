@@ -129,6 +129,21 @@ struct PortableContractValidatorAdapterV1: Sendable {
         try validate(contractCase, observed: try observe(contractCase.input))
     }
 
+    /// Validates the entire immutable C42 slice through the same independently
+    /// pinned portable-envelope boundary used by kernel conformance.  Corpus
+    /// order is receipt order, so same bytes always produce the same receipts.
+    func validateCrossMarketCorpus(
+        _ cases: [PortableContractCaseV1]
+    ) throws -> [PortableContractValidationReceiptV1] {
+        guard !cases.isEmpty,
+              cases.count <= 128,
+              Set(cases.map(\.id)).count == cases.count,
+              Set(cases.map(\.expectedClass)) == [.accepted, .rejected] else {
+            throw PortableContractValidationFailureV1.invalidCorpus
+        }
+        return try cases.map(validate)
+    }
+
     private func observe(_ input: String) throws -> PortableContractObservedResultV1 {
         guard let object = try JSONSerialization.jsonObject(
             with: Data(input.utf8), options: [.fragmentsAllowed]

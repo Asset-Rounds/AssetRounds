@@ -706,10 +706,19 @@ private extension V9_05RestoreIdentityTests {
     var unlimitedStorage: StoragePreflightService { StoragePreflightService(capacityProvider: { _ in .max }) }
 
     @MainActor
-    func makeScenario(_ name: String, targetIsNonempty: Bool) throws -> Scenario {
+    func makeScenario(
+        _ name: String,
+        targetIsNonempty: Bool,
+        sourceSiteAddress: String? = nil
+    ) throws -> Scenario {
         let root = fileManager.temporaryDirectory.appendingPathComponent("V9_05-\(name)-\(UUID().uuidString)", isDirectory: true)
         try fileManager.createDirectory(at: root, withIntermediateDirectories: false)
-        let source = try makeHarness(at: root, name: "source", nonempty: true)
+        let source = try makeHarness(
+            at: root,
+            name: "source",
+            nonempty: true,
+            siteAddress: sourceSiteAddress
+        )
         let sourceRecordIDs = try recordIDs(in: source.session)
         let sourceSiteID = try XCTUnwrap(
             try source.session.modelContext.fetch(FetchDescriptor<Site>()).first?.id
@@ -775,14 +784,19 @@ private extension V9_05RestoreIdentityTests {
     }
 
     @MainActor
-    func makeHarness(at root: URL, name: String, nonempty: Bool) throws -> Harness {
+    func makeHarness(
+        at root: URL,
+        name: String,
+        nonempty: Bool,
+        siteAddress: String? = nil
+    ) throws -> Harness {
         let support = root.appendingPathComponent("\(name)-support", isDirectory: true)
         try fileManager.createDirectory(at: support, withIntermediateDirectories: true)
         let factory = StoreGenerationFactory(applicationSupportURL: support)
         let session = try factory.openOrBootstrapCurrent()
         if nonempty {
             let siteID = UUID()
-            session.modelContext.insert(Site(id: siteID, label: "\(name) lot", address: nil, timeZoneID: "America/New_York", createdAt: Date(timeIntervalSince1970: 1_799_999_000)))
+            session.modelContext.insert(Site(id: siteID, label: "\(name) lot", address: siteAddress, timeZoneID: "America/New_York", createdAt: Date(timeIntervalSince1970: 1_799_999_000)))
             session.modelContext.insert(Asset(id: UUID(), siteID: siteID, packID: SignPack.illuminatedSignV1.packID, packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion, packContentVersion: SignPack.illuminatedSignV1.contentVersion, label: "\(name) sign", createdAt: Date(timeIntervalSince1970: 1_799_999_001)))
             try session.modelContext.save()
         }
@@ -1056,5 +1070,42 @@ private final class C31LightingAnchorV905RestoreIdentityTests: XCTestCase {
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
         XCTAssertTrue(LightingIssueKindV1.allCases.contains(.cameraBandingOnly))
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
+    }
+}
+
+extension V9_05RestoreIdentityTests {
+    @MainActor
+    func testV23P03C42RestoreIdentityRetainsCloneForkAndStaleRevisionContracts() async throws {
+        let receipt = try CompositeAreaSafetyArchetypeV1.run()
+        let payload = try CrossMarketCanonicalV1.data(receipt).base64EncodedString()
+        let scenario = try makeScenario(
+            "c42-restore-identity",
+            targetIsNonempty: false,
+            sourceSiteAddress: payload
+        )
+        defer { try? fileManager.removeItem(at: scenario.root) }
+        let cloneFork = try XCTUnwrap(receipt.operations.first { $0.kind == .cloneFork })
+        let staleRevision = try XCTUnwrap(receipt.operations.first { $0.kind == .rejectStaleRevision })
+        let restored = try await restore(
+            scenario,
+            mode: .clone,
+            uuidValues: [id(500), id(501), id(502), id(503)]
+        )
+        let restoredPayload = try XCTUnwrap(
+            restored.modelContext.fetch(FetchDescriptor<Site>()).first?.address
+        )
+        XCTAssertEqual(restoredPayload, payload)
+        XCTAssertEqual(
+            try CrossMarketCanonicalV1.decode(
+                ModelRunReceiptV1.self,
+                from: try XCTUnwrap(Data(base64Encoded: restoredPayload))
+            ),
+            receipt
+        )
+        XCTAssertEqual(cloneFork.expectedDisposition, .accepted)
+        XCTAssertEqual(staleRevision.expectedDisposition, .rejectedPrecondition)
+        XCTAssertNotEqual(restored.workspaceID.rawValue, scenario.sourceWorkspaceID)
+        XCTAssertNotEqual(restored.replicaID.rawValue, scenario.sourceReplicaID)
+        XCTAssertNil(try RestoreIntentStore(applicationSupportURL: scenario.target.support).load())
     }
 }

@@ -203,3 +203,33 @@ private final class C31LightingAnchorS82GoldenAccessibilityTests: XCTestCase {
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
     }
 }
+
+extension S8_2GoldenAccessibilityTests {
+    func testV23P03C42GoldenAccessibilityResolvesTypedJourneyThroughShippingRegistry() throws {
+        let scenarios = [
+            try CompositeAreaSafetyArchetypeV1.scenario(),
+            try ControllerZoneDistributionArchetypeV1.scenario()
+        ]
+        let localization = try BundledLocalizationCatalogV1.registry()
+        let accessibility = try BundledLocalizationCatalogV1.accessibilityRegistry(
+            localization: localization
+        )
+        try accessibility.validate()
+
+        for scenario in scenarios {
+            XCTAssertTrue(scenario.operations.contains { $0.kind == .verifyReleaseExclusion })
+            let semanticID = scenario.operations.contains { $0.kind == .backupRestore }
+                ? "feedback.mail.done"
+                : "feedback.mail.body"
+            let identifier = try accessibility.identifier(semanticID: semanticID)
+            let entry = try XCTUnwrap(
+                accessibility.entries.first { $0.semanticID == semanticID }
+            )
+            XCTAssertEqual(identifier, semanticID)
+            XCTAssertEqual(entry.role, .button)
+            XCTAssertEqual(entry.reachability, .always)
+            XCTAssertEqual(BundledLocalizationCatalogV1.localized(.commonDone), "Done")
+            XCTAssertEqual(entry.deprecatedAliases, ["s8.4.mail.done"])
+        }
+    }
+}

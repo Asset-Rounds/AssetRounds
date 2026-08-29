@@ -397,4 +397,26 @@ enum V907CompatibilitySupport {
             representative: item.representative
         )
     }
+
+    /// Replays the frozen report-open and PDF fixtures that C42 uses as its
+    /// historic-output compatibility anchors.  Returning the observed digest
+    /// by case ID lets the cross-market lane prove byte parity without copying
+    /// or rewriting a released fixture.
+    static func crossMarketHistoricReportDigests() throws -> [String: String] {
+        let manifest = try corpus()
+        let metadata = try corpusMetadata()
+        let selected = manifest.cases.filter {
+            $0.kind == .positive
+                && ($0.family == .reportOpenJSON || $0.family == .reportPDF)
+        }
+        guard !selected.isEmpty,
+              selected.contains(where: { $0.family == .reportOpenJSON }),
+              selected.contains(where: { $0.family == .reportPDF }),
+              Set(selected.map(\.caseID)).count == selected.count else {
+            throw CompatibilityContractErrorV1.invalidCorpus
+        }
+        return try Dictionary(uniqueKeysWithValues: selected.map { item in
+            (item.caseID, try executeCase(for: item, metadata: metadata))
+        })
+    }
 }

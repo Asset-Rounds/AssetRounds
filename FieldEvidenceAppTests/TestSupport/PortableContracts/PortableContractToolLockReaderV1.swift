@@ -118,6 +118,23 @@ enum PortableContractToolLockReaderV1 {
         catch { throw PortableContractValidationFailureV1.invalidToolLock }
     }
 
+    /// C42 deliberately reuses the already pinned offline validator.  This
+    /// narrower entry point prevents a cross-market corpus from silently
+    /// selecting another tool, enabling network resolution, or weakening the
+    /// exact-byte inventory policy.
+    static func readForCrossMarketConformance(at url: URL) throws -> PortableContractToolLockV1 {
+        let lock = try read(at: url)
+        guard !lock.networkFetchAllowed,
+              lock.tool.stdlibOnly,
+              lock.inventoryPolicy.lineEndingPolicy == "EXACT_BYTES",
+              lock.inventoryPolicy.unexpectedOwnedFileDisposition == "REJECT",
+              lock.referencePolicy.remoteResolution == "FORBIDDEN",
+              lock.distributionSHA256.count == 64 else {
+            throw PortableContractValidationFailureV1.invalidToolLock
+        }
+        return lock
+    }
+
     private static func verifyLockedFiles(
         _ lock: PortableContractToolLockV1,
         lockURL: URL

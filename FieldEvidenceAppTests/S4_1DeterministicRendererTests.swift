@@ -401,6 +401,7 @@ private extension S4_1DeterministicRendererTests {
     @MainActor
     func makeHarness(
         label: String,
+        c42Projection: String? = nil,
         capacity: @escaping StoragePreflightService.CapacityProvider = { _ in Int64.max }
     ) throws -> RenderHarness {
         let appSupport = fileManager.temporaryDirectory.resolvingSymlinksInPath()
@@ -412,7 +413,7 @@ private extension S4_1DeterministicRendererTests {
         let session = try StoreGenerationFactory(applicationSupportURL: appSupport)
             .openOrBootstrapCurrent()
         let context = session.modelContext
-        let snapshot = try fixtureSnapshotAndRows(in: session)
+        let snapshot = try fixtureSnapshotAndRows(in: session, c42Projection: c42Projection)
         context.insert(snapshot.site)
         context.insert(snapshot.asset)
         context.insert(snapshot.check)
@@ -451,7 +452,10 @@ private extension S4_1DeterministicRendererTests {
     }
 
     @MainActor
-    func fixtureSnapshotAndRows(in session: StoreGenerationSession) throws -> FixtureAuthority {
+    func fixtureSnapshotAndRows(
+        in session: StoreGenerationSession,
+        c42Projection: String? = nil
+    ) throws -> FixtureAuthority {
         let normalizer = MediaNormalizerV1()
         let currentWide = try normalizer.normalize(makePNG(width: 320, height: 180, seed: 17))
         let historyWide = try normalizer.normalize(makePNG(width: 960, height: 540, seed: 31))
@@ -499,7 +503,7 @@ private extension S4_1DeterministicRendererTests {
         let site = Site(
             id: Fixture.siteID,
             label: "North Campus",
-            address: "10 Main",
+            address: c42Projection ?? "10 Main",
             timeZoneID: "America/New_York",
             createdAt: Date(timeIntervalSince1970: 1_768_420_700)
         )
@@ -1248,5 +1252,42 @@ private final class C31LightingAnchorS41DeterministicRendererTests: XCTestCase {
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
         XCTAssertTrue(LightingIssueKindV1.allCases.contains(.cameraBandingOnly))
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
+    }
+}
+
+extension S4_1DeterministicRendererTests {
+    @MainActor
+    func testV23P03C42RendererProjectionUsesByteStableTypedModelRuns() throws {
+        let scenario = try CompositeAreaSafetyArchetypeV1.scenario(
+            seed: CompositeAreaSafetyArchetypeV1.defaultSeed
+        )
+        let first = try CompositeAreaSafetyArchetypeV1.run(
+            seed: CompositeAreaSafetyArchetypeV1.defaultSeed
+        )
+        let second = try CompositeAreaSafetyArchetypeV1.run(
+            seed: CompositeAreaSafetyArchetypeV1.defaultSeed
+        )
+        let projection = "\(scenario.archetypeID):\(first.normalizedResultSHA256)"
+        let firstHarness = try makeHarness(label: "c42-render-a", c42Projection: projection)
+        let secondHarness = try makeHarness(label: "c42-render-b", c42Projection: projection)
+        defer {
+            try? fileManager.removeItem(at: firstHarness.applicationSupportURL)
+            try? fileManager.removeItem(at: secondHarness.applicationSupportURL)
+        }
+        let firstValidated = try SnapshotValidatorV1(
+            modelContext: firstHarness.session.modelContext,
+            generationRootURL: firstHarness.session.generationRootURL
+        ).validate(report: firstHarness.report)
+        let secondValidated = try SnapshotValidatorV1(
+            modelContext: secondHarness.session.modelContext,
+            generationRootURL: secondHarness.session.generationRootURL
+        ).validate(report: secondHarness.report)
+        XCTAssertEqual(firstValidated.snapshot.site.address, projection)
+        XCTAssertEqual(secondValidated.snapshot.site.address, projection)
+        let firstPDF = try WorklightPDFRendererV1().render(firstValidated)
+        let secondPDF = try WorklightPDFRendererV1().render(secondValidated)
+        XCTAssertEqual(firstPDF.data, secondPDF.data)
+        XCTAssertEqual(firstPDF.pageCount, secondPDF.pageCount)
+        XCTAssertEqual(first.operations, second.operations)
     }
 }

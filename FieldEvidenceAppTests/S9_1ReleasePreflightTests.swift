@@ -587,3 +587,207 @@ final class S9_1ReleasePreflightTests: XCTestCase {
         return try! JSONSerialization.jsonObject(with: data) as! [String: Any]
     }
 }
+
+extension S9_1ReleasePreflightTests {
+    func testV23P03C42ReleasePreflightCoversEveryTypedExclusionSurface() throws {
+        let observations = try ReleaseExclusionSurfaceV1.allCases.map(c42Observation)
+        let receipt = try ReleaseExclusionReceiptV1(
+            observations: observations,
+            hostileFixtureCount: 28,
+            generatedScratchRemoved: true
+        )
+
+        try receipt.validate()
+        XCTAssertEqual(receipt.releaseConfiguration, "Release")
+        XCTAssertEqual(receipt.testSupportPaths, ReleaseExclusionReceiptV1.requiredTestSupportPaths)
+        XCTAssertTrue(receipt.testSupportPaths.allSatisfy { $0.contains("TestSupport") })
+        XCTAssertEqual(receipt.forbiddenReleaseSymbols, ReleaseExclusionReceiptV1.forbiddenReleaseSymbols)
+        XCTAssertEqual(
+            receipt.observations.map(\.surface),
+            ReleaseExclusionSurfaceV1.allCases.sorted { $0.rawValue < $1.rawValue }
+        )
+        XCTAssertTrue(receipt.observations.allSatisfy { $0.forbiddenMatches.isEmpty })
+        XCTAssertEqual(Set(receipt.observations.map(\.surface)).count, ReleaseExclusionSurfaceV1.allCases.count)
+        XCTAssertFalse(receipt.isComplete)
+        XCTAssertFalse(receipt.certifiesReleaseExclusion)
+
+        let source = try XCTUnwrap(
+            receipt.observations.first { $0.surface == .sourceMembership }
+        )
+        XCTAssertEqual(source.disposition, .provenAbsent)
+        XCTAssertTrue(source.certifiesAbsence)
+        XCTAssertGreaterThan(source.inspectedByteCount ?? 0, 0)
+        XCTAssertNotEqual(source.inspectedSHA256, String(repeating: "a", count: 64))
+
+        let runtime = try XCTUnwrap(
+            receipt.observations.first { $0.surface == .runtimeSurface }
+        )
+        XCTAssertEqual(runtime.disposition, .staticPendingNative)
+        XCTAssertFalse(runtime.certifiesAbsence)
+        XCTAssertNil(runtime.artifactIdentity)
+        XCTAssertNil(runtime.inspectedByteCount)
+        XCTAssertNil(runtime.inspectedSHA256)
+        XCTAssertNil(runtime.releaseArtifactProvenance)
+
+        let encoded = try CrossMarketCanonicalV1.data(receipt)
+        let decoded = try CrossMarketCanonicalV1.decode(
+            ReleaseExclusionReceiptV1.self,
+            from: encoded
+        )
+        XCTAssertEqual(decoded, receipt)
+        XCTAssertEqual(try CrossMarketCanonicalV1.data(decoded), encoded)
+    }
+
+    func testV23P03C42ReleaseReceiptRejectsFabricatedAndSubstitutedEvidence() throws {
+        let observations = try ReleaseExclusionSurfaceV1.allCases.map(c42Observation)
+        let receipt = try ReleaseExclusionReceiptV1(
+            observations: observations,
+            hostileFixtureCount: 28,
+            generatedScratchRemoved: true
+        )
+        let encoded = try CrossMarketCanonicalV1.data(receipt)
+        let root = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+        )
+
+        var fabricatedRoot = root
+        var fabricatedObservations = try XCTUnwrap(
+            fabricatedRoot["observations"] as? [[String: Any]]
+        )
+        let provenIndex = try XCTUnwrap(
+            fabricatedObservations.firstIndex {
+                $0["disposition"] as? String == "PROVEN_ABSENT"
+            }
+        )
+        fabricatedObservations[provenIndex]["inspectedSHA256"] = String(
+            repeating: "a",
+            count: 64
+        )
+        fabricatedRoot["observations"] = fabricatedObservations
+        let fabricatedBytes = try JSONSerialization.data(withJSONObject: fabricatedRoot)
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(ReleaseExclusionReceiptV1.self, from: fabricatedBytes)
+        )
+
+        for (surface, substitutedSource) in [
+            ("RUNTIME_SURFACE", "RELEASE_EXECUTABLE_STRING_TABLE"),
+            ("SCREENSHOTS", "REPOSITORY_PROJECT_FILE"),
+            ("APP_STORE_DRAFTS", "RELEASE_EXECUTABLE_SYMBOL_TABLE"),
+        ] {
+            var substitutedRoot = root
+            var substitutedObservations = try XCTUnwrap(
+                substitutedRoot["observations"] as? [[String: Any]]
+            )
+            let index = try XCTUnwrap(
+                substitutedObservations.firstIndex { $0["surface"] as? String == surface }
+            )
+            substitutedObservations[index]["sourceIdentity"] = substitutedSource
+            substitutedRoot["observations"] = substitutedObservations
+            let substitutedBytes = try JSONSerialization.data(withJSONObject: substitutedRoot)
+            XCTAssertThrowsError(
+                try JSONDecoder().decode(
+                    ReleaseExclusionReceiptV1.self,
+                    from: substitutedBytes
+                )
+            )
+        }
+
+        let projectBytes = try data("FieldEvidenceApp.xcodeproj/project.pbxproj")
+        XCTAssertThrowsError(
+            try ReleaseExclusionObservationV1(
+                surface: .runtimeSurface,
+                sourceIdentity: .releaseRuntimeEnumeration,
+                repositoryRelativeInputs: ["FieldEvidenceApp.xcodeproj/project.pbxproj"],
+                artifactIdentity: "SOURCE_SCAN_MASQUERADING_AS_RUNTIME",
+                evidenceBytes: projectBytes,
+                forbiddenMatches: []
+            )
+        )
+        XCTAssertThrowsError(
+            try ReleaseExclusionObservationV1.staticPendingNative(
+                surface: .sourceMembership,
+                repositoryRelativeInputs: ["FieldEvidenceApp.xcodeproj/project.pbxproj"]
+            )
+        )
+        XCTAssertThrowsError(
+            try ReleaseExclusionReceiptV1(
+                observations: Array(observations.dropLast()),
+                hostileFixtureCount: 28,
+                generatedScratchRemoved: true
+            )
+        )
+        XCTAssertThrowsError(
+            try ReleaseExclusionReceiptV1(
+                observations: observations + [observations[0]],
+                hostileFixtureCount: 28,
+                generatedScratchRemoved: true
+            )
+        )
+        XCTAssertThrowsError(
+            try ReleaseExclusionObservationV1.staticPendingNative(
+                surface: .runtimeSurface,
+                repositoryRelativeInputs: ["../FieldEvidenceApp.xcodeproj/project.pbxproj"]
+            )
+        )
+    }
+
+    private func c42Observation(
+        for surface: ReleaseExclusionSurfaceV1
+    ) throws -> ReleaseExclusionObservationV1 {
+        let inputs = c42RepositoryInputs(for: surface)
+        if surface.requiresNativeOrExternalEvidence {
+            return try .staticPendingNative(
+                surface: surface,
+                repositoryRelativeInputs: inputs
+            )
+        }
+
+        let evidence = try c42EvidenceBytes(inputs)
+        let text = String(decoding: evidence, as: UTF8.self)
+        return try ReleaseExclusionObservationV1(
+            surface: surface,
+            sourceIdentity: surface.requiredSourceIdentity,
+            repositoryRelativeInputs: inputs,
+            artifactIdentity: inputs.joined(separator: "+"),
+            evidenceBytes: evidence,
+            forbiddenMatches: ReleaseExclusionReceiptV1.forbiddenReleaseSymbols.filter {
+                text.contains($0)
+            }
+        )
+    }
+
+    private func c42RepositoryInputs(
+        for surface: ReleaseExclusionSurfaceV1
+    ) -> [String] {
+        switch surface {
+        case .sourceMembership, .targetDependencyGraph, .compiledArchive,
+             .bundleResources, .publicSymbols, .publicStrings, .screenshots,
+             .runtimeSurface:
+            return ["FieldEvidenceApp.xcodeproj/project.pbxproj"]
+        case .localizationCatalog:
+            return ["FieldEvidenceApp/Resources/Localizable.xcstrings"]
+        case .packageRegistry:
+            return [
+                "FieldEvidenceApp/Domain/Packs/InspectionPackageRegistryV2.swift",
+                "FieldEvidenceApp/Infrastructure/Packs/BundledInspectionPackageRegistryV2.swift",
+            ]
+        case .routeRegistry:
+            return ["FieldEvidenceApp/Features/Shell/AppShellView.swift"]
+        case .settingsRegistry:
+            return ["FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift"]
+        case .appStoreDrafts:
+            return ["Release/UnsignedRCMetadataV1.json"]
+        }
+    }
+
+    private func c42EvidenceBytes(_ relativePaths: [String]) throws -> Data {
+        var result = Data()
+        for path in relativePaths.sorted() {
+            let bytes = try data(path)
+            result.append(Data("\(path.utf8.count):\(path):\(bytes.count):".utf8))
+            result.append(bytes)
+            result.append(0x0A)
+        }
+        return result
+    }
+}

@@ -498,7 +498,8 @@ private extension S6_3BackupValidationTests {
     @MainActor
     func makeHarness(
         _ name: String,
-        stopAfterWorkDraft: Bool = false
+        stopAfterWorkDraft: Bool = false,
+        siteAddress: String? = nil
     ) async throws -> Harness {
         let support = fileManager.temporaryDirectory.appendingPathComponent("S6_3BackupValidationTests-\(name)-\(UUID().uuidString)", isDirectory: true)
         try fileManager.createDirectory(at: support, withIntermediateDirectories: false)
@@ -506,7 +507,7 @@ private extension S6_3BackupValidationTests {
         let context = session.modelContext
         let pack = SignPack.illuminatedSignV1
         let siteID = uuid(1), assetID = uuid(2)
-        context.insert(Site(id: siteID, label: "Import Site", address: nil, timeZoneID: "America/New_York", createdAt: Date(timeIntervalSince1970: 1_776_420_000)))
+        context.insert(Site(id: siteID, label: "Import Site", address: siteAddress, timeZoneID: "America/New_York", createdAt: Date(timeIntervalSince1970: 1_776_420_000)))
         context.insert(Asset(id: assetID, siteID: siteID, packID: pack.packID, packSchemaVersion: pack.schemaVersion, packContentVersion: pack.contentVersion, label: "One Live Sign", createdAt: Date(timeIntervalSince1970: 1_776_420_001)))
         try context.save()
         let coordinator = CheckRunnerCoordinator(modelContext: context, signPack: pack)
@@ -2232,5 +2233,42 @@ private final class C31LightingAnchorS63BackupValidationTests: XCTestCase {
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
         XCTAssertTrue(LightingIssueKindV1.allCases.contains(.cameraBandingOnly))
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
+    }
+}
+
+extension S6_3BackupValidationTests {
+    @MainActor
+    func testV23P03C42BackupValidationRoundTripsTypedReceiptsForBothArchetypes() async throws {
+        let receipts = [try CompositeAreaSafetyArchetypeV1.run(), try ControllerZoneDistributionArchetypeV1.run()]
+        for (offset, receipt) in receipts.enumerated() {
+            let c42Bytes = try CrossMarketCanonicalV1.data(receipt)
+            let payload = c42Bytes.base64EncodedString()
+            let harness = try await makeHarness(
+                "c42-validation-\(offset)",
+                siteAddress: payload
+            )
+            defer { try? fileManager.removeItem(at: harness.supportURL) }
+            let package = try exportPackage(harness, name: "c42-source-\(offset)")
+            let importer = try makeImporter(
+                harness,
+                capacity: .max,
+                scopedAccess: .alreadyAuthorized
+            )
+            let validated = try importer.stageAndValidate(selectedPackageURL: package)
+            defer { try? importer.discard(validated) }
+            let restoredPayload = try XCTUnwrap(validated.records.sites.first?.address)
+            XCTAssertEqual(restoredPayload, payload)
+            XCTAssertEqual(
+                try CrossMarketCanonicalV1.decode(
+                    ModelRunReceiptV1.self,
+                    from: try XCTUnwrap(Data(base64Encoded: restoredPayload))
+                ),
+                receipt
+            )
+            XCTAssertEqual(
+                try BackupCanonicalEncoderV1().encodeRecords(validated.records).data,
+                try XCTUnwrap(validated.members["records.json"])
+            )
+        }
     }
 }

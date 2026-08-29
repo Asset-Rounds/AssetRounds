@@ -1153,3 +1153,58 @@ private final class C31LightingAnchorS66EraseRecoveryTests: XCTestCase {
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
     }
 }
+
+extension S6_6EraseRecoveryTests {
+    @MainActor
+    func testV23P03C42EraseRecoveryLeavesNoTypedArchetypeStateBehind() async throws {
+        let scenarios = [
+            try CompositeAreaSafetyArchetypeV1.scenario(),
+            try ControllerZoneDistributionArchetypeV1.scenario()
+        ]
+
+        for (index, scenario) in scenarios.enumerated() {
+            XCTAssertTrue(scenario.operations.contains { $0.kind == .deleteErase })
+            let harness = try await makeHarness("c42-\(index)")
+            defer { cleanup(harness) }
+            let coordinator = try XCTUnwrap(harness.coordinator)
+            let asset = try XCTUnwrap(
+                coordinator.modelContext.fetch(FetchDescriptor<Asset>()).first
+            )
+            asset.label = scenario.archetypeID
+            try coordinator.modelContext.save()
+            XCTAssertEqual(
+                try coordinator.modelContext.fetch(FetchDescriptor<Asset>()).map(\.label),
+                [scenario.archetypeID]
+            )
+
+            let replacementID = UUID(
+                uuidString: String(format: "42000000-0000-4000-8000-%012x", index + 1)
+            )!
+            let service = EraseAllService(
+                applicationSupportURL: harness.support,
+                cachesDirectoryURL: harness.caches,
+                temporaryDirectoryURL: harness.temporary,
+                userDefaults: harness.defaults,
+                bundleIdentifier: bundleID,
+                makeUUID: sequence([
+                    replacementID,
+                    UUID(uuidString: String(
+                        format: "42000000-0000-4000-8001-%012x", index + 1
+                    ))!,
+                ])
+            )
+            let outcome = try await service.erase(
+                confirmation: "ERASE",
+                coordinator: coordinator,
+                diagnosticsStore: harness.diagnostics
+            ) { session in
+                coordinator.activate(session: session)
+            }
+
+            XCTAssertEqual(outcome.session.generationID, replacementID)
+            XCTAssertEqual(try counts(outcome.session.modelContext), [0, 0, 0, 0, 0, 0, 0])
+            XCTAssertFalse(outcome.cleanupDeferred)
+            assertAuxiliaryRootsCleared(harness)
+        }
+    }
+}

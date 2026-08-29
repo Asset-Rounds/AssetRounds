@@ -1097,3 +1097,55 @@ private final class C31LightingAnchorV919LocalSearchTests: XCTestCase {
         try LightingLimitsV1.digest(String(repeating: "a", count: 64))
     }
 }
+
+extension V9_19LocalSearchTests {
+    func testV23P03C42LocalSearchFindsTypedArchetypeState() async throws {
+        let scenarios = [
+            try CompositeAreaSafetyArchetypeV1.scenario(),
+            try ControllerZoneDistributionArchetypeV1.scenario()
+        ]
+        let harness = try makeHarness("c42-owner-integration")
+        defer { harness.cleanup() }
+        let registry = try makeRegistry()
+        let revision = try source(revision: 42)
+
+        let records = try scenarios.map { scenario in
+            let searchableState = ([scenario.archetypeID]
+                + scenario.capabilities.map(\.rawValue)
+                + scenario.operations.map { $0.kind.rawValue })
+                .joined(separator: " ")
+            return try record(
+                id: scenario.archetypeID,
+                fieldID: "asset_label",
+                text: searchableState,
+                revision: revision.commitRevision
+            )
+        }
+        try await harness.store.replaceProjection(
+            source: revision,
+            records: records,
+            registry: registry
+        )
+        let coordinator = SearchCoordinatorV1(index: harness.store)
+
+        for scenario in scenarios {
+            let plan = try coordinator.makePlan(
+                query: scenario.archetypeID,
+                sourceRevision: revision.commitRevision
+            )
+            let response = try await coordinator.search(
+                plan,
+                source: revision,
+                registry: registry
+            )
+            XCTAssertEqual(response.results.map(\.stableID), [scenario.archetypeID])
+            XCTAssertEqual(response.results.first?.displayIdentity.contains(scenario.archetypeID), true)
+        }
+
+        let replayPlan = try coordinator.makePlan(query: "REPLAY", sourceRevision: 42)
+        let replayResponse = try await coordinator.search(
+            replayPlan, source: revision, registry: registry
+        )
+        XCTAssertEqual(Set(replayResponse.results.map(\.stableID)), Set(scenarios.map(\.archetypeID)))
+    }
+}
