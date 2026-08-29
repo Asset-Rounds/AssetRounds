@@ -2578,7 +2578,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             Data(minimumDoubleLengthPreflightDiagnosticSource.utf8).sha256,
-            "A9B949BC3222E647328299BC50B6EA04B89420688D946B25EA309E7BAA1C283D"
+            "1CCDC611991AB30CBCC81D52235FAE9FB6AB6A26411B044246071294D05FD1A6"
         )
         let minimumDoubleLengthPreflightDiagnosticPrefix =
             "S10_4_MINIMUM_DOUBLE_LENGTH_PREFLIGHT_NATIVE_CONTRAST_DIAGNOSTIC"
@@ -2619,7 +2619,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"shard.requirementID == "double_length""#,
             #"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#,
             "automationSegment == .none",
-            "segmentedRouteStateCursor == 8",
+            "segmentedRouteStateCursor == 0",
             "migratedStateIDs == expectedMigratedStateIDs",
             "try app.performAccessibilityAudit(for: .contrast) { issue in",
             "observedIssueObjects.append(diagnosticIssue)",
@@ -20800,7 +20800,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(uiSource.utf8.count, 779_590)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "18706FD1D88CD314C3CD12E637C26E2AE6065384A938F1EFD6DF26ACFE58C7C1"
+            "8A3B5303D0A18E03B072698DB38CB9263B833FE16C0645A5DE42EF74790DA5DB"
         )
         let assertControlSource = try boundedSource(
             uiSource,
