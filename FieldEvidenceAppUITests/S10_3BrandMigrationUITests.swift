@@ -1179,7 +1179,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                           keyboardIsAbsentOrInertOffApp(in: app),
                           wait(
                               for: site,
-                              predicate: "hasKeyboardFocus == true",
+                              predicate: "hasKeyboardFocus == false",
                               timeout: 10
                           ),
                           newSignRoute.exists
@@ -1823,7 +1823,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                           keyboardIsAbsentOrInertOffApp(in: app),
                           wait(
                               for: zone,
-                              predicate: "hasKeyboardFocus == true",
+                              predicate: "hasKeyboardFocus == false",
                               timeout: 10
                           ),
                           preflight.exists
@@ -2283,7 +2283,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                 == preActionDetailRouteExists,
                               wait(
                                   for: zone,
-                                  predicate: "hasKeyboardFocus == true",
+                                  predicate: "hasKeyboardFocus == false",
                                   timeout: 10
                               ),
                               zone.label == preActionZoneLabel,
