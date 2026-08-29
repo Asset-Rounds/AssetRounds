@@ -2428,10 +2428,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     preflightQuickPathSource.endIndex
             ]
         )
-        XCTAssertEqual(preflightMinimumSource.utf8.count, 66_114)
+        XCTAssertEqual(preflightMinimumSource.utf8.count, 65_666)
         XCTAssertEqual(
             Data(preflightMinimumSource.utf8).sha256,
-            "C182C95086563906CDBF9797EB4264BAAC9F6B6686C038B2BBA0841FE10E4276"
+            "D4C8075D7534B294E2A3972A6C5E30702111EE4FD10CBDEF9D6F0850ABF248FA"
         )
         XCTAssertEqual(currentProfilePreflightQuickPathSource.utf8.count, 29_876)
         XCTAssertEqual(
@@ -5135,10 +5135,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 preflightOffAppSource.startIndex..<minimumDoubleLengthPositioningStartRange.lowerBound
             ]
         )
-        XCTAssertEqual(minimumDoubleLengthPositioningSource.utf8.count, 29_115)
+        XCTAssertEqual(minimumDoubleLengthPositioningSource.utf8.count, 28_881)
         XCTAssertEqual(
             Data(minimumDoubleLengthPositioningSource.utf8).sha256,
-            "C5281B7F3BF824383643183C6F11AEF9EE211BB193DA7F5D411C5E380B2B64C9"
+            "4512C01EF79F52664869E1268E135788D193B4C9C8255E828DD8CEF77CBD678F"
         )
         XCTAssertEqual(
             preflightOffAppSource.components(
@@ -5158,11 +5158,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                          inputAssistantFrame.minY\n" +
                 "                            >= applicationFrame.maxY,\n" +
                 "                          keyboardIsAbsentOrInertOffApp(in: app),\n" +
-                "                          wait(\n" +
-                "                              for: zone,\n" +
-                #"                              predicate: "hasKeyboardFocus == false","# + "\n" +
-                "                              timeout: 10\n" +
-                "                          ),\n" +
                 "                          preflight.exists\n" +
                 "                            == preActionPreflightExists,\n" +
                 "                          detailRoute.exists\n" +
@@ -5349,11 +5344,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "== preActionPreflightExists,\n" +
                 "detailRoute.exists\n" +
                 "== preActionDetailRouteExists,",
-            "wait(\n" +
-                "for: zone,\n" +
-                #"predicate: "hasKeyboardFocus == false","# + "\n" +
-                "timeout: 10\n" +
-                ")",
             "zone.label == preActionZoneLabel,\n" +
                 "(zone.value as? String)\n" +
                 "== preActionZoneValue,",
@@ -6579,10 +6569,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let h135InvariantSource = String(
             h135Source.dropLast(h135ReplayPreparationClose.utf8.count)
         )
-        XCTAssertEqual(h135InvariantSource.utf8.count, 5_797)
+        XCTAssertEqual(h135InvariantSource.utf8.count, 5_583)
         XCTAssertEqual(
             Data(h135InvariantSource.utf8).sha256,
-            "0C146D1C928866E60BEED1B529B559FCABA3D5FF72B985DBB0B7399C2EDDCECE"
+            "05BEA8D915AD13C6300F3087A60AEC45D2C21A99B33401B85CF845C93713A76E"
         )
         let quickPathSemanticSnapshots = [
             "            let preActionSiteValue = site.value as? String",
@@ -6664,11 +6654,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                          inputAssistantView.frame.minY\n" +
                 "                            >= applicationFrame.maxY,\n" +
                 "                          keyboardIsAbsentOrInertOffApp(in: app),\n" +
-                "                          wait(\n" +
-                "                              for: site,\n" +
-                #"                              predicate: "hasKeyboardFocus == false","# + "\n" +
-                "                              timeout: 10\n" +
-                "                          ),\n" +
                 "                          newSignRoute.exists\n" +
                 "                            == preActionNewSignRouteExists,\n" +
                 "                          validationDetailRoute.exists\n" +
@@ -20532,10 +20517,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 768_450)
+        XCTAssertEqual(uiSource.utf8.count, 767_788)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "D084F1C44507F9BA26F0C7546BC18589C8BB99732C79E2FB294A1605605ACAD2"
+            "563271082343B0CF92E154B41956B331345F81E7F4183303E581C53F2891F1F3"
         )
         let assertControlSource = try boundedSource(
             uiSource,

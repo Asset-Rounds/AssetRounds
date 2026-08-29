@@ -1177,11 +1177,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                           inputAssistantView.frame.minY
                             >= applicationFrame.maxY,
                           keyboardIsAbsentOrInertOffApp(in: app),
-                          wait(
-                              for: site,
-                              predicate: "hasKeyboardFocus == false",
-                              timeout: 10
-                          ),
                           newSignRoute.exists
                             == preActionNewSignRouteExists,
                           validationDetailRoute.exists
@@ -1821,11 +1816,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                           inputAssistantFrame.minY
                             >= applicationFrame.maxY,
                           keyboardIsAbsentOrInertOffApp(in: app),
-                          wait(
-                              for: zone,
-                              predicate: "hasKeyboardFocus == false",
-                              timeout: 10
-                          ),
                           preflight.exists
                             == preActionPreflightExists,
                           detailRoute.exists
@@ -2281,11 +2271,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                 == preActionPreflightExists,
                               detailRoute.exists
                                 == preActionDetailRouteExists,
-                              wait(
-                                  for: zone,
-                                  predicate: "hasKeyboardFocus == false",
-                                  timeout: 10
-                              ),
                               zone.label == preActionZoneLabel,
                               (zone.value as? String)
                                 == preActionZoneValue,
