@@ -9013,7 +9013,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             return usedSettingsRetry
         }
 
-        if automationShard?.shardID == "s10.4.current.ax-text" {
+        if automationShard?.shardID == "s10.4.current.ax-text" ||
+            automationShard?.shardID == "s10.4.minimum.minimum-os" {
             if shouldPrepareNormalEvidence(
                 for: "state.paywall.purchase-complete",
                 in: app

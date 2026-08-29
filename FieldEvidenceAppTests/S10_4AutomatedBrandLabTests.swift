@@ -14211,7 +14211,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let postPurchaseCapture =
             #"        captureBaseline("state.paywall.purchase-complete", in: app)"#
         let postPurchaseAXGateStart =
-            #"        if automationShard?.shardID == "s10.4.current.ax-text" {"#
+            #"        if automationShard?.shardID == "s10.4.current.ax-text" ||"# + "\n" +
+                #"            automationShard?.shardID == "s10.4.minimum.minimum-os" {"#
         let postPurchaseNonAXSuffixStart =
             "        var measuredUndertravel: CGFloat = 0"
         let postPurchaseAXHelperBoundary =
@@ -14258,10 +14259,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             uiSource.components(separatedBy: postPurchaseCapture).count - 1,
             2
         )
-        XCTAssertEqual(postPurchaseAXGateSource.utf8.count, 561)
+        XCTAssertEqual(postPurchaseAXGateSource.utf8.count, 631)
         XCTAssertEqual(
             Data(postPurchaseAXGateSource.utf8).sha256,
-            "DE1386524B6B07AD44A4FDF05B56B3C290BEE43337F0C7B63A78513F8F255E72"
+            "885EC6FB4D01643D9360E505E49AD1ED697734CB3B11101E2A85AE154D52F68D"
         )
         XCTAssertEqual(postPurchaseNonAXSuffixSource.utf8.count, 4_110)
         XCTAssertEqual(
