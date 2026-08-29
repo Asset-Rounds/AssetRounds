@@ -22693,12 +22693,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let captureSource = try boundedSource(
             uiSource,
             from: "    private func captureBaseline(\n",
-            before: "\n\n    @MainActor\n    private func shouldPrepareNormalEvidence("
+            before:
+                "\n\n    @MainActor\n" +
+                    "    private func diagnoseCurrentWorkSavingNativeContrast("
         )
-        XCTAssertEqual(captureSource.utf8.count, 8_124)
+        XCTAssertEqual(captureSource.utf8.count, 8_678)
         XCTAssertEqual(
             Data(captureSource.utf8).sha256,
-            "78070B06CBBFA8F6063BE8E4DB6FCC74AFFD1F3A0BCC0B146AEEFF2C0DFCC427"
+            "19A4D61C5A7927A7F59615222365DBC1120DC687451A65C302C68E1C2C02F264"
         )
         let captureReplayGateSource = try boundedSource(
             captureSource,
