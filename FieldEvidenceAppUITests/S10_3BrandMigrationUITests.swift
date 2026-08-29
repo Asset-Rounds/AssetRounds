@@ -15798,13 +15798,26 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             "clearedValidationExists": clearedValidation?.exists ?? false,
         ]
         fieldScrollView.swipeDown()
-        _ = keyboard.waitForNonExistence(timeout: 10)
+        let candidateKeyboardDismissed =
+            keyboard.waitForNonExistence(timeout: 10)
+            || keyboardIsAbsentOrInertOffApp(in: app)
+        let candidateContentRouteAndForegroundArePreserved =
+            field.exists
+            && String(describing: field.value ?? "") == expectedValue
+            && route.exists == expectedRouteExists
+            && app.state == expectedApplicationState
+        if candidateKeyboardDismissed
+            && candidateContentRouteAndForegroundArePreserved {
+            return
+        }
         let afterCandidateAction: [String: Any] = [
             "applicationStateRawValue": app.state.rawValue,
             "applicationFrame": auditFrameObject(app.frame),
             "keyboardCount": app.keyboards.count,
             "keyboardExists": keyboard.exists,
-            "keyboardFrame": auditFrameObject(keyboard.frame),
+            "keyboardFrame": keyboard.exists
+                ? auditFrameObject(keyboard.frame)
+                : NSNull(),
             "keyboardAbsentOrInertOffApp":
                 keyboardIsAbsentOrInertOffApp(in: app),
             "fieldExists": field.exists,

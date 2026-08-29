@@ -7061,7 +7061,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             uiSource.components(
                 separatedBy: "keyboardIsAbsentOrInertOffApp("
             ).count - 1,
-            9
+            10
         )
         guard let passiveKeyboardHelperStartRange = uiSource.range(
             of: passiveKeyboardHelperStart
@@ -7755,10 +7755,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 multilineHelperStartRange.lowerBound..<multilinePassiveKeyboardHelperStartRange.lowerBound
             ]
         )
-        XCTAssertEqual(multilineHelperSource.utf8.count, 17_643)
+        XCTAssertEqual(multilineHelperSource.utf8.count, 18_188)
         XCTAssertEqual(
             Data(multilineHelperSource.utf8).sha256,
-            "22E3264285A10550EF149AB06044A642EC15556C3A3AB044AE03AA60FE3B9BF8"
+            "D25B10D220E2A033CBBBD4E333801A3D99AEBEA720F48A5107E3E2A193C60693"
         )
         let multilineHelperLocks = [
             "afterEditing field: XCUIElement",
@@ -7796,7 +7796,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "app.state == expectedApplicationState",
             "let beforeCandidateAction: [String: Any] = [",
             "fieldScrollView.swipeDown()",
+            "let candidateKeyboardDismissed =",
+            "let candidateContentRouteAndForegroundArePreserved =",
+            "if candidateKeyboardDismissed",
+            "&& candidateContentRouteAndForegroundArePreserved {",
             "let afterCandidateAction: [String: Any] = [",
+            "? auditFrameObject(keyboard.frame)",
+            ": NSNull(),",
             #""candidateAction": "fieldScrollView.swipeDown""#,
             "S10_4_MINIMUM_OS_MULTILINE_SWIPE_DOWN_DIAGNOSTIC",
             "S10.4 minimum-OS multiline swipe-down diagnostic app",
@@ -7989,12 +7995,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             4
         )
         for (fragment, count) in [
-            ("field.exists", 6),
-            ("route.exists", 7),
-            ("app.state", 7),
-            ("expectedRouteExists", 6),
-            ("expectedApplicationState", 6),
-            (#"String(describing: field.value ?? "")"#, 7),
+            ("field.exists", 7),
+            ("route.exists", 8),
+            ("app.state", 8),
+            ("expectedRouteExists", 7),
+            ("expectedApplicationState", 7),
+            (#"String(describing: field.value ?? "")"#, 8),
             ("keyboard.waitForNonExistence(timeout: 10)", 2),
             ("fieldScrollViews.count == 1", 3),
             ("field.elementType", 8),
@@ -8011,7 +8017,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             (".tap()", 1),
             ("XCTFail(", 8),
             ("\n                return\n", 1),
-            ("\n            return\n", 5),
+            ("\n            return\n", 6),
             ("\n                    return\n", 2),
             ("\n        return\n", 1),
         ] {
@@ -20469,10 +20475,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 766_037)
+        XCTAssertEqual(uiSource.utf8.count, 766_584)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "9B9E303B094C8408C90CD5706C2810102F7EFA4DBC2ACC76E8A023108DE4E501"
+            "769326C94AAE2A4E394CE09EECE7A8547C299AE96FC68EE3A3B199E67C9618B5"
         )
         let assertControlSource = try boundedSource(
             uiSource,
