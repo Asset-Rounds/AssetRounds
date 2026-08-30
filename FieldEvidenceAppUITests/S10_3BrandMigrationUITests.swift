@@ -320,7 +320,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             elementLabel: "Short description",
             elementTypeDescription: "XCUIElementType(rawValue: 48)",
             elementFrame: CGRect(
-                x: 30,
+                x: 29.333333333333332,
                 y: 36.666666666666686,
                 width: 333.66666666666669,
                 height: 51.333333333333314

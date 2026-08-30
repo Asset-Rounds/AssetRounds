@@ -120,8 +120,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 234_119,
-            sha256: "7C966114A339DEE7416E214B90C790932DC574624CE1D04451655BAB7F757444"
+            byteCount: 234_135,
+            sha256: "D6BBA94014C9291E24AE163C0E9EE2538B3C499208128C3FB5FEA4A6A1658629"
         )
         let workflowSource = try text(workflowPath)
         let currentF25WatchdogTuple = "] == [420, 900, 1200, 1920, 4500]"
@@ -16702,7 +16702,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 #"            elementLabel: "Short description","# + "\n" +
                 #"            elementTypeDescription: "XCUIElementType(rawValue: 48)","# + "\n" +
                 "            elementFrame: CGRect(\n" +
-                "                x: 30,\n" +
+                "                x: 29.333333333333332,\n" +
                 "                y: 36.666666666666686,\n" +
                 "                width: 333.66666666666669,\n" +
                 "                height: 51.333333333333314\n" +
@@ -16727,7 +16727,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 #"                    elementLabel: "Short description","# + "\n" +
                 #"                    elementType: "XCUIElementType(rawValue: 48)","# + "\n" +
                 "                    elementFrame: {\n" +
-                "                      x: 30,\n" +
+                "                      x: 29.333333333333332,\n" +
                 "                      y: 36.666666666666686,\n" +
                 "                      width: 333.66666666666669,\n" +
                 "                      height: 51.333333333333314\n" +
@@ -16817,7 +16817,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ),
             (
                 "wrong x",
-                "                x: 30,",
+                "                x: 29.333333333333332,",
                 "                x: 31,"
             ),
             (
@@ -16889,7 +16889,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ),
             (
                 "wrong x",
-                "                      x: 30,",
+                "                      x: 29.333333333333332,",
                 "                      x: 31,"
             ),
             (
@@ -20846,10 +20846,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 782_319)
+        XCTAssertEqual(uiSource.utf8.count, 782_335)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "9A67EC939E20BCB39BA94A72464ABF88267A77F8DD17CDA2AF69702F8E62365F"
+            "2ACE28DFB85A5F99DA455A235D77CB8DEB11FE7AD5A436AFAC6ABA1D0777C295"
         )
         let assertControlSource = try boundedSource(
             uiSource,
