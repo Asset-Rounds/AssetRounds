@@ -24,3 +24,20 @@ enum C48PortableReviewEvidenceAssuranceBoundaryV1 {
         try projection.validate()
     }
 }
+
+// MARK: - C49 work-resource assurance lifecycle
+
+extension EvidenceAssuranceLifecycleAdapterV1 {
+    nonisolated static func workResourceAssurance(
+        _ projection: C49WorkResourceReportProjectionV1
+    ) throws -> C49WorkResourceAssuranceProjectionV1 {
+        try C49WorkResourceEvidenceAssuranceBoundaryV1.assess(projection)
+    }
+}
+
+enum C49WorkResourceAssuranceLifecycleBoundaryV1 {
+    static let assuranceIsRebuiltFromProjection = true
+    static let assuranceDoesNotReplaceCanonicalManifest = true
+    static let unsupportedCertificationClaims = false
+    static let liveInventoryClaimsAssured = false
+}

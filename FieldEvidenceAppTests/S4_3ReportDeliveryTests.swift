@@ -1097,3 +1097,9 @@ private final class C48PortableReviewS43DeliveryTests: XCTestCase {
         XCTAssertFalse(C48PortableReviewReportDeliveryBoundaryV1.rawRequestResponseBytesEmitted)
     }
 }
+private final class C49WorkResourceDeliveryBoundaryTests: XCTestCase {
+    func testCustomerSafeIsAnExplicitVisibilitySelection() {
+        XCTAssertNotEqual(WorkResourceVisibilityPolicyV1.customerSafe, .internalOnly)
+        XCTAssertTrue(C49WorkResourceLifecycleBoundaryV1.searchAndReportAreDerivedOnly)
+    }
+}

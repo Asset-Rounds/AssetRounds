@@ -1575,3 +1575,12 @@ enum C48PortableExchangeMigrationBoundaryV2 {
     static let quarantineExcludedFromBackup = true
     static let cloneOrForkInvalidatesCapabilities = true
 }
+enum C49WorkResourceMigrationBoundaryV1 {
+    static let sourceVersion = 36
+    static let targetVersion = 37
+    static let recordsVersion = 36
+    static let newDurableRows = ["ManualWorkResourceRecordRow"]
+    static let backfillCreatesWorkResourceTruth = false
+    static let localPartReferenceRemainsEmbedded = true
+    static let liveInventoryRowsAdded = false
+}

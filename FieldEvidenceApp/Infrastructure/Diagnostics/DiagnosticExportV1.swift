@@ -2134,3 +2134,75 @@ enum C48PortableReviewDiagnosticPrivacyBoundaryV1 {
         try projection.validate()
     }
 }
+
+// MARK: - C49 work-resource diagnostic projection
+
+struct C49WorkResourceDiagnosticMetadataV1: Codable, Equatable, Sendable {
+    let projectionSHA256: String
+    let sourceRecordCount: Int
+    let durationMinutes: Int
+    let materialTotals: [C49MaterialTotalProjectionV1]
+    let currencies: [String]
+    let audience: String
+    let directCostPreviewIncluded: Bool
+    let rawStockClaims: Bool
+    let liveInventoryClaims: Bool
+
+    init(projection: C49WorkResourceReportProjectionV1) throws {
+        try C49WorkResourceProjectionSupportV1.validate(projection)
+        projectionSHA256 = projection.projectionSHA256
+        sourceRecordCount = projection.sourceRecordIDs.count
+        durationMinutes = projection.durationMinutes
+        materialTotals = projection.materialTotals
+        currencies = projection.directCostPreview.totalsByCurrency.map(\.currencyCode)
+        audience = projection.directCostPreview.audience.rawValue
+        directCostPreviewIncluded = projection.directCostPreview.included
+        rawStockClaims = false
+        liveInventoryClaims = false
+    }
+
+    func validate() throws {
+        guard projectionSHA256.count == 64,
+              sourceRecordCount >= 0,
+              durationMinutes >= 0,
+              materialTotals == materialTotals.sorted(by: {
+                  ($0.description, $0.unit ?? "") < ($1.description, $1.unit ?? "")
+              }),
+              materialTotals.allSatisfy({ (try? C49MaterialTotalProjectionV1(
+                  description: $0.description,
+                  unit: $0.unit,
+                  quantity: $0.quantity
+              )) != nil }),
+              currencies == currencies.sorted(),
+              Set(currencies).count == currencies.count,
+              !audience.isEmpty,
+              !rawStockClaims,
+              !liveInventoryClaims else {
+            throw C49WorkResourceProjectionFailureV1.nonCanonical
+        }
+    }
+}
+
+enum C49WorkResourceDiagnosticBoundaryV1 {
+    static let diagnosticsAreDerivedMetadataOnly = true
+    static let directCostAmountsExported = false
+    static let sourceBytesExported = false
+    static let rawStockAndLiveInventoryClaimsExported = false
+
+    static func metadata(
+        _ projection: C49WorkResourceReportProjectionV1
+    ) throws -> C49WorkResourceDiagnosticMetadataV1 {
+        let value = try C49WorkResourceDiagnosticMetadataV1(projection: projection)
+        try value.validate()
+        return value
+    }
+
+    static func encode(
+        _ projection: C49WorkResourceReportProjectionV1
+    ) throws -> Data {
+        let value = try metadata(projection)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return try encoder.encode(value)
+    }
+}

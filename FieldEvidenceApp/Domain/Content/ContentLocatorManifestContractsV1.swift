@@ -412,3 +412,20 @@ enum C48PortableReviewContentLocatorBoundaryV1 {
     static let derivedProjectionMayExposeFilesystemIdentity = false
     static let customerSafeReportUsesExistingContentLocatorsOnly = true
 }
+
+// MARK: - C49 work-resource locator boundary
+
+enum C49WorkResourceContentLocatorBoundaryV1 {
+    static let reportCarriesFilesystemCoordinates = false
+    static let reportCarriesLiveStockCoordinates = false
+    static let locatorProjectionIsMetadataOnly = true
+
+    static func validate(_ envelope: C49WorkResourceProjectionEnvelopeV1) throws {
+        try envelope.validate()
+        guard envelope.projection.sourceRecordIDs == envelope.projection.sourceRecordIDs.sorted(by: {
+            $0.uuidString < $1.uuidString
+        }) else {
+            throw C49WorkResourceProjectionFailureV1.nonCanonical
+        }
+    }
+}

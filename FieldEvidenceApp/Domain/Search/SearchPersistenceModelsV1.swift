@@ -1322,3 +1322,27 @@ enum C48PortableReviewSearchPersistenceBoundaryV1 {
         try projection.validate()
     }
 }
+
+// MARK: - C49 work-resource search persistence boundary
+
+enum C49WorkResourceSearchPersistenceBoundaryV1 {
+    static let indexRowsAreDisposable = true
+    static let canonicalWorkResourceRowsAreNotSearchRows = true
+    static let rawStockRowsPersisted = false
+    static let liveInventoryRowsPersisted = false
+
+    static func row(
+        _ projection: C49WorkResourceReportProjectionV1
+    ) throws -> C49WorkResourceSearchProjectionV1 {
+        try C49WorkResourceSearchBoundaryV1.projection(projection)
+    }
+
+    static func encode(
+        _ projection: C49WorkResourceReportProjectionV1
+    ) throws -> Data {
+        let envelope = try C49WorkResourceProjectionSupportV1.envelope(projection, format: "SEARCH")
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return try encoder.encode(envelope)
+    }
+}

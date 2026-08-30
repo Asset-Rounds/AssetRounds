@@ -237,5 +237,11 @@
     "activeCapabilityExcludedFromCloneFork": true,
     "hostileMembersFailClosed": true,
     "capabilityOrProofLeakageAllowed": false
+  },
+  "c49WorkResources": {
+    "appendOnlyRowsPreserved": true,
+    "frozenPartSnapshotPreserved": true,
+    "liveInventoryReferenceExported": false,
+    "directCostCustomerLeakageAllowed": false
   }
 }

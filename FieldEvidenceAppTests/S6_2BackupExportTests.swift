@@ -869,3 +869,10 @@ private final class C48PortableReviewS62BackupExportTests: XCTestCase {
         XCTAssertTrue(C48PortableExchangeMigrationBoundaryV2.quarantineExcludedFromBackup)
     }
 }
+private final class C49WorkResourceBackupExportBoundaryTests: XCTestCase {
+    func testBackupOwnsManualTruthButNotLiveInventory() {
+        XCTAssertTrue(C49WorkResourceContractBoundaryV1.appendOnly)
+        XCTAssertFalse(C49WorkResourceContractBoundaryV1.liveInventoryReference)
+        XCTAssertTrue(C49WorkResourcePersistenceBoundaryV1.backupRestoreCloneForkDeleteAndEraseUseExistingAuthorities)
+    }
+}

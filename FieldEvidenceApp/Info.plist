@@ -2,6 +2,15 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- C49 durable work-resource facts use schema V37 / records V36. -->
+	<key>FieldEvidenceWorkResourcePersistentSchemaVersion</key>
+	<integer>37</integer>
+	<key>FieldEvidenceWorkResourceRecordsSchemaVersion</key>
+	<integer>36</integer>
+	<key>FieldEvidenceWorkResourceDirectCostIsEmbedded</key>
+	<true/>
+	<key>FieldEvidenceWorkResourceLocalPartReferenceIsSnapshot</key>
+	<true/>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

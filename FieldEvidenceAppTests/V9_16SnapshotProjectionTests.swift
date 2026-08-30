@@ -957,3 +957,9 @@ private final class C48PortableReviewV916SnapshotTests: XCTestCase {
         XCTAssertTrue(C48PortableReviewReportSnapshotBoundaryV1.rawResponseBytesAreExcluded)
     }
 }
+private final class C49WorkResourceSnapshotProjectionBoundaryTests: XCTestCase {
+    func testTotalsProjectionKeepsCurrenciesKeyedSeparately() {
+        let totals = WorkResourceTotalsProjectionV1(durationMinutes: 0, materialLineCount: 0, directCostByCurrency: ["EUR": 1, "USD": 2])
+        XCTAssertEqual(Set(totals.directCostByCurrency.keys), ["EUR", "USD"])
+    }
+}

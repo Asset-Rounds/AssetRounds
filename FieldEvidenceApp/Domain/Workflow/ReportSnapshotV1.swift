@@ -484,3 +484,18 @@ enum C48PortableReviewReportSnapshotBoundaryV1 {
         try projection.validate()
     }
 }
+
+// MARK: - C49 report snapshot boundary
+
+enum C49WorkResourceReportSnapshotBoundaryV1 {
+    static let snapshotIsImmutableAfterAppend = true
+    static let correctionCreatesNewSnapshot = true
+    static let liveInventorySnapshotRows = false
+
+    static func validate(_ envelope: C49WorkResourceProjectionEnvelopeV1) throws {
+        try envelope.validate()
+        guard envelope.projection.projectionSHA256.count == 64 else {
+            throw C49WorkResourceProjectionFailureV1.nonCanonical
+        }
+    }
+}

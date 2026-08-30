@@ -921,3 +921,11 @@ private final class C48PortableReviewV936RecoverabilityTests: XCTestCase {
         XCTAssertTrue(C48PortableReviewPersistenceBoundaryV1.sessionStoreIsNonpersistent)
     }
 }
+private final class C49WorkResourceRecoverabilityBoundaryTests: XCTestCase {
+    func testV23P03C49I01RecoveryContractUsesCanonicalPostimageAndRejectsDivergence() {
+        XCTAssertTrue(C49WorkResourceContractBoundaryV1.appendOnly)
+        XCTAssertEqual(C49WorkResourceRecoveryBoundaryV1.commandKind, .applyWorkResource)
+        XCTAssertTrue(C49WorkResourceRecoveryBoundaryV1.effectBeforeReceiptRecoveryUsesCanonicalPostimage)
+        XCTAssertTrue(C49WorkResourceRecoveryBoundaryV1.divergentSameMutationIsQuarantined)
+    }
+}

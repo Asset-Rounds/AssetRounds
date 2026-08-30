@@ -168,6 +168,15 @@ enum PlacementPoseRestoreIdentityPolicyV1 {
 }
 
 extension RestoreIdentityV1 {
+    func destinationWorkResourceMutationID(for sourceID: MutationIDV1) throws -> MutationIDV1 {
+        let id = Self.deterministicUUID(
+            namespace: "work-resource-restore:\(targetPointer.generationID.uuidString.lowercased())",
+            sourceID: sourceID.rawValue,
+            workspaceID: targetPointer.workspaceID
+        )
+        return try MutationIDV1(rawValue: id)
+    }
+
     func destinationActivityContractMutationID(for sourceID: MutationIDV1) throws -> MutationIDV1 {
         let digest = CanonicalJSONV1.sha256(Data(
             "activity-contract-restore\u{0}\(sourceID.rawValue.uuidString.lowercased())\u{0}\(targetPointer.workspaceID.uuidString.lowercased())\u{0}\(targetPointer.generationID.uuidString.lowercased())".utf8
@@ -738,5 +747,15 @@ enum C48PortableExchangeRestoreIdentityDispositionV2: String, Codable, Sendable 
         case .clone, .fork:
             return .rebindHistoryAndInvalidateCapability
         }
+    }
+}
+
+enum C49WorkResourceRestoreIdentityPolicyV1 {
+    static func preservesCanonicalBytes(_ identity: RestoreIdentityV1) -> Bool {
+        identity.source.workspaceID == identity.targetPointer.workspaceID
+    }
+
+    static func requiresHistoricRebinding(_ identity: RestoreIdentityV1) -> Bool {
+        identity.source.workspaceID != identity.targetPointer.workspaceID
     }
 }

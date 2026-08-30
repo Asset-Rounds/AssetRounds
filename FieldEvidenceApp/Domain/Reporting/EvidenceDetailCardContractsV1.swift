@@ -2038,3 +2038,44 @@ enum C48PortableReviewEvidenceDetailBoundaryV1 {
         try projection.validate()
     }
 }
+
+// MARK: - C49 work-resource evidence detail card
+
+struct C49WorkResourceEvidenceDetailCardV1: Codable, Equatable, Sendable {
+    let durationMinutes: Int
+    let materialRows: [String]
+    let directCostRows: [String]
+    let claims: String
+
+    init(projection: C49WorkResourceReportProjectionV1) throws {
+        try C49WorkResourceProjectionSupportV1.validate(projection)
+        durationMinutes = projection.durationMinutes
+        materialRows = projection.materials.map {
+            "\($0.description)|\($0.unit ?? "")|\($0.quantity.mantissa)|\($0.quantity.scale)"
+        }
+        directCostRows = projection.directCostPreview.totalsByCurrency.map {
+            "\($0.currencyCode)|\($0.mantissa)|\($0.minorUnitScale)"
+        }
+        claims = C49FormulaSafeCSVV1.sourceClaims
+    }
+
+    func validate() throws {
+        guard claims == C49FormulaSafeCSVV1.sourceClaims, durationMinutes >= 0 else {
+            throw C49WorkResourceProjectionFailureV1.nonCanonical
+        }
+    }
+}
+
+enum C49WorkResourceEvidenceDetailBoundaryV1 {
+    static let exactDescriptionAndUnitAreShown = true
+    static let directCostsAreAudienceGated = true
+    static let rawStockRowsShown = false
+
+    static func card(
+        _ projection: C49WorkResourceReportProjectionV1
+    ) throws -> C49WorkResourceEvidenceDetailCardV1 {
+        let card = try C49WorkResourceEvidenceDetailCardV1(projection: projection)
+        try card.validate()
+        return card
+    }
+}

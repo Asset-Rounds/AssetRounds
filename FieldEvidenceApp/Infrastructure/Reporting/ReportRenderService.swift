@@ -1824,3 +1824,32 @@ extension ReportRenderService {
         )
     }
 }
+
+// MARK: - C49 work-resource report rendering
+
+extension ReportRenderService {
+    static func renderWorkResourceOpenJSON(
+        _ projection: C49WorkResourceReportProjectionV1
+    ) throws -> Data {
+        try DeterministicOpenJSONRendererV1.renderWorkResource(projection)
+    }
+
+    static func renderWorkResourcePDF(
+        _ projection: C49WorkResourceReportProjectionV1
+    ) throws -> Data {
+        try DeterministicPDFRendererV1.renderWorkResourceData(projection)
+    }
+
+    static func renderWorkResourceFormulaSafeCSV(
+        _ projection: C49WorkResourceReportProjectionV1
+    ) throws -> Data {
+        try C49WorkResourceReportSnapshotEncoderBoundaryV1.encodeFormulaSafeCSV(projection)
+    }
+}
+
+enum C49WorkResourceReportRenderBoundaryV1 {
+    static let rendererConsumesValidatedProjection = true
+    static let openJSONAndPDFShareProjectionDigest = true
+    static let csvUsesFormulaSafeEscaping = true
+    static let rawStockAndLiveInventoryClaimsRendered = false
+}

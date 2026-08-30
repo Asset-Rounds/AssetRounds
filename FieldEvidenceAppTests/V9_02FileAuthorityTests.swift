@@ -474,3 +474,10 @@ private extension V9_02FileAuthorityTests {
         )
     }
 }
+private final class C49WorkResourceFileAuthorityBoundaryTests: XCTestCase {
+    func testWorkResourceCoreDoesNotClaimLiveStockFileAuthority() {
+        XCTAssertFalse(C49WorkResourceContractBoundaryV1.liveInventoryReference)
+        XCTAssertTrue(C49WorkResourceLifecycleBoundaryV1.liveInventoryLookupIsForbidden)
+        XCTAssertTrue(C49WorkResourceLifecycleBoundaryV1.untrackedMaterialRemainsValid)
+    }
+}

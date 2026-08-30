@@ -22,6 +22,12 @@ enum C30EvidenceContextWholeSignDeletionServiceV1 {
     }
 }
 
+enum C49WorkResourceWholeSignDeletionServiceBoundaryV1 {
+    static let fetchesNoWorkResourceRowsForCascade = true
+    static let ordinaryDeletePreservesAcceptedRows = true
+    static let voidAndReversalRemainWriterMutations = true
+}
+
 enum C31LightingWholeSignDeletionServiceBoundaryV1 {
     static let deletesTopologyAsOneClosure = true
     static let preservesImmutableHistoryForOrdinaryDelete = true

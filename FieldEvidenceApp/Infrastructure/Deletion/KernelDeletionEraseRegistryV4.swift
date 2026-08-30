@@ -30,6 +30,12 @@ enum C32AssistanceKernelDeletionEnrollmentV1 {
     }
 }
 
+enum C49WorkResourceKernelDeletionEraseEnrollmentV1 {
+    static let family = "ManualWorkResourceRecordRow"
+    static let deleteDisposition = "PRESERVE_ACCEPTED_HISTORY"
+    static let eraseDisposition = "CLEAR_WITH_WORKSPACE_GENERATION"
+}
+
 
 /// C33 has exactly two SwiftData rows. Derivative and retention values are
 /// journal/content support, not additional row families.

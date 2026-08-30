@@ -360,3 +360,45 @@ enum C48PortableReviewAccessibleDocumentBoundaryV1 {
         try projection.validate()
     }
 }
+
+// MARK: - C49 work-resource accessible projection
+
+struct C49WorkResourceAccessibleDocumentProjectionV1: Codable, Equatable, Sendable {
+    let lines: [String]
+    let claims: String
+
+    init(projection: C49WorkResourceReportProjectionV1) throws {
+        try C49WorkResourceProjectionSupportV1.validate(projection)
+        var values = ["Duration: \(projection.durationMinutes) minutes"]
+        values.append(contentsOf: projection.materials.map {
+            "Material: \($0.description), unit \($0.unit ?? "unspecified"), quantity \($0.quantity.mantissa) scale \($0.quantity.scale)"
+        })
+        if projection.directCostPreview.included {
+            values.append(contentsOf: projection.directCostPreview.totalsByCurrency.map {
+                "Direct cost total: \($0.currencyCode) \($0.mantissa) minor units at scale \($0.minorUnitScale)"
+            })
+        }
+        lines = values
+        claims = C49FormulaSafeCSVV1.sourceClaims
+    }
+
+    func validate() throws {
+        guard !lines.isEmpty, claims == C49FormulaSafeCSVV1.sourceClaims else {
+            throw C49WorkResourceProjectionFailureV1.nonCanonical
+        }
+    }
+}
+
+enum C49WorkResourceAccessibleDocumentBoundaryV1 {
+    static let semanticLinesAreDerived = true
+    static let sourceBytesSpoken = false
+    static let liveInventoryClaimsSpoken = false
+
+    static func lines(
+        _ projection: C49WorkResourceReportProjectionV1
+    ) throws -> [String] {
+        let document = try C49WorkResourceAccessibleDocumentProjectionV1(projection: projection)
+        try document.validate()
+        return document.lines
+    }
+}

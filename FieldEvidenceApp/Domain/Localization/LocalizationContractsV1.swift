@@ -4957,3 +4957,45 @@ enum C48PortableReviewLocalizationPolicyV1 {
         }
     }
 }
+
+// MARK: - C49 work-resource localization
+
+enum C49WorkResourceLocalizationKeyV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case customerSafe = "work_resource.customer_safe"
+    case directCostInternal = "work_resource.direct_cost.internal"
+    case directCostPreview = "work_resource.direct_cost_preview"
+    case duration = "work_resource.duration"
+    case durationManual = "work_resource.duration.manual"
+    case internalOnly = "work_resource.internal_only"
+    case material = "work_resource.material"
+    case noLiveInventoryClaim = "work_resource.no_live_inventory_claim"
+}
+
+enum C49WorkResourceLocalizationPolicyV1 {
+    static let sourceLocale = "en"
+    static let keys = C49WorkResourceLocalizationKeyV1.allCases
+    static let rawStockAndInventoryClaimsAreNotLocalized = true
+
+    static func english(_ key: C49WorkResourceLocalizationKeyV1) -> String {
+        switch key {
+        case .duration: return "Duration"
+        case .durationManual: return "Time spent — entered manually"
+        case .material: return "Material"
+        case .directCostInternal:
+            return "Direct cost — entered amount; no tax, rates, markup, or invoice calculation."
+        case .directCostPreview: return "Direct cost preview"
+        case .internalOnly: return "Internal only"
+        case .customerSafe: return "Customer safe"
+        case .noLiveInventoryClaim: return "No live inventory claim"
+        }
+    }
+
+    static func validate() throws {
+        let values = keys.map(\.rawValue)
+        guard values == values.sorted(), Set(values).count == values.count,
+              keys.allSatisfy({ !english($0).isEmpty }),
+              rawStockAndInventoryClaimsAreNotLocalized else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}

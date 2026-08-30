@@ -16,6 +16,33 @@ extension EvidenceAssociationV1 {
     }
 }
 
+// MARK: - C49 work-resource subject association
+
+enum C49WorkResourceEvidenceAssociationBoundaryV1 {
+    static let subjectBindingIsReadOnly = true
+    static let evidenceBytesRemainOutsideWorkResourceProjection = true
+    static let liveInventoryAssociationIsForbidden = true
+
+    static func report(
+        subject: WorkResourceSubjectV1,
+        snapshots: [WorkResourceSnapshotV1],
+        audience: C49WorkResourceAudienceV1 = .internalOnly,
+        includeDirectCostPreview: Bool = false
+    ) throws -> C49WorkResourceReportProjectionV1 {
+        guard snapshots.allSatisfy({
+            $0.entry.workspaceID == subject.workspaceID && $0.entry.subject == subject
+        }) else {
+            throw C49WorkResourceProjectionFailureV1.invalidWorkspace
+        }
+        return try C49WorkResourceReportProjectionV1(
+            workspaceID: subject.workspaceID,
+            snapshots: snapshots,
+            audience: audience,
+            includeDirectCostPreview: includeDirectCostPreview
+        )
+    }
+}
+
 enum C48PortableReviewEvidenceAssociationBoundaryV1 {
     static let responseAttachmentsAreUnsupported = true
     static let capabilityProofCannotBecomeEvidence = true

@@ -726,3 +726,36 @@ enum C48PortableReviewContentIntegrityBoundaryV1 {
         try projection.validate()
     }
 }
+
+// MARK: - C49 work-resource content integrity boundary
+
+/// Work-resource references are checked against the same immutable content
+/// authority as every other canonical attachment.  This adapter validates
+/// bytes and metadata only; it never resolves a live inventory row.
+enum C49WorkResourceContentIntegrityBoundaryV1 {
+    static let canonicalRecordType = "WorkResourceEntryV1"
+    static let localPartReferenceType = "LocalPartReferenceSnapshotV1"
+    static let directCostType = "DirectCostEntryV1"
+    static let localPartReferenceIsSnapshotOnly = true
+    static let liveInventoryLookup = false
+    static let createsSecondIntegrityAuthority = false
+
+    static func verifyCanonicalReference(
+        reference: ContentReferenceV1,
+        locator: ContentLocatorV1,
+        observed: ContentObservedBytesV1,
+        workspaceID: WorkspaceID
+    ) throws {
+        guard reference.workspaceID == workspaceID.rawValue.uuidString.lowercased() else {
+            throw ContentIntegrityFailureV1.wrongWorkspace
+        }
+        guard reference.byteRole == .immutableOriginal else {
+            throw ContentIntegrityFailureV1.immutableOriginal
+        }
+        try ContentIntegrityV1.verify(
+            reference: reference,
+            locator: locator,
+            observed: observed
+        )
+    }
+}

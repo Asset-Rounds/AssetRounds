@@ -1905,3 +1905,32 @@ enum C48PortableReviewSnapshotValidationBoundaryV1 {
         try projection.validate()
     }
 }
+
+// MARK: - C49 work-resource snapshot validation
+
+enum C49WorkResourceSnapshotValidationBoundaryV1 {
+    static let validatesBeforeEveryConsumer = true
+    static let correctionSnapshotsRemainAppendOnly = true
+    static let rawStockAndLiveInventorySnapshotsAccepted = false
+
+    static func validate(_ envelope: C49WorkResourceProjectionEnvelopeV1) throws {
+        try envelope.validate()
+        try C49WorkResourceReportSnapshotBoundaryV1.validate(envelope)
+    }
+
+    static func rebuild(
+        workspaceID: WorkspaceID,
+        snapshots: [WorkResourceSnapshotV1],
+        audience: C49WorkResourceAudienceV1 = .internalOnly,
+        includeDirectCostPreview: Bool = false
+    ) throws -> C49WorkResourceReportProjectionV1 {
+        let projection = try C49WorkResourceReportProjectionV1(
+            workspaceID: workspaceID,
+            snapshots: snapshots,
+            audience: audience,
+            includeDirectCostPreview: includeDirectCostPreview
+        )
+        try C49WorkResourceProjectionSupportV1.validate(projection)
+        return projection
+    }
+}

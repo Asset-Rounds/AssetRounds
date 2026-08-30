@@ -4642,3 +4642,60 @@ enum C48PortableReviewLocalizationCatalogBoundaryV1 {
         }
     }
 }
+
+// MARK: - C49 work-resource localization
+
+extension C49WorkResourceLocalizationKeyV1 {
+    var englishDefaultValue: String {
+        C49WorkResourceLocalizationPolicyV1.english(self)
+    }
+}
+
+extension BundledLocalizationCatalogV1 {
+    static func workResourceEnglish(_ key: C49WorkResourceLocalizationKeyV1) -> String {
+        key.englishDefaultValue
+    }
+
+    /// C49 is additive and English-only until a later localized UI card.
+    static func workResourceRegistry() throws -> LocalizationKeyRegistryV1 {
+        let base = try registry()
+        let additions = try C49WorkResourceLocalizationKeyV1.allCases
+            .sorted { $0.rawValue < $1.rawValue }
+            .map { key in
+            LocalizationKeyDefinitionV1(
+                key: try LocalizationKeyV1(key.rawValue),
+                meaningID: key.rawValue,
+                translatorComment: "C49 bounded manual work-resource label; direct cost remains internal by default.",
+                englishDefaultValue: key.englishDefaultValue,
+                arguments: [],
+                requiredEnglishPluralCategories: [],
+                state: .active,
+                deprecatedFallbackKey: nil
+            )
+        }
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+}
+
+enum C49WorkResourceLocalizationBoundaryV1 {
+    static let sourceLocale = "en"
+    static let usesExistingBundledCatalog = true
+    static let directCostDefaultIsInternal = true
+    static let customerSafeCostRequiresExplicitPreview = true
+    static let localPartReferenceIsSnapshotOnly = true
+    static let liveInventoryLookup = false
+
+    static func validate() throws {
+        try C49WorkResourceLocalizationPolicyV1.validate()
+        let values = C49WorkResourceLocalizationKeyV1.allCases.map(\.englishDefaultValue)
+        guard usesExistingBundledCatalog,
+              sourceLocale == C49WorkResourceLocalizationPolicyV1.sourceLocale,
+              directCostDefaultIsInternal,
+              customerSafeCostRequiresExplicitPreview,
+              localPartReferenceIsSnapshotOnly,
+              !liveInventoryLookup,
+              values.allSatisfy({ !$0.isEmpty }) else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}

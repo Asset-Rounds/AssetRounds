@@ -611,3 +611,20 @@ enum C48PortableReviewOriginMetadataBoundaryV1 {
         guard snapshot.workspaceID == workspaceID else { throw PartyAccountabilityFailureV1.crossWorkspaceReference }
     }
 }
+
+// MARK: - C49 work-resource accountability boundary
+
+enum C49WorkResourceAccountabilityBoundaryV1 {
+    static let sourceActorIsNotProjected = true
+    static let identityVerificationIsNotInferred = true
+    static let legalApprovalIsNotInferred = true
+    static let rawStockAndLiveInventoryClaims = false
+
+    static func validate(
+        _ projection: C49WorkResourceReportProjectionV1
+    ) throws -> C49WorkResourceAssuranceProjectionV1 {
+        let assurance = try C49WorkResourceEvidenceAssuranceBoundaryV1.assess(projection)
+        try assurance.validate()
+        return assurance
+    }
+}

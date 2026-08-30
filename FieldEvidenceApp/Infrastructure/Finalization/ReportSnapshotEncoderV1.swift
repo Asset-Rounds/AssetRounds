@@ -1953,3 +1953,67 @@ enum C48PortableReviewReportSnapshotEncoderBoundaryV1 {
         try projection.validate()
     }
 }
+
+// MARK: - C49 work-resource report snapshot encoder
+
+enum C49WorkResourceReportSnapshotEncoderBoundaryV1 {
+    static let usesCanonicalWorkResourceSnapshot = true
+    static let sortedKeyEncoding = true
+    static let appendOnlyCorrectionsRemainHistory = true
+    static let rawStockAndLiveInventoryBytesEncoded = false
+
+    static func encode(
+        _ projection: C49WorkResourceReportProjectionV1
+    ) throws -> EncodedReportSnapshotV1 {
+        let envelope = try C49WorkResourceProjectionSupportV1.envelope(
+            projection,
+            format: "OPEN_JSON"
+        )
+        let data = try canonicalData(envelope)
+        return EncodedReportSnapshotV1(
+            data: data,
+            sha256: KernelCanonicalHashV1.sha256(data)
+        )
+    }
+
+    static func decode(
+        _ data: Data
+    ) throws -> C49WorkResourceProjectionEnvelopeV1 {
+        guard !data.isEmpty, data.count <= 8_388_608 else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        do {
+            let value = try JSONDecoder().decode(
+                C49WorkResourceProjectionEnvelopeV1.self,
+                from: data
+            )
+            try value.validate(expectedFormat: "OPEN_JSON")
+            guard try canonicalData(value) == data else {
+                throw ReportSnapshotEncodingErrorV1.noncanonicalData
+            }
+            return value
+        } catch let error as ReportSnapshotEncodingErrorV1 {
+            throw error
+        } catch {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+    }
+
+    static func encodeFormulaSafeCSV(
+        _ projection: C49WorkResourceReportProjectionV1
+    ) throws -> Data {
+        let rows = try C49FormulaSafeCSVV1.reportRows(projection)
+        guard let data = C49FormulaSafeCSVV1.encode(rows: rows).data(using: .utf8) else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return data
+    }
+
+    private static func canonicalData(
+        _ envelope: C49WorkResourceProjectionEnvelopeV1
+    ) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return try encoder.encode(envelope)
+    }
+}

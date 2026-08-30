@@ -637,3 +637,26 @@ enum C32AssistanceCompatibility_Persistence_ProtectedFilePolicy {
 enum C45AcceptedLabelProtectedFileBoundaryV1 { static let canonicalStoreRequiresCompleteProtection=true;static let leasedOutputScratchIsNotBackupAuthority=true }
 
 enum C46OperationalContactBoundary_21{static let persistentFamilies=OperationalContactPersistenceEnrollmentV1.persistentFamilies;static let platformOutcomesPersistent=false}
+
+/// C49 manual work-resource truth is stored in the protected SwiftData
+/// generation.  It introduces no file-backed inventory, timer, or accounting
+/// artifact; only the already-authorized C48 exchange scratch remains in the
+/// protected-file policy.
+enum C49WorkResourceProtectedFileBoundaryV1 {
+    static let workResourceTruthUsesPersistentModel = true
+    static let introducesWorkResourceFileKind = false
+    static let localPartReferenceIsEmbeddedSnapshot = true
+    static let exchangeScratchRemainsExcludedFromBackup = true
+    static let persistentSchemaVersion = C49WorkResourcePersistenceBoundaryV1.persistentSchemaVersion
+    static let recordsSchemaVersion = C49WorkResourcePersistenceBoundaryV1.recordsSchemaVersion
+
+    static func validate() throws {
+        guard workResourceTruthUsesPersistentModel,
+              !introducesWorkResourceFileKind,
+              localPartReferenceIsEmbeddedSnapshot,
+              exchangeScratchRemainsExcludedFromBackup else {
+            throw ProtectedFilePolicyError.resourceValueMismatch
+        }
+        try C49WorkResourcePersistenceBoundaryV1.validate()
+    }
+}

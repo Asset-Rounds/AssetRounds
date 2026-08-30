@@ -325,3 +325,8 @@ private final class C48PortableReviewS82AccessibilityTests: XCTestCase {
         XCTAssertFalse(C48PortableReviewAccessibilityPolicyV1.verifiedIdentitySpoken)
     }
 }
+private final class C49WorkResourceGoldenAccessibilityBoundaryTests: XCTestCase {
+    func testVisibilityLabelsRemainExplicitAndStable() {
+        XCTAssertEqual(WorkResourceVisibilityPolicyV1.allCases.map(\.rawValue), ["INTERNAL_ONLY", "CUSTOMER_SAFE"])
+    }
+}

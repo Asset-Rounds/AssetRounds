@@ -6,6 +6,24 @@ enum GuidedSurveyBackupRegistryV1 {
     static let canonicalKinds = Set(V25BackupGuidedSurveyRecordV1.Kind.allCases)
 }
 
+enum C49WorkResourceKernelBackupRestoreEnrollmentV1 {
+    static let persistentSchemaVersion = 37
+    static let recordsSchemaVersion = 36
+    static let durableFamily = "ManualWorkResourceRecordRow"
+    static let directCostIsEmbedded = true
+    static let cloneForkRebindsHistoryOnly = true
+
+    static func validate() throws {
+        guard persistentSchemaVersion == C49WorkResourcePersistenceBoundaryV1.persistentSchemaVersion,
+              recordsSchemaVersion == C49BackupEnrollmentV1.recordsSchemaVersion,
+              C49WorkResourcePersistenceBoundaryV1.durableModelCount == 1,
+              directCostIsEmbedded,
+              cloneForkRebindsHistoryOnly else {
+            throw WorkResourcePersistenceFailureV1.invalidValue
+        }
+    }
+}
+
 enum C30EvidenceContextBackupRestoreRegistryV1 {
     static let persistentSchemaVersion = 30
     static let recordsSchemaVersion = 29

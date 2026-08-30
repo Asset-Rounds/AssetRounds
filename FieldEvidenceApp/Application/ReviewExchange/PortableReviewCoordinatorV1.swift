@@ -156,3 +156,19 @@ final class PortableReviewCoordinatorV1 {
         try await sessions.recoverAcceptAndApply(mutationID: mutationID, canonicalReceipt: receipt)
     }
 }
+
+// MARK: - C49 work-resource review exchange projection
+
+extension PortableReviewCoordinatorV1 {
+    nonisolated static func workResourcePreview(
+        _ projection: C49WorkResourceReportProjectionV1
+    ) throws -> C49WorkResourceProjectionEnvelopeV1 {
+        try C49WorkResourceReviewExchangeBoundaryV1.customerSafePreview(projection)
+    }
+}
+
+enum C49WorkResourcePortableReviewCoordinatorBoundaryV1 {
+    static let exchangeConsumesCustomerSafePreview = true
+    static let directCostRequiresExplicitOptIn = true
+    static let canonicalWriterIsNotReplaced = true
+}

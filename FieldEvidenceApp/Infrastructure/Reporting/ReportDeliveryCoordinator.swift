@@ -2714,3 +2714,29 @@ enum C48PortableReviewReportDeliveryBoundaryV1 {
     static let verifiedIdentityEmitted = false
     static let existingDeliveryCoordinatorRemainsPresentationOnly = true
 }
+
+// MARK: - C49 work-resource delivery projection
+
+enum C49WorkResourceReportDeliveryBoundaryV1 {
+    static let deliveryUsesValidatedProjection = true
+    static let customerSafeDirectCostsRequireOptIn = true
+    static let formulaSafeCSVIsDeterministic = true
+    static let deliveryDoesNotClaimSendOrReceipt = true
+    static let rawStockAndLiveInventoryClaimsDelivered = false
+
+    static func customerSafeCSV(
+        _ projection: C49WorkResourceReportProjectionV1
+    ) throws -> Data {
+        let safe = try C49WorkResourcePrivacyTransformBoundaryV1.customerSafe(projection)
+        return try ReportRenderService.renderWorkResourceFormulaSafeCSV(safe)
+    }
+
+    static func validate(
+        _ envelope: C49WorkResourceProjectionEnvelopeV1
+    ) throws {
+        try envelope.validate()
+        guard envelope.projection.isCustomerSafe else {
+            throw C49WorkResourceProjectionFailureV1.nonCanonical
+        }
+    }
+}

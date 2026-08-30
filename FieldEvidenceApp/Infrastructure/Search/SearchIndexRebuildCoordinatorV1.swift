@@ -2378,3 +2378,21 @@ enum C48PortableReviewSearchRebuildBoundaryV1 {
         return projection
     }
 }
+
+// MARK: - C49 work-resource search rebuild boundary
+
+/// C49 search is a disposable projection of canonical work-resource history.
+/// Rebuilds never materialize private cost, note, locator, or inventory data.
+enum C49WorkResourceSearchRebuildBoundaryV1 {
+    static let canonicalRecordType = "WorkResourceEntryV1"
+    static let rebuildsOnlyCurrentDerivedMetadata = true
+    static let directCostRowsRebuilt = false
+    static let internalNotesRebuilt = false
+    static let privateLocatorsRebuilt = false
+    static let liveInventoryLookup = false
+    static let rebuildSourceIsCanonicalReceiptHistory = true
+
+    static func validateField(_ fieldID: String) throws {
+        try C49WorkResourceLocalSearchBoundaryV1.validateField(fieldID)
+    }
+}

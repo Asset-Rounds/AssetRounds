@@ -372,3 +372,22 @@ enum C48PortableReviewPrivacyTransformBoundaryV1 {
     static let onlySafeDerivedMetadataMayReachReportConsumers = true
     static let customerSafePrivacyProjectionRemainsExistingPolicy = true
 }
+
+// MARK: - C49 work-resource privacy projection
+
+enum C49WorkResourcePrivacyTransformBoundaryV1 {
+    static let customerSafeRequiresExplicitAudience = true
+    static let customerSafeDirectCostPreviewIsOptIn = true
+    static let internalOnlyCostsNeverReachCustomerSafeProjection = true
+    static let rawStockAndLiveInventoryClaimsAreExcluded = true
+
+    static func customerSafe(
+        _ projection: C49WorkResourceReportProjectionV1
+    ) throws -> C49WorkResourceReportProjectionV1 {
+        try C49WorkResourceProjectionSupportV1.validate(projection)
+        guard projection.isCustomerSafe else {
+            throw C49WorkResourceProjectionFailureV1.nonCanonical
+        }
+        return projection
+    }
+}

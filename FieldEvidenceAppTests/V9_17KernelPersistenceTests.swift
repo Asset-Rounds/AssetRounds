@@ -564,3 +564,11 @@ private final class C48PortableReviewV917PersistenceTests: XCTestCase {
         XCTAssertTrue(PortableReviewChangeJournalPolicyV1.postimagesUseOnlyExistingC14Families)
     }
 }
+private final class C49WorkResourceKernelPersistenceBoundaryTests: XCTestCase {
+    func testOnlyWorkspaceWriterOwnsOneCanonicalEntryRow() throws {
+        XCTAssertEqual(C49WorkResourceContractBoundaryV1.soleWriter, "WorkspaceWriterV1")
+        XCTAssertEqual(C49WorkResourcePersistenceBoundaryV1.durableModelCount, 1)
+        XCTAssertFalse(C49WorkResourcePersistenceBoundaryV1.separateDirectCostRow)
+        try C49WorkResourcePersistenceBoundaryV1.validate()
+    }
+}

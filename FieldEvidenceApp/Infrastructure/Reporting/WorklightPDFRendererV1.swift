@@ -814,3 +814,20 @@ enum C48PortableReviewWorklightRendererBoundaryV1 {
     static let rawRequestResponseBytesRendered = false
     static let externalReviewCannotChangeWorklightSnapshot = true
 }
+
+// MARK: - C49 work-resource Worklight projection
+
+extension WorklightPDFRendererV1 {
+    static func renderWorkResourceProjection(
+        _ projection: C49WorkResourceReportProjectionV1
+    ) throws -> Data {
+        try DeterministicPDFRendererV1.renderWorkResourceData(projection)
+    }
+}
+
+enum C49WorkResourceWorklightRendererBoundaryV1 {
+    static let usesExistingDeterministicPDFRoute = true
+    static let worklightOwnsNoSnapshot = true
+    static let liveInventoryClaimsRendered = false
+    static let rawSourceBytesRendered = false
+}

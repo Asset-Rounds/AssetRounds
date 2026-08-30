@@ -42,3 +42,24 @@ enum C48PortableReviewAccessibleDocumentPersistenceBoundaryV1 {
         try projection.validate()
     }
 }
+
+/// C49 work-resource entries may reference an accessibility assessment as an
+/// already-canonical subject fact, but never copy or mutate this receipt row.
+/// The existing receipt remains append-only and is enrolled exactly once by
+/// the pre-existing schema family.
+enum C49WorkResourceAccessibleDocumentPersistenceBoundaryV1 {
+    static let assessmentReceiptRemainsCanonical = true
+    static let workResourceEntryDoesNotDuplicateAssessmentBytes = true
+    static let immutableAssessmentReceiptRemainsBackupEligible = true
+    static let persistentSchemaVersion = C49WorkResourcePersistenceBoundaryV1.persistentSchemaVersion
+    static let recordsSchemaVersion = C49WorkResourcePersistenceBoundaryV1.recordsSchemaVersion
+
+    static func validate() throws {
+        guard assessmentReceiptRemainsCanonical,
+              workResourceEntryDoesNotDuplicateAssessmentBytes,
+              immutableAssessmentReceiptRemainsBackupEligible else {
+            throw AccessibleDocumentPersistenceFailureV1.corruptRow
+        }
+        try C49WorkResourcePersistenceBoundaryV1.validate()
+    }
+}

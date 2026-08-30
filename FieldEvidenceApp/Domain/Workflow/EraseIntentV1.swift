@@ -11,6 +11,12 @@ enum FunctionalRelationshipEraseBoundaryV1 {
     }
 }
 
+enum C49WorkResourceEraseIntentPolicyV1 {
+    static let eraseClearsCanonicalRows = true
+    static let eraseClearsDerivedTotalsSearchAndDrafts = true
+    static let eraseCreatesNoRecoverableCostSidecar = true
+}
+
 enum PackageEvolutionEraseBoundaryV1 {
     static let atomicFamilyCount = 4
     static let ordinaryDeletionPreservesPromotedHistory = true

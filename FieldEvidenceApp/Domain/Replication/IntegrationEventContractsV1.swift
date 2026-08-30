@@ -619,3 +619,9 @@ enum C48PortableReviewReconciliationIntegrationEventBoundaryV1 {
     }
     static func validate(registry: IntegrationContractRegistryV1) throws { for definition in try definitions() { guard try registry.definition(for: definition.sourceEntityKind) == definition else { throw IntegrationEventFailureV1.unknownEventKind } } }
 }
+
+enum C49WorkResourceIntegrationEventBoundaryV1 {
+    static let canonicalKinds: Set<WorkspaceEntityKindV1> = [.workResourceEntry]
+    static let directCostProjectsOnlyInsideCanonicalEntryPostimage = true
+    static let projectionOwnsNoResourceOrCostLedger = true
+}

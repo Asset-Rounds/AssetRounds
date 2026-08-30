@@ -5,6 +5,20 @@ enum BackupCanonicalDecodingErrorV1: Error, Equatable {
     case invalidRecords
 }
 
+enum C49WorkResourceBackupImportBoundaryV1 {
+    static let persistentSchemaVersion = 37
+    static let recordsSchemaVersion = 36
+    static let replacesCanonicalRowsAtomically = true
+    static let derivedTotalsSearchAndDraftsAreRebuilt = true
+
+    static func validate(_ records: V4BackupRecordsV1) throws {
+        guard records.recordsSchemaVersion == recordsSchemaVersion else {
+            throw WorkResourceContractFailureV1.invalidValue
+        }
+        _ = try records.validateC49WorkResources()
+    }
+}
+
 enum V12FunctionalRelationshipImportBoundaryV1 {
     static let persistentSchemaVersion = 12
     static let recordsSchemaVersion = 11

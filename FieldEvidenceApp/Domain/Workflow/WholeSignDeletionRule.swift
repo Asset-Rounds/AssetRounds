@@ -5,6 +5,14 @@ struct DeletionSitePayloadV1: Codable, Equatable, Sendable {
     let schemaVersion: Int
 }
 
+enum C49WorkResourceWholeSignDeletionRuleV1 {
+    static func mayPhysicallyDeleteAcceptedRow(isWorkspaceErase: Bool) -> Bool {
+        isWorkspaceErase
+    }
+
+    static let ordinaryDeletionPreservesSubjectHistory = true
+}
+
 struct PackageEvolutionDeletionInventoryV1: Equatable, Sendable {
     let releaseRecordIDs: Set<UUID>
     let sandboxRunIDs: Set<UUID>

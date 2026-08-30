@@ -1213,3 +1213,8 @@ private final class C48PortableReviewV905RestoreIdentityBoundaryTests: XCTestCas
         XCTAssertTrue(C48PortableReviewPersistenceBoundaryV1.sessionStoreIsNonpersistent)
     }
 }
+private final class C49WorkResourceRestoreIdentityBoundaryTests: XCTestCase {
+    func testRestoreIdentityKeepsSubjectKindsClosed() {
+        XCTAssertEqual(Set(WorkResourceSubjectKindV1.allCases), [.workPacket, .correctiveWork])
+    }
+}

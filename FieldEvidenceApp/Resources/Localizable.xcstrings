@@ -3793,6 +3793,38 @@
     "portable_review.capability.forwardable_warning" : {
       "comment" : "C48 cleartext capability warning; possession proves no identity or delivery.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Anyone who can open or copy this file can respond" } } }
+    },
+    "work_resource.customer_safe" : {
+      "comment" : "C49 customer-safe cost wording is available only after explicit preview selection and validation.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Customer safe" } } }
+    },
+    "work_resource.direct_cost.internal" : {
+      "comment" : "C49 direct cost is entered manually and internal by default; no tax, rates, markup, or invoice calculation.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Direct cost — entered amount; no tax, rates, markup, or invoice calculation." } } }
+    },
+    "work_resource.direct_cost_preview" : {
+      "comment" : "C49 direct cost preview requires explicit selection; it is not a tax, rate, markup, or invoice calculation.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Direct cost preview" } } }
+    },
+    "work_resource.duration" : {
+      "comment" : "C49 manually entered duration; no live or background timer.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Duration" } } }
+    },
+    "work_resource.duration.manual" : {
+      "comment" : "C49 duration is entered manually in whole minutes; no live or background timer.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Time spent — entered manually" } } }
+    },
+    "work_resource.internal_only" : {
+      "comment" : "C49 direct cost is internal by default and must not leak into customer-safe output.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Internal only" } } }
+    },
+    "work_resource.material" : {
+      "comment" : "C49 manually entered material; not a catalog or live inventory balance.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Material" } } }
+    },
+    "work_resource.no_live_inventory_claim" : {
+      "comment" : "C49 manual entries are not inventory balances or a live inventory claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "No live inventory claim" } } }
     }
   },
   "version" : "1.0"

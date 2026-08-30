@@ -673,3 +673,6 @@ private final class C48PortableReviewV906DeletionArchiveTests: XCTestCase {
         XCTAssertTrue(C48PortableExchangePersistentLifecycleBoundaryV2.eraseRemovesAppOwnedStagingOnly)
     }
 }
+private final class C49WorkResourceDeletionArchiveBoundaryTests: XCTestCase {
+    func testArchiveTreatsDirectCostAsEmbeddedWithEntry() { XCTAssertTrue(C49WorkResourceContractBoundaryV1.directCostIsEmbedded) }
+}

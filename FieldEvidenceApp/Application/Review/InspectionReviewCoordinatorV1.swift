@@ -16,3 +16,25 @@ import Foundation
     func correctiveActionProjection(workspaceID: WorkspaceID, actionID: UUID, now: Date) throws -> CorrectiveActionProjectionV1 { try lifecycle.correctiveActionProjection(workspaceID: workspaceID, actionID: actionID, now: now) }
     func portableReviewBasis(mapping:ReviewRequestC14SubjectItemMappingV1,reviewID:UUID)throws->InspectionReviewProjectionV1{try lifecycle.portableReviewBasis(mapping:mapping,reviewID:reviewID)}
 }
+
+// MARK: - C49 work-resource review projection coordinator
+
+extension InspectionReviewCoordinatorV1 {
+    nonisolated static func workResourceReport(
+        subject: WorkResourceSubjectV1,
+        snapshots: [WorkResourceSnapshotV1],
+        includeDirectCostPreview: Bool = false
+    ) throws -> C49WorkResourceReportProjectionV1 {
+        try C49WorkResourceInspectionReviewBoundaryV1.report(
+            subject: subject,
+            snapshots: snapshots,
+            includeDirectCostPreview: includeDirectCostPreview
+        )
+    }
+}
+
+enum C49WorkResourceInspectionReviewCoordinatorBoundaryV1 {
+    static let reportProjectionIsReadOnly = true
+    static let writerRemainsCanonicalMutationRoute = true
+    static let reviewDoesNotInferInventoryOrApproval = true
+}

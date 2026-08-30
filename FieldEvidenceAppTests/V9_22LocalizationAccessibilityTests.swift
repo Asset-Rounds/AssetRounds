@@ -2039,3 +2039,43 @@ private final class C48PortableReviewV922LocalizationTests: XCTestCase {
         XCTAssertFalse(C48PortableReviewAccessibilityPolicyV1.capabilityProofSpoken)
     }
 }
+private final class C49WorkResourceLocalizationBoundaryTests: XCTestCase {
+    func testCanonicalCurrencyIsLocaleIndependentUppercaseISOCode() {
+        XCTAssertEqual(try? ExactMoneyAmountV1(mantissa: 1, currencyCode: "USD", minorUnitScale: 2).currencyCode, "USD")
+        XCTAssertThrowsError(try ExactMoneyAmountV1(mantissa: 1, currencyCode: "usd", minorUnitScale: 2))
+    }
+
+    func testC49ManualDurationAndDirectCostDisclosuresAreExactAndBundled() throws {
+        let duration = "Time spent — entered manually"
+        let directCost = "Direct cost — entered amount; no tax, rates, markup, or invoice calculation."
+        XCTAssertEqual(C49WorkResourceLocalizationPolicyV1.english(.durationManual), duration)
+        XCTAssertEqual(C49WorkResourceLocalizationPolicyV1.english(.directCostInternal), directCost)
+        XCTAssertEqual(BundledLocalizationCatalogV1.workResourceEnglish(.durationManual), duration)
+        XCTAssertEqual(BundledLocalizationCatalogV1.workResourceEnglish(.directCostInternal), directCost)
+
+        let registry = try BundledLocalizationCatalogV1.workResourceRegistry()
+        XCTAssertEqual(
+            try registry.definition(for: LocalizationKeyV1(C49WorkResourceLocalizationKeyV1.durationManual.rawValue)).englishDefaultValue,
+            duration
+        )
+        XCTAssertEqual(
+            try registry.definition(for: LocalizationKeyV1(C49WorkResourceLocalizationKeyV1.directCostInternal.rawValue)).englishDefaultValue,
+            directCost
+        )
+        try C49WorkResourceLocalizationBoundaryV1.validate()
+
+        let catalogURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("FieldEvidenceApp/Resources/Localizable.xcstrings")
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: catalogURL)) as? [String: Any]
+        )
+        let strings = try XCTUnwrap(object["strings"] as? [String: Any])
+        XCTAssertNotNil(strings[C49WorkResourceLocalizationKeyV1.durationManual.rawValue])
+        XCTAssertNotNil(strings[C49WorkResourceLocalizationKeyV1.directCostInternal.rawValue])
+        let source = try String(contentsOf: catalogURL, encoding: .utf8)
+        XCTAssertTrue(source.contains("\"value\" : \"\(duration)\""))
+        XCTAssertTrue(source.contains("\"value\" : \"\(directCost)\""))
+    }
+}

@@ -13,6 +13,12 @@ enum ScheduleOrdinaryDeletionDispositionV1: Equatable, Sendable {
     )
 }
 
+enum C49WorkResourceDeletionIntentPolicyV1 {
+    static let acceptedRowsAreDeletionEvidence = true
+    static let ordinarySubjectDeletionDoesNotCascade = true
+    static let semanticVoidOrReversalUsesCanonicalWriter = true
+}
+
 enum ScheduleDeletionIntentBoundaryV1 {
     static let ordinaryAssetOrSiteDeletePreservesScheduleHistory = true
     static let workspaceEraseRemovesScheduleRows = true

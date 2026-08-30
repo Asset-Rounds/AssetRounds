@@ -203,3 +203,20 @@ enum C45AcceptedLabelIntegrationConsumerBoundaryV1 { static let cannotActivateHi
 enum C46OperationalContactBoundary_51{static let commandKind:WorkspaceCommandKindV1 = .applyOperationalContact;static let platformOutcomesProjected=false}
 enum C47ActivityContractIntegrationConsumerBoundaryV2 { static let commandKind:WorkspaceCommandKindV1 = .applyActivityContract;static let historicRestoreCannotInferNewCompletionClaims=true;static let receiptIsolation=true }
 enum C48PortableReviewIntegrationConsumerBoundaryV1 { static let consumesExistingC14ReceiptsOnly=true;static let capabilityProofAndResponseBytesNeverEnterDerivedState=true;static let originMetadataIsSelfAssertedOnly=true;static let noPortableWriterOrIdentityClaim=true }
+
+// MARK: - C49 work-resource integration conformance
+
+enum C49WorkResourceIntegrationConformanceBoundaryV1 {
+    static let canonicalRecordType = "WorkResourceEntryV1"
+    static let directCostType = "DirectCostEntryV1"
+    static let canonicalKinds: Set<WorkspaceEntityKindV1> = [.workResourceEntry]
+    static let acceptsOnlyCanonicalReceiptPostimages = true
+    static let directCostIsInsideEntryPostimage = true
+    static let createsSecondWriterOrLedger = false
+    static let directCostProjectsToCustomerByDefault = false
+    static let liveInventoryLookup = false
+
+    static func accepts(_ kind: WorkspaceEntityKindV1) -> Bool {
+        canonicalKinds.contains(kind)
+    }
+}

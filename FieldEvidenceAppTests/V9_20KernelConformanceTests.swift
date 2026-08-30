@@ -825,3 +825,10 @@ private final class C48PortableReviewV920KernelTests: XCTestCase {
         XCTAssertTrue(PortableReviewChangeJournalPolicyV1.historyDiscardAndQuarantineAreSessionOnly)
     }
 }
+private final class C49WorkResourceKernelConformanceBoundaryTests: XCTestCase {
+    func testManualResourceTruthHasOneWriterAndAppendOnlyHistory() {
+        XCTAssertTrue(C49WorkResourceContractBoundaryV1.appendOnly)
+        XCTAssertEqual(C49WorkResourceContractBoundaryV1.soleWriter, "WorkspaceWriterV1")
+        XCTAssertEqual(WorkspaceCommandKindV1.applyWorkResource.rawValue, "apply_work_resource_v1")
+    }
+}

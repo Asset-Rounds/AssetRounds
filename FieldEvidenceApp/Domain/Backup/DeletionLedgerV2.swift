@@ -8,6 +8,12 @@ enum DeletionLedgerFailureV2: Error, Equatable, Sendable {
     case invalidTimestamp
 }
 
+enum C49WorkResourceDeletionLedgerPolicyV1 {
+    static let addsRowTombstoneKind = false
+    static let ordinarySubjectDeletionPreservesAcceptedHistory = true
+    static let eraseUsesWorkspaceEraseAuthority = true
+}
+
 struct DeletionLedgerProofV2: Codable, Equatable, Sendable {
     let entryCount: Int
     let canonicalSHA256: String

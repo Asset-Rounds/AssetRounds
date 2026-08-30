@@ -431,3 +431,18 @@ enum C48PortableReviewWorkflowBoundaryV1 {
     static let rawResponseBytesAreNotWorkflowState = true
     static let historyOnlyResponsesRemainImmutable = true
 }
+
+// MARK: - C49 workflow projection boundary
+
+enum C49WorkResourceWorkflowBoundaryV1 {
+    static let rebuildIsDeterministic = true
+    static let reportIsDerivedFromCanonicalSnapshots = true
+    static let directCostCustomerPreviewIsOptIn = true
+    static let rawStockAndLiveInventoryStateAreExcluded = true
+
+    static func validate(
+        _ projection: C49WorkResourceReportProjectionV1
+    ) throws {
+        try C49WorkResourceProjectionSupportV1.validate(projection)
+    }
+}

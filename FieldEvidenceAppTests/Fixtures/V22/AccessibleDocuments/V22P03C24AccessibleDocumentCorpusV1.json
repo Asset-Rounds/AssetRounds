@@ -143,5 +143,10 @@
     "capabilityBytesSpoken": false,
     "rawRequestResponseBytesSpoken": false,
     "verifiedIdentityClaimed": false
+  },
+  "c49WorkResources": {
+    "durationAndMaterialMayBeSpoken": true,
+    "directCostRequiresExplicitCustomerSafePreview": true,
+    "liveInventoryClaimed": false
   }
 }

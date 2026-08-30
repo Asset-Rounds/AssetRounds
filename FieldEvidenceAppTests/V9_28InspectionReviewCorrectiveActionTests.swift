@@ -533,3 +533,117 @@ private final class C48PortableReviewV928C14ReconciliationTests: XCTestCase {
         XCTAssertTrue(C48PortableReviewOriginMetadataBoundaryV1.identityVerificationIsForbidden)
     }
 }
+private final class C49WorkResourceCorrectiveSubjectBoundaryTests: XCTestCase {
+    func testCorrectiveWorkIsExplicitSupportedSubject() { XCTAssertTrue(WorkResourceSubjectKindV1.allCases.contains(.correctiveWork)) }
+
+    @MainActor
+    func testC49EffectBeforeReceiptRetriesThroughRealWriterToOneRowAndReceipt() throws {
+        let fixture = try C14InspectionReviewTestSupportV1.makeFixture(seed: 149_000)
+        let action = fixture.actions[3]
+        let schema = Schema(PersistentSchemaV37.models, version: PersistentSchemaV37.versionIdentifier)
+        let container = try ModelContainer(
+            for: schema,
+            migrationPlan: nil,
+            configurations: [ModelConfiguration(
+                "C49RealWriterRecovery", schema: schema, isStoredInMemoryOnly: true,
+                allowsSave: true, cloudKitDatabase: .none
+            )]
+        )
+        let context = container.mainContext
+        context.autosaveEnabled = false
+        context.insert(try ActorSnapshotRow(fixture.recorder))
+        context.insert(try CorrectiveActionEventRow(action))
+        try context.save()
+
+        let replica = try WorkspaceReplicaIdentityV1(
+            workspaceID: fixture.workspaceID,
+            replicaID: ReplicaID(rawValue: C49WriterRecoverySupportV1.id(1))
+        )
+        let generationID = C49WriterRecoverySupportV1.id(2)
+        let writerID = C49WriterRecoverySupportV1.id(3)
+        let journal = try MutationJournalStoreV1(
+            modelContext: context,
+            identity: replica,
+            generationID: generationID,
+            failureInjection: MutationJournalFailureInjectionV1(failOnceAt: .afterEffectBeforeReceipt)
+        )
+        let writer = try WorkspaceWriterV1(
+            identity: replica,
+            generationID: generationID,
+            initialRevision: journal.currentRevision(writerInstanceID: writerID),
+            clock: C49WriterRecoverySupportV1.Clock(),
+            idSource: C49WriterRecoverySupportV1.IDSource(value: writerID),
+            fileAuthority: C49WriterRecoverySupportV1.FileAuthority(),
+            adapter: WorkspaceWriterAdapterV1(modelContext: context),
+            journalStore: journal
+        )
+        let mutationID = try MutationIDV1(rawValue: C49WriterRecoverySupportV1.id(4))
+        let subject = try WorkResourceSubjectV1(
+            workspaceID: fixture.workspaceID,
+            kind: .correctiveWork,
+            subjectID: action.eventID.uuidString,
+            subjectRevision: action.revision,
+            subjectSHA256: action.eventSHA256
+        )
+        let entry = try WorkResourceEntryV1(
+            entryID: C49WriterRecoverySupportV1.id(5),
+            workspaceID: fixture.workspaceID,
+            subject: subject,
+            actor: fixture.recorder,
+            duration: ManualDurationV1(minutes: 20),
+            recordedAt: C49WriterRecoverySupportV1.Clock().now(),
+            expectedRevision: 0,
+            revision: 1,
+            mutationID: mutationID
+        )
+        let mutation = try WorkResourceMutationV1(
+            workspaceID: fixture.workspaceID,
+            mutationID: mutationID,
+            postImage: entry
+        )
+        let current = try writer.currentRevision()
+        let concurrency = try mutation.concurrencyIdentity
+        let expected = try WorkspaceExpectedRevisionV1(
+            workspaceID: current.workspaceID,
+            generationID: current.generationID,
+            writerInstanceID: current.writerInstanceID,
+            workspaceRevision: current.revision,
+            entityRevisions: [WorkspaceEntityRevisionV1(identity: concurrency, revision: 0)]
+        )
+
+        XCTAssertThrowsError(try writer.commitWorkResource(mutation, expectedRevision: expected)) {
+            XCTAssertEqual($0 as? MutationJournalFailureV1, .injected(.afterEffectBeforeReceipt))
+        }
+        XCTAssertTrue(try context.fetch(FetchDescriptor<ManualWorkResourceRecordRow>()).isEmpty)
+        XCTAssertNil(try journal.receipt(mutationID: mutationID))
+
+        let recovered = try writer.commitWorkResource(mutation, expectedRevision: expected)
+        let rows = try context.fetch(FetchDescriptor<ManualWorkResourceRecordRow>())
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(try rows[0].value(), entry)
+        XCTAssertEqual(recovered.mutationReceipt.mutationID, mutationID)
+        XCTAssertEqual(try writer.commitWorkResource(mutation, expectedRevision: expected), recovered)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<ManualWorkResourceRecordRow>()).count, 1)
+    }
+}
+
+private enum C49WriterRecoverySupportV1 {
+    static func id(_ value: UInt8) -> UUID {
+        UUID(uuid: (0x49, value, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, value))
+    }
+
+    struct Clock: ApplicationClock {
+        func now() -> Date { Date(timeIntervalSince1970: 1_800_000_049) }
+    }
+
+    struct IDSource: ApplicationIDSource {
+        let value: UUID
+        func makeID() -> UUID { value }
+    }
+
+    struct FileAuthority: ApplicationFileAuthorityV1 {
+        func temporaryRelativePath(mutationID: MutationIDV1, component: String) throws -> String {
+            "mutation-staging/\(mutationID.rawValue.uuidString.lowercased())/\(component)"
+        }
+    }
+}

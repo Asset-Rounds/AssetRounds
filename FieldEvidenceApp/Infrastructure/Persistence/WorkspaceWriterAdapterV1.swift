@@ -49,6 +49,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             .applyOperationalContact,
             .applyActivityContract,
             .applyPortableReview,
+            .applyWorkResource,
         ])
 
     /// C22 receipts are appended by the existing fenced journal authority;
@@ -212,6 +213,8 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
                 value.inspectionReviewMutation,
                 temporaryRelativePath: temporaryRelativePath
             )
+        case let .applyWorkResource(value):
+            return try applyWorkResource(value, temporaryRelativePath: temporaryRelativePath)
         case .deleteAsset,
              .deleteSite,
              .eraseWorkspace,
@@ -221,6 +224,57 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
              .restoreWorkspace,
              .archiveEntities:
             throw WorkspaceMutationFailureV1.unsupportedCommand
+        }
+    }
+
+    private func applyWorkResource(_ mutation: WorkResourceMutationV1, temporaryRelativePath: String) throws -> WorkspaceMutationEffectV1 {
+        do {
+            try mutation.validate()
+            let value = mutation.postImage
+            guard value.actor.responsibility == .recordedBy || value.actor.responsibility == .performedBy else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            try requireExactActor(value.actor)
+            guard let subjectUUID = UUID(uuidString: value.subject.subjectID) else { throw WorkspaceMutationFailureV1.invalidCommand }
+            switch value.subject.kind {
+            case .workPacket:
+                let rows = try modelContext.fetch(FetchDescriptor<WorkPacketManifestRow>(predicate: #Predicate { $0.manifestID == subjectUUID }))
+                guard rows.count == 1, let subject = try rows.first?.value(),
+                      subject.workspaceID == value.workspaceID,
+                      subject.revision == value.subject.subjectRevision,
+                      subject.manifestSHA256 == value.subject.subjectSHA256 else { throw WorkspaceMutationFailureV1.invalidCommand }
+            case .correctiveWork:
+                let rows = try modelContext.fetch(FetchDescriptor<CorrectiveActionEventRow>(predicate: #Predicate { $0.eventID == subjectUUID }))
+                guard rows.count == 1, let subject = try rows.first?.value(),
+                      subject.workspaceID == value.workspaceID,
+                      subject.revision == value.subject.subjectRevision,
+                      subject.eventSHA256 == value.subject.subjectSHA256 else { throw WorkspaceMutationFailureV1.invalidCommand }
+            }
+            let id = value.entryID
+            let duplicate = try modelContext.fetch(FetchDescriptor<ManualWorkResourceRecordRow>(predicate: #Predicate { $0.entryID == id }))
+            guard duplicate.isEmpty else { throw WorkspaceMutationFailureV1.sequenceCollision }
+            if let predecessorID = value.supersedesEntryID {
+                let rows = try modelContext.fetch(FetchDescriptor<ManualWorkResourceRecordRow>(predicate: #Predicate { $0.entryID == predecessorID }))
+                guard rows.count == 1, let predecessor = try rows.first?.value() else { throw WorkspaceMutationFailureV1.staleEntityRevision(try mutation.concurrencyIdentity) }
+                let successors = try modelContext.fetch(FetchDescriptor<ManualWorkResourceRecordRow>()).map { try $0.value() }.filter { $0.supersedesEntryID == predecessorID }
+                guard successors.isEmpty else { throw WorkspaceMutationFailureV1.staleEntityRevision(try mutation.concurrencyIdentity) }
+                try value.validateSuccessor(of: predecessor)
+                guard value.entryID != predecessor.entryID,
+                      value.mutationID != predecessor.mutationID,
+                      value.recordedAt >= predecessor.recordedAt,
+                      value.disposition == .superseded || value.disposition == .voidedWithReason || value.disposition == .reversed else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            } else {
+                guard value.expectedRevision == 0, value.revision == 1,
+                      value.disposition == .active else { throw WorkspaceMutationFailureV1.invalidCommand }
+            }
+            modelContext.insert(try ManualWorkResourceRecordRow(value))
+            return try WorkspaceMutationEffectV1(affectedEntities: mutation.affectedIdentities, temporaryRelativePath: temporaryRelativePath)
+        } catch let failure as WorkspaceMutationFailureV1 {
+            modelContext.rollback(); throw failure
+        } catch {
+            modelContext.rollback(); throw WorkspaceMutationFailureV1.invalidCommand
         }
     }
 
@@ -2040,6 +2094,17 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
                 } catch {
                     throw WorkspaceMutationFailureV1.persistenceFailed
                 }
+                exists = values.count == 1
+            case .workResourceEntry:
+                let values = try modelContext.fetch(FetchDescriptor<ManualWorkResourceRecordRow>(predicate: #Predicate { $0.entryID == id }))
+                guard values.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }
+                do {
+                    if let row = values.first {
+                        let value = try row.value()
+                        guard value.entryID == id, value.revision == row.revision,
+                              value.entrySHA256 == row.entrySHA256 else { throw WorkspaceMutationFailureV1.persistenceFailed }
+                    }
+                } catch { throw WorkspaceMutationFailureV1.persistenceFailed }
                 exists = values.count == 1
             case .sitePartyRoleEvent:
                 let values = try modelContext.fetch(FetchDescriptor<SitePartyRoleEventRow>(predicate: #Predicate { $0.eventID == id }))

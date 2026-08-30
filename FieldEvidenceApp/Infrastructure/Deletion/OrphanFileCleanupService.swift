@@ -22,6 +22,12 @@ enum C30EvidenceContextOrphanCleanupPolicyV1 {
     }
 }
 
+enum C49WorkResourceOrphanCleanupBoundaryV1 {
+    static let ownsNoWorkResourceFiles = true
+    static let localPartSnapshotIsEmbeddedData = true
+    static let directCostIsEmbeddedData = true
+}
+
 enum C31LightingOrphanCleanupBoundaryV1 {
     static let canonicalRowsMustExistBeforeOwnedBytesRemoval = true
     static let unknownLightingRootsAreRejected = true

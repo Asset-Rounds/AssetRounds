@@ -439,3 +439,22 @@ enum C48PortableReviewPackageBindingBoundaryV1 {
         try projection.validate()
     }
 }
+
+// MARK: - C49 package binding projection
+
+enum C49WorkResourcePackageReleaseBindingBoundaryV1 {
+    static let packageBindingIsDerived = true
+    static let bindingCannotRewriteAppendOnlyHistory = true
+    static let bindingCannotExposeLiveStockRows = true
+
+    static func bind(
+        workspaceID: WorkspaceID,
+        projection: C49WorkResourceReportProjectionV1,
+        format: String = "OPEN_JSON"
+    ) throws -> C49WorkResourceProjectionEnvelopeV1 {
+        guard projection.workspaceID == workspaceID else {
+            throw C49WorkResourceProjectionFailureV1.invalidWorkspace
+        }
+        return try C49WorkResourceProjectionSupportV1.envelope(projection, format: format)
+    }
+}

@@ -1506,3 +1506,9 @@ final class V9_55PortableReviewTests: XCTestCase {
         }
     }
 }
+private final class C49PortableReviewRegressionBoundaryTests: XCTestCase {
+    func testC49DoesNotChangeC48CapabilityOrExchangeAuthority() {
+        XCTAssertTrue(C49WorkResourceContractBoundaryV1.appendOnly)
+        XCTAssertEqual(C49WorkResourceContractBoundaryV1.soleWriter, "WorkspaceWriterV1")
+    }
+}

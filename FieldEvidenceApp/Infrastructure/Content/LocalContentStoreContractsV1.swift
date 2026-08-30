@@ -530,3 +530,34 @@ enum C48PortableReviewLocalContentStoreBoundaryV1 {
         try projection.validate()
     }
 }
+
+// MARK: - C49 work-resource content-reference boundary
+
+/// C49 can carry an immutable content reference only through the existing C05
+/// byte authority.  Work-resource rows retain metadata/provenance; they do
+/// not create a second byte store or turn a part snapshot into live stock.
+extension C49WorkResourceContentReferenceBoundaryV1 {
+    static let canonicalRecordType = "WorkResourceEntryV1"
+    static let localPartReferenceType = "LocalPartReferenceSnapshotV1"
+    static let directCostType = "DirectCostEntryV1"
+    static let byteAuthority = "C05_IMMUTABLE_CONTENT_AUTHORITY"
+    static let localPartReferenceIsEmbeddedSnapshot = true
+    static let liveInventoryLookup = false
+    static let createsSecondByteStore = false
+    static let directCostBytesAreStoredHere = false
+
+    static func validateCanonicalReference(
+        _ reference: ContentReferenceV1,
+        in workspaceID: WorkspaceID
+    ) throws {
+        guard reference.workspaceID == workspaceID.rawValue.uuidString.lowercased() else {
+            throw ContentContractFailureV1.wrongWorkspace
+        }
+        guard reference.byteRole == .immutableOriginal else {
+            throw ContentContractFailureV1.immutableOriginal
+        }
+        guard reference.byteLength >= 0 else {
+            throw ContentContractFailureV1.invalidValue
+        }
+    }
+}

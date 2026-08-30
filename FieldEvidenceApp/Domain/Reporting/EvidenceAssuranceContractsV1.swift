@@ -699,3 +699,47 @@ enum C48PortableReviewAssuranceTrustBoundaryV1 {
         }
     }
 }
+
+// MARK: - C49 work-resource assurance
+
+struct C49WorkResourceAssuranceProjectionV1: Codable, Equatable, Sendable {
+    let projectionSHA256: String
+    let deterministic: Bool
+    let customerSafe: Bool
+    let directCostPreviewIncluded: Bool
+    let appendOnlyCorrectionHistory: Bool
+    let rawStockClaims: Bool
+    let liveInventoryClaims: Bool
+
+    init(projection: C49WorkResourceReportProjectionV1) throws {
+        try C49WorkResourceProjectionSupportV1.validate(projection)
+        projectionSHA256 = projection.projectionSHA256
+        deterministic = true
+        customerSafe = projection.isCustomerSafe
+        directCostPreviewIncluded = projection.directCostPreview.included
+        appendOnlyCorrectionHistory = C49WorkResourceProjectionSupportV1.appendOnlyCorrectionsRemainHistory
+        rawStockClaims = false
+        liveInventoryClaims = false
+    }
+
+    func validate() throws {
+        guard !projectionSHA256.isEmpty, deterministic, appendOnlyCorrectionHistory,
+              !rawStockClaims, !liveInventoryClaims else {
+            throw C49WorkResourceProjectionFailureV1.nonCanonical
+        }
+    }
+}
+
+enum C49WorkResourceEvidenceAssuranceBoundaryV1 {
+    static let assuranceIsDerived = true
+    static let unsupportedCertificationClaims = false
+    static let rawStockAndLiveInventoryClaims = false
+
+    static func assess(
+        _ projection: C49WorkResourceReportProjectionV1
+    ) throws -> C49WorkResourceAssuranceProjectionV1 {
+        let assurance = try C49WorkResourceAssuranceProjectionV1(projection: projection)
+        try assurance.validate()
+        return assurance
+    }
+}

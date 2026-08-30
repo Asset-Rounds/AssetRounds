@@ -2461,3 +2461,37 @@ extension ReportProjectionRegistryV1 {
         return regenerated
     }
 }
+
+// MARK: - C49 work-resource projection registry
+
+extension ReportProjectionRegistryV1 {
+    static func rebuildWorkResourceReport(
+        workspaceID: WorkspaceID,
+        snapshots: [WorkResourceSnapshotV1],
+        audience: C49WorkResourceAudienceV1 = .internalOnly,
+        includeDirectCostPreview: Bool = false
+    ) throws -> C49WorkResourceReportProjectionV1 {
+        let projection = try C49WorkResourceReportProjectionV1(
+            workspaceID: workspaceID,
+            snapshots: snapshots,
+            audience: audience,
+            includeDirectCostPreview: includeDirectCostPreview
+        )
+        try C49WorkResourceProjectionSupportV1.validate(projection)
+        return projection
+    }
+
+    static func workResourceEnvelope(
+        _ projection: C49WorkResourceReportProjectionV1,
+        format: String = "OPEN_JSON"
+    ) throws -> C49WorkResourceProjectionEnvelopeV1 {
+        try C49WorkResourceProjectionSupportV1.envelope(projection, format: format)
+    }
+}
+
+enum C49WorkResourceReportProjectionRegistryBoundaryV1 {
+    static let registryIsDerivedOnly = true
+    static let rebuildIsDeterministic = true
+    static let registryDoesNotOwnCanonicalWrites = true
+    static let liveInventoryRowsRegistered = false
+}

@@ -442,3 +442,6 @@ private final class C48PortableReviewV927EvidenceAssuranceTests: XCTestCase {
         XCTAssertTrue(C48PortableReviewEvidenceAssuranceBoundaryV1.existingAssuranceManifestRemainsCanonical)
     }
 }
+private final class C49WorkResourceAssuranceBoundaryTests: XCTestCase {
+    func testManualCostDoesNotBecomeInventoryEvidence() { XCTAssertFalse(C49WorkResourceContractBoundaryV1.liveInventoryReference) }
+}

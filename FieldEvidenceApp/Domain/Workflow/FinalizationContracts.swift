@@ -712,3 +712,18 @@ enum C48PortableReviewFinalizationBoundaryV1 {
     static let rawResponseBytesAreNotFinalizationInput = true
     static let existingFinalizationWriterRemainsTheOnlyMutationRoute = true
 }
+
+// MARK: - C49 finalization projection
+
+enum C49WorkResourceFinalizationBoundaryV1 {
+    static let finalizationConsumesSnapshotOnly = true
+    static let finalizationIsAppendOnly = true
+    static let finalizationCannotCreateInventoryClaims = true
+
+    static func envelope(
+        _ projection: C49WorkResourceReportProjectionV1,
+        format: String = "OPEN_JSON"
+    ) throws -> C49WorkResourceProjectionEnvelopeV1 {
+        try C49WorkResourceProjectionSupportV1.envelope(projection, format: format)
+    }
+}

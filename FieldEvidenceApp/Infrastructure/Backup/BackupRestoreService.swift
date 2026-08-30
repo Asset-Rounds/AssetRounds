@@ -1950,7 +1950,8 @@ private extension BackupRestoreService {
             temporalEvidence: records.temporalEvidence,
             acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots,
             operationalContacts: records.operationalContacts,
-            activityContracts: records.activityContracts
+            activityContracts: records.activityContracts,
+            workResources: records.workResources
         )
     }
 
@@ -2022,7 +2023,8 @@ private extension BackupRestoreService {
             temporalEvidence: records.temporalEvidence,
             acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots,
             operationalContacts: records.operationalContacts,
-            activityContracts: records.activityContracts
+            activityContracts: records.activityContracts,
+            workResources: records.workResources
         )
     }
 
@@ -2036,6 +2038,11 @@ private extension BackupRestoreService {
             _ = try records.validateC47ActivityContracts()
             try validateResolvedActivityContracts(in: records, members: members)
         } else if !records.activityContracts.isEmpty {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        if records.recordsSchemaVersion >= C49BackupEnrollmentV1.recordsSchemaVersion {
+            _ = try records.validateC49WorkResources()
+        } else if !records.workResources.isEmpty {
             throw BackupRestoreServiceError.invalidPackage
         }
         if records.recordsSchemaVersion >= OperationalContactPersistenceEnrollmentV1.recordsSchemaVersion {
@@ -2132,6 +2139,17 @@ private extension BackupRestoreService {
             // the live-writer `validateResolved` rule on that target: only the
             // restore boundary may introduce its cross-workspace provenance.
             _ = try normalized.validateC47ActivityContracts()
+        }
+        if let identityDecision,
+           normalized.recordsSchemaVersion >= C49BackupEnrollmentV1.recordsSchemaVersion,
+           identityDecision.source.workspaceID != identityDecision.targetPointer.workspaceID {
+            normalized = try rebindingWorkResources(
+                in: normalized,
+                sourceRecords: records,
+                identity: identityDecision
+            )
+        } else if normalized.recordsSchemaVersion >= C49BackupEnrollmentV1.recordsSchemaVersion {
+            _ = try normalized.validateC49WorkResources()
         }
         if let identityDecision,
            identityDecision.mode == .replaceExisting,
@@ -2407,7 +2425,8 @@ private extension BackupRestoreService {
             temporalEvidence: records.temporalEvidence,
             acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots,
             operationalContacts: records.operationalContacts,
-            activityContracts: records.activityContracts
+            activityContracts: records.activityContracts,
+            workResources: records.workResources
         )
     }
 
@@ -2723,7 +2742,8 @@ private extension BackupRestoreService {
                 temporalEvidence: temporalEvidence,
                 acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots,
                 operationalContacts: operationalContacts,
-                activityContracts: records.activityContracts
+                activityContracts: records.activityContracts,
+                workResources: records.workResources
             )
         }
         let receipt = try LocationPersistenceCodecV1.decode(
@@ -2809,7 +2829,8 @@ private extension BackupRestoreService {
             temporalEvidence: temporalEvidence,
             acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots,
             operationalContacts: operationalContacts,
-            activityContracts: records.activityContracts
+            activityContracts: records.activityContracts,
+            workResources: records.workResources
         )
     }
 
@@ -3861,6 +3882,295 @@ private extension BackupRestoreService {
         result = replacingMutationHistoryForCurrentWriter(in: result, with: transformedHistory)
         _ = try result.validateC47ActivityContracts()
         return result
+    }
+
+    func rebindingWorkResources(
+        in destination: V4BackupRecordsV1,
+        sourceRecords: V4BackupRecordsV1,
+        identity: RestoreIdentityV1
+    ) throws -> V4BackupRecordsV1 {
+        guard let history = destination.mutationHistory,
+              let sourceHistory = sourceRecords.mutationHistory else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        let sourceEntries = try sourceRecords.validateC49WorkResources()
+        let sourceEntryByID = Dictionary(uniqueKeysWithValues: sourceEntries.map { ($0.entryID, $0) })
+        let targetWorkspaceID = WorkspaceID(rawValue: identity.targetPointer.workspaceID)
+        var targetActorByID: [UUID: ActorSnapshotV1] = [:]
+        for record in destination.partyAccountability where record.kind == .actorSnapshot {
+            let actor = try PartyAccountabilitySnapshotCodecV1.decode(
+                ActorSnapshotV1.self,
+                from: record.canonicalData
+            )
+            guard record.id == actor.snapshotID,
+                  record.workspaceID == actor.workspaceID.rawValue,
+                  actor.workspaceID == targetWorkspaceID,
+                  targetActorByID.updateValue(actor, forKey: actor.snapshotID) == nil else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+        }
+
+        struct ReceiptValue {
+            let index: Int
+            let envelope: MutationEnvelopeV1
+            let receipt: MutationReceiptV1
+            let mutation: WorkResourceMutationV1
+            let record: MutationHistoryReceiptRecordV1
+        }
+        let receiptValues = try sourceHistory.receipts.enumerated().compactMap { indexed -> ReceiptValue? in
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: indexed.element.envelopeData)
+            guard case let .applyWorkResource(mutation) = envelope.command else { return nil }
+            let receipt = try MutationReceiptV1.decodeCanonical(from: indexed.element.receiptData)
+            _ = try WorkResourceMutationReceiptV1(mutation: mutation, mutationReceipt: receipt)
+            guard sourceEntryByID[mutation.postImage.entryID] == mutation.postImage else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            return ReceiptValue(index: indexed.offset, envelope: envelope, receipt: receipt,
+                                mutation: mutation, record: indexed.element)
+        }
+        guard receiptValues.count == sourceEntries.count else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        let ordered = receiptValues.sorted {
+            ($0.mutation.postImage.revision, $0.mutation.postImage.entryID.uuidString)
+                < ($1.mutation.postImage.revision, $1.mutation.postImage.entryID.uuidString)
+        }
+        let sourceMutationIDs = Set(ordered.map { $0.mutation.mutationID.rawValue })
+        let targetMutationIDs = try ordered.map {
+            try identity.destinationWorkResourceMutationID(for: $0.mutation.mutationID)
+        }
+        guard sourceMutationIDs.count == ordered.count,
+              Set(targetMutationIDs.map(\.rawValue)).count == ordered.count else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        let targetMutationIDBySourceID = Dictionary(
+            uniqueKeysWithValues: zip(ordered, targetMutationIDs).map {
+                ($0.0.mutation.mutationID.rawValue, $0.1)
+            }
+        )
+        var targetEntryByID: [UUID: WorkResourceEntryV1] = [:]
+        var transformedByIndex: [Int: MutationHistoryReceiptRecordV1] = [:]
+        var targetRevisionByIdentity: [WorkspaceEntityIdentityV1: MutationHistoryEntityRevisionV1] = [:]
+        var quarantineMap: [String: (MutationIDV1, String, String)] = [:]
+
+        for value in ordered {
+            guard value.record.reversalBasisData == nil,
+                  value.record.semanticReversalData == nil else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            let source = value.mutation.postImage
+            let mappedSubject = try mappedWorkResourceSubject(
+                source.subject,
+                sourceRecords: sourceRecords,
+                destinationRecords: destination,
+                targetWorkspaceID: targetWorkspaceID
+            )
+            let mappedActorReference = try LocalActorReferenceV1(
+                actorReferenceID: source.actor.actor.actorReferenceID,
+                workspaceID: targetWorkspaceID,
+                partyID: source.actor.actor.partyID,
+                displayName: source.actor.actor.displayName
+            )
+            let expectedMappedActor = try ActorSnapshotV1(
+                snapshotID: source.actor.snapshotID,
+                workspaceID: targetWorkspaceID,
+                actor: mappedActorReference,
+                responsibility: source.actor.responsibility,
+                displayNameAtTime: source.actor.displayNameAtTime,
+                capturedAt: source.actor.capturedAt
+            )
+            guard let mappedActor = targetActorByID[source.actor.snapshotID],
+                  mappedActor == expectedMappedActor else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            let mappedPredecessorSHA256: String?
+            if let predecessorID = source.supersedesEntryID {
+                guard let predecessor = targetEntryByID[predecessorID] else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                mappedPredecessorSHA256 = predecessor.entrySHA256
+            } else {
+                mappedPredecessorSHA256 = nil
+            }
+            guard let mutationID = targetMutationIDBySourceID[source.mutationID.rawValue] else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            let targetEntry = try source.rebound(
+                to: targetWorkspaceID,
+                mappedSubject: mappedSubject,
+                mappedActor: mappedActor,
+                mappedSupersedesEntrySHA256: mappedPredecessorSHA256,
+                mutationID: mutationID
+            )
+            if let predecessorID = targetEntry.supersedesEntryID,
+               let predecessor = targetEntryByID[predecessorID] {
+                try targetEntry.validateSuccessor(of: predecessor)
+            }
+            let mutation = try WorkResourceMutationV1(
+                workspaceID: targetWorkspaceID,
+                mutationID: mutationID,
+                postImage: targetEntry
+            )
+            let sourceExpected = value.envelope.request.expectedRevision
+            let targetExpected = try WorkspaceExpectedRevisionV1(
+                workspaceID: targetWorkspaceID,
+                generationID: identity.targetPointer.generationID,
+                writerInstanceID: sourceExpected.writerInstanceID,
+                workspaceRevision: sourceExpected.workspaceRevision,
+                entityRevisions: sourceExpected.entityRevisions
+            )
+            let targetIdentity = try WorkspaceReplicaIdentityV1(
+                workspaceID: targetWorkspaceID,
+                replicaID: historicReplicaID(for: value.receipt.identity.replicaID)
+            )
+            let causation = value.envelope.causationMutationID.map { sourceID in
+                if let targetID = targetMutationIDBySourceID[sourceID.rawValue] {
+                    return targetID
+                }
+                return sourceID
+            }
+            let targetEnvelope = try MutationEnvelopeV1(
+                request: try mutation.canonicalWorkspaceMutationRequest(
+                    expectedRevision: targetExpected
+                ),
+                identity: targetIdentity,
+                sourceKind: .importedHistory,
+                contentDependencyIDs: value.envelope.contentDependencyIDs,
+                causationMutationID: causation,
+                correlationID: value.envelope.correlationID
+            )
+            let sourceResult = value.receipt.resultingRevision
+            let targetResult = try MutationPortableExpectedRevisionV1(
+                WorkspaceExpectedRevisionV1(
+                    workspaceID: targetWorkspaceID,
+                    generationID: identity.targetPointer.generationID,
+                    writerInstanceID: sourceResult.writerInstanceID,
+                    workspaceRevision: sourceResult.workspaceRevision,
+                    entityRevisions: sourceResult.entityRevisions
+                )
+            )
+            let targetReceipt = try MutationReceiptV1(
+                identity: MutationReceiptIdentityV1(
+                    workspaceID: targetWorkspaceID,
+                    replicaID: targetIdentity.replicaID,
+                    localSequence: value.receipt.identity.localSequence
+                ),
+                envelope: targetEnvelope,
+                resultingRevision: targetResult,
+                postImages: mutation.mutationPostImages,
+                committedAt: value.receipt.committedAt
+            )
+            _ = try WorkResourceMutationReceiptV1(mutation: mutation, mutationReceipt: targetReceipt)
+            let entity = try mutation.affectedIdentity
+            targetRevisionByIdentity[entity] = MutationHistoryEntityRevisionV1(
+                identity: entity,
+                revision: targetEntry.revision,
+                externalProjectionSHA256: targetEntry.entrySHA256
+            )
+            let sourceMutationKey =
+                "\(source.workspaceID.rawValue.uuidString.lowercased()):"
+                + source.mutationID.rawValue.uuidString.lowercased()
+            quarantineMap[sourceMutationKey] = (
+                mutationID, value.receipt.envelopeSHA256, targetReceipt.envelopeSHA256
+            )
+            transformedByIndex[value.index] = MutationHistoryReceiptRecordV1(
+                envelopeData: try targetEnvelope.canonicalData(),
+                receiptData: try targetReceipt.canonicalData(),
+                reversalBasisData: nil,
+                semanticReversalData: nil
+            )
+            targetEntryByID[targetEntry.entryID] = targetEntry
+        }
+        guard transformedByIndex.count == receiptValues.count,
+              targetEntryByID.count == sourceEntries.count else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        let transformedQuarantines = try history.quarantines.map { quarantine in
+            let key = "\(quarantine.workspaceID.rawValue.uuidString.lowercased()):\(quarantine.mutationID.uuidString.lowercased())"
+            guard let mapped = quarantineMap[key] else { return quarantine }
+            guard quarantine.identityDomain == .mutationEnvelope,
+                  quarantine.acceptedIdentitySHA256 == mapped.1 else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            return MutationHistoryQuarantineRecordV1(
+                workspaceID: targetWorkspaceID,
+                mutationID: mapped.0.rawValue,
+                identityDomain: quarantine.identityDomain,
+                acceptedIdentitySHA256: mapped.2,
+                conflictingIdentitySHA256: quarantine.conflictingIdentitySHA256,
+                detectedAt: quarantine.detectedAt
+            )
+        }
+        var revisions = Dictionary(uniqueKeysWithValues: history.entityRevisions.map { ($0.identity, $0) })
+        for (identity, revision) in targetRevisionByIdentity { revisions[identity] = revision }
+        let targetHistory = MutationHistorySnapshotV1(
+            workspaceRevision: history.workspaceRevision,
+            lastLocalSequence: history.lastLocalSequence,
+            receipts: history.receipts.enumerated().map { transformedByIndex[$0.offset] ?? $0.element },
+            quarantines: transformedQuarantines,
+            entityRevisions: revisions.values.sorted { $0.identity.stableKey < $1.identity.stableKey }
+        )
+        try MutationJournalStoreV1.validateImportedSnapshot(targetHistory)
+        let records = try targetEntryByID.values
+            .map(V37BackupWorkResourceRecordV1.init)
+            .sorted { ($0.workspaceID.uuidString, $0.entryID.uuidString)
+                < ($1.workspaceID.uuidString, $1.entryID.uuidString) }
+        var result = destination.replacingWorkResources(records)
+        result = replacingMutationHistoryForCurrentWriter(in: result, with: targetHistory)
+        _ = try result.validateC49WorkResources()
+        return result
+    }
+
+    func mappedWorkResourceSubject(
+        _ source: WorkResourceSubjectV1,
+        sourceRecords: V4BackupRecordsV1,
+        destinationRecords: V4BackupRecordsV1,
+        targetWorkspaceID: WorkspaceID
+    ) throws -> WorkResourceSubjectV1 {
+        let sourceSHA: String
+        let targetSHA: String
+        switch source.kind {
+        case .workPacket:
+            let sources = try sourceRecords.workPackets.filter { $0.kind == .manifest }.map {
+                try WorkPacketCanonicalCodecV1.decode(
+                    WorkPacketManifestV1.self,
+                    from: $0.canonicalData
+                )
+            }.filter { $0.manifestID.uuidString.lowercased() == source.subjectID && $0.revision == source.subjectRevision }
+            let targets = try destinationRecords.workPackets.filter { $0.kind == .manifest }.map {
+                try WorkPacketCanonicalCodecV1.decode(
+                    WorkPacketManifestV1.self,
+                    from: $0.canonicalData
+                )
+            }.filter { $0.manifestID.uuidString.lowercased() == source.subjectID && $0.revision == source.subjectRevision }
+            guard sources.count == 1, targets.count == 1 else { throw BackupRestoreServiceError.invalidPackage }
+            sourceSHA = sources[0].manifestSHA256; targetSHA = targets[0].manifestSHA256
+        case .correctiveWork:
+            let sources = try sourceRecords.inspectionReview.filter { $0.kind == .correctiveActionEvent }.map {
+                try InspectionReviewCanonicalCodecV1.decode(
+                    CorrectiveActionEventV1.self,
+                    from: $0.canonicalData
+                )
+            }.filter { $0.eventID.uuidString.lowercased() == source.subjectID && $0.revision == source.subjectRevision }
+            let targets = try destinationRecords.inspectionReview.filter { $0.kind == .correctiveActionEvent }.map {
+                try InspectionReviewCanonicalCodecV1.decode(
+                    CorrectiveActionEventV1.self,
+                    from: $0.canonicalData
+                )
+            }.filter { $0.eventID.uuidString.lowercased() == source.subjectID && $0.revision == source.subjectRevision }
+            guard sources.count == 1, targets.count == 1 else { throw BackupRestoreServiceError.invalidPackage }
+            sourceSHA = sources[0].eventSHA256; targetSHA = targets[0].eventSHA256
+        }
+        guard sourceSHA == source.subjectSHA256 else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        return try WorkResourceSubjectV1(
+            workspaceID: targetWorkspaceID,
+            kind: source.kind,
+            subjectID: source.subjectID,
+            subjectRevision: source.subjectRevision,
+            subjectSHA256: targetSHA
+        )
     }
 
     func portableExchangeSnapshot(
@@ -6328,7 +6638,8 @@ private extension BackupRestoreService {
             savedSmartViews: records.savedSmartViews,
             sites: records.sites,
             workflowRecords: workflowRecords,
-            activityContracts: records.activityContracts
+            activityContracts: records.activityContracts,
+            workResources: records.workResources
         )
     }
 
@@ -7785,6 +8096,20 @@ private extension BackupRestoreService {
         } else if !records.activityContracts.isEmpty {
             throw BackupRestoreServiceError.invalidPackage
         }
+        if records.recordsSchemaVersion >= C49BackupEnrollmentV1.recordsSchemaVersion {
+            do {
+                let values = try records.validateC49WorkResources()
+                let targetWorkspaceID = identityDecision?.targetPointer.workspaceID
+                    ?? legacyDestinationIdentity.workspaceID.rawValue
+                guard values.allSatisfy({ $0.workspaceID.rawValue == targetWorkspaceID }) else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                for value in values { context.insert(try ManualWorkResourceRecordRow(value)) }
+            } catch let error as BackupRestoreServiceError { throw error }
+            catch { throw BackupRestoreServiceError.invalidPackage }
+        } else if !records.workResources.isEmpty {
+            throw BackupRestoreServiceError.invalidPackage
+        }
         if let mutationHistory = records.mutationHistory {
             guard records.recordsSchemaVersion == 3
                     || records.recordsSchemaVersion == 4
@@ -7818,7 +8143,8 @@ private extension BackupRestoreService {
                     || records.recordsSchemaVersion == 32
                     || records.recordsSchemaVersion == 33
                     || records.recordsSchemaVersion == 34
-                    || records.recordsSchemaVersion == C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion else {
+                    || records.recordsSchemaVersion == C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion
+                    || records.recordsSchemaVersion == C49BackupEnrollmentV1.recordsSchemaVersion else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {
@@ -9163,7 +9489,8 @@ private extension BackupRestoreService {
             sites: records.sites,
             workflowRecords: records.workflowRecords,
             lighting: schemaVersion >= 30 ? records.lighting : [],
-            activityContracts: records.activityContracts
+            activityContracts: records.activityContracts,
+            workResources: records.workResources
         )
     }
 
@@ -9201,7 +9528,8 @@ private extension BackupRestoreService {
             workflowRecords: actual.workflowRecords,
             lighting: expected.recordsSchemaVersion >= 30
                 ? expected.lighting : [],
-            activityContracts: expected.activityContracts
+            activityContracts: expected.activityContracts,
+            workResources: expected.workResources
         )
         guard predecessor == expected,
               actual.locationNodes.isEmpty,
@@ -9329,6 +9657,9 @@ private extension BackupRestoreService {
         let issues = try context.fetch(FetchDescriptor<Issue>())
         let packets = try context.fetch(FetchDescriptor<Packet>())
         let reports = try context.fetch(FetchDescriptor<Report>())
+        let workResourceRows = try context.fetch(
+            FetchDescriptor<ManualWorkResourceRecordRow>()
+        )
         let requirementAssurance = try context.fetch(
             FetchDescriptor<RequirementAssuranceRow>()
         )
@@ -9679,6 +10010,17 @@ private extension BackupRestoreService {
             if case .applyActivityContract = envelope.command { return true }
             return false
         } ?? false
+        let hasWorkResourceHistory = try mutationHistory?.receipts.contains { record in
+            let envelope = try MutationEnvelopeV1.decodeCanonical(
+                from: record.envelopeData
+            )
+            if case .applyWorkResource = envelope.command { return true }
+            return false
+        } ?? false
+        let workResourceRecords = try workResourceRows
+            .map { try V37BackupWorkResourceRecordV1($0.value()) }
+            .sorted { ($0.workspaceID.uuidString, $0.entryID.uuidString)
+                < ($1.workspaceID.uuidString, $1.entryID.uuidString) }
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveyRecords,
             assetLocators: assetLocatorRecords,
@@ -9885,7 +10227,10 @@ private extension BackupRestoreService {
                 "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
                     < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
             },
-            recordsSchemaVersion: (!activityContractRecords.isEmpty
+            recordsSchemaVersion: (!workResourceRecords.isEmpty
+                || hasWorkResourceHistory)
+                ? C49BackupEnrollmentV1.recordsSchemaVersion
+                : (!activityContractRecords.isEmpty
                 || hasActivityContractHistory)
                 ? C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion
                 : !operationalContactRecords.isEmpty ? 34
@@ -9971,7 +10316,8 @@ private extension BackupRestoreService {
             temporalEvidence: temporalEvidenceRecords,
             acceptedLabelGenerationSnapshots: acceptedLabelSnapshotRecords,
             operationalContacts: operationalContactRecords,
-            activityContracts: activityContractRecords
+            activityContracts: activityContractRecords,
+            workResources: workResourceRecords
         )
     }
 

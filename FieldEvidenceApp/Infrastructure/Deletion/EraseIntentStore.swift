@@ -17,6 +17,11 @@ enum C30EvidenceContextEraseIntentStorePolicyV1 {
     }
 }
 
+enum C49WorkResourceEraseIntentStoreBoundaryV1 {
+    static let existingEraseJournalCoversSchemaV37GenerationSwitch = true
+    static let noResourceSpecificRecoveryJournal = true
+}
+
 enum C31LightingEraseIntentStoreBoundaryV1 {
     static let durableRowsAreWorkspaceScoped = true
     static let eraseIsIdempotent = true

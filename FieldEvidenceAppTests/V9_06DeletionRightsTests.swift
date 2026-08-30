@@ -717,3 +717,6 @@ private final class C48PortableReviewV906DeletionRightsTests: XCTestCase {
         XCTAssertTrue(C48PortableReviewPersistenceBoundaryV1.quarantineIsExcludedFromBackup)
     }
 }
+private final class C49WorkResourceDeletionRightsBoundaryTests: XCTestCase {
+    func testNoIndependentInventoryDeletionAuthority() { XCTAssertFalse(C49WorkResourceContractBoundaryV1.liveInventoryReference) }
+}

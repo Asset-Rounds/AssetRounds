@@ -993,3 +993,25 @@ enum C48PortableReviewPersistenceValidationV1 {
             !value.unicodeScalars.contains(where: { $0.value == 0 })
     }
 }
+
+/// C49 keeps accepted work-resource facts in the durable append-only schema;
+/// this C48 exchange/session file remains protected, operation-scoped staging
+/// and is never promoted to a second SwiftData truth source.
+enum C49WorkResourcePortableReviewBoundaryV1 {
+    static let acceptedWorkResourceFactsUseDurableRow = true
+    static let exchangeSessionsRemainNonPersistent = true
+    static let exchangeBytesAreNotWorkResourceTruth = true
+    static let persistentSchemaVersion = C49WorkResourcePersistenceBoundaryV1.persistentSchemaVersion
+    static let recordsSchemaVersion = C49WorkResourcePersistenceBoundaryV1.recordsSchemaVersion
+    static let durableRows = C49WorkResourcePersistenceBoundaryV1.newlyEnrolledRows
+
+    static func validate() throws {
+        guard acceptedWorkResourceFactsUseDurableRow,
+              exchangeSessionsRemainNonPersistent,
+              exchangeBytesAreNotWorkResourceTruth,
+              durableRows == ["ManualWorkResourceRecordRow"] else {
+            throw PortableExchangePersistenceFailureV2.invalidEnvelope
+        }
+        try C49WorkResourcePersistenceBoundaryV1.validate()
+    }
+}

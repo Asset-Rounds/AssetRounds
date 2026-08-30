@@ -3875,3 +3875,23 @@ enum C48PortableReviewCompletedActivityBoundaryV1 {
         try projection.validate()
     }
 }
+
+// MARK: - C49 completed work-resource snapshot
+
+enum C49WorkResourceCompletedActivityBoundaryV1 {
+    static let completedSnapshotIsDerived = true
+    static let correctionsRemainAppendOnlyHistory = true
+    static let completionDoesNotClaimInventoryBalance = true
+
+    static func snapshot(
+        workspaceID: WorkspaceID,
+        snapshots: [WorkResourceSnapshotV1]
+    ) throws -> C49WorkResourceProjectionEnvelopeV1 {
+        let projection = try C49WorkResourceReportProjectionV1(
+            workspaceID: workspaceID,
+            snapshots: snapshots,
+            audience: .internalOnly
+        )
+        return try C49WorkResourceProjectionSupportV1.envelope(projection, format: "OPEN_JSON")
+    }
+}

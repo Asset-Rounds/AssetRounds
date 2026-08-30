@@ -29,3 +29,23 @@ enum C48PortableReviewC14PersistenceBoundaryV1 {
             row is CorrectiveActionEventRow
     }
 }
+
+/// C49 reuses the existing C14 review/corrective-action history as the
+/// canonical subject authority.  Work-resource rows bind to a stable subject
+/// identity and do not create parallel review or corrective-action rows.
+enum C49WorkResourceReviewPersistenceBoundaryV1 {
+    static let canonicalSubjectFamiliesRemainC14 = true
+    static let createsParallelReviewRows = false
+    static let createsParallelCorrectiveActionRows = false
+    static let persistentSchemaVersion = C49WorkResourcePersistenceBoundaryV1.persistentSchemaVersion
+    static let recordsSchemaVersion = C49WorkResourcePersistenceBoundaryV1.recordsSchemaVersion
+
+    static func validate() throws {
+        guard canonicalSubjectFamiliesRemainC14,
+              !createsParallelReviewRows,
+              !createsParallelCorrectiveActionRows else {
+            throw InspectionReviewFailureV1.invalidValue
+        }
+        try C49WorkResourcePersistenceBoundaryV1.validate()
+    }
+}

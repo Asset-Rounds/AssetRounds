@@ -257,6 +257,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
         let c72=TemporalOriginV1(card:"V23_P03_C45",ordinal:72)
         let c73=TemporalOriginV1(card:"V23_P03_C46",ordinal:73)
         let c74=TemporalOriginV1(card:"V23_P03_C47",ordinal:74)
+        let c75=TemporalOriginV1(card:"V23_P03_C49",ordinal:75)
         let groups: [(TemporalOriginV1, [String])] = [
             (c16, [
                 "JOURNAL:CurrentGenerationPointerV2",
@@ -428,6 +429,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
             (c72,["PERSISTENT_MODEL:AcceptedLabelGenerationSnapshotRow","PROJECTION:StoreSemanticEnvelopeV34"]),
             (c73,["PERSISTENT_MODEL:ServiceContactPointRow","PERSISTENT_MODEL:SystemHandoffIntentRow","PROJECTION:StoreSemanticEnvelopeV35"]),
             (c74,["PERSISTENT_MODEL:ActivitySessionEnvelopeRow","PERSISTENT_MODEL:ActivityStateTransitionRow","PERSISTENT_MODEL:InstallationTaskResultRow","PERSISTENT_MODEL:InstallationAsBuiltSnapshotRow","PERSISTENT_MODEL:PunchReviewBasisSnapshotRow","PROJECTION:StoreSemanticEnvelopeV36"]),
+            (c75,["PERSISTENT_MODEL:ManualWorkResourceRecordRow","PROJECTION:StoreSemanticEnvelopeV37"]),
         ]
         return groups.reduce(into: [:]) { result, group in
             for kindID in group.1 {
@@ -523,6 +525,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
         let c45KindIDs=AssetLabelPersistentKindPolicyV1.durableKindIDs.union(AssetLabelPersistentKindPolicyV1.derivedKindIDs)
         let c46OperationalContactKindIDs=OperationalContactPersistentKindPolicyV1.durableKindIDs.union(["PROJECTION:StoreSemanticEnvelopeV35"])
         let c47ActivityContractKindIDs=Set(["PERSISTENT_MODEL:ActivitySessionEnvelopeRow","PERSISTENT_MODEL:ActivityStateTransitionRow","PERSISTENT_MODEL:InstallationTaskResultRow","PERSISTENT_MODEL:InstallationAsBuiltSnapshotRow","PERSISTENT_MODEL:PunchReviewBasisSnapshotRow","PROJECTION:StoreSemanticEnvelopeV36"])
+        let c49WorkResourceKindIDs=Set(["PERSISTENT_MODEL:ManualWorkResourceRecordRow","PROJECTION:StoreSemanticEnvelopeV37"])
         let c17KindIDs = Set([
             "PROJECTION:IntegrationConformanceConsumerV1",
             "PROJECTION:IntegrationContractRegistryV1",
@@ -531,9 +534,9 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
             "PROJECTION:IntegrationProjectionCheckpointStoreV1",
             "PROJECTION:ProjectionCheckpointV1",
         ])
-        guard kindIDs.count == 358,
+        guard kindIDs.count == 360,
               Set(kindIDs).count == kindIDs.count,
-              laterTemporalOrigins.count == 295,
+              laterTemporalOrigins.count == 297,
               c09KindIDs.isSubset(of: Set(kindIDs)),
               c12KindIDs.isSubset(of: Set(kindIDs)),
               c38KindIDs.isSubset(of: Set(kindIDs)),
@@ -562,6 +565,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
               c45KindIDs.isSubset(of:Set(kindIDs)),
               c46OperationalContactKindIDs.isSubset(of:Set(kindIDs)),
               c47ActivityContractKindIDs.isSubset(of:Set(kindIDs)),
+              c49WorkResourceKindIDs.isSubset(of:Set(kindIDs)),
               Set(laterTemporalOrigins.keys).isSubset(of: Set(kindIDs)) else {
             throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage
         }
@@ -570,7 +574,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
                 registration.subject
             ) ? registration.subject.canonicalKey : nil
         })
-        guard durableKindIDs.count == 174 else {
+        guard durableKindIDs.count == 175 else {
             throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage
         }
         let universeBytes = try CompatibilityCanonicalV1.encode(
@@ -599,6 +603,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
                     && !c45KindIDs.contains($0)
                     && !c46OperationalContactKindIDs.contains($0)
                     && !c47ActivityContractKindIDs.contains($0)
+                    && !c49WorkResourceKindIDs.contains($0)
             }
         )
         guard CompatibilityCanonicalV1.sha256(universeBytes)
@@ -1041,4 +1046,13 @@ enum C48PortableExchangePersistentLifecycleBoundaryV2 {
     static let sessionStoreIsNonpersistent = true
     static let acceptedResponseUsesExistingC14Writer = true
     static let eraseRemovesAppOwnedStagingOnly = true
+}
+enum C49WorkResourcePersistentLifecycleBoundaryV1 {
+    static let persistentSchemaVersion = 37
+    static let recordsSchemaVersion = 36
+    static let durableRows = ["ManualWorkResourceRecordRow"]
+    static let durableModelCount = 1
+    static let directCostIsEmbedded = true
+    static let localPartReferenceIsEmbeddedSnapshot = true
+    static let noLiveInventoryRow = true
 }

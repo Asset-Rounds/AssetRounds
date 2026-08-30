@@ -592,3 +592,15 @@ enum C48PortableReviewPackageReleaseBoundaryV1 {
         try projection.validate()
     }
 }
+
+// MARK: - C49 package release projection
+
+enum C49WorkResourceInspectionPackageReleaseBoundaryV1 {
+    static let releaseCarriesDerivedReportOnly = true
+    static let releaseCarriesSourceBytes = false
+    static let releaseCarriesLiveInventoryClaims = false
+
+    static func validateRelease(_ projection: C49WorkResourceReportProjectionV1) throws {
+        try C49WorkResourceProjectionSupportV1.validate(projection)
+    }
+}

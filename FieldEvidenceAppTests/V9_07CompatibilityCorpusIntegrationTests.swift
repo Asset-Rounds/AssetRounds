@@ -948,3 +948,8 @@ private final class C48PortableReviewV907CorpusCompatibilityTests: XCTestCase {
         XCTAssertTrue(C48PortableReviewReleasedDataCompatibilityBoundaryV1.cloneAndForkMustNotReuseActiveCapability)
     }
 }
+private final class C49WorkResourceCompatibilityCorpusBoundaryTests: XCTestCase {
+    func testExactDecimalCorpusRejectsPrecisionBeyondThreePlaces() {
+        XCTAssertThrowsError(try ExactDecimalQuantityV1(mantissa: 1, scale: 4))
+    }
+}

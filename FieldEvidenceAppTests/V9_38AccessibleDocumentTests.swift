@@ -1033,3 +1033,6 @@ private final class C48PortableReviewV938AccessibleDocumentTests: XCTestCase {
         XCTAssertFalse(C48PortableReviewAccessibleDocumentPersistenceBoundaryV1.rawRequestResponseBytesPersisted)
     }
 }
+private final class C49WorkResourceAccessibleDocumentBoundaryTests: XCTestCase {
+    func testAccessibleDocumentsCanDistinguishInternalFromCustomerSafe() { XCTAssertNotEqual(WorkResourceVisibilityPolicyV1.internalOnly, .customerSafe) }
+}

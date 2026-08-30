@@ -335,5 +335,10 @@
     "successorRequestGetsNewID": true,
     "successorRequestGetsNewCapability": true,
     "successorRequestGetsNewDigest": true
+  },
+  "c49Regression": {
+    "workResourceEntriesAreExchangeCapabilities": false,
+    "directCostLeaksIntoPortableReview": false,
+    "c48ReleasedBytesRemainPreserved": true
   }
 }

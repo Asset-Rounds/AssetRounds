@@ -1241,3 +1241,9 @@ private final class C48PortableReviewV919SearchTests: XCTestCase {
         XCTAssertTrue(C48PortableReviewSearchBoundaryV1.responseHistoryIsNotMutationAuthority)
     }
 }
+private final class C49WorkResourceSearchBoundaryTests: XCTestCase {
+    func testSearchProjectionCannotPromoteStockSnapshotToLiveInventory() {
+        XCTAssertFalse(C49WorkResourceContractBoundaryV1.liveInventoryReference)
+        XCTAssertTrue(C49WorkResourceLifecycleBoundaryV1.searchAndReportAreDerivedOnly)
+    }
+}

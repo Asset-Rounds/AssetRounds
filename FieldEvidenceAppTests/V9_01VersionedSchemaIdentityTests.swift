@@ -1225,3 +1225,10 @@ private final class C48PortableReviewV901SchemaTests: XCTestCase {
         XCTAssertEqual(C48PortableExchangePersistentLifecycleBoundaryV2.canonicalRowsAdded, 0)
     }
 }
+private final class C49WorkResourceSchemaIdentityBoundaryTests: XCTestCase {
+    func testReleasedEntryAndPersistentSchemaIdentitiesAreExact() {
+        XCTAssertEqual(WorkResourceEntryV1.schemaVersion, 1)
+        XCTAssertEqual(C49WorkResourcePersistenceBoundaryV1.persistentSchemaVersion, 37)
+        XCTAssertEqual(C49WorkResourcePersistenceBoundaryV1.newlyEnrolledRows, ["ManualWorkResourceRecordRow"])
+    }
+}

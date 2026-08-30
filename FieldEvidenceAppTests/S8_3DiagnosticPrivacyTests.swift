@@ -871,3 +871,9 @@ private final class C48PortableReviewS83DiagnosticPrivacyTests: XCTestCase {
         XCTAssertFalse(C48PortableReviewDiagnosticPrivacyBoundaryV1.authorIdentityEmitted)
     }
 }
+private final class C49WorkResourceDiagnosticPrivacyBoundaryTests: XCTestCase {
+    func testDirectCostIsEmbeddedInternalTruth() {
+        XCTAssertTrue(C49WorkResourceContractBoundaryV1.directCostIsEmbedded)
+        XCTAssertEqual(WorkResourceVisibilityPolicyV1.internalOnly.rawValue, "INTERNAL_ONLY")
+    }
+}

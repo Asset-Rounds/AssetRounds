@@ -86,7 +86,7 @@ enum ScheduleStreamingArchivePolicyV1 {
     static let cloneForkSourceScheduleAutomaticallyActive = false
 
     static func validate(records: V4BackupRecordsV1) throws {
-        guard (recordsSchemaVersion...C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion)
+        guard (recordsSchemaVersion...C49BackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion) else {
             throw StreamingArchiveFailureV1.invalidArchive
         }
@@ -120,7 +120,7 @@ enum PlanStreamingArchivePolicyV1 {
     static let componentRegistryIsArchiveTruth = false
 
     static func validate(records: V4BackupRecordsV1) throws {
-        guard (recordsSchemaVersion...C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion)
+        guard (recordsSchemaVersion...C49BackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion) else {
             throw StreamingArchiveFailureV1.invalidArchive
         }
@@ -165,7 +165,7 @@ enum PlacementPoseStreamingArchivePolicyV1 {
     static let cloneForkSourcePoseAutomaticallyActive = false
 
     static func validate(records: V4BackupRecordsV1) throws {
-        guard (recordsSchemaVersion...C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion)
+        guard (recordsSchemaVersion...C49BackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
               derivedProjectionStorage == "NONPERSISTENT_REBUILD",
               lifecycleHistoryStorage == "MUTATION_HISTORY_ONLY",
@@ -218,7 +218,8 @@ enum C31LightingStreamingArchivePolicyV1 {
         guard records.recordsSchemaVersion == 30 || records.recordsSchemaVersion == 31
                 || records.recordsSchemaVersion == 32
                 || records.recordsSchemaVersion == 33 || records.recordsSchemaVersion == 34
-                || records.recordsSchemaVersion == C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion,
+                || records.recordsSchemaVersion == C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion
+                || records.recordsSchemaVersion == C49BackupEnrollmentV1.recordsSchemaVersion,
               archiveKinds.count == durableFamilyCount,
               canonicalRowsOnly,
               derivedProjectionDisposition == "DROP_AND_REBUILD",
@@ -243,7 +244,7 @@ enum C32AssistanceStreamingArchivePolicyV1 {
     static let proposalArchiveDisposition = "EXCLUDED_NONPERSISTENT"
 
     static func validate(records: V4BackupRecordsV1) throws {
-        guard (recordsSchemaVersion...C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion)
+        guard (recordsSchemaVersion...C49BackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
               durableFamilyCount == AssistancePersistenceEnrollmentV1.durableModelCount,
               proposalArchiveDisposition == "EXCLUDED_NONPERSISTENT" else {
@@ -569,13 +570,30 @@ enum C47ActivityContractStreamingArchiveBoundaryV2 {
     static let nonpersistentReceiptsAreExcluded = true
 
     static func validate(records: V4BackupRecordsV1) throws {
-        guard records.recordsSchemaVersion == recordsSchemaVersion,
+        guard (recordsSchemaVersion...C49BackupEnrollmentV1.recordsSchemaVersion)
+                .contains(records.recordsSchemaVersion),
               fiveCanonicalRowFamiliesAreStreamed,
               completedSnapshotRemainsReleasedReportMember,
               nonpersistentReceiptsAreExcluded else {
             throw StreamingArchiveFailureV1.invalidArchive
         }
         do { _ = try records.validateC47ActivityContracts() }
+        catch { throw StreamingArchiveFailureV1.invalidArchive }
+    }
+}
+
+enum C49WorkResourceStreamingArchiveBoundaryV1 {
+    static let recordsSchemaVersion = C49BackupEnrollmentV1.recordsSchemaVersion
+    static let canonicalRowsShareRecordsEnvelope = true
+    static let totalsSearchDraftsAndLiveStockAreExcluded = true
+
+    static func validate(records: V4BackupRecordsV1) throws {
+        guard records.recordsSchemaVersion == recordsSchemaVersion,
+              canonicalRowsShareRecordsEnvelope,
+              totalsSearchDraftsAndLiveStockAreExcluded else {
+            throw StreamingArchiveFailureV1.invalidArchive
+        }
+        do { _ = try records.validateC49WorkResources() }
         catch { throw StreamingArchiveFailureV1.invalidArchive }
     }
 }

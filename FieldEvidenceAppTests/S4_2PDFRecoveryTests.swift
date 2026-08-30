@@ -951,3 +951,8 @@ private final class C48PortableReviewS42PDFRecoveryTests: XCTestCase {
         XCTAssertFalse(C48PortableReviewPDFBoundaryV1.capabilityProofBytesEmitted)
     }
 }
+private final class C49WorkResourcePDFRecoveryBoundaryTests: XCTestCase {
+    func testRecoveredDirectCostDefaultsToInternalVisibility() {
+        XCTAssertEqual(WorkResourceVisibilityPolicyV1.internalOnly.rawValue, "INTERNAL_ONLY")
+    }
+}

@@ -853,3 +853,19 @@ struct ReviewExchangeBudgetV1: Codable, Equatable, Hashable, Sendable {
                       maximumResponseBytes: c.decode(Int.self, forKey: .maximumResponseBytes))
     }
 }
+
+// MARK: - C49 work-resource review exchange
+
+enum C49WorkResourceReviewExchangeBoundaryV1 {
+    static let exchangeIsPreviewOnly = true
+    static let customerSafeProjectionIsRequired = true
+    static let internalDirectCostsAreNeverExported = true
+    static let sourceBytesAndLiveInventoryRowsAreExcluded = true
+
+    static func customerSafePreview(
+        _ projection: C49WorkResourceReportProjectionV1
+    ) throws -> C49WorkResourceProjectionEnvelopeV1 {
+        let safe = try C49WorkResourcePrivacyTransformBoundaryV1.customerSafe(projection)
+        return try C49WorkResourceProjectionSupportV1.envelope(safe, format: "REVIEW_EXCHANGE")
+    }
+}

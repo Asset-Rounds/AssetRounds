@@ -69,6 +69,11 @@ final class MutationReceiptRecoveryServiceV1 {
     func recoverPortableReviewEffectsBeforeWriterActivation()throws{
         try recoverBeforeWriterActivation()
     }
+    /// C49 revalidates the one canonical entry postimage (including embedded
+    /// direct cost) through the existing journal recovery authority.
+    func recoverWorkResourceEffectsBeforeWriterActivation()throws{
+        try recoverBeforeWriterActivation()
+    }
 }
 
 enum LightingMutationReceiptRecoveryPolicyV1 { static func validateRecovered(operation:LightingWriteOperationV1,receipt:MutationReceiptV1)throws{_ = try LightingMutationReceiptV1(operation:operation,mutationReceipt:receipt)} }
@@ -142,3 +147,4 @@ enum C45AcceptedLabelRecoveryBoundaryV1 { static let commandKind:WorkspaceComman
 enum C46OperationalContactBoundary_20{static let persistentFamilies=OperationalContactPersistenceEnrollmentV1.persistentFamilies;static let platformOutcomesPersistent=false}
 enum C47ActivityContractRecoveryBoundaryV2 { static let commandKind:WorkspaceCommandKindV1 = .applyActivityContract;static let effectBeforeReceiptRecoveryIsIdempotent=true;static let completedSnapshotBytesAreNeverReencoded=true }
 enum C48PortableReviewRecoveryBoundaryV1 { static let commandKind:WorkspaceCommandKindV1 = .applyPortableReview;static let canonicalEffectUsesExistingC14Rows=true;static let sessionEvidenceFinalizesOnlyAfterExactReceipt=true;static let historyOnlyNeverEntersWorkspaceJournal=true }
+enum C49WorkResourceRecoveryBoundaryV1 { static let commandKind:WorkspaceCommandKindV1 = .applyWorkResource;static let effectBeforeReceiptRecoveryUsesCanonicalPostimage=true;static let divergentSameMutationIsQuarantined=true;static let noSecondCostLedger=true }

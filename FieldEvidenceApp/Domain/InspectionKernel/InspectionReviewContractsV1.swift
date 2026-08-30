@@ -322,3 +322,29 @@ enum PortableReviewC14ReconciliationV1 {
         }
     }
 }
+
+// MARK: - C49 inspection-review subject projection
+
+enum C49WorkResourceInspectionReviewBoundaryV1 {
+    static let reviewConsumesCanonicalSubject = true
+    static let reviewProjectionIsReadOnly = true
+    static let reviewDoesNotInferApprovalOrInventoryState = true
+
+    static func report(
+        subject: WorkResourceSubjectV1,
+        snapshots: [WorkResourceSnapshotV1],
+        includeDirectCostPreview: Bool = false
+    ) throws -> C49WorkResourceReportProjectionV1 {
+        guard snapshots.allSatisfy({
+            $0.entry.workspaceID == subject.workspaceID && $0.entry.subject == subject
+        }) else {
+            throw C49WorkResourceProjectionFailureV1.invalidWorkspace
+        }
+        return try C49WorkResourceReportProjectionV1(
+            workspaceID: subject.workspaceID,
+            snapshots: snapshots,
+            audience: .internalOnly,
+            includeDirectCostPreview: includeDirectCostPreview
+        )
+    }
+}

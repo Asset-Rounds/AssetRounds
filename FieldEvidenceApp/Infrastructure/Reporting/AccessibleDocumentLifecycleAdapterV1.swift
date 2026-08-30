@@ -55,3 +55,19 @@ enum C48PortableReviewAccessibleDocumentLifecycleBoundaryV1 {
         try C48PortableReviewAccessibleDocumentBoundaryV1.validate(projection)
     }
 }
+
+// MARK: - C49 work-resource accessible/report boundary
+
+/// Reporting and accessibility consume the existing derived lifecycle. They
+/// do not become a second writer, expose private cost by default, or query
+/// live inventory while rendering a work-resource entry.
+enum C49WorkResourceAccessibleDocumentLifecycleBoundaryV1 {
+    static let consumesExistingAccessibleDocumentLifecycle = true
+    static let reportUsesCanonicalWorkResourceProjection = true
+    static let directCostDefaultVisibility = "INTERNAL_ONLY"
+    static let customerSafeCostRequiresExplicitPreview = true
+    static let rawContentBytesAccepted = false
+    static let liveInventoryLookup = false
+    static let createsSecondReportOrWriter = false
+    static let formulaFieldsAccepted = false
+}

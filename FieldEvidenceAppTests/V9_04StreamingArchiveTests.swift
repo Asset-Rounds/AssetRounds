@@ -529,3 +529,6 @@ private final class C46V904StreamingArchiveCompatibilityTests: XCTestCase {
         )
     }
 }
+private final class C49WorkResourceStreamingArchiveBoundaryTests: XCTestCase {
+    func testStreamingArchiveCarriesFrozenSnapshotNotLivePartLink() { XCTAssertFalse(C49WorkResourceContractBoundaryV1.liveInventoryReference) }
+}

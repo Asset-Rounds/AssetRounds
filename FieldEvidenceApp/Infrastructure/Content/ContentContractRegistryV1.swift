@@ -392,3 +392,45 @@ enum C48PortableReviewContentContractRegistryBoundaryV1 {
         try projection.validate()
     }
 }
+
+// MARK: - C49 work-resource content contract enrollment
+
+enum C49WorkResourceContentContractRegistryBoundaryV1 {
+    static let requiredContracts = [
+        "WorkResourceEntryV1",
+        "ManualWorkResourceRecordRow",
+        "DirectCostEntryV1",
+        "LocalPartReferenceSnapshotV1",
+        "ContentIntegrityReceiptV1",
+    ]
+    static let usesExistingCanonicalContentRegistry = true
+    static let localPartReferenceIsEmbeddedSnapshot = true
+    static let liveInventoryLookup = false
+    static let directCostIsNotASecondLedger = true
+    static let customerSafeCostRequiresExplicitSelection = true
+
+    static func validate() throws {
+        guard Set(requiredContracts).count == requiredContracts.count,
+              usesExistingCanonicalContentRegistry,
+              localPartReferenceIsEmbeddedSnapshot,
+              !liveInventoryLookup,
+              directCostIsNotASecondLedger,
+              customerSafeCostRequiresExplicitSelection else {
+            throw ContentContractFailureV1.invalidValue
+        }
+    }
+}
+
+extension ContentContractRegistryV1 {
+    /// Returns an additive view for C49 without changing the frozen base
+    /// registry used by existing content callers.
+    static func c49Contracts() throws -> [String] {
+        try C49WorkResourceContentContractRegistryBoundaryV1.validate()
+        let contracts = try canonical().declaredContracts
+            + C49WorkResourceContentContractRegistryBoundaryV1.requiredContracts
+        guard Set(contracts).count == contracts.count else {
+            throw ContentContractFailureV1.invalidValue
+        }
+        return contracts
+    }
+}

@@ -1379,3 +1379,10 @@ private final class C48PortableReviewS66EraseTests: XCTestCase {
         XCTAssertTrue(C48PortableReviewPersistenceBoundaryV1.sessionStoreIsNonpersistent)
     }
 }
+private final class C49WorkResourceEraseBoundaryTests: XCTestCase {
+    func testEraseClassificationIncludesEmbeddedCostNotASecondLedger() {
+        XCTAssertTrue(C49WorkResourceContractBoundaryV1.directCostIsEmbedded)
+        XCTAssertFalse(C49WorkResourceContractBoundaryV1.liveInventoryReference)
+        XCTAssertTrue(C49WorkResourcePersistenceBoundaryV1.appendOnlyHistory)
+    }
+}

@@ -1207,3 +1207,29 @@ extension ReportRecoveryService {
         )
     }
 }
+
+// MARK: - C49 work-resource recovery closure
+
+extension ReportRecoveryService {
+    static func recoverWorkResourceSnapshot(
+        _ data: Data
+    ) throws -> C49WorkResourceProjectionEnvelopeV1 {
+        let envelope = try C49WorkResourceReportSnapshotEncoderBoundaryV1.decode(data)
+        try C49WorkResourceSnapshotValidationBoundaryV1.validate(envelope)
+        return envelope
+    }
+
+    static func recoverWorkResourceProjection(
+        _ projection: C49WorkResourceReportProjectionV1
+    ) throws -> C49WorkResourceReportProjectionV1 {
+        try C49WorkResourceProjectionSupportV1.validate(projection)
+        return projection
+    }
+}
+
+enum C49WorkResourceReportRecoveryBoundaryV1 {
+    static let recoveryReopensCanonicalBytes = true
+    static let recoveryRebuildsDerivedState = true
+    static let recoveryNeverOverwritesHistory = true
+    static let rawStockAndLiveInventoryClaimsRecovered = false
+}

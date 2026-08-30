@@ -957,3 +957,25 @@ enum C48PortableReviewReportHistoryBoundaryV1 {
         try projection.validate()
     }
 }
+
+// MARK: - C49 work-resource report history
+
+enum C49WorkResourceReportHistoryBoundaryV1 {
+    static let historyIsAppendOnly = true
+    static let correctionsCreateNewProjectionDigests = true
+    static let historyDoesNotRetainLiveInventoryRows = true
+
+    static func currentProjection(
+        workspaceID: WorkspaceID,
+        snapshots: [WorkResourceSnapshotV1],
+        audience: C49WorkResourceAudienceV1 = .internalOnly,
+        includeDirectCostPreview: Bool = false
+    ) throws -> C49WorkResourceReportProjectionV1 {
+        try C49WorkResourceSnapshotValidationBoundaryV1.rebuild(
+            workspaceID: workspaceID,
+            snapshots: snapshots,
+            audience: audience,
+            includeDirectCostPreview: includeDirectCostPreview
+        )
+    }
+}

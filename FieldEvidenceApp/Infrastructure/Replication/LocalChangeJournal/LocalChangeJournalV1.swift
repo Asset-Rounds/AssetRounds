@@ -574,6 +574,7 @@ final class LocalChangeJournalV1 {
             try Self.validateEvidenceAssuranceChange(change)
             try Self.validateInspectionReviewChange(change)
             try Self.validatePortableReviewChange(change)
+            try Self.validateWorkResourceChange(change)
             try WorkPacketJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)
             try FieldDraftJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)
             try FieldReferenceJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)
@@ -1660,6 +1661,7 @@ final class LocalChangeJournalV1 {
     private static func validateEvidenceAssuranceChange(_ change:JournalChangeV1)throws{guard case let .applyEvidenceAssurance(m)=change.envelope.command else{return};do{try m.validate();let i=try m.affectedIdentity;let images=change.receipt.postImages;guard change.envelope.commandKind == .applyEvidenceAssurance,change.envelope.mutationID==m.mutationID,change.receipt.mutationID==m.mutationID,images==[try m.postImage.mutationPostImage],change.entityChanges.map(\.identity)==[i],change.entityChanges.map(\.postImage)==images else{throw ChangeJournalFailureV1.tamperedBatch}}catch let f as ChangeJournalFailureV1{throw f}catch{throw ChangeJournalFailureV1.tamperedBatch}}
     private static func validateInspectionReviewChange(_ change:JournalChangeV1)throws{do{try InspectionReviewJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)}catch let f as ChangeJournalFailureV1{throw f}catch{throw ChangeJournalFailureV1.tamperedBatch}}
     private static func validatePortableReviewChange(_ change:JournalChangeV1)throws{do{try PortableReviewJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)}catch let f as ChangeJournalFailureV1{throw f}catch{throw ChangeJournalFailureV1.tamperedBatch}}
+    private static func validateWorkResourceChange(_ change:JournalChangeV1)throws{do{try WorkResourceJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)}catch let f as ChangeJournalFailureV1{throw f}catch{throw ChangeJournalFailureV1.tamperedBatch}}
 
     private static let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
 }

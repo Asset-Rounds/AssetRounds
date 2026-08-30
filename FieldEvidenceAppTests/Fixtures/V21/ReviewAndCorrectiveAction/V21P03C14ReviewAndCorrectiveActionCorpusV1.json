@@ -69,5 +69,11 @@
     "exactReplayIdempotent": true,
     "divergentResponseFailsClosed": true,
     "originIdentityVerified": false
+  },
+  "c49WorkResources": {
+    "correctiveWorkIsValidSubject": true,
+    "subjectRevisionAndSHARequired": true,
+    "amendmentUsesSuccessorEntry": true,
+    "inPlaceMutationAllowed": false
   }
 }

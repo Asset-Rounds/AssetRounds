@@ -49,6 +49,7 @@ struct IntegrationEventProjectionV1: Sendable {
             try Self.validateEvidenceContextReceiptShape(receipt)
             try Self.validateOperationalContactReceiptShape(receipt)
             try Self.validatePortableReviewReconciliationReceiptShape(receipt)
+            try Self.validateWorkResourceReceiptShape(receipt)
             guard receipt.identity.workspaceID == workspaceID,
                   receipt.resultingRevision.workspaceID == workspaceID else {
                 throw IntegrationEventFailureV1.wrongWorkspace
@@ -197,6 +198,19 @@ struct IntegrationEventProjectionV1: Sendable {
         let present = Set(identities.map(\.kind)).intersection(C48PortableReviewReconciliationIntegrationEventBoundaryV1.canonicalReconciliationKinds)
         guard !present.isEmpty else { return }
         guard Set(identities).count == identities.count, identities.allSatisfy({ C48PortableReviewReconciliationIntegrationEventBoundaryV1.canonicalReconciliationKinds.contains($0.kind) }) else { throw IntegrationEventFailureV1.divergentEvent }
+    }
+
+    static func validateWorkResourceReceiptShape(_ receipt: MutationReceiptV1) throws {
+        let identities = try receipt.postImages.map { try $0.identity }
+        let present = Set(identities.map(\.kind)).intersection(C49WorkResourceIntegrationEventBoundaryV1.canonicalKinds)
+        guard !present.isEmpty else { return }
+        guard let image = receipt.postImages.first else { throw IntegrationEventFailureV1.divergentEvent }
+        let concurrency = try image.concurrencyIdentity
+        guard identities.count == 1,
+              identities.first?.kind == .workResourceEntry,
+              let expected = receipt.expectedRevision.entityRevisions.first(where: { $0.identity == concurrency })?.revision,
+              expected < UInt64.max,
+              image.revision == expected + 1 else { throw IntegrationEventFailureV1.divergentEvent }
     }
     func validatePortableReviewReconciliationReplay(_ receipts: [MutationReceiptV1]) throws {
         let found = try receipts.contains { try $0.postImages.contains { C48PortableReviewReconciliationIntegrationEventBoundaryV1.canonicalReconciliationKinds.contains(try $0.identity.kind) } }

@@ -2414,3 +2414,37 @@ enum C48PortableReviewFinalizationIntentBoundaryV1 {
     static let rawRequestResponseBytesEnterFinalization = false
     static let existingFinalizationIntentStoreRemainsCanonical = true
 }
+
+// MARK: - C49 work-resource finalization admission
+
+enum C49WorkResourceFinalizationIntentBoundaryV1 {
+    static let finalizationConsumesDerivedSnapshot = true
+    static let finalizationDoesNotCreateASecondWriter = true
+    static let customerSafeDirectCostPreviewRequiresOptIn = true
+    static let formulaSafeCSVIsTheOnlyCSVRoute = true
+    static let rawStockAndLiveInventoryClaimsEnterIntent = false
+
+    static func prepare(
+        _ projection: C49WorkResourceReportProjectionV1,
+        format: String = "OPEN_JSON"
+    ) throws -> C49WorkResourceProjectionEnvelopeV1 {
+        let envelope = try C49WorkResourceProjectionSupportV1.envelope(
+            projection,
+            format: format
+        )
+        try envelope.validate(expectedFormat: format)
+        return envelope
+    }
+
+    static func validateCustomerSafe(
+        _ projection: C49WorkResourceReportProjectionV1
+    ) throws {
+        _ = try C49WorkResourcePrivacyTransformBoundaryV1.customerSafe(projection)
+    }
+
+    static func formulaSafeCSV(
+        _ projection: C49WorkResourceReportProjectionV1
+    ) throws -> Data {
+        try C49WorkResourceReportSnapshotEncoderBoundaryV1.encodeFormulaSafeCSV(projection)
+    }
+}

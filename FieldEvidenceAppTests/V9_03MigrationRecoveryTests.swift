@@ -1743,3 +1743,10 @@ private final class C48PortableReviewV903MigrationTests: XCTestCase {
         XCTAssertTrue(C48PortableExchangeMigrationBoundaryV2.preservesExactBytes)
     }
 }
+private final class C49WorkResourceMigrationBoundaryTests: XCTestCase {
+    func testMigrationPreservesAllReleasedDispositions() {
+        XCTAssertEqual(WorkResourceDispositionV1.allCases.count, 4)
+        XCTAssertEqual(C49WorkResourcePersistenceBoundaryV1.recordsSchemaVersion, 36)
+        XCTAssertTrue(C49WorkResourcePersistenceBoundaryV1.acceptedBytesAreCanonical)
+    }
+}

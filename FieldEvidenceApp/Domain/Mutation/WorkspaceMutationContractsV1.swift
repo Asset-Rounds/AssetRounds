@@ -38,6 +38,7 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case installationTaskResult
     case installationAsBuiltSnapshot
     case punchReviewBasisSnapshot
+    case workResourceEntry
     case sitePartyRoleEvent
     case actorSnapshot
     case qualificationSnapshot
@@ -1452,6 +1453,7 @@ struct SurveyDefinitionMutationV1: Codable, Equatable, Sendable {
     }
 
     func canonicalSHA256() throws -> String { try validate(); return try WorkspaceMutationCanonicalV1.sha256(self) }
+
 }
 
 enum SurveySessionMutationPayloadV1: Codable, Equatable, Sendable {
@@ -1908,6 +1910,74 @@ struct PortableReviewMutationV1: Codable, Equatable, Sendable {
     func canonicalSHA256() throws -> String { try validate(); return try WorkspaceMutationCanonicalV1.sha256(self) }
 }
 
+/// The sole canonical append-only writer command for C49. Direct cost is an
+/// optional immutable field of the same postimage, never a second ledger.
+struct WorkResourceMutationV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let workspaceID: WorkspaceID
+    let mutationID: MutationIDV1
+    let postImage: WorkResourceEntryV1
+
+    init(workspaceID: WorkspaceID, mutationID: MutationIDV1, postImage: WorkResourceEntryV1) throws {
+        schemaVersion = Self.schemaVersion
+        self.workspaceID = workspaceID
+        self.mutationID = mutationID
+        self.postImage = postImage
+        try validate()
+    }
+
+    var affectedIdentity: WorkspaceEntityIdentityV1 { get throws { try .init(kind: .workResourceEntry, id: postImage.entryID) } }
+    var affectedIdentities: [WorkspaceEntityIdentityV1] { get throws { [try affectedIdentity] } }
+    var concurrencyIdentity: WorkspaceEntityIdentityV1 { get throws {
+        if let predecessor = postImage.supersedesEntryID { return try .init(kind: .workResourceEntry, id: predecessor) }
+        return try affectedIdentity
+    } }
+    var concurrencyIdentities: [WorkspaceEntityIdentityV1] { get throws { [try concurrencyIdentity] } }
+
+    func expectedRevision(for identity: WorkspaceEntityIdentityV1) throws -> UInt64 {
+        guard identity == (try concurrencyIdentity) else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+        return postImage.expectedRevision
+    }
+
+    var mutationPostImage: MutationPostImageV1 { get throws {
+        try .workResourceEntry(id: postImage.entryID, concurrencyIdentity: concurrencyIdentity, revision: postImage.revision, semanticSHA256: postImage.entrySHA256)
+    } }
+    var mutationPostImages: [MutationPostImageV1] { get throws { [try mutationPostImage] } }
+
+    func validate() throws {
+        try postImage.validate()
+        let next = postImage.expectedRevision.addingReportingOverflow(1)
+        guard schemaVersion == Self.schemaVersion,
+              workspaceID == postImage.workspaceID,
+              mutationID == postImage.mutationID,
+              !next.overflow,
+              postImage.revision == next.partialValue else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+    }
+
+    func canonicalSHA256() throws -> String { try validate(); return try WorkspaceMutationCanonicalV1.sha256(self) }
+
+    func canonicalWorkspaceMutationRequest(
+        expectedRevision: WorkspaceExpectedRevisionV1
+    ) throws -> WorkspaceMutationRequestV1 {
+        try validate()
+        let concurrency = try concurrencyIdentity
+        guard expectedRevision.workspaceID == workspaceID,
+              expectedRevision.entityRevisions.count == 1,
+              expectedRevision.entityRevisions.first?.identity == concurrency,
+              expectedRevision.entityRevisions.first?.revision == postImage.expectedRevision else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+        return try WorkspaceMutationRequestV1(
+            mutationID: mutationID,
+            expectedRevision: expectedRevision,
+            command: .applyWorkResource(self)
+        )
+    }
+}
+
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
     case createCheckDraft(CheckDraftMutationV1)
@@ -1954,6 +2024,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyOperationalContact(OperationalContactMutationV1)
     case applyActivityContract(ActivityContractMutationV2)
     case applyPortableReview(PortableReviewMutationV1)
+    case applyWorkResource(WorkResourceMutationV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -2002,6 +2073,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyOperationalContact:.applyOperationalContact
         case .applyActivityContract:.applyActivityContract
         case .applyPortableReview:.applyPortableReview
+        case .applyWorkResource:.applyWorkResource
         }
     }
 }
@@ -2052,6 +2124,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyOperationalContact="apply_operational_contact"
     case applyActivityContract="apply_activity_contract_v2"
     case applyPortableReview="apply_portable_review_v1"
+    case applyWorkResource="apply_work_resource_v1"
 }
 
 extension WorkspaceCommandV1 {
@@ -2851,6 +2924,7 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind:.applyOperationalContact,disposition:.compensatable,stableReason:"append_contact_successor_or_retirement_only"),
         .init(commandKind:.applyActivityContract,disposition:.compensatable,stableReason:"append_activity_contract_successor_only"),
         .init(commandKind:.applyPortableReview,disposition:.compensatable,stableReason:"append_existing_c14_review_successor_only"),
+        .init(commandKind:.applyWorkResource,disposition:.compensatable,stableReason:"append_work_resource_successor_only"),
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {

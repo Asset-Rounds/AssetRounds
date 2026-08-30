@@ -1651,3 +1651,84 @@ enum C48PortableReviewPDFBoundaryV1 {
     static let rawRequestResponseBytesEmitted = false
     static let workspaceAndReplicaIdentityEmitted = false
 }
+
+// MARK: - C49 work-resource deterministic PDF projection
+
+extension DeterministicPDFRendererV1 {
+    static func renderWorkResourceData(
+        _ projection: C49WorkResourceReportProjectionV1
+    ) throws -> Data {
+        try C49WorkResourceProjectionSupportV1.validate(projection)
+        let lines = try C49WorkResourceAccessibleDocumentBoundaryV1.lines(projection)
+        return try C49WorkResourcePDFPayloadV1.data(
+            projectionSHA256: projection.projectionSHA256,
+            lines: lines
+        )
+    }
+
+    static func renderWorkResource(
+        _ projection: C49WorkResourceReportProjectionV1
+    ) throws -> ReportProjectionOutputV1 {
+        let data = try renderWorkResourceData(projection)
+        return ReportProjectionOutputV1(
+            format: .pdf,
+            data: data,
+            sha256: KernelCanonicalHashV1.sha256(data),
+            semanticSHA256: projection.projectionSHA256,
+            orderedSemanticIDs: projection.sourceRecordIDs.map { $0.uuidString.lowercased() },
+            taggedPDFAccessibilityEvidence: false
+        )
+    }
+}
+
+private enum C49WorkResourcePDFPayloadV1 {
+    static func data(projectionSHA256: String, lines: [String]) throws -> Data {
+        let safeLines = lines.map(asciiVisible)
+        let content = (safeLines.isEmpty ? ["C49 work-resource report"] : safeLines)
+            .enumerated()
+            .map { index, line in
+                let escaped = line
+                    .replacingOccurrences(of: "\\", with: "\\\\")
+                    .replacingOccurrences(of: "(", with: "\\(")
+                    .replacingOccurrences(of: ")", with: "\\)")
+                return index == 0
+                    ? "(\(escaped)) Tj\n"
+                    : "0 -14 Td\n(\(escaped)) Tj\n"
+            }
+            .joined()
+        let stream = "BT\n/F1 10 Tf\n42 750 Td\n" + content + "ET\n"
+        let objects = [
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+            "<< /Length \(stream.utf8.count) >>\nstream\n\(stream)endstream"
+        ]
+        var document = "%PDF-1.4\n%C49-WORK-RESOURCE\n"
+        var offsets = [0]
+        for (index, object) in objects.enumerated() {
+            offsets.append(document.utf8.count)
+            document += "\(index + 1) 0 obj\n\(object)\nendobj\n"
+        }
+        let xrefOffset = document.utf8.count
+        document += "xref\n0 \(objects.count + 1)\n0000000000 65535 f \n"
+        for offset in offsets.dropFirst() {
+            let value = String(offset)
+            document += String(repeating: "0", count: max(0, 10 - value.count)) + value + " 00000 n \n"
+        }
+        document += "trailer\n<< /Size \(objects.count + 1) /Root 1 0 R /Info << /Title (C49 Work Resource) /Subject (\(projectionSHA256)) >> >>\n"
+        document += "startxref\n\(xrefOffset)\n%%EOF\n"
+        guard let data = document.data(using: .utf8) else {
+            throw C49WorkResourceProjectionFailureV1.nonCanonical
+        }
+        return data
+    }
+
+    private static func asciiVisible(_ value: String) -> String {
+        String(decoding: value.unicodeScalars.map {
+            ($0.value >= 0x20 && $0.value <= 0x7E) ? UInt8($0.value) : UInt8(asciiQuestionMark)
+        }, as: UTF8.self)
+    }
+
+    private static let asciiQuestionMark: UInt8 = 0x3F
+}

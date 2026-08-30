@@ -825,7 +825,8 @@ private extension BackupExportService {
                 assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
                 temporalEvidence: records.temporalEvidence,
                 acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots,
-                activityContracts: records.activityContracts
+                activityContracts: records.activityContracts,
+                workResources: records.workResources
             )
             semanticRecordsData = try BackupCanonicalEncoderV1()
                 .encodeSemanticRecords(semanticRecords).data
@@ -1087,9 +1088,9 @@ private extension BackupExportService {
             source: .init(
                 appBuild: appBuild(),
                 appVersion: appVersion(),
-                persistentSchemaVersion: C47ActivityContractPersistenceBoundaryV2.persistentSchemaVersion,
+                persistentSchemaVersion: C49WorkResourcePersistenceBoundaryV1.persistentSchemaVersion,
                 replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion,
+                recordsSchemaVersion: C49BackupEnrollmentV1.recordsSchemaVersion,
                 sourceGenerationID: generationID,
                 workspaceID: sourceIdentity.workspaceID.rawValue
             )
@@ -2296,6 +2297,12 @@ private extension BackupExportService {
             + rows.punchReviewBasisSnapshots.map { try V36BackupActivityContractRecordV2($0.value()) }
         ).sorted { ($0.kind.rawValue, $0.workspaceID.uuidString, $0.id.uuidString)
             < ($1.kind.rawValue, $1.workspaceID.uuidString, $1.id.uuidString) }
+        let workResources = mutationHistory == nil ? [] : try WorkResourceRowQueryV1(
+            modelContext: modelContext
+        ).entries(workspaceID: sourceIdentity.workspaceID)
+            .map(V37BackupWorkResourceRecordV1.init)
+            .sorted { ($0.workspaceID.uuidString, $0.entryID.uuidString)
+                < ($1.workspaceID.uuidString, $1.entryID.uuidString) }
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveys,
             assetLocators: assetLocators,
@@ -2365,7 +2372,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion,
+                : C49BackupEnrollmentV1.recordsSchemaVersion,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -2401,7 +2408,8 @@ private extension BackupExportService {
             temporalEvidence: temporalEvidence,
             acceptedLabelGenerationSnapshots: acceptedLabelGenerationSnapshots,
             operationalContacts: operationalContacts,
-            activityContracts: activityContracts
+            activityContracts: activityContracts,
+            workResources: workResources
         )
     }
 

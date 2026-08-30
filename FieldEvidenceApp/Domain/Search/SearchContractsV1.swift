@@ -3786,3 +3786,43 @@ enum C48PortableReviewSearchBoundaryV1 {
         try .init(state: state, response: response, conflictCount: conflictCount)
     }
 }
+
+// MARK: - C49 work-resource search projection
+
+struct C49WorkResourceSearchProjectionV1: Codable, Equatable, Sendable {
+    let workspaceID: WorkspaceID
+    let recordIDs: [UUID]
+    let terms: [String]
+    let projectionSHA256: String
+
+    init(projection: C49WorkResourceReportProjectionV1) throws {
+        try C49WorkResourceProjectionSupportV1.validate(projection)
+        workspaceID = projection.workspaceID
+        recordIDs = projection.sourceRecordIDs
+        terms = Array(Set(projection.materials.flatMap { [$0.description, $0.unit].compactMap { $0 } })).sorted()
+        projectionSHA256 = projection.projectionSHA256
+    }
+
+    func validate() throws {
+        guard recordIDs == recordIDs.sorted(by: { $0.uuidString < $1.uuidString }),
+              Set(recordIDs).count == recordIDs.count,
+              terms == terms.sorted(), Set(terms).count == terms.count,
+              projectionSHA256.count == 64 else {
+            throw C49WorkResourceProjectionFailureV1.nonCanonical
+        }
+    }
+}
+
+enum C49WorkResourceSearchBoundaryV1 {
+    static let indexUsesDerivedMetadataOnly = true
+    static let sourceBytesIndexed = false
+    static let liveInventoryRowsIndexed = false
+
+    static func projection(
+        _ report: C49WorkResourceReportProjectionV1
+    ) throws -> C49WorkResourceSearchProjectionV1 {
+        let value = try C49WorkResourceSearchProjectionV1(projection: report)
+        try value.validate()
+        return value
+    }
+}

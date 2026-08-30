@@ -1,0 +1,2757 @@
+{
+  "$defs": {
+    "actorSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "actor": {
+          "$ref": "#/$defs/localActor"
+        },
+        "capturedAt": {
+          "type": "number"
+        },
+        "displayNameAtTime": {
+          "$ref": "#/$defs/shortText"
+        },
+        "responsibility": {
+          "enum": [
+            "RECORDED_BY",
+            "PERFORMED_BY",
+            "OBSERVED_BY",
+            "REVIEWED_BY",
+            "VERIFIED_BY",
+            "APPROVED_BY",
+            "ACKNOWLEDGED_BY",
+            "ASSIGNED_TO",
+            "WITNESSED_BY"
+          ]
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "snapshotID": {
+          "$ref": "#/$defs/uuid"
+        },
+        "snapshotSHA256": {
+          "$ref": "#/$defs/digest"
+        },
+        "workspaceID": {
+          "$ref": "#/$defs/workspaceID"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "snapshotID",
+        "workspaceID",
+        "actor",
+        "responsibility",
+        "displayNameAtTime",
+        "capturedAt",
+        "snapshotSHA256"
+      ],
+      "type": "object"
+    },
+    "decimal": {
+      "additionalProperties": false,
+      "properties": {
+        "mantissa": {
+          "maximum": 9223372036854775807,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "scale": {
+          "maximum": 3,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "mantissa",
+        "scale"
+      ],
+      "type": "object"
+    },
+    "digest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "directCost": {
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "$ref": "#/$defs/money"
+        },
+        "note": {
+          "$ref": "#/$defs/longText"
+        }
+      },
+      "required": [
+        "amount"
+      ],
+      "type": "object"
+    },
+    "duration": {
+      "additionalProperties": false,
+      "properties": {
+        "minutes": {
+          "maximum": 10080,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "minutes"
+      ],
+      "type": "object"
+    },
+    "localActor": {
+      "additionalProperties": false,
+      "properties": {
+        "actorReferenceID": {
+          "$ref": "#/$defs/uuid"
+        },
+        "displayName": {
+          "$ref": "#/$defs/shortText"
+        },
+        "partyID": {
+          "$ref": "#/$defs/uuid"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "workspaceID": {
+          "$ref": "#/$defs/workspaceID"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "actorReferenceID",
+        "workspaceID",
+        "displayName"
+      ],
+      "type": "object"
+    },
+    "localPartReference": {
+      "additionalProperties": false,
+      "properties": {
+        "displayName": {
+          "$ref": "#/$defs/shortText"
+        },
+        "partID": {
+          "$ref": "#/$defs/uuid"
+        },
+        "partRevision": {
+          "maximum": 18446744073709551615,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "partSHA256": {
+          "$ref": "#/$defs/digest"
+        }
+      },
+      "required": [
+        "partID",
+        "partRevision",
+        "partSHA256",
+        "displayName"
+      ],
+      "type": "object"
+    },
+    "longText": {
+      "maxLength": 1024,
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001f\\u007f\\u202a-\\u202e\\u2066-\\u2069]+$",
+      "type": "string"
+    },
+    "material": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "$ref": "#/$defs/shortText"
+        },
+        "lineID": {
+          "$ref": "#/$defs/uuid"
+        },
+        "localPartReference": {
+          "$ref": "#/$defs/localPartReference"
+        },
+        "quantity": {
+          "$ref": "#/$defs/decimal"
+        },
+        "unit": {
+          "$ref": "#/$defs/unitText"
+        }
+      },
+      "required": [
+        "lineID",
+        "description",
+        "quantity"
+      ],
+      "type": "object"
+    },
+    "money": {
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "AED"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "AFN"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "ALL"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "AMD"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "AOA"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "ARS"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "AUD"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "AWG"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "AZN"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "BAM"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "BBD"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "BDT"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "BHD"
+            },
+            "minorUnitScale": {
+              "const": 3
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "BIF"
+            },
+            "minorUnitScale": {
+              "const": 0
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "BMD"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "BND"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "BOB"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "BOV"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "BRL"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "BSD"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "BTN"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "BWP"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "BYN"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "BZD"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "CAD"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "CDF"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "CHE"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "CHF"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "CHW"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "CLF"
+            },
+            "minorUnitScale": {
+              "const": 4
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "CLP"
+            },
+            "minorUnitScale": {
+              "const": 0
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "CNY"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "COP"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "COU"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "CRC"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "CUP"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "CVE"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "CZK"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "DJF"
+            },
+            "minorUnitScale": {
+              "const": 0
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "DKK"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "DOP"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "DZD"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "EGP"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "ERN"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "ETB"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "EUR"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "FJD"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "FKP"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "GBP"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "GEL"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "GHS"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "GIP"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "GMD"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "GNF"
+            },
+            "minorUnitScale": {
+              "const": 0
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "GTQ"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "GYD"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "HKD"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "HNL"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "HTG"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "HUF"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "IDR"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "ILS"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "INR"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "IQD"
+            },
+            "minorUnitScale": {
+              "const": 3
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "IRR"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "ISK"
+            },
+            "minorUnitScale": {
+              "const": 0
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "JMD"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "JOD"
+            },
+            "minorUnitScale": {
+              "const": 3
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "JPY"
+            },
+            "minorUnitScale": {
+              "const": 0
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "KES"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "KGS"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "KHR"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "KMF"
+            },
+            "minorUnitScale": {
+              "const": 0
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "KPW"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "KRW"
+            },
+            "minorUnitScale": {
+              "const": 0
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "KWD"
+            },
+            "minorUnitScale": {
+              "const": 3
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "KYD"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "KZT"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "LAK"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "LBP"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "LKR"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "LRD"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "LSL"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "LYD"
+            },
+            "minorUnitScale": {
+              "const": 3
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "MAD"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "MDL"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "MGA"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "MKD"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "MMK"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "MNT"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "MOP"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "MRU"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "MUR"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "MVR"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "MWK"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "MXN"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "MXV"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "MYR"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "MZN"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "NAD"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "NGN"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "NIO"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "NOK"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "NPR"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "NZD"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "OMR"
+            },
+            "minorUnitScale": {
+              "const": 3
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "PAB"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "PEN"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "PGK"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "PHP"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "PKR"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "PLN"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "PYG"
+            },
+            "minorUnitScale": {
+              "const": 0
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "QAR"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "RON"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "RSD"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "RUB"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "RWF"
+            },
+            "minorUnitScale": {
+              "const": 0
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "SAR"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "SBD"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "SCR"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "SDG"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "SEK"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "SGD"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "SHP"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "SLE"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "SOS"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "SRD"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "SSP"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "STN"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "SVC"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "SYP"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "SZL"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "THB"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "TJS"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "TMT"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "TND"
+            },
+            "minorUnitScale": {
+              "const": 3
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "TOP"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "TRY"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "TTD"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "TWD"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "TZS"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "UAH"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "UGX"
+            },
+            "minorUnitScale": {
+              "const": 0
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "USD"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "USN"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "UYI"
+            },
+            "minorUnitScale": {
+              "const": 0
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "UYU"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "UYW"
+            },
+            "minorUnitScale": {
+              "const": 4
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "UZS"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "VED"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "VES"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "VND"
+            },
+            "minorUnitScale": {
+              "const": 0
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "VUV"
+            },
+            "minorUnitScale": {
+              "const": 0
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "WST"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "XAD"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "XAF"
+            },
+            "minorUnitScale": {
+              "const": 0
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "XCD"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "XCG"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "XOF"
+            },
+            "minorUnitScale": {
+              "const": 0
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "XPF"
+            },
+            "minorUnitScale": {
+              "const": 0
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "YER"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "ZAR"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "ZMW"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        },
+        {
+          "properties": {
+            "currencyCode": {
+              "const": "ZWG"
+            },
+            "minorUnitScale": {
+              "const": 2
+            }
+          },
+          "required": [
+            "currencyCode",
+            "minorUnitScale"
+          ]
+        }
+      ],
+      "properties": {
+        "mantissa": {
+          "maximum": 9223372036854775807,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "mantissa",
+        "currencyCode",
+        "minorUnitScale"
+      ],
+      "type": "object"
+    },
+    "shortText": {
+      "maxLength": 160,
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001f\\u007f\\u202a-\\u202e\\u2066-\\u2069]+$",
+      "type": "string"
+    },
+    "subject": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "WORK_PACKET",
+            "CORRECTIVE_WORK"
+          ]
+        },
+        "subjectID": {
+          "$ref": "#/$defs/uuid"
+        },
+        "subjectRevision": {
+          "maximum": 18446744073709551615,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "subjectSHA256": {
+          "$ref": "#/$defs/digest"
+        },
+        "workspaceID": {
+          "$ref": "#/$defs/workspaceID"
+        }
+      },
+      "required": [
+        "workspaceID",
+        "kind",
+        "subjectID",
+        "subjectRevision",
+        "subjectSHA256"
+      ],
+      "type": "object"
+    },
+    "unitText": {
+      "maxLength": 24,
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001f\\u007f\\u202a-\\u202e\\u2066-\\u2069]+$",
+      "type": "string"
+    },
+    "uuid": {
+      "format": "uuid",
+      "not": {
+        "const": "00000000-0000-0000-0000-000000000000"
+      },
+      "type": "string"
+    },
+    "workspaceID": {
+      "additionalProperties": false,
+      "properties": {
+        "rawValue": {
+          "$ref": "#/$defs/uuid"
+        }
+      },
+      "required": [
+        "rawValue"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "urn:assetrounds:v23:p03:c49:work-resource:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "anyOf": [
+        {
+          "required": [
+            "duration"
+          ]
+        },
+        {
+          "properties": {
+            "materials": {
+              "minItems": 1
+            }
+          }
+        },
+        {
+          "required": [
+            "directCost"
+          ]
+        }
+      ]
+    },
+    {
+      "else": {
+        "required": [
+          "supersedesEntryID",
+          "supersedesEntrySHA256"
+        ]
+      },
+      "if": {
+        "properties": {
+          "expectedRevision": {
+            "const": 0
+          }
+        },
+        "required": [
+          "expectedRevision"
+        ]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "supersedesEntryID"
+              ]
+            },
+            {
+              "required": [
+                "supersedesEntrySHA256"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "else": {
+        "not": {
+          "required": [
+            "voidReason"
+          ]
+        }
+      },
+      "if": {
+        "properties": {
+          "disposition": {
+            "const": "VOIDED_WITH_REASON"
+          }
+        },
+        "required": [
+          "disposition"
+        ]
+      },
+      "then": {
+        "required": [
+          "voidReason"
+        ]
+      }
+    }
+  ],
+  "properties": {
+    "actor": {
+      "$ref": "#/$defs/actorSnapshot"
+    },
+    "directCost": {
+      "$ref": "#/$defs/directCost"
+    },
+    "disposition": {
+      "enum": [
+        "ACTIVE",
+        "SUPERSEDED",
+        "VOIDED_WITH_REASON",
+        "REVERSED"
+      ]
+    },
+    "duration": {
+      "$ref": "#/$defs/duration"
+    },
+    "entryID": {
+      "$ref": "#/$defs/uuid"
+    },
+    "entrySHA256": {
+      "$ref": "#/$defs/digest"
+    },
+    "expectedRevision": {
+      "maximum": 18446744073709551615,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "materials": {
+      "items": {
+        "$ref": "#/$defs/material"
+      },
+      "maxItems": 50,
+      "type": "array"
+    },
+    "mutationID": {
+      "$ref": "#/$defs/uuid"
+    },
+    "recordedAt": {
+      "type": "number"
+    },
+    "revision": {
+      "maximum": 18446744073709551615,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "subject": {
+      "$ref": "#/$defs/subject"
+    },
+    "supersedesEntryID": {
+      "$ref": "#/$defs/uuid"
+    },
+    "supersedesEntrySHA256": {
+      "$ref": "#/$defs/digest"
+    },
+    "visibility": {
+      "enum": [
+        "INTERNAL_ONLY",
+        "CUSTOMER_SAFE"
+      ]
+    },
+    "voidReason": {
+      "$ref": "#/$defs/longText"
+    },
+    "workspaceID": {
+      "$ref": "#/$defs/workspaceID"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "entryID",
+    "workspaceID",
+    "subject",
+    "actor",
+    "materials",
+    "visibility",
+    "disposition",
+    "recordedAt",
+    "expectedRevision",
+    "revision",
+    "mutationID",
+    "entrySHA256"
+  ],
+  "title": "WorkResourceEntryV1",
+  "type": "object"
+}

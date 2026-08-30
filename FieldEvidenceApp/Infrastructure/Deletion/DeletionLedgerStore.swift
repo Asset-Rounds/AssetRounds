@@ -16,6 +16,11 @@ enum C30EvidenceContextDeletionLedgerStorePolicyV1 {
     }
 }
 
+enum C49WorkResourceDeletionLedgerStoreBoundaryV1 {
+    static let storesNoWorkResourceTombstone = true
+    static let reliesOnCanonicalAppendOnlyRowsUntilErase = true
+}
+
 enum C31LightingDeletionLedgerStorePolicyV1 {
     static let persistentSchemaVersion = 31
     static let recordsSchemaVersion = 30

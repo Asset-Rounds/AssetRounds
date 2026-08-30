@@ -2515,3 +2515,18 @@ enum C48PortableReviewAccessibilityPolicyV1 {
         }
     }
 }
+
+// MARK: - C49 work-resource accessibility
+
+enum C49WorkResourceAccessibilityBoundaryV1 {
+    static let durationAndExactMaterialFieldsAreSpoken = true
+    static let directCostPreviewIsAudienceGated = true
+    static let rawStockRowsAreSpoken = false
+    static let liveInventoryClaimsAreSpoken = false
+
+    static func spokenLines(
+        _ projection: C49WorkResourceReportProjectionV1
+    ) throws -> [String] {
+        try C49WorkResourceAccessibleDocumentBoundaryV1.lines(projection)
+    }
+}

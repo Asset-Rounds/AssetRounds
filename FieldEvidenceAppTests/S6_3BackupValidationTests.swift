@@ -2364,3 +2364,9 @@ private final class C48PortableReviewS63BackupValidationTests: XCTestCase {
         XCTAssertTrue(C48PortableExchangeMigrationBoundaryV2.preservesExactBytes)
     }
 }
+private final class C49WorkResourceBackupValidationBoundaryTests: XCTestCase {
+    func testUnknownCurrencyAndScaleFailClosed() {
+        XCTAssertThrowsError(try ExactMoneyAmountV1(mantissa: 1, currencyCode: "ZZZ", minorUnitScale: 2))
+        XCTAssertThrowsError(try ExactMoneyAmountV1(mantissa: 1, currencyCode: "JPY", minorUnitScale: 2))
+    }
+}

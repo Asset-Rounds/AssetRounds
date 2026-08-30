@@ -17,6 +17,14 @@ enum CompatibilityContractErrorV1: Error, Equatable, Sendable {
     case invalidSeedSeal
 }
 
+enum C49ReleasedWorkResourceCompatibilityPolicyV1 {
+    static let persistentSchemaVersion = 37
+    static let recordsSchemaVersion = 36
+    static let readsAppendOnlyRowsAndEmbeddedDirectCosts = true
+    static let neverProjectsInternalCostsToCustomerSafeOutput = true
+    static let localPartSnapshotsRemainHistoric = true
+}
+
 enum CompatibilityArtifactFamilyV1: String, CaseIterable, Codable, Hashable, Sendable {
     case liveStore = "live_store"
     case currentGenerationPointer = "current_generation_pointer"

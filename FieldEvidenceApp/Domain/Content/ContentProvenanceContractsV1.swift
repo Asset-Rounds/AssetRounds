@@ -791,3 +791,16 @@ enum C48PortableReviewContentProjectionBoundaryV1 {
         try projection.validate()
     }
 }
+
+// MARK: - C49 work-resource provenance projection
+
+enum C49WorkResourceContentProvenanceBoundaryV1 {
+    static let provenanceIsTheProjectionDigest = true
+    static let rawSourceBytesAreProjected = false
+    static let liveInventoryProvenanceIsProjected = false
+
+    static func digest(_ projection: C49WorkResourceReportProjectionV1) throws -> String {
+        try C49WorkResourceProjectionSupportV1.validate(projection)
+        return projection.projectionSHA256
+    }
+}

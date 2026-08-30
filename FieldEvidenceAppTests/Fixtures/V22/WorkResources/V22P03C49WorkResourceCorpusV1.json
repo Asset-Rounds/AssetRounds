@@ -1,0 +1,43 @@
+{
+  "schema": "V22P03C49WorkResourceCorpusV1",
+  "schemaVersion": 1,
+  "evidenceIDs": [
+    "G01",
+    "A01",
+    "H01",
+    "I01",
+    "R01"
+  ],
+  "qualifiedEvidenceIDs": [
+    "V23-P03-C49-G01",
+    "V23-P03-C49-A01",
+    "V23-P03-C49-H01",
+    "V23-P03-C49-I01",
+    "V23-P03-C49-R01"
+  ],
+  "claims": {
+    "appendOnly": true,
+    "directCostVisibility": "INTERNAL_ONLY",
+    "liveInventoryReference": false,
+    "mixedCurrencyAggregation": false
+  },
+  "acceptedBoundaries": {
+    "durationMinutes": [1, 10080],
+    "quantity": [{"mantissa": 1, "scale": 0}, {"mantissa": 9223372036854775807, "scale": 3}],
+    "money": [{"mantissa": 1, "currencyCode": "JPY", "minorUnitScale": 0}, {"mantissa": 1234, "currencyCode": "USD", "minorUnitScale": 2}],
+    "materialLineCount": 50
+  },
+  "rejected": ["ZERO_DURATION", "DURATION_10081", "QUANTITY_SCALE_4", "ZERO_QUANTITY", "UNKNOWN_CURRENCY", "CURRENCY_SCALE_MISMATCH", "DUPLICATE_LINE_ID", "STALE_REVISION", "DIVERGENT_MUTATION_ID", "CROSS_WORKSPACE_ACTOR", "EMPTY_ENTRY", "DIRECT_COST_CUSTOMER_LEAKAGE"],
+  "recovery": ["BEFORE_EFFECT_ZERO", "EFFECT_BEFORE_RECEIPT_EXACTLY_ONE", "AFTER_RECEIPT_IDEMPOTENT", "JOURNAL_RETRY_DETERMINISTIC", "DIVERGENT_SAME_MUTATION_QUARANTINED", "REPLAY_EXACT", "BACKUP_INTERRUPTION_RETRY_EXACT", "REPLACE_RESTORE_PRESERVES_CANONICAL_BYTES", "CLONE_REBINDS_WORKSPACE", "FORK_REBINDS_WORKSPACE", "ERASE_REMOVES_ALL"],
+  "customerSafe": {
+    "internalDirectCostIncluded": false,
+    "explicitPreviewRequired": true,
+    "internalCostExcludedEvenWhenPreviewRequested": true
+  },
+  "csvHostiles": {
+    "formulaPrefixes": ["=", "+", "-", "@"],
+    "neutralizationPrefix": "'",
+    "carriageReturnCanonicalizedToLineFeed": true,
+    "tabAndLineFeedRemainQuotedCells": true
+  }
+}

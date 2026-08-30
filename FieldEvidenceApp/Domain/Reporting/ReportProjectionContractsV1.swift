@@ -5269,3 +5269,394 @@ enum C48PortableReviewReportProjectionBoundaryV1 {
         try .init(state: state, response: response, conflictCount: conflictCount)
     }
 }
+
+// MARK: - C49 manual work-resource report projection
+
+/// C49's reporting value is derived from immutable work-resource snapshots.
+/// It intentionally contains no live-stock, locator, actor, or source-byte
+/// fields.  All arithmetic is integer based so a report can be rebuilt
+/// byte-for-byte on another device without a locale-dependent formatter.
+enum C49WorkResourceProjectionFailureV1: Error, Equatable, Sendable {
+    case invalidWorkspace
+    case invalidSnapshot
+    case duplicateSnapshot
+    case arithmeticOverflow
+    case unsafeCSV
+    case nonCanonical
+}
+
+enum C49WorkResourceAudienceV1: String, Codable, CaseIterable, Hashable, Sendable {
+    case internalOnly = "INTERNAL_ONLY"
+    case customerSafe = "CUSTOMER_SAFE"
+}
+
+struct C49MaterialTotalProjectionV1: Codable, Equatable, Hashable, Sendable {
+    let description: String
+    let unit: String?
+    let quantity: ExactDecimalQuantityV1
+
+    init(description: String, unit: String?, quantity: ExactDecimalQuantityV1) throws {
+        // Reuse the source model's strict text/quantity checks by constructing
+        // one line.  The generated line ID is irrelevant to the projection.
+        _ = try ManualMaterialLineV1(
+            description: description,
+            quantity: quantity,
+            unit: unit
+        )
+        self.description = description
+        self.unit = unit
+        self.quantity = quantity
+    }
+}
+
+struct C49CurrencyTotalProjectionV1: Codable, Equatable, Hashable, Sendable {
+    let currencyCode: String
+    let minorUnitScale: Int
+    let mantissa: Int64
+
+    init(currencyCode: String, minorUnitScale: Int, mantissa: Int64) throws {
+        _ = try ExactMoneyAmountV1(
+            mantissa: mantissa,
+            currencyCode: currencyCode,
+            minorUnitScale: minorUnitScale
+        )
+        self.currencyCode = currencyCode
+        self.minorUnitScale = minorUnitScale
+        self.mantissa = mantissa
+    }
+}
+
+/// A customer-safe cost preview is explicit and opt-in.  The normal
+/// customer-safe projection has no cost rows at all; when the preview is
+/// requested, only source entries already marked CUSTOMER_SAFE are included.
+struct C49DirectCostPreviewProjectionV1: Codable, Equatable, Sendable {
+    let audience: C49WorkResourceAudienceV1
+    let optedIn: Bool
+    let included: Bool
+    let totalsByCurrency: [C49CurrencyTotalProjectionV1]
+}
+
+struct C49WorkResourceReportProjectionV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let workspaceID: WorkspaceID
+    let sourceRecordIDs: [UUID]
+    let durationMinutes: Int
+    let materials: [C49MaterialTotalProjectionV1]
+    let directCostPreview: C49DirectCostPreviewProjectionV1
+    let projectionSHA256: String
+
+    init(
+        workspaceID: WorkspaceID,
+        snapshots: [WorkResourceSnapshotV1],
+        audience: C49WorkResourceAudienceV1 = .internalOnly,
+        includeDirectCostPreview: Bool = false
+    ) throws {
+        guard snapshots.allSatisfy({ $0.entry.workspaceID == workspaceID }) else {
+            throw C49WorkResourceProjectionFailureV1.invalidWorkspace
+        }
+
+        var seen = Set<UUID>()
+        for snapshot in snapshots {
+            try Self.validateSnapshot(snapshot)
+            guard seen.insert(snapshot.entry.entryID).inserted else {
+                throw C49WorkResourceProjectionFailureV1.duplicateSnapshot
+            }
+        }
+
+        // Corrections are append-only.  A current record is an unreferenced
+        // chain head.  A valid corrected successor may itself be marked
+        // SUPERSEDED, so disposition ACTIVE alone is not sufficient.  A
+        // terminal VOIDED_WITH_REASON or REVERSED head closes its chain but
+        // contributes no duration, material, or cost totals.
+        let referencedPredecessorIDs = Set(snapshots.compactMap { $0.entry.supersedesEntryID })
+        let currentHeads = snapshots
+            .filter { snapshot in
+                guard !referencedPredecessorIDs.contains(snapshot.entry.entryID) else {
+                    return false
+                }
+                switch snapshot.entry.disposition {
+                case .active, .superseded:
+                    return true
+                case .voidedWithReason, .reversed:
+                    return false
+                }
+            }
+            .sorted { $0.entry.entryID.uuidString < $1.entry.entryID.uuidString }
+
+        // The canonical totals projection owns chain validation, normalization,
+        // and exact description+unit aggregation.  Pass the complete history
+        // so predecessor links, revisions, and branch checks cannot be
+        // bypassed.  Its current-head selection is identical to the explicit
+        // selection above; currentHeads remains the source for IDs and the
+        // separately privacy-gated direct-cost preview below.
+        let totalsVisibility: WorkResourceTotalsVisibilityV1 =
+            audience == .customerSafe ? .customerSafe : .internalFull
+        let canonicalTotals = try WorkResourceTotalsProjectionV1(
+            snapshots: snapshots,
+            visibility: totalsVisibility
+        )
+        let duration = canonicalTotals.durationMinutes
+        let materialTotals = try Self.materialTotals(canonicalTotals.materialTotals)
+        let allCosts = currentHeads.compactMap { snapshot -> (entry: DirectCostEntryV1, visibility: WorkResourceVisibilityPolicyV1)? in
+            guard let directCost = snapshot.entry.directCost else { return nil }
+            return (directCost, snapshot.entry.visibility)
+        }
+        let permittedCosts: [(entry: DirectCostEntryV1, visibility: WorkResourceVisibilityPolicyV1)]
+        let included: Bool
+        switch audience {
+        case .internalOnly:
+            permittedCosts = allCosts
+            included = true
+        case .customerSafe:
+            permittedCosts = includeDirectCostPreview
+                ? allCosts.filter { $0.visibility == .customerSafe }
+                : []
+            included = includeDirectCostPreview && !permittedCosts.isEmpty
+        }
+        let costTotals = try Self.currencyTotals(permittedCosts.map(\.entry))
+        let preview = C49DirectCostPreviewProjectionV1(
+            audience: audience,
+            optedIn: includeDirectCostPreview,
+            included: included,
+            totalsByCurrency: costTotals
+        )
+
+        schemaVersion = Self.schemaVersion
+        self.workspaceID = workspaceID
+        sourceRecordIDs = currentHeads.map { $0.entry.entryID }
+        durationMinutes = duration
+        materials = materialTotals
+        directCostPreview = preview
+        projectionSHA256 = try WorkspaceMutationCanonicalV1.sha256(
+            Basis(
+                schemaVersion: Self.schemaVersion,
+                workspaceID: workspaceID,
+                sourceRecordIDs: sourceRecordIDs,
+                durationMinutes: duration,
+                materials: materialTotals,
+                directCostPreview: preview
+            )
+        )
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              sourceRecordIDs == sourceRecordIDs.sorted(by: { $0.uuidString < $1.uuidString }),
+              Set(sourceRecordIDs).count == sourceRecordIDs.count,
+              materials == materials.sorted(by: Self.materialSort),
+              materials.allSatisfy({ (try? C49MaterialTotalProjectionV1(description: $0.description, unit: $0.unit, quantity: $0.quantity)) != nil }),
+              directCostPreview.totalsByCurrency == directCostPreview.totalsByCurrency.sorted(by: Self.currencySort),
+              Set(directCostPreview.totalsByCurrency.map(\.currencyCode)).count == directCostPreview.totalsByCurrency.count,
+              directCostPreview.totalsByCurrency.allSatisfy({ (try? C49CurrencyTotalProjectionV1(currencyCode: $0.currencyCode, minorUnitScale: $0.minorUnitScale, mantissa: $0.mantissa)) != nil }),
+              (directCostPreview.audience == .customerSafe && !directCostPreview.optedIn) ? (!directCostPreview.included && directCostPreview.totalsByCurrency.isEmpty) : true,
+              (directCostPreview.audience == .customerSafe && directCostPreview.included) ? directCostPreview.optedIn : true,
+              projectionSHA256 == try WorkspaceMutationCanonicalV1.sha256(
+                Basis(
+                    schemaVersion: schemaVersion,
+                    workspaceID: workspaceID,
+                    sourceRecordIDs: sourceRecordIDs,
+                    durationMinutes: durationMinutes,
+                    materials: materials,
+                    directCostPreview: directCostPreview
+                )
+              ) else {
+            throw C49WorkResourceProjectionFailureV1.nonCanonical
+        }
+        guard durationMinutes >= 0 else {
+            throw C49WorkResourceProjectionFailureV1.invalidSnapshot
+        }
+    }
+
+    var isCustomerSafe: Bool { directCostPreview.audience == .customerSafe }
+    var materialTotals: [C49MaterialTotalProjectionV1] { materials }
+    var directCostsAreInternalOnly: Bool {
+        directCostPreview.audience == .internalOnly || !directCostPreview.included
+    }
+
+    private static func materialTotals(
+        _ totals: [WorkResourceMaterialTotalV1]
+    ) throws -> [C49MaterialTotalProjectionV1] {
+        try totals.sorted {
+            ($0.description, $0.unit ?? "") < ($1.description, $1.unit ?? "")
+        }.map {
+            try C49MaterialTotalProjectionV1(
+                description: $0.description,
+                unit: $0.unit,
+                quantity: ExactDecimalQuantityV1(
+                    mantissa: $0.quantityMantissa,
+                    scale: $0.quantityScale
+                )
+            )
+        }
+    }
+
+    private static func currencyTotals(
+        _ costs: [DirectCostEntryV1]
+    ) throws -> [C49CurrencyTotalProjectionV1] {
+        var values: [String: (scale: Int, mantissa: Int64)] = [:]
+        for cost in costs {
+            let currentScale = values[cost.amount.currencyCode]?.scale ?? cost.amount.minorUnitScale
+            let currentMantissa = values[cost.amount.currencyCode]?.mantissa ?? 0
+            let targetScale = max(currentScale, cost.amount.minorUnitScale)
+            let left = try scale(currentMantissa, from: currentScale, to: targetScale)
+            let right = try scale(cost.amount.mantissa, from: cost.amount.minorUnitScale, to: targetScale)
+            let (next, overflow) = left.addingReportingOverflow(right)
+            guard !overflow else { throw C49WorkResourceProjectionFailureV1.arithmeticOverflow }
+            values[cost.amount.currencyCode] = (targetScale, next)
+        }
+        return try values.keys.sorted().map { code in
+            guard let value = values[code] else {
+                throw C49WorkResourceProjectionFailureV1.invalidSnapshot
+            }
+            return try C49CurrencyTotalProjectionV1(
+                currencyCode: code,
+                minorUnitScale: value.scale,
+                mantissa: value.mantissa
+            )
+        }
+    }
+
+    private static func scale(_ value: Int64, from: Int, to: Int) throws -> Int64 {
+        guard to >= from else { throw C49WorkResourceProjectionFailureV1.invalidSnapshot }
+        var result = value
+        for _ in from..<to {
+            let (next, overflow) = result.multipliedReportingOverflow(by: 10)
+            guard !overflow else { throw C49WorkResourceProjectionFailureV1.arithmeticOverflow }
+            result = next
+        }
+        return result
+    }
+
+    private static func materialSort(
+        _ lhs: C49MaterialTotalProjectionV1,
+        _ rhs: C49MaterialTotalProjectionV1
+    ) -> Bool {
+        (lhs.description, lhs.unit ?? "") < (rhs.description, rhs.unit ?? "")
+    }
+
+    private static func currencySort(
+        _ lhs: C49CurrencyTotalProjectionV1,
+        _ rhs: C49CurrencyTotalProjectionV1
+    ) -> Bool {
+        lhs.currencyCode < rhs.currencyCode
+    }
+
+    private static func validateSnapshot(_ snapshot: WorkResourceSnapshotV1) throws {
+        let rebuilt = try WorkResourceSnapshotV1(entry: snapshot.entry)
+        guard rebuilt.snapshotSHA256 == snapshot.snapshotSHA256 else {
+            throw C49WorkResourceProjectionFailureV1.invalidSnapshot
+        }
+    }
+
+    private struct Basis: Codable {
+        let schemaVersion: Int
+        let workspaceID: WorkspaceID
+        let sourceRecordIDs: [UUID]
+        let durationMinutes: Int
+        let materials: [C49MaterialTotalProjectionV1]
+        let directCostPreview: C49DirectCostPreviewProjectionV1
+    }
+}
+
+/// CSV output is intentionally neutralized for spreadsheet formulas and
+/// control characters.  The projection remains deterministic and local-only.
+enum C49FormulaSafeCSVV1 {
+    static let formulaPrefixes: Set<Character> = ["=", "+", "-", "@"]
+    static let sourceClaims = "MANUAL_WORK_RESOURCE_ONLY"
+
+    static func safeCell(_ value: String) -> String {
+        let normalized = value.replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+        guard let first = normalized.first, formulaPrefixes.contains(first) else {
+            return normalized
+        }
+        return "'" + normalized
+    }
+
+    static func encode(rows: [[String]]) -> String {
+        rows.map { row in
+            row.map { cell in
+                let safe = safeCell(cell)
+                let escaped = safe.replacingOccurrences(of: "\"", with: "\"\"")
+                return "\"" + escaped + "\""
+            }.joined(separator: ",")
+        }.joined(separator: "\n") + "\n"
+    }
+
+    static func reportRows(_ projection: C49WorkResourceReportProjectionV1) throws -> [[String]] {
+        try projection.validate()
+        var rows = [["kind", "description", "unit", "quantity", "currency", "minorUnits", "visibility"]]
+        rows.append(["duration", "", "minutes", String(projection.durationMinutes), "", "", "MANUAL"])
+        for material in projection.materials {
+            rows.append([
+                "material", material.description, material.unit ?? "",
+                String(material.quantity.mantissa), "", String(material.quantity.scale), "MANUAL"
+            ])
+        }
+        if projection.directCostPreview.included {
+            for total in projection.directCostPreview.totalsByCurrency {
+                rows.append([
+                    "direct-cost", "", "", "", total.currencyCode,
+                    String(total.mantissa), projection.directCostPreview.audience.rawValue
+                ])
+            }
+        }
+        return rows
+    }
+}
+
+/// Shared envelope for every C49 derived consumer.  Renderers and stores carry
+/// this value, never a work-resource row or a live inventory reference.
+struct C49WorkResourceProjectionEnvelopeV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let allowedFormats: Set<String> = [
+        "OPEN_JSON", "PDF", "ACCESSIBLE_DOCUMENT", "SEARCH", "DIAGNOSTIC", "REVIEW_EXCHANGE"
+    ]
+
+    let schemaVersion: Int
+    let format: String
+    let claims: String
+    let projection: C49WorkResourceReportProjectionV1
+
+    init(format: String, projection: C49WorkResourceReportProjectionV1) throws {
+        guard Self.allowedFormats.contains(format) else {
+            throw C49WorkResourceProjectionFailureV1.nonCanonical
+        }
+        try projection.validate()
+        self.schemaVersion = Self.schemaVersion
+        self.format = format
+        self.claims = C49FormulaSafeCSVV1.sourceClaims
+        self.projection = projection
+    }
+
+    func validate(expectedFormat: String? = nil) throws {
+        guard schemaVersion == Self.schemaVersion,
+              Self.allowedFormats.contains(format),
+              claims == C49FormulaSafeCSVV1.sourceClaims,
+              expectedFormat.map({ $0 == format }) ?? true else {
+            throw C49WorkResourceProjectionFailureV1.nonCanonical
+        }
+        try projection.validate()
+    }
+}
+
+enum C49WorkResourceProjectionSupportV1 {
+    static let appendOnlyCorrectionsRemainHistory = true
+    static let liveInventoryClaims = false
+    static let rawStockRowsProjected = false
+    static let customerCostRequiresOptIn = true
+    static let totalsUseExactIntegerArithmetic = true
+
+    static func validate(_ projection: C49WorkResourceReportProjectionV1) throws {
+        try projection.validate()
+    }
+
+    static func envelope(
+        _ projection: C49WorkResourceReportProjectionV1,
+        format: String
+    ) throws -> C49WorkResourceProjectionEnvelopeV1 {
+        try .init(format: format, projection: projection)
+    }
+}

@@ -3478,3 +3478,46 @@ enum C48PortableReviewOpenJSONBoundaryV1 {
     static let rawRequestResponseBytesEmitted = false
     static let workspaceAndReplicaIdentityEmitted = false
 }
+
+// MARK: - C49 work-resource deterministic open JSON
+
+extension DeterministicOpenJSONRendererV1 {
+    static func renderWorkResource(
+        _ projection: C49WorkResourceReportProjectionV1
+    ) throws -> Data {
+        let envelope = try C49WorkResourceProjectionSupportV1.envelope(
+            projection,
+            format: "OPEN_JSON"
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return try encoder.encode(envelope)
+    }
+
+    static func renderWorkResourceOutput(
+        _ projection: C49WorkResourceReportProjectionV1
+    ) throws -> ReportProjectionOutputV1 {
+        let data = try renderWorkResource(projection)
+        return ReportProjectionOutputV1(
+            format: .openJSON,
+            data: data,
+            sha256: KernelCanonicalHashV1.sha256(data),
+            semanticSHA256: projection.projectionSHA256,
+            orderedSemanticIDs: projection.sourceRecordIDs.map { $0.uuidString.lowercased() },
+            taggedPDFAccessibilityEvidence: false
+        )
+    }
+
+    static func reopenWorkResource(
+        _ data: Data
+    ) throws -> C49WorkResourceProjectionEnvelopeV1 {
+        try C49WorkResourceReportSnapshotEncoderBoundaryV1.decode(data)
+    }
+}
+
+enum C49WorkResourceOpenJSONBoundaryV1 {
+    static let sortedKeysAndStableBytes = true
+    static let reopenRequiresByteEquality = true
+    static let rawStockAndLiveInventoryClaimsEmitted = false
+    static let formulaSafeCSVIsSeparate = true
+}

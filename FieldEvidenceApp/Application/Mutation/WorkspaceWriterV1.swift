@@ -620,6 +620,16 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
                       }) else { throw WorkspaceMutationFailureV1.invalidCommand }
             } catch let failure as WorkspaceMutationFailureV1 { throw failure }
               catch { throw WorkspaceMutationFailureV1.invalidCommand }
+        case .applyWorkResource(let value):
+            do {
+                try value.validate()
+                let concurrency = try value.concurrencyIdentity
+                let expected = request.expectedRevision.entityRevisions.first(where: { $0.identity == concurrency })?.revision
+                guard value.workspaceID == identity.workspaceID,
+                      value.mutationID == request.mutationID,
+                      expected == value.postImage.expectedRevision else { throw WorkspaceMutationFailureV1.invalidCommand }
+            } catch let failure as WorkspaceMutationFailureV1 { throw failure }
+              catch { throw WorkspaceMutationFailureV1.invalidCommand }
         default:
             break
         }
@@ -877,6 +887,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             for image in try mutation.mutationPostImages {
                 entityRevisions[try image.identity] = image.revision
             }
+        } else if case let .applyWorkResource(mutation) = request.command {
+            entityRevisions[try mutation.affectedIdentity] = mutation.postImage.revision
         } else {
             for target in targets { entityRevisions[target, default: 0] += 1 }
         }
@@ -1381,6 +1393,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             try value.validateForCanonicalMutation();values=try value.affectedIdentities
         case let .applyPortableReview(value):
             try value.validate();values=try value.affectedIdentities
+        case let .applyWorkResource(value):
+            try value.validate();values=try value.affectedIdentities
         }
         guard Set(values).count == values.count else {
             throw WorkspaceMutationFailureV1.invalidCommand
@@ -1438,6 +1452,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         if case let .applyOperationalContact(value)=command{try value.validate();return try value.concurrencyIdentities}
         if case let .applyActivityContract(value)=command{try value.validateForCanonicalMutation();return try value.concurrencyIdentities}
         if case let .applyPortableReview(value)=command{try value.validate();return try value.concurrencyIdentities}
+        if case let .applyWorkResource(value)=command{try value.validate();return try value.concurrencyIdentities}
         return try targetIdentities(for: command)
     }
 
@@ -1647,6 +1662,42 @@ extension WorkspaceWriterV1 {
         guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
         guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
         return try journalStore.portableReviewReceipt(mutationID: mutationID)
+    }
+}
+
+// MARK: - C49 append-only work-resource sole writer
+
+extension WorkspaceWriterV1 {
+    func commitWorkResource(
+        _ mutation: WorkResourceMutationV1,
+        expectedRevision: WorkspaceExpectedRevisionV1
+    ) throws -> WorkResourceMutationReceiptV1 {
+        try mutation.validate()
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        if let existing = try journalStore.receipt(mutationID: mutation.mutationID) {
+            return try .init(mutation: mutation, mutationReceipt: existing)
+        }
+        let current = try currentRevision()
+        let concurrency = try mutation.concurrencyIdentity
+        guard expectedRevision.workspaceID == current.workspaceID,
+              expectedRevision.generationID == current.generationID,
+              expectedRevision.writerInstanceID == current.writerInstanceID,
+              expectedRevision.workspaceRevision == current.revision,
+              expectedRevision.entityRevisions.count == 1,
+              expectedRevision.entityRevisions.first?.identity == concurrency,
+              expectedRevision.entityRevisions.first?.revision == mutation.postImage.expectedRevision else {
+            throw WorkspaceMutationFailureV1.staleWorkspaceRevision
+        }
+        _ = try execute(try WorkspaceMutationRequestV1(
+            mutationID: mutation.mutationID,
+            expectedRevision: expectedRevision,
+            command: .applyWorkResource(mutation)
+        ))
+        guard let receipt = try journalStore.receipt(mutationID: mutation.mutationID) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        return try .init(mutation: mutation, mutationReceipt: receipt)
     }
 }
 

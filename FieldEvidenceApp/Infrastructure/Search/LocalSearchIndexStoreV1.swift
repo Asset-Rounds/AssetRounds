@@ -933,6 +933,25 @@ extension LocalSearchIndexStoreV1 {
     }
 }
 
+// MARK: - C49 work-resource local-search boundary
+
+enum C49WorkResourceLocalSearchBoundaryV1 {
+    static let canonicalRecordType = "WorkResourceEntryV1"
+    static let localPartReferenceType = "LocalPartReferenceSnapshotV1"
+    static let permittedFields = ["work_resource.subject", "work_resource.state", "work_resource.summary"]
+    static let indexIsDerivedAndRebuildable = true
+    static let directCostIndexed = false
+    static let internalNoteIndexed = false
+    static let contentLocatorIndexed = false
+    static let liveInventoryLookup = false
+
+    static func validateField(_ fieldID: String) throws {
+        guard permittedFields.contains(fieldID) else {
+            throw SearchContractFailureV1.forbiddenField
+        }
+    }
+}
+
 // MARK: - C30 operating-context search adapter
 
 extension LocalSearchIndexStoreV1 {

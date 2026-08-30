@@ -34,3 +34,19 @@ import SwiftData
         return projection
     }
 }
+
+// MARK: - C49 work-resource review boundary
+
+/// C49 review stays on the existing C14 read/lifecycle path. A review is a
+/// derived projection and cannot append work-resource rows or resolve live
+/// inventory/price data.
+enum C49WorkResourceInspectionReviewLifecycleBoundaryV1 {
+    static let readsCanonicalWorkResourceHistory = true
+    static let reviewUsesExistingC14Lifecycle = true
+    static let directCostDefaultVisibility = "INTERNAL_ONLY"
+    static let customerSafeCostRequiresExplicitPreview = true
+    static let reviewMayWriteWorkResourceRows = false
+    static let liveInventoryLookup = false
+    static let privateContentBytesEntered = false
+    static let reportAndReviewAreDerived = true
+}

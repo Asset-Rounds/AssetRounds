@@ -394,3 +394,19 @@ enum C48PortableReviewContentReferenceBoundaryV1 {
     static let derivedMetadataUsesPublicRequestIdentityOnly = true
     static let evidenceAssociationRemainsCanonical = true
 }
+
+// MARK: - C49 work-resource derived content boundary
+
+enum C49WorkResourceContentReferenceBoundaryV1 {
+    static let reportCarriesContentBytes = false
+    static let reportCarriesLiveInventoryReferences = false
+    static let localPartReferencesRemainFrozenSourceFacts = true
+
+    static func validate(_ projection: C49WorkResourceReportProjectionV1) throws {
+        try C49WorkResourceProjectionSupportV1.validate(projection)
+        guard !C49WorkResourceProjectionSupportV1.rawStockRowsProjected,
+              !C49WorkResourceProjectionSupportV1.liveInventoryClaims else {
+            throw C49WorkResourceProjectionFailureV1.nonCanonical
+        }
+    }
+}

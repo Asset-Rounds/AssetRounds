@@ -47,6 +47,12 @@ struct PortableExchangeSessionStageInputV2: Sendable {
     }
 }
 
+enum C49WorkResourcePortableExchangeIsolationV1 {
+    static let sessionStoreOwnsNoWorkResourceOrDirectCostTruth = true
+    static let internalCostsAreNeverPortableReviewPayload = true
+    static let C48BackupSnapshotSemanticsRemainUnchanged = true
+}
+
 struct PortableExchangeSessionResponseInputV2: Sendable {
     let sessionID: UUID
     let responsePublicID: String

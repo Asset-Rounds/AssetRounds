@@ -2619,3 +2619,9 @@ private final class C48PortableReviewS45CorrectionTests: XCTestCase {
         XCTAssertTrue(C48PortableReviewWorkflowBoundaryV1.acceptanceDoesNotAutoFinalize)
     }
 }
+private final class C49WorkResourceCorrectionBoundaryTests: XCTestCase {
+    func testCorrectionIsSuccessorNotInPlaceEdit() {
+        XCTAssertTrue(C49WorkResourceContractBoundaryV1.appendOnly)
+        XCTAssertEqual(WorkResourceDispositionV1.superseded.rawValue, "SUPERSEDED")
+    }
+}

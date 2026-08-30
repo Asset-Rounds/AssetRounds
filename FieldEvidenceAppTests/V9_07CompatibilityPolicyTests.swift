@@ -550,3 +550,9 @@ private final class C48PortableReviewV907CompatibilityPolicyTests: XCTestCase {
         XCTAssertTrue(C48PortableReviewReleasedDataCompatibilityBoundaryV1.unknownProtocolVersionsFailClosed)
     }
 }
+private final class C49WorkResourceCompatibilityBoundaryTests: XCTestCase {
+    func testReleasedRawValuesAreStable() {
+        XCTAssertEqual(WorkResourceSubjectKindV1.workPacket.rawValue, "WORK_PACKET")
+        XCTAssertEqual(WorkResourceDispositionV1.reversed.rawValue, "REVERSED")
+    }
+}

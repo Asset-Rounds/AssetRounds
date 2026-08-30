@@ -980,3 +980,22 @@ enum C48PortableReviewContractManifestBoundaryV1 {
         try C48PortableReviewDerivedHistoryProjectionV1.validateFieldIDs(values)
     }
 }
+
+// MARK: - C49 work-resource manifest fields
+
+enum C49WorkResourceContractManifestBoundaryV1 {
+    static let derivedFieldIDs = [
+        "duration_minutes", "material_description", "material_unit",
+        "material_quantity", "direct_cost_total", "currency_code"
+    ]
+    static let rawStockFieldIDsAreForbidden = true
+    static let liveInventoryFieldIDsAreForbidden = true
+    static let sourceBytesAreForbidden = true
+
+    static func validate(_ projection: C49WorkResourceReportProjectionV1) throws {
+        try C49WorkResourceProjectionSupportV1.validate(projection)
+        guard derivedFieldIDs.count == Set(derivedFieldIDs).count else {
+            throw C49WorkResourceProjectionFailureV1.nonCanonical
+        }
+    }
+}

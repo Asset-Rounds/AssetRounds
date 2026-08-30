@@ -70,3 +70,19 @@ enum C48PortableReviewAccessibleDocumentCoordinatorBoundaryV1 {
     static let verifiedIdentityConsumed = false
     static let existingAccessibleRendererRemainsSoleRenderer = true
 }
+
+// MARK: - C49 work-resource accessible projection coordinator
+
+extension AccessibleDocumentCoordinatorV1 {
+    nonisolated static func workResourceLines(
+        _ projection: C49WorkResourceReportProjectionV1
+    ) throws -> [String] {
+        try C49WorkResourceAccessibleDocumentBoundaryV1.lines(projection)
+    }
+}
+
+enum C49WorkResourceAccessibleCoordinatorBoundaryV1 {
+    static let consumesSnapshotProjectionOnly = true
+    static let sourceBytesConsumed = false
+    static let liveInventoryClaimsConsumed = false
+}

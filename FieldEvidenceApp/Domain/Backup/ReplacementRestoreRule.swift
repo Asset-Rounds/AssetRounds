@@ -6,6 +6,12 @@ struct ReplacementRestoreRuleInput: Equatable, Sendable {
     let replacementAt: Date
 }
 
+enum C49WorkResourceReplacementRestoreRuleV1 {
+    static func validate(_ records: V4BackupRecordsV1) throws {
+        _ = try records.validateC49WorkResources()
+    }
+}
+
 struct ReplacementRestorePlan: Equatable, Sendable {
     let packetsAfter: [V4BackupPacketDTO]
     let currentOnlyTombstones: [V4BackupPacketDTO]

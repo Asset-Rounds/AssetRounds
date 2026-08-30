@@ -1788,3 +1788,10 @@ private final class C48PortableReviewS64AtomicRestoreBoundaryTests: XCTestCase {
         XCTAssertTrue(C48PortableReviewPersistenceBoundaryV1.sessionStoreIsNonpersistent)
     }
 }
+private final class C49WorkResourceAtomicRestoreBoundaryTests: XCTestCase {
+    func testRestoreRetainsAppendOnlyManualResourceSemantics() {
+        XCTAssertTrue(C49WorkResourceContractBoundaryV1.appendOnly)
+        XCTAssertEqual(C49WorkResourceContractBoundaryV1.soleWriter, "WorkspaceWriterV1")
+        XCTAssertTrue(C49WorkResourceLifecycleBoundaryV1.backupRestoreCloneForkDeleteAndEraseAreExplicit)
+    }
+}

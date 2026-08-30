@@ -22,6 +22,12 @@ enum C30EvidenceContextEraseAllPolicyV1 {
     }
 }
 
+enum C49WorkResourceEraseAllBoundaryV1 {
+    static let replacementGenerationContainsNoCarriedWorkResourceRows = true
+    static let embeddedDirectCostsDisappearWithTheirRows = true
+    static let derivedIndexesRequireNoIndependentEraseTruth = true
+}
+
 enum C31LightingEraseAllServiceBoundaryV1 {
     static let eraseClearsAllFiveDurableFamilies = true
     static let eraseDoesNotClaimExternalAvailability = true

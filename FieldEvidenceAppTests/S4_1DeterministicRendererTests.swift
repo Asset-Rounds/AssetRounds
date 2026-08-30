@@ -1384,3 +1384,9 @@ private final class C48PortableReviewS41RendererTests: XCTestCase {
         XCTAssertFalse(C48PortableReviewOpenJSONBoundaryV1.rawRequestResponseBytesEmitted)
     }
 }
+private final class C49WorkResourceRendererBoundaryTests: XCTestCase {
+    func testManualFactsRenderWithoutInventoryOrConversionAuthority() {
+        XCTAssertTrue(C49WorkResourceContractBoundaryV1.appendOnly)
+        XCTAssertFalse(C49WorkResourceContractBoundaryV1.liveInventoryReference)
+    }
+}

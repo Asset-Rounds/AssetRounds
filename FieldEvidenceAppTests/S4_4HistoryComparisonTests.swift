@@ -941,3 +941,10 @@ private final class C48PortableReviewS44HistoryTests: XCTestCase {
         XCTAssertFalse(C48PortableReviewReportHistoryBoundaryV1.capabilityBytesRetainedByHistoryProjection)
     }
 }
+private final class C49WorkResourceHistoryBoundaryTests: XCTestCase {
+    func testHistoryUsesSemanticAppendDispositions() {
+        XCTAssertEqual(Set(WorkResourceDispositionV1.allCases), [.active, .superseded, .voidedWithReason, .reversed])
+        XCTAssertEqual(WorkResourceDispositionV1.active.rawValue, "ACTIVE")
+        XCTAssertEqual(WorkResourceDispositionV1.voidedWithReason.rawValue, "VOIDED_WITH_REASON")
+    }
+}

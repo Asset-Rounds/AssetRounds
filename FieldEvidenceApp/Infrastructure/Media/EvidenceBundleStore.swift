@@ -2541,3 +2541,21 @@ enum C48PortableReviewEvidenceBundleBoundaryV1 {
         try projection.validate()
     }
 }
+
+// MARK: - C49 work-resource evidence boundary
+
+/// EvidenceBundleStore remains a byte authority for immutable content. C49
+/// work-resource records and direct costs are metadata-only canonical rows;
+/// private cost values never become customer-safe evidence by default.
+enum C49WorkResourceEvidenceBundleBoundaryV1 {
+    static let canonicalRecordType = "WorkResourceEntryV1"
+    static let directCostType = "DirectCostEntryV1"
+    static let localPartReferenceType = "LocalPartReferenceSnapshotV1"
+    static let usesExistingEvidenceByteAuthority = true
+    static let directCostDefaultVisibility = "INTERNAL_ONLY"
+    static let customerSafeCostRequiresExplicitPreview = true
+    static let localPartReferenceIsSnapshotOnly = true
+    static let liveInventoryLookup = false
+    static let createsSecondByteStore = false
+    static let formulaFieldsAreRejected = true
+}
