@@ -14111,8 +14111,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "S10.4 s10.4.current.differentiate-without-color StoreKit transaction-inventory diagnostic",
             #"startScreenshot.name = "\(attachmentPrefix) start app""#,
             #"startTree.name = "\(attachmentPrefix) start accessibility tree""#,
-            #"terminalScreenshot.name = "\(attachmentPrefix) terminal app""#,
-            #"terminalTree.name = "\(attachmentPrefix) terminal accessibility tree""#,
         ] {
             XCTAssertEqual(
                 uiSource.components(
