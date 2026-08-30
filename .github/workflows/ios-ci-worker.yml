@@ -3219,9 +3219,13 @@ jobs:
                 elif $shardID == "s10.4.current.ax-text"
                      and $stateID == "state.recheck-capture.wide-ready" then 1
                 elif $shardID == "s10.4.current.ax-text"
+                     and $stateID == "state.recheck-preflight.ready" then 1
+                elif $shardID == "s10.4.current.ax-text"
                      and $stateID == "state.report-history.ready" then 1
                 elif $shardID == "s10.4.current.ax-text"
                      and $stateID == "state.reports-index.ready" then 2
+                elif $shardID == "s10.4.current.ax-text"
+                     and $stateID == "state.sign-selection.ready" then 1
                 elif $shardID == "s10.4.current.ax-text"
                      and $stateID == "state.work.validation-error" then 1
                 elif $shardID == "s10.4.current.default-light"

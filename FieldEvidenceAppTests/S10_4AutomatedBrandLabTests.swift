@@ -120,8 +120,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 234_135,
-            sha256: "FE1588FCCC682647030B42C90935C8563977B3CBB2D4736B234C0BD8656A6A7F"
+            byteCount: 234_398,
+            sha256: "EF3AFD74EF7E434091AAA8166EF62A956CAFFBAC83F49292A219E9E66C88B42E"
         )
         let workflowSource = try text(workflowPath)
         let currentF25WatchdogTuple = "] == [420, 900, 1200, 2520, 4500]"
@@ -20178,6 +20178,24 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        let axWorkflowRecheckPreflightStateIssueBound =
+            #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
+                #"                     and $stateID == "state.recheck-preflight.ready" then 1"#
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: axWorkflowRecheckPreflightStateIssueBound
+            ).count - 1,
+            1
+        )
+        let axWorkflowSignSelectionStateIssueBound =
+            #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
+                #"                     and $stateID == "state.sign-selection.ready" then 1"#
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: axWorkflowSignSelectionStateIssueBound
+            ).count - 1,
+            1
+        )
         let axWorkflowGroupedStateIssueBound =
             #"                     if $shard == "s10.4.current.ax-text""# + "\n" +
                 #"                        and (.[0].stateID == "state.check-preflight.ready""# + "\n" +
@@ -20257,6 +20275,22 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "AX recheck-capture wide-ready state issue limit expansion",
                 axWorkflowRecheckCaptureWideReadyStateIssueBound,
                 axWorkflowRecheckCaptureWideReadyStateIssueBound.replacingOccurrences(
+                    of: "then 1",
+                    with: "then 2"
+                )
+            ),
+            (
+                "AX recheck-preflight state issue limit expansion",
+                axWorkflowRecheckPreflightStateIssueBound,
+                axWorkflowRecheckPreflightStateIssueBound.replacingOccurrences(
+                    of: "then 1",
+                    with: "then 2"
+                )
+            ),
+            (
+                "AX sign-selection state issue limit expansion",
+                axWorkflowSignSelectionStateIssueBound,
+                axWorkflowSignSelectionStateIssueBound.replacingOccurrences(
                     of: "then 1",
                     with: "then 2"
                 )
