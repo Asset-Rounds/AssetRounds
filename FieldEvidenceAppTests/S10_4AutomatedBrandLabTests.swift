@@ -19137,6 +19137,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"taskIssueLimit = 6"#,
             #"taskStateLimit = 6"#,
             #"permittedExceptionStateIDs = ["# + "\n" +
+                #"                    "state.issue.open","# + "\n" +
                 #"                    "state.issue.recheck-due","# + "\n" +
                 #"                    "state.issue.resolved","# + "\n" +
                 #"                    "state.recheck-capture.wide-ready","# + "\n" +
