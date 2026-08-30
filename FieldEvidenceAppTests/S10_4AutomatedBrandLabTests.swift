@@ -12309,6 +12309,49 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                    usesProvenAXTextZeroIssueComposition = true\n" +
                 "                    break\n" +
                 "                }\n" +
+                "                if let shard = automationShard,\n" +
+                "                   shard.shardID == \"s10.4.current.ax-text\",\n" +
+                "                   automationSegment == .none {\n" +
+                "                    let stateID = \"state.diagnostics.ready\"\n" +
+                "                    let expectedMigratedStateIDs = Array(\n" +
+                "                        Self.segmentedRouteStateIDs.prefix(60)\n" +
+                "                    )\n" +
+                "                    let expectedContrastExceptionStateIDs = [\n" +
+                "                        \"state.check-preflight.ready\",\n" +
+                "                        \"state.issue.open\",\n" +
+                "                        \"state.issue.recheck-due\",\n" +
+                "                        \"state.issue.resolved\",\n" +
+                "                        \"state.new-sign.editing\",\n" +
+                "                        \"state.paywall.purchase-complete\",\n" +
+                "                        \"state.recheck-capture.wide-ready\",\n" +
+                "                        \"state.recheck-preflight.ready\",\n" +
+                "                        \"state.report-correction.validation-error\",\n" +
+                "                        \"state.report-history.ready\",\n" +
+                "                        \"state.reports-index.ready\",\n" +
+                "                        \"state.work.validation-error\",\n" +
+                "                    ]\n" +
+                "                    guard automationSegment.replayCount == 0,\n" +
+                "                          automationSegment.ownedStartOrdinal == 1,\n" +
+                "                          automationSegment.ownedCount == 67,\n" +
+                "                          automationSegment.finalOrdinal == 67,\n" +
+                "                          Self.segmentedRouteStateIDs.count == 67,\n" +
+                "                          Set(Self.segmentedRouteStateIDs).count == 67,\n" +
+                "                          Self.segmentedRouteStateIDs[60] == stateID,\n" +
+                "                          segmentedRouteStateCursor == 0,\n" +
+                "                          migratedStateIDs == expectedMigratedStateIDs,\n" +
+                "                          automationAXTreeDigests.keys.sorted()\n" +
+                "                            == expectedMigratedStateIDs.sorted(),\n" +
+                "                          automationContrastExceptions.keys.sorted()\n" +
+                "                            == expectedContrastExceptionStateIDs,\n" +
+                "                          !automatedSegmentFinished,\n" +
+                "                          app.state == .runningForeground else {\n" +
+                "                        throw AutomationConfigurationError.invalid(\n" +
+                "                            \"S10.4 AX-text full-route diagnostics-ready zero-issue composition gate is invalid\"\n" +
+                "                        )\n" +
+                "                    }\n" +
+                "                    usesProvenAXTextZeroIssueComposition = true\n" +
+                "                    break\n" +
+                "                }\n" +
                 "                XCTFail(\"Diagnostics positioning interval is impossible.\")\n" +
                 "                return\n" +
                 "            }\n" +
