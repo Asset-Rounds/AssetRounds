@@ -37,6 +37,7 @@ actor IntegrationProjectionCheckpointStoreV1: IntegrationProjectionOperationalSt
             try IntegrationProjectionCheckpointStoreV1.validatePackagePromotionEventPage(events)
             try IntegrationProjectionCheckpointStoreV1.validateMeasurementIntegrityEventPage(events)
             try IntegrationProjectionCheckpointStoreV1.validatePrivacyTransformEventPage(events)
+            try IntegrationProjectionCheckpointStoreV1.validateEvidenceMetadataEventPage(events)
             try IntegrationProjectionCheckpointStoreV1.validateClientCapabilityEventPage(events)
             try IntegrationProjectionCheckpointStoreV1.validateFieldReferenceEventPage(events)
             try IntegrationProjectionCheckpointStoreV1.validateAccessibleDocumentAssessmentEventPage(events)
@@ -151,6 +152,33 @@ actor IntegrationProjectionCheckpointStoreV1: IntegrationProjectionOperationalSt
     private static func validatePackagePromotionEventPage(_ events:[IntegrationEventV1])throws{let grouped=Dictionary(grouping:events,by:\.sourceReceiptID);for page in grouped.values{let kinds=Set(page.map{$0.subject.kind});let present=kinds.intersection(IntegrationEventProjectionV1.packagePromotionKinds);guard present.isEmpty || (page.count==4&&kinds==IntegrationEventProjectionV1.packagePromotionKinds)else{throw IntegrationEventFailureV1.divergentEvent}}}
     private static func validateMeasurementIntegrityEventPage(_ events:[IntegrationEventV1])throws{let grouped=Dictionary(grouping:events,by:\.sourceReceiptID);for page in grouped.values{let subjects=page.map(\.subject),present=Set(subjects.map(\.kind)).intersection(IntegrationEventProjectionV1.measurementIntegrityKinds);guard present.isEmpty || (page.count<=128&&Set(subjects).count==subjects.count&&subjects.allSatisfy{IntegrationEventProjectionV1.measurementIntegrityKinds.contains($0.kind)})else{throw IntegrationEventFailureV1.divergentEvent}}}
     private static func validatePrivacyTransformEventPage(_ events:[IntegrationEventV1])throws{let grouped=Dictionary(grouping:events,by:\.sourceReceiptID);for page in grouped.values{let subjects=page.map(\.subject),present=Set(subjects.map(\.kind)).intersection(IntegrationEventProjectionV1.privacyTransformKinds);guard present.isEmpty || (Set(subjects).count==subjects.count&&subjects.allSatisfy{IntegrationEventProjectionV1.privacyTransformKinds.contains($0.kind)})else{throw IntegrationEventFailureV1.divergentEvent}}}
+    private static func validateEvidenceMetadataEventPage(
+        _ events: [IntegrationEventV1]
+    ) throws {
+        let grouped = Dictionary(grouping: events, by: \.sourceReceiptID)
+        for page in grouped.values {
+            let subjects = page.map(\.subject)
+            let kinds = Set(subjects.map(\.kind))
+            let present = kinds.intersection(IntegrationEventProjectionV1.evidenceMetadataKinds)
+            guard !present.isEmpty else { continue }
+            guard page.count == 2,
+                  let first = page.first,
+                  Set(subjects).count == 2,
+                  kinds == IntegrationEventProjectionV1.evidenceMetadataKinds,
+                  page.map(\.order.payloadOrdinal).sorted() == [0, 1],
+                  page.allSatisfy({ event in
+                      event.sourceMutationID == first.sourceMutationID
+                          && event.sourceReceiptID == first.sourceReceiptID
+                          && event.sourceReceiptSHA256 == first.sourceReceiptSHA256
+                          && event.sourceWorkspaceRevision == first.sourceWorkspaceRevision
+                          && event.order.sourceWorkspaceRevision == first.order.sourceWorkspaceRevision
+                          && event.order.sourceReplicaID == first.order.sourceReplicaID
+                          && event.order.sourceLocalSequence == first.order.sourceLocalSequence
+                  }) else {
+                throw IntegrationEventFailureV1.divergentEvent
+            }
+        }
+    }
     private static func validateClientCapabilityEventPage(_ events:[IntegrationEventV1])throws{let grouped=Dictionary(grouping:events,by:\.sourceReceiptID);for page in grouped.values{let subjects=page.map(\.subject),present=Set(subjects.map(\.kind)).intersection(IntegrationEventProjectionV1.clientCapabilityKinds);guard present.isEmpty || (page.count==1&&Set(subjects).count==1&&subjects.allSatisfy{IntegrationEventProjectionV1.clientCapabilityKinds.contains($0.kind)})else{throw IntegrationEventFailureV1.divergentEvent}}}
     private static func validateFieldReferenceEventPage(_ events:[IntegrationEventV1])throws{let grouped=Dictionary(grouping:events,by:\.sourceReceiptID);for page in grouped.values{let subjects=page.map(\.subject),present=Set(subjects.map(\.kind)).intersection(IntegrationEventProjectionV1.fieldReferenceKinds);guard present.isEmpty || (page.count==1&&Set(subjects).count==1&&subjects.allSatisfy{IntegrationEventProjectionV1.fieldReferenceKinds.contains($0.kind)})else{throw IntegrationEventFailureV1.divergentEvent}}}
     private static func validateAccessibleDocumentAssessmentEventPage(_ events:[IntegrationEventV1])throws{let grouped=Dictionary(grouping:events,by:\.sourceReceiptID);for page in grouped.values{let subjects=page.map(\.subject),present=Set(subjects.map(\.kind)).intersection(IntegrationEventProjectionV1.accessibleDocumentAssessmentKinds);guard present.isEmpty || (page.count==1&&Set(subjects).count==1&&subjects.allSatisfy{IntegrationEventProjectionV1.accessibleDocumentAssessmentKinds.contains($0.kind)})else{throw IntegrationEventFailureV1.divergentEvent}}}
@@ -225,6 +253,7 @@ actor IntegrationProjectionCheckpointStoreV1: IntegrationProjectionOperationalSt
     func recordDerivedConsumerEffects(events: [IntegrationEventV1], consumerID: String,
                                       workspaceID: WorkspaceID) async throws {
         try requireScope(consumerID: consumerID, workspaceID: workspaceID)
+        try Self.validateEvidenceMetadataEventPage(events)
         guard events.count <= maximumStoredEvents,
               events.allSatisfy({ $0.workspaceID == workspaceID }) else {
             throw IntegrationEventFailureV1.limitExceeded

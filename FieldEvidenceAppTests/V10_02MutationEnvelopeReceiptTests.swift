@@ -1784,3 +1784,317 @@ extension V10_02MutationEnvelopeReceiptTests {
         XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
     }
 }
+
+extension V10_02MutationEnvelopeReceiptTests {
+    @MainActor
+    func testV23P03C05WorkspaceWriterCommitsExactTwoPostImagesAndCAS() throws {
+        let fixture = try C05WriterMutationFixtureV1.make()
+        let schema = Schema(
+            PersistentSchemaV43.models,
+            version: PersistentSchemaV43.versionIdentifier
+        )
+        let container = try ModelContainer(
+            for: schema,
+            migrationPlan: nil,
+            configurations: [ModelConfiguration(
+                "V23-P03-C05-Writer",
+                schema: schema,
+                isStoredInMemoryOnly: true,
+                allowsSave: true,
+                cloudKitDatabase: .none
+            )]
+        )
+        let context = container.mainContext
+        context.autosaveEnabled = false
+        let identity = try WorkspaceReplicaIdentityV1(
+            workspaceID: fixture.workspaceID,
+            replicaID: ReplicaID(rawValue: fixture.replicaID)
+        )
+        let journal = try MutationJournalStoreV1(
+            modelContext: context,
+            identity: identity,
+            generationID: fixture.generationID
+        )
+        let writer = try WorkspaceWriterV1(
+            identity: identity,
+            generationID: fixture.generationID,
+            initialRevision: journal.currentRevision(writerInstanceID: fixture.writerInstanceID),
+            clock: MutationJournalFixedClockV1(),
+            idSource: MutationJournalFixedIDSourceV1(value: fixture.writerInstanceID),
+            fileAuthority: MutationJournalFileAuthorityV1(),
+            adapter: WorkspaceWriterAdapterV1(modelContext: context),
+            journalStore: journal
+        )
+
+        let receipt = try writer.commitEvidenceMetadata(fixture.mutation)
+        try receipt.validate()
+        let journalReceipt = receipt.mutationReceipt
+        let postImages = journalReceipt.postImages
+        XCTAssertEqual(postImages.count, 2)
+        XCTAssertEqual(
+            Set(try postImages.map { try $0.identity.kind }),
+            Set([.evidenceAssociationEvent, .evidenceSequenceRevision])
+        )
+        XCTAssertEqual(journalReceipt.expectedRevision.workspaceRevision, 0)
+        XCTAssertEqual(journalReceipt.resultingRevision.workspaceRevision, 1)
+        XCTAssertEqual(
+            journalReceipt.expectedRevision.entityRevisions.map(\.revision),
+            [0, 0]
+        )
+        XCTAssertEqual(
+            journalReceipt.resultingRevision.entityRevisions.map(\.revision),
+            [1, 1]
+        )
+        let associationIdentity = try EvidenceMetadataMutationV1.associationEntityIdentity(
+            workspaceID: fixture.association.workspaceID,
+            evidenceID: fixture.association.evidenceID
+        )
+        let sequenceIdentity = try WorkspaceEntityIdentityV1(
+            kind: .evidenceSequenceRevision,
+            id: fixture.sequence.sequenceID
+        )
+        let imageIdentities = try postImages.map { try $0.identity }
+        XCTAssertEqual(Set(imageIdentities), Set([associationIdentity, sequenceIdentity]))
+        XCTAssertEqual(
+            try postImages.first(where: { try $0.identity == associationIdentity })?.revision,
+            1
+        )
+        XCTAssertEqual(
+            try postImages.first(where: { try $0.identity == sequenceIdentity })?.revision,
+            1
+        )
+        XCTAssertEqual(
+            try postImages.map { try $0.concurrencyIdentity },
+            imageIdentities
+        )
+        XCTAssertEqual(
+            try MutationReceiptV1.decodeCanonical(from: journalReceipt.canonicalData()),
+            journalReceipt
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(writer.evidenceMetadataReceipt(for: fixture.mutation)),
+            receipt
+        )
+        XCTAssertEqual(
+            try writer.evidenceAssociationHistory(
+                workspaceID: fixture.workspaceID,
+                evidenceID: fixture.association.evidenceID
+            ),
+            [fixture.association]
+        )
+        XCTAssertEqual(
+            try writer.evidenceSequenceHistory(
+                workspaceID: fixture.workspaceID,
+                sequenceID: fixture.sequence.sequenceID
+            ),
+            [fixture.sequence]
+        )
+        XCTAssertEqual(try context.fetch(FetchDescriptor<EvidenceAssociationEventRowV1>()).count, 1)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<EvidenceSequenceRevisionRowV1>()).count, 1)
+
+        let replay = try writer.commitEvidenceMetadata(fixture.mutation)
+        XCTAssertEqual(replay, receipt)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<EvidenceAssociationEventRowV1>()).count, 1)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<EvidenceSequenceRevisionRowV1>()).count, 1)
+
+        let divergent = try fixture.divergentMutation()
+        XCTAssertThrowsError(try writer.commitEvidenceMetadata(divergent)) { error in
+            XCTAssertEqual(error as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+        }
+        XCTAssertEqual(try context.fetch(FetchDescriptor<EvidenceAssociationEventRowV1>()).count, 1)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<EvidenceSequenceRevisionRowV1>()).count, 1)
+
+        let stale = try fixture.staleMutation()
+        XCTAssertThrowsError(try writer.commitEvidenceMetadata(stale)) { error in
+            XCTAssertEqual(error as? WorkspaceMutationFailureV1, .staleWorkspaceRevision)
+        }
+        XCTAssertEqual(try context.fetch(FetchDescriptor<EvidenceAssociationEventRowV1>()).count, 1)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<EvidenceSequenceRevisionRowV1>()).count, 1)
+    }
+}
+
+private struct C05WriterMutationFixtureV1 {
+    let workspaceID: WorkspaceID
+    let replicaID: UUID
+    let generationID: UUID
+    let writerInstanceID: UUID
+    let target: EvidenceAssociationTargetV1
+    let policy: EvidenceCurationPolicyV1
+    let reviewer: ActorSnapshotV1
+    let association: EvidenceAssociationV1
+    let item: EvidenceSequenceItemV1
+    let sequence: EvidenceSequenceV1
+    let mutation: EvidenceMetadataMutationV1
+
+    static func make() throws -> Self {
+        let workspaceID = WorkspaceID(rawValue: id(1))
+        let workspaceString = workspaceID.rawValue.uuidString.lowercased()
+        let target = try EvidenceAssociationTargetV1(
+            workspaceID: workspaceString,
+            kind: .finding,
+            targetID: "finding.c05.writer",
+            targetRevision: 1
+        )
+        let policy = try EvidenceCurationPolicyV1(
+            policyID: id(2),
+            workspaceID: workspaceID
+        )
+        let actor = try LocalActorReferenceV1(
+            actorReferenceID: id(3),
+            workspaceID: workspaceID,
+            displayName: "C05 writer"
+        )
+        let reviewer = try ActorSnapshotV1(
+            snapshotID: id(4),
+            workspaceID: workspaceID,
+            actor: actor,
+            responsibility: .reviewedBy,
+            displayNameAtTime: "C05 writer",
+            capturedAt: Date(timeIntervalSince1970: 1_800_000_001)
+        )
+        let mutationID = try MutationIDV1(rawValue: id(5))
+        let association = try EvidenceAssociationV1(
+            associationEventID: "association.c05.writer.1",
+            workspaceID: workspaceString,
+            evidenceID: "evidence.c05.writer",
+            expectedEvidenceRevision: 0,
+            resultingEvidenceRevision: 1,
+            mutationID: mutationID.rawValue.uuidString.lowercased(),
+            action: .assigned,
+            contentID: "content.c05.writer",
+            target: target,
+            actorID: "actor.c05.writer",
+            reason: "Attach the reviewed source evidence.",
+            effectiveAt: "2026-08-27T00:00:00Z"
+        )
+        let caption = try EvidenceReviewedCaptionV1(
+            text: "Writer fixture",
+            provenance: .userAuthored,
+            reviewer: reviewer,
+            reviewedAt: Date(timeIntervalSince1970: 1_800_000_002)
+        )
+        let item = try EvidenceSequenceItemV1(
+            evidenceID: association.evidenceID,
+            contentID: try XCTUnwrap(association.contentID),
+            role: .context,
+            caption: caption,
+            ordinal: 0,
+            target: target,
+            association: association
+        )
+        let sequence = try EvidenceSequenceV1(
+            sequenceID: id(6),
+            workspaceID: workspaceID,
+            target: target,
+            policy: policy,
+            orderedItems: [item],
+            revision: 1,
+            mutationID: mutationID
+        )
+        let mutation = try EvidenceMetadataMutationV1(
+            workspaceID: workspaceID,
+            mutationID: mutationID,
+            expectedSequenceRevision: 0,
+            associationEvent: association,
+            sequenceSuccessor: sequence
+        )
+        return Self(
+            workspaceID: workspaceID,
+            replicaID: id(7),
+            generationID: id(8),
+            writerInstanceID: id(9),
+            target: target,
+            policy: policy,
+            reviewer: reviewer,
+            association: association,
+            item: item,
+            sequence: sequence,
+            mutation: mutation
+        )
+    }
+
+    func divergentMutation() throws -> EvidenceMetadataMutationV1 {
+        try makeMutation(
+            mutationID: mutation.mutationID,
+            associationEventID: "association.c05.writer.divergent",
+            contentID: "content.c05.writer.divergent",
+            sequenceRevision: 1,
+            predecessor: nil,
+            expectedSequenceRevision: 0,
+            expectedAssociationRevision: 0
+        )
+    }
+
+    func staleMutation() throws -> EvidenceMetadataMutationV1 {
+        try makeMutation(
+            mutationID: try MutationIDV1(rawValue: Self.id(10)),
+            associationEventID: "association.c05.writer.stale",
+            contentID: "content.c05.writer.stale",
+            sequenceRevision: 2,
+            predecessor: try sequence.reference,
+            expectedSequenceRevision: 1,
+            expectedAssociationRevision: 0
+        )
+    }
+
+    private func makeMutation(
+        mutationID: MutationIDV1,
+        associationEventID: String,
+        contentID: String,
+        sequenceRevision: UInt64,
+        predecessor: EvidenceSequenceReferenceV1?,
+        expectedSequenceRevision: UInt64,
+        expectedAssociationRevision: Int
+    ) throws -> EvidenceMetadataMutationV1 {
+        let association = try EvidenceAssociationV1(
+            associationEventID: associationEventID,
+            workspaceID: workspaceID.rawValue.uuidString.lowercased(),
+            evidenceID: self.association.evidenceID,
+            expectedEvidenceRevision: expectedAssociationRevision,
+            resultingEvidenceRevision: expectedAssociationRevision + 1,
+            mutationID: mutationID.rawValue.uuidString.lowercased(),
+            action: .assigned,
+            contentID: contentID,
+            target: target,
+            actorID: "actor.c05.writer",
+            reason: "Hostile replay candidate.",
+            effectiveAt: "2026-08-27T00:00:00Z"
+        )
+        let caption = try EvidenceReviewedCaptionV1(
+            text: "Hostile candidate",
+            provenance: .userAuthored,
+            reviewer: reviewer,
+            reviewedAt: Date(timeIntervalSince1970: 1_800_000_003)
+        )
+        let item = try EvidenceSequenceItemV1(
+            evidenceID: association.evidenceID,
+            contentID: contentID,
+            role: .context,
+            caption: caption,
+            ordinal: 0,
+            target: target,
+            association: association
+        )
+        let sequence = try EvidenceSequenceV1(
+            sequenceID: self.sequence.sequenceID,
+            workspaceID: workspaceID,
+            target: target,
+            policy: policy,
+            orderedItems: [item],
+            predecessor: predecessor,
+            revision: sequenceRevision,
+            mutationID: mutationID
+        )
+        return try EvidenceMetadataMutationV1(
+            workspaceID: workspaceID,
+            mutationID: mutationID,
+            expectedSequenceRevision: expectedSequenceRevision,
+            associationEvent: association,
+            sequenceSuccessor: sequence
+        )
+    }
+
+    private static func id(_ byte: UInt8) -> UUID {
+        UUID(uuid: (byte, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, byte))
+    }
+}

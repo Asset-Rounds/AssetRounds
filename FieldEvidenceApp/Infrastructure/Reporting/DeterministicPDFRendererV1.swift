@@ -359,6 +359,108 @@ enum DeterministicPDFRendererV1 {
     }
 }
 
+extension DeterministicPDFRendererV1 {
+    static func renderReviewedEvidence(
+        _ projection: ReviewedEvidenceReportProjectionV1
+    ) throws -> ReportProjectionOutputV1 {
+        try projection.validateIntrinsic()
+        let semanticData = try DeterministicOpenJSONRendererV1
+            .renderReviewedEvidence(projection).data
+        let lines = ([
+            "AssetRounds reviewed evidence",
+            "Snapshot SHA-256: \(projection.snapshotSHA256)",
+            "Sequence: \(projection.sequenceFrontier.sequenceID.uuidString.lowercased()) revision \(projection.sequenceFrontier.revision)",
+            "Comparison is proof: false",
+        ] + projection.orderedItems.map {
+            "[\($0.item.ordinal)] \($0.item.role.rawValue): \($0.item.caption.text)"
+                + ($0.item.accessibilityDescription.map { " | Accessibility: \($0.text)" } ?? "")
+        }).flatMap { wrap(asciiVisible($0), columns: 88) }
+        let pages = stride(from: 0, to: lines.count, by: 48).map {
+            Array(lines[$0..<min($0 + 48, lines.count)])
+        }
+        guard !pages.isEmpty, pages.count <= 64 else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+
+        var pdf = Data("%PDF-1.4\n%AssetRounds-V23\n".utf8)
+        appendSemanticInventory(semanticData, to: &pdf)
+        var objects: [Int: Data] = [
+            1: Data("<< /Type /Catalog /Pages 2 0 R >>".utf8),
+            3: Data("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".utf8),
+        ]
+        var pageIDs: [Int] = []
+        for index in pages.indices {
+            let pageID = 4 + index * 2
+            let streamID = pageID + 1
+            let stream = contentStream(pages[index], pageHeight: 792)
+            pageIDs.append(pageID)
+            objects[pageID] = Data("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents \(streamID) 0 R >>".utf8)
+            objects[streamID] = Data("<< /Length \(stream.count) >>\nstream\n".utf8) + stream + Data("\nendstream".utf8)
+        }
+        objects[2] = Data("<< /Type /Pages /Count \(pageIDs.count) /Kids [\(pageIDs.map { "\($0) 0 R" }.joined(separator: " "))] >>".utf8)
+        let objectCount = objects.keys.max() ?? 0
+        var offsets = Array(repeating: 0, count: objectCount + 1)
+        for objectID in 1...objectCount {
+            guard let body = objects[objectID] else {
+                throw SnapshotProjectionFailureV1.missingBinding
+            }
+            offsets[objectID] = pdf.count
+            pdf.append(Data("\(objectID) 0 obj\n".utf8)); pdf.append(body)
+            pdf.append(Data("\nendobj\n".utf8))
+        }
+        let xrefOffset = pdf.count
+        pdf.append(Data("xref\n0 \(objectCount + 1)\n0000000000 65535 f \n".utf8))
+        for objectID in 1...objectCount {
+            pdf.append(Data(String(format: "%010d 00000 n \n", offsets[objectID]).utf8))
+        }
+        pdf.append(Data("trailer\n<< /Size \(objectCount + 1) /Root 1 0 R >>\nstartxref\n\(xrefOffset)\n%%EOF\n".utf8))
+        guard try reopenReviewedEvidence(pdf).projection == projection else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return ReportProjectionOutputV1(
+            format: .pdf,
+            data: pdf,
+            sha256: KernelCanonicalHashV1.sha256(pdf),
+            semanticSHA256: projection.projectionSHA256,
+            orderedSemanticIDs: projection.orderedItems.map {
+                "evidence.reviewed.\($0.item.evidenceID)"
+            },
+            taggedPDFAccessibilityEvidence: false
+        )
+    }
+
+    static func reopenReviewedEvidence(_ data: Data) throws -> ReviewedEvidenceOpenJSONEnvelopeV1 {
+        guard !data.isEmpty, data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes,
+              let source = String(data: data, encoding: .ascii) else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        let lines = source.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        guard let begin = lines.firstIndex(where: { $0.hasPrefix(inventoryBegin + " ") }),
+              let end = lines.firstIndex(of: inventoryEnd), begin < end else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        let header = lines[begin].split(separator: " ")
+        guard header.count == 3, let expectedCount = Int(header[1]), expectedCount > 0,
+              KernelCanonicalHashV1.validSHA256(String(header[2])) else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        var bytes = Data()
+        for (index, row) in lines[(begin + 1)..<end].enumerated() {
+            let prefix = inventoryRow + String(format: "%06d:", index)
+            guard row.hasPrefix(prefix),
+                  let chunk = Data(base64Encoded: String(row.dropFirst(prefix.count))) else {
+                throw SnapshotProjectionFailureV1.projectionDisagreement
+            }
+            bytes.append(chunk)
+        }
+        guard bytes.count == expectedCount,
+              KernelCanonicalHashV1.sha256(bytes) == String(header[2]) else {
+            throw SnapshotProjectionFailureV1.digestMismatch
+        }
+        return try DeterministicOpenJSONRendererV1.reopenReviewedEvidence(bytes)
+    }
+}
+
 extension DeterministicPDFRendererV1{
     static func bindAccessibleAssessmentOutput(_ output:ReportProjectionOutputV1,tree:AccessibleDocumentSemanticTreeV1)throws->AccessibleDocumentRenderOutputV1{try tree.validate();guard output.format == .pdf else{throw AccessibleDocumentFailureV1.invalidValue};return try .init(bytes:output.data,mediaType:"application/pdf",rendererID:"deterministic-pdf-renderer",rendererVersion:rendererVersion)}
 }

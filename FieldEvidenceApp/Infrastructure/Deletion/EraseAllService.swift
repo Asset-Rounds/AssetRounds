@@ -272,6 +272,23 @@ enum C57MyDayEraseAllPolicyV1 {
     }
 }
 
+/// The activated post-Erase generation must contain neither V43 metadata
+/// family. The generation swap owns physical row and content removal; this
+/// verifier prevents an old association/sequence chain from being resurrected.
+enum EvidenceMetadataEraseAllPolicyV1 {
+    static func validatePublishedEmptyGeneration(_ context: ModelContext) throws {
+        try EvidenceMetadataKernelDeletionEraseEnrollmentV1.validate()
+        guard try context.fetchCount(
+            FetchDescriptor<EvidenceAssociationEventRowV1>()
+        ) == 0,
+        try context.fetchCount(
+            FetchDescriptor<EvidenceSequenceRevisionRowV1>()
+        ) == 0 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+}
+
 enum PlanEraseAllPolicyV1 {
     static let persistentSchemaVersion = 28
     static let recordsSchemaVersion = 27
@@ -1532,6 +1549,9 @@ private extension EraseAllService {
         try AssetLocatorEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try ScheduleEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try C57MyDayEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
+        try EvidenceMetadataEraseAllPolicyV1.validatePublishedEmptyGeneration(
+            session.modelContext
+        )
         try ServiceRequestEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try AssetServiceReliabilityEraseAllPolicyV1.validatePublishedEmptyGeneration(
             session.modelContext

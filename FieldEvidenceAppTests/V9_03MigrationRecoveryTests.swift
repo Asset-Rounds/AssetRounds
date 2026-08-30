@@ -1770,6 +1770,22 @@ private final class C49WorkResourceMigrationBoundaryTests: XCTestCase {
     }
 }
 
+private final class C05EvidenceMetadataMigrationBoundaryTests: XCTestCase {
+    func testV23P03C05V42ToV43MigrationAndRecords41CompatibilityAreClosed() {
+        XCTAssertTrue(C05EvidenceCurationMigrationBoundaryV1.validate())
+        XCTAssertEqual(C05EvidenceCurationMigrationBoundaryV1.sourcePersistentSchemaVersion, 42)
+        XCTAssertEqual(C05EvidenceCurationMigrationBoundaryV1.targetPersistentSchemaVersion, 43)
+        XCTAssertEqual(C05EvidenceCurationMigrationBoundaryV1.currentRecordsSchemaVersion, 42)
+        XCTAssertEqual(C05EvidenceCurationMigrationBoundaryV1.compatibleRecordsSchemaVersions, [41, 42])
+        XCTAssertEqual(
+            C05EvidenceCurationMigrationBoundaryV1.newlyAddedRows,
+            ["EvidenceAssociationEventRowV1", "EvidenceSequenceRevisionRowV1"]
+        )
+        XCTAssertTrue(C05EvidenceCurationMigrationBoundaryV1.sourceRowsMustBeEmpty)
+        XCTAssertFalse(C05EvidenceCurationMigrationBoundaryV1.backfillCreatesEvidenceTruth)
+    }
+}
+
 extension C50MigrationRecoveryTests {
     func testV23P03C51MigrationUsesV37RecordsWithoutBackfillTruth() {
         XCTAssertTrue(

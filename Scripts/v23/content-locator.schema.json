@@ -105,5 +105,10 @@
     "expectedByteLength"
   ],
   "title": "ContentLocatorV1",
-  "type": "object"
+  "type": "object",
+  "x-assetrounds-runtimeSemanticConstraints": [
+    "LOCATOR_REPLACEMENT_USES_EXPECTED_REVISION",
+    "LOCATOR_RESOLUTION_IS_OWNED_STORE_ONLY",
+    "STALE_OR_FOREIGN_LOCATORS_FAIL_CLOSED"
+  ]
 }

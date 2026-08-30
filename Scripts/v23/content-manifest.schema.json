@@ -138,6 +138,7 @@
   "type": "object",
   "x-assetrounds-runtimeSemanticConstraints": [
     "ENTRIES_SORTED_BY_CONTENT_ID",
-    "CONTENT_ID_UNIQUE"
+    "CONTENT_ID_UNIQUE",
+    "REQUIRED_FOR_OPEN_IS_EXPLICIT"
   ]
 }

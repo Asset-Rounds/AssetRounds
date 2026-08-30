@@ -87,6 +87,16 @@ final class MutationReceiptRecoveryServiceV1 {
     func recoverMyDayEffectsBeforeWriterActivation() throws {
         try recoverBeforeWriterActivation()
     }
+    /// C05 revalidates the singular association-event successor and matching
+    /// sequence revision as one canonical two-postimage mutation. A wholly
+    /// persisted effect without its receipt is adopted only by the active
+    /// WorkspaceWriter after its adapter proves both rows byte-exact.
+    func recoverEvidenceMetadataEffectsBeforeWriterActivation() throws {
+        guard C05EvidenceMetadataReceiptRecoveryBoundaryV1.validate() else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        try recoverBeforeWriterActivation()
+    }
     /// C52 revalidates all three append-only row families and their exact
     /// receipt before activation; derived duplicate/state projections remain disposable.
     func recoverServiceRequestEffectsBeforeWriterActivation()throws{
@@ -116,6 +126,18 @@ enum OperationalContactMutationReceiptRecoveryPolicyV1 {
         receipt: MutationReceiptV1
     ) throws {
         _ = try OperationalContactMutationReceiptV1(
+            mutation: mutation,
+            mutationReceipt: receipt
+        )
+    }
+}
+
+enum EvidenceMetadataMutationReceiptRecoveryPolicyV1 {
+    static func validateRecovered(
+        mutation: EvidenceMetadataMutationV1,
+        receipt: MutationReceiptV1
+    ) throws {
+        _ = try EvidenceMetadataMutationReceiptV1(
             mutation: mutation,
             mutationReceipt: receipt
         )
@@ -170,6 +192,24 @@ enum C47ActivityContractRecoveryBoundaryV2 { static let commandKind:WorkspaceCom
 enum C48PortableReviewRecoveryBoundaryV1 { static let commandKind:WorkspaceCommandKindV1 = .applyPortableReview;static let canonicalEffectUsesExistingC14Rows=true;static let sessionEvidenceFinalizesOnlyAfterExactReceipt=true;static let historyOnlyNeverEntersWorkspaceJournal=true }
 enum C49WorkResourceRecoveryBoundaryV1 { static let commandKind:WorkspaceCommandKindV1 = .applyWorkResource;static let effectBeforeReceiptRecoveryUsesCanonicalPostimage=true;static let divergentSameMutationIsQuarantined=true;static let noSecondCostLedger=true }
 enum C51ScheduleOverrideRecoveryBoundaryV1 { static let commandKind:WorkspaceCommandKindV1 = .applySchedule;static let effectBeforeReceiptRecoveryUsesCanonicalPostimages=true;static let divergentSameMutationIsQuarantined=true;static let overrideFrontierIsRevalidatedFromPersistedRows=true;static let createsParallelWriter=false }
+
+enum C05EvidenceMetadataReceiptRecoveryBoundaryV1 {
+    static let commandKind: WorkspaceCommandKindV1 = .applyEvidenceMetadata
+    static let canonicalPostImageCount = 2
+    static let effectBeforeReceiptRecoveryRequiresBothExactRows = true
+    static let partialOrDivergentEffectFailsClosed = true
+    static let associationAndSequenceFrontiersAreRevalidated = true
+    static let createsParallelWriterOrStore = false
+
+    static func validate() -> Bool {
+        commandKind == .applyEvidenceMetadata
+            && canonicalPostImageCount == 2
+            && effectBeforeReceiptRecoveryRequiresBothExactRows
+            && partialOrDivergentEffectFailsClosed
+            && associationAndSequenceFrontiersAreRevalidated
+            && !createsParallelWriterOrStore
+    }
+}
 
 enum C50IncumbentFileExchangeRecoveryBoundaryV1 {
     static let profileSelectionSessionSourceQuarantineDisposition = "NONPERSISTENT"

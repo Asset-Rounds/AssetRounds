@@ -75,6 +75,35 @@ enum C57MyDayKernelDeletionEraseEnrollmentV1 {
     }
 }
 
+/// C05 owns exactly the append-only association event and immutable sequence
+/// revision rows. Subject/report removal records an association successor;
+/// only workspace Erase clears the two V43 families and their owned content.
+enum EvidenceMetadataKernelDeletionEraseEnrollmentV1 {
+    static let durableRowNames: Set<String> = [
+        "EvidenceAssociationEventRowV1",
+        "EvidenceSequenceRevisionRowV1",
+    ]
+    static let durableFamilies = EvidenceMetadataDeletionLedgerPolicyV1.durableFamilies
+    static let ordinaryRemovalPreservesPredecessorHistory = true
+    static let ordinaryRemovalUsesAppendOnlyAssociationSuccessor = true
+    static let workspaceEraseClearsRowsAndOwnedDerivatives = true
+    static let orphanCleanupNeverDeletesMetadataRowsFromMissingBytes = true
+
+    static func validate() throws {
+        try EvidenceMetadataDeletionLedgerPolicyV1.validate()
+        guard durableRowNames.count == 2,
+              durableFamilies == [
+                EvidenceMetadataPersistenceEnrollmentV1.associationEventFamily,
+                EvidenceMetadataPersistenceEnrollmentV1.sequenceRevisionFamily,
+              ], ordinaryRemovalPreservesPredecessorHistory,
+              ordinaryRemovalUsesAppendOnlyAssociationSuccessor,
+              workspaceEraseClearsRowsAndOwnedDerivatives,
+              orphanCleanupNeverDeletesMetadataRowsFromMissingBytes else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}
+
 
 /// C33 has exactly two SwiftData rows. Derivative and retention values are
 /// journal/content support, not additional row families.
@@ -612,6 +641,7 @@ enum KernelDeletionEraseRegistryV4 {
     }
 
     static func validate() throws {
+        try EvidenceMetadataKernelDeletionEraseEnrollmentV1.validate()
         try TemporalEvidenceKernelDeletionEnrollmentV1.validate()
         try AssetLocatorKernelDeletionEnrollmentV1.validate()
         try validateSurveyDefinitionLifecycle()

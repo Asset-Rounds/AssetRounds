@@ -23,6 +23,27 @@ enum PlanKernelMutationReceiptPolicyV1{static let entityKinds:Set<WorkspaceEntit
 enum PlacementPoseKernelMutationReceiptPolicyV1{static let entityKinds:Set<WorkspaceEntityKindV1>=[.assetPoseEvent,.spatialAnchorObservation];static func validate(mutation:PlacementPoseMutationV1,receipt:MutationReceiptV1)throws{let affected=try mutation.affectedIdentities;guard entityKinds.count==2,affected.allSatisfy({entityKinds.contains($0.kind)})else{throw WorkspaceMutationFailureV1.invalidReceipt};_ = try PlacementPoseMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)}}
 enum EvidenceContextKernelMutationReceiptPolicyV1{static let entityKinds:Set<WorkspaceEntityKindV1>=[.evidenceContext,.pairedObservationLink];static func validate(operation:EvidenceContextWriteOperationV1,receipt:MutationReceiptV1)throws{let affected=try operation.affectedIdentity;guard entityKinds.contains(affected.kind)else{throw WorkspaceMutationFailureV1.invalidReceipt};_ = try EvidenceContextMutationReceiptV1(operation:operation,mutationReceipt:receipt)}}
 enum LightingKernelMutationReceiptPolicyV1{static let entityKinds:Set<WorkspaceEntityKindV1>=[.lightingSystem,.lightingObservation,.lightingIssue,.lightingMeasurementPlan,.lightingClaimState];static func validate(operation:LightingWriteOperationV1,receipt:MutationReceiptV1)throws{guard entityKinds.contains((try operation.affectedIdentity).kind)else{throw WorkspaceMutationFailureV1.invalidReceipt};_ = try LightingMutationReceiptV1(operation:operation,mutationReceipt:receipt)}}
+enum EvidenceMetadataKernelMutationReceiptPolicyV1 {
+    static let entityKinds: Set<WorkspaceEntityKindV1> = [
+        .evidenceAssociationEvent,
+        .evidenceSequenceRevision,
+    ]
+
+    static func validate(
+        mutation: EvidenceMetadataMutationV1,
+        receipt: MutationReceiptV1
+    ) throws {
+        let affected = try mutation.affectedIdentities
+        guard affected.count == 2,
+              Set(affected.map(\.kind)) == entityKinds else {
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+        _ = try EvidenceMetadataMutationReceiptV1(
+            mutation: mutation,
+            mutationReceipt: receipt
+        )
+    }
+}
 
 struct KernelMutationRegistrationV4: Codable, Equatable, Comparable, Sendable {
     private enum CodingKeys: String, CodingKey, CaseIterable {
@@ -304,6 +325,15 @@ enum KernelMutationReceiptRegistryV4 {
     }
     static func validateMeasurementIntegrity(mutation:MeasurementIntegrityMutationV1,receipt:MutationReceiptV1)throws{_ = try MeasurementIntegrityMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)}
     static func validatePrivacyTransform(mutation:PrivacyTransformMutationV1,receipt:MutationReceiptV1)throws{_ = try PrivacyTransformMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)}
+    static func validateEvidenceMetadata(
+        mutation: EvidenceMetadataMutationV1,
+        receipt: MutationReceiptV1
+    ) throws {
+        try EvidenceMetadataKernelMutationReceiptPolicyV1.validate(
+            mutation: mutation,
+            receipt: receipt
+        )
+    }
     static func validateClientCapability(mutation:ClientCapabilityMutationV1,receipt:MutationReceiptV1)throws{_ = try ClientCapabilityMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)}
     static func validateFieldReference(mutation:FieldReferenceMutationV1,receipt:MutationReceiptV1)throws{_ = try FieldReferenceMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)}
     static func validateAccessibleDocumentAssessment(mutation:AccessibleDocumentMutationV1,receipt:MutationReceiptV1)throws{_ = try AccessibleDocumentMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)}

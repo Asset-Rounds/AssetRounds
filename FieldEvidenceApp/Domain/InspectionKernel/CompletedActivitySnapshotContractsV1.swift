@@ -1,5 +1,111 @@
 import Foundation
 
+/// C05 attempt-2 freezes reviewed evidence metadata without rewriting the
+/// released `CompletedActivitySnapshotV1` byte contract.
+struct CompletedActivityEvidenceSequenceSnapshotV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let activity: CompletedActivitySnapshotV1
+    let evidenceSequence: EvidenceSequenceV1
+    let snapshotSHA256: String
+
+    var sequenceFrontier: EvidenceSequenceReferenceV1 {
+        get throws { try evidenceSequence.reference }
+    }
+
+    init(activity: CompletedActivitySnapshotV1, evidenceSequence: EvidenceSequenceV1) throws {
+        try activity.validate()
+        guard evidenceSequence.workspaceID.rawValue.uuidString.lowercased() == activity.payload.workspaceID,
+              evidenceSequence.target.workspaceID == activity.payload.workspaceID,
+              !evidenceSequence.orderedItems.isEmpty,
+              Set(activity.payload.evidenceCards.map(\.evidenceID)).count
+                == activity.payload.evidenceCards.count,
+              Set(evidenceSequence.orderedItems.map(\.evidenceID))
+                == Set(activity.payload.evidenceCards.map(\.evidenceID)) else {
+            throw SnapshotProjectionFailureV1.missingBinding
+        }
+        for item in evidenceSequence.orderedItems {
+            guard let card = activity.payload.evidenceCards.first(where: { $0.evidenceID == item.evidenceID }) else {
+                throw SnapshotProjectionFailureV1.missingBinding
+            }
+            try card.validateReviewedEvidence(item)
+        }
+        schemaVersion = Self.schemaVersion
+        self.activity = activity
+        self.evidenceSequence = evidenceSequence
+        snapshotSHA256 = try EvidenceMetadataCanonicalCodecV1.sha256(Basis(
+            schemaVersion: Self.schemaVersion,
+            activitySHA256: activity.snapshotSHA256,
+            evidenceSequence: evidenceSequence
+        ))
+    }
+
+    init(
+        activity: CompletedActivitySnapshotV1,
+        evidenceSequence: EvidenceSequenceV1,
+        currentAssociationEvents: [EvidenceAssociationV1]
+    ) throws {
+        try self.init(activity: activity, evidenceSequence: evidenceSequence)
+        try validateSourceFrontier(currentAssociationEvents)
+    }
+
+    func validate() throws {
+        let rebuilt = try Self(activity: activity, evidenceSequence: evidenceSequence)
+        guard rebuilt == self else { throw SnapshotProjectionFailureV1.digestMismatch }
+    }
+
+    func validateSuccessor(of prior: Self) throws {
+        try validate()
+        try prior.validate()
+        try activity.validateSupersession(of: prior.activity)
+        try evidenceSequence.validateSuccessor(of: prior.evidenceSequence)
+    }
+
+    func validateSourceFrontier(_ events: [EvidenceAssociationV1]) throws {
+        try EvidenceAssociationLedgerV1.validate(events)
+        var terminal: [String: EvidenceAssociationV1] = [:]
+        for event in events { terminal[event.evidenceID] = event }
+        for item in evidenceSequence.orderedItems {
+            guard let event = terminal[item.evidenceID], event.action != .removed,
+                  event.contentID == item.contentID, event.target == item.target,
+                  event.associationEventID == item.associationBinding.associationEventID,
+                  event.resultingEvidenceRevision == item.associationBinding.resultingEvidenceRevision,
+                  (try EvidenceMetadataCanonicalCodecV1.sha256(event))
+                    == item.associationBinding.associationSHA256 else {
+                throw SnapshotProjectionFailureV1.staleRevision
+            }
+        }
+    }
+
+    private struct Basis: Codable {
+        let schemaVersion: Int
+        let activitySHA256: String
+        let evidenceSequence: EvidenceSequenceV1
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, activity, evidenceSequence, snapshotSHA256
+    }
+
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(
+            decoder, allowed: Set(CodingKeys.allCases.map(\.rawValue))
+        )
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        guard try values.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        let rebuilt = try Self(
+            activity: values.decode(CompletedActivitySnapshotV1.self, forKey: .activity),
+            evidenceSequence: values.decode(EvidenceSequenceV1.self, forKey: .evidenceSequence)
+        )
+        guard rebuilt.snapshotSHA256 == (try values.decode(String.self, forKey: .snapshotSHA256)) else {
+            throw SnapshotProjectionFailureV1.digestMismatch
+        }
+        self = rebuilt
+    }
+}
+
 struct FrozenScheduleCompletionReferenceV1: Codable, Equatable, Sendable {
     let occurrenceID: OccurrenceIDV1
     let completionEventSHA256: String

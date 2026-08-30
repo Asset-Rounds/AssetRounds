@@ -1,5 +1,48 @@
 import Foundation
 
+extension EvidenceDetailCardV1 {
+    /// Binds a rendered detail card to the exact reviewed C05 metadata row.
+    func validateReviewedEvidence(_ item: EvidenceSequenceItemV1) throws {
+        try validate()
+        let reviewedText = [item.caption.text]
+            + [item.accessibilityDescription?.text].compactMap { $0 }
+        guard workspaceID == item.target.workspaceID,
+              evidenceID == item.evidenceID,
+              item.associationBinding.resultingEvidenceRevision > 0,
+              KernelCanonicalHashV1.validSHA256(item.associationBinding.associationSHA256),
+              SnapshotProjectionValidationV1.validText(item.caption.text),
+              item.accessibilityDescription.map({
+                  SnapshotProjectionValidationV1.validText($0.text)
+              }) ?? true else {
+            throw SnapshotProjectionFailureV1.missingBinding
+        }
+        if audience == .customerSafe,
+           audiencePrivacyPolicy.containsProhibitedCanary(in: reviewedText)
+            || AudiencePrivacyLexicalDetectorV1.containsProhibitedPattern(in: reviewedText) {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+    }
+}
+
+struct ReviewedEvidenceReportItemV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let item: EvidenceSequenceItemV1
+    let itemSHA256: String
+
+    init(item: EvidenceSequenceItemV1, card: EvidenceDetailCardV1) throws {
+        try card.validateReviewedEvidence(item)
+        schemaVersion = Self.schemaVersion
+        self.item = item
+        itemSHA256 = try EvidenceMetadataCanonicalCodecV1.sha256(item)
+    }
+
+    func validate(card: EvidenceDetailCardV1) throws {
+        let rebuilt = try Self(item: item, card: card)
+        guard rebuilt == self else { throw SnapshotProjectionFailureV1.digestMismatch }
+    }
+}
+
 enum EvidenceDetailSensitivityV1: String, Codable, CaseIterable, Hashable, Sendable {
     case audienceSafe = "AUDIENCE_SAFE"
     case privateNote = "PRIVATE_NOTE"

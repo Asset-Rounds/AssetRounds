@@ -28,6 +28,28 @@ enum C49WorkResourceDeletionLedgerStoreBoundaryV1 {
     static let reliesOnCanonicalAppendOnlyRowsUntilErase = true
 }
 
+/// C05 report removal remains in the association successor chain. The ledger
+/// must not manufacture a competing metadata tombstone or erase predecessor
+/// evidence before a workspace Erase owns the physical clear.
+enum EvidenceMetadataDeletionLedgerStorePolicyV1 {
+    static let durableFamilies = EvidenceMetadataDeletionLedgerPolicyV1.durableFamilies
+    static let appendOnlyRemovalAuthority = true
+    static let metadataRowsAreNotLedgerRows = true
+    static let workspaceEraseOwnsPhysicalRowClear = true
+
+    static func validate() throws {
+        try EvidenceMetadataDeletionLedgerPolicyV1.validate()
+        guard durableFamilies == [
+            EvidenceMetadataPersistenceEnrollmentV1.associationEventFamily,
+            EvidenceMetadataPersistenceEnrollmentV1.sequenceRevisionFamily,
+        ], appendOnlyRemovalAuthority,
+           metadataRowsAreNotLedgerRows,
+           workspaceEraseOwnsPhysicalRowClear else {
+            throw DeletionLedgerFailureV2.invalidIdentity
+        }
+    }
+}
+
 enum C31LightingDeletionLedgerStorePolicyV1 {
     static let persistentSchemaVersion = 31
     static let recordsSchemaVersion = 30
@@ -150,6 +172,7 @@ final class DeletionLedgerStore {
     }
 
     func snapshot() throws -> DeletionLedgerV2 {
+        try EvidenceMetadataDeletionLedgerStorePolicyV1.validate()
         try AssetLocatorDeletionLedgerStorePolicyV1.validate()
         try FieldReferenceDeletionLedgerStorePolicyV1.validate()
         try AccessibleDocumentDeletionLedgerStorePolicyV1.validate()

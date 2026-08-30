@@ -223,5 +223,10 @@
     "createdAt"
   ],
   "title": "ContentReferenceV1",
-  "type": "object"
+  "type": "object",
+  "x-assetrounds-runtimeSemanticConstraints": [
+    "WORKSPACE_AND_CONTENT_ID_STABLE",
+    "IMMUTABLE_ORIGINAL_BYTES_NEVER_REWRITTEN",
+    "SHA256_REQUIRED_AND_UNKNOWN_ALGORITHMS_FAIL_CLOSED"
+  ]
 }

@@ -693,3 +693,46 @@ extension V9_07CompatibilityPolicyTests {
         }
     }
 }
+
+extension V9_07CompatibilityPolicyTests {
+    func testV23P03C05Records41ReadAndRecords42RestoreRejectFutureMetadata() throws {
+        func emptyRecords(_ version: Int) -> V4BackupRecordsV1 {
+            V4BackupRecordsV1(
+                assets: [],
+                evidenceFiles: [],
+                issues: [],
+                packets: [],
+                recordsSchemaVersion: version,
+                reports: [],
+                sites: [],
+                workflowRecords: []
+            )
+        }
+
+        let records41 = emptyRecords(41)
+        XCTAssertNoThrow(try C05EvidenceMetadataBackupEnrollmentV1.validate(records41))
+        XCTAssertNoThrow(try C05EvidenceMetadataRestoreIdentityBoundaryV1.validate(records41, identity: nil))
+
+        let records42 = emptyRecords(C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion)
+        XCTAssertNoThrow(try C05EvidenceMetadataBackupEnrollmentV1.validate(records42))
+        XCTAssertNoThrow(try C05EvidenceMetadataRestoreIdentityBoundaryV1.validate(records42, identity: nil))
+        XCTAssertEqual(
+            C05EvidenceMetadataRestoreIdentityBoundaryV1.disposition(for: .replaceExisting),
+            .preserveSameWorkspaceCanonicalHistory
+        )
+        XCTAssertEqual(
+            C05EvidenceMetadataRestoreIdentityBoundaryV1.disposition(for: .fork),
+            .retainSourceBoundHistoricHistory
+        )
+        XCTAssertTrue(C05EvidenceMetadataRestoreIdentityBoundaryV1.derivativeContentUsesIncumbentContentLifecycle)
+        XCTAssertFalse(C05EvidenceMetadataRestoreIdentityBoundaryV1.sourceRowsAutomaticallyActivateOnCloneOrFork)
+
+        let future = emptyRecords(C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion + 1)
+        XCTAssertThrowsError(try C05EvidenceMetadataBackupEnrollmentV1.validate(future)) { error in
+            XCTAssertEqual(error as? EvidenceMetadataFailureV1, .invalidValue)
+        }
+        XCTAssertThrowsError(try C05EvidenceMetadataRestoreIdentityBoundaryV1.validate(future, identity: nil)) { error in
+            XCTAssertEqual(error as? EvidenceMetadataFailureV1, .invalidValue)
+        }
+    }
+}

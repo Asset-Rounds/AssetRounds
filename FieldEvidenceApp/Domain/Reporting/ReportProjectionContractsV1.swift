@@ -1,5 +1,110 @@
 import Foundation
 
+struct ReviewedEvidenceReportProjectionV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let snapshotSHA256: String
+    let activitySnapshotSHA256: String
+    let sequenceFrontier: EvidenceSequenceReferenceV1
+    let orderedItems: [ReviewedEvidenceReportItemV1]
+    let comparisonIsProof: Bool
+    let projectionSHA256: String
+
+    init(snapshot: CompletedActivityEvidenceSequenceSnapshotV1) throws {
+        try snapshot.validate()
+        let cards = Dictionary(uniqueKeysWithValues: snapshot.activity.payload.evidenceCards.map {
+            ($0.evidenceID, $0)
+        })
+        let items = try snapshot.evidenceSequence.orderedItems.map { item in
+            guard let card = cards[item.evidenceID] else {
+                throw SnapshotProjectionFailureV1.missingBinding
+            }
+            return try ReviewedEvidenceReportItemV1(item: item, card: card)
+        }
+        guard items.map(\.item.ordinal) == Array(0..<items.count) else {
+            throw SnapshotProjectionFailureV1.unorderedValue
+        }
+        schemaVersion = Self.schemaVersion
+        snapshotSHA256 = snapshot.snapshotSHA256
+        activitySnapshotSHA256 = snapshot.activity.snapshotSHA256
+        sequenceFrontier = try snapshot.sequenceFrontier
+        orderedItems = items
+        comparisonIsProof = false
+        projectionSHA256 = try EvidenceMetadataCanonicalCodecV1.sha256(Basis(
+            schemaVersion: Self.schemaVersion,
+            snapshotSHA256: snapshot.snapshotSHA256,
+            activitySnapshotSHA256: snapshot.activity.snapshotSHA256,
+            sequenceFrontier: sequenceFrontier,
+            orderedItems: items,
+            comparisonIsProof: false
+        ))
+    }
+
+    func validate(snapshot: CompletedActivityEvidenceSequenceSnapshotV1) throws {
+        let rebuilt = try Self(snapshot: snapshot)
+        guard rebuilt == self else { throw SnapshotProjectionFailureV1.projectionDisagreement }
+    }
+
+    func validateIntrinsic() throws {
+        guard schemaVersion == Self.schemaVersion,
+              KernelCanonicalHashV1.validSHA256(snapshotSHA256),
+              KernelCanonicalHashV1.validSHA256(activitySnapshotSHA256),
+              KernelCanonicalHashV1.validSHA256(sequenceFrontier.sequenceSHA256),
+              sequenceFrontier.revision > 0,
+              !orderedItems.isEmpty,
+              orderedItems.map(\.item.ordinal) == Array(0..<orderedItems.count),
+              Set(orderedItems.map(\.item.evidenceID)).count == orderedItems.count,
+              comparisonIsProof == false,
+              projectionSHA256 == (try EvidenceMetadataCanonicalCodecV1.sha256(Basis(
+                schemaVersion: schemaVersion,
+                snapshotSHA256: snapshotSHA256,
+                activitySnapshotSHA256: activitySnapshotSHA256,
+                sequenceFrontier: sequenceFrontier,
+                orderedItems: orderedItems,
+                comparisonIsProof: false
+              ))) else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        for value in orderedItems {
+            guard value.schemaVersion == ReviewedEvidenceReportItemV1.schemaVersion,
+                  value.itemSHA256 == (try EvidenceMetadataCanonicalCodecV1.sha256(value.item)),
+                  value.item.associationBinding.resultingEvidenceRevision > 0,
+                  KernelCanonicalHashV1.validSHA256(value.item.associationBinding.associationSHA256) else {
+                throw SnapshotProjectionFailureV1.digestMismatch
+            }
+        }
+    }
+
+    private struct Basis: Codable {
+        let schemaVersion: Int
+        let snapshotSHA256: String
+        let activitySnapshotSHA256: String
+        let sequenceFrontier: EvidenceSequenceReferenceV1
+        let orderedItems: [ReviewedEvidenceReportItemV1]
+        let comparisonIsProof: Bool
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, snapshotSHA256, activitySnapshotSHA256, sequenceFrontier
+        case orderedItems, comparisonIsProof, projectionSHA256
+    }
+
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(
+            decoder, allowed: Set(CodingKeys.allCases.map(\.rawValue))
+        )
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try values.decode(Int.self, forKey: .schemaVersion)
+        snapshotSHA256 = try values.decode(String.self, forKey: .snapshotSHA256)
+        activitySnapshotSHA256 = try values.decode(String.self, forKey: .activitySnapshotSHA256)
+        sequenceFrontier = try values.decode(EvidenceSequenceReferenceV1.self, forKey: .sequenceFrontier)
+        orderedItems = try values.decode([ReviewedEvidenceReportItemV1].self, forKey: .orderedItems)
+        comparisonIsProof = try values.decode(Bool.self, forKey: .comparisonIsProof)
+        projectionSHA256 = try values.decode(String.self, forKey: .projectionSHA256)
+        try validateIntrinsic()
+    }
+}
+
 /// Immutable, renderer-neutral projection of a completed guided survey.  It
 /// deliberately carries completion facts and the subject as published, but no
 /// pass/fail, compliance, or later subject-promotion inference.

@@ -32,6 +32,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             .applyPackagePromotion,
             .applyMeasurementIntegrity,
             .applyPrivacyTransform,
+            .applyEvidenceMetadata,
             .applyClientCapability,
             .applyFieldReference,
             .applyAccessibleDocumentAssessment,
@@ -189,6 +190,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         case let .applyPackagePromotion(value):return try applyPackagePromotion(value,temporaryRelativePath:temporaryRelativePath)
         case let .applyMeasurementIntegrity(value):return try applyMeasurementIntegrity(value,temporaryRelativePath:temporaryRelativePath)
         case let .applyPrivacyTransform(value):return try applyPrivacyTransform(value,temporaryRelativePath:temporaryRelativePath)
+        case let .applyEvidenceMetadata(value):return try applyEvidenceMetadata(value,temporaryRelativePath:temporaryRelativePath)
         case let .applyClientCapability(value):return try applyClientCapability(value,temporaryRelativePath:temporaryRelativePath)
         case let .applyFieldReference(value):return try applyFieldReference(value,temporaryRelativePath:temporaryRelativePath)
         case let .applyAccessibleDocumentAssessment(value):return try applyAccessibleDocumentAssessment(value,temporaryRelativePath:temporaryRelativePath)
@@ -2235,6 +2237,220 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
     private func exactMeasurementProtocol(_ id:UUID)throws->MeasurementProtocolReleaseV1{let releaseID=id;let rows=try modelContext.fetch(FetchDescriptor<MeasurementProtocolReleaseRow>(predicate:#Predicate{$0.releaseID==releaseID}));guard rows.count==1,let value=try rows.first?.value()else{throw WorkspaceMutationFailureV1.invalidCommand};return value}
 
     private func applyPrivacyTransform(_ mutation:PrivacyTransformMutationV1,temporaryRelativePath:String)throws->WorkspaceMutationEffectV1{do{try mutation.validate();let affected=try mutation.affectedIdentities;for identity in affected{guard try privacyRow(identity)==nil else{throw WorkspaceMutationFailureV1.sequenceCollision}};switch mutation{case let .policy(value):if let id=value.supersedesPolicyID{guard case let .policy(old)?=try privacyRow(.init(kind:.privacyTransformPolicy,id:id)),try !privacySuccessorExists(.init(kind:.privacyTransformPolicy,id:id))else{throw WorkspaceMutationFailureV1.invalidCommand};try value.validateSuccessor(of:old)};modelContext.insert(try PrivacyTransformPolicyRow(value));case let .publish(policy,regions,manifest):guard case let .policy(storedPolicy)?=try privacyRow(.init(kind:.privacyTransformPolicy,id:policy.policyID)),storedPolicy==policy else{throw WorkspaceMutationFailureV1.invalidCommand};if let id=manifest.supersedesManifestID{guard case let .manifest(old)?=try privacyRow(.init(kind:.privacyTransformManifest,id:id)),try !privacySuccessorExists(.init(kind:.privacyTransformManifest,id:id))else{throw WorkspaceMutationFailureV1.invalidCommand};try manifest.validateSuccessor(of:old,policy:policy)};for region in regions{try requireExactActor(region.author);modelContext.insert(try PrivacyRegionRow(region))};modelContext.insert(try PrivacyTransformManifestRow(manifest));case let .review(value,manifest,policy):guard case let .policy(storedPolicy)?=try privacyRow(.init(kind:.privacyTransformPolicy,id:policy.policyID)),storedPolicy==policy,case let .manifest(storedManifest)?=try privacyRow(.init(kind:.privacyTransformManifest,id:manifest.manifestID)),storedManifest==manifest else{throw WorkspaceMutationFailureV1.invalidCommand};try requireExactActor(value.reviewer);if let id=value.supersedesReceiptID{guard case let .review(old)?=try privacyRow(.init(kind:.privacyReviewReceipt,id:id)),try !privacySuccessorExists(.init(kind:.privacyReviewReceipt,id:id))else{throw WorkspaceMutationFailureV1.invalidCommand};try old.validate(manifest:manifest,policy:policy);try value.validateSuccessor(of:old,manifest:manifest,policy:policy)};modelContext.insert(try PrivacyReviewReceiptRow(value))};return try WorkspaceMutationEffectV1(affectedEntities:affected,temporaryRelativePath:temporaryRelativePath)}catch let failure as WorkspaceMutationFailureV1{modelContext.rollback();throw failure}catch{modelContext.rollback();throw WorkspaceMutationFailureV1.invalidCommand}}
+    private func applyEvidenceMetadata(
+        _ mutation: EvidenceMetadataMutationV1,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1 {
+        do {
+            try mutation.validate()
+            let event = mutation.associationEvent
+            let workspace = event.workspaceID
+            let evidenceID = event.evidenceID
+            let eventRowID = "\(workspace)|\(event.associationEventID)"
+            let duplicateEventRows = try modelContext.fetch(
+                FetchDescriptor<EvidenceAssociationEventRowV1>(
+                    predicate: #Predicate { $0.rowID == eventRowID }
+                )
+            )
+            guard duplicateEventRows.isEmpty else {
+                throw WorkspaceMutationFailureV1.sequenceCollision
+            }
+
+            let existingAssociations = try validatedEvidenceAssociations(
+                workspaceID: mutation.workspaceID
+            )
+            let priorEvents = existingAssociations.filter { $0.evidenceID == evidenceID }
+            if event.expectedEvidenceRevision == 0 {
+                guard priorEvents.isEmpty,
+                      event.action == .assigned,
+                      event.supersedesAssociationEventID == nil else {
+                    throw WorkspaceMutationFailureV1.staleWorkspaceRevision
+                }
+            } else {
+                guard let prior = priorEvents.last,
+                      prior.resultingEvidenceRevision == event.expectedEvidenceRevision else {
+                    throw WorkspaceMutationFailureV1.staleWorkspaceRevision
+                }
+                try event.validateSuccessor(of: prior)
+            }
+            try EvidenceAssociationLedgerV1.validate(existingAssociations + [event])
+
+            let sequenceID = mutation.sequenceSuccessor.sequenceID
+            let sequences = try evidenceSequenceHistory(
+                workspaceID: mutation.workspaceID,
+                sequenceID: sequenceID
+            )
+            if mutation.expectedSequenceRevision == 0 {
+                guard sequences.isEmpty,
+                      mutation.sequenceSuccessor.predecessor == nil else {
+                    throw WorkspaceMutationFailureV1.staleWorkspaceRevision
+                }
+            } else {
+                guard let expectedCount = Int(exactly: mutation.expectedSequenceRevision),
+                      let prior = sequences.last,
+                      prior.revision == mutation.expectedSequenceRevision,
+                      sequences.count == expectedCount else {
+                    throw WorkspaceMutationFailureV1.staleWorkspaceRevision
+                }
+                try mutation.sequenceSuccessor.validateSuccessor(of: prior)
+            }
+
+            for item in mutation.sequenceSuccessor.orderedItems {
+                let history = item.evidenceID == evidenceID
+                    ? priorEvents + [event]
+                    : try evidenceAssociationHistory(
+                        workspaceID: mutation.workspaceID,
+                        evidenceID: item.evidenceID
+                    )
+                guard let terminal = history.last,
+                      terminal.action != .removed,
+                      terminal.evidenceID == item.evidenceID,
+                      terminal.contentID == item.contentID,
+                      terminal.target == item.target,
+                      item.associationBinding == (try EvidenceAssociationBindingV1(terminal)) else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            }
+            if event.action == .removed {
+                guard !mutation.sequenceSuccessor.orderedItems.contains(where: {
+                    $0.evidenceID == event.evidenceID
+                }) else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            }
+
+            modelContext.insert(try EvidenceAssociationEventRowV1(event))
+            modelContext.insert(try EvidenceSequenceRevisionRowV1(mutation.sequenceSuccessor))
+            return try WorkspaceMutationEffectV1(
+                affectedEntities: mutation.affectedIdentities,
+                temporaryRelativePath: temporaryRelativePath
+            )
+        } catch let failure as WorkspaceMutationFailureV1 {
+            modelContext.rollback()
+            throw failure
+        } catch {
+            modelContext.rollback()
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+    }
+
+    func evidenceAssociationHistory(
+        workspaceID: WorkspaceID,
+        evidenceID: String
+    ) throws -> [EvidenceAssociationV1] {
+        guard ContentContractValidationV1.validID(evidenceID) else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        return try validatedEvidenceAssociations(workspaceID: workspaceID).filter {
+            $0.evidenceID == evidenceID
+        }
+    }
+
+    private func validatedEvidenceAssociations(
+        workspaceID: WorkspaceID
+    ) throws -> [EvidenceAssociationV1] {
+        let workspace = workspaceID.rawValue.uuidString.lowercased()
+        let rows = try modelContext.fetch(
+            FetchDescriptor<EvidenceAssociationEventRowV1>(
+                predicate: #Predicate { $0.workspaceID == workspace }
+            )
+        )
+        let values = try rows.map { try $0.value() }.sorted {
+            ($0.evidenceID, $0.resultingEvidenceRevision, $0.associationEventID)
+                < ($1.evidenceID, $1.resultingEvidenceRevision, $1.associationEventID)
+        }
+        try EvidenceAssociationLedgerV1.validate(values)
+        return values
+    }
+
+    func evidenceSequenceHistory(
+        workspaceID: WorkspaceID,
+        sequenceID: UUID
+    ) throws -> [EvidenceSequenceV1] {
+        try validatedEvidenceSequences(workspaceID: workspaceID).filter {
+            $0.sequenceID == sequenceID
+        }
+    }
+
+    private func validatedEvidenceSequences(
+        workspaceID: WorkspaceID
+    ) throws -> [EvidenceSequenceV1] {
+        let workspace = workspaceID.rawValue
+        let rows = try modelContext.fetch(
+            FetchDescriptor<EvidenceSequenceRevisionRowV1>(
+                predicate: #Predicate { $0.workspaceID == workspace }
+            )
+        )
+        let values = try rows.map { try $0.value() }.sorted {
+            ($0.sequenceID.uuidString, $0.revision)
+                < ($1.sequenceID.uuidString, $1.revision)
+        }
+        let revisionKeys = values.map {
+            "\($0.sequenceID.uuidString.lowercased())|\($0.revision)"
+        }
+        guard Set(revisionKeys).count == values.count,
+              Set(values.map(\.mutationID)).count == values.count,
+              Dictionary(grouping: values, by: \.sequenceID).values.allSatisfy({
+                  $0.first?.revision == 1 && $0.first?.predecessor == nil
+              }) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        for history in Dictionary(grouping: values, by: \.sequenceID).values {
+            for index in history.indices.dropFirst() {
+                try history[index].validateSuccessor(of: history[index - 1])
+            }
+        }
+        return values
+    }
+
+    func persistedEvidenceMetadataEffectMatches(
+        _ mutation: EvidenceMetadataMutationV1
+    ) throws -> Bool {
+        try mutation.validate()
+        let event = mutation.associationEvent
+        let eventRowID = "\(event.workspaceID)|\(event.associationEventID)"
+        let eventRows = try modelContext.fetch(
+            FetchDescriptor<EvidenceAssociationEventRowV1>(
+                predicate: #Predicate { $0.rowID == eventRowID }
+            )
+        )
+        let sequenceID = mutation.sequenceSuccessor.sequenceID
+        let workspace = mutation.workspaceID.rawValue
+        let revision = mutation.sequenceSuccessor.revision
+        let sequenceRows = try modelContext.fetch(
+            FetchDescriptor<EvidenceSequenceRevisionRowV1>(
+                predicate: #Predicate {
+                    $0.workspaceID == workspace
+                        && $0.sequenceID == sequenceID
+                        && $0.revision == revision
+                }
+            )
+        )
+        guard eventRows.count <= 1, sequenceRows.count <= 1 else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        let presentCount = eventRows.count + sequenceRows.count
+        guard presentCount > 0 else { return false }
+        guard presentCount == 2,
+              let eventRow = eventRows.first,
+              let sequenceRow = sequenceRows.first,
+              try eventRow.value() == event,
+              try sequenceRow.value() == mutation.sequenceSuccessor else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        let allAssociations = try validatedEvidenceAssociations(
+            workspaceID: mutation.workspaceID
+        )
+        let allSequences = try validatedEvidenceSequences(
+            workspaceID: mutation.workspaceID
+        )
+        try EvidenceMetadataGraphV1.validate(
+            sequences: allSequences,
+            associationEvents: allAssociations
+        )
+        return true
+    }
+
     private enum PrivacyStoredValue{case policy(PrivacyTransformPolicyV1),region(PrivacyRegionV1),manifest(PrivacyTransformManifestV1),review(PrivacyReviewReceiptV1)}
     private func privacyRow(_ identity:WorkspaceEntityIdentityV1)throws->PrivacyStoredValue?{
         let id=identity.id

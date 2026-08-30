@@ -787,3 +787,22 @@ extension V9_06DeletionRightsTests {
         XCTAssertTrue(SceneNavigationLifecycleDispositionV1().eraseClears)
     }
 }
+
+extension V9_06DeletionRightsTests {
+    func testV23P03C05MetadataDeletionIsAppendOnlyAndContentRemainsIncumbentOwned() throws {
+        try EvidenceMetadataDeletionLedgerPolicyV1.validate()
+        try EvidenceMetadataDeletionLedgerStorePolicyV1.validate()
+        try EvidenceMetadataKernelDeletionEraseEnrollmentV1.validate()
+        XCTAssertTrue(EvidenceMetadataDeletionLedgerPolicyV1.ordinaryRemovalCreatesAppendOnlySuccessor)
+        XCTAssertFalse(EvidenceMetadataDeletionLedgerPolicyV1.ordinaryRemovalPhysicallyDeletesMetadata)
+        XCTAssertTrue(EvidenceMetadataDeletionLedgerPolicyV1.deletionEvidenceIsAssociationPredecessorBound)
+        XCTAssertFalse(EvidenceMetadataDeletionLedgerPolicyV1.createsDeletionLedgerTombstoneKind)
+        XCTAssertTrue(EvidenceMetadataDeletionLedgerPolicyV1.workspaceEraseClearsRowsAndOwnedDerivatives)
+        XCTAssertTrue(C05EvidenceMetadataRestoreIdentityBoundaryV1.derivativeContentUsesIncumbentContentLifecycle)
+        XCTAssertFalse(C05EvidenceMetadataRestoreIdentityBoundaryV1.sourceRowsAutomaticallyActivateOnCloneOrFork)
+        XCTAssertEqual(
+            EvidenceMetadataKernelDeletionEraseEnrollmentV1.durableRowNames,
+            Set(["EvidenceAssociationEventRowV1", "EvidenceSequenceRevisionRowV1"])
+        )
+    }
+}

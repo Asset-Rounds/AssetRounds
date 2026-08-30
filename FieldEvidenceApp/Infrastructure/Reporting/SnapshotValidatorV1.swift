@@ -17,6 +17,25 @@ enum AccessibleDocumentSnapshotValidatorV1{
     static func validate(receipt:AccessibleDocumentAssessmentReceiptV1,tree:AccessibleDocumentSemanticTreeV1,output:Data)throws{try receipt.validate(tree:tree);try receipt.validateOutput(output)}
 }
 
+enum ReviewedEvidenceSnapshotValidatorV1 {
+    static func validate(
+        snapshot: CompletedActivityEvidenceSequenceSnapshotV1,
+        projection: ReviewedEvidenceReportProjectionV1,
+        currentAssociationEvents: [EvidenceAssociationV1]
+    ) throws {
+        try snapshot.validate()
+        try snapshot.validateSourceFrontier(currentAssociationEvents)
+        try projection.validate(snapshot: snapshot)
+    }
+
+    static func validateSuccessor(
+        _ snapshot: CompletedActivityEvidenceSequenceSnapshotV1,
+        of prior: CompletedActivityEvidenceSequenceSnapshotV1
+    ) throws {
+        try snapshot.validateSuccessor(of: prior)
+    }
+}
+
 /// Computes the one stable integrity finding used when the immutable snapshot
 /// bytes and their report authority disagree.  The validator still fails
 /// closed; this helper makes the diagnostic classification deterministic for

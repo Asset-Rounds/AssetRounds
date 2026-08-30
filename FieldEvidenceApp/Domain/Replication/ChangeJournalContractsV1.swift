@@ -707,6 +707,7 @@ struct JournalChangeV1: Codable, Equatable, Sendable {
         try PackagePromotionJournalContractV1.validate(envelope:envelope,receipt:receipt,entityChanges:entityChanges)
         try MeasurementIntegrityJournalContractV1.validate(envelope:envelope,receipt:receipt,entityChanges:entityChanges)
         try PrivacyTransformJournalContractV1.validate(envelope:envelope,receipt:receipt,entityChanges:entityChanges)
+        try EvidenceMetadataJournalContractV1.validate(envelope:envelope,receipt:receipt,entityChanges:entityChanges)
         try ClientCapabilityJournalContractV1.validate(envelope:envelope,receipt:receipt,entityChanges:entityChanges)
         try PlacementPoseJournalContractV1.validate(envelope:envelope,receipt:receipt,entityChanges:entityChanges)
         try EvidenceContextJournalContractV1.validate(envelope:envelope,receipt:receipt,entityChanges:entityChanges)
@@ -788,6 +789,31 @@ enum FieldDraftJournalContractV1{static func validate(envelope:MutationEnvelopeV
 enum PackagePromotionJournalContractV1{static func validate(envelope:MutationEnvelopeV1,receipt:MutationReceiptV1,entityChanges:[EntityChangeV1])throws{guard case let .applyPackagePromotion(mutation)=envelope.command else{return};try mutation.validate();let affected=try mutation.affectedIdentities,images=try mutation.mutationPostImages;guard envelope.commandKind == .applyPackagePromotion,envelope.mutationID==mutation.mutationID,receipt.mutationID==mutation.mutationID,receipt.postImages==images,entityChanges.map(\.identity)==affected,entityChanges.map(\.postImage)==images else{throw ChangeJournalFailureV1.tamperedBatch}}}
 enum MeasurementIntegrityJournalContractV1{static func validate(envelope:MutationEnvelopeV1,receipt:MutationReceiptV1,entityChanges:[EntityChangeV1])throws{guard case let .applyMeasurementIntegrity(mutation)=envelope.command else{return};try mutation.validate();let affected=try mutation.affectedIdentities,images=try mutation.mutationPostImages;guard envelope.commandKind == .applyMeasurementIntegrity,envelope.mutationID==mutation.mutationID,receipt.mutationID==mutation.mutationID,receipt.postImages==images,entityChanges.map(\.identity)==affected,entityChanges.map(\.postImage)==images else{throw ChangeJournalFailureV1.tamperedBatch}}}
 enum PrivacyTransformJournalContractV1{static func validate(envelope:MutationEnvelopeV1,receipt:MutationReceiptV1,entityChanges:[EntityChangeV1])throws{guard case let .applyPrivacyTransform(mutation)=envelope.command else{return};try mutation.validate();let affected=try mutation.affectedIdentities,images=try mutation.mutationPostImages;guard envelope.commandKind == .applyPrivacyTransform,envelope.mutationID==mutation.mutationID,receipt.mutationID==mutation.mutationID,receipt.postImages==images,entityChanges.map(\.identity)==affected,entityChanges.map(\.postImage)==images else{throw ChangeJournalFailureV1.tamperedBatch}}}
+enum EvidenceMetadataJournalContractV1 {
+    static func validate(
+        envelope: MutationEnvelopeV1,
+        receipt: MutationReceiptV1,
+        entityChanges: [EntityChangeV1]
+    ) throws {
+        guard case let .applyEvidenceMetadata(mutation) = envelope.command else { return }
+        try mutation.validate()
+        let affected = try mutation.affectedIdentities
+        let images = try mutation.mutationPostImages
+        guard envelope.commandKind == .applyEvidenceMetadata,
+              envelope.mutationID == mutation.mutationID,
+              receipt.mutationID == mutation.mutationID,
+              receipt.postImages == images,
+              entityChanges.count == 2,
+              entityChanges.map(\.identity) == affected,
+              entityChanges.map(\.postImage) == images else {
+            throw ChangeJournalFailureV1.tamperedBatch
+        }
+        _ = try EvidenceMetadataMutationReceiptV1(
+            mutation: mutation,
+            mutationReceipt: receipt
+        )
+    }
+}
 enum ClientCapabilityJournalContractV1{static func validate(envelope:MutationEnvelopeV1,receipt:MutationReceiptV1,entityChanges:[EntityChangeV1])throws{guard case let .applyClientCapability(mutation)=envelope.command else{return};try mutation.validate();let affected=try mutation.affectedIdentity,image=try mutation.mutationPostImage;guard envelope.commandKind == .applyClientCapability,envelope.mutationID==mutation.mutationID,receipt.mutationID==mutation.mutationID,receipt.postImages==[image],entityChanges.map(\.identity)==[affected],entityChanges.map(\.postImage)==[image]else{throw ChangeJournalFailureV1.tamperedBatch}}}
 enum FieldReferenceJournalContractV1{static func validate(envelope:MutationEnvelopeV1,receipt:MutationReceiptV1,entityChanges:[EntityChangeV1])throws{guard case let .applyFieldReference(mutation)=envelope.command else{return};try mutation.validate();let affected=try mutation.affectedIdentity,image=try mutation.mutationPostImage;guard envelope.commandKind == .applyFieldReference,envelope.mutationID==mutation.mutationID,receipt.mutationID==mutation.mutationID,receipt.postImages==[image],entityChanges.map(\.identity)==[affected],entityChanges.map(\.postImage)==[image]else{throw ChangeJournalFailureV1.tamperedBatch}}}
 enum AccessibleDocumentAssessmentJournalContractV1{static func validate(envelope:MutationEnvelopeV1,receipt:MutationReceiptV1,entityChanges:[EntityChangeV1])throws{guard case let .applyAccessibleDocumentAssessment(mutation)=envelope.command else{return};try mutation.validate();let affected=try mutation.affectedIdentity,image=try mutation.mutationPostImage;guard envelope.commandKind == .applyAccessibleDocumentAssessment,envelope.mutationID==mutation.mutationID,receipt.mutationID==mutation.mutationID,receipt.postImages==[image],entityChanges.map(\.identity)==[affected],entityChanges.map(\.postImage)==[image]else{throw ChangeJournalFailureV1.tamperedBatch}}}

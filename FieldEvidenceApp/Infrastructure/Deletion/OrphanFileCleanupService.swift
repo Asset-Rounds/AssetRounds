@@ -82,6 +82,28 @@ enum OrphanFileCleanupServiceError: Error, Equatable, Sendable {
 
 enum FieldReferenceOrphanCleanupPolicyV1{static func removableReleaseIDs(releases:[FieldReferenceReleaseV1],bindings:[FieldReferenceBindingV1])->Set<UUID>{Set(releases.map(\.releaseID)).subtracting(Set(bindings.map(\.releaseID)))}static func protectedContentIDs(releases:[FieldReferenceReleaseV1],bindings:[FieldReferenceBindingV1])->Set<String>{let retained=Set(bindings.map(\.releaseID));return Set(releases.filter{retained.contains($0.releaseID)}.flatMap{$0.manifest.entries.map(\.contentID)})}}
 enum AccessibleDocumentOrphanCleanupPolicyV1{static func protectedOutputDigests(_ receipts:[AccessibleDocumentAssessmentReceiptV1])->Set<String>{Set(receipts.map(\.outputSHA256))}static func mayRemove(outputSHA256:String,receipts:[AccessibleDocumentAssessmentReceiptV1],hasAuthorizedExpiryTombstoneAndRedactionProof:Bool)->Bool{hasAuthorizedExpiryTombstoneAndRedactionProof && !protectedOutputDigests(receipts).contains(outputSHA256)}}
+
+/// Orphan cleanup removes only owned derivative bytes after its incumbent
+/// retention closure proves them unreferenced. It never infers removal of an
+/// append-only C05 association or sequence row from a missing file.
+enum EvidenceMetadataOrphanCleanupPolicyV1 {
+    static let ownedDerivativeRoot = "content"
+    static let removesOnlyUnreferencedOwnedDerivativeBytes = true
+    static let preservesAssociationAndSequencePredecessors = true
+    static let missingDerivativeBytesNeverDeleteMetadataRows = true
+    static let workspaceEraseOwnsFinalRowAndContentClear = true
+
+    static func validate() throws {
+        try EvidenceMetadataKernelDeletionEraseEnrollmentV1.validate()
+        guard ownedDerivativeRoot == "content",
+              removesOnlyUnreferencedOwnedDerivativeBytes,
+              preservesAssociationAndSequencePredecessors,
+              missingDerivativeBytesNeverDeleteMetadataRows,
+              workspaceEraseOwnsFinalRowAndContentClear else {
+            throw OrphanFileCleanupServiceError.invalidOwnedLayout
+        }
+    }
+}
 /// Asset-locator rows are canonical lookup/receipt state, not file-owned
 /// payloads. Orphan maintenance may never infer a row deletion from a missing
 /// file; callers must provide the complete immutable locator/receipt closure.
@@ -501,6 +523,7 @@ final class OrphanFileCleanupService {
 private extension OrphanFileCleanupService {
     func validateKernelOrphanMappings() throws {
         do {
+            try EvidenceMetadataOrphanCleanupPolicyV1.validate()
             try ScheduleOrphanCleanupPolicyV1.validate()
             try PlanOrphanCleanupPolicyV1.validate()
             try PlacementPoseOrphanCleanupPolicyV1.validate()

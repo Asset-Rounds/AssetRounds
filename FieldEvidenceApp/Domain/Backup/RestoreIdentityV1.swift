@@ -60,6 +60,51 @@ enum C57MyDayRestoreIdentityBoundaryV1 {
     }
 }
 
+enum C05EvidenceMetadataRestoreDispositionV1: String, Codable, Equatable, Sendable {
+    case preserveSameWorkspaceCanonicalHistory = "PRESERVE_SAME_WORKSPACE_CANONICAL_HISTORY"
+    case retainSourceBoundHistoricHistory = "RETAIN_SOURCE_BOUND_HISTORIC_HISTORY"
+}
+
+enum C05EvidenceMetadataRestoreIdentityBoundaryV1 {
+    static let derivativeContentUsesIncumbentContentLifecycle = true
+    static let sourceRowsAutomaticallyActivateOnCloneOrFork = false
+
+    static func disposition(for mode: BackupRestoreMode) -> C05EvidenceMetadataRestoreDispositionV1 {
+        switch mode {
+        case .emptyInstall, .replaceExisting: return .preserveSameWorkspaceCanonicalHistory
+        case .clone, .fork: return .retainSourceBoundHistoricHistory
+        }
+    }
+
+    static func expectedWorkspaceID(
+        identity: RestoreIdentityV1?,
+        legacyDestination: UUID
+    ) -> UUID {
+        guard let identity else { return legacyDestination }
+        switch disposition(for: identity.mode) {
+        case .preserveSameWorkspaceCanonicalHistory:
+            return identity.targetPointer.workspaceID
+        case .retainSourceBoundHistoricHistory:
+            return identity.source.workspaceID ?? identity.targetPointer.workspaceID
+        }
+    }
+
+    static func validate(_ records: V4BackupRecordsV1, identity: RestoreIdentityV1?) throws {
+        guard derivativeContentUsesIncumbentContentLifecycle,
+              !sourceRowsAutomaticallyActivateOnCloneOrFork else {
+            throw RestoreIdentityDecisionErrorV1.invalidMode
+        }
+        try C05EvidenceMetadataBackupEnrollmentV1.validate(records)
+        guard let identity else { return }
+        let expected = expectedWorkspaceID(identity: identity, legacyDestination: identity.targetPointer.workspaceID)
+        guard records.evidenceAssociationEvents.allSatisfy({
+            $0.workspaceID == expected.uuidString.lowercased()
+        }), records.evidenceSequenceRevisions.allSatisfy({
+            $0.workspaceID.rawValue == expected
+        }) else { throw RestoreIdentityDecisionErrorV1.invalidPointerIdentity }
+    }
+}
+
 enum AccessibleDocumentRestoreIdentityDispositionV1:String,Codable,Equatable,Sendable{
     case preserveAcceptedSourceBinding="PRESERVE_ACCEPTED_SOURCE_BINDING"
     case reboundAsIncompleteHistoricSourceEvidence="REBOUND_AS_INCOMPLETE_HISTORIC_SOURCE_EVIDENCE"
@@ -974,7 +1019,7 @@ enum C53ServiceReliabilityRestoreIdentityBoundaryV1 {
               cloneForkRequiresExplicitWorkspaceRebind,
               !cloneForkAutomaticallyActivatesSourceRows,
               derivedProjectionsAreRebuilt,
-              records.recordsSchemaVersion <= C57MyDayBackupEnrollmentV1.recordsSchemaVersion else {
+              records.recordsSchemaVersion <= C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion else {
             throw RestoreIdentityDecisionErrorV1.invalidMode
         }
         do {

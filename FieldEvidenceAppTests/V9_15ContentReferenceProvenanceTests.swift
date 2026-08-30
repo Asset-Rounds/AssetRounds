@@ -34,6 +34,17 @@ private final class C30EvidenceContextAnchorV9_15ContentReferenceProvenance: XCT
     }
 }
 
+private struct C05ReviewedMetadataFixtureV1 {
+    let workspace: WorkspaceID
+    let target: EvidenceAssociationTargetV1
+    let policy: EvidenceCurationPolicyV1
+    let reviewer: ActorSnapshotV1
+    let association: EvidenceAssociationV1
+    let item: EvidenceSequenceItemV1
+    let sequence: EvidenceSequenceV1
+    let mutation: EvidenceMetadataMutationV1
+}
+
 final class V9_15ContentReferenceProvenanceTests: XCTestCase {
     func testV23P03C37TypedPoseContractAnchor() throws {
         let axis = try PoseAxisDescriptorV1(
@@ -543,6 +554,252 @@ final class V9_15ContentReferenceProvenanceTests: XCTestCase {
         // C36 pre-promotion and CONTENT_PROMOTED_UNBOUND reservations never gain an EvidenceID.
     }
 
+    func testV23P03C05ReviewedMetadataIsBoundedCanonicalAndExplicitlyOrdered() throws {
+        let fixture = try makeC05ReviewedMetadataFixture()
+        XCTAssertEqual(EvidenceRoleV1.allCases.map(\.rawValue), ["CONTEXT", "DETAIL", "BEFORE", "AFTER", "OTHER"])
+        XCTAssertEqual(EvidenceReviewedTextProvenanceV1.allCases.map(\.rawValue), ["USER_AUTHORED", "IMPORTED_THEN_REVIEWED"])
+        XCTAssertEqual(fixture.sequence.orderedItems.map(\.ordinal), [0])
+        XCTAssertEqual(fixture.sequence.orderedItems.first?.role, .context)
+        XCTAssertEqual(fixture.sequence.orderedItems.first?.caption.text, "Front elevation")
+        XCTAssertEqual(fixture.sequence.orderedItems.first?.accessibilityDescription?.text, "Reviewed front elevation.")
+        XCTAssertEqual(
+            try EvidenceMetadataCanonicalCodecV1.decode(
+                EvidenceSequenceV1.self,
+                from: EvidenceMetadataCanonicalCodecV1.data(fixture.sequence)
+            ),
+            fixture.sequence
+        )
+        try EvidenceAssociationLedgerV1.validate([fixture.association])
+    }
+
+    func testV23P03C05SuccessorFrontierAndCASRejectForksDuplicatesAndTamper() throws {
+        let first = try makeC05ReviewedMetadataFixture()
+        try first.mutation.validate()
+        let affected = try first.mutation.affectedIdentities
+        let concurrency = try first.mutation.concurrencyIdentities
+        XCTAssertEqual(affected.count, 2)
+        XCTAssertEqual(concurrency, affected)
+        XCTAssertEqual(
+            affected.map { $0.kind.rawValue }.sorted(),
+            ["evidenceAssociationEvent", "evidenceSequenceRevision"]
+        )
+        XCTAssertEqual(
+            try concurrency.map { try first.mutation.expectedRevision(for: $0) },
+            [0, 0]
+        )
+
+        let secondMutationID = try MutationIDV1(rawValue: UUID(uuidString: "00000000-0000-4000-8000-000000005011")!)
+        let secondEvent = try EvidenceAssociationV1(
+            associationEventID: "association.c05.2",
+            workspaceID: first.association.workspaceID,
+            evidenceID: first.association.evidenceID,
+            expectedEvidenceRevision: 1,
+            resultingEvidenceRevision: 2,
+            mutationID: secondMutationID.rawValue.uuidString.lowercased(),
+            action: .reassigned,
+            contentID: "content.c05.2",
+            target: first.target,
+            previousContentID: first.association.contentID,
+            previousTarget: first.target,
+            supersedesAssociationEventID: first.association.associationEventID,
+            actorID: "actor.c05",
+            reason: "Correct the reviewed source binding.",
+            effectiveAt: instant
+        )
+        let secondItem = try EvidenceSequenceItemV1(
+            evidenceID: secondEvent.evidenceID,
+            contentID: secondEvent.contentID!,
+            role: .detail,
+            caption: try EvidenceReviewedCaptionV1(
+                text: "Corrected elevation",
+                provenance: .importedThenReviewed,
+                reviewer: first.reviewer,
+                reviewedAt: Date(timeIntervalSince1970: 1_756_000_000)
+            ),
+            accessibilityDescription: nil,
+            ordinal: 0,
+            target: first.target,
+            association: secondEvent
+        )
+        let secondSequence = try EvidenceSequenceV1(
+            sequenceID: first.sequence.sequenceID,
+            workspaceID: first.workspace,
+            target: first.target,
+            policy: first.policy,
+            orderedItems: [secondItem],
+            predecessor: try first.sequence.reference,
+            revision: 2,
+            mutationID: secondMutationID
+        )
+        let secondMutation = try EvidenceMetadataMutationV1(
+            workspaceID: first.workspace,
+            mutationID: secondMutationID,
+            expectedSequenceRevision: 1,
+            associationEvent: secondEvent,
+            sequenceSuccessor: secondSequence
+        )
+        try secondEvent.validateSuccessor(of: first.association)
+        try secondSequence.validateSuccessor(of: first.sequence)
+        try secondMutation.validate()
+        try EvidenceMetadataGraphV1.validate(
+            sequences: [first.sequence, secondSequence],
+            associationEvents: [first.association, secondEvent]
+        )
+
+        let forkID = try MutationIDV1(rawValue: UUID(uuidString: "00000000-0000-4000-8000-000000005012")!)
+        let forkEvent = try EvidenceAssociationV1(
+            associationEventID: "association.c05.fork",
+            workspaceID: first.association.workspaceID,
+            evidenceID: first.association.evidenceID,
+            expectedEvidenceRevision: 1,
+            resultingEvidenceRevision: 2,
+            mutationID: forkID.rawValue.uuidString.lowercased(),
+            action: .reassigned,
+            contentID: "content.c05.fork",
+            target: first.target,
+            previousContentID: first.association.contentID,
+            previousTarget: first.target,
+            supersedesAssociationEventID: first.association.associationEventID,
+            actorID: "actor.c05",
+            reason: "Reject a divergent concurrent writer.",
+            effectiveAt: instant
+        )
+        XCTAssertThrowsError(try EvidenceAssociationLedgerV1.validate([first.association, secondEvent, forkEvent])) { error in
+            XCTAssertEqual(error as? ContentContractFailureV1, .historyRewrite)
+        }
+        let duplicateSequence = try EvidenceSequenceV1(
+            sequenceID: first.sequence.sequenceID,
+            workspaceID: first.workspace,
+            target: first.target,
+            policy: first.policy,
+            orderedItems: [secondItem],
+            predecessor: try first.sequence.reference,
+            revision: 2,
+            mutationID: forkID
+        )
+        XCTAssertThrowsError(try EvidenceMetadataGraphV1.validate(
+            sequences: [first.sequence, secondSequence, duplicateSequence],
+            associationEvents: [first.association, secondEvent]
+        )) { error in
+            XCTAssertEqual(error as? EvidenceMetadataFailureV1, .duplicateIdentity)
+        }
+        let wrongFrontier = try EvidenceSequenceReferenceV1(
+            sequenceID: first.sequence.sequenceID,
+            revision: 1,
+            sequenceSHA256: String(repeating: "0", count: 64)
+        )
+        let wrongSequence = try EvidenceSequenceV1(
+            sequenceID: first.sequence.sequenceID,
+            workspaceID: first.workspace,
+            target: first.target,
+            policy: first.policy,
+            orderedItems: [secondItem],
+            predecessor: wrongFrontier,
+            revision: 2,
+            mutationID: secondMutationID
+        )
+        XCTAssertThrowsError(try wrongSequence.validateSuccessor(of: first.sequence)) { error in
+            XCTAssertEqual(error as? EvidenceMetadataFailureV1, .invalidSuccessor)
+        }
+        let canonicalSequence = try XCTUnwrap(String(
+            data: EvidenceMetadataCanonicalCodecV1.data(first.sequence),
+            encoding: .utf8
+        ))
+        let tamperedData = Data(canonicalSequence.replacingOccurrences(
+            of: first.sequence.sequenceSHA256,
+            with: String(repeating: "0", count: 64)
+        ).utf8)
+        XCTAssertThrowsError(try EvidenceMetadataCanonicalCodecV1.decode(EvidenceSequenceV1.self, from: tamperedData)) { error in
+            XCTAssertEqual(error as? EvidenceMetadataFailureV1, .invalidDigest)
+        }
+        XCTAssertThrowsError(try EvidenceCurationPolicyV1(
+            policyID: UUID(uuidString: "00000000-0000-4000-8000-000000005013")!,
+            workspaceID: first.workspace,
+            maximumSequenceItems: EvidenceMetadataLimitsV1.maximumSequenceItems + 1
+        )) { error in
+            XCTAssertEqual(error as? EvidenceMetadataFailureV1, .limitExceeded)
+        }
+        XCTAssertThrowsError(try EvidenceReviewedCaptionV1(
+            text: String(repeating: "é", count: EvidenceMetadataLimitsV1.maximumCaptionBytes / 2 + 1),
+            provenance: .userAuthored,
+            reviewer: first.reviewer,
+            reviewedAt: Date(timeIntervalSince1970: 1_756_000_000)
+        )) { error in
+            XCTAssertEqual(error as? EvidenceMetadataFailureV1, .invalidValue)
+        }
+        XCTAssertThrowsError(try EvidenceAccessibilityDescriptionV1(
+            text: String(repeating: "é", count: EvidenceMetadataLimitsV1.maximumAccessibilityDescriptionBytes / 2 + 1),
+            provenance: .userAuthored,
+            reviewer: first.reviewer,
+            reviewedAt: Date(timeIntervalSince1970: 1_756_000_000)
+        )) { error in
+            XCTAssertEqual(error as? EvidenceMetadataFailureV1, .invalidValue)
+        }
+        XCTAssertThrowsError(try EvidenceSequenceReferenceV1(
+            sequenceID: first.sequence.sequenceID,
+            revision: 0,
+            sequenceSHA256: first.sequence.sequenceSHA256
+        )) { error in
+            XCTAssertEqual(error as? EvidenceMetadataFailureV1, .invalidValue)
+        }
+    }
+
+    func testV23P03C05BackupMigrationDeletionAndReportBoundariesAreClosed() throws {
+        let fixture = try makeC05ReviewedMetadataFixture()
+        let records41 = makeC05Records(recordsSchemaVersion: 41)
+        try C05EvidenceMetadataBackupEnrollmentV1.validate(records41)
+        let records42 = makeC05Records(
+            recordsSchemaVersion: C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion,
+            associations: [fixture.association],
+            sequences: [fixture.sequence]
+        )
+        try C05EvidenceMetadataBackupEnrollmentV1.validate(records42)
+        XCTAssertThrowsError(try C05EvidenceMetadataBackupEnrollmentV1.validate(
+            makeC05Records(recordsSchemaVersion: 41, associations: [fixture.association])
+        )) { error in
+            XCTAssertEqual(error as? EvidenceMetadataFailureV1, .invalidValue)
+        }
+        XCTAssertThrowsError(try C05EvidenceMetadataBackupEnrollmentV1.validate(
+            makeC05Records(recordsSchemaVersion: 42, associations: [fixture.association, fixture.association])
+        )) { error in
+            XCTAssertEqual(error as? EvidenceMetadataFailureV1, .duplicateIdentity)
+        }
+        XCTAssertEqual(C05EvidenceCurationMigrationBoundaryV1.sourcePersistentSchemaVersion, 42)
+        XCTAssertEqual(C05EvidenceCurationMigrationBoundaryV1.targetPersistentSchemaVersion, 43)
+        XCTAssertEqual(C05EvidenceCurationMigrationBoundaryV1.compatibleRecordsSchemaVersions, [41, 42])
+        XCTAssertTrue(C05EvidenceCurationMigrationBoundaryV1.sourceRowsMustBeEmpty)
+        XCTAssertFalse(C05EvidenceCurationMigrationBoundaryV1.backfillCreatesEvidenceTruth)
+        try EvidenceMetadataDeletionLedgerPolicyV1.validate()
+        try EvidenceMetadataDeletionLedgerStorePolicyV1.validate()
+        try EvidenceMetadataKernelDeletionEraseEnrollmentV1.validate()
+        XCTAssertEqual(EvidenceMetadataPersistenceEnrollmentV1.schemaVersion, 43)
+        XCTAssertEqual(EvidenceMetadataPersistenceEnrollmentV1.recordsSchemaVersion, 42)
+        XCTAssertEqual(EvidenceMetadataPersistenceEnrollmentV1.durableModelCount, 2)
+        XCTAssertEqual(EvidenceMetadataPersistenceEnrollmentV1.totalSchemaModelCount, 144)
+        XCTAssertEqual(C05EvidenceMetadataBackupEnrollmentV1.persistentSchemaVersion, 43)
+        XCTAssertEqual(C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion, 42)
+        XCTAssertEqual(C05EvidenceMetadataBackupEnrollmentV1.durableFamilyCount, 2)
+        XCTAssertEqual(C05EvidenceMetadataBackupEnrollmentV1.canonicalRowKinds, ["EvidenceAssociationEventRowV1", "EvidenceSequenceRevisionRowV1"])
+        XCTAssertEqual(EvidenceMetadataKernelDeletionEraseEnrollmentV1.durableRowNames, Set(["EvidenceAssociationEventRowV1", "EvidenceSequenceRevisionRowV1"]))
+        XCTAssertTrue(EvidenceMetadataKernelDeletionEraseEnrollmentV1.ordinaryRemovalUsesAppendOnlyAssociationSuccessor)
+        XCTAssertTrue(EvidenceMetadataKernelDeletionEraseEnrollmentV1.workspaceEraseClearsRowsAndOwnedDerivatives)
+        let reportSource = try c05SourceText("FieldEvidenceApp/Infrastructure/Reporting/ReportProjectionRegistryV1.swift")
+        XCTAssertTrue(reportSource.contains("ReviewedEvidenceReportProjectionV1"))
+        XCTAssertTrue(reportSource.contains("renderOpenJSON"))
+        XCTAssertTrue(reportSource.contains("renderPDF"))
+        let exportSource = try c05SourceText("FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift")
+        let importSource = try c05SourceText("FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift")
+        let restoreSource = try c05SourceText("FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift")
+        let eraseSource = try c05SourceText("FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift")
+        let journalSource = try c05SourceText("FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationJournalStoreV1.swift")
+        XCTAssertTrue(exportSource.contains("C05EvidenceMetadataBackupEnrollmentV1"))
+        XCTAssertTrue(importSource.contains("C05EvidenceMetadataBackupEnrollmentV1"))
+        XCTAssertTrue(restoreSource.contains("C05EvidenceMetadataBackupEnrollmentV1"))
+        XCTAssertTrue(eraseSource.contains("EvidenceMetadataEraseAllPolicyV1"))
+        XCTAssertTrue(journalSource.contains("acceptedEvidenceMetadataMutation"))
+        XCTAssertTrue(journalSource.contains("evidenceMetadataMutation"))
+    }
+
     private func digest(_ character: Character) throws -> ContentDigestV1 {
         try ContentDigestV1(
             algorithm: .sha256,
@@ -693,6 +950,123 @@ final class V9_15ContentReferenceProvenanceTests: XCTestCase {
         )
         let data = try Data(contentsOf: XCTUnwrap(url))
         return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    }
+
+    private func makeC05ReviewedMetadataFixture() throws -> C05ReviewedMetadataFixtureV1 {
+        let workspace = WorkspaceID(rawValue: UUID(uuidString: "00000000-0000-4000-8000-000000005005")!)
+        let workspaceString = workspace.rawValue.uuidString.lowercased()
+        let target = try EvidenceAssociationTargetV1(
+            workspaceID: workspaceString,
+            kind: .finding,
+            targetID: "finding.c05",
+            targetRevision: 2
+        )
+        let actor = try LocalActorReferenceV1(
+            actorReferenceID: UUID(uuidString: "00000000-0000-4000-8000-000000005006")!,
+            workspaceID: workspace,
+            displayName: "C05 Reviewer"
+        )
+        let reviewer = try ActorSnapshotV1(
+            snapshotID: UUID(uuidString: "00000000-0000-4000-8000-000000005007")!,
+            workspaceID: workspace,
+            actor: actor,
+            responsibility: .reviewedBy,
+            displayNameAtTime: "C05 Reviewer",
+            capturedAt: Date(timeIntervalSince1970: 1_755_000_000)
+        )
+        let policy = try EvidenceCurationPolicyV1(
+            policyID: UUID(uuidString: "00000000-0000-4000-8000-000000005008")!,
+            workspaceID: workspace
+        )
+        let mutationID = try MutationIDV1(rawValue: UUID(uuidString: "00000000-0000-4000-8000-000000005009")!)
+        let association = try EvidenceAssociationV1(
+            associationEventID: "association.c05.1",
+            workspaceID: workspaceString,
+            evidenceID: "evidence.c05.1",
+            expectedEvidenceRevision: 0,
+            resultingEvidenceRevision: 1,
+            mutationID: mutationID.rawValue.uuidString.lowercased(),
+            action: .assigned,
+            contentID: "content.c05.1",
+            target: target,
+            actorID: "actor.c05",
+            reason: "Attach the reviewed source evidence.",
+            effectiveAt: instant
+        )
+        let caption = try EvidenceReviewedCaptionV1(
+            text: "Front elevation",
+            provenance: .userAuthored,
+            reviewer: reviewer,
+            reviewedAt: Date(timeIntervalSince1970: 1_755_000_001)
+        )
+        let description = try EvidenceAccessibilityDescriptionV1(
+            text: "Reviewed front elevation.",
+            provenance: .importedThenReviewed,
+            reviewer: reviewer,
+            reviewedAt: Date(timeIntervalSince1970: 1_755_000_002)
+        )
+        let item = try EvidenceSequenceItemV1(
+            evidenceID: association.evidenceID,
+            contentID: association.contentID!,
+            role: .context,
+            caption: caption,
+            accessibilityDescription: description,
+            ordinal: 0,
+            target: target,
+            association: association
+        )
+        let sequenceID = UUID(uuidString: "00000000-0000-4000-8000-000000005010")!
+        let sequence = try EvidenceSequenceV1(
+            sequenceID: sequenceID,
+            workspaceID: workspace,
+            target: target,
+            policy: policy,
+            orderedItems: [item],
+            revision: 1,
+            mutationID: mutationID
+        )
+        let mutation = try EvidenceMetadataMutationV1(
+            workspaceID: workspace,
+            mutationID: mutationID,
+            expectedSequenceRevision: 0,
+            associationEvent: association,
+            sequenceSuccessor: sequence
+        )
+        return C05ReviewedMetadataFixtureV1(
+            workspace: workspace,
+            target: target,
+            policy: policy,
+            reviewer: reviewer,
+            association: association,
+            item: item,
+            sequence: sequence,
+            mutation: mutation
+        )
+    }
+
+    private func makeC05Records(
+        recordsSchemaVersion: Int,
+        associations: [EvidenceAssociationV1] = [],
+        sequences: [EvidenceSequenceV1] = []
+    ) -> V4BackupRecordsV1 {
+        V4BackupRecordsV1(
+            assets: [],
+            evidenceFiles: [],
+            issues: [],
+            packets: [],
+            recordsSchemaVersion: recordsSchemaVersion,
+            reports: [],
+            sites: [],
+            workflowRecords: [],
+            evidenceAssociationEvents: associations,
+            evidenceSequenceRevisions: sequences
+        )
+    }
+
+    private func c05SourceText(_ relativePath: String) throws -> String {
+        let testsRoot = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        let repositoryRoot = testsRoot.deletingLastPathComponent()
+        return try String(contentsOf: repositoryRoot.appendingPathComponent(relativePath), encoding: .utf8)
     }
 }
 

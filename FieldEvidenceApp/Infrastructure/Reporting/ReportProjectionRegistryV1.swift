@@ -1,5 +1,33 @@
 import Foundation
 
+enum ReviewedEvidenceReportProjectionRegistryV1 {
+    static func projection(
+        snapshot: CompletedActivityEvidenceSequenceSnapshotV1,
+        currentAssociationEvents: [EvidenceAssociationV1]
+    ) throws -> ReviewedEvidenceReportProjectionV1 {
+        try snapshot.validateSourceFrontier(currentAssociationEvents)
+        try ReviewedEvidenceReportProjectionV1(snapshot: snapshot)
+    }
+
+    static func renderOpenJSON(
+        snapshot: CompletedActivityEvidenceSequenceSnapshotV1,
+        currentAssociationEvents: [EvidenceAssociationV1]
+    ) throws -> ReportProjectionOutputV1 {
+        try DeterministicOpenJSONRendererV1.renderReviewedEvidence(
+            projection(snapshot: snapshot, currentAssociationEvents: currentAssociationEvents)
+        )
+    }
+
+    static func renderPDF(
+        snapshot: CompletedActivityEvidenceSequenceSnapshotV1,
+        currentAssociationEvents: [EvidenceAssociationV1]
+    ) throws -> ReportProjectionOutputV1 {
+        try DeterministicPDFRendererV1.renderReviewedEvidence(
+            projection(snapshot: snapshot, currentAssociationEvents: currentAssociationEvents)
+        )
+    }
+}
+
 enum GuidedSurveyReportProjectionRegistryV1 {
     static func projection(
         publication: SurveyPublicationSnapshotV1

@@ -83,6 +83,26 @@ enum C57MyDayKernelBackupRestoreEnrollmentV1 {
     }
 }
 
+enum C05EvidenceMetadataKernelBackupRestoreEnrollmentV1 {
+    static let persistentSchemaVersion = 43
+    static let recordsSchemaVersion = 42
+    static let durableFamilies = ["EvidenceAssociationEventRowV1", "EvidenceSequenceRevisionRowV1"]
+    static let derivativeBytesUseIncumbentContentLifecycle = true
+    static let predecessorClosureIsRequired = true
+    static let records41RemainsReadable = true
+
+    static func validate() throws {
+        guard persistentSchemaVersion == C05EvidenceMetadataBackupEnrollmentV1.persistentSchemaVersion,
+              recordsSchemaVersion == C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion,
+              durableFamilies.count == C05EvidenceMetadataBackupEnrollmentV1.durableFamilyCount,
+              derivativeBytesUseIncumbentContentLifecycle,
+              predecessorClosureIsRequired,
+              records41RemainsReadable else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}
+
 enum C30EvidenceContextBackupRestoreRegistryV1 {
     static let persistentSchemaVersion = 30
     static let recordsSchemaVersion = 29

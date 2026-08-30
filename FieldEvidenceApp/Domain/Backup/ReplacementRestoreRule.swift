@@ -362,7 +362,14 @@ private extension ReplacementRestoreRule {
              (21, let ledger?, let history?), (22, let ledger?, let history?),
              (23, let ledger?, let history?), (24, let ledger?, let history?),
              (25, let ledger?, let history?), (26, let ledger?, let history?),
-             (27, let ledger?, let history?), (28, let ledger?, let history?):
+             (27, let ledger?, let history?), (28, let ledger?, let history?),
+             (29, let ledger?, let history?), (30, let ledger?, let history?),
+             (31, let ledger?, let history?), (32, let ledger?, let history?),
+             (33, let ledger?, let history?), (34, let ledger?, let history?),
+             (35, let ledger?, let history?), (36, let ledger?, let history?),
+             (37, let ledger?, let history?), (38, let ledger?, let history?),
+             (39, let ledger?, let history?), (40, let ledger?, let history?),
+             (41, let ledger?, let history?), (42, let ledger?, let history?):
             try ledger.validate()
             try MutationJournalStoreV1.validateImportedSnapshot(history)
             explicit = ledger
@@ -477,7 +484,9 @@ private extension ReplacementRestoreRule {
             partsStockSnapshot: records.partsStockSnapshot,
             myDayPlans: records.myDayPlans,
             myDayCarryoverReceipts: records.myDayCarryoverReceipts,
-            nonactivePlanReferences: records.nonactivePlanReferences
+            nonactivePlanReferences: records.nonactivePlanReferences,
+            evidenceAssociationEvents: records.evidenceAssociationEvents,
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions
         )
         guard validReferences(result), noDeletedLiveIdentity(result, ledger: ledger),
               validLocationReferences(result, ledger: ledger) else {
@@ -536,7 +545,9 @@ private extension ReplacementRestoreRule {
             partsStockSnapshot: records.partsStockSnapshot,
             myDayPlans: records.myDayPlans,
             myDayCarryoverReceipts: records.myDayCarryoverReceipts,
-            nonactivePlanReferences: records.nonactivePlanReferences
+            nonactivePlanReferences: records.nonactivePlanReferences,
+            evidenceAssociationEvents: records.evidenceAssociationEvents,
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions
         )
     }
 
@@ -593,7 +604,9 @@ private extension ReplacementRestoreRule {
             partsStockSnapshot: records.partsStockSnapshot,
             myDayPlans: records.myDayPlans,
             myDayCarryoverReceipts: records.myDayCarryoverReceipts,
-            nonactivePlanReferences: records.nonactivePlanReferences
+            nonactivePlanReferences: records.nonactivePlanReferences,
+            evidenceAssociationEvents: records.evidenceAssociationEvents,
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions
         )
     }
 
@@ -641,7 +654,9 @@ private extension ReplacementRestoreRule {
             partsStockSnapshot: records.partsStockSnapshot,
             myDayPlans: records.myDayPlans,
             myDayCarryoverReceipts: records.myDayCarryoverReceipts,
-            nonactivePlanReferences: records.nonactivePlanReferences
+            nonactivePlanReferences: records.nonactivePlanReferences,
+            evidenceAssociationEvents: records.evidenceAssociationEvents,
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions
         )
     }
 
@@ -1440,8 +1455,8 @@ enum C53ServiceReliabilityReplacementRestoreBoundaryV1 {
               cloneForkRequiresExplicitWorkspaceRebind,
               !cloneForkAutomaticallyActivatesSourceRows,
               derivedProjectionsAreRebuilt,
-              current.recordsSchemaVersion <= C57MyDayBackupEnrollmentV1.recordsSchemaVersion,
-              incoming.recordsSchemaVersion <= C57MyDayBackupEnrollmentV1.recordsSchemaVersion else {
+              current.recordsSchemaVersion <= C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion,
+              incoming.recordsSchemaVersion <= C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion else {
             throw ReplacementRestoreRuleError.invalidAuthority
         }
         do {
@@ -1532,5 +1547,75 @@ enum C53ServiceReliabilityReplacementRestoreBoundaryV1 {
             || !records.serviceRestorationAssertions.isEmpty
             || !records.qualifiedServiceExposures.isEmpty
             || !records.serviceReliabilityReceipts.isEmpty
+    }
+}
+
+enum C05EvidenceMetadataReplacementRestoreBoundaryV1 {
+    static let appendOnlyFamiliesAreUnionedOnReplacement = true
+    static let cloneForkRowsRemainSourceBoundHistoricEvidence = true
+    static let derivedContentUsesIncumbentContentLifecycle = true
+
+    static func canonicalRows(
+        current: V4BackupRecordsV1,
+        incoming: V4BackupRecordsV1,
+        mode: BackupRestoreMode,
+        sourceWorkspaceID: UUID?,
+        targetWorkspaceID: UUID?
+    ) throws -> (associations: [EvidenceAssociationV1], sequences: [EvidenceSequenceV1]) {
+        guard appendOnlyFamiliesAreUnionedOnReplacement,
+              cloneForkRowsRemainSourceBoundHistoricEvidence,
+              derivedContentUsesIncumbentContentLifecycle else {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+        do {
+            try C05EvidenceMetadataBackupEnrollmentV1.validate(incoming)
+            switch mode {
+            case .emptyInstall:
+                guard current.evidenceAssociationEvents.isEmpty,
+                      current.evidenceSequenceRevisions.isEmpty else {
+                    throw ReplacementRestoreRuleError.invalidAuthority
+                }
+                return (incoming.evidenceAssociationEvents, incoming.evidenceSequenceRevisions)
+            case .clone, .fork:
+                guard let sourceWorkspaceID, let targetWorkspaceID,
+                      sourceWorkspaceID != targetWorkspaceID,
+                      incoming.evidenceAssociationEvents.allSatisfy({
+                        $0.workspaceID == sourceWorkspaceID.uuidString.lowercased()
+                      }), incoming.evidenceSequenceRevisions.allSatisfy({
+                        $0.workspaceID.rawValue == sourceWorkspaceID
+                      }) else { throw ReplacementRestoreRuleError.invalidAuthority }
+                return (incoming.evidenceAssociationEvents, incoming.evidenceSequenceRevisions)
+            case .replaceExisting:
+                try C05EvidenceMetadataBackupEnrollmentV1.validate(current)
+                let associations = try merge(
+                    current.evidenceAssociationEvents,
+                    incoming.evidenceAssociationEvents,
+                    key: { "\($0.workspaceID)|\($0.associationEventID)" }
+                )
+                let sequences = try merge(
+                    current.evidenceSequenceRevisions,
+                    incoming.evidenceSequenceRevisions,
+                    key: { EvidenceSequenceRevisionRowV1.rowID(sequenceID: $0.sequenceID, revision: $0.revision) }
+                )
+                let combined = incoming.replacingEvidenceMetadata(associations, sequences)
+                try C05EvidenceMetadataBackupEnrollmentV1.validate(combined)
+                return (associations, sequences)
+            }
+        } catch let error as ReplacementRestoreRuleError { throw error }
+        catch { throw ReplacementRestoreRuleError.invalidAuthority }
+    }
+
+    private static func merge<T: Equatable>(
+        _ current: [T], _ incoming: [T], key: (T) -> String
+    ) throws -> [T] {
+        var values: [String: T] = [:]
+        for value in current + incoming {
+            let identity = key(value)
+            if let prior = values[identity], prior != value {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+            values[identity] = value
+        }
+        return values.sorted { $0.key < $1.key }.map(\.value)
     }
 }

@@ -82,6 +82,39 @@ enum C52ServiceRequestDeletionLedgerPolicyV1 {
     }
 }
 
+/// C05's two V43 families are the immutable association/sequence history.
+/// Removing evidence from a report is represented by an append-only successor
+/// association, never by a deletion-ledger tombstone or physical history
+/// removal. Workspace Erase is the sole physical row-and-owned-content clear.
+enum EvidenceMetadataDeletionLedgerPolicyV1 {
+    static let durableFamilies = [
+        EvidenceMetadataPersistenceEnrollmentV1.associationEventFamily,
+        EvidenceMetadataPersistenceEnrollmentV1.sequenceRevisionFamily,
+    ]
+    static let ordinaryRemovalCreatesAppendOnlySuccessor = true
+    static let ordinaryRemovalPhysicallyDeletesMetadata = false
+    static let deletionEvidenceIsAssociationPredecessorBound = true
+    static let workspaceEraseClearsRowsAndOwnedDerivatives = true
+    static let createsDeletionLedgerTombstoneKind = false
+
+    static func validate() throws {
+        guard durableFamilies.count == 2,
+              Set(durableFamilies).count == durableFamilies.count,
+              EvidenceMetadataPersistenceEnrollmentV1.schemaVersion == 43,
+              EvidenceMetadataPersistenceEnrollmentV1.recordsSchemaVersion == 42,
+              EvidenceMetadataPersistenceEnrollmentV1.durableModelCount
+                == durableFamilies.count,
+              EvidenceMetadataPersistenceEnrollmentV1.totalSchemaModelCount == 144,
+              ordinaryRemovalCreatesAppendOnlySuccessor,
+              !ordinaryRemovalPhysicallyDeletesMetadata,
+              deletionEvidenceIsAssociationPredecessorBound,
+              workspaceEraseClearsRowsAndOwnedDerivatives,
+              !createsDeletionLedgerTombstoneKind else {
+            throw DeletionLedgerFailureV2.invalidSchemaVersion
+        }
+    }
+}
+
 struct DeletionLedgerProofV2: Codable, Equatable, Sendable {
     let entryCount: Int
     let canonicalSHA256: String
@@ -93,6 +126,7 @@ struct DeletionLedgerProofV2: Codable, Equatable, Sendable {
     }
 
     func validate() throws {
+        try EvidenceMetadataDeletionLedgerPolicyV1.validate()
         try ClientCapabilityDeletionLedgerPolicyV1.validate()
         try RecoverabilityVerificationDeletionLedgerPolicyV1.validate()
         try FieldReferenceDeletionLedgerPolicyV1.validate()
@@ -386,6 +420,7 @@ struct DeletionLedgerEntryV2: Codable, Equatable, Hashable, Sendable {
     }
 
     func validate() throws {
+        try EvidenceMetadataDeletionLedgerPolicyV1.validate()
         try PrivacyTransformDeletionLedgerPolicyV1.validate()
         try MeasurementIntegrityDeletionLedgerPolicyV1.validate()
         try PackageEvolutionDeletionLedgerPolicyV1.validate()

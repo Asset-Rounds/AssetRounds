@@ -1270,6 +1270,24 @@ enum OperationalContactPersistentKindPolicyV1{
     static func validateDeclaration()throws{guard durableKindIDs.count==OperationalContactPersistenceEnrollmentV1.durableModelCount,durableKindIDs.isDisjoint(with:nonpersistentKindIDs),(durableKindIDs.union(nonpersistentKindIDs)).allSatisfy(PersistentKindLifecycleValidationV1.validKindID)else{throw PersistentKindLifecycleFailureV1.invalidLifecyclePolicy}}
 }
 
+enum C05EvidenceCurationPersistentKindPolicyV1 {
+    static let durableKindIDs = Set([
+        "PERSISTENT_MODEL:EvidenceAssociationEventRowV1",
+        "PERSISTENT_MODEL:EvidenceSequenceRevisionRowV1",
+    ])
+    static let derivedKindIDs = Set(["PROJECTION:StoreSemanticEnvelopeV43"])
+
+    static func validateDeclaration() throws {
+        guard durableKindIDs.count == 2,
+              derivedKindIDs.count == 1,
+              durableKindIDs.isDisjoint(with: derivedKindIDs),
+              durableKindIDs.union(derivedKindIDs)
+                .allSatisfy(PersistentKindLifecycleValidationV1.validKindID) else {
+            throw PersistentKindLifecycleFailureV1.invalidLifecyclePolicy
+        }
+    }
+}
+
 enum C34SceneNavigationPersistentKindBoundaryV1 {
     static let persistentKindCount = 0
     static let lifecycleEnrollmentCount = 0

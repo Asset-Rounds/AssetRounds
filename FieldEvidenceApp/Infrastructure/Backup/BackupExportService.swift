@@ -862,7 +862,9 @@ private extension BackupExportService {
                 partsStockSnapshot: records.partsStockSnapshot,
                 myDayPlans: records.myDayPlans,
                 myDayCarryoverReceipts: records.myDayCarryoverReceipts,
-                nonactivePlanReferences: records.nonactivePlanReferences
+                nonactivePlanReferences: records.nonactivePlanReferences,
+                evidenceAssociationEvents: records.evidenceAssociationEvents,
+                evidenceSequenceRevisions: records.evidenceSequenceRevisions
             )
             semanticRecordsData = try BackupCanonicalEncoderV1()
                 .encodeSemanticRecords(semanticRecords).data
@@ -979,6 +981,16 @@ private extension BackupExportService {
                     throw BackupExportServiceError.invalidAuthority
                 }
             }
+        }
+
+        for member in try evidenceDerivativeMembers(records, rootIdentity: rootIdentity) {
+            sources.append(.init(
+                path: member.path,
+                mimeType: member.mimeType,
+                byteCount: member.data.count,
+                sha256: CanonicalJSONV1.sha256(member.data),
+                location: .generationRelative(member.path)
+            ))
         }
 
         for item in try rows.attachmentStagingItems.map({try $0.value()}).sorted(by:{$0.stageID.uuidString<$1.stageID.uuidString}){
@@ -1124,9 +1136,9 @@ private extension BackupExportService {
             source: .init(
                 appBuild: appBuild(),
                 appVersion: appVersion(),
-                persistentSchemaVersion: C57MyDayBackupEnrollmentV1.persistentSchemaVersion,
+                persistentSchemaVersion: C05EvidenceMetadataBackupEnrollmentV1.persistentSchemaVersion,
                 replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: C57MyDayBackupEnrollmentV1.recordsSchemaVersion,
+                recordsSchemaVersion: C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion,
                 sourceGenerationID: generationID,
                 workspaceID: sourceIdentity.workspaceID.rawValue
             )
@@ -1297,6 +1309,10 @@ private extension BackupExportService {
                 mimeType: "image/jpeg",
                 data: thumbnail
             ))
+        }
+
+        for member in try evidenceDerivativeMembers(records, rootIdentity: rootIdentity) {
+            members.append(.init(path: member.path, mimeType: member.mimeType, data: member.data))
         }
 
         for item in try rows.attachmentStagingItems.map({ try $0.value() }).sorted(by: { uuid($0.stageID) < uuid($1.stageID) }) {
@@ -1677,6 +1693,52 @@ private extension BackupExportService {
         } catch {
             throw BackupExportServiceError.invalidAuthority
         }
+    }
+
+    func evidenceDerivativeMembers(
+        _ records: V4BackupRecordsV1,
+        rootIdentity: ReportPDFAnchoredFile.RootIdentity
+    ) throws -> [(path: String, mimeType: String, data: Data)] {
+        guard records.recordsSchemaVersion >= C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion else {
+            return []
+        }
+        var contentKeys = Set<String>()
+        for event in records.evidenceAssociationEvents {
+            for contentID in [event.contentID, event.previousContentID].compactMap({ $0 }) {
+                contentKeys.insert("\(event.workspaceID)|\(contentID)")
+            }
+        }
+        var result: [(path: String, mimeType: String, data: Data)] = []
+        for key in contentKeys.sorted() {
+            let components = key.split(separator: "|", maxSplits: 1).map(String.init)
+            guard components.count == 2 else { throw BackupExportServiceError.invalidAuthority }
+            let directory = "content/\(components[0])/\(components[1])"
+            let markerPath = "\(directory)/derivative-publication.json"
+            guard try itemType(at: generationRootURL.appendingPathComponent(markerPath)) != nil else {
+                continue // Incumbent original/temporal content has its existing archive owner.
+            }
+            let markerData = try anchoredRead(markerPath, rootIdentity: rootIdentity)
+            let marker = try EvidenceCurationCanonicalCodecV1.decode(
+                EvidenceDerivativePublicationMarkerV1.self,
+                from: markerData
+            )
+            try marker.validate()
+            guard marker.workspaceID.rawValue.uuidString.lowercased() == components[0],
+                  marker.result.derivative.contentID == components[1],
+                  marker.result.derivative.workspaceID == components[0],
+                  let digest = marker.result.derivative.digests.digest(for: .sha256) else {
+                throw BackupExportServiceError.invalidAuthority
+            }
+            let bytesPath = "\(directory)/original.bin"
+            let bytes = try anchoredRead(bytesPath, rootIdentity: rootIdentity)
+            guard Int64(bytes.count) == marker.result.derivative.byteLength,
+                  CanonicalJSONV1.sha256(bytes) == digest.hexadecimalValue else {
+                throw BackupExportServiceError.invalidAuthority
+            }
+            result.append((markerPath, "application/json", markerData))
+            result.append((bytesPath, marker.result.derivative.mediaType, bytes))
+        }
+        return result.sorted { $0.path < $1.path }
     }
 
     private func fetchRows() throws -> Rows {
@@ -2412,6 +2474,17 @@ private extension BackupExportService {
             .sorted { ($0.committedAt, $0.receiptSHA256) < ($1.committedAt, $1.receiptSHA256) }
         let nonactivePlanReferences = try C57MyDayBackupEnrollmentV1
             .exactNonactiveReferences(for: myDayPlans)
+        let evidenceAssociationEvents = mutationHistory == nil ? [] : try modelContext
+            .fetch(FetchDescriptor<EvidenceAssociationEventRowV1>())
+            .map { try $0.value() }
+            .filter { $0.workspaceID == sourceIdentity.workspaceID.rawValue.uuidString.lowercased() }
+            .sorted { ($0.workspaceID, $0.associationEventID) < ($1.workspaceID, $1.associationEventID) }
+        let evidenceSequenceRevisions = mutationHistory == nil ? [] : try modelContext
+            .fetch(FetchDescriptor<EvidenceSequenceRevisionRowV1>())
+            .map { try $0.value() }
+            .filter { $0.workspaceID == sourceIdentity.workspaceID }
+            .sorted { EvidenceSequenceRevisionRowV1.rowID(sequenceID: $0.sequenceID, revision: $0.revision)
+                < EvidenceSequenceRevisionRowV1.rowID(sequenceID: $1.sequenceID, revision: $1.revision) }
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveys,
             assetLocators: assetLocators,
@@ -2481,7 +2554,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : C57MyDayBackupEnrollmentV1.recordsSchemaVersion,
+                : C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -2533,7 +2606,9 @@ private extension BackupExportService {
              partsStockSnapshot: partsStockSnapshot,
              myDayPlans: myDayPlans,
              myDayCarryoverReceipts: myDayCarryoverReceipts,
-             nonactivePlanReferences: nonactivePlanReferences
+             nonactivePlanReferences: nonactivePlanReferences,
+             evidenceAssociationEvents: evidenceAssociationEvents,
+             evidenceSequenceRevisions: evidenceSequenceRevisions
          )
     }
 

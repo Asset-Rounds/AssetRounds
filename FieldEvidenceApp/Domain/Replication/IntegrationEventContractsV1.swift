@@ -214,6 +214,31 @@ enum PackageEvolutionIntegrationContractV1 {
 }
 enum MeasurementIntegrityIntegrationContractV1{static func definitions()throws->[IntegrationEventContractDefinitionV1]{try[("measurement.instrument_reference.v1",WorkspaceEntityKindV1.instrumentReference),("measurement.calibration_snapshot.v1",.calibrationStatusSnapshot),("measurement.capture.v1",.measurementCapture),("measurement.series.v1",.measurementSeries),("measurement.quality_assessment.v1",.measurementQualityAssessment)].map{try IntegrationEventContractDefinitionV1(eventKind:$0.0,eventVersion:1,sourceEntityKind:$0.1,sensitivity:.workspaceData,emittedVisibility:.workspaceInternal,redaction:.notRequired)}.sorted{$0.stableKey<$1.stableKey}}static func validate(registry:IntegrationContractRegistryV1)throws{for definition in try definitions(){guard try registry.definition(for:definition.sourceEntityKind)==definition else{throw IntegrationEventFailureV1.unknownEventKind}}}}
 enum PrivacyTransformIntegrationContractV1{static func definitions()throws->[IntegrationEventContractDefinitionV1]{try[("privacy.transform_policy.v1",WorkspaceEntityKindV1.privacyTransformPolicy),("privacy.region.v1",.privacyRegion),("privacy.transform_manifest.v1",.privacyTransformManifest),("privacy.review_receipt.v1",.privacyReviewReceipt)].map{try IntegrationEventContractDefinitionV1(eventKind:$0.0,eventVersion:1,sourceEntityKind:$0.1,sensitivity:.workspaceData,emittedVisibility:.workspaceInternal,redaction:.notRequired)}.sorted{$0.stableKey<$1.stableKey}}static func validate(registry:IntegrationContractRegistryV1)throws{for definition in try definitions(){guard try registry.definition(for:definition.sourceEntityKind)==definition else{throw IntegrationEventFailureV1.unknownEventKind}}}}
+enum EvidenceMetadataIntegrationContractV1 {
+    static func definitions() throws -> [IntegrationEventContractDefinitionV1] {
+        try [
+            ("evidence.association_event.v1", WorkspaceEntityKindV1.evidenceAssociationEvent),
+            ("evidence.sequence_revision.v1", WorkspaceEntityKindV1.evidenceSequenceRevision),
+        ].map {
+            try IntegrationEventContractDefinitionV1(
+                eventKind: $0.0,
+                eventVersion: 1,
+                sourceEntityKind: $0.1,
+                sensitivity: .workspaceData,
+                emittedVisibility: .workspaceInternal,
+                redaction: .notRequired
+            )
+        }.sorted { $0.stableKey < $1.stableKey }
+    }
+
+    static func validate(registry: IntegrationContractRegistryV1) throws {
+        for definition in try definitions() {
+            guard try registry.definition(for: definition.sourceEntityKind) == definition else {
+                throw IntegrationEventFailureV1.unknownEventKind
+            }
+        }
+    }
+}
 enum ClientCapabilityIntegrationContractV1{static func definitions()throws->[IntegrationEventContractDefinitionV1]{try[("client.capability_profile.v1",WorkspaceEntityKindV1.clientCapabilityProfile),("client.capability_admission.v1",.clientCapabilityAdmissionDecision),("package.lifecycle_policy.v1",.packageLifecyclePolicy),("package.lifecycle_disposition.v1",.packageLifecycleDisposition)].map{try IntegrationEventContractDefinitionV1(eventKind:$0.0,eventVersion:1,sourceEntityKind:$0.1,sensitivity:.workspaceData,emittedVisibility:.workspaceInternal,redaction:.notRequired)}.sorted{$0.stableKey<$1.stableKey}}static func validate(registry:IntegrationContractRegistryV1)throws{for definition in try definitions(){guard try registry.definition(for:definition.sourceEntityKind)==definition else{throw IntegrationEventFailureV1.unknownEventKind}}}}
 enum FieldReferenceIntegrationContractV1{static func definitions()throws->[IntegrationEventContractDefinitionV1]{try[("field.reference_release.v1",WorkspaceEntityKindV1.fieldReferenceRelease),("field.reference_binding.v1",.fieldReferenceBinding)].map{try IntegrationEventContractDefinitionV1(eventKind:$0.0,eventVersion:1,sourceEntityKind:$0.1,sensitivity:.workspaceData,emittedVisibility:.workspaceInternal,redaction:.notRequired)}.sorted{$0.stableKey<$1.stableKey}}static func validate(registry:IntegrationContractRegistryV1)throws{for definition in try definitions(){guard try registry.definition(for:definition.sourceEntityKind)==definition else{throw IntegrationEventFailureV1.unknownEventKind}}}}
 enum AccessibleDocumentAssessmentIntegrationContractV1{static func definitions()throws->[IntegrationEventContractDefinitionV1]{[try IntegrationEventContractDefinitionV1(eventKind:"accessible.document_assessment.v1",eventVersion:1,sourceEntityKind:.accessibleDocumentAssessmentReceipt,sensitivity:.workspaceData,emittedVisibility:.workspaceInternal,redaction:.notRequired)]}static func validate(registry:IntegrationContractRegistryV1)throws{for definition in try definitions(){guard try registry.definition(for:definition.sourceEntityKind)==definition else{throw IntegrationEventFailureV1.unknownEventKind}}}}

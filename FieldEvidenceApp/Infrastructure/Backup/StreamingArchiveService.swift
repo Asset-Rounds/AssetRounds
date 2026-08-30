@@ -20,7 +20,7 @@ enum C50IncumbentFileExchangeStreamingArchiveServiceBoundaryV1 {
 enum GuidedSurveyStreamingArchiveDispositionV1 {
     static func validate(records: V4BackupRecordsV1) throws {
         guard records.recordsSchemaVersion < 24 ||
-                ((24...C52ServiceRequestStreamingArchiveBoundaryV1.recordsSchemaVersion).contains(records.recordsSchemaVersion) &&
+                ((24...C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion) &&
                  records.guidedSurveys.count <= 200_000) else {
             throw StreamingArchiveFailureV1.invalidArchive
         }
@@ -91,6 +91,14 @@ enum GuidedSurveyStreamingArchiveDispositionV1 {
         }
         if records.recordsSchemaVersion >= C55PartsStockStreamingArchiveBoundaryV1.recordsSchemaVersion {
             do { try C55PartsStockStreamingArchiveBoundaryV1.validate(records: records) }
+            catch { throw StreamingArchiveFailureV1.invalidArchive }
+        }
+        if records.recordsSchemaVersion >= C57MyDayBackupEnrollmentV1.recordsSchemaVersion {
+            do { try C57MyDayBackupEnrollmentV1.validate(records) }
+            catch { throw StreamingArchiveFailureV1.invalidArchive }
+        }
+        if records.recordsSchemaVersion >= C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion {
+            do { try C05EvidenceMetadataBackupEnrollmentV1.validate(records) }
             catch { throw StreamingArchiveFailureV1.invalidArchive }
         }
     }
@@ -984,7 +992,8 @@ private extension StreamingArchiveService {
         let maximumDepth = pathProfile == .surveyTemplate
             ? SurveyTemplateArchiveAdmissionV1.maximumDepth
             : (pathProfile == .portableReviewRequest
-                ? PortableReviewRequestArchiveAdmissionV1.maximumDepth : 2)
+                ? PortableReviewRequestArchiveAdmissionV1.maximumDepth
+                : C05EvidenceMetadataStreamingArchivePolicyV1.backupMaximumPathDepth)
         guard !components.isEmpty,
               components.count <= maximumDepth,
               components.allSatisfy({
@@ -1024,6 +1033,14 @@ private extension StreamingArchiveService {
         case ["pdfs", let name]:
             valid = canonicalUUIDLeaf(name, suffix: ".pdf")
                 && mimeType == "application/pdf"
+        case ["content", let workspace, let contentID, "original.bin"]:
+            valid = UUID(uuidString: workspace)?.uuidString.lowercased() == workspace
+                && ContentContractValidationV1.validID(contentID)
+                && ContentContractValidationV1.validMediaType(mimeType)
+        case ["content", let workspace, let contentID, "derivative-publication.json"]:
+            valid = UUID(uuidString: workspace)?.uuidString.lowercased() == workspace
+                && ContentContractValidationV1.validID(contentID)
+                && mimeType == "application/json"
         default:
             valid = false
         }}

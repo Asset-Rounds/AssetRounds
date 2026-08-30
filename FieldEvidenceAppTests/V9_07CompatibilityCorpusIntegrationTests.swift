@@ -1025,3 +1025,74 @@ extension V9_07CompatibilityCorpusIntegrationTests {
         XCTAssertEqual(Set(AppRootV1.frozenOrder).count, 4)
     }
 }
+
+extension V9_07CompatibilityCorpusIntegrationTests {
+    func testV23P03C05Records42CorpusKeepsOrderedPredecessorClosedMetadata() throws {
+        let workspace = WorkspaceID(rawValue: UUID(uuidString: "00000000-0000-4000-8000-000000000507")!)
+        let target = try EvidenceAssociationTargetV1(
+            workspaceID: workspace.rawValue.uuidString.lowercased(),
+            kind: .finding,
+            targetID: "finding.c05.corpus",
+            targetRevision: 1
+        )
+        let policy = try EvidenceCurationPolicyV1(
+            policyID: UUID(uuidString: "00000000-0000-4000-8000-000000000508")!,
+            workspaceID: workspace
+        )
+        func sequence(
+            revision: UInt64,
+            mutation: UUID,
+            predecessor: EvidenceSequenceReferenceV1? = nil
+        ) throws -> EvidenceSequenceV1 {
+            try EvidenceSequenceV1(
+                sequenceID: UUID(uuidString: "00000000-0000-4000-8000-000000000509")!,
+                workspaceID: workspace,
+                target: target,
+                policy: policy,
+                orderedItems: [],
+                predecessor: predecessor,
+                revision: revision,
+                mutationID: try MutationIDV1(rawValue: mutation)
+            )
+        }
+        let first = try sequence(
+            revision: 1,
+            mutation: UUID(uuidString: "00000000-0000-4000-8000-000000000510")!
+        )
+        let second = try sequence(
+            revision: 2,
+            mutation: UUID(uuidString: "00000000-0000-4000-8000-000000000511")!,
+            predecessor: try first.reference
+        )
+        func records(_ values: [EvidenceSequenceV1], version: Int = 42) -> V4BackupRecordsV1 {
+            V4BackupRecordsV1(
+                assets: [],
+                evidenceFiles: [],
+                issues: [],
+                packets: [],
+                recordsSchemaVersion: version,
+                reports: [],
+                sites: [],
+                workflowRecords: [],
+                evidenceSequenceRevisions: values
+            )
+        }
+
+        let valid = records([first, second])
+        try C05EvidenceMetadataBackupEnrollmentV1.validate(valid)
+        try C05EvidenceMetadataRestoreIdentityBoundaryV1.validate(valid, identity: nil)
+        XCTAssertEqual(
+            valid.evidenceSequenceRevisions.map { EvidenceSequenceRevisionRowV1.rowID(sequenceID: $0.sequenceID, revision: $0.revision) },
+            valid.evidenceSequenceRevisions.map { EvidenceSequenceRevisionRowV1.rowID(sequenceID: $0.sequenceID, revision: $0.revision) }.sorted()
+        )
+        XCTAssertThrowsError(try C05EvidenceMetadataBackupEnrollmentV1.validate(records([second]))) { error in
+            XCTAssertEqual(error as? EvidenceMetadataFailureV1, .invalidSuccessor)
+        }
+        XCTAssertThrowsError(try C05EvidenceMetadataBackupEnrollmentV1.validate(records([second, first]))) { error in
+            XCTAssertEqual(error as? EvidenceMetadataFailureV1, .duplicateIdentity)
+        }
+        XCTAssertThrowsError(try C05EvidenceMetadataRestoreIdentityBoundaryV1.validate(records([], version: 43), identity: nil)) { error in
+            XCTAssertEqual(error as? EvidenceMetadataFailureV1, .invalidValue)
+        }
+    }
+}

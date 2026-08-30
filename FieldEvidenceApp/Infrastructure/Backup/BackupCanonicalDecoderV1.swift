@@ -252,6 +252,7 @@ struct BackupCanonicalDecoderV1: Sendable {
              try Self.validateC53ServiceReliability(value)
              try Self.validateC55PartsStock(value)
              try Self.validateC57MyDay(value)
+             try Self.validateC05EvidenceMetadata(value)
             let canonical = try BackupCanonicalEncoderV1().encodeRecords(value).data
             guard canonical == data else {
                 throw BackupCanonicalDecodingErrorV1.invalidRecords
@@ -289,6 +290,11 @@ private extension BackupCanonicalDecoderV1 {
 
     static func validateC57MyDay(_ records: V4BackupRecordsV1) throws {
         do { try C57MyDayBackupEnrollmentV1.validate(records) }
+        catch { throw BackupCanonicalDecodingErrorV1.invalidRecords }
+    }
+
+    static func validateC05EvidenceMetadata(_ records: V4BackupRecordsV1) throws {
+        do { try C05EvidenceMetadataBackupEnrollmentV1.validate(records) }
         catch { throw BackupCanonicalDecodingErrorV1.invalidRecords }
     }
 
@@ -1299,7 +1305,8 @@ enum C52ServiceRequestBackupDecodingBoundaryV1 {
         guard (records.recordsSchemaVersion == recordsSchemaVersion
                 || records.recordsSchemaVersion == C53ServiceReliabilityBackupDecodingBoundaryV1.recordsSchemaVersion
                 || records.recordsSchemaVersion == C55PartsStockBackupEnrollmentV1.recordsSchemaVersion
-                || records.recordsSchemaVersion == C57MyDayBackupEnrollmentV1.recordsSchemaVersion),
+                || records.recordsSchemaVersion == C57MyDayBackupEnrollmentV1.recordsSchemaVersion
+                || records.recordsSchemaVersion == C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion),
               records.mutationHistory != nil else {
             throw ServiceRequestBackupContractFailureV1.invalidSchemaVersion
         }

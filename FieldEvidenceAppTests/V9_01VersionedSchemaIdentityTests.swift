@@ -1271,19 +1271,29 @@ extension C50VersionedSchemaIdentityTests {
 }
 
 extension V9_01VersionedSchemaIdentityTests {
-    func testC57V42AddsExactlyTwoMyDayHistoryModels() throws {
+    func testC05V43AddsExactlyTwoEvidenceMetadataHistoryModels() throws {
         XCTAssertEqual(PersistentSchemaV42.versionIdentifier, Schema.Version(42, 0, 0))
         XCTAssertEqual(PersistentSchemaV42.models.count, 142)
         XCTAssertEqual(
             PersistentSchemaV42.models.suffix(2).map { ObjectIdentifier($0) },
             [ObjectIdentifier(MyDayPlanRowV1.self), ObjectIdentifier(MyDayCarryoverReceiptRowV1.self)]
         )
-        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeRelease, .v42)
-        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.releases.count, 42)
+        XCTAssertEqual(PersistentSchemaV43.versionIdentifier, Schema.Version(43, 0, 0))
+        XCTAssertEqual(PersistentSchemaV43.models.count, 144)
+        XCTAssertEqual(
+            PersistentSchemaV43.models.suffix(2).map { ObjectIdentifier($0) },
+            [ObjectIdentifier(EvidenceAssociationEventRowV1.self), ObjectIdentifier(EvidenceSequenceRevisionRowV1.self)]
+        )
+        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeRelease, .v43)
+        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.releases.count, 43)
+        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeVersionIdentifier,
+                       PersistentSchemaV43.versionIdentifier)
+        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeCompatibilityID,
+                       PersistentSchemaReleaseRegistryV1.v43CompatibilityID)
         XCTAssertEqual(ObjectIdentifier(PersistentSchemaReleaseRegistryV1.activeMigrationPlan),
-                       ObjectIdentifier(PersistentSchemaMigrationPlanV41.self))
-        XCTAssertEqual(PersistentSchemaMigrationPlanV41.schemas.map { ObjectIdentifier($0) },
-                       [ObjectIdentifier(PersistentSchemaV41.self), ObjectIdentifier(PersistentSchemaV42.self)])
+                       ObjectIdentifier(PersistentSchemaMigrationPlanV42.self))
+        XCTAssertEqual(PersistentSchemaMigrationPlanV42.schemas.map { ObjectIdentifier($0) },
+                       [ObjectIdentifier(PersistentSchemaV42.self), ObjectIdentifier(PersistentSchemaV43.self)])
         XCTAssertNoThrow(try PersistentSchemaReleaseRegistryV1.validate())
     }
 

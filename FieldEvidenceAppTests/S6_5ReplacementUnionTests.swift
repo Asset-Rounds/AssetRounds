@@ -394,6 +394,82 @@ extension S6_5ReplacementUnionTests {
 }
 
 extension S6_5ReplacementUnionTests {
+    func testV23P03C05Records42ReplacementUnionsPredecessorClosedMetadata() throws {
+        let sourceWorkspace = WorkspaceID(rawValue: uuid(501))
+        let targetWorkspace = WorkspaceID(rawValue: uuid(502))
+        let first = try c05Sequence(
+            workspace: sourceWorkspace,
+            sequenceID: uuid(503),
+            mutationID: uuid(504),
+            revision: 1
+        )
+        let second = try c05Sequence(
+            workspace: sourceWorkspace,
+            sequenceID: uuid(503),
+            mutationID: uuid(505),
+            revision: 2,
+            predecessor: try first.reference
+        )
+        let current = c05Records(sequences: [first])
+        let incoming = c05Records(sequences: [first, second])
+
+        let union = try C05EvidenceMetadataReplacementRestoreBoundaryV1.canonicalRows(
+            current: current,
+            incoming: incoming,
+            mode: .replaceExisting,
+            sourceWorkspaceID: sourceWorkspace.rawValue,
+            targetWorkspaceID: sourceWorkspace.rawValue
+        )
+        XCTAssertEqual(union.associations, [])
+        XCTAssertEqual(union.sequences, [first, second])
+        try C05EvidenceMetadataBackupEnrollmentV1.validate(
+            c05Records(sequences: union.sequences)
+        )
+
+        let clone = try C05EvidenceMetadataReplacementRestoreBoundaryV1.canonicalRows(
+            current: c05Records(),
+            incoming: incoming,
+            mode: .clone,
+            sourceWorkspaceID: sourceWorkspace.rawValue,
+            targetWorkspaceID: targetWorkspace.rawValue
+        )
+        XCTAssertEqual(clone.sequences, [first, second])
+        XCTAssertEqual(
+            C05EvidenceMetadataRestoreIdentityBoundaryV1.disposition(for: .clone),
+            .retainSourceBoundHistoricHistory
+        )
+        XCTAssertFalse(C05EvidenceMetadataRestoreIdentityBoundaryV1.sourceRowsAutomaticallyActivateOnCloneOrFork)
+
+        let orphan = c05Records(sequences: [second])
+        XCTAssertThrowsError(try C05EvidenceMetadataReplacementRestoreBoundaryV1.canonicalRows(
+            current: current,
+            incoming: orphan,
+            mode: .replaceExisting,
+            sourceWorkspaceID: sourceWorkspace.rawValue,
+            targetWorkspaceID: sourceWorkspace.rawValue
+        )) { error in
+            XCTAssertEqual(error as? ReplacementRestoreRuleError, .invalidAuthority)
+        }
+
+        let conflicting = try c05Sequence(
+            workspace: sourceWorkspace,
+            sequenceID: uuid(503),
+            mutationID: uuid(506),
+            revision: 1
+        )
+        XCTAssertThrowsError(try C05EvidenceMetadataReplacementRestoreBoundaryV1.canonicalRows(
+            current: current,
+            incoming: c05Records(sequences: [conflicting]),
+            mode: .replaceExisting,
+            sourceWorkspaceID: sourceWorkspace.rawValue,
+            targetWorkspaceID: sourceWorkspace.rawValue
+        )) { error in
+            XCTAssertEqual(error as? ReplacementRestoreRuleError, .invalidAuthority)
+        }
+    }
+}
+
+extension S6_5ReplacementUnionTests {
     func testV23P03C36ReplacementRecordRetainsCanonicalOperationalIdentity() {
         let id=UUID(),workspaceID=UUID(),bytes=Data("canonical-draft".utf8)
         let record=V16BackupFieldDraftRecordV1(kind:.checkpoint,id:id,workspaceID:workspaceID,revision:7,canonicalData:bytes)
@@ -684,5 +760,48 @@ extension S6_5ReplacementUnionTests {
         XCTAssertEqual(receipt.shellCount, 1)
         XCTAssertEqual(receipt.parserCount, 1)
         XCTAssertEqual(receipt.mutationAuthorityCount, 0)
+    }
+}
+
+private extension S6_5ReplacementUnionTests {
+    func c05Sequence(
+        workspace: WorkspaceID,
+        sequenceID: UUID,
+        mutationID: UUID,
+        revision: UInt64,
+        predecessor: EvidenceSequenceReferenceV1? = nil
+    ) throws -> EvidenceSequenceV1 {
+        try EvidenceSequenceV1(
+            sequenceID: sequenceID,
+            workspaceID: workspace,
+            target: try EvidenceAssociationTargetV1(
+                workspaceID: workspace.rawValue.uuidString.lowercased(),
+                kind: .finding,
+                targetID: "finding.c05",
+                targetRevision: 1
+            ),
+            policy: try EvidenceCurationPolicyV1(
+                policyID: uuid(507),
+                workspaceID: workspace
+            ),
+            orderedItems: [],
+            predecessor: predecessor,
+            revision: revision,
+            mutationID: try MutationIDV1(rawValue: mutationID)
+        )
+    }
+
+    func c05Records(sequences: [EvidenceSequenceV1] = []) -> V4BackupRecordsV1 {
+        V4BackupRecordsV1(
+            assets: [],
+            evidenceFiles: [],
+            issues: [],
+            packets: [],
+            recordsSchemaVersion: C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion,
+            reports: [],
+            sites: [],
+            workflowRecords: [],
+            evidenceSequenceRevisions: sequences
+        )
     }
 }

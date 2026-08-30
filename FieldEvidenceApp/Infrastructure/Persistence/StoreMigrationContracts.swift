@@ -1656,3 +1656,26 @@ enum C52ServiceRequestMigrationBoundaryV1 {
     static let downgradeDisposition = "READ_ONLY_OR_FORWARD_FIX"
 }
 enum C53AssetServiceReliabilityMigrationBoundaryV1{static let sourceVersion=39,targetVersion=40,recordsSchemaVersion=39,newlyAddedRowCount=7,sourceRowsMustBeEmpty=true,derivedProjectionMigrated=false}
+
+enum C05EvidenceCurationMigrationBoundaryV1 {
+    static let sourcePersistentSchemaVersion = 42
+    static let targetPersistentSchemaVersion = 43
+    static let currentRecordsSchemaVersion = 42
+    static let compatibleRecordsSchemaVersions = [41, 42]
+    static let newlyAddedRows = [
+        "EvidenceAssociationEventRowV1",
+        "EvidenceSequenceRevisionRowV1",
+    ]
+    static let sourceRowsMustBeEmpty = true
+    static let backfillCreatesEvidenceTruth = false
+
+    static func validate() -> Bool {
+        sourcePersistentSchemaVersion == 42
+            && targetPersistentSchemaVersion == 43
+            && currentRecordsSchemaVersion == 42
+            && compatibleRecordsSchemaVersions == [41, 42]
+            && newlyAddedRows.count == 2
+            && sourceRowsMustBeEmpty
+            && !backfillCreatesEvidenceTruth
+    }
+}

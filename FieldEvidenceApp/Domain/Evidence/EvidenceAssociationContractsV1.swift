@@ -120,8 +120,9 @@ struct EvidenceAssociationV1: Codable, Equatable, Identifiable, Sendable {
               previousTarget.map({ $0.workspaceID == workspaceID }) ?? true else {
             throw ContentContractFailureV1.wrongWorkspace
         }
+        let (nextRevision, revisionOverflow) = expectedEvidenceRevision.addingReportingOverflow(1)
         guard [associationEventID, workspaceID, evidenceID, mutationID, actorID].allSatisfy(ContentContractValidationV1.validID),
-              expectedEvidenceRevision >= 0, resultingEvidenceRevision == expectedEvidenceRevision + 1,
+              expectedEvidenceRevision >= 0, !revisionOverflow, resultingEvidenceRevision == nextRevision,
               contentID.map(ContentContractValidationV1.validID) ?? true,
               previousContentID.map(ContentContractValidationV1.validID) ?? true,
               supersedesAssociationEventID.map(ContentContractValidationV1.validID) ?? true,
@@ -177,8 +178,9 @@ enum EvidenceAssociationLedgerV1 {
             var activeContentID: String?
             var activeTarget: EvidenceAssociationTargetV1?
             for event in history {
-                guard event.expectedEvidenceRevision == expectedRevision,
-                      event.resultingEvidenceRevision == expectedRevision + 1,
+                let (nextRevision, revisionOverflow) = expectedRevision.addingReportingOverflow(1)
+                guard !revisionOverflow, event.expectedEvidenceRevision == expectedRevision,
+                      event.resultingEvidenceRevision == nextRevision,
                       event.supersedesAssociationEventID == predecessorID else {
                     throw ContentContractFailureV1.historyRewrite
                 }
@@ -391,4 +393,392 @@ enum C52ServiceRequestBoundary_EvidenceAssociationContractsV1 {
     static let rawCapabilityMayBecomeWorkspaceTruth: Bool = ServiceRequestNoncanonicalBoundaryV1.rawCapabilityIsWorkspaceTruth
     static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
     static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
+}
+
+// MARK: - C05 reviewed evidence metadata and immutable sequence history
+
+enum EvidenceMetadataFailureV1: Error, Equatable, Sendable {
+    case invalidValue, limitExceeded, wrongWorkspace, duplicateIdentity
+    case staleAssociation, invalidSuccessor, invalidDigest, incompatibleVersion
+}
+
+enum EvidenceMetadataLimitsV1 {
+    static let maximumSequenceItems = 32
+    static let maximumCaptionBytes = 1_024
+    static let maximumAccessibilityDescriptionBytes = 2_048
+}
+
+private enum EvidenceMetadataValidationV1 {
+    static func millisecondInstant(_ value: Date) throws {
+        let seconds = value.timeIntervalSince1970
+        let milliseconds = seconds * 1_000
+        let integral = milliseconds.rounded(.toNearestOrAwayFromZero)
+        guard seconds.isFinite, milliseconds.isFinite, integral == milliseconds,
+              integral >= Double(Int64.min), integral <= Double(Int64.max),
+              Date(timeIntervalSince1970: integral / 1_000) == value else {
+            throw EvidenceMetadataFailureV1.invalidValue
+        }
+    }
+}
+
+struct EvidenceCurationPolicyV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let policyID: UUID
+    let workspaceID: WorkspaceID
+    let maximumSequenceItems: Int
+    let maximumCaptionBytes: Int
+    let maximumAccessibilityDescriptionBytes: Int
+
+    init(policyID: UUID, workspaceID: WorkspaceID,
+         maximumSequenceItems: Int = EvidenceMetadataLimitsV1.maximumSequenceItems,
+         maximumCaptionBytes: Int = EvidenceMetadataLimitsV1.maximumCaptionBytes,
+         maximumAccessibilityDescriptionBytes: Int = EvidenceMetadataLimitsV1.maximumAccessibilityDescriptionBytes) throws {
+        guard (1...EvidenceMetadataLimitsV1.maximumSequenceItems).contains(maximumSequenceItems),
+              (1...EvidenceMetadataLimitsV1.maximumCaptionBytes).contains(maximumCaptionBytes),
+              (1...EvidenceMetadataLimitsV1.maximumAccessibilityDescriptionBytes).contains(maximumAccessibilityDescriptionBytes) else {
+            throw EvidenceMetadataFailureV1.limitExceeded
+        }
+        schemaVersion = Self.schemaVersion; self.policyID = policyID; self.workspaceID = workspaceID
+        self.maximumSequenceItems = maximumSequenceItems; self.maximumCaptionBytes = maximumCaptionBytes
+        self.maximumAccessibilityDescriptionBytes = maximumAccessibilityDescriptionBytes
+    }
+
+    func validate() throws {
+        guard self == (try Self(policyID: policyID, workspaceID: workspaceID,
+            maximumSequenceItems: maximumSequenceItems, maximumCaptionBytes: maximumCaptionBytes,
+            maximumAccessibilityDescriptionBytes: maximumAccessibilityDescriptionBytes)) else {
+            throw EvidenceMetadataFailureV1.invalidValue
+        }
+    }
+}
+
+enum EvidenceRoleV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case context = "CONTEXT", detail = "DETAIL", before = "BEFORE", after = "AFTER", other = "OTHER"
+}
+
+enum EvidenceReviewedTextProvenanceV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case userAuthored = "USER_AUTHORED"
+    case importedThenReviewed = "IMPORTED_THEN_REVIEWED"
+}
+
+struct EvidenceReviewedCaptionV1: Codable, Equatable, Sendable {
+    let text: String
+    let provenance: EvidenceReviewedTextProvenanceV1
+    let reviewer: ActorSnapshotV1
+    let reviewedAt: Date
+
+    init(text: String, provenance: EvidenceReviewedTextProvenanceV1,
+         reviewer: ActorSnapshotV1, reviewedAt: Date) throws {
+        try reviewer.validate()
+        guard !text.isEmpty, text.utf8.count <= EvidenceMetadataLimitsV1.maximumCaptionBytes,
+              reviewedAt.timeIntervalSince1970.isFinite else { throw EvidenceMetadataFailureV1.invalidValue }
+        try EvidenceMetadataValidationV1.millisecondInstant(reviewedAt)
+        try EvidenceMetadataValidationV1.millisecondInstant(reviewer.capturedAt)
+        self.text = text; self.provenance = provenance; self.reviewer = reviewer; self.reviewedAt = reviewedAt
+    }
+}
+
+struct EvidenceAccessibilityDescriptionV1: Codable, Equatable, Sendable {
+    let text: String
+    let provenance: EvidenceReviewedTextProvenanceV1
+    let reviewer: ActorSnapshotV1
+    let reviewedAt: Date
+
+    init(text: String, provenance: EvidenceReviewedTextProvenanceV1,
+         reviewer: ActorSnapshotV1, reviewedAt: Date) throws {
+        try reviewer.validate()
+        guard !text.isEmpty, text.utf8.count <= EvidenceMetadataLimitsV1.maximumAccessibilityDescriptionBytes,
+              reviewedAt.timeIntervalSince1970.isFinite else { throw EvidenceMetadataFailureV1.invalidValue }
+        try EvidenceMetadataValidationV1.millisecondInstant(reviewedAt)
+        try EvidenceMetadataValidationV1.millisecondInstant(reviewer.capturedAt)
+        self.text = text; self.provenance = provenance; self.reviewer = reviewer; self.reviewedAt = reviewedAt
+    }
+}
+
+struct EvidenceAssociationBindingV1: Codable, Equatable, Hashable, Sendable {
+    let associationEventID: String
+    let resultingEvidenceRevision: Int
+    let associationSHA256: String
+
+    init(_ association: EvidenceAssociationV1) throws {
+        guard association.action != .removed, association.contentID != nil, association.target != nil else {
+            throw EvidenceMetadataFailureV1.staleAssociation
+        }
+        associationEventID = association.associationEventID
+        resultingEvidenceRevision = association.resultingEvidenceRevision
+        associationSHA256 = try EvidenceMetadataCanonicalCodecV1.sha256(association)
+    }
+}
+
+struct EvidenceSequenceItemV1: Codable, Equatable, Sendable {
+    let evidenceID: String
+    let contentID: String
+    let role: EvidenceRoleV1
+    let caption: EvidenceReviewedCaptionV1
+    let accessibilityDescription: EvidenceAccessibilityDescriptionV1?
+    let ordinal: Int
+    let target: EvidenceAssociationTargetV1
+    let associationBinding: EvidenceAssociationBindingV1
+
+    init(evidenceID: String, contentID: String, role: EvidenceRoleV1,
+         caption: EvidenceReviewedCaptionV1,
+         accessibilityDescription: EvidenceAccessibilityDescriptionV1? = nil,
+         ordinal: Int, target: EvidenceAssociationTargetV1,
+         association: EvidenceAssociationV1) throws {
+        guard ContentContractValidationV1.validID(evidenceID), ContentContractValidationV1.validID(contentID),
+              ordinal >= 0, association.evidenceID == evidenceID, association.contentID == contentID,
+              association.target == target, association.workspaceID == target.workspaceID,
+              caption.reviewer.workspaceID.rawValue.uuidString.lowercased() == target.workspaceID,
+              accessibilityDescription.map({ $0.reviewer.workspaceID == caption.reviewer.workspaceID }) ?? true else {
+            throw EvidenceMetadataFailureV1.staleAssociation
+        }
+        self.evidenceID = evidenceID; self.contentID = contentID; self.role = role; self.caption = caption
+        self.accessibilityDescription = accessibilityDescription; self.ordinal = ordinal; self.target = target
+        associationBinding = try EvidenceAssociationBindingV1(association)
+    }
+}
+
+struct EvidenceSequenceReferenceV1: Codable, Equatable, Hashable, Sendable {
+    let sequenceID: UUID
+    let revision: UInt64
+    let sequenceSHA256: String
+    init(sequenceID: UUID, revision: UInt64, sequenceSHA256: String) throws {
+        guard revision > 0, KernelCanonicalHashV1.validSHA256(sequenceSHA256) else { throw EvidenceMetadataFailureV1.invalidValue }
+        self.sequenceID = sequenceID; self.revision = revision; self.sequenceSHA256 = sequenceSHA256
+    }
+}
+
+struct EvidenceSequenceV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let sequenceID: UUID
+    let workspaceID: WorkspaceID
+    let target: EvidenceAssociationTargetV1
+    let policy: EvidenceCurationPolicyV1
+    let orderedItems: [EvidenceSequenceItemV1]
+    let predecessor: EvidenceSequenceReferenceV1?
+    let revision: UInt64
+    let mutationID: MutationIDV1
+    let sequenceSHA256: String
+
+    var reference: EvidenceSequenceReferenceV1 {
+        get throws { try .init(sequenceID: sequenceID, revision: revision, sequenceSHA256: sequenceSHA256) }
+    }
+    var frontier: EvidenceSequenceReferenceV1 { get throws { try reference } }
+
+    init(sequenceID: UUID, workspaceID: WorkspaceID, target: EvidenceAssociationTargetV1,
+         policy: EvidenceCurationPolicyV1, orderedItems: [EvidenceSequenceItemV1],
+         predecessor: EvidenceSequenceReferenceV1? = nil, revision: UInt64,
+         mutationID: MutationIDV1) throws {
+        guard policy.workspaceID == workspaceID,
+              target.workspaceID == workspaceID.rawValue.uuidString.lowercased(),
+              orderedItems.count <= policy.maximumSequenceItems,
+              orderedItems.map(\.ordinal) == Array(0..<orderedItems.count),
+              Set(orderedItems.map(\.evidenceID)).count == orderedItems.count,
+              Set(orderedItems.map(\.contentID)).count == orderedItems.count,
+              orderedItems.allSatisfy({ $0.target == target && $0.caption.text.utf8.count <= policy.maximumCaptionBytes && ($0.accessibilityDescription?.text.utf8.count ?? 0) <= policy.maximumAccessibilityDescriptionBytes }),
+              revision > 0,
+              (predecessor == nil && revision == 1) || (predecessor?.sequenceID == sequenceID && predecessor.map({ $0.revision < UInt64.max && $0.revision + 1 == revision }) == true) else {
+            throw EvidenceMetadataFailureV1.invalidSuccessor
+        }
+        schemaVersion = Self.schemaVersion; self.sequenceID = sequenceID; self.workspaceID = workspaceID
+        self.target = target; self.policy = policy; self.orderedItems = orderedItems; self.predecessor = predecessor
+        self.revision = revision; self.mutationID = mutationID
+        sequenceSHA256 = try EvidenceMetadataCanonicalCodecV1.sha256(Basis(schemaVersion: Self.schemaVersion,
+            sequenceID: sequenceID, workspaceID: workspaceID, target: target, policy: policy,
+            orderedItems: orderedItems, predecessor: predecessor, revision: revision, mutationID: mutationID))
+    }
+
+    func validateSuccessor(of prior: Self) throws {
+        let (nextRevision, overflow) = prior.revision.addingReportingOverflow(1)
+        guard predecessor == (try prior.reference), sequenceID == prior.sequenceID,
+              !overflow, workspaceID == prior.workspaceID, target == prior.target, revision == nextRevision else {
+            throw EvidenceMetadataFailureV1.invalidSuccessor
+        }
+    }
+    func validate() throws {
+        let rebuilt = try Self(sequenceID: sequenceID, workspaceID: workspaceID, target: target,
+            policy: policy, orderedItems: orderedItems, predecessor: predecessor,
+            revision: revision, mutationID: mutationID)
+        guard rebuilt == self else { throw EvidenceMetadataFailureV1.invalidDigest }
+    }
+    private struct Basis: Codable { let schemaVersion: Int; let sequenceID: UUID; let workspaceID: WorkspaceID; let target: EvidenceAssociationTargetV1; let policy: EvidenceCurationPolicyV1; let orderedItems: [EvidenceSequenceItemV1]; let predecessor: EvidenceSequenceReferenceV1?; let revision: UInt64; let mutationID: MutationIDV1 }
+}
+
+struct EvidenceMetadataMutationV1: Codable, Equatable, Sendable {
+    let workspaceID: WorkspaceID
+    let mutationID: MutationIDV1
+    let expectedSequenceRevision: UInt64
+    let associationEvent: EvidenceAssociationV1
+    let sequenceSuccessor: EvidenceSequenceV1
+
+    init(workspaceID: WorkspaceID, mutationID: MutationIDV1, expectedSequenceRevision: UInt64,
+         associationEvent: EvidenceAssociationV1, sequenceSuccessor: EvidenceSequenceV1) throws {
+        let (nextRevision, overflow) = expectedSequenceRevision.addingReportingOverflow(1)
+        let matchingItemCount: Int
+        if associationEvent.action == .removed {
+            matchingItemCount = 0
+        } else {
+            let binding = try EvidenceAssociationBindingV1(associationEvent)
+            matchingItemCount = sequenceSuccessor.orderedItems.filter {
+                $0.evidenceID == associationEvent.evidenceID && $0.associationBinding == binding
+            }.count
+        }
+        guard sequenceSuccessor.workspaceID == workspaceID, sequenceSuccessor.mutationID == mutationID,
+              !overflow, sequenceSuccessor.revision == nextRevision,
+              associationEvent.workspaceID == workspaceID.rawValue.uuidString.lowercased(),
+              associationEvent.mutationID == mutationID.rawValue.uuidString.lowercased(),
+              (associationEvent.action == .removed
+                ? sequenceSuccessor.orderedItems.allSatisfy({ $0.evidenceID != associationEvent.evidenceID })
+                : matchingItemCount == 1) else {
+            throw EvidenceMetadataFailureV1.invalidSuccessor
+        }
+        self.workspaceID = workspaceID; self.mutationID = mutationID; self.expectedSequenceRevision = expectedSequenceRevision
+        self.associationEvent = associationEvent; self.sequenceSuccessor = sequenceSuccessor
+    }
+
+    func validate() throws {
+        guard self == (try Self(workspaceID: workspaceID, mutationID: mutationID,
+            expectedSequenceRevision: expectedSequenceRevision, associationEvent: associationEvent,
+            sequenceSuccessor: sequenceSuccessor)) else { throw EvidenceMetadataFailureV1.invalidValue }
+    }
+}
+
+extension EvidenceAssociationV1 {
+    var associationSHA256: String { get throws { try EvidenceMetadataCanonicalCodecV1.sha256(self) } }
+
+    func validateSuccessor(of prior: Self) throws {
+        let (nextRevision, overflow) = prior.resultingEvidenceRevision.addingReportingOverflow(1)
+        guard !overflow, workspaceID == prior.workspaceID, evidenceID == prior.evidenceID,
+              expectedEvidenceRevision == prior.resultingEvidenceRevision,
+              resultingEvidenceRevision == nextRevision,
+              supersedesAssociationEventID == prior.associationEventID,
+              previousContentID == prior.contentID, previousTarget == prior.target,
+              associationEventID != prior.associationEventID, mutationID != prior.mutationID,
+              action != .assigned else { throw EvidenceMetadataFailureV1.invalidSuccessor }
+    }
+}
+
+enum EvidenceMetadataGraphV1 {
+    static func validate(sequences: [EvidenceSequenceV1], associationEvents: [EvidenceAssociationV1]) throws {
+        guard sequences.count <= ContentContractLimitsV1.maximumManifestEntries,
+              associationEvents.count <= ContentContractLimitsV1.maximumAssociations else {
+            throw EvidenceMetadataFailureV1.limitExceeded
+        }
+        try EvidenceAssociationLedgerV1.validate(associationEvents)
+        let eventKeys = associationEvents.map { "\($0.workspaceID)|\($0.associationEventID)" }
+        guard Set(eventKeys).count == eventKeys.count else { throw EvidenceMetadataFailureV1.duplicateIdentity }
+        let eventByKey = Dictionary(uniqueKeysWithValues: zip(eventKeys, associationEvents))
+        let sequenceKeys = sequences.map { "\($0.sequenceID.uuidString.lowercased())|\(String(format: "%020llu", $0.revision))" }
+        guard Set(sequenceKeys).count == sequenceKeys.count else { throw EvidenceMetadataFailureV1.duplicateIdentity }
+        var groups: [UUID: [EvidenceSequenceV1]] = [:]
+        for sequence in sequences { groups[sequence.sequenceID, default: []].append(sequence) }
+        for sequenceID in groups.keys.sorted(by: { $0.uuidString < $1.uuidString }) {
+            guard let history = groups[sequenceID], history.first?.revision == 1 else { throw EvidenceMetadataFailureV1.invalidSuccessor }
+            var previous: EvidenceSequenceV1?
+            for sequence in history {
+                if let previous { try sequence.validateSuccessor(of: previous) }
+                for item in sequence.orderedItems {
+                    let key = "\(sequence.target.workspaceID)|\(item.associationBinding.associationEventID)"
+                    guard let event = eventByKey[key], event.evidenceID == item.evidenceID,
+                          event.contentID == item.contentID, event.target == item.target,
+                          event.resultingEvidenceRevision == item.associationBinding.resultingEvidenceRevision,
+                          (try event.associationSHA256) == item.associationBinding.associationSHA256 else {
+                        throw EvidenceMetadataFailureV1.staleAssociation
+                    }
+                }
+                previous = sequence
+            }
+        }
+    }
+}
+
+enum EvidenceMetadataCanonicalCodecV1 {
+    static func data<T: Encodable>(_ value: T) throws -> Data {
+        let data = try WorkspaceMutationCanonicalV1.data(value)
+        guard !data.isEmpty, data.count <= ContentContractLimitsV1.maximumCanonicalBytes else { throw EvidenceMetadataFailureV1.limitExceeded }
+        return data
+    }
+    static func sha256<T: Encodable>(_ value: T) throws -> String { try WorkspaceMutationCanonicalV1.sha256(value) }
+    static func decode<T: Codable>(_ type: T.Type, from data: Data) throws -> T {
+        guard !data.isEmpty, data.count <= ContentContractLimitsV1.maximumCanonicalBytes else { throw EvidenceMetadataFailureV1.limitExceeded }
+        let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .millisecondsSince1970
+        let value = try decoder.decode(type, from: data)
+        guard try Self.data(value) == data else { throw EvidenceMetadataFailureV1.invalidDigest }
+        return value
+    }
+}
+
+extension EvidenceCurationPolicyV1 {
+    private enum CodingKeys: String, CodingKey, CaseIterable { case schemaVersion, policyID, workspaceID, maximumSequenceItems, maximumCaptionBytes, maximumAccessibilityDescriptionBytes }
+    init(from decoder: Decoder) throws {
+        try ContentClosedCodingV1.requireExact(decoder, keys: CodingKeys.allCases.map(\.rawValue)); let c = try decoder.container(keyedBy: CodingKeys.self)
+        guard try c.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion else { throw EvidenceMetadataFailureV1.incompatibleVersion }
+        try self.init(policyID: c.decode(UUID.self, forKey: .policyID), workspaceID: c.decode(WorkspaceID.self, forKey: .workspaceID), maximumSequenceItems: c.decode(Int.self, forKey: .maximumSequenceItems), maximumCaptionBytes: c.decode(Int.self, forKey: .maximumCaptionBytes), maximumAccessibilityDescriptionBytes: c.decode(Int.self, forKey: .maximumAccessibilityDescriptionBytes))
+    }
+}
+
+extension EvidenceReviewedCaptionV1 {
+    private enum CodingKeys: String, CodingKey, CaseIterable { case text, provenance, reviewer, reviewedAt }
+    init(from decoder: Decoder) throws {
+        try ContentClosedCodingV1.requireExact(decoder, keys: CodingKeys.allCases.map(\.rawValue)); let c = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(text: c.decode(String.self, forKey: .text), provenance: c.decode(EvidenceReviewedTextProvenanceV1.self, forKey: .provenance), reviewer: c.decode(ActorSnapshotV1.self, forKey: .reviewer), reviewedAt: c.decode(Date.self, forKey: .reviewedAt))
+    }
+}
+
+extension EvidenceAccessibilityDescriptionV1 {
+    private enum CodingKeys: String, CodingKey, CaseIterable { case text, provenance, reviewer, reviewedAt }
+    init(from decoder: Decoder) throws {
+        try ContentClosedCodingV1.requireExact(decoder, keys: CodingKeys.allCases.map(\.rawValue)); let c = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(text: c.decode(String.self, forKey: .text), provenance: c.decode(EvidenceReviewedTextProvenanceV1.self, forKey: .provenance), reviewer: c.decode(ActorSnapshotV1.self, forKey: .reviewer), reviewedAt: c.decode(Date.self, forKey: .reviewedAt))
+    }
+}
+
+extension EvidenceAssociationBindingV1 {
+    private enum CodingKeys: String, CodingKey, CaseIterable { case associationEventID, resultingEvidenceRevision, associationSHA256 }
+    init(from decoder: Decoder) throws {
+        try ContentClosedCodingV1.requireExact(decoder, keys: CodingKeys.allCases.map(\.rawValue)); let c = try decoder.container(keyedBy: CodingKeys.self)
+        let eventID = try c.decode(String.self, forKey: .associationEventID), revision = try c.decode(Int.self, forKey: .resultingEvidenceRevision), digest = try c.decode(String.self, forKey: .associationSHA256)
+        guard ContentContractValidationV1.validID(eventID), revision > 0, KernelCanonicalHashV1.validSHA256(digest) else { throw EvidenceMetadataFailureV1.invalidValue }
+        associationEventID = eventID; resultingEvidenceRevision = revision; associationSHA256 = digest
+    }
+}
+
+extension EvidenceSequenceItemV1 {
+    private enum CodingKeys: String, CodingKey, CaseIterable { case evidenceID, contentID, role, caption, accessibilityDescription, ordinal, target, associationBinding }
+    init(from decoder: Decoder) throws {
+        try ContentClosedCodingV1.requireClosed(decoder, allowed: CodingKeys.allCases.map(\.rawValue), required: CodingKeys.allCases.filter({ $0 != .accessibilityDescription }).map(\.rawValue)); let c = try decoder.container(keyedBy: CodingKeys.self)
+        let evidenceID = try c.decode(String.self, forKey: .evidenceID), contentID = try c.decode(String.self, forKey: .contentID), caption = try c.decode(EvidenceReviewedCaptionV1.self, forKey: .caption), description = try c.decodeIfPresent(EvidenceAccessibilityDescriptionV1.self, forKey: .accessibilityDescription), ordinal = try c.decode(Int.self, forKey: .ordinal), target = try c.decode(EvidenceAssociationTargetV1.self, forKey: .target), binding = try c.decode(EvidenceAssociationBindingV1.self, forKey: .associationBinding)
+        guard ContentContractValidationV1.validID(evidenceID), ContentContractValidationV1.validID(contentID), ordinal >= 0,
+              caption.reviewer.workspaceID.rawValue.uuidString.lowercased() == target.workspaceID,
+              description.map({ $0.reviewer.workspaceID == caption.reviewer.workspaceID }) ?? true else { throw EvidenceMetadataFailureV1.invalidValue }
+        self.evidenceID = evidenceID; self.contentID = contentID; role = try c.decode(EvidenceRoleV1.self, forKey: .role); self.caption = caption; accessibilityDescription = description; self.ordinal = ordinal; self.target = target; associationBinding = binding
+    }
+}
+
+extension EvidenceSequenceReferenceV1 {
+    private enum CodingKeys: String, CodingKey, CaseIterable { case sequenceID, revision, sequenceSHA256 }
+    init(from decoder: Decoder) throws {
+        try ContentClosedCodingV1.requireExact(decoder, keys: CodingKeys.allCases.map(\.rawValue)); let c = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(sequenceID: c.decode(UUID.self, forKey: .sequenceID), revision: c.decode(UInt64.self, forKey: .revision), sequenceSHA256: c.decode(String.self, forKey: .sequenceSHA256))
+    }
+}
+
+extension EvidenceSequenceV1 {
+    private enum CodingKeys: String, CodingKey, CaseIterable { case schemaVersion, sequenceID, workspaceID, target, policy, orderedItems, predecessor, revision, mutationID, sequenceSHA256 }
+    init(from decoder: Decoder) throws {
+        try ContentClosedCodingV1.requireClosed(decoder, allowed: CodingKeys.allCases.map(\.rawValue), required: CodingKeys.allCases.filter({ $0 != .predecessor }).map(\.rawValue)); let c = try decoder.container(keyedBy: CodingKeys.self)
+        guard try c.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion else { throw EvidenceMetadataFailureV1.incompatibleVersion }
+        let rebuilt = try Self(sequenceID: c.decode(UUID.self, forKey: .sequenceID), workspaceID: c.decode(WorkspaceID.self, forKey: .workspaceID), target: c.decode(EvidenceAssociationTargetV1.self, forKey: .target), policy: c.decode(EvidenceCurationPolicyV1.self, forKey: .policy), orderedItems: c.decode([EvidenceSequenceItemV1].self, forKey: .orderedItems), predecessor: c.decodeIfPresent(EvidenceSequenceReferenceV1.self, forKey: .predecessor), revision: c.decode(UInt64.self, forKey: .revision), mutationID: c.decode(MutationIDV1.self, forKey: .mutationID))
+        guard rebuilt.sequenceSHA256 == (try c.decode(String.self, forKey: .sequenceSHA256)) else { throw EvidenceMetadataFailureV1.invalidDigest }; self = rebuilt
+    }
+}
+
+extension EvidenceMetadataMutationV1 {
+    private enum CodingKeys: String, CodingKey, CaseIterable { case workspaceID, mutationID, expectedSequenceRevision, associationEvent, sequenceSuccessor }
+    init(from decoder: Decoder) throws {
+        try ContentClosedCodingV1.requireExact(decoder, keys: CodingKeys.allCases.map(\.rawValue)); let c = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(workspaceID: c.decode(WorkspaceID.self, forKey: .workspaceID), mutationID: c.decode(MutationIDV1.self, forKey: .mutationID), expectedSequenceRevision: c.decode(UInt64.self, forKey: .expectedSequenceRevision), associationEvent: c.decode(EvidenceAssociationV1.self, forKey: .associationEvent), sequenceSuccessor: c.decode(EvidenceSequenceV1.self, forKey: .sequenceSuccessor))
+    }
 }

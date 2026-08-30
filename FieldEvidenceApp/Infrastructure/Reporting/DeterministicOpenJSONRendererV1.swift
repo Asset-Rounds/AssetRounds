@@ -1,5 +1,54 @@
 import Foundation
 
+struct ReviewedEvidenceOpenJSONEnvelopeV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let projection: ReviewedEvidenceReportProjectionV1
+
+    init(projection: ReviewedEvidenceReportProjectionV1) throws {
+        try projection.validateIntrinsic()
+        schemaVersion = Self.schemaVersion
+        self.projection = projection
+    }
+}
+
+extension DeterministicOpenJSONRendererV1 {
+    static func renderReviewedEvidence(
+        _ projection: ReviewedEvidenceReportProjectionV1
+    ) throws -> ReportProjectionOutputV1 {
+        let envelope = try ReviewedEvidenceOpenJSONEnvelopeV1(projection: projection)
+        let data = try EvidenceMetadataCanonicalCodecV1.data(envelope)
+        guard data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        let reopened = try reopenReviewedEvidence(data)
+        guard reopened.projection == projection else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return ReportProjectionOutputV1(
+            format: .openJSON,
+            data: data,
+            sha256: KernelCanonicalHashV1.sha256(data),
+            semanticSHA256: projection.projectionSHA256,
+            orderedSemanticIDs: projection.orderedItems.map {
+                "evidence.reviewed.\($0.item.evidenceID)"
+            },
+            taggedPDFAccessibilityEvidence: false
+        )
+    }
+
+    static func reopenReviewedEvidence(_ data: Data) throws -> ReviewedEvidenceOpenJSONEnvelopeV1 {
+        let value = try EvidenceMetadataCanonicalCodecV1.decode(
+            ReviewedEvidenceOpenJSONEnvelopeV1.self, from: data
+        )
+        guard value.schemaVersion == ReviewedEvidenceOpenJSONEnvelopeV1.schemaVersion else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try value.projection.validateIntrinsic()
+        return value
+    }
+}
+
 enum GuidedSurveyOpenJSONBoundaryV1 {
     static func validate(_ projection: SurveyPublicationReportProjectionV1) throws {
         try projection.validate()

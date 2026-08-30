@@ -83,6 +83,8 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case assetFunctionalRelationshipEvent
     case evidenceVisibility
     case claimEvidenceLink
+    case evidenceAssociationEvent
+    case evidenceSequenceRevision
     case assuranceManifest
     case attestation
     case inspectionReviewTransition
@@ -2412,6 +2414,68 @@ struct MyDayMutationV1: Codable, Equatable, Sendable {
     }
 }
 
+extension EvidenceMetadataMutationV1 {
+    static func associationEntityIdentity(
+        workspaceID: String,
+        evidenceID: String
+    ) throws -> WorkspaceEntityIdentityV1 {
+        let digest = SHA256.hash(data: Data("\(workspaceID)|\(evidenceID)".utf8))
+        let bytes = Array(digest)
+        let identifier = UUID(uuid: (
+            bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
+            bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]
+        ))
+        return try .init(kind: .evidenceAssociationEvent, id: identifier)
+    }
+
+    var affectedIdentities: [WorkspaceEntityIdentityV1] {
+        get throws {
+            try [
+                Self.associationEntityIdentity(
+                    workspaceID: associationEvent.workspaceID,
+                    evidenceID: associationEvent.evidenceID
+                ),
+                .init(kind: .evidenceSequenceRevision, id: sequenceSuccessor.sequenceID),
+            ].sorted { $0.stableKey < $1.stableKey }
+        }
+    }
+
+    var concurrencyIdentities: [WorkspaceEntityIdentityV1] {
+        get throws {
+            return try [
+                Self.associationEntityIdentity(
+                    workspaceID: associationEvent.workspaceID,
+                    evidenceID: associationEvent.evidenceID
+                ),
+                .init(kind: .evidenceSequenceRevision, id: sequenceSuccessor.sequenceID),
+            ].sorted { $0.stableKey < $1.stableKey }
+        }
+    }
+
+    func expectedRevision(for identity: WorkspaceEntityIdentityV1) throws -> UInt64 {
+        switch identity.kind {
+        case .evidenceAssociationEvent:
+            guard let revision = UInt64(exactly: associationEvent.expectedEvidenceRevision),
+                  try concurrencyIdentities.contains(identity) else {
+                throw WorkspaceMutationContractFailureV1.invalidPlan
+            }
+            return revision
+        case .evidenceSequenceRevision:
+            guard identity.id == sequenceSuccessor.sequenceID else {
+                throw WorkspaceMutationContractFailureV1.invalidPlan
+            }
+            return expectedSequenceRevision
+        default:
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+    }
+
+    func canonicalSHA256() throws -> String {
+        try validate()
+        return try WorkspaceMutationCanonicalV1.sha256(self)
+    }
+}
+
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
     case createCheckDraft(CheckDraftMutationV1)
@@ -2441,6 +2505,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyPackagePromotion(PackagePromotionMutationV1)
     case applyMeasurementIntegrity(MeasurementIntegrityMutationV1)
     case applyPrivacyTransform(PrivacyTransformMutationV1)
+    case applyEvidenceMetadata(EvidenceMetadataMutationV1)
     case applyClientCapability(ClientCapabilityMutationV1)
     case applyFieldReference(FieldReferenceMutationV1)
     case applyAccessibleDocumentAssessment(AccessibleDocumentMutationV1)
@@ -2494,6 +2559,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyPackagePromotion:.applyPackagePromotion
         case .applyMeasurementIntegrity:.applyMeasurementIntegrity
         case .applyPrivacyTransform:.applyPrivacyTransform
+        case .applyEvidenceMetadata:.applyEvidenceMetadata
         case .applyClientCapability:.applyClientCapability
         case .applyFieldReference:.applyFieldReference
         case .applyAccessibleDocumentAssessment:.applyAccessibleDocumentAssessment
@@ -2549,6 +2615,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyPackagePromotion="apply_package_promotion"
     case applyMeasurementIntegrity="apply_measurement_integrity"
     case applyPrivacyTransform="apply_privacy_transform"
+    case applyEvidenceMetadata="apply_evidence_metadata_v1"
     case applyClientCapability="apply_client_capability"
     case applyFieldReference="apply_field_reference"
     case applyAccessibleDocumentAssessment="apply_accessible_document_assessment"
@@ -3353,6 +3420,7 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind:.applyPackagePromotion,disposition:.compensatable,stableReason:"append_package_promotion_successor_only"),
         .init(commandKind:.applyMeasurementIntegrity,disposition:.compensatable,stableReason:"append_measurement_integrity_successor_only"),
         .init(commandKind:.applyPrivacyTransform,disposition:.irreversible,stableReason:"append_privacy_transform_forward_fix_only"),
+        .init(commandKind:.applyEvidenceMetadata,disposition:.compensatable,stableReason:"append_evidence_association_and_sequence_successor_only"),
         .init(commandKind:.applyClientCapability,disposition:.irreversible,stableReason:"append_client_capability_forward_fix_only"),
         .init(commandKind:.applyFieldReference,disposition:.irreversible,stableReason:"append_field_reference_forward_fix_only"),
         .init(commandKind:.applyAccessibleDocumentAssessment,disposition:.irreversible,stableReason:"append_accessible_document_assessment_successor_only"),
