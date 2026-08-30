@@ -86,3 +86,29 @@ enum C49WorkResourceAccessibleCoordinatorBoundaryV1 {
     static let sourceBytesConsumed = false
     static let liveInventoryClaimsConsumed = false
 }
+
+// MARK: - C50 incumbent file-exchange coordinator boundary
+
+/// Accessibility consumes only the already validated projection. C50's
+/// preview, mapping, quarantine, and external-file work remain delegated to
+/// their owning seams and cannot append an assessment or persist source data.
+enum C50AccessibleDocumentIncumbentCoordinatorBoundaryV1 {
+    static let adapterContract: Any.Type = IncumbentFileAdapterV1.self
+    static let selectionReceiptContract: Any.Type = IncumbentSelectionReceiptV1.self
+    static let exchangeReceiptContract: Any.Type = IncumbentFileExchangeReceiptV1.self
+    static let quarantineReceiptContract: Any.Type = IncumbentFileQuarantineReceiptV1.self
+    static let previewIsZeroWrite = true
+    static let allowlistIsRequiredBeforeAccessibility = true
+    static let quarantineIsRequiredBeforeAccessibility = true
+    static let sourceBytesConsumed = false
+    static let sessionBytesConsumed = false
+    static let providerStateConsumed = false
+    static let accessibilityCoordinatorIsNotAnImportWriter = true
+    static let existingAssessmentWriterRemainsSoleMutationRoute = true
+    static let existingReportRendererRemainsSoleRenderer = true
+    static let disabledProfileHasNoIntegrationClaim = true
+
+    static func validateProjection(_ tree: AccessibleDocumentSemanticTreeV1) throws {
+        try tree.validate()
+    }
+}

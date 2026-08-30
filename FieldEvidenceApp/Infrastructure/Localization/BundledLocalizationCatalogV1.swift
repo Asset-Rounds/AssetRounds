@@ -4699,3 +4699,51 @@ enum C49WorkResourceLocalizationBoundaryV1 {
         }
     }
 }
+
+// MARK: - C50 incumbent file-exchange truth boundary
+
+enum C50IncumbentFileExchangeLocalizationKeyV1: String, CaseIterable, Sendable {
+    case disabled = "incumbent_file_exchange.disabled"
+    case previewZeroWrite = "incumbent_file_exchange.preview_zero_write"
+    case quarantined = "incumbent_file_exchange.quarantined"
+    case fileCreated = "incumbent_file_exchange.file_created"
+    case availabilityUnknown = "incumbent_file_exchange.availability_unknown"
+}
+
+extension BundledLocalizationCatalogV1 {
+    static func incumbentFileExchangeEnglish(
+        _ key: C50IncumbentFileExchangeLocalizationKeyV1
+    ) -> String {
+        switch key {
+        case .disabled:
+            return "No file profile is selected"
+        case .previewZeroWrite:
+            return "Preview only — no records were changed"
+        case .quarantined:
+            return "The file could not be accepted. No records were changed."
+        case .fileCreated:
+            return "File created locally"
+        case .availabilityUnknown:
+            return "The app could not confirm whether the file was saved"
+        }
+    }
+}
+
+enum C50IncumbentFileExchangeLocalizationBoundaryV1 {
+    static let sourceLocale = "en"
+    static let namesAProvider = false
+    static let claimsSyncDeliveryOrAcceptance = false
+    static let unknownAvailabilityIsExplicit = true
+
+    static func validate() -> Bool {
+        let values = C50IncumbentFileExchangeLocalizationKeyV1.allCases.map {
+            BundledLocalizationCatalogV1.incumbentFileExchangeEnglish($0)
+        }
+        return sourceLocale == "en"
+            && !namesAProvider
+            && !claimsSyncDeliveryOrAcceptance
+            && unknownAvailabilityIsExplicit
+            && values.allSatisfy { !$0.isEmpty }
+            && values.contains("The app could not confirm whether the file was saved")
+    }
+}

@@ -3,6 +3,58 @@ import Foundation
 import SwiftData
 @testable import FieldEvidenceApp
 
+private final class C50KernelConformanceTests: XCTestCase {
+    func testV23P03C50DisabledRegistryIsClosedZeroProductionAndTruthful() throws {
+        let selection = try IncumbentSelectionReceiptV1(
+            receiptID: UUID(uuidString: "c5000000-0000-4000-8000-000000002001")!,
+            disposition: .disabledNoSelectedProfile,
+            selectedRelease: nil,
+            sanitizedFixtureProvenance: "Synthetic conformance only",
+            targetWorkflow: "NO_PROFILE",
+            fileVersion: nil,
+            direction: nil,
+            stableKeyMeaning: "No selected stable key",
+            termsDisposition: .unavailable,
+            evidenceDate: Date(timeIntervalSince1970: 1_800_000_000),
+            evidenceExpiresAt: nil
+        )
+        let availability = try TypedAvailabilityAndFallbackReceiptV1(
+            candidateHead: "1c8b3d99826a207d3b18b3e0429231c31804f317",
+            candidateTree: "3107903158238e5e5eaed78322c3564b06c648e2",
+            providerID: "V23_P03_C50",
+            providerSliceDigest: String(repeating: "c", count: 64),
+            consumerID: "V23_P04_C37",
+            capabilityID: .filesAndShare,
+            availabilityReason: .workspacePolicyDisabled,
+            mandatoryCoreComplete: true,
+            visibleFallback: .saveLocally,
+            persistenceDisposition: .noCanonicalEffectUntilAcceptance,
+            dataDisposition: .priorHistoryPreserved,
+            reentryTrigger: .capabilityStateChanged,
+            localizedVisibleStateKey: "incumbent.profile.disabled.state",
+            localizedVisibleCopyKey: "incumbent.profile.disabled.copy",
+            localizedNextActionKey: "incumbent.profile.disabled.action",
+            fallbackTestArtifactIDs: ["V23-P03-C50-A01-FALLBACK"],
+            evidenceArtifactIDs: ["V23-P03-C50-A01-RECEIPT"],
+            zeroUnsupportedPublicClaim: true
+        )
+        let registry = try ClosedIncumbentAdapterRegistryV1(
+            currentProductionReleases: [],
+            selection: selection,
+            selectionHistory: [selection],
+            availabilityReceipt: availability
+        )
+        XCTAssertTrue(registry.currentProductionReleases.isEmpty)
+        XCTAssertEqual(registry.selection.disposition.rawValue, "DISABLED_NO_SELECTED_PROFILE")
+        XCTAssertTrue(C50IncumbentFileExchangeLocalChangeJournalBoundaryV1.validate())
+        XCTAssertEqual(C50IncumbentFileExchangeLocalChangeJournalBoundaryV1.newJournalSubjectCount, 0)
+        XCTAssertEqual(C50IncumbentFileExchangeLocalChangeJournalBoundaryV1.syncDisposition, "NOT_APPLICABLE")
+        XCTAssertThrowsError(try registry.selectedRelease(at: Date(timeIntervalSince1970: 1_800_000_001))) {
+            XCTAssertEqual($0 as? IncumbentFileContractFailureV1, .noSelectedProfile)
+        }
+    }
+}
+
 private final class C45KernelConformanceCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityUsesClosedChecksumAlphabetAndCanonicalLimit() {
         XCTAssertEqual(ManualShortCodeV1.alphabet, "23456789ABCDEFGHJKMNPQRSTUVWXYZ")

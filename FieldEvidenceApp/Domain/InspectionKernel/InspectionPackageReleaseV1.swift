@@ -7,6 +7,12 @@ enum InspectionPackageReleaseStateV1: String, CaseIterable, Codable, Sendable {
     case published = "PUBLISHED"
 }
 
+enum C50IncumbentInspectionPackageBoundaryV1 {
+    static let adapterProfileIsNotAnInspectionPackage = true
+    static let packageReleaseIdentityCannotBeInferredFromFileVersion = true
+    static let acceptedPackageBindingsUseExistingReleaseAuthority = true
+}
+
 extension InspectionPackageReleaseV1 {
     func validateSurveySessionAuthority(_ authority:SurveySessionAuthorityV1,definition:SurveyDefinitionReleaseV1)throws{try authority.validate(definition:definition,packageRelease:self);guard state == .published,definition.activityKind == .survey,authority.packageRelease.packageReleaseID == packageReleaseID,authority.packageRelease.packageSHA256 == packageSHA256,authority.packageRelease.workflowSHA256 == workflowSHA256 else{throw SurveySessionFailureV1.wrongDefinition}}
 }

@@ -26,6 +26,12 @@ enum WorkflowAssetLocatorBoundaryV1 {
     }
 }
 
+enum C50IncumbentWorkflowBoundaryV1 {
+    static let mappingTargetIsClosedAndProfileDeclared = true
+    static let fileRowsCannotRequestWorkflowCompletion = true
+    static let acceptedChangesUseExistingWorkflowWriter = true
+}
+
 enum WorkflowRevisionKind: String, CaseIterable, Codable, Sendable {
     case original
     case clericalCorrection = "clerical_correction"

@@ -250,6 +250,22 @@ final class WorkResourceLifecycleAdapterV1 {
         try C49WorkResourceLifecycleBoundaryV1.validateDirectCostTotals(projection)
         return projection
     }
+
+    func c50AdapterProjection(
+        workspaceID: WorkspaceID,
+        privacyApproval: C50PrivacyPreviewApprovalReferenceV1
+    ) async throws -> C50WorkResourceAdapterProjectionV1 {
+        try privacyApproval.validate(workspaceID: workspaceID)
+        try privacyApproval.requireAuthoritativelyBound()
+        let totals = try await report(
+            workspaceID: workspaceID,
+            profile: .customerSafeDurationMaterial
+        )
+        return try WorkResourceCoordinatorV1.c50AdapterProjection(
+            customerSafeTotals: totals,
+            privacyApproval: privacyApproval
+        )
+    }
 }
 
 enum C49WorkResourceLifecycleBoundaryV1 {

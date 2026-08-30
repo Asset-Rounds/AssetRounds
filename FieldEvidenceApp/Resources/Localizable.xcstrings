@@ -3825,6 +3825,26 @@
     "work_resource.no_live_inventory_claim" : {
       "comment" : "C49 manual entries are not inventory balances or a live inventory claim.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "No live inventory claim" } } }
+    },
+    "incumbent_file_exchange.disabled" : {
+      "comment" : "C50 truthful zero-profile state; no provider is named or implied.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "No file profile is selected" } } }
+    },
+    "incumbent_file_exchange.preview_zero_write" : {
+      "comment" : "C50 preview state explicitly promises zero canonical writes.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Preview only — no records were changed" } } }
+    },
+    "incumbent_file_exchange.quarantined" : {
+      "comment" : "C50 fail-closed file result; quarantine is scratch-only and no canonical effect occurred.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "The file could not be accepted. No records were changed." } } }
+    },
+    "incumbent_file_exchange.file_created" : {
+      "comment" : "C50 local file callback result; never means synced, delivered, or provider-accepted.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "File created locally" } } }
+    },
+    "incumbent_file_exchange.availability_unknown" : {
+      "comment" : "C50 truthful callback-loss result; external file availability is unknown.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "The app could not confirm whether the file was saved" } } }
     }
   },
   "version" : "1.0"

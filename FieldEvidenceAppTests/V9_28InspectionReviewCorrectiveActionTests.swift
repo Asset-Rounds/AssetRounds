@@ -647,3 +647,36 @@ private enum C49WriterRecoverySupportV1 {
         }
     }
 }
+
+private final class C50IncumbentInspectionReviewBoundaryTests: XCTestCase {
+    func testC50InspectionReviewBoundaryDelegatesAndNeverPersistsExchangeBytes() {
+        XCTAssertEqual(C50InspectionReviewIncumbentPersistenceBoundaryV1.nonPersistentContractTypes.count, 7)
+        XCTAssertTrue(C50InspectionReviewIncumbentExchangeBoundaryV1.privacyAllowlistIsClosed)
+        XCTAssertTrue(C50InspectionReviewIncumbentExchangeBoundaryV1.quarantinePrecedesReview)
+        XCTAssertTrue(C50InspectionReviewIncumbentExchangeBoundaryV1.sourceAndSessionBytesAreExcluded)
+        XCTAssertTrue(C50InspectionReviewIncumbentExchangeBoundaryV1.providerStateIsNotReviewTruth)
+        XCTAssertTrue(C50InspectionReviewIncumbentExchangeBoundaryV1.reviewWriterIsDelegated)
+        XCTAssertTrue(C50InspectionReviewIncumbentExchangeBoundaryV1.reviewLifecycleIsDerivedOnly)
+        XCTAssertTrue(C50InspectionReviewIncumbentExchangeBoundaryV1.conformanceClaimsAreNotInferred)
+        XCTAssertFalse(C50InspectionReviewIncumbentPersistenceBoundaryV1.createsSecondReviewRowFamily)
+        XCTAssertFalse(C50InspectionReviewIncumbentPersistenceBoundaryV1.persistsSourceBytes)
+        XCTAssertFalse(C50InspectionReviewIncumbentPersistenceBoundaryV1.persistsSessionBytes)
+        XCTAssertFalse(C50InspectionReviewIncumbentPersistenceBoundaryV1.persistsProviderState)
+        XCTAssertFalse(C50InspectionReviewIncumbentPersistenceBoundaryV1.persistsQuarantinePayload)
+        XCTAssertTrue(C50InspectionReviewIncumbentCoordinatorBoundaryV1.previewIsZeroWrite)
+        XCTAssertTrue(C50InspectionReviewIncumbentCoordinatorBoundaryV1.reviewCoordinatorIsNotAnImportWriter)
+        XCTAssertTrue(C50InspectionReviewIncumbentCoordinatorBoundaryV1.existingReviewWriterRemainsSoleMutationRoute)
+        XCTAssertTrue(C50InspectionReviewIncumbentLifecycleBoundaryV1.readsExistingC14RowsOnly)
+        XCTAssertTrue(C50InspectionReviewIncumbentLifecycleBoundaryV1.inputBytesAreLeasedScratch)
+        XCTAssertTrue(C50InspectionReviewIncumbentLifecycleBoundaryV1.scratchIsExcludedFromBackup)
+        XCTAssertTrue(C50InspectionReviewIncumbentLifecycleBoundaryV1.scratchIsDeletedAfterOutcome)
+        XCTAssertFalse(C50InspectionReviewIncumbentLifecycleBoundaryV1.lifecyclePersistsSourceBytes)
+        XCTAssertFalse(C50InspectionReviewIncumbentLifecycleBoundaryV1.lifecyclePersistsSessionBytes)
+        XCTAssertFalse(C50InspectionReviewIncumbentLifecycleBoundaryV1.lifecycleCreatesSecondWriter)
+        XCTAssertFalse(C50InspectionReviewIncumbentLifecycleBoundaryV1.lifecycleCreatesSecondStore)
+        XCTAssertFalse(C50InspectionReviewIncumbentLifecycleBoundaryV1.lifecycleClaimsProviderAvailability)
+        XCTAssertEqual(String(reflecting: C50InspectionReviewIncumbentExchangeBoundaryV1.adapterContract), String(reflecting: IncumbentFileAdapterV1.self))
+        XCTAssertEqual(String(reflecting: C50InspectionReviewIncumbentExchangeBoundaryV1.selectionReceiptContract), String(reflecting: IncumbentSelectionReceiptV1.self))
+        XCTAssertEqual(String(reflecting: C50InspectionReviewIncumbentExchangeBoundaryV1.quarantineReceiptContract), String(reflecting: IncumbentFileQuarantineReceiptV1.self))
+    }
+}

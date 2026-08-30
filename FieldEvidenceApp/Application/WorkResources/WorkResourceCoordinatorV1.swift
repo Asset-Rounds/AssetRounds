@@ -101,3 +101,17 @@ final class WorkResourceCoordinatorV1 {
         return try append(entry)
     }
 }
+
+extension WorkResourceCoordinatorV1 {
+    nonisolated static func c50AdapterProjection(
+        customerSafeTotals: WorkResourceTotalsProjectionV1,
+        privacyApproval: C50PrivacyPreviewApprovalReferenceV1
+    ) throws -> C50WorkResourceAdapterProjectionV1 {
+        let projection = try C50WorkResourceAdapterProjectionV1(
+            customerSafeTotals: customerSafeTotals,
+            privacyApproval: privacyApproval
+        )
+        try C50WorkResourceAdapterDelegationV1.validate(projection)
+        return projection
+    }
+}

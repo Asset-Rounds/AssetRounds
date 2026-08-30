@@ -3,6 +3,20 @@ import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C50LocalSearchTests: XCTestCase {
+    func testV23P03C50SearchCannotIndexScratchQuarantineBookmarksOrEscapedPaths() {
+        XCTAssertTrue(C50IncumbentFileExchangeBackupBoundaryV1.sourceScratchAndQuarantineAreExcluded)
+        XCTAssertTrue(C50IncumbentFileExchangeBackupBoundaryV1.securityBookmarksAreExcluded)
+        XCTAssertFalse(C50IncumbentFileExchangeDeletionLedgerStoreBoundaryV1.persistsSourceOrQuarantineDigests)
+        XCTAssertTrue(C50IncumbentFileExchangeOrphanCleanupBoundaryV1.externalSourceAndExportFilesAreNeverCleanupTargets)
+        XCTAssertTrue(C50IncumbentFileExchangeOrphanCleanupBoundaryV1.canonicalImportedRowsAreNeverOrphanFiles)
+        XCTAssertEqual(C50IncumbentFileExchangePersistenceBoundaryV1.searchDisposition, "NOT_APPLICABLE")
+        XCTAssertTrue(C50IncumbentFileExchangeLifecycleBoundaryV1.searchIndexesCanonicalMetadataOnly)
+        XCTAssertTrue(C50IncumbentFileExchangeLifecycleBoundaryV1.reportsUseCanonicalProjectionOnly)
+        XCTAssertTrue(C50IncumbentFileExchangeLifecycleBoundaryV1.diagnosticsExcludeCustomerRowsAndSourceBytes)
+    }
+}
+
 private final class C45LocalSearchCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityIndexesAcceptedSnapshotTruthNotScratchArtifacts() {
         XCTAssertTrue(AssetLabelPersistenceEnrollmentV1.persistentFamilies.contains("AcceptedLabelGenerationSnapshotRow"))

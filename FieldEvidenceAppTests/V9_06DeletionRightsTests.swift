@@ -4,6 +4,19 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private final class C50DeletionRightsTests: XCTestCase {
+    func testV23P03C50DeletionPreservesCanonicalHistoryAndEraseClearsOnlyAppOwnedExchangeBytes() {
+        XCTAssertFalse(C50IncumbentFileExchangeDeletionIntentBoundaryV1.ordinaryDeletionTargetsAdapterState)
+        XCTAssertTrue(C50IncumbentFileExchangeDeletionIntentBoundaryV1.ordinaryDeletionPreservesAcceptedCanonicalHistory)
+        XCTAssertTrue(C50IncumbentFileExchangeDeletionIntentBoundaryV1.terminalScratchCleanupUsesNoCanonicalTombstone)
+        XCTAssertTrue(C50IncumbentFileExchangeEraseIntentBoundaryV1.clearsAppOwnedSourceScratch)
+        XCTAssertTrue(C50IncumbentFileExchangeEraseIntentBoundaryV1.clearsAppOwnedQuarantine)
+        XCTAssertTrue(C50IncumbentFileExchangeEraseIntentBoundaryV1.profileAndSelectionRemainInstalledConfiguration)
+        XCTAssertFalse(C50IncumbentFileExchangeEraseAllBoundaryV1.recallsEscapedFiles)
+        XCTAssertFalse(C50IncumbentFileExchangeEraseAllBoundaryV1.disablesOrRewritesInstalledProfileRelease)
+    }
+}
+
 private final class C45DeletionRightsCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityDeletesOnlyDurableAcceptedSnapshotState() {
         XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.persistentFamilies, ["AcceptedLabelGenerationSnapshotRow"])

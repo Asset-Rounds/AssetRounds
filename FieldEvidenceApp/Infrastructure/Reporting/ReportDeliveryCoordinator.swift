@@ -2740,3 +2740,26 @@ enum C49WorkResourceReportDeliveryBoundaryV1 {
         }
     }
 }
+
+/// Delivery exposes only the already-filtered report projection. C50 source
+/// bytes, external keys, direct costs without preview, and provider outcomes
+/// are never delivered as customer-safe report fields.
+enum C50IncumbentFileExchangeReportDeliveryBoundaryV1 {
+    static let deliveryRequiresValidatedProjection = true
+    static let directCostProjectionIsAbsent = C50IncumbentFileExchangeLifecycleBoundaryV1.directCostProjectionIsAbsent
+    static let sourceAndQuarantineBytesExcluded = true
+    static let externalAvailabilityIsNotDeliveryTruth = true
+    static let providerSuccessClaimExcluded = true
+    static let liveInventoryAndRawStockClaimsExcluded = true
+    static let deterministicOutputDigestIsRequired = true
+
+    static func validate() -> Bool {
+        deliveryRequiresValidatedProjection
+            && directCostProjectionIsAbsent
+            && sourceAndQuarantineBytesExcluded
+            && externalAvailabilityIsNotDeliveryTruth
+            && providerSuccessClaimExcluded
+            && liveInventoryAndRawStockClaimsExcluded
+            && deterministicOutputDigestIsRequired
+    }
+}

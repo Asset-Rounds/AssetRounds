@@ -1802,3 +1802,24 @@ enum OperationalContactLocalChangeJournalPolicyV1 {
 enum C46OperationalContactBoundary_22{static let commandKind:WorkspaceCommandKindV1 = .applyOperationalContact;static let platformOutcomesProjected=false}
 enum C47ActivityContractLocalJournalBoundaryV2 { static let commandKind:WorkspaceCommandKindV1 = .applyActivityContract;static let replayUsesExactMutationPostimages=true;static let completedSnapshotReferenceDoesNotDuplicateBytes=true }
 enum C48PortableReviewLocalJournalBoundaryV1 { static let commandKind:WorkspaceCommandKindV1 = .applyPortableReview;static let replayUsesExactEnvelopeBytesAndExistingC14Postimages=true;static let sessionOnlyHistoryIsExcluded=true }
+
+enum C50IncumbentFileExchangeLocalChangeJournalBoundaryV1 {
+    static let profileSelectionSessionSourceQuarantineDisposition = "NONPERSISTENT"
+    static let newJournalSubjectCount = 0
+    static let adapterStateIsExcluded = true
+    static let sourceScratchAndQuarantineAreExcluded = true
+    static let canonicalImportedEffectsUseExistingLocalJournal = true
+    static let replayDisposition = "NOT_APPLICABLE"
+    static let syncDisposition = "NOT_APPLICABLE"
+
+    static func validate() -> Bool {
+        profileSelectionSessionSourceQuarantineDisposition == "NONPERSISTENT"
+            && newJournalSubjectCount == 0
+            && adapterStateIsExcluded
+            && sourceScratchAndQuarantineAreExcluded
+            && canonicalImportedEffectsUseExistingLocalJournal
+            && replayDisposition == "NOT_APPLICABLE"
+            && syncDisposition == "NOT_APPLICABLE"
+            && C50IncumbentFileExchangePersistenceBoundaryV1.validate()
+    }
+}

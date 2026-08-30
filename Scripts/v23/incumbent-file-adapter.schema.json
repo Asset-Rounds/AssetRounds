@@ -1,0 +1,88 @@
+{
+  "$comment": "Constructor invariants not expressible here: Date values must be finite; optional expiry must be later than evidenceDate; Swift UTF-8 byte bounds and trimming are authoritative; receiptSHA256 must equal canonical constructor recomputation. The closed Release registry separately enforces zero current production releases for this disabled receipt and no TestSupport adapters in the Release binary.",
+  "$id": "urn:assetrounds:v23:p03:c50:incumbent-selection-receipt:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "direction": {
+      "type": "null"
+    },
+    "disposition": {
+      "const": "DISABLED_NO_SELECTED_PROFILE"
+    },
+    "evidenceDate": {
+      "type": "number"
+    },
+    "evidenceExpiresAt": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "fileVersion": {
+      "type": "null"
+    },
+    "receiptID": {
+      "format": "uuid",
+      "not": {
+        "const": "00000000-0000-0000-0000-000000000000"
+      },
+      "type": "string"
+    },
+    "receiptSHA256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "sanitizedFixtureProvenance": {
+      "maxLength": 1024,
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001f\\u007f\\u202a-\\u202e\\u2066-\\u2069]+$",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "selectedReleaseID": {
+      "type": "null"
+    },
+    "selectedReleaseSHA256": {
+      "type": "null"
+    },
+    "stableKeyMeaning": {
+      "maxLength": 1024,
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001f\\u007f\\u202a-\\u202e\\u2066-\\u2069]+$",
+      "type": "string"
+    },
+    "targetWorkflow": {
+      "maxLength": 160,
+      "minLength": 1,
+      "pattern": "^(?!.*[\\\"'\\\\])[!-~]+$",
+      "type": "string"
+    },
+    "termsDisposition": {
+      "enum": [
+        "UNAVAILABLE",
+        "EXPIRED"
+      ]
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "receiptID",
+    "disposition",
+    "selectedReleaseID",
+    "selectedReleaseSHA256",
+    "sanitizedFixtureProvenance",
+    "targetWorkflow",
+    "fileVersion",
+    "direction",
+    "stableKeyMeaning",
+    "termsDisposition",
+    "evidenceDate",
+    "evidenceExpiresAt",
+    "receiptSHA256"
+  ],
+  "title": "IncumbentSelectionReceiptV1",
+  "type": "object"
+}

@@ -22,6 +22,13 @@ struct MutationIDV1: Codable, Hashable, Sendable {
     }
 }
 
+enum C50IncumbentWorkspaceMutationBoundaryV1 {
+    static let addsWorkspaceCommand = false
+    static let addsWorkspaceEntityKind = false
+    static let previewIsZeroWrite = true
+    static let acceptedImportDelegatesToExistingCanonicalMutation = true
+}
+
 enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case site
     case asset

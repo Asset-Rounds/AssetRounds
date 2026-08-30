@@ -1,6 +1,13 @@
 import Darwin
 import Foundation
 
+enum C50IncumbentFileExchangeEraseIntentStoreBoundaryV1 {
+    static let appOwnedScratchParticipatesInEraseInventory = true
+    static let appOwnedQuarantineParticipatesInEraseInventory = true
+    static let externalSourceAndExportURLsParticipate = false
+    static let securityBookmarksSurviveErase = false
+}
+
 enum SurveySessionEraseIntentEnrollmentV1{static let schemaVersion=25;static let removesAllFiveFamilies=true;static func validate()throws{guard schemaVersion==25,removesAllFiveFamilies else{throw EraseIntentStoreError.invalidAuthority};try SurveySessionDeletionLedgerPolicyV1.validate()}}
 
 enum C30EvidenceContextEraseIntentStorePolicyV1 {

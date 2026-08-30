@@ -1,5 +1,27 @@
 import Foundation
 
+enum C50IncumbentFileExchangeBackupBoundaryV1 {
+    static let recordsSchemaVersion = C49BackupEnrollmentV1.recordsSchemaVersion
+    static let profileContractSchemaVersion = IncumbentFileProfileReleaseV1.schemaVersion
+    static let selectionContractSchemaVersion = IncumbentSelectionReceiptV1.schemaVersion
+    static let canonicalFamilyCount = 0
+    static let profileAndSelectionAreNonpersistent = true
+    static let sourceScratchAndQuarantineAreExcluded = true
+    static let securityBookmarksAreExcluded = true
+    static let canonicalImportedRowsRemainOwnedByTargetFamilies = true
+
+    static func validate() -> Bool {
+        recordsSchemaVersion == C49BackupEnrollmentV1.recordsSchemaVersion
+            && profileContractSchemaVersion == 1
+            && selectionContractSchemaVersion == 1
+            && canonicalFamilyCount == 0
+            && profileAndSelectionAreNonpersistent
+            && sourceScratchAndQuarantineAreExcluded
+            && securityBookmarksAreExcluded
+            && canonicalImportedRowsRemainOwnedByTargetFamilies
+    }
+}
+
 struct V5BackupLocationRecordV1: Codable, Equatable, Sendable {
     let id: UUID
     let canonicalData: Data

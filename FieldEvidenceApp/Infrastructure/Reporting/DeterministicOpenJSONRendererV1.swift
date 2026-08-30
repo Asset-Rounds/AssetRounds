@@ -3521,3 +3521,26 @@ enum C49WorkResourceOpenJSONBoundaryV1 {
     static let rawStockAndLiveInventoryClaimsEmitted = false
     static let formulaSafeCSVIsSeparate = true
 }
+
+/// Open JSON is a deterministic projection of accepted canonical/report
+/// values. It never serializes source bytes, external keys, private fields,
+/// direct costs, or a live-stock assertion from C50 exchange state.
+enum C50IncumbentFileExchangeOpenJSONBoundaryV1 {
+    static let sortedKeysAndStableBytes = true
+    static let repeatedRenderBytesMatch = true
+    static let sourceAndQuarantineBytesExcluded = true
+    static let externalAvailabilityExcludedFromReportTruth = true
+    static let privateFieldsRequireExplicitApproval = true
+    static let directCostProjectionIsAbsent = C50IncumbentFileExchangeLifecycleBoundaryV1.directCostProjectionIsAbsent
+    static let rawStockAndLiveInventoryClaimsExcluded = true
+
+    static func validate() -> Bool {
+        sortedKeysAndStableBytes
+            && repeatedRenderBytesMatch
+            && sourceAndQuarantineBytesExcluded
+            && externalAvailabilityExcludedFromReportTruth
+            && privateFieldsRequireExplicitApproval
+            && directCostProjectionIsAbsent
+            && rawStockAndLiveInventoryClaimsExcluded
+    }
+}

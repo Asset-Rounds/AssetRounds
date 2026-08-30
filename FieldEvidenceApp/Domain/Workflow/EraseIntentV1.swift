@@ -1,6 +1,14 @@
 import CoreFoundation
 import Foundation
 
+enum C50IncumbentFileExchangeEraseIntentBoundaryV1 {
+    static let clearsAppOwnedSourceScratch = true
+    static let clearsAppOwnedQuarantine = true
+    static let clearsSecurityScopedBookmarks = true
+    static let profileAndSelectionRemainInstalledConfiguration = true
+    static let escapedFilesCannotBeRecalled = true
+}
+
 enum FunctionalRelationshipEraseBoundaryV1 {
     static let descriptorAndEventRowsAreClearedOnlyWithWorkspaceErase = true
     static let ordinaryEndpointDeletionPreservesRows = true

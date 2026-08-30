@@ -1,5 +1,19 @@
 import Foundation
 
+enum C50IncumbentFileExchangeReplacementRestoreRuleV1 {
+    static let replacesCanonicalImportedRowsThroughExistingOwners = true
+    static let restoresProfileOrSelectionState = false
+    static let restoresScratchSourceOrQuarantine = false
+    static let restoresExternalFilePossession = false
+
+    static func validate() -> Bool {
+        replacesCanonicalImportedRowsThroughExistingOwners
+            && !restoresProfileOrSelectionState
+            && !restoresScratchSourceOrQuarantine
+            && !restoresExternalFilePossession
+    }
+}
+
 struct ReplacementRestoreRuleInput: Equatable, Sendable {
     let currentPackets: [V4BackupPacketDTO]
     let incomingPackets: [V4BackupPacketDTO]

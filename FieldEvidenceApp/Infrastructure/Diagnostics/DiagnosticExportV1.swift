@@ -2206,3 +2206,34 @@ enum C49WorkResourceDiagnosticBoundaryV1 {
         return try encoder.encode(value)
     }
 }
+
+/// Diagnostic export is metadata-only for C50. It never includes customer
+/// rows, source/quarantine bytes, external paths/keys, direct costs, or a
+/// provider-success assertion.
+enum C50IncumbentFileExchangeDiagnosticBoundaryV1 {
+    static let closedAdapterFields = Set(IncumbentCanonicalFieldV1.allCases)
+    static let releaseAdapterIDEmitted = false
+    static let profileSelectionAndHistoricReleaseEvidenceEmitted = false
+    static let customerRowsExcluded = true
+    static let sourceBytesExcluded = true
+    static let quarantineBytesExcluded = true
+    static let externalPathsAndKeysExcluded = true
+    static let privateValuesRequireExplicitApproval = true
+    static let directCostProjectionIsAbsent = C50IncumbentFileExchangeLifecycleBoundaryV1.directCostProjectionIsAbsent
+    static let availabilityIsTruthfulAndNoncanonical = true
+    static let deterministicMetadataEncoding = true
+
+    static func validate() -> Bool {
+        customerRowsExcluded
+            && !closedAdapterFields.isEmpty
+            && !releaseAdapterIDEmitted
+            && !profileSelectionAndHistoricReleaseEvidenceEmitted
+            && sourceBytesExcluded
+            && quarantineBytesExcluded
+            && externalPathsAndKeysExcluded
+            && privateValuesRequireExplicitApproval
+            && directCostProjectionIsAbsent
+            && availabilityIsTruthfulAndNoncanonical
+            && deterministicMetadataEncoding
+    }
+}

@@ -7,6 +7,12 @@ enum AssetLocatorManifestBoundaryV1 {
     static let locatorResolutionMayFetchBytes = false
 }
 
+enum C50IncumbentContentLocatorBoundaryV1 {
+    static let securityScopedURLsAreOperationScoped = true
+    static let persistentBookmarksAreForbidden = true
+    static let scratchPathsNeverBecomeCanonicalLocators = true
+}
+
 struct ContentLocatorV1: Codable, Equatable, Hashable, Identifiable, Sendable {
     static let schemaVersion = 1
     let schemaVersion: Int

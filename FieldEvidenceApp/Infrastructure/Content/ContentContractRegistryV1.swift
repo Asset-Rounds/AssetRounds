@@ -58,6 +58,24 @@ struct ContentContractRegistryV1: Codable, Equatable, Sendable {
     }
 }
 
+/// The C50 adapter contributes no new durable content family to the closed
+/// registry; it consumes existing projections and canonical references only.
+enum C50IncumbentFileExchangeContractRegistryBoundaryV1 {
+    static let newCanonicalContentFamilyCount = 0
+    static let sourceAndQuarantineFamiliesRegistered = false
+    static let profileSelectionFamilyRegistered = false
+    static let acceptedContentUsesExistingRegistry = true
+    static let registryIsClosedAndDeterministic = true
+
+    static func validate() -> Bool {
+        newCanonicalContentFamilyCount == 0
+            && !sourceAndQuarantineFamiliesRegistered
+            && !profileSelectionFamilyRegistered
+            && acceptedContentUsesExistingRegistry
+            && registryIsClosedAndDeterministic
+    }
+}
+
 struct ContentContractRegistryReceiptV1: Codable, Equatable, Sendable {
     static let schemaVersion = 1
     let schemaVersion: Int

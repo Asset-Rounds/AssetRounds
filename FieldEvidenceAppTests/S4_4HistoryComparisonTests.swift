@@ -948,3 +948,11 @@ private final class C49WorkResourceHistoryBoundaryTests: XCTestCase {
         XCTAssertEqual(WorkResourceDispositionV1.voidedWithReason.rawValue, "VOIDED_WITH_REASON")
     }
 }
+
+private final class C50IncumbentAdapterS44HistoryBoundaryTests: XCTestCase {
+    func testHistoricExchangeBytesAreNotReinterpretedOnCloneOrFork() {
+        XCTAssertTrue(C50IncumbentFileExchangeRestoreIdentityBoundaryV1.validate(.clone))
+        XCTAssertTrue(C50IncumbentFileExchangeRestoreIdentityBoundaryV1.validate(.fork))
+        XCTAssertFalse(C50IncumbentFileExchangeRestoreIdentityBoundaryV1.cloneForkReinterpretsReleasedFiles)
+    }
+}

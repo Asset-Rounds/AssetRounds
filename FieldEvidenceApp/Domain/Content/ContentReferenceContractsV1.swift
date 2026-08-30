@@ -7,6 +7,12 @@ enum AssetLocatorContentReferenceBoundaryV1 {
     static let rawExternalKeyMayBePersisted = false
 }
 
+enum C50IncumbentContentReferenceBoundaryV1 {
+    static let sourceFilesAreScratchOnly = true
+    static let acceptedReferencesUseExistingContentAuthority = true
+    static let adapterMayNotManufactureContentReferences = true
+}
+
 enum ContentContractFailureV1: Error, Equatable, Sendable {
     case invalidValue
     case limitExceeded

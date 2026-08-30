@@ -1036,3 +1036,34 @@ private final class C48PortableReviewV938AccessibleDocumentTests: XCTestCase {
 private final class C49WorkResourceAccessibleDocumentBoundaryTests: XCTestCase {
     func testAccessibleDocumentsCanDistinguishInternalFromCustomerSafe() { XCTAssertNotEqual(WorkResourceVisibilityPolicyV1.internalOnly, .customerSafe) }
 }
+
+private final class C50IncumbentAccessibleDocumentBoundaryTests: XCTestCase {
+    func testC50AccessibleDocumentBoundaryIsTypedAndNonPersistent() {
+        XCTAssertEqual(C50AccessibleDocumentIncumbentExchangeBoundaryV1.crossContractTypes.count, 4)
+        XCTAssertEqual(C50AccessibleDocumentIncumbentPersistenceBoundaryV1.nonPersistentContractTypes.count, 7)
+        XCTAssertTrue(C50AccessibleDocumentIncumbentExchangeBoundaryV1.privacyAllowlistIsClosed)
+        XCTAssertTrue(C50AccessibleDocumentIncumbentExchangeBoundaryV1.quarantinePrecedesProjection)
+        XCTAssertTrue(C50AccessibleDocumentIncumbentExchangeBoundaryV1.sourceAndSessionBytesAreExcluded)
+        XCTAssertTrue(C50AccessibleDocumentIncumbentExchangeBoundaryV1.writerAndRendererAreDelegated)
+        XCTAssertTrue(C50AccessibleDocumentIncumbentExchangeBoundaryV1.lifecycleIsDerivedOnly)
+        XCTAssertTrue(C50AccessibleDocumentIncumbentExchangeBoundaryV1.conformanceClaimsAreNotInferred)
+        XCTAssertFalse(C50AccessibleDocumentIncumbentPersistenceBoundaryV1.createsSecondSwiftDataFamily)
+        XCTAssertFalse(C50AccessibleDocumentIncumbentPersistenceBoundaryV1.persistsSourceBytes)
+        XCTAssertFalse(C50AccessibleDocumentIncumbentPersistenceBoundaryV1.persistsSessionBytes)
+        XCTAssertFalse(C50AccessibleDocumentIncumbentPersistenceBoundaryV1.persistsProviderState)
+        XCTAssertFalse(C50AccessibleDocumentIncumbentPersistenceBoundaryV1.persistsQuarantinePayload)
+        XCTAssertTrue(C50AccessibleDocumentIncumbentCoordinatorBoundaryV1.previewIsZeroWrite)
+        XCTAssertTrue(C50AccessibleDocumentIncumbentCoordinatorBoundaryV1.accessibilityCoordinatorIsNotAnImportWriter)
+        XCTAssertTrue(C50AccessibleDocumentIncumbentLifecycleBoundaryV1.inputBytesAreLeasedScratch)
+        XCTAssertTrue(C50AccessibleDocumentIncumbentLifecycleBoundaryV1.scratchIsExcludedFromBackup)
+        XCTAssertTrue(C50AccessibleDocumentIncumbentLifecycleBoundaryV1.scratchIsDeletedAfterOutcome)
+        XCTAssertFalse(C50AccessibleDocumentIncumbentLifecycleBoundaryV1.lifecyclePersistsSourceBytes)
+        XCTAssertFalse(C50AccessibleDocumentIncumbentLifecycleBoundaryV1.lifecyclePersistsSessionBytes)
+        XCTAssertFalse(C50AccessibleDocumentIncumbentLifecycleBoundaryV1.lifecycleCreatesSecondWriter)
+        XCTAssertFalse(C50AccessibleDocumentIncumbentLifecycleBoundaryV1.lifecycleCreatesSecondStore)
+        XCTAssertFalse(C50AccessibleDocumentIncumbentLifecycleBoundaryV1.lifecycleClaimsProviderAvailability)
+        XCTAssertEqual(String(reflecting: C50AccessibleDocumentIncumbentExchangeBoundaryV1.adapterContract), String(reflecting: IncumbentFileAdapterV1.self))
+        XCTAssertEqual(String(reflecting: C50AccessibleDocumentIncumbentExchangeBoundaryV1.selectionReceiptContract), String(reflecting: IncumbentSelectionReceiptV1.self))
+        XCTAssertEqual(String(reflecting: C50AccessibleDocumentIncumbentExchangeBoundaryV1.quarantineReceiptContract), String(reflecting: IncumbentFileQuarantineReceiptV1.self))
+    }
+}

@@ -4,6 +4,23 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private final class C50CompatibilityCorpusIntegrationTests: XCTestCase {
+    func testV23P03C50CompatibilityVocabularyIsClosedAndNeverBestGuess() {
+        XCTAssertEqual(IncumbentFileDirectionV1.allCases.map(\.rawValue), [
+            "IMPORT_ONLY", "EXPORT_ONLY", "BIDIRECTIONAL_FILES",
+        ])
+        XCTAssertEqual(IncumbentFileEncodingV1.allCases.map(\.rawValue), ["UTF_8"])
+        XCTAssertEqual(IncumbentSelectionDispositionV1.allCases.map(\.rawValue), [
+            "ENABLED_NAMED_PROFILE", "DISABLED_NO_SELECTED_PROFILE",
+        ])
+        XCTAssertEqual(Set(IncumbentQuarantineReasonV1.allCases), Set([
+            .unsupportedVersion, .headerMismatch, .encodingRejected, .budgetExceeded,
+            .ambiguousStableKey, .sourceChanged, .privacyViolation, .divergentRecovery,
+        ]))
+        XCTAssertFalse(C50IncumbentFileExchangeRestoreIdentityBoundaryV1.cloneForkReinterpretsReleasedFiles)
+    }
+}
+
 private final class C45CompatibilityCorpusTypedTests: XCTestCase {
     func testV23P03C45CompatibilityClosesDisclosureProfiles() {
         XCTAssertEqual(LabelDisclosureProfileV1.allCases.map(\.rawValue), [

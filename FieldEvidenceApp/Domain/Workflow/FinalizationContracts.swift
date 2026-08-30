@@ -7,6 +7,12 @@ enum FinalizationPhaseV1: String, Codable, Equatable, Sendable {
     case databaseCommitted = "database_committed"
 }
 
+enum C50IncumbentFinalizationBoundaryV1 {
+    static let importCannotFinalize = true
+    static let exportCannotChangeFinalization = true
+    static let completedBytesRemainImmutable = true
+}
+
 enum FinalizationAccessibleDocumentBoundaryV1{
     static let assessmentRequiredToFinalize=false
     static let finalSnapshotRewrittenByAssessment=false

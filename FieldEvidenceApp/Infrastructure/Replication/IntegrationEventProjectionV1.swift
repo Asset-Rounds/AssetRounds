@@ -5,12 +5,18 @@ struct IntegrationEventProjectionV1: Sendable {
     let limits: IntegrationEventLimitsV1
 
     init(registry: IntegrationContractRegistryV1, limits: IntegrationEventLimitsV1) throws {
+        guard C50IncumbentFileExchangeIntegrationProjectionBoundaryV1.validate() else {
+            throw IntegrationEventFailureV1.invalidValue
+        }
         try registry.validate(limits: limits)
         self.registry = registry
         self.limits = limits
     }
 
     func project(workspaceID: WorkspaceID, acceptedReceipts: [MutationReceiptV1]) throws -> [IntegrationEventV1] {
+        guard C50IncumbentFileExchangeIntegrationProjectionBoundaryV1.validate() else {
+            throw IntegrationEventFailureV1.invalidValue
+        }
         guard acceptedReceipts.count <= ChangeJournalLimitsV1.productionMaximumEntitiesPerCheckpoint else {
             throw IntegrationEventFailureV1.limitExceeded
         }
@@ -464,3 +470,26 @@ enum C45AcceptedLabelIntegrationProjectionBoundaryV1 { static let excludesShortC
 
 enum C46OperationalContactBoundary_49{static let commandKind:WorkspaceCommandKindV1 = .applyOperationalContact;static let platformOutcomesProjected=false}
 enum C47ActivityContractIntegrationProjectionBoundaryV2 { static let commandKind:WorkspaceCommandKindV1 = .applyActivityContract;static let projectsCanonicalPostimagesOnly=true;static let conformanceReceiptsProjected=false }
+
+enum C50IncumbentFileExchangeIntegrationProjectionBoundaryV1 {
+    static let profileSelectionSessionSourceQuarantineDisposition = "NONPERSISTENT"
+    static let newProjectionSubjects = 0
+    static let newIntegrationEvents = 0
+    static let adapterStateIsExcluded = true
+    static let sourceAndQuarantineBytesAreExcluded = true
+    static let canonicalImportedEffectsUseExistingProjection = true
+    static let projectionDisposition = "NOT_APPLICABLE"
+    static let searchDisposition = "NOT_APPLICABLE"
+
+    static func validate() -> Bool {
+        profileSelectionSessionSourceQuarantineDisposition == "NONPERSISTENT"
+            && newProjectionSubjects == 0
+            && newIntegrationEvents == 0
+            && adapterStateIsExcluded
+            && sourceAndQuarantineBytesAreExcluded
+            && canonicalImportedEffectsUseExistingProjection
+            && projectionDisposition == "NOT_APPLICABLE"
+            && searchDisposition == "NOT_APPLICABLE"
+            && C50IncumbentFileExchangeIntegrationEventBoundaryV1.validate()
+    }
+}

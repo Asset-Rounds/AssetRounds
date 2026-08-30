@@ -1116,6 +1116,29 @@ enum C33TemporalEvidenceJournalBoundaryV1 {
     }
 }
 
+enum C50IncumbentFileExchangeChangeJournalBoundaryV1 {
+    static let profileSelectionSessionSourceQuarantineDisposition = "NONPERSISTENT"
+    static let newChangeJournalKinds = 0
+    static let newJournalPayloadFamilies = 0
+    static let sourceAndQuarantineBytesAreExcluded = true
+    static let adapterStateIsNotChangeJournalTruth = true
+    static let canonicalImportedEffectsUseExistingChangeJournal = true
+    static let persistenceDisposition = "NOT_APPLICABLE"
+    static let replicationDisposition = "NOT_APPLICABLE"
+
+    static func validate() -> Bool {
+        profileSelectionSessionSourceQuarantineDisposition == "NONPERSISTENT"
+            && newChangeJournalKinds == 0
+            && newJournalPayloadFamilies == 0
+            && sourceAndQuarantineBytesAreExcluded
+            && adapterStateIsNotChangeJournalTruth
+            && canonicalImportedEffectsUseExistingChangeJournal
+            && persistenceDisposition == "NOT_APPLICABLE"
+            && replicationDisposition == "NOT_APPLICABLE"
+            && C50IncumbentFileExchangePersistenceBoundaryV1.validate()
+    }
+}
+
 enum C45AcceptedLabelChangeJournalBoundaryV1 { static let commandKind:WorkspaceCommandKindV1 = .applyAssetLabel;static let preservesCanonicalSnapshotDigest=true }
 
 enum C46OperationalContactChangeJournalBoundaryV1 {

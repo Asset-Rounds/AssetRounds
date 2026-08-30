@@ -951,6 +951,9 @@ enum PersistentSchemaReleaseRegistryV1 {
     }
 
     static func validate() throws {
+        guard C50IncumbentFileExchangePersistenceBoundaryV1.validate() else {
+            throw PersistentSchemaReleaseRegistryErrorV1.invalidActiveRelease
+        }
         try PersistentLifecycleContractReleaseRegistryV1.validate()
         try validate(releases)
     }
@@ -1371,4 +1374,59 @@ enum C48PortableReviewSchemaBoundaryV1 {
     static let newPersistentRowCount = 0
     static let sessionStoreIsNonpersistent = true
     static let portableExchangeHasSwiftDataModel = false
+}
+
+/// C50 is an incumbent-file adapter boundary, not a persistence release.
+/// Profile/selection/session/source/quarantine state is operation-scoped and
+/// nonpersistent. Accepted canonical effects continue through the existing
+/// writer and schema owners, so this card must not add a row, store, mutation,
+/// journal, integration event, or sync subject.
+enum C50IncumbentFileExchangePersistenceBoundaryV1 {
+    static let persistentSchemaVersion = 37
+    static let persistentModelCount = 121
+    static let recordsSchemaVersion = 36
+    static let newPersistentModelCount = 0
+    static let newRecordsRowCount = 0
+    static let profileSelectionSessionSourceQuarantineDisposition = "NONPERSISTENT"
+    static let migrationDisposition = "NOT_APPLICABLE"
+    static let backupRestoreDisposition = "NOT_APPLICABLE"
+    static let replaceRestoreDisposition = "NOT_APPLICABLE"
+    static let cloneDisposition = "NOT_APPLICABLE"
+    static let forkDisposition = "NOT_APPLICABLE"
+    static let mutationJournalDisposition = "NOT_APPLICABLE"
+    static let integrationEventDisposition = "NOT_APPLICABLE"
+    static let syncDisposition = "NOT_APPLICABLE"
+    static let searchDisposition = "NOT_APPLICABLE"
+    static let deleteDisposition = "NOT_APPLICABLE"
+    static let eraseDisposition = "NOT_APPLICABLE"
+    static let canonicalImportedEffectsUseExistingOwner = true
+    static let noAdapterSwiftDataModel = true
+    static let noAdapterMutationOrJournalKind = true
+    static let noAdapterIntegrationEventOrSyncTruth = true
+
+    static func validate() -> Bool {
+        persistentSchemaVersion == 37
+            && persistentModelCount == 121
+            && recordsSchemaVersion == 36
+            && newPersistentModelCount == 0
+            && newRecordsRowCount == 0
+            && profileSelectionSessionSourceQuarantineDisposition == "NONPERSISTENT"
+            && migrationDisposition == "NOT_APPLICABLE"
+            && backupRestoreDisposition == "NOT_APPLICABLE"
+            && replaceRestoreDisposition == "NOT_APPLICABLE"
+            && cloneDisposition == "NOT_APPLICABLE"
+            && forkDisposition == "NOT_APPLICABLE"
+            && mutationJournalDisposition == "NOT_APPLICABLE"
+            && integrationEventDisposition == "NOT_APPLICABLE"
+            && syncDisposition == "NOT_APPLICABLE"
+            && searchDisposition == "NOT_APPLICABLE"
+            && deleteDisposition == "NOT_APPLICABLE"
+            && eraseDisposition == "NOT_APPLICABLE"
+            && canonicalImportedEffectsUseExistingOwner
+            && noAdapterSwiftDataModel
+            && noAdapterMutationOrJournalKind
+            && noAdapterIntegrationEventOrSyncTruth
+            && PersistentSchemaV36.models.count == 120
+            && PersistentSchemaV37.models.count == 121
+    }
 }

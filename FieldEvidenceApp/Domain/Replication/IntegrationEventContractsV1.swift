@@ -625,3 +625,26 @@ enum C49WorkResourceIntegrationEventBoundaryV1 {
     static let directCostProjectsOnlyInsideCanonicalEntryPostimage = true
     static let projectionOwnsNoResourceOrCostLedger = true
 }
+
+enum C50IncumbentFileExchangeIntegrationEventBoundaryV1 {
+    static let profileSelectionSessionSourceQuarantineDisposition = "NONPERSISTENT"
+    static let newIntegrationEventKinds = 0
+    static let newSyncTruthKinds = 0
+    static let adapterStateIsNotAnIntegrationEvent = true
+    static let sourceAndQuarantineBytesAreExcluded = true
+    static let canonicalImportedEffectsUseExistingIntegrationEvents = true
+    static let eventDisposition = "NOT_APPLICABLE"
+    static let syncDisposition = "NOT_APPLICABLE"
+
+    static func validate() -> Bool {
+        profileSelectionSessionSourceQuarantineDisposition == "NONPERSISTENT"
+            && newIntegrationEventKinds == 0
+            && newSyncTruthKinds == 0
+            && adapterStateIsNotAnIntegrationEvent
+            && sourceAndQuarantineBytesAreExcluded
+            && canonicalImportedEffectsUseExistingIntegrationEvents
+            && eventDisposition == "NOT_APPLICABLE"
+            && syncDisposition == "NOT_APPLICABLE"
+            && C50IncumbentFileExchangePersistenceBoundaryV1.validate()
+    }
+}

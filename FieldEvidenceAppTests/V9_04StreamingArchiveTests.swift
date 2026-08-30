@@ -532,3 +532,19 @@ private final class C46V904StreamingArchiveCompatibilityTests: XCTestCase {
 private final class C49WorkResourceStreamingArchiveBoundaryTests: XCTestCase {
     func testStreamingArchiveCarriesFrozenSnapshotNotLivePartLink() { XCTAssertFalse(C49WorkResourceContractBoundaryV1.liveInventoryReference) }
 }
+
+private final class C50IncumbentFileExchangeV904StreamingArchiveTests: XCTestCase {
+    func testAdapterScratchAndQuarantineAreNotBackupMembers() {
+        XCTAssertTrue(
+            C50IncumbentFileExchangeStreamingArchiveBoundaryV1.validate(
+                recordsSchemaVersion: C49BackupEnrollmentV1.recordsSchemaVersion
+            )
+        )
+        XCTAssertEqual(C50IncumbentFileExchangeStreamingArchiveBoundaryV1.adapterSourceMemberCount, 0)
+        XCTAssertEqual(C50IncumbentFileExchangeStreamingArchiveBoundaryV1.adapterQuarantineMemberCount, 0)
+        XCTAssertEqual(C50IncumbentFileExchangeStreamingArchiveBoundaryV1.profileSelectionMemberCount, 0)
+        XCTAssertFalse(C50IncumbentFileExchangeStreamingArchiveServiceBoundaryV1.routesAdapterFilesThroughBackupArchiveWriter)
+        XCTAssertFalse(C50IncumbentFileExchangeStreamingArchiveServiceBoundaryV1.routesBackupArchiveMembersThroughAdapterParser)
+        XCTAssertTrue(C50IncumbentFileExchangeStreamingArchiveServiceBoundaryV1.unknownAdapterShapedArchiveMembersFailClosed)
+    }
+}

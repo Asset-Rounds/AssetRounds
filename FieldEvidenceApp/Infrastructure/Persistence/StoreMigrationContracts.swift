@@ -726,6 +726,9 @@ struct StoreMigrationJournalV1: Codable, Equatable, Sendable {
     }
 
     func validate() throws {
+        guard C50IncumbentFileExchangeMigrationBoundaryV1.validate() else {
+            throw StoreMigrationFailure.invalidContract
+        }
         guard schemaVersion == 1,
               migrationID != targetGenerationID,
               sourceGenerationID != targetGenerationID,
@@ -1583,4 +1586,27 @@ enum C49WorkResourceMigrationBoundaryV1 {
     static let backfillCreatesWorkResourceTruth = false
     static let localPartReferenceRemainsEmbedded = true
     static let liveInventoryRowsAdded = false
+}
+
+enum C50IncumbentFileExchangeMigrationBoundaryV1 {
+    static let sourceVersion = 37
+    static let targetVersion = 37
+    static let persistentSchemaVersion = 37
+    static let recordsSchemaVersion = 36
+    static let migrationDisposition = "NOT_APPLICABLE"
+    static let profileSelectionSessionSourceQuarantineAreNonpersistent = true
+    static let newPersistentRows = 0
+    static let canonicalImportedEffectsUseExistingMigration = true
+
+    static func validate() -> Bool {
+        sourceVersion == 37
+            && targetVersion == 37
+            && persistentSchemaVersion == 37
+            && recordsSchemaVersion == 36
+            && migrationDisposition == "NOT_APPLICABLE"
+            && profileSelectionSessionSourceQuarantineAreNonpersistent
+            && newPersistentRows == 0
+            && canonicalImportedEffectsUseExistingMigration
+            && C50IncumbentFileExchangePersistenceBoundaryV1.validate()
+    }
 }

@@ -1,5 +1,22 @@
 import Darwin
 import Foundation
+
+enum C50IncumbentFileExchangeBackupRestoreServiceBoundaryV1 {
+    static let restoresAdapterSessionOrSelection = false
+    static let restoresSourceScratchOrQuarantine = false
+    static let cloneForkActivatesSourceProfile = false
+    static let cloneForkCopiesExternalFileAuthority = false
+    static let canonicalImportedRowsUseExistingRebinders = true
+
+    static func validate(mode: BackupRestoreMode) -> Bool {
+        C50IncumbentFileExchangeRestoreIdentityBoundaryV1.validate(mode)
+            && !restoresAdapterSessionOrSelection
+            && !restoresSourceScratchOrQuarantine
+            && !cloneForkActivatesSourceProfile
+            && !cloneForkCopiesExternalFileAuthority
+            && canonicalImportedRowsUseExistingRebinders
+    }
+}
 import SwiftData
 
 private struct PrivacyTransformRestoreManifestEnvelopeV1: Decodable {

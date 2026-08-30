@@ -47,6 +47,13 @@ struct PortableExchangeSessionStageInputV2: Sendable {
     }
 }
 
+enum C50PortableExchangeSessionStoreDelegationV1 {
+    static let adapterNeverReadsProtectedCapabilityArtifacts = true
+    static let adapterNeverPersistsProfileOrSessionState = true
+    static let adapterNeverPersistsPrivacyApprovalState = true
+    static let adapterNeverCreatesCanonicalMutationReceipts = true
+}
+
 enum C49WorkResourcePortableExchangeIsolationV1 {
     static let sessionStoreOwnsNoWorkResourceOrDirectCostTruth = true
     static let internalCostsAreNeverPortableReviewPayload = true

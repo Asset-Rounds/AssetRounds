@@ -16,6 +16,12 @@ extension ReportSnapshotV1 {
     }
 }
 
+enum C50IncumbentReportSnapshotBoundaryV1 {
+    static let historicExportUsesExactSnapshot = true
+    static let adapterReplacementDoesNotRewriteSnapshot = true
+    static let outputAvailabilityIsNotReportTruth = true
+}
+
 enum C30EvidenceContextReportSnapshotBoundaryV1 {
     static let snapshotCarriesRecordedContextOnly = true
     static let historicSnapshotImmutable = true

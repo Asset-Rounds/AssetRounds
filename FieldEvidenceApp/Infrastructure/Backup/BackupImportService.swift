@@ -1,6 +1,13 @@
 import Darwin
 import Foundation
 
+enum C50IncumbentFileExchangeBackupImportServiceBoundaryV1 {
+    static let backupParserIsIncumbentFileParser = false
+    static let stagesAdapterSourceOrQuarantine = false
+    static let restoresSecurityScopedBookmarks = false
+    static let canonicalRowsRemainValidatedByBackupOwners = true
+}
+
 enum BackupImportServiceError: Error, Equatable {
     case invalidGeneration
     case securityScopeDenied

@@ -23,6 +23,13 @@ protocol WorkspaceWriterAdapterPortV1: AnyObject {
     func rollback()
 }
 
+enum C50IncumbentSoleWriterDelegationBoundaryV1 {
+    static let adapterOwnsWorkspaceWriter = false
+    static let previewWritesWorkspace = false
+    static let commitMustUseExistingWorkspaceWriter = true
+    static let effectBeforeReceiptRecoveryQueriesExistingMutationID = true
+}
+
 extension WorkspaceWriterAdapterPortV1 {
     var requiresInitialPlacementForFirstSign: Bool { false }
 }

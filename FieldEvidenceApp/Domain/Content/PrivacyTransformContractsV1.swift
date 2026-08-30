@@ -6,6 +6,131 @@ enum PrivacyTransformFailureV1: Error, Equatable, Sendable {
     case digestMismatch, staleDerivative, reviewRequired, rejected, invalidSuccessor, partialEffect
 }
 
+/// Shared, nonpersistent proof that an exact privacy derivative was approved
+/// against an exact manifest, review receipt, and policy for one workspace.
+/// Decoding is fail-closed: callers must still bind it to the authoritative
+/// manifest/review/policy with `validate(manifest:review:policy:)` before use.
+struct C50PrivacyPreviewApprovalReferenceV1: Codable, Equatable, Sendable {
+    private enum AuthorityBindingV1: Equatable, Sendable { case bound, unbound }
+    let workspaceID: WorkspaceID
+    let manifestID: UUID; let manifestRevision: UInt64; let manifestSHA256: String
+    let derivativeContentID: String; let derivativeSHA256: String
+    let reviewReceiptID: UUID; let reviewRevision: UInt64; let reviewReceiptSHA256: String
+    let policyID: UUID; let policyRevision: UInt64; let policySHA256: String
+    let audience: EvidenceAudienceV1
+    private let authorityBinding: AuthorityBindingV1
+
+    init(manifest: PrivacyTransformManifestV1, review: PrivacyReviewReceiptV1,
+         policy: PrivacyTransformPolicyV1) throws {
+        try review.validate(manifest: manifest, policy: policy)
+        guard review.decision == .approved, manifest.staleState == .current,
+              manifest.workspaceID == review.workspaceID,
+              manifest.workspaceID == policy.workspaceID else {
+            throw PrivacyTransformFailureV1.reviewRequired
+        }
+        workspaceID = manifest.workspaceID
+        manifestID = manifest.manifestID; manifestRevision = manifest.revision
+        manifestSHA256 = manifest.manifestSHA256
+        derivativeContentID = manifest.derivative.contentID
+        derivativeSHA256 = manifest.derivativeSHA256
+        reviewReceiptID = review.receiptID; reviewRevision = review.revision
+        reviewReceiptSHA256 = review.receiptSHA256
+        policyID = policy.policyID; policyRevision = policy.revision
+        policySHA256 = policy.policySHA256; audience = policy.audience
+        authorityBinding = .bound
+        try validate(workspaceID: manifest.workspaceID)
+    }
+
+    func validate(workspaceID expectedWorkspaceID: WorkspaceID) throws {
+        let zero = UUID(uuidString: "00000000-0000-0000-0000-000000000000")!
+        try PrivacyTransformValidationV1.text(derivativeContentID)
+        try [manifestSHA256, derivativeSHA256, reviewReceiptSHA256, policySHA256]
+            .forEach { try PrivacyTransformValidationV1.digest($0) }
+        guard workspaceID == expectedWorkspaceID, manifestID != zero,
+              reviewReceiptID != zero, policyID != zero,
+              manifestRevision > 0, reviewRevision > 0, policyRevision > 0 else {
+            throw PrivacyTransformFailureV1.reviewRequired
+        }
+    }
+
+    func validate(manifest: PrivacyTransformManifestV1, review: PrivacyReviewReceiptV1,
+                  policy: PrivacyTransformPolicyV1) throws {
+        _ = try revalidated(manifest: manifest, review: review, policy: policy)
+    }
+
+    func requireAuthoritativelyBound() throws {
+        guard authorityBinding == .bound else { throw PrivacyTransformFailureV1.reviewRequired }
+    }
+
+    func revalidated(manifest: PrivacyTransformManifestV1, review: PrivacyReviewReceiptV1,
+                     policy: PrivacyTransformPolicyV1) throws -> Self {
+        let authoritative = try Self(manifest: manifest, review: review, policy: policy)
+        guard self == authoritative else {
+            throw PrivacyTransformFailureV1.digestMismatch
+        }
+        return authoritative
+    }
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.workspaceID == rhs.workspaceID && lhs.manifestID == rhs.manifestID
+            && lhs.manifestRevision == rhs.manifestRevision && lhs.manifestSHA256 == rhs.manifestSHA256
+            && lhs.derivativeContentID == rhs.derivativeContentID
+            && lhs.derivativeSHA256 == rhs.derivativeSHA256
+            && lhs.reviewReceiptID == rhs.reviewReceiptID && lhs.reviewRevision == rhs.reviewRevision
+            && lhs.reviewReceiptSHA256 == rhs.reviewReceiptSHA256 && lhs.policyID == rhs.policyID
+            && lhs.policyRevision == rhs.policyRevision && lhs.policySHA256 == rhs.policySHA256
+            && lhs.audience == rhs.audience
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case workspaceID, manifestID, manifestRevision, manifestSHA256
+        case derivativeContentID, derivativeSHA256
+        case reviewReceiptID, reviewRevision, reviewReceiptSHA256
+        case policyID, policyRevision, policySHA256, audience
+    }
+
+    init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        workspaceID = try values.decode(WorkspaceID.self, forKey: .workspaceID)
+        manifestID = try values.decode(UUID.self, forKey: .manifestID)
+        manifestRevision = try values.decode(UInt64.self, forKey: .manifestRevision)
+        manifestSHA256 = try values.decode(String.self, forKey: .manifestSHA256)
+        derivativeContentID = try values.decode(String.self, forKey: .derivativeContentID)
+        derivativeSHA256 = try values.decode(String.self, forKey: .derivativeSHA256)
+        reviewReceiptID = try values.decode(UUID.self, forKey: .reviewReceiptID)
+        reviewRevision = try values.decode(UInt64.self, forKey: .reviewRevision)
+        reviewReceiptSHA256 = try values.decode(String.self, forKey: .reviewReceiptSHA256)
+        policyID = try values.decode(UUID.self, forKey: .policyID)
+        policyRevision = try values.decode(UInt64.self, forKey: .policyRevision)
+        policySHA256 = try values.decode(String.self, forKey: .policySHA256)
+        audience = try values.decode(EvidenceAudienceV1.self, forKey: .audience)
+        authorityBinding = .unbound
+        try validate(workspaceID: workspaceID)
+    }
+}
+
+extension C50PrivacyPreviewApprovalReferenceV1: Hashable {
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(workspaceID); hasher.combine(manifestID); hasher.combine(manifestRevision)
+        hasher.combine(manifestSHA256); hasher.combine(derivativeContentID)
+        hasher.combine(derivativeSHA256); hasher.combine(reviewReceiptID)
+        hasher.combine(reviewRevision); hasher.combine(reviewReceiptSHA256)
+        hasher.combine(policyID); hasher.combine(policyRevision); hasher.combine(policySHA256)
+        hasher.combine(audience)
+    }
+}
+
+enum C50IncumbentPrivacyBoundaryV1 {
+    static func requireApproval(
+        manifest: PrivacyTransformManifestV1,
+        review: PrivacyReviewReceiptV1,
+        policy: PrivacyTransformPolicyV1
+    ) throws -> C50PrivacyPreviewApprovalReferenceV1 {
+        try C50PrivacyPreviewApprovalReferenceV1(manifest: manifest, review: review, policy: policy)
+    }
+    static let contactsEvidenceMediaQualificationAndCostRequireExplicitAllowlist = true
+}
+
 enum FieldReferencePrivacyBoundaryV1 {
     /// A privacy derivative is distinct content and cannot replace immutable
     /// licensed/synthetic reference-pack source bytes in-place.

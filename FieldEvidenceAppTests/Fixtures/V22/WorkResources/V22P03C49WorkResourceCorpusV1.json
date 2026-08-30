@@ -19,7 +19,17 @@
     "appendOnly": true,
     "directCostVisibility": "INTERNAL_ONLY",
     "liveInventoryReference": false,
-    "mixedCurrencyAggregation": false
+    "mixedCurrencyAggregation": false,
+    "c50AdapterDelegation": {
+      "customerSafePreviewRequired": true,
+      "workspaceBoundApprovalRequired": true,
+      "authoritativelyBoundApprovalRequired": true,
+      "approvalProofComponents": ["manifest", "derivative", "review", "policy"],
+      "allowlistedDerivedFields": ["durationMinutes", "materialLineCount", "materialTotals"],
+      "directCostAndNotesExcluded": true,
+      "persistentProfileOrSessionExcluded": true,
+      "canonicalWriterDelegated": true
+    }
   },
   "acceptedBoundaries": {
     "durationMinutes": [1, 10080],

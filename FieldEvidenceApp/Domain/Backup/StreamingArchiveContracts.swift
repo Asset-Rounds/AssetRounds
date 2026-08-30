@@ -1,5 +1,22 @@
 import Foundation
 
+enum C50IncumbentFileExchangeStreamingArchiveBoundaryV1 {
+    static let adapterSourceMemberCount = 0
+    static let adapterQuarantineMemberCount = 0
+    static let profileSelectionMemberCount = 0
+    static let backupArchiveParserIsAdapterParser = false
+    static let canonicalImportedRowsRemainStreamedByExistingFamilies = true
+
+    static func validate(recordsSchemaVersion: Int) -> Bool {
+        recordsSchemaVersion <= C50IncumbentFileExchangeBackupBoundaryV1.recordsSchemaVersion
+            && adapterSourceMemberCount == 0
+            && adapterQuarantineMemberCount == 0
+            && profileSelectionMemberCount == 0
+            && !backupArchiveParserIsAdapterParser
+            && canonicalImportedRowsRemainStreamedByExistingFamilies
+    }
+}
+
 enum GuidedSurveyStreamingArchivePolicyV1 {
     static let recordsSchemaVersion = 24
     static let durableFamilyCount = 5

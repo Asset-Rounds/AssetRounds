@@ -17,6 +17,13 @@ enum CompatibilityContractErrorV1: Error, Equatable, Sendable {
     case invalidSeedSeal
 }
 
+enum C50IncumbentReleasedDataCompatibilityBoundaryV1 {
+    static let historicProfileBytesUseExactHistoricRelease = true
+    static let retiredReleaseCannotStartNewExchange = true
+    static let unknownFileVersionFailsClosed = true
+    static let successorReleaseNeverReinterpretsPriorReceipt = true
+}
+
 enum C49ReleasedWorkResourceCompatibilityPolicyV1 {
     static let persistentSchemaVersion = 37
     static let recordsSchemaVersion = 36

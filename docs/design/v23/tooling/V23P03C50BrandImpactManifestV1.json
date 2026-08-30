@@ -1,0 +1,32 @@
+{
+  "brandSurfaceDelta": true,
+  "cardID": "V23-P03-C50",
+  "presentation": "DISABLED_NO_SELECTED_PROFILE",
+  "prohibitedClaims": [
+    "integrated",
+    "connected",
+    "synced",
+    "supported provider",
+    "verified provider"
+  ],
+  "providerClaim": null,
+  "schema": "V23P03C50BrandImpactManifestV1",
+  "schemaVersion": 1,
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physical": false,
+    "physicalAcceptance": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "truthfulDisclosure": "No incumbent file profile is selected or enabled.",
+  "uiSurfaceDelta": false
+}

@@ -956,3 +956,11 @@ private final class C49WorkResourcePDFRecoveryBoundaryTests: XCTestCase {
         XCTAssertEqual(WorkResourceVisibilityPolicyV1.internalOnly.rawValue, "INTERNAL_ONLY")
     }
 }
+
+private final class C50IncumbentAdapterS42RecoveryBoundaryTests: XCTestCase {
+    func testRecoveryDoesNotRestoreProfileSelectionOrSourceScratch() {
+        XCTAssertTrue(C50IncumbentFileExchangeReplacementRestoreRuleV1.validate())
+        XCTAssertFalse(C50IncumbentFileExchangeReplacementRestoreRuleV1.restoresProfileOrSelectionState)
+        XCTAssertFalse(C50IncumbentFileExchangeReplacementRestoreRuleV1.restoresScratchSourceOrQuarantine)
+    }
+}

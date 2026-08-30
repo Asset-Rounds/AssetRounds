@@ -2625,3 +2625,11 @@ private final class C49WorkResourceCorrectionBoundaryTests: XCTestCase {
         XCTAssertEqual(WorkResourceDispositionV1.superseded.rawValue, "SUPERSEDED")
     }
 }
+
+private final class C50IncumbentAdapterS45CorrectionBoundaryTests: XCTestCase {
+    func testCorrectionCannotCreateASecondProductionProfileOrCanonicalDeletionReceipt() {
+        XCTAssertTrue(C50IncumbentFileExchangeKernelDeletionEnrollmentV1.ordinaryDeletionPreservesCanonicalHistory)
+        XCTAssertEqual(C50IncumbentFileExchangeKernelDeletionEnrollmentV1.canonicalRowRegistrationCount, 0)
+        XCTAssertTrue(C50IncumbentFileExchangeWholeSignDeletionServiceBoundaryV1.createsNoAdapterDeletionReceipt)
+    }
+}

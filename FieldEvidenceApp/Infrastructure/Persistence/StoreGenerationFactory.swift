@@ -2684,7 +2684,7 @@ private extension StoreGenerationFactory {
     @MainActor private func makeV34Container(at modelStoreURL:URL,migrate:Bool)throws->ModelContainer{let schema=Schema(PersistentSchemaV34.models,version:PersistentSchemaV34.versionIdentifier);let configuration=ModelConfiguration("FieldEvidenceV34",schema:schema,url:modelStoreURL,allowsSave:true,cloudKitDatabase:.none);let container=try ModelContainer(for:schema,migrationPlan:migrate ? PersistentSchemaMigrationPlanV33.self:nil,configurations:[configuration]);_ = try requireAssetLabels(in:container.mainContext);return container}
     @MainActor private func makeV35Container(at modelStoreURL:URL,migrate:Bool)throws->ModelContainer{let schema=Schema(PersistentSchemaV35.models,version:PersistentSchemaV35.versionIdentifier);let configuration=ModelConfiguration("FieldEvidenceV35",schema:schema,url:modelStoreURL,allowsSave:true,cloudKitDatabase:.none);let container=try ModelContainer(for:schema,migrationPlan:migrate ? PersistentSchemaMigrationPlanV34.self:nil,configurations:[configuration]);_ = try requireOperationalContacts(in:container.mainContext);return container}
     @MainActor private func makeV36Container(at modelStoreURL:URL,migrate:Bool)throws->ModelContainer{let schema=Schema(PersistentSchemaV36.models,version:PersistentSchemaV36.versionIdentifier);let configuration=ModelConfiguration("FieldEvidenceV36",schema:schema,url:modelStoreURL,allowsSave:true,cloudKitDatabase:.none);let container=try ModelContainer(for:schema,migrationPlan:migrate ? PersistentSchemaMigrationPlanV35.self:nil,configurations:[configuration]);_ = try requireActivityContracts(in:container.mainContext);return container}
-    @MainActor private func makeV37Container(at modelStoreURL:URL,migrate:Bool)throws->ModelContainer{let schema=Schema(PersistentSchemaV37.models,version:PersistentSchemaV37.versionIdentifier);let configuration=ModelConfiguration("FieldEvidenceV37",schema:schema,url:modelStoreURL,allowsSave:true,cloudKitDatabase:.none);let container=try ModelContainer(for:schema,migrationPlan:migrate ? PersistentSchemaMigrationPlanV36.self:nil,configurations:[configuration]);_ = try requireActivityContracts(in:container.mainContext);_ = try requireWorkResources(in:container.mainContext);return container}
+    @MainActor private func makeV37Container(at modelStoreURL:URL,migrate:Bool)throws->ModelContainer{guard C50IncumbentFileExchangeStoreGenerationBoundaryV1.validate() else{throw StoreMigrationFailure.invalidContract};let schema=Schema(PersistentSchemaV37.models,version:PersistentSchemaV37.versionIdentifier);let configuration=ModelConfiguration("FieldEvidenceV37",schema:schema,url:modelStoreURL,allowsSave:true,cloudKitDatabase:.none);let container=try ModelContainer(for:schema,migrationPlan:migrate ? PersistentSchemaMigrationPlanV36.self:nil,configurations:[configuration]);_ = try requireActivityContracts(in:container.mainContext);_ = try requireWorkResources(in:container.mainContext);return container}
     @MainActor private func assetLabelRowsAreEmpty(in c:ModelContext)throws->Bool{try c.fetch(FetchDescriptor<AcceptedLabelGenerationSnapshotRow>()).isEmpty}
     @MainActor private func requireAssetLabels(in c:ModelContext)throws->Int{let rows=try c.fetch(FetchDescriptor<AcceptedLabelGenerationSnapshotRow>());for row in rows{_ = try row.value()};guard Set(rows.map(\.stableIdentity)).count==rows.count else{throw StoreMigrationFailure.maintenanceRequired(.forwardFixRequired)};return rows.count}
     @MainActor private func operationalContactRowsAreEmpty(in c:ModelContext)throws->Bool{try c.fetch(FetchDescriptor<ServiceContactPointRow>()).isEmpty&&c.fetch(FetchDescriptor<SystemHandoffIntentRow>()).isEmpty}
@@ -11797,4 +11797,29 @@ enum C48PortableReviewStoreGenerationBoundaryV1 {
     static let semanticEnvelopeUnchanged = true
     static let sessionStoreIsNonpersistent = true
     static let historicalPreC47ActivityContractsRemainUntouched = true
+}
+
+enum C50IncumbentFileExchangeStoreGenerationBoundaryV1 {
+    static let activePersistentSchemaVersion = 37
+    static let activePersistentModelCount = 121
+    static let recordsSchemaVersion = 36
+    static let profileSelectionSessionSourceQuarantineAreNonpersistent = true
+    static let noAdapterGeneration = true
+    static let noAdapterSwiftDataModel = true
+    static let acceptedCanonicalEffectsUseExistingGeneration = true
+    static let migrationDisposition = "NOT_APPLICABLE"
+    static let backupRestoreDisposition = "NOT_APPLICABLE"
+
+    static func validate() -> Bool {
+        activePersistentSchemaVersion == 37
+            && activePersistentModelCount == 121
+            && recordsSchemaVersion == 36
+            && profileSelectionSessionSourceQuarantineAreNonpersistent
+            && noAdapterGeneration
+            && noAdapterSwiftDataModel
+            && acceptedCanonicalEffectsUseExistingGeneration
+            && migrationDisposition == "NOT_APPLICABLE"
+            && backupRestoreDisposition == "NOT_APPLICABLE"
+            && C50IncumbentFileExchangePersistenceBoundaryV1.validate()
+    }
 }

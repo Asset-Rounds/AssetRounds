@@ -831,3 +831,26 @@ enum C49WorkResourceWorklightRendererBoundaryV1 {
     static let liveInventoryClaimsRendered = false
     static let rawSourceBytesRendered = false
 }
+
+/// Worklight remains a presentation-only consumer. A C50 exchange never
+/// supplies provider state, scratch bytes, private values, or live inventory
+/// claims to this renderer.
+enum C50IncumbentFileExchangeWorklightBoundaryV1 {
+    static let usesExistingDeterministicPDFRoute = true
+    static let sourceAndQuarantineBytesRendered = false
+    static let externalProviderStateRendered = false
+    static let privateFieldsRequireExplicitPrivacyApproval = true
+    static let directCostProjectionIsAbsent = C50IncumbentFileExchangeLifecycleBoundaryV1.directCostProjectionIsAbsent
+    static let liveInventoryClaimsRendered = false
+    static let rawStockClaimsRendered = false
+
+    static func validate() -> Bool {
+        usesExistingDeterministicPDFRoute
+            && !sourceAndQuarantineBytesRendered
+            && !externalProviderStateRendered
+            && privateFieldsRequireExplicitPrivacyApproval
+            && directCostProjectionIsAbsent
+            && !liveInventoryClaimsRendered
+            && !rawStockClaimsRendered
+    }
+}

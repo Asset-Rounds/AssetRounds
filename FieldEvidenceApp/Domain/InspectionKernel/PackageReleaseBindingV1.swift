@@ -8,6 +8,12 @@ enum PackageReleaseBindingKindV1: String, CaseIterable, Codable, Sendable {
     case export = "EXPORT"
 }
 
+enum C50IncumbentPackageBindingBoundaryV1 {
+    static let externalStableKeyCannotSelectPackageRelease = true
+    static let mappingPreviewCarriesNoPackageStartAuthority = true
+    static let exactExistingBindingIsRequiredAtDelegatedCommit = true
+}
+
 enum C26SurveyPackageBindingLifecycleV1 {
     static let persistentFamilies=["SurveySessionV1","FactCaptureV1","ProvisionalSubjectV1","SubjectPromotionReceiptV1","SurveyPublicationSnapshotV1"]
     static let activityKind=ActivityKindV1.survey

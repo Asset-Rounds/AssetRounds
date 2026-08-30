@@ -348,3 +348,39 @@ enum C49WorkResourceInspectionReviewBoundaryV1 {
         )
     }
 }
+
+// MARK: - C50 incumbent file-exchange cross-contract boundary
+
+/// Inspection review may display only a validated, allowlisted, quarantined
+/// projection. It never treats an adapter profile or external file as review
+/// truth, and all review mutations remain C14 writer-owned.
+enum C50InspectionReviewIncumbentExchangeBoundaryV1 {
+    static let adapterContract: Any.Type = IncumbentFileAdapterV1.self
+    static let registryContract: Any.Type = ClosedIncumbentAdapterRegistryV1.self
+    static let profileReleaseContract: Any.Type = IncumbentFileProfileReleaseV1.self
+    static let selectionReceiptContract: Any.Type = IncumbentSelectionReceiptV1.self
+    static let exchangeScopeContract: Any.Type = IncumbentExchangeScopeV1.self
+    static let exportManifestContract: Any.Type = IncumbentFileExportManifestV1.self
+    static let exchangeReceiptContract: Any.Type = IncumbentFileExchangeReceiptV1.self
+    static let quarantineReceiptContract: Any.Type = IncumbentFileQuarantineReceiptV1.self
+    static let reviewProjectionType: Any.Type = InspectionReviewProjectionV1.self
+    static let accessibleDocumentType: Any.Type = AccessibleDocumentSemanticTreeV1.self
+    static let packageBindingType: Any.Type = PackageReleaseBindingV1.self
+    static let evidenceLinkType: Any.Type = AccessibleEvidenceLinkV1.self
+    static let privacyAllowlistIsClosed = true
+    static let quarantinePrecedesReview = true
+    static let sourceAndSessionBytesAreExcluded = true
+    static let providerStateIsNotReviewTruth = true
+    static let reviewWriterIsDelegated = true
+    static let reviewLifecycleIsDerivedOnly = true
+    static let conformanceClaimsAreNotInferred = true
+    static let disabledProfileRemainsTruthful = true
+
+    static func validateReviewProjection(_ projection: InspectionReviewProjectionV1) throws {
+        try InspectionReviewValidationV1.workspace(projection.workspaceID)
+        try InspectionReviewValidationV1.id(projection.reviewID)
+        try InspectionReviewValidationV1.revision(projection.revision)
+        try InspectionReviewValidationV1.id(projection.headTransitionID)
+        try projection.openChangeRequests.forEach { try $0.validate() }
+    }
+}

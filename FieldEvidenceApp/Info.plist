@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>FieldEvidenceIncumbentFileAdapterStatus</key>
+	<string>DISABLED_NO_SELECTED_PROFILE</string>
+	<key>FieldEvidenceIncumbentFileAdapterDeclaresProviderType</key>
+	<false/>
+	<key>FieldEvidenceIncumbentFileAdapterPersistsSecurityBookmarks</key>
+	<false/>
 	<!-- C49 durable work-resource facts use schema V37 / records V36. -->
 	<key>FieldEvidenceWorkResourcePersistentSchemaVersion</key>
 	<integer>37</integer>

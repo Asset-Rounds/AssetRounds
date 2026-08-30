@@ -876,3 +876,12 @@ private final class C49WorkResourceBackupExportBoundaryTests: XCTestCase {
         XCTAssertTrue(C49WorkResourcePersistenceBoundaryV1.backupRestoreCloneForkDeleteAndEraseUseExistingAuthorities)
     }
 }
+
+private final class C50IncumbentAdapterS62BackupExportBoundaryTests: XCTestCase {
+    func testBackupExcludesAdapterScratchSelectionAndExternalPossession() {
+        XCTAssertTrue(C50IncumbentFileExchangeBackupBoundaryV1.validate())
+        XCTAssertFalse(C50IncumbentFileExchangeBackupEncoderBoundaryV1.encodesSourceScratchOrQuarantine)
+        XCTAssertFalse(C50IncumbentFileExchangeBackupExportBoundaryV1.exportsSecurityBookmarksOrExternalPaths)
+        XCTAssertFalse(C50IncumbentFileExchangeBackupRestoreServiceBoundaryV1.restoresSourceScratchOrQuarantine)
+    }
+}

@@ -1386,3 +1386,13 @@ private final class C49WorkResourceEraseBoundaryTests: XCTestCase {
         XCTAssertTrue(C49WorkResourcePersistenceBoundaryV1.appendOnlyHistory)
     }
 }
+
+private final class C50IncumbentAdapterS66EraseBoundaryTests: XCTestCase {
+    func testEraseClearsOnlyAppOwnedExchangeScratchAndQuarantine() {
+        XCTAssertTrue(C50IncumbentFileExchangeEraseAllBoundaryV1.removesAppOwnedScratch)
+        XCTAssertTrue(C50IncumbentFileExchangeEraseAllBoundaryV1.removesAppOwnedQuarantine)
+        XCTAssertFalse(C50IncumbentFileExchangeEraseAllBoundaryV1.recallsEscapedFiles)
+        XCTAssertTrue(C50IncumbentFileExchangeEraseIntentStoreBoundaryV1.appOwnedScratchParticipatesInEraseInventory)
+        XCTAssertTrue(C50IncumbentFileExchangeEraseIntentStoreBoundaryV1.appOwnedQuarantineParticipatesInEraseInventory)
+    }
+}

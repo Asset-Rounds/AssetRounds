@@ -481,3 +481,59 @@ private final class C49WorkResourceFileAuthorityBoundaryTests: XCTestCase {
         XCTAssertTrue(C49WorkResourceLifecycleBoundaryV1.untrackedMaterialRemainsValid)
     }
 }
+
+
+private final class C50IncumbentFileExchangeFileAuthorityBoundaryTests: XCTestCase {
+    func testCopiedSourceMappingScratchAndQuarantineAreProtectedAndBackupExcluded() {
+        XCTAssertTrue(C50IncumbentFileExchangeProtectedFileBoundaryV1.validate())
+        XCTAssertFalse(C50IncumbentFileExchangeProtectedFileBoundaryV1.persistsSecurityScopedBookmarks)
+        XCTAssertFalse(C50IncumbentFileExchangeProtectedFileBoundaryV1.externalSourceAndExportFilesAreAppOwned)
+        XCTAssertTrue(C50IncumbentFileExchangeKernelBackupEnrollmentV1.validate())
+        XCTAssertTrue(C50IncumbentFileExchangeBackupRestoreServiceBoundaryV1.validate(mode: .replaceExisting))
+        XCTAssertTrue(C50IncumbentFileExchangeBackupRestoreServiceBoundaryV1.validate(mode: .clone))
+        XCTAssertTrue(C50IncumbentFileExchangeBackupRestoreServiceBoundaryV1.validate(mode: .fork))
+        XCTAssertTrue(C50IncumbentFileExchangeDeletionLedgerBoundaryV1.validate())
+    }
+
+    func testInfoPlistDeclaresDisabledPortWithoutProviderTypeOrBookmarkClaim() throws {
+        XCTAssertEqual(
+            Bundle.main.object(forInfoDictionaryKey: "FieldEvidenceIncumbentFileAdapterStatus") as? String,
+            "DISABLED_NO_SELECTED_PROFILE"
+        )
+        XCTAssertEqual(
+            Bundle.main.object(forInfoDictionaryKey: "FieldEvidenceIncumbentFileAdapterDeclaresProviderType") as? Bool,
+            false
+        )
+        XCTAssertEqual(
+            Bundle.main.object(forInfoDictionaryKey: "FieldEvidenceIncumbentFileAdapterPersistsSecurityBookmarks") as? Bool,
+            false
+        )
+        let declarations = try XCTUnwrap(
+            Bundle.main.object(forInfoDictionaryKey: "UTExportedTypeDeclarations") as? [[String: Any]]
+        )
+        let identifiers = Set(declarations.compactMap { $0["UTTypeIdentifier"] as? String })
+        XCTAssertEqual(identifiers.count, 3)
+        XCTAssertFalse(identifiers.contains { $0.localizedCaseInsensitiveContains("incumbent") })
+    }
+
+    func testBackupRestoreAndDeletionBoundariesPreserveOnlyExistingCanonicalOwners() {
+        XCTAssertTrue(C50IncumbentFileExchangeBackupBoundaryV1.validate())
+        XCTAssertEqual(C50IncumbentFileExchangeBackupBoundaryV1.profileContractSchemaVersion, 1)
+        XCTAssertEqual(C50IncumbentFileExchangeBackupBoundaryV1.selectionContractSchemaVersion, 1)
+        XCTAssertTrue(C50IncumbentFileExchangeBackupImportBoundaryV1.validate())
+        XCTAssertTrue(C50IncumbentFileExchangeReplacementRestoreRuleV1.validate())
+        XCTAssertFalse(C50IncumbentFileExchangeBackupEncoderBoundaryV1.encodesSourceScratchOrQuarantine)
+        XCTAssertFalse(C50IncumbentFileExchangeBackupDecoderBoundaryV1.acceptsSourceScratchOrQuarantine)
+        XCTAssertEqual(C50IncumbentFileExchangePackageValidationBoundaryV1.allowedAdapterMemberCount, 0)
+        XCTAssertFalse(C50IncumbentFileExchangeBackupExportBoundaryV1.exportsSecurityBookmarksOrExternalPaths)
+        XCTAssertFalse(C50IncumbentFileExchangeBackupImportServiceBoundaryV1.backupParserIsIncumbentFileParser)
+        XCTAssertTrue(C50IncumbentFileExchangeWholeSignDeletionRuleV1.canonicalImportedRowsFollowTheirSubjectOwners)
+        XCTAssertTrue(C50IncumbentFileExchangeWholeSignDeletionServiceBoundaryV1.createsNoAdapterDeletionReceipt)
+        XCTAssertTrue(C50IncumbentFileExchangeEraseIntentBoundaryV1.clearsAppOwnedQuarantine)
+        XCTAssertTrue(C50IncumbentFileExchangeEraseIntentStoreBoundaryV1.appOwnedScratchParticipatesInEraseInventory)
+        XCTAssertTrue(C50IncumbentFileExchangeEraseAllBoundaryV1.removesAppOwnedScratch)
+        XCTAssertEqual(C50IncumbentFileExchangeKernelDeletionEnrollmentV1.canonicalRowRegistrationCount, 0)
+        XCTAssertFalse(C50IncumbentFileExchangeDeletionLedgerStoreBoundaryV1.persistsSourceOrQuarantineDigests)
+        XCTAssertTrue(C50IncumbentFileExchangeOrphanCleanupBoundaryV1.externalSourceAndExportFilesAreNeverCleanupTargets)
+    }
+}

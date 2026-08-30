@@ -1,5 +1,22 @@
 import Foundation
 
+enum C50IncumbentFileExchangeRestoreIdentityBoundaryV1 {
+    static let replacementRestoresProfileActivation = false
+    static let cloneForkCopiesSessionState = false
+    static let cloneForkCopiesSecurityBookmarks = false
+    static let cloneForkReinterpretsReleasedFiles = false
+    static let canonicalImportedRowsFollowExistingIdentityRules = true
+
+    static func validate(_ mode: BackupRestoreMode) -> Bool {
+        canonicalImportedRowsFollowExistingIdentityRules
+            && !cloneForkCopiesSecurityBookmarks
+            && !cloneForkReinterpretsReleasedFiles
+            && (mode == .clone || mode == .fork
+                ? !cloneForkCopiesSessionState
+                : !replacementRestoresProfileActivation)
+    }
+}
+
 enum GuidedSurveyRestoreIdentityPolicyV1 {
     static func remintsWorkspace(_ mode: BackupRestoreMode) -> Bool {
         mode == .clone || mode == .fork

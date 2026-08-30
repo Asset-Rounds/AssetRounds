@@ -1853,3 +1853,25 @@ enum C49WorkResourceReportRenderBoundaryV1 {
     static let csvUsesFormulaSafeEscaping = true
     static let rawStockAndLiveInventoryClaimsRendered = false
 }
+
+/// Rendering is a pure, repeatable projection step. C50 source bytes and
+/// external callback status never become report truth or a customer-safe field.
+enum C50IncumbentFileExchangeRenderServiceBoundaryV1 {
+    static let rendererConsumesValidatedProjection = true
+    static let repeatedOpenJSONAndPDFBytesMatch = true
+    static let sourceAndQuarantineBytesExcluded = true
+    static let directCostProjectionIsAbsent = C50IncumbentFileExchangeLifecycleBoundaryV1.directCostProjectionIsAbsent
+    static let formulaSafeDelimitedExportRequired = true
+    static let rawStockAndLiveInventoryClaimsExcluded = true
+    static let externalAvailabilityIsNotReportTruth = true
+
+    static func validate() -> Bool {
+        rendererConsumesValidatedProjection
+            && repeatedOpenJSONAndPDFBytesMatch
+            && sourceAndQuarantineBytesExcluded
+            && directCostProjectionIsAbsent
+            && formulaSafeDelimitedExportRequired
+            && rawStockAndLiveInventoryClaimsExcluded
+            && externalAvailabilityIsNotReportTruth
+    }
+}

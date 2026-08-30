@@ -1934,3 +1934,24 @@ enum C49WorkResourceSnapshotValidationBoundaryV1 {
         return projection
     }
 }
+
+/// Snapshot validation remains anchored to canonical/report projections. C50
+/// scratch, quarantine, external availability, and live-inventory text cannot
+/// be admitted as historic report truth.
+enum C50IncumbentFileExchangeSnapshotValidatorBoundaryV1 {
+    static let validatesCanonicalProjectionBeforeRender = true
+    static let sourceAndQuarantineBytesRejected = true
+    static let externalAvailabilityNotSnapshotTruth = true
+    static let directCostProjectionIsAbsent = C50IncumbentFileExchangeLifecycleBoundaryV1.directCostProjectionIsAbsent
+    static let customerSafePrivacyFilterIsRequired = true
+    static let deterministicRebuildIsRequired = true
+
+    static func validate() -> Bool {
+        validatesCanonicalProjectionBeforeRender
+            && sourceAndQuarantineBytesRejected
+            && externalAvailabilityNotSnapshotTruth
+            && directCostProjectionIsAbsent
+            && customerSafePrivacyFilterIsRequired
+            && deterministicRebuildIsRequired
+    }
+}

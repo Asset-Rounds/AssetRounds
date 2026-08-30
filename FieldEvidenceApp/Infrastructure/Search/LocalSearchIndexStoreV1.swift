@@ -933,6 +933,24 @@ extension LocalSearchIndexStoreV1 {
     }
 }
 
+
+enum C50IncumbentFileExchangeLocalSearchBoundaryV1 {
+    static let existingIndexRemainsSoleSearchStore = true
+    static let storesAdapterSessionRows = false
+    static let storesInputOrQuarantineDigests = false
+    static let storesExternalKeysPathsOrAvailability = false
+    static let targetProjectionRebuildRemainsExistingOwner = true
+
+    static func validate() -> Bool {
+        existingIndexRemainsSoleSearchStore
+            && !storesAdapterSessionRows
+            && !storesInputOrQuarantineDigests
+            && !storesExternalKeysPathsOrAvailability
+            && targetProjectionRebuildRemainsExistingOwner
+            && C50IncumbentFileExchangeSearchPersistenceBoundaryV1.validate()
+    }
+}
+
 // MARK: - C49 work-resource local-search boundary
 
 enum C49WorkResourceLocalSearchBoundaryV1 {

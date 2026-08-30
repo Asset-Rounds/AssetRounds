@@ -379,6 +379,9 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
 
     static var current: CurrentSyncClassificationCatalogV1 {
         get throws {
+            guard C50IncumbentFileExchangeSyncBoundaryV1.validate() else {
+                throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+            }
             let baseline = try SyncClassificationRegistryV1.registrations
             let additions = try makeAdditionalRegistrations()
             let registrations = (baseline + additions).sorted {
@@ -482,6 +485,9 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
     }
 
     func validate() throws {
+        guard C50IncumbentFileExchangeSyncBoundaryV1.validate() else {
+            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+        }
         try SyncClassificationRegistryV1.validate()
         guard !registrations.isEmpty,
               registrations.count <= SyncClassificationRegistryV1.maximumRegistrationCount else {
@@ -1612,4 +1618,33 @@ enum C49WorkResourceSyncBoundaryV1 {
     static let directCostIsEmbedded = true
     static let localPartReferenceIsEmbeddedSnapshot = true
     static let localPartReferenceIsLiveInventory = false
+}
+
+enum C50IncumbentFileExchangeSyncBoundaryV1 {
+    static let persistentSchemaVersion = 37
+    static let recordsSchemaVersion = 36
+    static let persistentModelCountAdded = 0
+    static let syncSubjectCountAdded = 0
+    static let integrationEventCountAdded = 0
+    static let profileSelectionSessionSourceQuarantineDisposition = "NONPERSISTENT"
+    static let migrationDisposition = "NOT_APPLICABLE"
+    static let syncDisposition = "NOT_APPLICABLE"
+    static let searchDisposition = "NOT_APPLICABLE"
+    static let canonicalImportedEffectsUseExistingSyncOwner = true
+    static let rawInputAndQuarantineAreExcluded = true
+
+    static func validate() -> Bool {
+        persistentSchemaVersion == 37
+            && recordsSchemaVersion == 36
+            && persistentModelCountAdded == 0
+            && syncSubjectCountAdded == 0
+            && integrationEventCountAdded == 0
+            && profileSelectionSessionSourceQuarantineDisposition == "NONPERSISTENT"
+            && migrationDisposition == "NOT_APPLICABLE"
+            && syncDisposition == "NOT_APPLICABLE"
+            && searchDisposition == "NOT_APPLICABLE"
+            && canonicalImportedEffectsUseExistingSyncOwner
+            && rawInputAndQuarantineAreExcluded
+            && C50IncumbentFileExchangePersistenceBoundaryV1.validate()
+    }
 }

@@ -1732,3 +1732,26 @@ private enum C49WorkResourcePDFPayloadV1 {
 
     private static let asciiQuestionMark: UInt8 = 0x3F
 }
+
+/// The PDF route consumes the same validated semantic projection as Open JSON;
+/// C50 source/quarantine state is not document truth and no accessibility or
+/// privacy claim is inferred from an external file callback.
+enum C50IncumbentFileExchangePDFBoundaryV1 {
+    static let deterministicRendererConsumesValidatedProjection = true
+    static let sourceAndQuarantineBytesExcluded = true
+    static let privateValuesExcludedWithoutExplicitApproval = true
+    static let directCostProjectionIsAbsent = C50IncumbentFileExchangeLifecycleBoundaryV1.directCostProjectionIsAbsent
+    static let liveInventoryAndRawStockClaimsExcluded = true
+    static let externalAvailabilityIsNotReportTruth = true
+    static let accessibilityClaimsRemainExplicit = true
+
+    static func validate() -> Bool {
+        deterministicRendererConsumesValidatedProjection
+            && sourceAndQuarantineBytesExcluded
+            && privateValuesExcludedWithoutExplicitApproval
+            && directCostProjectionIsAbsent
+            && liveInventoryAndRawStockClaimsExcluded
+            && externalAvailabilityIsNotReportTruth
+            && accessibilityClaimsRemainExplicit
+    }
+}

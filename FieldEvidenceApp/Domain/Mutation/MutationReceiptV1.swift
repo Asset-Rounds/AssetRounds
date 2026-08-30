@@ -46,6 +46,16 @@ struct MutationReceiptIdentityV1: Codable, Equatable, Hashable, Sendable {
     }
 }
 
+enum C50IncumbentMutationReceiptBoundaryV1 {
+    static func reference(_ receipt: MutationReceiptV1,
+                          plan: IncumbentExchangeRecoveryPlanV1) throws
+        -> IncumbentCanonicalMutationReceiptReferenceV1 {
+        try IncumbentCanonicalMutationReceiptReferenceV1(receipt: receipt, plan: plan)
+    }
+    static let addsMutationReceiptCase = false
+    static let exchangeReceiptWrapsExactExistingReceipt = true
+}
+
 enum MutationWorkspaceKeyV1 {
     static func value(workspaceID: WorkspaceID, mutationID: MutationIDV1) -> String {
         "\(workspaceID.rawValue.uuidString.lowercased()):\(mutationID.rawValue.uuidString.lowercased())"

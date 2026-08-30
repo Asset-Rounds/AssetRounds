@@ -9,6 +9,13 @@ enum SemanticAccessibilityRoleV1: String, Codable, CaseIterable, Sendable {
     case group = "GROUP"
 }
 
+enum C50IncumbentAccessibilityBoundaryV1 {
+    static let previewAnnouncesIncludedOmittedAndUnresolvedCounts = true
+    static let quarantineAndDisabledStatesAreNotColorOnly = true
+    static let profileVersionAndDirectionHaveAccessibleLabels = true
+    static let keyboardFocusOrderIsDeterministic = true
+}
+
 enum SemanticAccessibilityReachabilityV1: String, Codable, CaseIterable, Sendable {
     case always = "ALWAYS"
     case whenAvailable = "WHEN_AVAILABLE"

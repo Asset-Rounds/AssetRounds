@@ -4,6 +4,31 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private final class C50EvidenceAssuranceTests: XCTestCase {
+    func testV23P03C50DisabledSelectionCarriesExactEvidenceWithoutProviderClaim() throws {
+        let receipt = try IncumbentSelectionReceiptV1(
+            receiptID: UUID(uuidString: "c5000000-0000-4000-8000-000000002701")!,
+            disposition: .disabledNoSelectedProfile,
+            selectedRelease: nil,
+            sanitizedFixtureProvenance: "Synthetic sanitized conformance corpus",
+            targetWorkflow: "NO_PROFILE",
+            fileVersion: nil,
+            direction: nil,
+            stableKeyMeaning: "No provider stable key selected",
+            termsDisposition: .unavailable,
+            evidenceDate: Date(timeIntervalSince1970: 1_800_000_000),
+            evidenceExpiresAt: nil
+        )
+        try receipt.validate(selectedRelease: nil)
+        XCTAssertNil(receipt.selectedReleaseID)
+        XCTAssertNil(receipt.selectedReleaseSHA256)
+        XCTAssertNil(receipt.fileVersion)
+        XCTAssertNil(receipt.direction)
+        XCTAssertEqual(receipt.disposition.rawValue, "DISABLED_NO_SELECTED_PROFILE")
+        XCTAssertEqual(receipt.termsDisposition.rawValue, "UNAVAILABLE")
+    }
+}
+
 @MainActor
 final class V9_27EvidenceAssuranceTests: XCTestCase {
     func testV23P03C13GoldenVisibilityLinksManifestAndPurposeBoundAttestation() throws {

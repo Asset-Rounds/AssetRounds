@@ -1,0 +1,111 @@
+{
+  "adapterBoundary": {
+    "bookmark": false,
+    "budgetBounded": true,
+    "credential": false,
+    "deterministicParseMapRender": true,
+    "exactVersionDetection": true,
+    "failClosedHeaderMatching": true,
+    "network": false,
+    "providerNeutral": true,
+    "secondWriter": false
+  },
+  "authority": {
+    "appBaseHead": "bdb4b61e2e148fb10f35f4536ac65119697b1133",
+    "appBaseTree": "9f81756d95e9d397f3dc56fd13fd544850645ac1",
+    "contextDigest": "04061e30aaf4968b271b9657af03e71152ae446bdf84f24730d06e1b8cf129e1",
+    "coordinationCASSequence": 339,
+    "coordinationHead": "de38be916f88f5999e961a74d1daf9aa9502f439",
+    "coordinationLedgerDigest": "cba53f0dda6cc72621f889718861e2da9d318a0d1fd8f6dc9782d61aed3407e8",
+    "coordinationProjectionDigest": "066d98d840e5a333a28698b38f240ebdf668f03d61d0b445b12a5babaf17592c",
+    "coordinationTree": "801ea5867896da24c1359e85d03c51bcafdfaf41",
+    "directPrerequisites": [
+      "V23-P03-C20"
+    ],
+    "hydrationTransitionDigest": "d4f5d40659734ebce4339d70009ff6414904dafa0d0c2d11b43b7fdb760a5cdf",
+    "pathFenceDigest": "43add5f59574b0686a74dd09f9379e6dc4b07cb93ad6578d8e0910d6947e6800",
+    "provisionalPrerequisiteDigest": "7eff4ff26f7c4332e7399e81a514877157137353f786743a21cccc54d7431da1"
+  },
+  "cardID": "V23-P03-C50",
+  "evidenceIDs": [
+    "V23-P03-C50-G01",
+    "V23-P03-C50-A01",
+    "V23-P03-C50-H01",
+    "V23-P03-C50-I01",
+    "V23-P03-C50-R01"
+  ],
+  "persistence": {
+    "mode": "NONPERSISTENT",
+    "schemaBump": false,
+    "scratchDeletedAfterOutcome": true,
+    "scratchExcludedFromBackup": true,
+    "store": false,
+    "writer": false
+  },
+  "privacy": {
+    "closedFieldAllowlist": true,
+    "excludedByDefault": [
+      "contact",
+      "email",
+      "note",
+      "gps",
+      "media",
+      "evidence",
+      "qualification",
+      "direct cost"
+    ],
+    "explicitPreview": true
+  },
+  "recovery": {
+    "cancelledExportClaimsExternalAvailability": false,
+    "changedDigestInvalidates": true,
+    "forwardFix": "DISABLE_PROFILE_PRESERVE_OLD_READERS_PUBLISH_SUCCESSOR_NEVER_REINTERPRET",
+    "lostCallbackDisposition": "EXTERNAL_AVAILABILITY_UNKNOWN",
+    "sameInputPlanIdempotent": true
+  },
+  "registerOrdinal": 80,
+  "releaseRegistry": {
+    "enabledProductionProfileMaximum": 1,
+    "enabledProductionProfileMinimum": 0,
+    "publicProviderClaim": false,
+    "releaseTestAdaptersPresent": false,
+    "selectedProfileCount": 0,
+    "status": "DISABLED_NO_SELECTED_PROFILE"
+  },
+  "schema": "V23P03C50IncumbentFileAdapterContractV1",
+  "schemaVersion": 1,
+  "sourceAuthority": {
+    "dossier": {
+      "byteCount": 7436,
+      "sha256": "c781c26ba72bb3cd72098d77f6f121c34f3893d19568b7d954398f0f1473feef"
+    },
+    "inheritedV21": {
+      "byteCount": 5709,
+      "sha256": "04ddfcf4166f40c2965132d9de302d90ea2c9eb0a4765073f225f9809d2ffb88"
+    },
+    "registerRow": {
+      "byteCount": 292,
+      "sha256": "6aefbc2025c54881b633cf0aea54f54ba240e4ab38f866d2ed5b27c0976d5736"
+    },
+    "registerSection": {
+      "byteCount": 44217,
+      "sha256": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5"
+    }
+  },
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physical": false,
+    "physicalAcceptance": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "title": "Provider-neutral versioned file-adapter port, closed profile registry, mapping manifest, and quarantine"
+}

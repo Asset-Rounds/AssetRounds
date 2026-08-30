@@ -1,5 +1,20 @@
 import Foundation
 
+enum C50IncumbentFileExchangeKernelBackupEnrollmentV1 {
+    static let canonicalRegistrationCount = 0
+    static let persistentSchemaBump = false
+    static let recordsSchemaBump = false
+    static let nonpersistentAdapterStateIsExcluded = true
+
+    static func validate() -> Bool {
+        canonicalRegistrationCount == 0
+            && !persistentSchemaBump
+            && !recordsSchemaBump
+            && nonpersistentAdapterStateIsExcluded
+            && C50IncumbentFileExchangeBackupBoundaryV1.validate()
+    }
+}
+
 enum GuidedSurveyBackupRegistryV1 {
     static let persistentSchemaVersion = 25
     static let recordsSchemaVersion = 24

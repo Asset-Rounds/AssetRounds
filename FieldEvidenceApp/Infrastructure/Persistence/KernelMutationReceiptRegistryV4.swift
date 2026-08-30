@@ -371,6 +371,9 @@ enum KernelMutationReceiptRegistryV4 {
     }
 
     static func validate() throws {
+        guard C50IncumbentFileExchangeKernelMutationReceiptBoundaryV1.validate() else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
         try validate(registrations)
     }
 
@@ -462,3 +465,24 @@ enum C46OperationalContactBoundary_48{static let persistentFamilies=OperationalC
 enum C47ActivityContractMutationReceiptEnrollmentV2 { static let commandKind:WorkspaceCommandKindV1 = .applyActivityContract;static let receiptValidatesExactFiveRowPostimages=true;static let completedSnapshotReferenceIsCompatibilityOnly=true }
 enum C48PortableReviewMutationReceiptEnrollmentV1 { static let commandKind:WorkspaceCommandKindV1 = .applyPortableReview;static let canonicalPostimagesAreExistingC14Families=true;static let exactResponseBytesRemainEnvelopeAndSessionBound=true;static let sessionOnlyDecisionsAreNotKernelMutations=true }
 enum C49WorkResourceMutationReceiptEnrollmentV1 { static let commandKind:WorkspaceCommandKindV1 = .applyWorkResource;static let typedReceiptBindsExactEntryPostimage=true;static let directCostHasNoIndependentReceiptOrLedger=true }
+
+enum C50IncumbentFileExchangeKernelMutationReceiptBoundaryV1 {
+    static let profileSelectionSessionSourceQuarantineDisposition = "NONPERSISTENT"
+    static let canonicalRegistrationCount = 0
+    static let mutationReceiptCountAdded = 0
+    static let adapterStateIsNotAReceipt = true
+    static let sourceAndQuarantineBytesAreNotReceipts = true
+    static let canonicalImportedEffectsUseExistingReceiptRegistry = true
+    static let disposition = "NOT_APPLICABLE"
+
+    static func validate() -> Bool {
+        profileSelectionSessionSourceQuarantineDisposition == "NONPERSISTENT"
+            && canonicalRegistrationCount == 0
+            && mutationReceiptCountAdded == 0
+            && adapterStateIsNotAReceipt
+            && sourceAndQuarantineBytesAreNotReceipts
+            && canonicalImportedEffectsUseExistingReceiptRegistry
+            && disposition == "NOT_APPLICABLE"
+            && C50IncumbentFileExchangePersistenceBoundaryV1.validate()
+    }
+}

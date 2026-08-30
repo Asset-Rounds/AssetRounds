@@ -5,6 +5,12 @@ enum GuidedSurveyContractManifestBoundaryV1 {
     static let surveyOutcomeSemantics = "COMPLETION_ONLY_NO_PASS_FAIL"
 }
 
+enum C50IncumbentContractManifestBoundaryV1 {
+    static let adapterExportIsDerived = true
+    static let selectedProfileEvidenceIsNonpersistent = true
+    static let providerSuccessClaimIsForbidden = true
+}
+
 enum C47ActivityContractConformance_FieldEvidenceApp_Domain_Reporting_ContractManifestV1_swift {
     static let integrationRole = "REPORT_CONTRACT_MANIFEST"
     static let sharedReceipt = SharedActivityEnvelopeReceiptV1.self

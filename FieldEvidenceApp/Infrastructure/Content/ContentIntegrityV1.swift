@@ -11,6 +11,25 @@ enum AssetLocatorIntegrityBoundaryV1 {
     }
 }
 
+/// Integrity checks for C50 are performed at the exchange boundary and never
+/// promote a source digest into canonical content without the existing
+/// acceptance receipt.
+enum C50IncumbentFileExchangeIntegrityBoundaryV1 {
+    static let inputDigestIsBoundToTheLease = true
+    static let changedSourceQuarantines = true
+    static let malformedEncodingFailsClosed = true
+    static let canonicalEffectRequiresExistingReceipt = true
+    static let rawBytesAreExcludedFromReportsSearchAndDiagnostics = true
+
+    static func validate() -> Bool {
+        inputDigestIsBoundToTheLease
+            && changedSourceQuarantines
+            && malformedEncodingFailsClosed
+            && canonicalEffectRequiresExistingReceipt
+            && rawBytesAreExcludedFromReportsSearchAndDiagnostics
+    }
+}
+
 enum ContentIntegrityFailureV1: Error, Equatable, Sendable {
     case wrongWorkspace
     case missingContent

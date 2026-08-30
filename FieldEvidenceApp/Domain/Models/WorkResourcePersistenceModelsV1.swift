@@ -287,6 +287,21 @@ enum C49WorkResourcePersistenceBoundaryV1 {
 
 typealias WorkResourcePersistenceEnrollmentV1 = C49WorkResourcePersistenceBoundaryV1
 
+enum C50WorkResourcePersistenceDelegationV1 {
+    static let adapterProjectionIsDerivedOnly = true
+    static let adapterAddsNoPersistentProfileOrSessionRows = true
+    static let adapterPrivacyApprovalIsProjectionScopedOnly = true
+    static let adapterAddsNoDirectCostRows = true
+
+    static func validate() throws {
+        guard adapterProjectionIsDerivedOnly, adapterAddsNoPersistentProfileOrSessionRows,
+              adapterPrivacyApprovalIsProjectionScopedOnly,
+              adapterAddsNoDirectCostRows else {
+            throw WorkResourcePersistenceFailureV1.invalidValue
+        }
+    }
+}
+
 /// The lifecycle adapter may construct a profile-filtered projection after
 /// querying immutable rows.  This convenience keeps the canonical material
 /// totals explicit; the snapshot initializer remains the domain-owned total

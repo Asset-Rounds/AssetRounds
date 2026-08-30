@@ -2559,3 +2559,24 @@ enum C49WorkResourceEvidenceBundleBoundaryV1 {
     static let createsSecondByteStore = false
     static let formulaFieldsAreRejected = true
 }
+
+/// C50 file exchange input and quarantine are leased scratch.  The evidence
+/// byte authority remains the existing store after a separate canonical
+/// acceptance; no source file or external output is silently made evidence.
+enum C50IncumbentFileExchangeBundleBoundaryV1 {
+    static let sourceScratchIsNotEvidence = true
+    static let quarantineScratchIsNotEvidence = true
+    static let acceptedCanonicalContentUsesExistingEvidenceAuthority = true
+    static let diagnosticsAndReportsReceiveNoRawExchangeBytes = true
+    static let externalOutputAvailabilityIsNotEvidenceTruth = true
+    static let directCostAndPrivateFieldsRemainExcludedByDefault = true
+
+    static func validate() -> Bool {
+        sourceScratchIsNotEvidence
+            && quarantineScratchIsNotEvidence
+            && acceptedCanonicalContentUsesExistingEvidenceAuthority
+            && diagnosticsAndReportsReceiveNoRawExchangeBytes
+            && externalOutputAvailabilityIsNotEvidenceTruth
+            && directCostAndPrivateFieldsRemainExcludedByDefault
+    }
+}

@@ -2396,3 +2396,21 @@ enum C49WorkResourceSearchRebuildBoundaryV1 {
         try C49WorkResourceLocalSearchBoundaryV1.validateField(fieldID)
     }
 }
+
+
+enum C50IncumbentFileExchangeSearchRebuildBoundaryV1 {
+    static let rebuildsAdapterSessionOrProfileState = false
+    static let rebuildsSourceQuarantineOrExternalPath = false
+    static let delegatesAcceptedRowsToExistingTargetProjectionOwners = true
+    static let staleDerivedIndexMayBeDiscarded = true
+    static let canonicalWriterInvokedDuringRebuild = false
+
+    static func validate() -> Bool {
+        !rebuildsAdapterSessionOrProfileState
+            && !rebuildsSourceQuarantineOrExternalPath
+            && delegatesAcceptedRowsToExistingTargetProjectionOwners
+            && staleDerivedIndexMayBeDiscarded
+            && !canonicalWriterInvokedDuringRebuild
+            && C50IncumbentFileExchangeLocalSearchBoundaryV1.validate()
+    }
+}

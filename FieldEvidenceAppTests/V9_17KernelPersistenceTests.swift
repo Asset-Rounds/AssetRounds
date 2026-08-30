@@ -2,6 +2,21 @@ import Foundation
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C50KernelPersistenceTests: XCTestCase {
+    func testV23P03C50PortEnrollsNoPersistentModelStoreOrCanonicalFamily() {
+        XCTAssertEqual(C50IncumbentFileExchangeKernelBackupEnrollmentV1.canonicalRegistrationCount, 0)
+        XCTAssertEqual(C50IncumbentFileExchangeKernelDeletionEnrollmentV1.canonicalRowRegistrationCount, 0)
+        XCTAssertEqual(C50IncumbentFileExchangeBackupBoundaryV1.canonicalFamilyCount, 0)
+        XCTAssertTrue(C50IncumbentFileExchangeKernelBackupEnrollmentV1.nonpersistentAdapterStateIsExcluded)
+        XCTAssertTrue(C50IncumbentFileExchangeKernelBackupEnrollmentV1.validate())
+        XCTAssertTrue(C50IncumbentFileExchangePersistenceBoundaryV1.validate())
+        XCTAssertTrue(C50IncumbentFileExchangeWriterAdapterBoundaryV1.validate())
+        XCTAssertTrue(C50IncumbentFileExchangeKernelMutationReceiptBoundaryV1.validate())
+        XCTAssertTrue(C50IncumbentFileExchangePersistenceBoundaryV1.noAdapterMutationOrJournalKind)
+        XCTAssertTrue(C50IncumbentFileExchangePersistenceBoundaryV1.noAdapterIntegrationEventOrSyncTruth)
+    }
+}
+
 private final class C45KernelPersistenceCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityPinsV34Records33AndOneRow() {
         XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.persistentSchemaVersion, 34)

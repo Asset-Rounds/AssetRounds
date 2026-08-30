@@ -11,6 +11,12 @@ enum EvidenceAssuranceFailureV1: Error, Equatable, Sendable {
     case nonCanonicalData
 }
 
+enum C50IncumbentEvidenceAssuranceBoundaryV1 {
+    static let importedFileIsNotAssuranceEvidenceByItself = true
+    static let delegatedCanonicalRecordsRetainExistingAssuranceRules = true
+    static let adapterCannotUpgradeTrust = true
+}
+
 enum EvidenceAssuranceAccessibleDocumentBoundaryV1{
     static func sensitivity(_ value:EvidenceSensitivityV1)->AccessibleDocumentSensitivityV1{
         switch value{case .routine:.customerSafe;case .restricted,.highlyRestricted:.internalOnly}

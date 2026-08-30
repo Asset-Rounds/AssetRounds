@@ -1,5 +1,12 @@
 import Foundation
 
+enum C50IncumbentFileExchangeBackupDecoderBoundaryV1 {
+    static let acceptsProfileSelectionOrSession = false
+    static let acceptsSourceScratchOrQuarantine = false
+    static let acceptsSecurityScopedBookmark = false
+    static let unknownAdapterMembersFailClosed = true
+}
+
 private struct PrivacyTransformCanonicalManifestEnvelopeV1: Decodable {
     let policyID: UUID; let policyRevision: UInt64; let policySHA256: String
 }

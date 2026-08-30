@@ -3,6 +3,107 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private final class C50CompatibilityPolicyTests: XCTestCase {
+    func testV23P03C50SuccessorIsForwardFixAndExactOldReleaseRemainsReadable() throws {
+        let mapping = try IncumbentMappingManifestV1(mappings: [
+            IncumbentFieldMappingV1(
+                externalHeader: "Version",
+                canonicalField: .fileFormatVersion,
+                required: true
+            ),
+        ])
+        let budget = try IncumbentFileBudgetV1(
+            maximumByteCount: 1_024,
+            maximumRowCount: 10,
+            maximumColumnCount: 1,
+            maximumScalarCountPerCell: 128
+        )
+        let profileID = UUID(uuidString: "c5000000-0000-4000-8000-000000000701")!
+        let adapterID = UUID(uuidString: "c5000000-0000-4000-8000-000000000700")!
+        let old = try IncumbentFileProfileReleaseV1(
+            profileID: profileID,
+            adapterID: adapterID,
+            releaseID: UUID(uuidString: "c5000000-0000-4000-8000-000000000702")!,
+            revision: 1,
+            providerDisplayToken: "synthetic",
+            uniformTypeIdentifiers: ["public.comma-separated-values-text"],
+            filenameExtensions: ["csv"],
+            delimiter: .comma,
+            orderedHeaders: ["Version"],
+            versionHeader: "Version",
+            versionValue: "V1",
+            direction: .importOnly,
+            budget: budget,
+            mappingManifest: mapping,
+            externalKeyPolicy: .exactOpaqueStableKey,
+            timeZonePolicy: .noTemporalFields
+        )
+        let successor = try IncumbentFileProfileReleaseV1(
+            profileID: profileID,
+            adapterID: adapterID,
+            releaseID: UUID(uuidString: "c5000000-0000-4000-8000-000000000703")!,
+            revision: 2,
+            providerDisplayToken: "synthetic",
+            uniformTypeIdentifiers: ["public.comma-separated-values-text"],
+            filenameExtensions: ["csv"],
+            delimiter: .comma,
+            orderedHeaders: ["Version"],
+            versionHeader: "Version",
+            versionValue: "V2",
+            direction: .importOnly,
+            budget: budget,
+            mappingManifest: mapping,
+            externalKeyPolicy: .exactOpaqueStableKey,
+            timeZonePolicy: .noTemporalFields,
+            predecessorReleaseID: old.releaseID,
+            predecessorReleaseSHA256: old.releaseSHA256
+        )
+        try successor.validateSuccessor(of: old)
+
+        let disabled = try IncumbentSelectionReceiptV1(
+            receiptID: UUID(uuidString: "c5000000-0000-4000-8000-000000000704")!,
+            disposition: .disabledNoSelectedProfile,
+            selectedRelease: nil,
+            sanitizedFixtureProvenance: "Synthetic conformance only",
+            targetWorkflow: "NO_PROFILE",
+            fileVersion: nil,
+            direction: nil,
+            stableKeyMeaning: "No selected stable key",
+            termsDisposition: .unavailable,
+            evidenceDate: Date(timeIntervalSince1970: 1_800_000_000),
+            evidenceExpiresAt: nil
+        )
+        let availability = try TypedAvailabilityAndFallbackReceiptV1(
+            candidateHead: "1c8b3d99826a207d3b18b3e0429231c31804f317",
+            candidateTree: "3107903158238e5e5eaed78322c3564b06c648e2",
+            providerID: "V23_P03_C50",
+            providerSliceDigest: String(repeating: "c", count: 64),
+            consumerID: "V23_P04_C37",
+            capabilityID: .filesAndShare,
+            availabilityReason: .workspacePolicyDisabled,
+            mandatoryCoreComplete: true,
+            visibleFallback: .saveLocally,
+            persistenceDisposition: .noCanonicalEffectUntilAcceptance,
+            dataDisposition: .priorHistoryPreserved,
+            reentryTrigger: .capabilityStateChanged,
+            localizedVisibleStateKey: "incumbent.profile.disabled.state",
+            localizedVisibleCopyKey: "incumbent.profile.disabled.copy",
+            localizedNextActionKey: "incumbent.profile.disabled.action",
+            fallbackTestArtifactIDs: ["V23-P03-C50-A01-FALLBACK"],
+            evidenceArtifactIDs: ["V23-P03-C50-A01-RECEIPT"],
+            zeroUnsupportedPublicClaim: true
+        )
+        let registry = try ClosedIncumbentAdapterRegistryV1(
+            currentProductionReleases: [],
+            historicReleases: [old, successor],
+            selection: disabled,
+            selectionHistory: [disabled],
+            availabilityReceipt: availability
+        )
+        XCTAssertEqual(try registry.exactHistoricRelease(id: old.releaseID, sha256: old.releaseSHA256), old)
+    }
+}
+
 private final class C45CompatibilityPolicyTypedTests: XCTestCase {
     func testV23P03C45CompatibilityFreezesTemplateRenderingPolicies() {
         XCTAssertEqual(AssetLabelLineBreakPolicyV1.allCases, [.fixedGraphemeTailTruncation])

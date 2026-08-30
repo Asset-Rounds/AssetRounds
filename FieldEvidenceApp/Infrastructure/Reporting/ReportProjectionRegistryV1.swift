@@ -2495,3 +2495,29 @@ enum C49WorkResourceReportProjectionRegistryBoundaryV1 {
     static let registryDoesNotOwnCanonicalWrites = true
     static let liveInventoryRowsRegistered = false
 }
+
+/// C50 is an exchange projection consumer, not a report authority.  Only
+/// existing canonical projection rows may be mapped; profile/session/scratch
+/// metadata and provider availability are not report fields.
+enum C50IncumbentFileExchangeReportRegistryBoundaryV1 {
+    static let adapterProjectionType = IncumbentAdapterProjectionV1.self
+    static let closedAdapterFields = Set(IncumbentCanonicalFieldV1.allCases)
+    static let profileSelectionOrHistoricRegistryEvidenceIsReportTruth = false
+    static let adapterOwnsNoReportProjectionTruth = true
+    static let reportRowsComeFromExistingCanonicalProjections = true
+    static let sourceAndQuarantineRowsRegistered = false
+    static let liveInventoryClaimsRegistered = false
+    static let directCostProjectionIsAbsent = C50IncumbentFileExchangeLifecycleBoundaryV1.directCostProjectionIsAbsent
+    static let rebuildIsDeterministic = true
+
+    static func validate() -> Bool {
+        adapterOwnsNoReportProjectionTruth
+            && !closedAdapterFields.isEmpty
+            && !profileSelectionOrHistoricRegistryEvidenceIsReportTruth
+            && reportRowsComeFromExistingCanonicalProjections
+            && !sourceAndQuarantineRowsRegistered
+            && !liveInventoryClaimsRegistered
+            && directCostProjectionIsAbsent
+            && rebuildIsDeterministic
+    }
+}

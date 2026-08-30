@@ -41,3 +41,26 @@ enum C49WorkResourceAssuranceLifecycleBoundaryV1 {
     static let unsupportedCertificationClaims = false
     static let liveInventoryClaimsAssured = false
 }
+
+/// Assurance remains a projection of accepted canonical evidence. C50 import
+/// previews, source/quarantine bytes, and external availability do not upgrade
+/// trust or create an assurance claim.
+enum C50IncumbentFileExchangeAssuranceBoundaryV1 {
+    static let importedFileIsNotAssuranceEvidence = true
+    static let canonicalEvidenceAssuranceRemainsExistingAuthority = true
+    static let sourceAndQuarantineBytesExcluded = true
+    static let externalAvailabilityIsNotAssurance = true
+    static let privateValuesRequireExplicitPrivacyApproval = true
+    static let directCostProjectionIsAbsent = C50IncumbentFileExchangeLifecycleBoundaryV1.directCostProjectionIsAbsent
+    static let liveInventoryClaimsAssured = false
+
+    static func validate() -> Bool {
+        importedFileIsNotAssuranceEvidence
+            && canonicalEvidenceAssuranceRemainsExistingAuthority
+            && sourceAndQuarantineBytesExcluded
+            && externalAvailabilityIsNotAssurance
+            && privateValuesRequireExplicitPrivacyApproval
+            && directCostProjectionIsAbsent
+            && !liveInventoryClaimsAssured
+    }
+}

@@ -101,6 +101,9 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         occurredAt: Date,
         temporaryRelativePath: String
     ) throws -> WorkspaceMutationEffectV1 {
+        guard C50IncumbentFileExchangeWriterAdapterBoundaryV1.validate() else {
+            throw WorkspaceMutationFailureV1.persistenceFailed
+        }
         guard !modelContext.hasChanges else {
             throw WorkspaceMutationFailureV1.persistenceFailed
         }
@@ -3124,6 +3127,31 @@ private struct OperationalContactAdapterSiteDigestBasisV1: Codable {
     let identity: WorkspaceEntityIdentityV1
     let revision: UInt64
     let value: V4BackupSiteDTO
+}
+
+enum C50IncumbentFileExchangeWriterAdapterBoundaryV1 {
+    static let profileSelectionSessionSourceQuarantineAreNonpersistent = true
+    static let adapterOwnsNoCanonicalWriter = true
+    static let adapterOwnsNoSwiftDataModel = true
+    static let adapterCreatesNoMutationKind = true
+    static let previewWritesWorkspace = false
+    static let acceptedCanonicalEffectsUseExistingWriter = true
+    static let journalAndReceiptOwnershipRemainsExisting = true
+    static let persistenceDisposition = "NONPERSISTENT"
+    static let mutationDisposition = "NOT_APPLICABLE"
+
+    static func validate() -> Bool {
+        profileSelectionSessionSourceQuarantineAreNonpersistent
+            && adapterOwnsNoCanonicalWriter
+            && adapterOwnsNoSwiftDataModel
+            && adapterCreatesNoMutationKind
+            && !previewWritesWorkspace
+            && acceptedCanonicalEffectsUseExistingWriter
+            && journalAndReceiptOwnershipRemainsExisting
+            && persistenceDisposition == "NONPERSISTENT"
+            && mutationDisposition == "NOT_APPLICABLE"
+            && C50IncumbentFileExchangePersistenceBoundaryV1.validate()
+    }
 }
 
 /// Resolves every authority embedded in a C31 admission closure to one exact

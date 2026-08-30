@@ -25,6 +25,26 @@ enum IntegrationProjectionReportSnapshotExclusionV1 {
     }
 }
 
+/// C50 can reference a historic snapshot or produce a derived export, but it
+/// cannot rewrite snapshot truth from a leased source file.
+enum C50IncumbentFileExchangeSnapshotEncoderBoundaryV1 {
+    static let historicSnapshotBytesRemainImmutable = true
+    static let sourceAndQuarantineBytesAreNotSnapshotTruth = true
+    static let directCostProjectionIsAbsent = C50IncumbentFileExchangeLifecycleBoundaryV1.directCostProjectionIsAbsent
+    static let customerSafeDefaultOmitsPrivateValues = true
+    static let deterministicEncodingIsRequired = true
+    static let outputAvailabilityIsNotSnapshotTruth = true
+
+    static func validate() -> Bool {
+        historicSnapshotBytesRemainImmutable
+            && sourceAndQuarantineBytesAreNotSnapshotTruth
+            && directCostProjectionIsAbsent
+            && customerSafeDefaultOmitsPrivateValues
+            && deterministicEncodingIsRequired
+            && outputAvailabilityIsNotSnapshotTruth
+    }
+}
+
 /// Provisional-only companion codec. Production finalization deliberately does
 /// not populate this projection until its owning release surface is activated.
 enum RequirementAssuranceSnapshotCanonicalCodecV1 {

@@ -50,3 +50,34 @@ enum C49WorkResourceInspectionReviewLifecycleBoundaryV1 {
     static let privateContentBytesEntered = false
     static let reportAndReviewAreDerived = true
 }
+
+// MARK: - C50 incumbent file-exchange lifecycle boundary
+
+/// The review lifecycle reads existing C14 rows only. C50 source leases,
+/// quarantine, and external availability remain bounded exchange concerns and
+/// never become a review store or a canonical lifecycle state.
+enum C50InspectionReviewIncumbentLifecycleBoundaryV1 {
+    static let adapterContract: Any.Type = IncumbentFileAdapterV1.self
+    static let profileReleaseContract: Any.Type = IncumbentFileProfileReleaseV1.self
+    static let exchangeScopeContract: Any.Type = IncumbentExchangeScopeV1.self
+    static let quarantineReceiptContract: Any.Type = IncumbentFileQuarantineReceiptV1.self
+    static let readsExistingC14RowsOnly = true
+    static let inputBytesAreLeasedScratch = true
+    static let scratchIsExcludedFromBackup = true
+    static let scratchIsDeletedAfterOutcome = true
+    static let quarantineMustCompleteBeforeReviewProjection = true
+    static let lifecyclePersistsSourceBytes = false
+    static let lifecyclePersistsSessionBytes = false
+    static let lifecycleCreatesSecondWriter = false
+    static let lifecycleCreatesSecondStore = false
+    static let lifecycleClaimsProviderAvailability = false
+    static let conformanceIsTypedAndNoncertifying = true
+
+    static func validateReviewProjection(_ projection: InspectionReviewProjectionV1) throws {
+        try InspectionReviewValidationV1.workspace(projection.workspaceID)
+        try InspectionReviewValidationV1.id(projection.reviewID)
+        try InspectionReviewValidationV1.revision(projection.revision)
+        try InspectionReviewValidationV1.id(projection.headTransitionID)
+        try projection.openChangeRequests.forEach { try $0.validate() }
+    }
+}

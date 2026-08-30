@@ -172,3 +172,17 @@ enum C49WorkResourcePortableReviewCoordinatorBoundaryV1 {
     static let directCostRequiresExplicitOptIn = true
     static let canonicalWriterIsNotReplaced = true
 }
+
+extension PortableReviewCoordinatorV1 {
+    nonisolated static func c50AdapterProjection(
+        _ source: ReviewRequestStateProjectionV1,
+        privacyApproval: C50PrivacyPreviewApprovalReferenceV1
+    ) throws -> C50PortableReviewAdapterProjectionV1 {
+        let projection = try C50PortableReviewAdapterProjectionV1(
+            source,
+            privacyApproval: privacyApproval
+        )
+        try C50PortableReviewAdapterDelegationV1.validate(projection)
+        return projection
+    }
+}

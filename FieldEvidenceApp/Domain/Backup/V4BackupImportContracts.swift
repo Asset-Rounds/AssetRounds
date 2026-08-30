@@ -1,5 +1,22 @@
 import Foundation
 
+enum C50IncumbentFileExchangeBackupImportBoundaryV1 {
+    static let createsCanonicalFamily = false
+    static let acceptsSourceBytesAsBackupMembers = false
+    static let acceptsQuarantineAsBackupMembers = false
+    static let acceptsSecurityBookmarks = false
+    static let canonicalEffectsUseExistingImportOwners = true
+
+    static func validate() -> Bool {
+        C50IncumbentFileExchangeBackupBoundaryV1.validate()
+            && !createsCanonicalFamily
+            && !acceptsSourceBytesAsBackupMembers
+            && !acceptsQuarantineAsBackupMembers
+            && !acceptsSecurityBookmarks
+            && canonicalEffectsUseExistingImportOwners
+    }
+}
+
 enum BackupCanonicalDecodingErrorV1: Error, Equatable {
     case invalidManifest
     case invalidRecords

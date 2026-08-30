@@ -1,5 +1,12 @@
 import Foundation
 
+enum C50IncumbentFileExchangeBackupEncoderBoundaryV1 {
+    static let encodesProfileSelectionOrSession = false
+    static let encodesSourceScratchOrQuarantine = false
+    static let encodesSecurityScopedBookmark = false
+    static let preservesExistingCanonicalFamilies = true
+}
+
 struct EncodedBackupJSONV1: Equatable, Sendable {
     let data: Data
     let sha256: String

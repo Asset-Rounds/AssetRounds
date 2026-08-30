@@ -2,6 +2,13 @@ import CryptoKit
 import Darwin
 import Foundation
 
+enum C50IncumbentFileExchangeStreamingArchiveServiceBoundaryV1 {
+    static let routesAdapterFilesThroughBackupArchiveWriter = false
+    static let routesBackupArchiveMembersThroughAdapterParser = false
+    static let materializesAdapterScratchOnRestore = false
+    static let unknownAdapterShapedArchiveMembersFailClosed = true
+}
+
 enum GuidedSurveyStreamingArchiveDispositionV1 {
     static func validate(records: V4BackupRecordsV1) throws {
         guard records.recordsSchemaVersion < 24 ||

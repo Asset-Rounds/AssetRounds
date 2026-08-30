@@ -243,5 +243,15 @@
     "frozenPartSnapshotPreserved": true,
     "liveInventoryReferenceExported": false,
     "directCostCustomerLeakageAllowed": false
+  },
+  "c50IncumbentFileExchange": {
+    "canonicalFamilyCount": 0,
+    "recordsSchemaBump": false,
+    "profileSelectionOrSessionExported": false,
+    "sourceScratchExported": false,
+    "quarantineExported": false,
+    "securityBookmarkExported": false,
+    "backupArchiveParserIsAdapterParser": false,
+    "canonicalImportedRowsRemainOwnedByTargetFamilies": true
   }
 }

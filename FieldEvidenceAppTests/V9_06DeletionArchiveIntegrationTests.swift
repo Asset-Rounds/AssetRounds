@@ -4,6 +4,19 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private final class C50DeletionArchiveIntegrationTests: XCTestCase {
+    func testV23P03C50ArchiveExcludesAdapterStateScratchQuarantineAndExternalAuthority() {
+        XCTAssertFalse(C50IncumbentFileExchangeBackupEncoderBoundaryV1.encodesProfileSelectionOrSession)
+        XCTAssertFalse(C50IncumbentFileExchangeBackupEncoderBoundaryV1.encodesSourceScratchOrQuarantine)
+        XCTAssertFalse(C50IncumbentFileExchangeBackupDecoderBoundaryV1.acceptsProfileSelectionOrSession)
+        XCTAssertTrue(C50IncumbentFileExchangeBackupDecoderBoundaryV1.unknownAdapterMembersFailClosed)
+        XCTAssertEqual(C50IncumbentFileExchangePackageValidationBoundaryV1.allowedAdapterMemberCount, 0)
+        XCTAssertTrue(C50IncumbentFileExchangePackageValidationBoundaryV1.rejectsSourceBytes)
+        XCTAssertTrue(C50IncumbentFileExchangePackageValidationBoundaryV1.rejectsQuarantineBytes)
+        XCTAssertTrue(C50IncumbentFileExchangePackageValidationBoundaryV1.rejectsBookmarksAndExternalPaths)
+    }
+}
+
 private final class C45DeletionArchiveCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilitySeparatesGeneratedFromSystemHandoffReceipts() {
         XCTAssertEqual(LabelOutputDispositionV1.generated.rawValue, "GENERATED")

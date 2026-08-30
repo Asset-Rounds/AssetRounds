@@ -47,6 +47,16 @@
     "proofValidButStaleCanBeHistoryOnly": true,
     "capabilityByteCount": 32
   },
+  "c50AdapterDelegation": {
+    "privacyPreviewRequired": true,
+    "workspaceBoundApprovalRequired": true,
+    "authoritativelyBoundApprovalRequired": true,
+    "approvalProofComponents": ["manifest", "derivative", "review", "policy"],
+    "rawCapabilityAndProofExcluded": true,
+    "responseBodyAndAuthorExcluded": true,
+    "persistentProfileOrSessionExcluded": true,
+    "canonicalWriterDelegated": true
+  },
   "normativeVectors": [
     {
       "vectorID": "RV1-001",

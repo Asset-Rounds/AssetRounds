@@ -2448,3 +2448,26 @@ enum C49WorkResourceFinalizationIntentBoundaryV1 {
         try C49WorkResourceReportSnapshotEncoderBoundaryV1.encodeFormulaSafeCSV(projection)
     }
 }
+
+/// Finalization consumes validated canonical/report projections only.  A C50
+/// preview or scratch terminal receipt cannot finalize, persist, or alter a
+/// historic report snapshot.
+enum C50IncumbentFileExchangeFinalizationBoundaryV1 {
+    static let previewIsZeroWrite = true
+    static let scratchTerminalReceiptCannotFinalize = true
+    static let appendOnlySnapshotHistory = true
+    static let deterministicOpenJSONAndPDFInputs = true
+    static let formulaSafeCSVRequired = true
+    static let directCostProjectionIsAbsent = C50IncumbentFileExchangeLifecycleBoundaryV1.directCostProjectionIsAbsent
+    static let rawSourceBytesAndLiveInventoryClaimsExcluded = true
+
+    static func validate() -> Bool {
+        previewIsZeroWrite
+            && scratchTerminalReceiptCannotFinalize
+            && appendOnlySnapshotHistory
+            && deterministicOpenJSONAndPDFInputs
+            && formulaSafeCSVRequired
+            && directCostProjectionIsAbsent
+            && rawSourceBytesAndLiveInventoryClaimsExcluded
+    }
+}

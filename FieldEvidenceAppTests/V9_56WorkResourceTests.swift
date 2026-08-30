@@ -492,3 +492,53 @@ final class V9_56WorkResourceTests: XCTestCase {
         )
     }
 }
+
+extension V9_56WorkResourceTests {
+    func testC50ReceivesOnlyCustomerSafeDerivedWorkResourceTotals() throws {
+        let approval = try C50AuthoritativePrivacyTestSupport.approval(
+            workspaceID: workspaceID
+        )
+        let safeEntry = try makeEntry(
+            duration: try ManualDurationV1(minutes: 45),
+            directCost: nil,
+            visibility: .customerSafe
+        )
+        let totals = try WorkResourceTotalsProjectionV1(
+            snapshots: [try WorkResourceSnapshotV1(entry: safeEntry)],
+            visibility: .customerSafe
+        )
+        let projection = try WorkResourceCoordinatorV1.c50AdapterProjection(
+            customerSafeTotals: totals,
+            privacyApproval: approval
+        )
+        XCTAssertEqual(projection.durationMinutes, 45)
+        XCTAssertEqual(projection.materialTotals.count, 1)
+        XCTAssertEqual(projection.privacyApproval, approval)
+        XCTAssertTrue(C50WorkResourceAdapterDelegationV1.directCostAndNotesAreExcluded)
+        XCTAssertTrue(C50WorkResourceAdapterDelegationV1.adapterOwnsNoCanonicalWriter)
+        XCTAssertTrue(C50WorkResourcePersistenceDelegationV1.adapterAddsNoPersistentProfileOrSessionRows)
+
+        let internalEntry = try makeEntry(
+            duration: try ManualDurationV1(minutes: 45),
+            materials: [],
+            directCost: try DirectCostEntryV1(
+                amount: try ExactMoneyAmountV1(
+                    mantissa: 100,
+                    currencyCode: "USD",
+                    minorUnitScale: 2
+                )
+            )
+        )
+        let internalTotals = try WorkResourceTotalsProjectionV1(
+            snapshots: [try WorkResourceSnapshotV1(entry: internalEntry)],
+            visibility: .internalFull
+        )
+        XCTAssertThrowsError(
+            try WorkResourceCoordinatorV1.c50AdapterProjection(
+                customerSafeTotals: internalTotals,
+                privacyApproval: approval
+            )
+        )
+    }
+
+}

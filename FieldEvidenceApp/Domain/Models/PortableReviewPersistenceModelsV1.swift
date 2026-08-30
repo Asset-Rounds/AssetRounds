@@ -1015,3 +1015,21 @@ enum C49WorkResourcePortableReviewBoundaryV1 {
         try C49WorkResourcePersistenceBoundaryV1.validate()
     }
 }
+
+/// C50 delegates to the C48 public projection and never enrolls adapter
+/// profile/session state in this protected staging store.
+enum C50PortableReviewPersistenceDelegationV1 {
+    static let adapterProfileStateIsNotPersistedHere = true
+    static let adapterSessionStateIsNotPersistedHere = true
+    static let adapterPrivacyApprovalIsProjectionScopedOnly = true
+    static let rawCapabilityBytesAreNotAdapterInput = true
+
+    static func validate() throws {
+        guard adapterProfileStateIsNotPersistedHere,
+              adapterSessionStateIsNotPersistedHere,
+              adapterPrivacyApprovalIsProjectionScopedOnly,
+              rawCapabilityBytesAreNotAdapterInput else {
+            throw PortableExchangePersistenceFailureV2.invalidEnvelope
+        }
+    }
+}

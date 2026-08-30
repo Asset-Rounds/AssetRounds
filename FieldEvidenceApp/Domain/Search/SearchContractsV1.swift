@@ -3826,3 +3826,25 @@ enum C49WorkResourceSearchBoundaryV1 {
         return value
     }
 }
+
+
+// MARK: - C50 incumbent file-exchange search exclusion
+
+enum C50IncumbentFileExchangeSearchBoundaryV1 {
+    static let closedAdapterFieldSet = Set(IncumbentCanonicalFieldV1.allCases)
+    static let projectionType = IncumbentAdapterProjectionV1.self
+    static let adapterSessionIndexedFieldIDs: [String] = []
+    static let sourceOrQuarantineBytesIndexed = false
+    static let externalKeysPathsOrAvailabilityIndexed = false
+    static let selectedProfileEvidenceIndexed = false
+    static let canonicalTargetRowsRemainOwnedByExistingSearchProjections = true
+
+    static func validate() -> Bool {
+        !closedAdapterFieldSet.isEmpty
+            && adapterSessionIndexedFieldIDs.isEmpty
+            && !sourceOrQuarantineBytesIndexed
+            && !externalKeysPathsOrAvailabilityIndexed
+            && !selectedProfileEvidenceIndexed
+            && canonicalTargetRowsRemainOwnedByExistingSearchProjections
+    }
+}

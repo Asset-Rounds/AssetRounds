@@ -63,3 +63,34 @@ enum C49WorkResourceAccessibleDocumentPersistenceBoundaryV1 {
         try C49WorkResourcePersistenceBoundaryV1.validate()
     }
 }
+
+// MARK: - C50 incumbent file-exchange persistence boundary
+
+/// C50's adapter/profile/exchange contracts are nonpersistent. Accessible
+/// document rows retain only their existing assessment truth; leased source
+/// bytes, session state, provider state, and quarantine payloads never become
+/// SwiftData columns or a second durable family.
+enum C50AccessibleDocumentIncumbentPersistenceBoundaryV1 {
+    static let nonPersistentContractTypes: [Any.Type] = [
+        IncumbentFileAdapterV1.self,
+        ClosedIncumbentAdapterRegistryV1.self,
+        IncumbentFileProfileReleaseV1.self,
+        IncumbentSelectionReceiptV1.self,
+        IncumbentExchangeScopeV1.self,
+        IncumbentFileExportManifestV1.self,
+        IncumbentFileExchangeReceiptV1.self,
+    ]
+    static let quarantineReceiptContract: Any.Type = IncumbentFileQuarantineReceiptV1.self
+    static let createsSecondSwiftDataFamily = false
+    static let persistsSourceBytes = false
+    static let persistsSessionBytes = false
+    static let persistsProviderState = false
+    static let persistsQuarantinePayload = false
+    static let assessmentReceiptRemainsCanonical = true
+    static let backupAndRestoreOwnOnlyExistingAssessmentRows = true
+    static let deleteAndEraseOwnOnlyExistingAssessmentRows = true
+
+    static func validateExistingAssessment(_ value: AccessibleDocumentAssessmentReceiptV1) throws {
+        try value.validateIntrinsic()
+    }
+}

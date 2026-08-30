@@ -1,6 +1,14 @@
 import Darwin
 import Foundation
 
+enum C50IncumbentFileExchangePackageValidationBoundaryV1 {
+    static let allowedAdapterMemberCount = 0
+    static let rejectsSourceBytes = true
+    static let rejectsQuarantineBytes = true
+    static let rejectsBookmarksAndExternalPaths = true
+    static let validatesCanonicalImportedRowsWithExistingOwners = true
+}
+
 private struct PrivacyTransformManifestDecodeEnvelopeV1: Decodable {
     let policyID: UUID
     let policyRevision: UInt64

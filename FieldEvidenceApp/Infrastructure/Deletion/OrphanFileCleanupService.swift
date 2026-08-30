@@ -2,6 +2,14 @@ import CryptoKit
 import Darwin
 import Foundation
 
+enum C50IncumbentFileExchangeOrphanCleanupBoundaryV1 {
+    static let terminalSourceScratchIsRemovable = true
+    static let terminalQuarantineIsRemovable = true
+    static let liveLeaseBlocksCleanup = true
+    static let externalSourceAndExportFilesAreNeverCleanupTargets = true
+    static let canonicalImportedRowsAreNeverOrphanFiles = true
+}
+
 enum SurveySessionOrphanCleanupEnrollmentV1{static let surveyRowsOwnNoExternalFiles=true;static let cleanupMustNotInventPromotionOrPublication=true}
 
 enum C30EvidenceContextOrphanCleanupPolicyV1 {

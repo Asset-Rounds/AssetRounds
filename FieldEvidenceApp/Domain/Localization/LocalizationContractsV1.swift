@@ -20,6 +20,13 @@ enum LocalizationContractFailureV1: Error, Equatable, Sendable {
     case partialPublication
 }
 
+enum C50IncumbentLocalizationBoundaryV1 {
+    static let disabledStateKey = "incumbent.adapter.disabled.no_selected_profile"
+    static let externalAvailabilityUnknownKey = "incumbent.adapter.external_availability_unknown"
+    static let quarantineKey = "incumbent.adapter.quarantined"
+    static let providerMechanicsRemainSecondary = true
+}
+
 struct LocalizationKeyV1: Codable, Equatable, Hashable, Comparable, Sendable {
     let rawValue: String
 

@@ -2079,3 +2079,23 @@ private final class C49WorkResourceLocalizationBoundaryTests: XCTestCase {
         XCTAssertTrue(source.contains("\"value\" : \"\(directCost)\""))
     }
 }
+
+private final class C50IncumbentAdapterLocalizationAccessibilityTests: XCTestCase {
+    func testDisabledProfileCopyIsStableAndContainsNoProviderOrPrivateFieldClaim() throws {
+        XCTAssertEqual(
+            Bundle.main.object(forInfoDictionaryKey: "FieldEvidenceIncumbentFileAdapterStatus") as? String,
+            "DISABLED_NO_SELECTED_PROFILE"
+        )
+        XCTAssertEqual(
+            Bundle.main.object(forInfoDictionaryKey: "FieldEvidenceIncumbentFileAdapterDeclaresProviderType") as? Bool,
+            false
+        )
+        let sourceURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("Fixtures/V22/IncumbentExchange/V22P03C50IncumbentFileAdapterCorpusV1.json")
+        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+        XCTAssertFalse(source.contains("private@example.invalid"))
+        XCTAssertFalse(source.contains("WorkspaceID"))
+        XCTAssertTrue(source.contains("no selected profile"))
+    }
+}

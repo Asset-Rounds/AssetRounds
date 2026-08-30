@@ -2,6 +2,46 @@ import Foundation
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C50SnapshotProjectionTests: XCTestCase {
+    func testV23P03C50PrivacyManifestKeepsSensitiveClassesExplicitAndNeverImplicit() throws {
+        XCTAssertEqual(IncumbentCanonicalFieldV1.allCases, [
+            .fileFormatVersion,
+            .portableReviewPublicID,
+            .portableReviewState,
+            .portableReviewLatestResponsePublicID,
+            .workDurationMinutes,
+            .workMaterialLineCount,
+            .workMaterialTotals,
+        ])
+        let manifest = try IncumbentMappingManifestV1(mappings: [
+            IncumbentFieldMappingV1(
+                externalHeader: "Review Public ID",
+                canonicalField: .portableReviewPublicID,
+                required: false
+            ),
+            IncumbentFieldMappingV1(
+                externalHeader: "Version",
+                canonicalField: .fileFormatVersion,
+                required: true
+            ),
+        ])
+        XCTAssertEqual(
+            manifest.mappings.map(\.canonicalField),
+            [.portableReviewPublicID, .fileFormatVersion]
+        )
+        XCTAssertTrue(manifest.mappings.allSatisfy { $0.fieldClass == .ordinary })
+        XCTAssertThrowsError(try IncumbentFieldMappingV1(
+            externalHeader: "Direct Cost",
+            canonicalField: "workResource.directCost",
+            fieldClass: .directCost,
+            required: false
+        )) {
+            XCTAssertEqual($0 as? IncumbentFileContractFailureV1, .fieldNotAllowed)
+        }
+        try manifest.validate()
+    }
+}
+
 private final class C45SnapshotProjectionCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityProjectsExactlyPDFFormulaSafeCSVAndText() {
         XCTAssertEqual(LabelArtifactKindV1.allCases, [.pdf, .formulaSafeCSV, .structuredText])

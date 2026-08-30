@@ -75,5 +75,28 @@
     "subjectRevisionAndSHARequired": true,
     "amendmentUsesSuccessorEntry": true,
     "inPlaceMutationAllowed": false
+  },
+  "c50IncumbentFileExchange": {
+    "projection": "VALIDATED_ALLOWLISTED_QUARANTINED_DERIVED_ONLY",
+    "canonicalRowFamily": "C14_EXISTING_REVIEW_AND_CORRECTIVE_ACTION_ROWS",
+    "canonicalWriter": "EXISTING_C14_WRITER_ONLY",
+    "previewWriteCount": 0,
+    "closedAllowlistRequired": true,
+    "quarantineRequiredBeforeReview": true,
+    "sourceBytesPersisted": false,
+    "sessionBytesPersisted": false,
+    "providerStatePersisted": false,
+    "quarantinePayloadPersisted": false,
+    "providerAvailabilityClaimed": false,
+    "disabledProfileHasNoIntegrationClaim": true,
+    "typedContracts": [
+      "IncumbentFileAdapterV1",
+      "ClosedIncumbentAdapterRegistryV1",
+      "IncumbentFileProfileReleaseV1",
+      "IncumbentSelectionReceiptV1",
+      "IncumbentExchangeScopeV1",
+      "IncumbentFileExportManifestV1",
+      "IncumbentFileExchangeReceiptV1"
+    ]
   }
 }

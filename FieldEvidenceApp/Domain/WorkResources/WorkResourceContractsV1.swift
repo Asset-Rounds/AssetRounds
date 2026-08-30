@@ -276,6 +276,53 @@ struct WorkResourceTotalsProjectionV1: Codable, Equatable, Sendable {
     }
 }
 typealias WorkResourceTotalsV1 = WorkResourceTotalsProjectionV1
+/// The C50 adapter receives this derived customer-safe material summary only.
+/// Direct costs, notes, actor/subject identities, local-part snapshots, and
+/// canonical entry/mutation fields are deliberately absent.
+struct C50WorkResourceAdapterProjectionV1: Codable, Equatable, Sendable {
+    let durationMinutes: Int
+    let materialLineCount: Int
+    let materialTotals: [WorkResourceMaterialTotalV1]
+    /// The exact workspace-scoped approval for the privacy derivative that
+    /// authorized these customer-safe totals.
+    let privacyApproval: C50PrivacyPreviewApprovalReferenceV1
+
+    init(
+        customerSafeTotals: WorkResourceTotalsProjectionV1,
+        privacyApproval: C50PrivacyPreviewApprovalReferenceV1
+    ) throws {
+        guard customerSafeTotals.directCostByCurrency.isEmpty else {
+            throw WorkResourceContractFailureV1.invalidValue
+        }
+        try privacyApproval.validate(workspaceID: privacyApproval.workspaceID)
+        try privacyApproval.requireAuthoritativelyBound()
+        durationMinutes = customerSafeTotals.durationMinutes
+        materialLineCount = customerSafeTotals.materialLineCount
+        materialTotals = customerSafeTotals.materialTotals
+        self.privacyApproval = privacyApproval
+    }
+}
+
+enum C50WorkResourceAdapterDelegationV1 {
+    static let requiresCustomerSafePrivacyPreview = true
+    static let allowlistedDerivedFields = ["durationMinutes", "materialLineCount", "materialTotals"]
+    static let directCostAndNotesAreExcluded = true
+    static let hiddenPrivateAndFrozenPartFieldsAreExcluded = true
+    static let adapterOwnsNoCanonicalWriter = true
+    static let adapterOwnsNoPersistentProfileOrSession = true
+
+    static func validate(_ projection: C50WorkResourceAdapterProjectionV1) throws {
+        try projection.privacyApproval.validate(workspaceID: projection.privacyApproval.workspaceID)
+        try projection.privacyApproval.requireAuthoritativelyBound()
+        guard projection.durationMinutes >= 0, projection.materialLineCount >= 0,
+              projection.materialTotals.count <= projection.materialLineCount,
+              requiresCustomerSafePrivacyPreview, directCostAndNotesAreExcluded,
+              hiddenPrivateAndFrozenPartFieldsAreExcluded, adapterOwnsNoCanonicalWriter,
+              adapterOwnsNoPersistentProfileOrSession else {
+            throw WorkResourceContractFailureV1.invalidValue
+        }
+    }
+}
 enum C49WorkResourceContractBoundaryV1 {
     static let appendOnly=true
     static let directCostIsEmbedded=true

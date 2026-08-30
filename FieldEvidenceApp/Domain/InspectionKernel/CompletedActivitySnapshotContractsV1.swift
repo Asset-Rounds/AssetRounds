@@ -10,6 +10,12 @@ struct FrozenScheduleCompletionReferenceV1: Codable, Equatable, Sendable {
     }
 }
 
+enum C50IncumbentCompletedActivityBoundaryV1 {
+    static let exportReadsFrozenSnapshotBytes = true
+    static let adapterCannotRewriteFinalizedActivity = true
+    static let importCannotRequestAutomaticCompletion = true
+}
+
 enum CompletedActivityAssetLocatorBoundaryV1 {
     /// Completed snapshots consume an already-frozen interpretation. They do
     /// not re-run resolution against later locator lifecycle state.

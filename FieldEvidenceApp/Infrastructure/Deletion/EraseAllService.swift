@@ -2,6 +2,13 @@ import Darwin
 import CryptoKit
 import Foundation
 
+enum C50IncumbentFileExchangeEraseAllBoundaryV1 {
+    static let removesAppOwnedScratch = true
+    static let removesAppOwnedQuarantine = true
+    static let recallsEscapedFiles = false
+    static let disablesOrRewritesInstalledProfileRelease = false
+}
+
 enum SurveySessionEraseAllEnrollmentV1{static func validate()throws{try SurveySessionDeletionLedgerPolicyV1.validate();guard SurveySessionEraseIntentEnrollmentV1.schemaVersion==25,SurveySessionEraseIntentEnrollmentV1.removesAllFiveFamilies else{throw DeletionLedgerFailureV2.invalidSchemaVersion}}}
 
 enum C30EvidenceContextEraseAllPolicyV1 {

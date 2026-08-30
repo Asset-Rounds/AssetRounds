@@ -1,5 +1,11 @@
 import Foundation
 
+enum C50IncumbentFileExchangeDeletionLedgerStoreBoundaryV1 {
+    static let persistsAdapterTombstones = false
+    static let persistsSourceOrQuarantineDigests = false
+    static let canonicalImportedHistoryUsesExistingLedgerKinds = true
+}
+
 enum SurveySessionDeletionLedgerStoreEnrollmentV1{static let retainedFrozenKind="SurveyPublicationSnapshotRow";static let workspaceEraseKinds=SurveySessionKernelDeletionEnrollmentV1.persistentRowNames}
 
 enum C30EvidenceContextDeletionLedgerStorePolicyV1 {

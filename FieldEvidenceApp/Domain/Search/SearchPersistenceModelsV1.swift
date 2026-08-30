@@ -1346,3 +1346,21 @@ enum C49WorkResourceSearchPersistenceBoundaryV1 {
         return try encoder.encode(envelope)
     }
 }
+
+
+enum C50IncumbentFileExchangeSearchPersistenceBoundaryV1 {
+    static let canonicalSearchRowFamilyCount = 0
+    static let scratchProjectionRowFamilyCount = 0
+    static let profileSelectionRowFamilyCount = 0
+    static let indexIsDisposableAndRebuildable = true
+    static let targetCanonicalRowsUseExistingPersistencePolicies = true
+
+    static func validate() -> Bool {
+        canonicalSearchRowFamilyCount == 0
+            && scratchProjectionRowFamilyCount == 0
+            && profileSelectionRowFamilyCount == 0
+            && indexIsDisposableAndRebuildable
+            && targetCanonicalRowsUseExistingPersistencePolicies
+            && C50IncumbentFileExchangeSearchBoundaryV1.validate()
+    }
+}

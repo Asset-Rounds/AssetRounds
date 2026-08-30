@@ -71,3 +71,30 @@ enum C49WorkResourceAccessibleDocumentLifecycleBoundaryV1 {
     static let createsSecondReportOrWriter = false
     static let formulaFieldsAccepted = false
 }
+
+// MARK: - C50 incumbent file-exchange lifecycle boundary
+
+/// The existing accessibility lifecycle accepts only a derived tree or
+/// assessment. C50 source leases and quarantine outcomes are external to this
+/// lifecycle, and canonical assessment writes remain on the existing bridge.
+enum C50AccessibleDocumentIncumbentLifecycleBoundaryV1 {
+    static let adapterContract: Any.Type = IncumbentFileAdapterV1.self
+    static let profileReleaseContract: Any.Type = IncumbentFileProfileReleaseV1.self
+    static let exchangeScopeContract: Any.Type = IncumbentExchangeScopeV1.self
+    static let quarantineReceiptContract: Any.Type = IncumbentFileQuarantineReceiptV1.self
+    static let inputBytesAreLeasedScratch = true
+    static let scratchIsExcludedFromBackup = true
+    static let scratchIsDeletedAfterOutcome = true
+    static let quarantineMustCompleteBeforeProjection = true
+    static let lifecycleConsumesDerivedMetadataOnly = true
+    static let lifecyclePersistsSourceBytes = false
+    static let lifecyclePersistsSessionBytes = false
+    static let lifecycleCreatesSecondWriter = false
+    static let lifecycleCreatesSecondStore = false
+    static let lifecycleClaimsProviderAvailability = false
+    static let conformanceIsTypedAndNoncertifying = true
+
+    static func validateAssessment(_ value: AccessibleDocumentAssessmentReceiptV1) throws {
+        try value.validateIntrinsic()
+    }
+}

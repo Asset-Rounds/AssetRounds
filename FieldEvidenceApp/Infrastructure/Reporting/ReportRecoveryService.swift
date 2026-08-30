@@ -1233,3 +1233,26 @@ enum C49WorkResourceReportRecoveryBoundaryV1 {
     static let recoveryNeverOverwritesHistory = true
     static let rawStockAndLiveInventoryClaimsRecovered = false
 }
+
+/// Recovery reopens canonical snapshot bytes and rebuilds derived outputs; it
+/// does not recover C50 scratch, private values, external keys, or a lost
+/// export callback as report truth.
+enum C50IncumbentFileExchangeReportRecoveryBoundaryV1 {
+    static let canonicalSnapshotBytesAreReopened = true
+    static let recoveryNeverReappliesCanonicalEffect = true
+    static let scratchAndQuarantineAreCleanupOnly = true
+    static let sourceAndExternalPathsAreNotRecovered = true
+    static let directCostProjectionIsAbsent = C50IncumbentFileExchangeLifecycleBoundaryV1.directCostProjectionIsAbsent
+    static let rawStockAndLiveInventoryClaimsRecovered = false
+    static let deterministicDerivedRebuild = true
+
+    static func validate() -> Bool {
+        canonicalSnapshotBytesAreReopened
+            && recoveryNeverReappliesCanonicalEffect
+            && scratchAndQuarantineAreCleanupOnly
+            && sourceAndExternalPathsAreNotRecovered
+            && directCostProjectionIsAbsent
+            && !rawStockAndLiveInventoryClaimsRecovered
+            && deterministicDerivedRebuild
+    }
+}

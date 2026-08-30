@@ -402,3 +402,43 @@ enum C49WorkResourceAccessibleDocumentBoundaryV1 {
         return document.lines
     }
 }
+
+// MARK: - C50 incumbent file-exchange cross-contract boundary
+
+/// C50 may feed only a quarantined, allowlisted, derived presentation into
+/// accessibility. Profile/selection evidence remains immutable configuration;
+/// source/session bytes, provider state, and external availability never enter
+/// the semantic tree or its evidence links.
+enum C50AccessibleDocumentIncumbentExchangeBoundaryV1 {
+    static let adapterContract: Any.Type = IncumbentFileAdapterV1.self
+    static let registryContract: Any.Type = ClosedIncumbentAdapterRegistryV1.self
+    static let profileReleaseContract: Any.Type = IncumbentFileProfileReleaseV1.self
+    static let selectionReceiptContract: Any.Type = IncumbentSelectionReceiptV1.self
+    static let exchangeScopeContract: Any.Type = IncumbentExchangeScopeV1.self
+    static let exportManifestContract: Any.Type = IncumbentFileExportManifestV1.self
+    static let exchangeReceiptContract: Any.Type = IncumbentFileExchangeReceiptV1.self
+    static let quarantineReceiptContract: Any.Type = IncumbentFileQuarantineReceiptV1.self
+
+    static let crossContractTypes: [Any.Type] = [
+        AccessibleDocumentSemanticTreeV1.self,
+        AccessibleEvidenceLinkV1.self,
+        InspectionReviewProjectionV1.self,
+        PackageReleaseBindingV1.self,
+    ]
+    static let privacyAllowlistIsClosed = true
+    static let quarantinePrecedesProjection = true
+    static let sourceAndSessionBytesAreExcluded = true
+    static let providerStateIsNotCanonical = true
+    static let writerAndRendererAreDelegated = true
+    static let lifecycleIsDerivedOnly = true
+    static let conformanceClaimsAreNotInferred = true
+    static let disabledProfileRemainsTruthful = true
+
+    static func validateDerivedTree(_ tree: AccessibleDocumentSemanticTreeV1) throws {
+        try tree.validate()
+    }
+
+    static func validateEvidenceLink(_ link: AccessibleEvidenceLinkV1) throws {
+        try link.validate()
+    }
+}

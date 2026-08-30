@@ -1512,3 +1512,161 @@ private final class C49PortableReviewRegressionBoundaryTests: XCTestCase {
         XCTAssertEqual(C49WorkResourceContractBoundaryV1.soleWriter, "WorkspaceWriterV1")
     }
 }
+
+enum C50AuthoritativePrivacyTestSupport {
+    static func approval(
+        workspaceID: WorkspaceID
+    ) throws -> C50PrivacyPreviewApprovalReferenceV1 {
+        let instant = Date(timeIntervalSince1970: 1_900_000_000)
+        let mutationID = try MutationIDV1(rawValue: UUID(
+            uuidString: "c5000000-0000-4000-8000-000000000001"
+        )!)
+        let originalObserved = try ContentIntegrityV1.observe(
+            workspaceID: workspaceID.rawValue.uuidString.lowercased(),
+            contentID: "c50-authoritative-original",
+            data: Data("c50-original".utf8),
+            mediaType: "image/jpeg"
+        )
+        let derivativeObserved = try ContentIntegrityV1.observe(
+            workspaceID: workspaceID.rawValue.uuidString.lowercased(),
+            contentID: "c50-authoritative-derivative",
+            data: Data("c50-derivative".utf8),
+            mediaType: "image/jpeg"
+        )
+        guard let sourceSHA256 = originalObserved.digests.digest(for: .sha256)?.hexadecimalValue,
+              let derivativeSHA256 = derivativeObserved.digests.digest(for: .sha256)?.hexadecimalValue else {
+            throw PrivacyTransformFailureV1.invalidValue
+        }
+        let original = try ContentReferenceV1(
+            workspaceID: workspaceID.rawValue.uuidString.lowercased(),
+            contentID: "c50-authoritative-original",
+            byteLength: Int64("c50-original".utf8.count),
+            mediaType: "image/jpeg",
+            digests: originalObserved.digests,
+            byteRole: .immutableOriginal,
+            createdAt: instant
+        )
+        let derivative = try ContentReferenceV1(
+            workspaceID: workspaceID.rawValue.uuidString.lowercased(),
+            contentID: "c50-authoritative-derivative",
+            byteLength: Int64("c50-derivative".utf8.count),
+            mediaType: "image/jpeg",
+            digests: derivativeObserved.digests,
+            byteRole: .derivative,
+            createdAt: instant
+        )
+        let actor = try LocalActorReferenceV1(
+            actorReferenceID: UUID(uuidString: "c5000000-0000-4000-8000-000000000010")!,
+            workspaceID: workspaceID,
+            displayName: "C50 privacy reviewer"
+        )
+        let reviewer = try ActorSnapshotV1(
+            snapshotID: UUID(uuidString: "c5000000-0000-4000-8000-000000000011")!,
+            workspaceID: workspaceID,
+            actor: actor,
+            responsibility: .reviewedBy,
+            displayNameAtTime: "C50 privacy reviewer",
+            capturedAt: instant.addingTimeInterval(1)
+        )
+        let author = try ActorSnapshotV1(
+            snapshotID: UUID(uuidString: "c5000000-0000-4000-8000-000000000012")!,
+            workspaceID: workspaceID,
+            actor: actor,
+            responsibility: .performedBy,
+            displayNameAtTime: "C50 privacy author",
+            capturedAt: instant
+        )
+        let policy = try PrivacyTransformPolicyV1(
+            policyID: UUID(uuidString: "c5000000-0000-4000-8000-000000000020")!,
+            workspaceID: workspaceID,
+            purpose: "customer-safe file exchange",
+            audience: .customerReport,
+            allowedTransformKinds: [.blur],
+            allowedReasons: [.person],
+            maximumAgeSeconds: 3_600,
+            effectiveAt: instant,
+            mutationID: mutationID
+        )
+        let region = try PrivacyRegionV1(
+            regionID: UUID(uuidString: "c5000000-0000-4000-8000-000000000030")!,
+            workspaceID: workspaceID,
+            sourceContentID: original.contentID,
+            sourceRevision: 1,
+            sourceSHA256: sourceSHA256,
+            coordinateSpace: .normalizedImage,
+            orientation: .up,
+            sourceBounds: try PrivacyIntegerRectV1(
+                x: 0, y: 0, width: 100_000, height: 100_000
+            ),
+            transformKind: .blur,
+            reason: .person,
+            author: author,
+            order: 0,
+            authoredAt: instant,
+            mutationID: mutationID
+        )
+        let manifest = try PrivacyTransformManifestV1(
+            manifestID: UUID(uuidString: "c5000000-0000-4000-8000-000000000040")!,
+            workspaceID: workspaceID,
+            original: original,
+            sourceRevision: 1,
+            sourceSHA256: sourceSHA256,
+            derivative: derivative,
+            derivativeSHA256: derivativeSHA256,
+            policy: policy,
+            orderedRegions: [region],
+            rendererID: "c50-privacy-renderer",
+            rendererVersion: "1",
+            metadataSanitation: try PrivacyMetadataSanitationEvidenceV1(
+                sanitizerID: "c50-privacy-sanitizer",
+                sanitizerVersion: "1",
+                result: .complete
+            ),
+            renderedAt: instant,
+            mutationID: mutationID
+        )
+        let review = try PrivacyReviewReceiptV1(
+            receiptID: UUID(uuidString: "c5000000-0000-4000-8000-000000000050")!,
+            workspaceID: workspaceID,
+            manifest: manifest,
+            policy: policy,
+            reviewer: reviewer,
+            decision: .approved,
+            rationale: "C50 customer-safe preview approved",
+            reviewedAt: instant.addingTimeInterval(2),
+            mutationID: mutationID
+        )
+        return try C50PrivacyPreviewApprovalReferenceV1(
+            manifest: manifest,
+            review: review,
+            policy: policy
+        )
+    }
+}
+
+private final class C50PortableReviewAdapterRegressionBoundaryTests: XCTestCase {
+    func testC50ReceivesOnlyValidatedDerivedPortableReviewState() throws {
+        let approval = try C50AuthoritativePrivacyTestSupport.approval(
+            workspaceID: WorkspaceID(rawValue: UUID(
+                uuidString: "48000000-0000-4000-8000-000000000060"
+            )!)
+        )
+        let source = try ReviewRequestStateProjectionV1(
+            requestPublicID: try ReviewRequestPublicIDV1("review-request-c50"),
+            state: .exportedAwaitingResponse,
+            lifecycleState: .exportedAccepting
+        )
+        let projection = try PortableReviewCoordinatorV1.c50AdapterProjection(
+            source,
+            privacyApproval: approval
+        )
+        XCTAssertEqual(projection.requestPublicID, source.requestPublicID)
+        XCTAssertNil(projection.latestResponsePublicID)
+        XCTAssertEqual(projection.privacyApproval, approval)
+        XCTAssertTrue(C50PortableReviewAdapterDelegationV1.requiresPrivacyPreview)
+        XCTAssertTrue(C50PortableReviewAdapterDelegationV1.rawCapabilityAndProofAreExcluded)
+        XCTAssertTrue(C50PortableReviewAdapterDelegationV1.adapterOwnsNoCanonicalWriter)
+        XCTAssertTrue(C50PortableReviewPersistenceDelegationV1.adapterSessionStateIsNotPersistedHere)
+        XCTAssertTrue(C50PortableExchangeSessionStoreDelegationV1.adapterNeverReadsProtectedCapabilityArtifacts)
+    }
+}

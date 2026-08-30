@@ -1,5 +1,13 @@
 import Darwin
 import Foundation
+
+enum C50IncumbentFileExchangeBackupExportBoundaryV1 {
+    static let exportsAdapterProfileState = false
+    static let exportsLeasedInputBytes = false
+    static let exportsQuarantineBytes = false
+    static let exportsSecurityBookmarksOrExternalPaths = false
+    static let exportedAdapterFilesAreDerivedEscapedCopies = true
+}
 import SwiftData
 
 enum IntegrationProjectionBackupExportExclusionV1 {

@@ -1,5 +1,12 @@
 import Foundation
 
+enum C50IncumbentFileExchangeWholeSignDeletionRuleV1 {
+    static let canonicalImportedRowsFollowTheirSubjectOwners = true
+    static let adapterLayerDeletesCanonicalRows = false
+    static let adapterLayerDeletesImmutableMutationHistory = false
+    static let ordinaryDeletionIsNotWorkspaceErase = true
+}
+
 struct DeletionSitePayloadV1: Codable, Equatable, Sendable {
     let id: UUID
     let schemaVersion: Int

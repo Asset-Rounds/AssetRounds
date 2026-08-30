@@ -11,6 +11,12 @@ enum EvidenceDetailSensitivityV1: String, Codable, CaseIterable, Hashable, Senda
     case diagnostic = "DIAGNOSTIC"
 }
 
+enum C50IncumbentEvidenceDetailBoundaryV1 {
+    static let profileAndVersionMayBeShownAsProvenance = true
+    static let externalAcceptanceOrSyncStateMayNotBeShown = true
+    static let privateFieldsRemainAudienceFiltered = true
+}
+
 enum EvidenceDetailAccessibleAlternateTextPolicyV1{
     static let automaticDescriptionAllowed=false
     static let allowedProvenance=AccessibleAlternateTextProvenanceV1.allCases

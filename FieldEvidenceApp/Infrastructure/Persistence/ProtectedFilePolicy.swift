@@ -1,6 +1,22 @@
 import Darwin
 import Foundation
 
+enum C50IncumbentFileExchangeProtectedFileBoundaryV1 {
+    static let copiedSourceKind: OwnedFileKindV1 = .temporaryFile
+    static let mappingScratchKind: OwnedFileKindV1 = .scratch
+    static let quarantineKind: OwnedFileKindV1 = .scratch
+    static let persistsSecurityScopedBookmarks = false
+    static let externalSourceAndExportFilesAreAppOwned = false
+
+    static func validate() -> Bool {
+        ProtectedFilePolicyV1.isExcludedFromBackup(for: copiedSourceKind)
+            && ProtectedFilePolicyV1.isExcludedFromBackup(for: mappingScratchKind)
+            && ProtectedFilePolicyV1.isExcludedFromBackup(for: quarantineKind)
+            && !persistsSecurityScopedBookmarks
+            && !externalSourceAndExportFilesAreAppOwned
+    }
+}
+
 enum EvidenceContextProtectedFilePolicyV1{static let durableRowNames:Set<String>=["EvidenceContextRow","PairedObservationLinkRow"];static let ownsExternalFiles=false;static let canonicalBytesRemainInProtectedDatabase=true}
 enum LightingProtectedFilePolicyV1{static let durableRowNames:Set<String>=["LightingSystemRow","LightingObservationRow","LightingIssueRow","MeasurementPlanRow","LightingClaimStateRow"];static let ownsExternalFiles=false;static let canonicalBytesRemainInProtectedDatabase=true}
 enum TemporalEvidenceProtectedFilePolicyV1 {

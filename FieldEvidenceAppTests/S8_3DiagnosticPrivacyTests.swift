@@ -877,3 +877,11 @@ private final class C49WorkResourceDiagnosticPrivacyBoundaryTests: XCTestCase {
         XCTAssertEqual(WorkResourceVisibilityPolicyV1.internalOnly.rawValue, "INTERNAL_ONLY")
     }
 }
+
+private final class C50IncumbentAdapterS83DiagnosticPrivacyBoundaryTests: XCTestCase {
+    func testDiagnosticsDoNotPersistExternalFilePossessionOrSecurityBookmarks() {
+        XCTAssertFalse(C50IncumbentFileExchangeProtectedFileBoundaryV1.externalSourceAndExportFilesAreAppOwned)
+        XCTAssertFalse(C50IncumbentFileExchangeProtectedFileBoundaryV1.persistsSecurityScopedBookmarks)
+        XCTAssertFalse(C50IncumbentFileExchangeBackupExportBoundaryV1.exportsSecurityBookmarksOrExternalPaths)
+    }
+}

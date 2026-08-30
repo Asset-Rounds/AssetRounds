@@ -979,3 +979,23 @@ enum C49WorkResourceReportHistoryBoundaryV1 {
         )
     }
 }
+
+/// History contains accepted canonical/report snapshots only. A C50 preview,
+/// quarantine, or external availability result can never overwrite history.
+enum C50IncumbentFileExchangeReportHistoryBoundaryV1 {
+    static let appendOnlyCanonicalHistory = true
+    static let previewCannotAppendCanonicalTruth = true
+    static let quarantineCannotAppendCanonicalTruth = true
+    static let externalAvailabilityCannotRewriteHistory = true
+    static let directCostProjectionIsAbsent = C50IncumbentFileExchangeLifecycleBoundaryV1.directCostProjectionIsAbsent
+    static let materialAndCurrencyProjectionsRemainDeterministic = true
+
+    static func validate() -> Bool {
+        appendOnlyCanonicalHistory
+            && previewCannotAppendCanonicalTruth
+            && quarantineCannotAppendCanonicalTruth
+            && externalAvailabilityCannotRewriteHistory
+            && directCostProjectionIsAbsent
+            && materialAndCurrencyProjectionsRemainDeterministic
+    }
+}

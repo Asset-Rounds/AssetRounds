@@ -330,3 +330,16 @@ private final class C49WorkResourceGoldenAccessibilityBoundaryTests: XCTestCase 
         XCTAssertEqual(WorkResourceVisibilityPolicyV1.allCases.map(\.rawValue), ["INTERNAL_ONLY", "CUSTOMER_SAFE"])
     }
 }
+
+private final class C50IncumbentAdapterS82AccessibilityBoundaryTests: XCTestCase {
+    func testDisabledProfileStateRemainsTruthfulAndProviderNeutral() {
+        XCTAssertEqual(
+            Bundle.main.object(forInfoDictionaryKey: "FieldEvidenceIncumbentFileAdapterStatus") as? String,
+            "DISABLED_NO_SELECTED_PROFILE"
+        )
+        XCTAssertEqual(
+            Bundle.main.object(forInfoDictionaryKey: "FieldEvidenceIncumbentFileAdapterDeclaresProviderType") as? Bool,
+            false
+        )
+    }
+}

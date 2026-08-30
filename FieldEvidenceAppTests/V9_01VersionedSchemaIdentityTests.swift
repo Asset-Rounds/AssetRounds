@@ -3,6 +3,20 @@ import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C50VersionedSchemaIdentityTests: XCTestCase {
+    func testV23P03C50NonpersistentPortDoesNotAdvanceCanonicalSchemas() {
+        XCTAssertEqual(IncumbentFileProfileReleaseV1.schemaVersion, 1)
+        XCTAssertEqual(IncumbentSelectionReceiptV1.schemaVersion, 1)
+        XCTAssertEqual(C50IncumbentFileExchangeBackupBoundaryV1.recordsSchemaVersion, C49BackupEnrollmentV1.recordsSchemaVersion)
+        XCTAssertEqual(C50IncumbentFileExchangeBackupBoundaryV1.canonicalFamilyCount, 0)
+        XCTAssertFalse(C50IncumbentFileExchangeKernelBackupEnrollmentV1.persistentSchemaBump)
+        XCTAssertFalse(C50IncumbentFileExchangeKernelBackupEnrollmentV1.recordsSchemaBump)
+        XCTAssertEqual(C50IncumbentFileExchangePersistenceBoundaryV1.newPersistentModelCount, 0)
+        XCTAssertEqual(C50IncumbentFileExchangePersistenceBoundaryV1.newRecordsRowCount, 0)
+        XCTAssertTrue(C50IncumbentFileExchangePersistenceBoundaryV1.noAdapterSwiftDataModel)
+    }
+}
+
 private final class C45SchemaIdentityCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityEnrollsExactlyOneV34SnapshotFamily() {
         XCTAssertEqual(PersistentSchemaV34.versionIdentifier, Schema.Version(34, 0, 0))

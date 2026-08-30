@@ -9,6 +9,12 @@ enum EvidenceTargetKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case workRecord = "WORK_RECORD"
 }
 
+enum C50IncumbentEvidenceAssociationBoundaryV1 {
+    static let previewMayDescribeButNeverCreateAssociations = true
+    static let acceptedAssociationsUseExistingWorkspaceMutation = true
+    static let externalKeysAreNotEvidenceIdentity = true
+}
+
 extension EvidenceAssociationV1 {
     func accessibleEvidenceLink(evidenceSHA256:String,mediaType:String = "application/octet-stream")throws->AccessibleEvidenceLinkV1{
         guard action != .removed else{throw AccessibleDocumentFailureV1.missingEvidence}

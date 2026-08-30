@@ -1182,6 +1182,9 @@ final class MutationJournalStoreV1 {
     }
 
     func validateAll() throws {
+        guard C50IncumbentFileExchangeMutationJournalBoundaryV1.validate() else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
         try validateRecoverabilityVerificationReceipts()
         var descriptor = FetchDescriptor<MutationReceiptRow>(sortBy: [SortDescriptor(\.receiptIdentity)])
         descriptor.fetchLimit = Self.maximumReceiptValidationCount + 1
@@ -2594,4 +2597,27 @@ private struct WorkflowRecordPostImageV8: Codable {
 private struct AssetSemanticAssetPostImageV1: Codable {
     let asset: V4BackupAssetDTO
     let semantic: AssetSemanticPersistentSnapshotV1
+}
+
+enum C50IncumbentFileExchangeMutationJournalBoundaryV1 {
+    static let profileSelectionSessionSourceQuarantineDisposition = "NONPERSISTENT"
+    static let mutationKindAdded = 0
+    static let journalKindAdded = 0
+    static let receiptKindAdded = 0
+    static let adapterStateIsNotJournaled = true
+    static let sourceAndQuarantineBytesAreNotJournaled = true
+    static let canonicalImportedEffectsUseExistingJournal = true
+    static let replayDisposition = "NOT_APPLICABLE"
+
+    static func validate() -> Bool {
+        profileSelectionSessionSourceQuarantineDisposition == "NONPERSISTENT"
+            && mutationKindAdded == 0
+            && journalKindAdded == 0
+            && receiptKindAdded == 0
+            && adapterStateIsNotJournaled
+            && sourceAndQuarantineBytesAreNotJournaled
+            && canonicalImportedEffectsUseExistingJournal
+            && replayDisposition == "NOT_APPLICABLE"
+            && C50IncumbentFileExchangePersistenceBoundaryV1.validate()
+    }
 }

@@ -1103,3 +1103,10 @@ private final class C49WorkResourceDeliveryBoundaryTests: XCTestCase {
         XCTAssertTrue(C49WorkResourceLifecycleBoundaryV1.searchAndReportAreDerivedOnly)
     }
 }
+
+private final class C50IncumbentAdapterS43DeliveryBoundaryTests: XCTestCase {
+    func testExchangeReceiptCannotClaimExternalDelivery() {
+        XCTAssertFalse(C50IncumbentFileExchangeBackupExportBoundaryV1.exportsSecurityBookmarksOrExternalPaths)
+        XCTAssertFalse(C50IncumbentFileExchangeEraseAllBoundaryV1.recallsEscapedFiles)
+    }
+}

@@ -2370,3 +2370,11 @@ private final class C49WorkResourceBackupValidationBoundaryTests: XCTestCase {
         XCTAssertThrowsError(try ExactMoneyAmountV1(mantissa: 1, currencyCode: "JPY", minorUnitScale: 2))
     }
 }
+
+private final class C50IncumbentAdapterS63BackupValidationBoundaryTests: XCTestCase {
+    func testRestoreValidationRejectsAdapterOwnedArchiveMembers() {
+        XCTAssertTrue(C50IncumbentFileExchangeBackupImportBoundaryV1.validate())
+        XCTAssertEqual(C50IncumbentFileExchangePackageValidationBoundaryV1.allowedAdapterMemberCount, 0)
+        XCTAssertFalse(C50IncumbentFileExchangeBackupDecoderBoundaryV1.acceptsSourceScratchOrQuarantine)
+    }
+}

@@ -38,3 +38,32 @@ enum C49WorkResourceInspectionReviewCoordinatorBoundaryV1 {
     static let writerRemainsCanonicalMutationRoute = true
     static let reviewDoesNotInferInventoryOrApproval = true
 }
+
+// MARK: - C50 incumbent file-exchange coordinator boundary
+
+/// C50 exchange work is preview-only at this boundary. Any accepted review
+/// mutation is still routed through the existing C14 writer; the coordinator
+/// receives no source/session bytes and does not select a provider implicitly.
+enum C50InspectionReviewIncumbentCoordinatorBoundaryV1 {
+    static let adapterContract: Any.Type = IncumbentFileAdapterV1.self
+    static let selectionReceiptContract: Any.Type = IncumbentSelectionReceiptV1.self
+    static let exchangeReceiptContract: Any.Type = IncumbentFileExchangeReceiptV1.self
+    static let quarantineReceiptContract: Any.Type = IncumbentFileQuarantineReceiptV1.self
+    static let previewIsZeroWrite = true
+    static let allowlistIsRequiredBeforeReview = true
+    static let quarantineIsRequiredBeforeReview = true
+    static let sourceBytesConsumed = false
+    static let sessionBytesConsumed = false
+    static let providerStateConsumed = false
+    static let reviewCoordinatorIsNotAnImportWriter = true
+    static let existingReviewWriterRemainsSoleMutationRoute = true
+    static let disabledProfileHasNoIntegrationClaim = true
+
+    static func validateProjection(_ projection: InspectionReviewProjectionV1) throws {
+        try InspectionReviewValidationV1.workspace(projection.workspaceID)
+        try InspectionReviewValidationV1.id(projection.reviewID)
+        try InspectionReviewValidationV1.revision(projection.revision)
+        try InspectionReviewValidationV1.id(projection.headTransitionID)
+        try projection.openChangeRequests.forEach { try $0.validate() }
+    }
+}

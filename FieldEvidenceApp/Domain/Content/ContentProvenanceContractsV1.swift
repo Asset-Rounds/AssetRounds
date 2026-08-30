@@ -8,6 +8,12 @@ enum AssetLocatorProvenanceBoundaryV1 {
     static let signedPayloadRecordsLocalIntegrityOnly = true
 }
 
+enum C50IncumbentContentProvenanceBoundaryV1 {
+    static let fileDigestAndProfileReleaseAreRequired = true
+    static let providerAvailabilityIsNotCanonicalProvenance = true
+    static let acceptedContentKeepsExistingProvenanceOwner = true
+}
+
 enum OriginalContentOriginV1: String, CaseIterable, Codable, Hashable, Sendable {
     case humanCapture = "HUMAN_CAPTURE"
     case localImport = "LOCAL_IMPORT"

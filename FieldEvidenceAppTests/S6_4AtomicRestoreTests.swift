@@ -1795,3 +1795,13 @@ private final class C49WorkResourceAtomicRestoreBoundaryTests: XCTestCase {
         XCTAssertTrue(C49WorkResourceLifecycleBoundaryV1.backupRestoreCloneForkDeleteAndEraseAreExplicit)
     }
 }
+
+private final class C50IncumbentAdapterS64AtomicRestoreBoundaryTests: XCTestCase {
+    func testAtomicRestoreDoesNotReenableSelectionOrCopyExternalAuthority() {
+        XCTAssertTrue(C50IncumbentFileExchangeBackupRestoreServiceBoundaryV1.validate(mode: .replaceExisting))
+        XCTAssertTrue(C50IncumbentFileExchangeBackupRestoreServiceBoundaryV1.validate(mode: .clone))
+        XCTAssertTrue(C50IncumbentFileExchangeBackupRestoreServiceBoundaryV1.validate(mode: .fork))
+        XCTAssertFalse(C50IncumbentFileExchangeRestoreIdentityBoundaryV1.cloneForkCopiesSecurityBookmarks)
+        XCTAssertFalse(C50IncumbentFileExchangeRestoreIdentityBoundaryV1.replacementRestoresProfileActivation)
+    }
+}

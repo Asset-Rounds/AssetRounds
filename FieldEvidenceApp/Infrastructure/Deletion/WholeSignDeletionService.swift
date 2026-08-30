@@ -2,6 +2,13 @@ import CryptoKit
 import Darwin
 import Foundation
 
+enum C50IncumbentFileExchangeWholeSignDeletionServiceBoundaryV1 {
+    static let removesAdapterScratchDuringSubjectCascade = false
+    static let removesAdapterQuarantineDuringSubjectCascade = false
+    static let preservesCanonicalImportedRowsPerExistingGraph = true
+    static let createsNoAdapterDeletionReceipt = true
+}
+
 enum SurveySessionWholeSignDeletionEnrollmentV1{static func validate()throws{try SurveySessionDeletionLedgerPolicyV1.validate();guard SurveySessionDeletionLedgerPolicyV1.ordinaryAssetOrSiteDeleteRetainsFrozenPublications else{throw DeletionLedgerFailureV2.invalidSchemaVersion}}}
 
 enum C30EvidenceContextWholeSignDeletionServiceV1 {

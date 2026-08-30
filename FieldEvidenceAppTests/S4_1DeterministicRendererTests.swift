@@ -1390,3 +1390,11 @@ private final class C49WorkResourceRendererBoundaryTests: XCTestCase {
         XCTAssertFalse(C49WorkResourceContractBoundaryV1.liveInventoryReference)
     }
 }
+
+private final class C50IncumbentAdapterS41RendererBoundaryTests: XCTestCase {
+    func testPreviewAndRenderStayOutsideCanonicalAndExternalFileAuthority() {
+        XCTAssertTrue(C50IncumbentFileExchangeProtectedFileBoundaryV1.validate())
+        XCTAssertFalse(C50IncumbentFileExchangeProtectedFileBoundaryV1.externalSourceAndExportFilesAreAppOwned)
+        XCTAssertFalse(C50IncumbentFileExchangeProtectedFileBoundaryV1.persistsSecurityScopedBookmarks)
+    }
+}

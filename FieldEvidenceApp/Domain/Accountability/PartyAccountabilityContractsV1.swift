@@ -628,3 +628,41 @@ enum C49WorkResourceAccountabilityBoundaryV1 {
         return assurance
     }
 }
+
+// MARK: - C50 incumbent file-exchange accountability boundary
+
+/// Accountability records only local actor/signoff provenance. It does not
+/// convert an adapter/profile/selection receipt into verified identity,
+/// provider endorsement, legal authority, or a durable external-session fact.
+enum C50IncumbentFileExchangeAccountabilityBoundaryV1 {
+    static let adapterContract: Any.Type = IncumbentFileAdapterV1.self
+    static let profileReleaseContract: Any.Type = IncumbentFileProfileReleaseV1.self
+    static let selectionReceiptContract: Any.Type = IncumbentSelectionReceiptV1.self
+    static let exchangeReceiptContract: Any.Type = IncumbentFileExchangeReceiptV1.self
+    static let quarantineReceiptContract: Any.Type = IncumbentFileQuarantineReceiptV1.self
+    static let actorSnapshotType: Any.Type = ActorSnapshotV1.self
+    static let signoffSnapshotType: Any.Type = SignoffSnapshotV1.self
+    static let selectionIsConfigurationEvidenceOnly = true
+    static let sourceActorIsNotInferred = true
+    static let identityVerificationIsForbidden = true
+    static let providerEndorsementIsForbidden = true
+    static let legalAuthorityIsNotInferred = true
+    static let rawSourceAndSessionBytesAreExcluded = true
+    static let quarantineEvidenceIsNotIdentityEvidence = true
+    static let delegationIsExplicitAndLocal = true
+    static let conformanceIsNoncertifying = true
+
+    static func validateActor(_ actor: ActorSnapshotV1, in workspaceID: WorkspaceID) throws {
+        try actor.validate()
+        guard actor.workspaceID == workspaceID else {
+            throw PartyAccountabilityFailureV1.crossWorkspaceReference
+        }
+    }
+
+    static func validateSignoff(_ signoff: SignoffSnapshotV1, in workspaceID: WorkspaceID) throws {
+        try signoff.validate()
+        guard signoff.workspaceID == workspaceID else {
+            throw PartyAccountabilityFailureV1.crossWorkspaceReference
+        }
+    }
+}

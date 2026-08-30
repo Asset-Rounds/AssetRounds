@@ -77,6 +77,13 @@ struct SurveyPublicationReportProjectionV1: Codable, Equatable, Sendable {
     }
 }
 
+enum C50IncumbentReportProjectionBoundaryV1 {
+    static let outboundRowsComeFromExistingProjections = true
+    static let adapterOwnsNoRendererTruth = true
+    static let directCostRequiresProfileAllowlistAndPrivacyApproval = true
+    static let formulaSafeOutputIsMandatory = true
+}
+
 // MARK: - C28 frozen schedule and occurrence report projection
 
 /// C28 keeps schedule truth in the workflow contracts.  This is a bounded

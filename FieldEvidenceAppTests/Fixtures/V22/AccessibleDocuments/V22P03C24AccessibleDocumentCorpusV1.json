@@ -148,5 +148,42 @@
     "durationAndMaterialMayBeSpoken": true,
     "directCostRequiresExplicitCustomerSafePreview": true,
     "liveInventoryClaimed": false
+  },
+  "c50IncumbentFileExchange": {
+    "adapterBoundary": "PURE_PROVIDER_NEUTRAL_VERSIONED_FILE_ADAPTER",
+    "profileSelection": "IMMUTABLE_CONFIGURATION_EVIDENCE_ONLY",
+    "registry": "EXACTLY_ZERO_OR_ONE_ENABLED_PRODUCTION_PROFILE",
+    "privacy": {
+      "closedAllowlistRequired": true,
+      "sourceBytesProjected": false,
+      "sessionBytesProjected": false,
+      "providerStateProjected": false
+    },
+    "quarantine": {
+      "requiredBeforeProjection": true,
+      "canonicalEffectOnQuarantine": false
+    },
+    "delegation": {
+      "canonicalWriter": "EXISTING_WRITER_ONLY",
+      "renderer": "EXISTING_ACCESSIBLE_DOCUMENT_RENDERER_ONLY",
+      "reviewWriter": "EXISTING_C14_WRITER_ONLY"
+    },
+    "lifecycle": {
+      "inputBytes": "LEASED_SCRATCH_DELETED_AFTER_OUTCOME",
+      "sourceBytesPersisted": false,
+      "sessionBytesPersisted": false,
+      "secondWriter": false,
+      "secondStore": false,
+      "providerAvailabilityClaimed": false
+    },
+    "typedContracts": [
+      "IncumbentFileAdapterV1",
+      "ClosedIncumbentAdapterRegistryV1",
+      "IncumbentFileProfileReleaseV1",
+      "IncumbentSelectionReceiptV1",
+      "IncumbentExchangeScopeV1",
+      "IncumbentFileExportManifestV1",
+      "IncumbentFileExchangeReceiptV1"
+    ]
   }
 }

@@ -1,5 +1,21 @@
 import Foundation
 
+enum C50IncumbentFileExchangeDeletionLedgerBoundaryV1 {
+    static let createsDeletionLedgerKind = false
+    static let ordinaryDeletionPreservesCanonicalImportedHistory = true
+    static let scratchAndQuarantineCreateNoTombstone = true
+    static let eraseOwnsAppControlledScratchAndQuarantine = true
+    static let escapedFilesCannotBeRecalled = true
+
+    static func validate() -> Bool {
+        !createsDeletionLedgerKind
+            && ordinaryDeletionPreservesCanonicalImportedHistory
+            && scratchAndQuarantineCreateNoTombstone
+            && eraseOwnsAppControlledScratchAndQuarantine
+            && escapedFilesCannotBeRecalled
+    }
+}
+
 enum DeletionLedgerFailureV2: Error, Equatable, Sendable {
     case invalidSchemaVersion
     case invalidIdentity

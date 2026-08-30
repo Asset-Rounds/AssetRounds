@@ -23,6 +23,9 @@ struct IntegrationConformanceConsumerV1: Sendable {
         store: any IntegrationProjectionOperationalStoreV1,
         interruptionPoint: @escaping @Sendable () -> InterruptionPointV1 = { .none }
     ) throws {
+        guard C50IncumbentFileExchangeIntegrationConsumerBoundaryV1.validate() else {
+            throw IntegrationEventFailureV1.invalidValue
+        }
         try registry.validate(limits: limits)
         self.registry = registry
         self.limits = limits
@@ -42,6 +45,9 @@ struct IntegrationConformanceConsumerV1: Sendable {
         workspaceID: WorkspaceID,
         acceptedReceipts: [MutationReceiptV1]
     ) async throws -> IntegrationEventConsumerResultV1 {
+        guard C50IncumbentFileExchangeIntegrationConsumerBoundaryV1.validate() else {
+            throw IntegrationEventFailureV1.invalidValue
+        }
         guard acceptedReceipts.count <= ChangeJournalLimitsV1.productionMaximumEntitiesPerCheckpoint else {
             throw IntegrationEventFailureV1.limitExceeded
         }
@@ -102,6 +108,9 @@ struct IntegrationConformanceConsumerV1: Sendable {
         workspaceID: WorkspaceID,
         acceptedReceipts: [MutationReceiptV1]
     ) async throws -> IntegrationEventConsumerResultV1 {
+        guard C50IncumbentFileExchangeIntegrationConsumerBoundaryV1.validate() else {
+            throw IntegrationEventFailureV1.invalidValue
+        }
         guard acceptedReceipts.count <= ChangeJournalLimitsV1.productionMaximumEntitiesPerCheckpoint else {
             throw IntegrationEventFailureV1.limitExceeded
         }
@@ -218,5 +227,26 @@ enum C49WorkResourceIntegrationConformanceBoundaryV1 {
 
     static func accepts(_ kind: WorkspaceEntityKindV1) -> Bool {
         canonicalKinds.contains(kind)
+    }
+}
+
+enum C50IncumbentFileExchangeIntegrationConsumerBoundaryV1 {
+    static let profileSelectionSessionSourceQuarantineDisposition = "NONPERSISTENT"
+    static let consumesCanonicalImportedEffectsThroughExistingOwner = true
+    static let adapterStateIsNotConsumed = true
+    static let sourceAndQuarantineBytesAreExcluded = true
+    static let newConsumerSubjects = 0
+    static let syncDisposition = "NOT_APPLICABLE"
+    static let backupRestoreDisposition = "NOT_APPLICABLE"
+
+    static func validate() -> Bool {
+        profileSelectionSessionSourceQuarantineDisposition == "NONPERSISTENT"
+            && consumesCanonicalImportedEffectsThroughExistingOwner
+            && adapterStateIsNotConsumed
+            && sourceAndQuarantineBytesAreExcluded
+            && newConsumerSubjects == 0
+            && syncDisposition == "NOT_APPLICABLE"
+            && backupRestoreDisposition == "NOT_APPLICABLE"
+            && C50IncumbentFileExchangeIntegrationEventBoundaryV1.validate()
     }
 }

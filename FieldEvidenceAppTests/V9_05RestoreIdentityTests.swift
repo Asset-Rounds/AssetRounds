@@ -4,6 +4,19 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private final class C50RestoreIdentityTests: XCTestCase {
+    func testV23P03C50ReplaceCloneAndForkNeverActivateOrReinterpretAdapterState() {
+        for mode in BackupRestoreMode.allCases {
+            XCTAssertTrue(C50IncumbentFileExchangeRestoreIdentityBoundaryV1.validate(mode))
+            XCTAssertTrue(C50IncumbentFileExchangeBackupRestoreServiceBoundaryV1.validate(mode: mode))
+        }
+        XCTAssertFalse(C50IncumbentFileExchangeRestoreIdentityBoundaryV1.cloneForkCopiesSessionState)
+        XCTAssertFalse(C50IncumbentFileExchangeRestoreIdentityBoundaryV1.cloneForkCopiesSecurityBookmarks)
+        XCTAssertFalse(C50IncumbentFileExchangeRestoreIdentityBoundaryV1.cloneForkReinterpretsReleasedFiles)
+        XCTAssertFalse(C50IncumbentFileExchangeBackupRestoreServiceBoundaryV1.cloneForkActivatesSourceProfile)
+    }
+}
+
 private final class C45RestoreIdentityCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityMakesCloneForkSnapshotsHistoricOnly() {
         XCTAssertEqual(AcceptedLabelSnapshotDispositionV1.activeSourceWorkspace.rawValue, "ACTIVE_SOURCE_WORKSPACE")

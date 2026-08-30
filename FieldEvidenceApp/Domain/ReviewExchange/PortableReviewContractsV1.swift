@@ -869,3 +869,51 @@ enum C49WorkResourceReviewExchangeBoundaryV1 {
         return try C49WorkResourceProjectionSupportV1.envelope(safe, format: "REVIEW_EXCHANGE")
     }
 }
+
+/// C50 may consume only this derived, public-state view after the caller has
+/// completed its privacy preview. It intentionally has no capability, proof,
+/// response-body, author, or session fields.
+struct C50PortableReviewAdapterProjectionV1: Codable, Equatable, Hashable, Sendable {
+    let requestPublicID: ReviewRequestPublicIDV1
+    let state: ReviewRequestProjectionStateV1
+    let latestResponsePublicID: String?
+    /// The exact workspace-scoped approval for the privacy derivative that
+    /// authorized this otherwise public-state-only projection.
+    let privacyApproval: C50PrivacyPreviewApprovalReferenceV1
+
+    init(
+        _ source: ReviewRequestStateProjectionV1,
+        privacyApproval: C50PrivacyPreviewApprovalReferenceV1
+    ) throws {
+        try source.validate()
+        try privacyApproval.validate(workspaceID: privacyApproval.workspaceID)
+        try privacyApproval.requireAuthoritativelyBound()
+        requestPublicID = source.requestPublicID
+        state = source.state
+        latestResponsePublicID = source.latestResponsePublicID
+        self.privacyApproval = privacyApproval
+    }
+}
+
+enum C50PortableReviewAdapterDelegationV1 {
+    static let requiresPrivacyPreview = true
+    static let carriesDerivedPublicStateOnly = true
+    static let rawCapabilityAndProofAreExcluded = true
+    static let responseBodyAndAuthorAreExcluded = true
+    static let adapterOwnsNoCanonicalWriter = true
+    static let adapterOwnsNoPersistentProfileOrSession = true
+
+    static func validate(_ projection: C50PortableReviewAdapterProjectionV1) throws {
+        try projection.requestPublicID.validate()
+        try projection.privacyApproval.validate(workspaceID: projection.privacyApproval.workspaceID)
+        try projection.privacyApproval.requireAuthoritativelyBound()
+        if let responseID = projection.latestResponsePublicID {
+            try PortableReviewLimitsV1.canonicalASCII(responseID)
+        }
+        guard requiresPrivacyPreview, carriesDerivedPublicStateOnly,
+              rawCapabilityAndProofAreExcluded, responseBodyAndAuthorAreExcluded,
+              adapterOwnsNoCanonicalWriter, adapterOwnsNoPersistentProfileOrSession else {
+            throw PortableReviewFailureV1.invalidValue
+        }
+    }
+}

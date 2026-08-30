@@ -27,6 +27,27 @@ extension LocalContentStoreV1 {
     }
 }
 
+/// C50 source-file exchange bytes are leased scratch, never another content
+/// authority.  Only an already accepted canonical content reference may enter
+/// this store through its existing content path.
+enum C50IncumbentFileExchangeContentStoreBoundaryV1 {
+    static let sourceBytesRemainScratchOnly = true
+    static let quarantineBytesRemainScratchOnly = true
+    static let acceptedCanonicalContentUsesExistingStore = true
+    static let externalSourcePathsAreNotStored = true
+    static let selectionAndSessionAreNonpersistent = true
+    static let reportAndSearchSurfacesReceiveMetadataOnly = true
+
+    static func validate() -> Bool {
+        sourceBytesRemainScratchOnly
+            && quarantineBytesRemainScratchOnly
+            && acceptedCanonicalContentUsesExistingStore
+            && externalSourcePathsAreNotStored
+            && selectionAndSessionAreNonpersistent
+            && reportAndSearchSurfacesReceiveMetadataOnly
+    }
+}
+
 struct LocalContentStoreEntryV1: Equatable, Sendable {
     let reference: ContentReferenceV1
     let locator: ContentLocatorV1

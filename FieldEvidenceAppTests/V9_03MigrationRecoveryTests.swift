@@ -3,6 +3,17 @@ import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C50MigrationRecoveryTests: XCTestCase {
+    func testV23P03C50MigrationAndReplacementRestoreExcludeNonpersistentAdapterState() {
+        XCTAssertTrue(C50IncumbentFileExchangeBackupBoundaryV1.validate())
+        XCTAssertTrue(C50IncumbentFileExchangeBackupImportBoundaryV1.validate())
+        XCTAssertTrue(C50IncumbentFileExchangeReplacementRestoreRuleV1.validate())
+        XCTAssertTrue(C50IncumbentFileExchangeBackupBoundaryV1.profileAndSelectionAreNonpersistent)
+        XCTAssertTrue(C50IncumbentFileExchangeBackupBoundaryV1.sourceScratchAndQuarantineAreExcluded)
+        XCTAssertFalse(C50IncumbentFileExchangeReplacementRestoreRuleV1.restoresProfileOrSelectionState)
+    }
+}
+
 private final class C45MigrationRecoveryCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityPinsForwardOnlyAcceptedSnapshotSchema() {
         XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.persistentSchemaVersion, 34)

@@ -12,6 +12,9 @@ final class MutationReceiptRecoveryServiceV1 {
     /// under the shared generation mutation lock before recovery can inspect
     /// canonical journal state for writer activation.
     func recoverBeforeWriterActivation() throws {
+        guard C50IncumbentFileExchangeRecoveryBoundaryV1.validate() else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
         try store.withAuthorizedRecovery {
             try store.validateAll()
         }
@@ -148,3 +151,22 @@ enum C46OperationalContactBoundary_20{static let persistentFamilies=OperationalC
 enum C47ActivityContractRecoveryBoundaryV2 { static let commandKind:WorkspaceCommandKindV1 = .applyActivityContract;static let effectBeforeReceiptRecoveryIsIdempotent=true;static let completedSnapshotBytesAreNeverReencoded=true }
 enum C48PortableReviewRecoveryBoundaryV1 { static let commandKind:WorkspaceCommandKindV1 = .applyPortableReview;static let canonicalEffectUsesExistingC14Rows=true;static let sessionEvidenceFinalizesOnlyAfterExactReceipt=true;static let historyOnlyNeverEntersWorkspaceJournal=true }
 enum C49WorkResourceRecoveryBoundaryV1 { static let commandKind:WorkspaceCommandKindV1 = .applyWorkResource;static let effectBeforeReceiptRecoveryUsesCanonicalPostimage=true;static let divergentSameMutationIsQuarantined=true;static let noSecondCostLedger=true }
+
+enum C50IncumbentFileExchangeRecoveryBoundaryV1 {
+    static let profileSelectionSessionSourceQuarantineDisposition = "NONPERSISTENT"
+    static let recoveryDisposition = "NOT_APPLICABLE"
+    static let adapterStateIsNotRecovered = true
+    static let sourceScratchAndQuarantineAreNotRecovered = true
+    static let canonicalImportedEffectsUseExistingRecovery = true
+    static let noAdapterMutationOrReceipt = true
+
+    static func validate() -> Bool {
+        profileSelectionSessionSourceQuarantineDisposition == "NONPERSISTENT"
+            && recoveryDisposition == "NOT_APPLICABLE"
+            && adapterStateIsNotRecovered
+            && sourceScratchAndQuarantineAreNotRecovered
+            && canonicalImportedEffectsUseExistingRecovery
+            && noAdapterMutationOrReceipt
+            && C50IncumbentFileExchangePersistenceBoundaryV1.validate()
+    }
+}

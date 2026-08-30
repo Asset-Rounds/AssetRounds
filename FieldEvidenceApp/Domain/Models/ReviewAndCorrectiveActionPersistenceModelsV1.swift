@@ -49,3 +49,37 @@ enum C49WorkResourceReviewPersistenceBoundaryV1 {
         try C49WorkResourcePersistenceBoundaryV1.validate()
     }
 }
+
+// MARK: - C50 incumbent file-exchange persistence boundary
+
+/// C50 profile, selection, and exchange metadata are nonpersistent. C14
+/// review/corrective-action rows remain the only durable review truth; no file
+/// bytes, session bytes, provider state, or quarantine payload is persisted.
+enum C50InspectionReviewIncumbentPersistenceBoundaryV1 {
+    static let nonPersistentContractTypes: [Any.Type] = [
+        IncumbentFileAdapterV1.self,
+        ClosedIncumbentAdapterRegistryV1.self,
+        IncumbentFileProfileReleaseV1.self,
+        IncumbentSelectionReceiptV1.self,
+        IncumbentExchangeScopeV1.self,
+        IncumbentFileExportManifestV1.self,
+        IncumbentFileExchangeReceiptV1.self,
+    ]
+    static let quarantineReceiptContract: Any.Type = IncumbentFileQuarantineReceiptV1.self
+    static let c14ReviewRowsRemainCanonical = true
+    static let createsSecondReviewRowFamily = false
+    static let persistsSourceBytes = false
+    static let persistsSessionBytes = false
+    static let persistsProviderState = false
+    static let persistsQuarantinePayload = false
+    static let backupRestoreReuseExistingReviewRows = true
+    static let deleteEraseReuseExistingReviewRows = true
+
+    static func validateExistingReview(_ value: InspectionReviewProjectionV1) throws {
+        try InspectionReviewValidationV1.workspace(value.workspaceID)
+        try InspectionReviewValidationV1.id(value.reviewID)
+        try InspectionReviewValidationV1.revision(value.revision)
+        try InspectionReviewValidationV1.id(value.headTransitionID)
+        try value.openChangeRequests.forEach { try $0.validate() }
+    }
+}

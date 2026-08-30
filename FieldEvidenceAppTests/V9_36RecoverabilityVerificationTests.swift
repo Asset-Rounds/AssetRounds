@@ -3,6 +3,105 @@ import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class C50RecoverabilityVerificationTests: XCTestCase {
+    func testV23P03C50RecoveryNeverReappliesAndDivergenceRemainsQuarantined() throws {
+        let operationID = UUID(uuidString: "c5000000-0000-4000-8000-000000003601")!
+        let sourceSHA256 = String(repeating: "a", count: 64)
+        let mapping = try IncumbentMappingManifestV1(mappings: [
+            IncumbentFieldMappingV1(
+                externalHeader: "Version",
+                canonicalField: .fileFormatVersion,
+                required: true
+            ),
+        ])
+        let release = try IncumbentFileProfileReleaseV1(
+            profileID: UUID(uuidString: "c5000000-0000-4000-8000-000000003602")!,
+            adapterID: UUID(uuidString: "c5000000-0000-4000-8000-000000003603")!,
+            releaseID: UUID(uuidString: "c5000000-0000-4000-8000-000000003604")!,
+            revision: 1,
+            providerDisplayToken: "synthetic",
+            uniformTypeIdentifiers: ["public.comma-separated-values-text"],
+            filenameExtensions: ["csv"],
+            delimiter: .comma,
+            orderedHeaders: ["Version"],
+            versionHeader: "Version",
+            versionValue: "V1",
+            direction: .importOnly,
+            budget: try IncumbentFileBudgetV1(
+                maximumByteCount: 1_024,
+                maximumRowCount: 10,
+                maximumColumnCount: 1,
+                maximumScalarCountPerCell: 128
+            ),
+            mappingManifest: mapping,
+            externalKeyPolicy: .exactOpaqueStableKey,
+            timeZonePolicy: .noTemporalFields
+        )
+        let workspaceID = WorkspaceID(
+            rawValue: UUID(uuidString: "c5000000-0000-4000-8000-000000003605")!
+        )
+        let scope = try IncumbentExchangeScopeV1(
+            operationID: operationID,
+            workspaceID: workspaceID,
+            workspaceRevision: 1,
+            release: release,
+            direction: .importOnly,
+            allowedCanonicalFields: [.fileFormatVersion],
+            privacyApproval: nil
+        )
+        let preview = try IncumbentMappingPreviewV1(
+            scope: scope,
+            inputSHA256: sourceSHA256,
+            release: release,
+            rowCount: 1
+        )
+        let plan = try IncumbentExchangeRecoveryPlanV1(
+            operationID: operationID,
+            workspaceID: workspaceID,
+            sourceSHA256: sourceSHA256,
+            scope: scope,
+            preview: preview,
+            mappingManifestSHA256: mapping.manifestSHA256,
+            expectedMutationID: try MutationIDV1(
+                rawValue: UUID(uuidString: "c5000000-0000-4000-8000-000000003606")!
+            ),
+            expectedCommandBodySHA256: String(repeating: "b", count: 64),
+            cleanupIdentitySHA256: String(repeating: "c", count: 64)
+        )
+        let beforeEffect = try IncumbentExchangeRecoveryReceiptV1(
+            plan: plan,
+            observedSourceSHA256: sourceSHA256,
+            observedReceiptSHA256: nil,
+            cleanupEvidenceSHA256: nil,
+            disposition: .beforeCanonicalEffect
+        )
+        let divergent = try IncumbentExchangeRecoveryReceiptV1(
+            plan: plan,
+            observedSourceSHA256: String(repeating: "d", count: 64),
+            observedReceiptSHA256: nil,
+            cleanupEvidenceSHA256: nil,
+            disposition: .divergentQuarantined
+        )
+        XCTAssertEqual(beforeEffect.disposition.rawValue, "BEFORE_CANONICAL_EFFECT")
+        XCTAssertEqual(divergent.disposition.rawValue, "DIVERGENT_QUARANTINED")
+        XCTAssertFalse(beforeEffect.canonicalReapplyOccurred)
+        XCTAssertFalse(divergent.canonicalReapplyOccurred)
+        XCTAssertTrue(C50IncumbentFileExchangeLifecycleBoundaryV1.scratchDeletedAfterOutcome)
+        XCTAssertTrue(C50IncumbentFileExchangeLifecycleBoundaryV1.sourceBytesAreScratchOnly)
+        XCTAssertTrue(C50IncumbentFileExchangeLifecycleBoundaryV1.quarantineBytesAreScratchOnly)
+        XCTAssertFalse(C50IncumbentFileExchangeLifecycleBoundaryV1.canonicalReapplyOccurred)
+        XCTAssertThrowsError(try IncumbentExchangeRecoveryReceiptV1(
+            plan: plan,
+            observedSourceSHA256: sourceSHA256,
+            observedReceiptSHA256: String(repeating: "b", count: 64),
+            cleanupEvidenceSHA256: nil,
+            disposition: .cleanupOnly
+        )) {
+            XCTAssertEqual($0 as? IncumbentFileContractFailureV1, .divergentRecovery)
+        }
+    }
+}
+
 /// Deterministic fixtures for the C22 recoverability evidence boundary.  The
 /// fixture deliberately reuses the C21 capability decision instead of
 /// introducing a second admission or writer contract.

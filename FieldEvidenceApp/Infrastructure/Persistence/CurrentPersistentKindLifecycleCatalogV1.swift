@@ -111,6 +111,9 @@ struct CurrentPersistentKindLifecycleCatalogV1: Sendable {
     }
 
     func validate() throws {
+        guard C50IncumbentFileExchangePersistentLifecycleBoundaryV1.validate() else {
+            throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage
+        }
         try coverageManifest.validate()
         try descriptors.forEach { try $0.validate() }
         try lifecyclePolicies.forEach { try $0.validate() }
@@ -1055,4 +1058,37 @@ enum C49WorkResourcePersistentLifecycleBoundaryV1 {
     static let directCostIsEmbedded = true
     static let localPartReferenceIsEmbeddedSnapshot = true
     static let noLiveInventoryRow = true
+}
+
+enum C50IncumbentFileExchangePersistentLifecycleBoundaryV1 {
+    static let persistentSchemaVersion = 37
+    static let recordsSchemaVersion = 36
+    static let canonicalRowsAdded = 0
+    static let persistentLifecycleKindsAdded = 0
+    static let profileSelectionSessionSourceQuarantineDisposition = "NONPERSISTENT"
+    static let migrationDisposition = "NOT_APPLICABLE"
+    static let backupRestoreDisposition = "NOT_APPLICABLE"
+    static let replaceRestoreDisposition = "NOT_APPLICABLE"
+    static let cloneDisposition = "NOT_APPLICABLE"
+    static let forkDisposition = "NOT_APPLICABLE"
+    static let deleteDisposition = "NOT_APPLICABLE"
+    static let eraseDisposition = "NOT_APPLICABLE"
+    static let canonicalImportedEffectsUseExistingLifecycleOwner = true
+
+    static func validate() -> Bool {
+        persistentSchemaVersion == 37
+            && recordsSchemaVersion == 36
+            && canonicalRowsAdded == 0
+            && persistentLifecycleKindsAdded == 0
+            && profileSelectionSessionSourceQuarantineDisposition == "NONPERSISTENT"
+            && migrationDisposition == "NOT_APPLICABLE"
+            && backupRestoreDisposition == "NOT_APPLICABLE"
+            && replaceRestoreDisposition == "NOT_APPLICABLE"
+            && cloneDisposition == "NOT_APPLICABLE"
+            && forkDisposition == "NOT_APPLICABLE"
+            && deleteDisposition == "NOT_APPLICABLE"
+            && eraseDisposition == "NOT_APPLICABLE"
+            && canonicalImportedEffectsUseExistingLifecycleOwner
+            && C50IncumbentFileExchangePersistenceBoundaryV1.validate()
+    }
 }

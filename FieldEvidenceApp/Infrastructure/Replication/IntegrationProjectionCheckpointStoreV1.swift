@@ -167,6 +167,9 @@ actor IntegrationProjectionCheckpointStoreV1: IntegrationProjectionOperationalSt
     init(generationRootURL: URL, generationID: UUID, workspaceID: WorkspaceID,
          limits: IntegrationEventLimitsV1 = try! IntegrationEventLimitsV1(),
          fileManager: FileManager = .default) throws {
+        guard C50IncumbentFileExchangeProjectionCheckpointBoundaryV1.validate() else {
+            throw IntegrationEventFailureV1.invalidValue
+        }
         try limits.validate()
         guard generationID != UUID(uuidString: "00000000-0000-0000-0000-000000000000")!,
               workspaceID.rawValue != UUID(uuidString: "00000000-0000-0000-0000-000000000000")! else {
@@ -429,3 +432,26 @@ enum C46OperationalContactBoundary_50{static let commandKind:WorkspaceCommandKin
 enum C47ActivityContractProjectionCheckpointBoundaryV2 { static let commandKind:WorkspaceCommandKindV1 = .applyActivityContract;static let checkpointIsReplaceable=true;static let checkpointIsNotCanonicalActivityTruth=true }
 enum C48PortableReviewProjectionCheckpointBoundaryV1 { static let checkpointIsReplaceable=true;static let checkpointIsNotCanonicalReviewTruth=true;static let checkpointNeverCarriesCapabilityProofOrResponseBytes=true;static let originMetadataIsSelfAssertedOnly=true }
 enum C49WorkResourceProjectionCheckpointBoundaryV1 { static let checkpointIsReplaceable=true;static let checkpointIsNotCanonicalResourceTruth=true;static let projectionOwnsNoCostLedger=true }
+
+enum C50IncumbentFileExchangeProjectionCheckpointBoundaryV1 {
+    static let profileSelectionSessionSourceQuarantineDisposition = "NONPERSISTENT"
+    static let checkpointIsDisposable = true
+    static let adapterStateIsNotCheckpointTruth = true
+    static let sourceScratchAndQuarantineAreExcluded = true
+    static let newCheckpointSubjects = 0
+    static let canonicalImportedEffectsUseExistingProjection = true
+    static let backupRestoreDisposition = "NOT_APPLICABLE"
+    static let eraseDisposition = "NOT_APPLICABLE"
+
+    static func validate() -> Bool {
+        profileSelectionSessionSourceQuarantineDisposition == "NONPERSISTENT"
+            && checkpointIsDisposable
+            && adapterStateIsNotCheckpointTruth
+            && sourceScratchAndQuarantineAreExcluded
+            && newCheckpointSubjects == 0
+            && canonicalImportedEffectsUseExistingProjection
+            && backupRestoreDisposition == "NOT_APPLICABLE"
+            && eraseDisposition == "NOT_APPLICABLE"
+            && C50IncumbentFileExchangeIntegrationEventBoundaryV1.validate()
+    }
+}

@@ -1,5 +1,12 @@
 import Foundation
 
+enum C50IncumbentFileExchangeKernelDeletionEnrollmentV1 {
+    static let canonicalRowRegistrationCount = 0
+    static let orphanCleanupOwnsTerminalScratch = true
+    static let eraseOwnsAppControlledExchangeBytes = true
+    static let ordinaryDeletionPreservesCanonicalHistory = true
+}
+
 enum SurveySessionKernelDeletionEnrollmentV1{static let persistentRowNames=Set(["SurveySessionRow","FactCaptureRow","ProvisionalSubjectRow","SubjectPromotionReceiptRow","SurveyPublicationSnapshotRow"]);static func validate()throws{guard persistentRowNames.count==5 else{throw KernelPersistenceV4Failure.incompleteCoverage};try SurveySessionEraseAllEnrollmentV1.validate()}}
 
 /// C32 keeps only the reviewed acceptance receipt. Proposals and every
