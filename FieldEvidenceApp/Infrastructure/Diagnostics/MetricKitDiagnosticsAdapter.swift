@@ -32,6 +32,60 @@ enum MetricReportingSourceContractV1 {
     static let permitsSecondReportingSource = false
 }
 
+/// MetricKit is reduced to the existing numeric health summary.  C54
+/// envelope bytes, secret material, content/customer digests, raw metadata,
+/// identifiers, filenames, and scratch locators are never accepted or
+/// retained by this adapter.
+enum C54EncryptedPortableEnvelopeMetricKitBoundaryV1 {
+    static let diagnosticsAreMetadataOnly = true
+    static let staticStageAndCategoryOnly = true
+    static let acceptsOnlyNumericHealthSummary = true
+    static let envelopeBytesRetained = false
+    static let envelopeBytesExported = false
+    static let passphrasesRetained = false
+    static let passphrasesExported = false
+    static let derivedKeysRetained = false
+    static let derivedKeysExported = false
+    static let saltsAndNonceMaterialRetained = false
+    static let saltsAndNonceMaterialExported = false
+    static let plaintextOrCustomerDigestsRetained = false
+    static let plaintextOrCustomerDigestsExported = false
+    static let rawMetadataRetained = false
+    static let rawMetadataExported = false
+    static let linkableIDsOrFilenamesRetained = false
+    static let linkableIDsOrFilenamesExported = false
+    static let scratchPathsRetained = false
+    static let scratchPathsExported = false
+    static let rawMetricKitPayloadRetained = false
+
+    static func validate(_ summary: MetricKitSummaryV1?) -> Bool {
+        (summary?.isValid ?? true)
+            && diagnosticsAreMetadataOnly
+            && staticStageAndCategoryOnly
+            && acceptsOnlyNumericHealthSummary
+            && !envelopeBytesRetained
+            && !envelopeBytesExported
+            && !passphrasesRetained
+            && !passphrasesExported
+            && !derivedKeysRetained
+            && !derivedKeysExported
+            && !saltsAndNonceMaterialRetained
+            && !saltsAndNonceMaterialExported
+            && !plaintextOrCustomerDigestsRetained
+            && !plaintextOrCustomerDigestsExported
+            && !rawMetadataRetained
+            && !rawMetadataExported
+            && !linkableIDsOrFilenamesRetained
+            && !linkableIDsOrFilenamesExported
+            && !scratchPathsRetained
+            && !scratchPathsExported
+            && !rawMetricKitPayloadRetained
+    }
+}
+
+typealias C54MetricKitDiagnosticsBoundaryV1 =
+    C54EncryptedPortableEnvelopeMetricKitBoundaryV1
+
 final class MetricKitDiagnosticsAdapter: NSObject, MXMetricManagerSubscriber,
     @unchecked Sendable {
     private let registrationLock = NSLock()
@@ -128,7 +182,7 @@ final class MetricKitDiagnosticsAdapter: NSObject, MXMetricManagerSubscriber,
 
     @discardableResult
     func accept(_ summary: MetricKitSummaryV1) -> Bool {
-        guard summary.isValid else {
+        guard C54EncryptedPortableEnvelopeMetricKitBoundaryV1.validate(summary) else {
             logger.record(.metricValueDiscarded)
             return false
         }

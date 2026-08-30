@@ -1437,3 +1437,30 @@ extension C45EraseRecoveryCompatibilityTests {
         )
     }
 }
+
+private actor C54EncryptedEnvelopeEraseProbe: EncryptedPortableEnvelopeEraseScratchV1 {
+    private var eraseCount = 0
+
+    func eraseEncryptedPortableEnvelopeScratch() async throws {
+        eraseCount += 1
+    }
+
+    func count() -> Int { eraseCount }
+}
+
+extension S6_6EraseRecoveryTests {
+    func testV23P03C54EraseRemovesOnlyAppOwnedEnvelopeScratchAndCreatesNoCanonicalRows() async throws {
+        let probe = C54EncryptedEnvelopeEraseProbe()
+
+        try await C54EncryptedPortableEnvelopeEraseAllBoundaryV1.eraseScratch(using: probe)
+        let eraseCount = await probe.count()
+
+        XCTAssertEqual(eraseCount, 1)
+        XCTAssertTrue(C54EncryptedPortableEnvelopeEraseAllBoundaryV1.validate())
+        XCTAssertTrue(C54EncryptedPortableEnvelopeEraseAllBoundaryV1.removesAppOwnedAttemptScratch)
+        XCTAssertTrue(C54EncryptedPortableEnvelopeEraseAllBoundaryV1.clearsMemoryOnlySecrets)
+        XCTAssertFalse(C54EncryptedPortableEnvelopeEraseAllBoundaryV1.recallsEscapedFiles)
+        XCTAssertFalse(C54EncryptedPortableEnvelopeEraseAllBoundaryV1.revokesAlreadySharedBytes)
+        XCTAssertFalse(C54EncryptedPortableEnvelopeEraseAllBoundaryV1.createsCanonicalDeletionRows)
+    }
+}

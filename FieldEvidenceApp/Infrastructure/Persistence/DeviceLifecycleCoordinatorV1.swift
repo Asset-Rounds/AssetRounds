@@ -48,6 +48,101 @@ enum DeviceLifecycleEventV1: Equatable, Sendable {
     case sceneBecameActive
     case sceneBecameInactive
     case sceneEnteredBackground
+    case appLockEngaged
+    case memoryPressure
+}
+
+enum EncryptedPortableEnvelopeSecretRevocationReasonV1: String, Equatable, Sendable {
+    case explicitCancellation = "EXPLICIT_CANCELLATION"
+    case sceneBackground = "SCENE_BACKGROUND"
+    case appLock = "APP_LOCK"
+    case protectedDataUnavailable = "PROTECTED_DATA_UNAVAILABLE"
+    case memoryPressure = "MEMORY_PRESSURE"
+    case erase = "ERASE"
+}
+
+protocol EncryptedPortableEnvelopeSecretLifecycleV1: AnyObject, Sendable {
+    func revokeEncryptedPortableEnvelopeSecrets(
+        reason: EncryptedPortableEnvelopeSecretRevocationReasonV1
+    ) async
+    func resumeEncryptedPortableEnvelopeOperations(
+        after reason: EncryptedPortableEnvelopeSecretRevocationReasonV1
+    ) async
+}
+
+extension EncryptedPortableEnvelopeSecretLifecycleV1 {
+    func resumeEncryptedPortableEnvelopeOperations(
+        after reason: EncryptedPortableEnvelopeSecretRevocationReasonV1
+    ) async { _ = reason }
+}
+
+struct EncryptedPortableEnvelopeLifecycleRegistrationTokenV1: Hashable, Sendable {
+    let rawValue: UUID
+
+    init(rawValue: UUID = UUID()) {
+        self.rawValue = rawValue
+    }
+}
+
+/// Process-local fan-out used by the production-default device coordinator.
+/// Active C54 attempts register lazily before their first fallible operation;
+/// weak handlers cannot prolong an operation or become persistence.
+actor EncryptedPortableEnvelopeSecretLifecycleRegistryV1:
+    EncryptedPortableEnvelopeSecretLifecycleV1 {
+    static let shared = EncryptedPortableEnvelopeSecretLifecycleRegistryV1()
+
+    private var handlers: [
+        EncryptedPortableEnvelopeLifecycleRegistrationTokenV1:
+            @Sendable (EncryptedPortableEnvelopeSecretRevocationReasonV1) async -> Void
+    ] = [:]
+    private var persistentBlocks: Set<EncryptedPortableEnvelopeSecretRevocationReasonV1> = []
+    private var revocationDepth = 0
+
+    func register(
+        token: EncryptedPortableEnvelopeLifecycleRegistrationTokenV1,
+        lifecycle: any EncryptedPortableEnvelopeSecretLifecycleV1
+    ) -> Bool {
+        guard revocationDepth == 0, persistentBlocks.isEmpty else { return false }
+        handlers[token] = { [weak lifecycle] reason in
+            await lifecycle?.revokeEncryptedPortableEnvelopeSecrets(reason: reason)
+        }
+        return true
+    }
+
+    func unregister(token: EncryptedPortableEnvelopeLifecycleRegistrationTokenV1) {
+        handlers.removeValue(forKey: token)
+    }
+
+    func revokeEncryptedPortableEnvelopeSecrets(
+        reason: EncryptedPortableEnvelopeSecretRevocationReasonV1
+    ) async {
+        if Self.persistsBlock(reason) { persistentBlocks.insert(reason) }
+        revocationDepth += 1
+        let activeHandlers = Array(handlers.values)
+        for handler in activeHandlers {
+            await handler(reason)
+        }
+        revocationDepth -= 1
+    }
+
+    func resumeEncryptedPortableEnvelopeOperations(
+        after reason: EncryptedPortableEnvelopeSecretRevocationReasonV1
+    ) async {
+        persistentBlocks.remove(reason)
+        if reason == .sceneBackground { persistentBlocks.remove(.appLock) }
+    }
+
+    func activeRegistrationCount() -> Int { handlers.count }
+    func activeBlockCount() -> Int { persistentBlocks.count + (revocationDepth > 0 ? 1 : 0) }
+
+    private static func persistsBlock(
+        _ reason: EncryptedPortableEnvelopeSecretRevocationReasonV1
+    ) -> Bool {
+        switch reason {
+        case .sceneBackground, .appLock, .protectedDataUnavailable, .erase: true
+        case .explicitCancellation, .memoryPressure: false
+        }
+    }
 }
 
 enum DeviceLifecycleActionV1: Equatable, Hashable, Sendable {
@@ -58,6 +153,7 @@ enum DeviceLifecycleActionV1: Equatable, Hashable, Sendable {
 
 enum DeviceLifecycleRecoveryFailureV1: Error, Equatable, Sendable {
     case missingDeviceLocalAuthority
+    case encryptedPortableEnvelopeResetAlreadyInProgress
 }
 
 struct DeviceLifecycleTransitionV1: Equatable, Sendable {
@@ -118,6 +214,9 @@ enum DeviceLifecycleReducerV1 {
                 scene: .inactive
             )
             action = .none
+        case .appLockEngaged, .memoryPressure:
+            current = state
+            action = .none
         }
         return DeviceLifecycleTransitionV1(
             previous: state,
@@ -134,21 +233,28 @@ actor DeviceLifecycleCoordinatorV1 {
     private let operationalSupportStore: (any DeviceOperationalSupportStoreV2)?
     private let scratchDataLeaseStore: (any ScratchDataLeasePortV1)?
     private let sceneNavigationState: SceneNavigationStateAdapterV1?
+    private let encryptedPortableEnvelopeSecrets:
+        any EncryptedPortableEnvelopeSecretLifecycleV1
     private var state: DeviceLifecycleStateV1
     private var pendingActions: Set<DeviceLifecycleActionV1> = []
     private var deviceLocalRecoveryPending: Bool
+    private var encryptedPortableEnvelopeResetInProgress = false
 
     private init(
         jobs: any ResumableLocalJobLifecyclePortV1,
         operationalSupportStore: (any DeviceOperationalSupportStoreV2)?,
         scratchDataLeaseStore: (any ScratchDataLeasePortV1)?,
         sceneNavigationState: SceneNavigationStateAdapterV1?,
+        encryptedPortableEnvelopeSecrets:
+            (any EncryptedPortableEnvelopeSecretLifecycleV1)?,
         initialState: DeviceLifecycleStateV1
     ) {
         self.jobs = jobs
         self.operationalSupportStore = operationalSupportStore
         self.scratchDataLeaseStore = scratchDataLeaseStore
         self.sceneNavigationState = sceneNavigationState
+        self.encryptedPortableEnvelopeSecrets = encryptedPortableEnvelopeSecrets
+            ?? EncryptedPortableEnvelopeSecretLifecycleRegistryV1.shared
         state = initialState
         deviceLocalRecoveryPending = operationalSupportStore != nil
             || scratchDataLeaseStore != nil
@@ -158,12 +264,22 @@ actor DeviceLifecycleCoordinatorV1 {
     /// returned to a caller. No active/available assumption escapes bootstrap.
     static func bootstrap(
         jobs: any ResumableLocalJobLifecyclePortV1,
+        encryptedPortableEnvelopeSecrets:
+            (any EncryptedPortableEnvelopeSecretLifecycleV1)? = nil,
         initialState: DeviceLifecycleStateV1 = .initiallyConservative
     ) async throws -> DeviceLifecycleCoordinatorV1 {
+        let secrets = encryptedPortableEnvelopeSecrets
+            ?? EncryptedPortableEnvelopeSecretLifecycleRegistryV1.shared
         if initialState.protectedData == .unavailable {
+            await secrets.revokeEncryptedPortableEnvelopeSecrets(
+                reason: .protectedDataUnavailable
+            )
             try await jobs.suspendForLifecycle(.protectedDataUnavailable)
         }
         if initialState.scene == .background {
+            await secrets.revokeEncryptedPortableEnvelopeSecrets(
+                reason: .sceneBackground
+            )
             try await jobs.suspendForLifecycle(.sceneBackground)
         }
         return DeviceLifecycleCoordinatorV1(
@@ -171,6 +287,7 @@ actor DeviceLifecycleCoordinatorV1 {
             operationalSupportStore: nil,
             scratchDataLeaseStore: nil,
             sceneNavigationState: nil,
+            encryptedPortableEnvelopeSecrets: secrets,
             initialState: initialState
         )
     }
@@ -185,11 +302,25 @@ actor DeviceLifecycleCoordinatorV1 {
         jobs: any ResumableLocalJobLifecyclePortV1,
         operationalSupportStore: any DeviceOperationalSupportStoreV2,
         scratchDataLeaseStore: any ScratchDataLeasePortV1,
+        encryptedPortableEnvelopeSecrets:
+            (any EncryptedPortableEnvelopeSecretLifecycleV1)? = nil,
         initialState: DeviceLifecycleStateV1 = .initiallyConservative
     ) async throws -> DeviceLifecycleCoordinatorV1 {
+        let secrets = encryptedPortableEnvelopeSecrets
+            ?? EncryptedPortableEnvelopeSecretLifecycleRegistryV1.shared
         // Use the existing durable protected-data suspension as the bootstrap
         // gate even when availability was already observed. A failed support
         // or scratch recovery therefore leaves jobs suspended across relaunch.
+        if initialState.protectedData == .unavailable {
+            await secrets.revokeEncryptedPortableEnvelopeSecrets(
+                reason: .protectedDataUnavailable
+            )
+        }
+        if initialState.scene == .background {
+            await secrets.revokeEncryptedPortableEnvelopeSecrets(
+                reason: .sceneBackground
+            )
+        }
         try await jobs.suspendForLifecycle(.protectedDataUnavailable)
         if initialState.scene == .background {
             try await jobs.suspendForLifecycle(.sceneBackground)
@@ -199,6 +330,7 @@ actor DeviceLifecycleCoordinatorV1 {
             operationalSupportStore: operationalSupportStore,
             scratchDataLeaseStore: scratchDataLeaseStore,
             sceneNavigationState: nil,
+            encryptedPortableEnvelopeSecrets: secrets,
             initialState: initialState
         )
         if initialState.protectedData == .available {
@@ -215,12 +347,16 @@ actor DeviceLifecycleCoordinatorV1 {
         operationalSupportStore: any DeviceOperationalSupportStoreV2,
         scratchDataLeaseStore: any ScratchDataLeasePortV1,
         sceneNavigationStatePort: any SceneNavigationDeviceStatePortV1,
+        encryptedPortableEnvelopeSecrets:
+            (any EncryptedPortableEnvelopeSecretLifecycleV1)? = nil,
         initialState: DeviceLifecycleStateV1 = .initiallyConservative
     ) async throws -> DeviceLifecycleCoordinatorV1 {
         let coordinator = try await bootstrap(
             jobs: jobs,
             operationalSupportStore: operationalSupportStore,
             scratchDataLeaseStore: scratchDataLeaseStore,
+            encryptedPortableEnvelopeSecrets: encryptedPortableEnvelopeSecrets
+                ?? EncryptedPortableEnvelopeSecretLifecycleRegistryV1.shared,
             initialState: initialState
         )
         return DeviceLifecycleCoordinatorV1(
@@ -228,6 +364,7 @@ actor DeviceLifecycleCoordinatorV1 {
             operationalSupportStore: operationalSupportStore,
             scratchDataLeaseStore: scratchDataLeaseStore,
             sceneNavigationState: SceneNavigationStateAdapterV1(port: sceneNavigationStatePort),
+            encryptedPortableEnvelopeSecrets: encryptedPortableEnvelopeSecrets,
             initialState: await coordinator.currentState()
         )
     }
@@ -241,6 +378,13 @@ actor DeviceLifecycleCoordinatorV1 {
         _ event: DeviceLifecycleEventV1
     ) async throws -> DeviceLifecycleTransitionV1 {
         let transition = DeviceLifecycleReducerV1.reduce(state, event: event)
+        let encryptedPortableEnvelopeResumeReason =
+            Self.encryptedPortableEnvelopeResumeReason(for: event)
+        if let reason = Self.encryptedPortableEnvelopeRevocationReason(for: event) {
+            await encryptedPortableEnvelopeSecrets.revokeEncryptedPortableEnvelopeSecrets(
+                reason: reason
+            )
+        }
         // Observed device state remains truthful even when durable recovery is
         // blocked. A retry of the same edge is performed by an explicit event.
         state = transition.current
@@ -253,6 +397,11 @@ actor DeviceLifecycleCoordinatorV1 {
         }
         enqueue(transition.action)
         try await recoverDeviceLocalStateIfNeeded()
+        if let reason = encryptedPortableEnvelopeResumeReason {
+            await encryptedPortableEnvelopeSecrets.resumeEncryptedPortableEnvelopeOperations(
+                after: reason
+            )
+        }
         for action in eligiblePendingActions() {
             switch action {
             case .none:
@@ -270,6 +419,15 @@ actor DeviceLifecycleCoordinatorV1 {
     /// Clears reset-scoped operational history and every scratch lease while
     /// leaving canonical workspace deletion to its existing authority.
     func resetDeviceLocalState() async throws {
+        guard !encryptedPortableEnvelopeResetInProgress else {
+            throw DeviceLifecycleRecoveryFailureV1
+                .encryptedPortableEnvelopeResetAlreadyInProgress
+        }
+        encryptedPortableEnvelopeResetInProgress = true
+        defer { encryptedPortableEnvelopeResetInProgress = false }
+        await encryptedPortableEnvelopeSecrets.revokeEncryptedPortableEnvelopeSecrets(
+            reason: .erase
+        )
         guard let operationalSupportStore, let scratchDataLeaseStore else {
             throw DeviceLifecycleRecoveryFailureV1.missingDeviceLocalAuthority
         }
@@ -277,6 +435,15 @@ actor DeviceLifecycleCoordinatorV1 {
         try await operationalSupportStore.resetOperationalSupport()
         try sceneNavigationState?.erase()
         deviceLocalRecoveryPending = false
+        await encryptedPortableEnvelopeSecrets.resumeEncryptedPortableEnvelopeOperations(
+            after: .erase
+        )
+    }
+
+    func cancelEncryptedPortableEnvelopeOperation() async {
+        await encryptedPortableEnvelopeSecrets.revokeEncryptedPortableEnvelopeSecrets(
+            reason: .explicitCancellation
+        )
     }
 
     private func recoverDeviceLocalStateIfNeeded() async throws {
@@ -288,6 +455,10 @@ actor DeviceLifecycleCoordinatorV1 {
             _ = try await operationalSupportStore.operationalSupportSnapshot()
         }
         if let scratchDataLeaseStore {
+            if let envelopeScratch = scratchDataLeaseStore
+                as? any EncryptedPortableEnvelopeScratchRecoveringV1 {
+                _ = try await envelopeScratch.recoverEncryptedPortableEnvelopeScratch()
+            }
             _ = try await scratchDataLeaseStore.recoverScratchLeases()
         }
         deviceLocalRecoveryPending = false
@@ -326,6 +497,29 @@ actor DeviceLifecycleCoordinatorV1 {
             case .resume(.sceneBackground):
                 return state.scene == .active
             }
+        }
+    }
+
+    private static func encryptedPortableEnvelopeRevocationReason(
+        for event: DeviceLifecycleEventV1
+    ) -> EncryptedPortableEnvelopeSecretRevocationReasonV1? {
+        switch event {
+        case .protectedDataBecameUnavailable: .protectedDataUnavailable
+        case .sceneEnteredBackground: .sceneBackground
+        case .appLockEngaged: .appLock
+        case .memoryPressure: .memoryPressure
+        case .protectedDataBecameAvailable, .sceneBecameActive, .sceneBecameInactive: nil
+        }
+    }
+
+    private static func encryptedPortableEnvelopeResumeReason(
+        for event: DeviceLifecycleEventV1
+    ) -> EncryptedPortableEnvelopeSecretRevocationReasonV1? {
+        switch event {
+        case .protectedDataBecameAvailable: .protectedDataUnavailable
+        case .sceneBecameActive: .sceneBackground
+        case .protectedDataBecameUnavailable, .sceneBecameInactive,
+             .sceneEnteredBackground, .appLockEngaged, .memoryPressure: nil
         }
     }
 }

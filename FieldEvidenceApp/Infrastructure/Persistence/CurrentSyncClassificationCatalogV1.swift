@@ -1714,3 +1714,29 @@ enum C52ServiceRequestSyncClassificationBoundaryV1 {
     }
 }
 enum C53AssetServiceReliabilitySyncClassificationBoundaryV1{static let localOnlyCanonicalKinds=AssetServiceReliabilityPersistenceEnrollmentV1.durableModels.map{String(describing:$0)};static let integrationEventKinds=["ASSET_SERVICE_INCIDENT","SERVICE_IMPACT_SEGMENT","SERVICE_CAUSE_ASSERTION","SERVICE_REMEDY_ASSERTION","SERVICE_REPAIR_INTERVAL","SERVICE_RESTORATION_ASSERTION","QUALIFIED_SERVICE_EXPOSURE"];static let reliabilityProjectionIsCanonicalSyncState=false;static func validate()->Bool{Set(localOnlyCanonicalKinds)==Set(CurrentSyncClassificationCatalogV1.v40PersistentModelNames)&&integrationEventKinds.count==7&&!reliabilityProjectionIsCanonicalSyncState}}
+
+enum C54EncryptedPortableEnvelopeSyncClassificationBoundaryV1 {
+    static let envelopeSession = "NONPERSISTENT"
+    static let passphrase = "MEMORY_ONLY"
+    static let derivedKey = "MEMORY_ONLY"
+    static let scratch = "APP_OWNED_PROTECTED_BACKUP_EXCLUDED"
+    static let syncDisposition = "NOT_APPLICABLE"
+    static let storeEnrollmentCount = 0
+    static let writerEnrollmentCount = 0
+    static let persistentModelCountAdded = 0
+    static let integrationEventCountAdded = 0
+    static let canonicalInnerPayloadKeepsExistingOwner = true
+
+    static func validate() -> Bool {
+        envelopeSession == "NONPERSISTENT"
+            && passphrase == "MEMORY_ONLY"
+            && derivedKey == "MEMORY_ONLY"
+            && scratch == "APP_OWNED_PROTECTED_BACKUP_EXCLUDED"
+            && syncDisposition == "NOT_APPLICABLE"
+            && storeEnrollmentCount == 0
+            && writerEnrollmentCount == 0
+            && persistentModelCountAdded == 0
+            && integrationEventCountAdded == 0
+            && canonicalInnerPayloadKeepsExistingOwner
+    }
+}

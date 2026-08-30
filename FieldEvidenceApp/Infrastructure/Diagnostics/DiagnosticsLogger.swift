@@ -5,6 +5,33 @@ enum DiagnosticsLogEvent: Equatable, Sendable {
     case countersWriteFailed
     case invalidCountersReset
     case metricValueDiscarded
+    case encryptedEnvelopeFailure(
+        stage: C54EncryptedPortableEnvelopeDiagnosticStageV1,
+        category: C54EncryptedPortableEnvelopeDiagnosticCategoryV1
+    )
+    case encryptedEnvelopeLifecycle(
+        classification: C54EncryptedPortableEnvelopeLifecycleClassificationV1
+    )
+}
+
+extension DiagnosticsLogEvent {
+    /// Builds the sole encrypted-envelope external-failure event.  The
+    /// category is intentionally not caller-controlled: wrong passphrases and
+    /// damaged/tampered envelopes share one neutral diagnostic outcome.
+    static func encryptedEnvelopeWrongPassphraseOrDamage(
+        stage: C54EncryptedPortableEnvelopeDiagnosticStageV1
+    ) -> Self {
+        .encryptedEnvelopeFailure(
+            stage: stage,
+            category: .wrongPassphraseOrDamage
+        )
+    }
+
+    static func c54EncryptedEnvelopeFailure(
+        stage: C54EncryptedPortableEnvelopeDiagnosticStageV1
+    ) -> Self {
+        encryptedEnvelopeWrongPassphraseOrDamage(stage: stage)
+    }
 }
 
 enum OperationalLogCodeV1: String, CaseIterable, Codable, Hashable, Sendable {
@@ -309,6 +336,8 @@ struct DiagnosticsLogger: Sendable {
                 logger.fault("Invalid diagnostics counters were reset.")
             case .metricValueDiscarded:
                 logger.error("A diagnostic metric value was discarded.")
+            case .encryptedEnvelopeFailure, .encryptedEnvelopeLifecycle:
+                logger.error("An encrypted-envelope operation ended at a bounded diagnostic boundary.")
             }
         }
         operationalSink = { code in
@@ -341,7 +370,67 @@ struct DiagnosticsLogger: Sendable {
         sink(event)
     }
 
+    func record(
+        _ classification: C54EncryptedPortableEnvelopeDiagnosticClassificationV1
+    ) {
+        sink(.encryptedEnvelopeFailure(
+            stage: classification.stage,
+            category: classification.category
+        ))
+    }
+
+    func record(
+        _ classification: C54EncryptedPortableEnvelopeLifecycleClassificationV1
+    ) {
+        sink(.encryptedEnvelopeLifecycle(classification: classification))
+    }
+
     func record(_ code: OperationalLogCodeV1) {
         operationalSink(code)
+    }
+
+    /// Records only static C54 stage/category labels.  No envelope bytes,
+    /// passphrase, key, digest, metadata, identity, filename, or path reaches
+    /// the OSLog sink.
+    func recordEncryptedEnvelopeFailure(
+        at stage: C54EncryptedPortableEnvelopeDiagnosticStageV1
+    ) {
+        record(.encryptedEnvelopeWrongPassphraseOrDamage(stage: stage))
+    }
+
+    func recordEncryptedEnvelopeFailure(
+        at stage: C54EncryptedPortableEnvelopeDiagnosticStageV1,
+        category: C54EncryptedPortableEnvelopeDiagnosticCategoryV1
+    ) {
+        guard category == .wrongPassphraseOrDamage else { return }
+        record(.encryptedEnvelopeFailure(stage: stage, category: category))
+    }
+
+    func recordEncryptedEnvelopeFailure(
+        stage: C54EncryptedPortableEnvelopeDiagnosticStageV1,
+        category: C54EncryptedPortableEnvelopeDiagnosticCategoryV1 =
+            .wrongPassphraseOrDamage
+    ) {
+        recordEncryptedEnvelopeFailure(at: stage, category: category)
+    }
+
+    func recordC54EncryptedEnvelopeFailure(
+        at stage: C54EncryptedPortableEnvelopeDiagnosticStageV1
+    ) {
+        recordEncryptedEnvelopeFailure(at: stage)
+    }
+
+    /// Lifecycle classification is observation-only.  Secret revocation and
+    /// scratch cleanup stay owned by the encrypted-envelope operation.
+    func recordEncryptedEnvelopeLifecycle(
+        _ classification: C54EncryptedPortableEnvelopeLifecycleClassificationV1
+    ) {
+        record(.encryptedEnvelopeLifecycle(classification: classification))
+    }
+
+    func recordC54EncryptedEnvelopeLifecycle(
+        _ classification: C54EncryptedPortableEnvelopeLifecycleClassificationV1
+    ) {
+        recordEncryptedEnvelopeLifecycle(classification)
     }
 }

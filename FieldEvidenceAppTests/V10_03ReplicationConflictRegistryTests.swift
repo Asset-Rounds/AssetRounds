@@ -713,6 +713,18 @@ extension V10_03ReplicationConflictRegistryTests {
 }
 
 extension V10_03ReplicationConflictRegistryTests {
+    func testV23P03C54EncryptedEnvelopeSecretsScratchAndSessionsNeverBecomeSyncTruth() {
+        XCTAssertTrue(C54EncryptedPortableEnvelopeSyncClassificationBoundaryV1.validate())
+        XCTAssertEqual(C54EncryptedPortableEnvelopeSyncClassificationBoundaryV1.envelopeSession, "NONPERSISTENT")
+        XCTAssertEqual(C54EncryptedPortableEnvelopeSyncClassificationBoundaryV1.passphrase, "MEMORY_ONLY")
+        XCTAssertEqual(C54EncryptedPortableEnvelopeSyncClassificationBoundaryV1.derivedKey, "MEMORY_ONLY")
+        XCTAssertEqual(C54EncryptedPortableEnvelopeSyncClassificationBoundaryV1.syncDisposition, "NOT_APPLICABLE")
+        XCTAssertEqual(C54EncryptedPortableEnvelopeSyncClassificationBoundaryV1.integrationEventCountAdded, 0)
+        XCTAssertTrue(C54EncryptedPortableEnvelopeSyncClassificationBoundaryV1.canonicalInnerPayloadKeepsExistingOwner)
+    }
+}
+
+extension V10_03ReplicationConflictRegistryTests {
     func testV23P03C34PackageSurfaceCannotAddShellParserOrWriter() throws {
         let route = PackageSurfaceRouteV1(
             routeID: "package.surface.c34",

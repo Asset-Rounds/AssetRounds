@@ -291,3 +291,149 @@ enum C34SceneNavigationStoragePreflightBoundaryV1 {
             && !backupStorageReservationRequired
     }
 }
+
+// MARK: - C54 encrypted portable envelope admission
+
+extension StoragePreflightService {
+    static let encryptedPortableEnvelopeFramePlaintextBytes: Int64 = 1_048_576
+    static let encryptedPortableEnvelopeAuthenticationTagBytes: Int64 = 16
+    static let encryptedPortableEnvelopeFrameHeaderBytes: Int64 = 12
+    static let encryptedPortableEnvelopeMaximumHeaderBytes: Int64 = 65_536
+
+    /// Computes the complete output reservation before a KDF, allocation,
+    /// preview, or writer is entered. The one final empty frame is included
+    /// for a zero-byte inner stream and every arithmetic edge fails closed.
+    func encryptedPortableEnvelopeRequiredBytes(
+        innerByteCount: Int64,
+        headerByteCount: Int64
+    ) throws -> Int64 {
+        guard innerByteCount >= 0,
+              headerByteCount > 0,
+              headerByteCount <= Self.encryptedPortableEnvelopeMaximumHeaderBytes else {
+            throw StoragePreflightError.capacityEstimateOverflow
+        }
+        let frameCount: Int64
+        if innerByteCount == 0 {
+            frameCount = 1
+        } else {
+            let (rounded, roundingOverflow) = innerByteCount.addingReportingOverflow(
+                Self.encryptedPortableEnvelopeFramePlaintextBytes - 1
+            )
+            guard !roundingOverflow else {
+                throw StoragePreflightError.capacityEstimateOverflow
+            }
+            frameCount = rounded / Self.encryptedPortableEnvelopeFramePlaintextBytes
+        }
+        guard frameCount > 0, frameCount <= Int64(UInt32.max) else {
+            throw StoragePreflightError.capacityEstimateOverflow
+        }
+        let (perFrameBytes, perFrameOverflow) =
+            Self.encryptedPortableEnvelopeAuthenticationTagBytes.addingReportingOverflow(
+                Self.encryptedPortableEnvelopeFrameHeaderBytes
+            )
+        guard !perFrameOverflow else {
+            throw StoragePreflightError.capacityEstimateOverflow
+        }
+        let (framingBytes, framingOverflow) = frameCount.multipliedReportingOverflow(
+            by: perFrameBytes
+        )
+        guard !framingOverflow else {
+            throw StoragePreflightError.capacityEstimateOverflow
+        }
+        let (withHeader, headerOverflow) = innerByteCount.addingReportingOverflow(
+            headerByteCount
+        )
+        guard !headerOverflow else {
+            throw StoragePreflightError.capacityEstimateOverflow
+        }
+        let (outputBytes, framingAdditionOverflow) = withHeader.addingReportingOverflow(
+            framingBytes
+        )
+        guard !framingAdditionOverflow else {
+            throw StoragePreflightError.capacityEstimateOverflow
+        }
+        let (requiredBytes, reserveOverflow) = outputBytes.addingReportingOverflow(
+            Self.reserveBytes
+        )
+        guard !reserveOverflow, requiredBytes > 0 else {
+            throw StoragePreflightError.capacityEstimateOverflow
+        }
+        return requiredBytes
+    }
+
+    func checkEncryptedPortableEnvelope(
+        innerByteCount: Int64,
+        headerByteCount: Int64,
+        onVolumeContaining scratchRootURL: URL
+    ) throws {
+        try check(
+            requiredBytes: encryptedPortableEnvelopeRequiredBytes(
+                innerByteCount: innerByteCount,
+                headerByteCount: headerByteCount
+            ),
+            onVolumeContaining: scratchRootURL
+        )
+    }
+
+    static let c54PreflightPrecedesKDFAllocationPreviewAndWrite = true
+    static let c54ScratchIsProtectedAndBackupExcluded = true
+
+    func encryptedPortableEnvelopeStreamingRequiredBytes(
+        plaintextByteCount: UInt64,
+        envelopeByteCount: UInt64
+    ) throws -> Int64 {
+        guard plaintextByteCount <= EncryptedPortableEnvelopeResourceLimitsV1.maximumOperationalPlaintextByteCount,
+              envelopeByteCount <= EncryptedPortableEnvelopeResourceLimitsV1.maximumOperationalScratchByteCount,
+              plaintextByteCount <= UInt64(Int64.max), envelopeByteCount <= UInt64(Int64.max) else {
+            throw StoragePreflightError.capacityEstimateOverflow
+        }
+        let (scratchBytes, scratchOverflow) = Int64(plaintextByteCount)
+            .addingReportingOverflow(Int64(envelopeByteCount))
+        let (required, reserveOverflow) = scratchBytes.addingReportingOverflow(Self.reserveBytes)
+        guard !scratchOverflow, !reserveOverflow, required > 0 else {
+            throw StoragePreflightError.capacityEstimateOverflow
+        }
+        return required
+    }
+
+    func checkEncryptedPortableEnvelopeStreaming(
+        plaintextByteCount: UInt64,
+        envelopeByteCount: UInt64,
+        onVolumeContaining scratchRootURL: URL
+    ) throws {
+        try check(
+            requiredBytes: encryptedPortableEnvelopeStreamingRequiredBytes(
+                plaintextByteCount: plaintextByteCount,
+                envelopeByteCount: envelopeByteCount
+            ),
+            onVolumeContaining: scratchRootURL
+        )
+    }
+
+    func encryptedPortableEnvelopeOpenStreamingRequiredBytes(
+        plaintextByteCount: UInt64
+    ) throws -> Int64 {
+        guard plaintextByteCount <= EncryptedPortableEnvelopeResourceLimitsV1.maximumOperationalPlaintextByteCount,
+              plaintextByteCount <= UInt64(Int64.max) else {
+            throw StoragePreflightError.capacityEstimateOverflow
+        }
+        let (required, overflow) = Int64(plaintextByteCount)
+            .addingReportingOverflow(Self.reserveBytes)
+        guard !overflow, required > 0 else {
+            throw StoragePreflightError.capacityEstimateOverflow
+        }
+        return required
+    }
+
+    func checkEncryptedPortableEnvelopeOpenStreaming(
+        plaintextByteCount: UInt64,
+        onVolumeContaining scratchRootURL: URL
+    ) throws {
+        try check(
+            requiredBytes: encryptedPortableEnvelopeOpenStreamingRequiredBytes(
+                plaintextByteCount: plaintextByteCount
+            ),
+            onVolumeContaining: scratchRootURL
+        )
+    }
+}

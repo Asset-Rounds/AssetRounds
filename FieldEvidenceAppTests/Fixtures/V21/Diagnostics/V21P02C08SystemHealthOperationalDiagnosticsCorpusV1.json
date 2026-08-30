@@ -214,5 +214,42 @@
     "operationalRowsAfterErase": 0,
     "scratchRowsAfterErase": 0,
     "canonicalWorkspaceMutationCount": 0
+  },
+  "c54DiagnosticPrivacyNegativeReproof": {
+    "cardID": "V23-P03-C54",
+    "stageValues": ["SEAL", "OPEN", "REOPEN_BEFORE_SHARE"],
+    "sharedExternalFailureCategory": "WRONG_PASSPHRASE_OR_DAMAGE",
+    "forbiddenDiagnosticInputs": [
+      "ENVELOPE_BYTES",
+      "PASSPHRASE",
+      "DERIVED_KEY",
+      "SALT",
+      "NONCE",
+      "PLAINTEXT_DIGEST",
+      "CUSTOMER_DIGEST",
+      "RAW_METADATA",
+      "LINKABLE_PUBLIC_ID",
+      "LINKABLE_FILENAME",
+      "SCRATCH_PATH"
+    ],
+    "surfaceExclusions": {
+      "logs": true,
+      "metricKit": true,
+      "supportBundle": true,
+      "search": true,
+      "spotlight": true,
+      "quickLook": true
+    },
+    "lifecycleClassifications": ["CANCELLATION", "MEMORY_PRESSURE"],
+    "diagnosticsAreClassificationOnly": true,
+    "diagnosticsOwnCleanup": false,
+    "countersPreserved": true,
+    "customerDataExcluded": true,
+    "reproof": {
+      "rawEnvelopeAndSecretMaterialRejected": true,
+      "linkableNamesAndPathsRejected": true,
+      "wrongPassphraseAndDamageRemainIndistinguishable": true,
+      "memoryPressureAndCancellationRemainNoncanonical": true
+    }
   }
 }

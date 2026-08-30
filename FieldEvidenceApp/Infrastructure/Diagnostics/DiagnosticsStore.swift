@@ -705,6 +705,9 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV2 {
                 counters: candidate
             )
             let data = try canonicalData(for: state)
+            try C54EncryptedPortableEnvelopeDiagnosticPrivacyBoundaryV1.validate(
+                data
+            )
             guard data.count <= Self.maximumOperationalTotalBytes else {
                 throw DiagnosticsFailure.sizeLimitExceeded
             }
@@ -1361,6 +1364,7 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV2 {
 
     private func canonicalRecordData(_ value: OperationalFailureV1) throws -> Data {
         let data = try canonicalData(for: value)
+        try C54EncryptedPortableEnvelopeDiagnosticPrivacyBoundaryV1.validate(data)
         guard data.count <= Self.maximumOperationalRecordBytes else {
             throw DiagnosticsFailure.sizeLimitExceeded
         }
@@ -1403,3 +1407,57 @@ private enum DiagnosticsFailure: Error {
 }
 
 typealias DeviceOperationalSupportStoreV1 = DiagnosticsStore
+
+/// C54 does not add a diagnostics store, record kind, or persistence writer.
+/// This declaration keeps the store's exclusion and lifecycle ownership
+/// explicit while preserving the existing counters and health schema.
+enum C54EncryptedPortableEnvelopeDiagnosticsStoreBoundaryV1 {
+    static let diagnosticsAreMetadataOnly = true
+    static let createsPersistentEnvelopeRecord = false
+    static let persistsEnvelopeBytes = false
+    static let envelopeBytesExported = false
+    static let persistsPassphrases = false
+    static let passphrasesExported = false
+    static let persistsDerivedKeys = false
+    static let derivedKeysExported = false
+    static let persistsSaltsOrNonces = false
+    static let saltsOrNoncesExported = false
+    static let persistsPlaintextOrCustomerDigests = false
+    static let plaintextOrCustomerDigestsExported = false
+    static let persistsRawMetadata = false
+    static let rawMetadataExported = false
+    static let persistsLinkableIDsOrFilenames = false
+    static let linkableIDsOrFilenamesExported = false
+    static let persistsScratchPaths = false
+    static let scratchPathsExported = false
+    static let preservesExistingCounters = true
+    static let customerDataExported = false
+    static let diagnosticsOwnCleanup = false
+
+    static func validate() -> Bool {
+        diagnosticsAreMetadataOnly
+            && !createsPersistentEnvelopeRecord
+            && !persistsEnvelopeBytes
+            && !envelopeBytesExported
+            && !persistsPassphrases
+            && !passphrasesExported
+            && !persistsDerivedKeys
+            && !derivedKeysExported
+            && !persistsSaltsOrNonces
+            && !saltsOrNoncesExported
+            && !persistsPlaintextOrCustomerDigests
+            && !plaintextOrCustomerDigestsExported
+            && !persistsRawMetadata
+            && !rawMetadataExported
+            && !persistsLinkableIDsOrFilenames
+            && !linkableIDsOrFilenamesExported
+            && !persistsScratchPaths
+            && !scratchPathsExported
+            && preservesExistingCounters
+            && !customerDataExported
+            && !diagnosticsOwnCleanup
+    }
+}
+
+typealias C54EncryptedPortableEnvelopeDiagnosticStoreBoundaryV1 =
+    C54EncryptedPortableEnvelopeDiagnosticsStoreBoundaryV1

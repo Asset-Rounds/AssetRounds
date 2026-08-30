@@ -70,6 +70,48 @@
 				</array>
 			</dict>
 		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>AssetRounds Encrypted Envelope</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.assetrounds.encrypted-envelope</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>arenvelope</string>
+				</array>
+				<key>public.mime-type</key>
+				<string>application/vnd.assetrounds.encrypted-envelope</string>
+			</dict>
+		</dict>
+	</array>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>arenvelope</string>
+			</array>
+			<key>CFBundleTypeMIMETypes</key>
+			<array>
+				<string>application/vnd.assetrounds.encrypted-envelope</string>
+			</array>
+			<key>CFBundleTypeName</key>
+			<string>AssetRounds Encrypted Envelope</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.assetrounds.encrypted-envelope</string>
+			</array>
+		</dict>
 	</array>
 	<key>C52ServiceRequestBoundary_InfoPlist</key>
 	<dict>

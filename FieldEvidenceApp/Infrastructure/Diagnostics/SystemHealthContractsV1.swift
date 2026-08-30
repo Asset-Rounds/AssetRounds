@@ -126,6 +126,130 @@ enum OperationalPrivacyClassV1: String, CaseIterable, Codable, Hashable, Sendabl
     case publicSystem = "PUBLIC_SYSTEM"
 }
 
+// MARK: - C54 encrypted-envelope diagnostic vocabulary
+
+/// The only encrypted-envelope operation values that may cross the diagnostic
+/// boundary.  They are closed, nonsecret labels; no operation, file, or
+/// workspace identity is carried alongside them.
+enum C54EncryptedPortableEnvelopeDiagnosticStageV1: String, CaseIterable,
+    Codable, Hashable, Sendable {
+    case seal = "SEAL"
+    case open = "OPEN"
+    case reopenBeforeShare = "REOPEN_BEFORE_SHARE"
+}
+
+/// A single neutral external-input category is shared by wrong passphrases
+/// and damaged/tampered envelopes.  Keeping these outcomes collapsed avoids
+/// turning authentication or integrity details into a diagnostic oracle.
+enum C54EncryptedPortableEnvelopeDiagnosticCategoryV1: String, CaseIterable,
+    Codable, Hashable, Sendable {
+    case wrongPassphraseOrDamage = "WRONG_PASSPHRASE_OR_DAMAGE"
+
+    static let wrongPassphraseOrDamagedEnvelope = Self.wrongPassphraseOrDamage
+    static let externalWrongPassphraseOrDamage = Self.wrongPassphraseOrDamage
+    static let sharedWrongPassphraseOrDamage = Self.wrongPassphraseOrDamage
+    static let sharedExternalFailure = Self.wrongPassphraseOrDamage
+    static let wrongPassphraseOrDamageSharedError = Self.wrongPassphraseOrDamage
+}
+
+/// Lifecycle interruptions are classification-only observations.  The
+/// encrypted-envelope operation remains responsible for revoking ephemeral
+/// secrets and releasing scratch; diagnostics never become that cleanup owner.
+enum C54EncryptedPortableEnvelopeLifecycleClassificationV1: String,
+    CaseIterable, Codable, Hashable, Sendable {
+    case cancellation = "CANCELLATION"
+    case memoryPressure = "MEMORY_PRESSURE"
+
+    static let userCancellation = Self.cancellation
+    static let explicitCancellation = Self.cancellation
+}
+
+typealias EncryptedPortableEnvelopeDiagnosticStageV1 =
+    C54EncryptedPortableEnvelopeDiagnosticStageV1
+typealias EncryptedPortableEnvelopeDiagnosticCategoryV1 =
+    C54EncryptedPortableEnvelopeDiagnosticCategoryV1
+typealias EncryptedPortableEnvelopeDiagnosticLifecycleV1 =
+    C54EncryptedPortableEnvelopeLifecycleClassificationV1
+typealias C54EncryptedPortableEnvelopeDiagnosticLifecycleV1 =
+    C54EncryptedPortableEnvelopeLifecycleClassificationV1
+typealias C54DiagnosticStageV1 = C54EncryptedPortableEnvelopeDiagnosticStageV1
+typealias C54DiagnosticCategoryV1 = C54EncryptedPortableEnvelopeDiagnosticCategoryV1
+typealias C54DiagnosticLifecycleClassificationV1 =
+    C54EncryptedPortableEnvelopeLifecycleClassificationV1
+typealias C54DiagnosticClassificationV1 =
+    C54EncryptedPortableEnvelopeDiagnosticClassificationV1
+
+/// A deliberately tiny, Codable classification record.  It has no free-form
+/// strings, bytes, digests, paths, identifiers, or timestamps.
+struct C54EncryptedPortableEnvelopeDiagnosticClassificationV1: Codable,
+    Equatable, Hashable, Sendable {
+    let stage: C54EncryptedPortableEnvelopeDiagnosticStageV1
+    let category: C54EncryptedPortableEnvelopeDiagnosticCategoryV1
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case stage
+        case category
+    }
+
+    init(
+        stage: C54EncryptedPortableEnvelopeDiagnosticStageV1,
+        category: C54EncryptedPortableEnvelopeDiagnosticCategoryV1 =
+            .wrongPassphraseOrDamage
+    ) throws {
+        self.stage = stage
+        self.category = category
+        try validate()
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        guard Set(container.allKeys.map(\.stringValue)) == Set(
+            CodingKeys.allCases.map(\.stringValue)
+        ) else {
+            throw OperationalDiagnosticsValidationFailureV1.privacyViolation
+        }
+        stage = try container.decode(
+            C54EncryptedPortableEnvelopeDiagnosticStageV1.self,
+            forKey: .stage
+        )
+        category = try container.decode(
+            C54EncryptedPortableEnvelopeDiagnosticCategoryV1.self,
+            forKey: .category
+        )
+        try validate()
+    }
+
+    func validate() throws {
+        guard category == .wrongPassphraseOrDamage else {
+            throw OperationalDiagnosticsValidationFailureV1.privacyViolation
+        }
+    }
+}
+
+enum C54EncryptedPortableEnvelopeDiagnosticLifecycleBoundaryV1 {
+    static let classifications: [C54EncryptedPortableEnvelopeLifecycleClassificationV1] = [
+        .cancellation,
+        .memoryPressure,
+    ]
+    static let diagnosticsClassifyOnly = true
+    static let diagnosticsOwnCleanup = false
+    static let cleanupOwner = "ENCRYPTED_PORTABLE_ENVELOPE"
+    static let cancellationIsInterruption = true
+    static let memoryPressureIsInterruption = true
+
+    static func validate() -> Bool {
+        classifications == [
+            .cancellation,
+            .memoryPressure,
+        ]
+            && diagnosticsClassifyOnly
+            && !diagnosticsOwnCleanup
+            && cleanupOwner == "ENCRYPTED_PORTABLE_ENVELOPE"
+            && cancellationIsInterruption
+            && memoryPressureIsInterruption
+    }
+}
+
 enum OperationalFailureFactKeyV1: String, CaseIterable, Codable, Hashable, Sendable {
     case attemptedBytes = "ATTEMPTED_BYTES"
     case availableBytes = "AVAILABLE_BYTES"

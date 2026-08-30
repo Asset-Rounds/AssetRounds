@@ -1,0 +1,209 @@
+{
+  "authority": {
+    "appBaseHead": "efdd77f67e8184cc8d32673f0bf4ba06385d5965",
+    "appBaseTree": "38547059ec0f7931903014bad7234567836d1b94",
+    "authorizedOverlapCount": 217,
+    "contextDigest": "6ff43b0c6ea104ca91a63e9e14312ad8fc12ecabc542b41f00fce33286c99d05",
+    "coordinationCASSequence": 360,
+    "coordinationHead": "1001ebfba07212c659c42caae88afa5dbc0be63c",
+    "coordinationLedgerDigest": "0a6f663c832ddedabd22b64b4a4a39f397458e6d587c89fd3f1e14625e08b923",
+    "coordinationProjectionDigest": "2cf7b0a1c83cc1cd38f22eb525ac27c334d6dd8176aa6e301bc78724ca2460f3",
+    "coordinationTree": "9f131dd4bb6cf3bca780ab4b642f3c2fd066070a",
+    "directPrerequisiteFences": {
+      "V23-P02-C08": "486696b004021f1a5095fd41de92b1a4b9a6692cd98a4e463fe09c7ace6f2ce5"
+    },
+    "fenceCorrectionReceiptDigest": "bae9195a6ca691b81f00c091ea78c1630143595c7272f6822474f5c3bb9da1de",
+    "fenceCorrectionTransitionDigest": "aace65272552486b3efacb151926920f11c8d865bc048ce57f785037b70aab39",
+    "hydrationTransitionDigest": "daee87982c8b8185c8e17bcf47efdfd020b747c63ccb1799eed931686f01d7b3",
+    "inheritedV21PayloadPresent": false,
+    "pathFenceDigest": "be5dc8f42a5b026596149b405814a3e6c96f1a500ce2750339a439c18364fcec",
+    "priorFenceCount": 83,
+    "priorOwnedPathCount": 1356,
+    "provisionalPrerequisiteDigest": "a032ac617bf796226769f1bfb4c1c98ce77b7e71a3b6a851d907bdec6b68e1cb",
+    "registerOrdinal": 85,
+    "unauthorizedOverlapCount": 0
+  },
+  "cardID": "V23-P03-C54",
+  "evidenceIDs": [
+    "V23-P03-C54-G01",
+    "V23-P03-C54-A01",
+    "V23-P03-C54-H01",
+    "V23-P03-C54-I01",
+    "V23-P03-C54-R01"
+  ],
+  "existingPathCount": 16,
+  "fencePathCount": 30,
+  "files": [
+    {
+      "byteCount": 53541,
+      "path": "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticsStore.swift",
+      "sha256": "1d9fb535964f6dae430121c88ffca578440e8c86055fa9359f953257b2d3ffc9"
+    },
+    {
+      "byteCount": 119457,
+      "path": "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticExportV1.swift",
+      "sha256": "1e9729905d667c9f3dc15a1832cc9fee452f857559832e1f8f46c72e43e49e37"
+    },
+    {
+      "byteCount": 16810,
+      "path": "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticsLogger.swift",
+      "sha256": "fc987aec1bb0da07b75171f7ff16362b9b6dc22c447a7c7007c7f4a438dca968"
+    },
+    {
+      "byteCount": 12690,
+      "path": "FieldEvidenceApp/Infrastructure/Diagnostics/MetricKitDiagnosticsAdapter.swift",
+      "sha256": "dacc354a2dc0791de33ad10c3d3fd005707a4cce2d785870727827639f704665"
+    },
+    {
+      "byteCount": 16949,
+      "path": "FieldEvidenceApp/Infrastructure/Storage/StoragePreflightService.swift",
+      "sha256": "d32f85f89f8d1ee6736ecc637061fea1e5f6d2c95827056ce0f5047ad6a1a5ad"
+    },
+    {
+      "byteCount": 80189,
+      "path": "FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift",
+      "sha256": "449be69d5eab3b30fa5557d4da5bbcfbf27aa384398b05063ae9580398e69633"
+    },
+    {
+      "byteCount": 21188,
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/DeviceLifecycleCoordinatorV1.swift",
+      "sha256": "aa50573570285aeff6979f28c1d322ce8eb9c3c512d1d6f62fb00d24331a82c7"
+    },
+    {
+      "byteCount": 114531,
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+      "sha256": "40adb2843a754cde02f3de73334fc47771dfb0edce8cb22118a74563fee882f7"
+    },
+    {
+      "byteCount": 106016,
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/CurrentSyncClassificationCatalogV1.swift",
+      "sha256": "6e1b56f01a7518b6830c1b819938ed94300f9e3c873aeabc9469739403b39122"
+    },
+    {
+      "byteCount": 65097,
+      "path": "FieldEvidenceAppTests/S6_6EraseRecoveryTests.swift",
+      "sha256": "8f2e22591cd23b2edf373b5ddf06c4df44c6345ec8ff235ffa21aaaa077b1cf8"
+    },
+    {
+      "byteCount": 44412,
+      "path": "FieldEvidenceAppTests/V10_03ReplicationConflictRegistryTests.swift",
+      "sha256": "0ddeec030e16ee098a217351abe756b025465a732fe9f46bfabf049f089bf623"
+    },
+    {
+      "byteCount": 31588,
+      "path": "FieldEvidenceAppTests/S2PersistenceLedgerTests.swift",
+      "sha256": "6652d2db12893ce084209f71af1c2b1d14500b4ee4e638b6d929982f3c40ec22"
+    },
+    {
+      "byteCount": 42922,
+      "path": "FieldEvidenceApp/Infrastructure/Diagnostics/SystemHealthContractsV1.swift",
+      "sha256": "82801ff3618163f8f66063c43bef9db67505dcefa3ae00630fd86f619c1628bb"
+    },
+    {
+      "byteCount": 70164,
+      "path": "FieldEvidenceAppTests/V9_12SystemHealthOperationalDiagnosticsTests.swift",
+      "sha256": "2cd08b83233a70a9a10578a04fd9d875b0586919ad159a5ad2a8d443633c0c01"
+    },
+    {
+      "byteCount": 8453,
+      "path": "FieldEvidenceAppTests/Fixtures/V21/Diagnostics/V21P02C08SystemHealthOperationalDiagnosticsCorpusV1.json",
+      "sha256": "bd0b21469f46155179190e20e4a77b4d316dffa3838a05a2de3070e0d11611e9"
+    },
+    {
+      "byteCount": 3749,
+      "path": "FieldEvidenceApp/Info.plist",
+      "sha256": "ead1f4608a0ee5a2dcc13b28822b73d31946f1f454c83825c1d885d45163e969"
+    },
+    {
+      "byteCount": 69673,
+      "path": "FieldEvidenceApp/Domain/FileExchange/EncryptedPortableEnvelopeContractsV1.swift",
+      "sha256": "a2b31acd78c1091df422d10a5a088c9ed3ab553cb515cfc9a5cd3b4998cf57a9"
+    },
+    {
+      "byteCount": 29170,
+      "path": "FieldEvidenceApp/Application/FileExchange/EncryptedPortableEnvelopeCoordinatorV1.swift",
+      "sha256": "9a9b3ef7dea9108a4d4ec73990743dde59f304c40ef2f42cbfa85bef0e0b00f5"
+    },
+    {
+      "byteCount": 47050,
+      "path": "FieldEvidenceApp/Infrastructure/FileExchange/EncryptedPortableEnvelopeCryptoV1.swift",
+      "sha256": "7ee195a0d79fb880ae95799e41c0ea26e2f3174d4bf4e510ff55dd8c85b0498c"
+    },
+    {
+      "byteCount": 21160,
+      "path": "FieldEvidenceApp/Infrastructure/FileExchange/EncryptedPortableEnvelopeLifecycleAdapterV1.swift",
+      "sha256": "86b28a90d6b07f9bd94f6d2d70ae40c902fd3684a1cde52255524c06d30123ce"
+    },
+    {
+      "byteCount": 122209,
+      "path": "FieldEvidenceAppTests/V9_62EncryptedPortableEnvelopeTests.swift",
+      "sha256": "bea1e5f50b1377127f36ac442c788d5efba87e53fd2b1736195421e018106dda"
+    },
+    {
+      "byteCount": 4955,
+      "path": "FieldEvidenceAppTests/Fixtures/V22/EncryptedEnvelope/V22P03C54EncryptedPortableEnvelopeCorpusV1.json",
+      "sha256": "34205cdd567a5159c8af9441ace6a4b89dc6c6750b9dac59b198e2fc31ad593b"
+    },
+    {
+      "byteCount": 41178,
+      "path": "Scripts/v23/p03_c54_contracts.py",
+      "sha256": "a4e5e53795d87d3f6635e98bc95f9b38e937d00511b93558221ee3e05fe1fbcf"
+    },
+    {
+      "byteCount": 1220,
+      "path": "Scripts/v23/generate_p03_c54_contracts.py",
+      "sha256": "6a00fcec1d47555fa6381b44b49c2104c5d3146e81ccb39df04645e65314e85e"
+    },
+    {
+      "byteCount": 4505,
+      "path": "Scripts/v23/verify_p03_c54_contracts.py",
+      "sha256": "bd3536205ff5f8d7f59395a72134e4a94d53c66e848ca45227598961fa147df6"
+    },
+    {
+      "byteCount": 6926,
+      "path": "Scripts/v23/encrypted-portable-envelope.schema.json",
+      "sha256": "5eca8cc863b17ec4c2a36c9798a9179065d33097671cd4a4452e53351b614489"
+    },
+    {
+      "byteCount": 4839,
+      "path": "docs/design/v23/tooling/V23P03C54EncryptedPortableEnvelopeContractV1.json",
+      "sha256": "7e7da16e58eaa43aa7587052222aa43b1584eaf2d7d133bd07c77968a88dad15"
+    },
+    {
+      "byteCount": 2561,
+      "path": "docs/design/v23/tooling/V23P03C54EncryptedPortableEnvelopeEvidenceReceiptV1.json",
+      "sha256": "581166bc2ea5d80bc46d70db978e4dcf8fb754038278e604e69bbbeaec687da5"
+    },
+    {
+      "byteCount": 2527,
+      "path": "docs/design/v23/tooling/V23P03C54BrandImpactManifestV1.json",
+      "sha256": "0e1daefd6b68cdd51d77747a58033c9fa4df866fff9c00753def0da400d756d0"
+    }
+  ],
+  "newPathCount": 14,
+  "priorPrerequisiteProof": {
+    "cards": [
+      "V23-P02-C08"
+    ],
+    "fences": {
+      "V23-P02-C08": "486696b004021f1a5095fd41de92b1a4b9a6692cd98a4e463fe09c7ace6f2ce5"
+    },
+    "liveResealRequired": false
+  },
+  "s10ReservationOverlapCount": 0,
+  "s10ReservedPathCount": 86,
+  "schema": "V23P03C54ToolingManifestV1",
+  "schemaVersion": 1,
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidence": false,
+    "release": false
+  }
+}

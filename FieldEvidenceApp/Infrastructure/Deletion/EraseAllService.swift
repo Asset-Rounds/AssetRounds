@@ -9,6 +9,32 @@ enum C50IncumbentFileExchangeEraseAllBoundaryV1 {
     static let disablesOrRewritesInstalledProfileRelease = false
 }
 
+protocol EncryptedPortableEnvelopeEraseScratchV1: Sendable {
+    func eraseEncryptedPortableEnvelopeScratch() async throws
+}
+
+enum C54EncryptedPortableEnvelopeEraseAllBoundaryV1 {
+    static let removesAppOwnedAttemptScratch = true
+    static let clearsMemoryOnlySecrets = true
+    static let recallsEscapedFiles = false
+    static let revokesAlreadySharedBytes = false
+    static let createsCanonicalDeletionRows = false
+
+    static func eraseScratch(
+        using authority: any EncryptedPortableEnvelopeEraseScratchV1
+    ) async throws {
+        try await authority.eraseEncryptedPortableEnvelopeScratch()
+    }
+
+    static func validate() -> Bool {
+        removesAppOwnedAttemptScratch
+            && clearsMemoryOnlySecrets
+            && !recallsEscapedFiles
+            && !revokesAlreadySharedBytes
+            && !createsCanonicalDeletionRows
+    }
+}
+
 enum C34SceneNavigationEraseAllBoundaryV1 {
     static func validate() throws {
         guard C34SceneNavigationDeviceLifecycleBoundaryV1.validate() else {

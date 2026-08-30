@@ -1,4 +1,5 @@
 import Darwin
+import CryptoKit
 import Foundation
 
 enum OwnedStorageRootKindV1: String, CaseIterable, Hashable, Sendable {
@@ -1712,5 +1713,363 @@ enum C34SceneNavigationOwnedStorageBoundaryV1 {
             && !lifecycle.searchIncluded
             && lifecycle.eraseClears
             && canonicalWorkspaceLedgerEnrollmentCount == 0
+    }
+}
+
+// MARK: - C54 encrypted portable envelope reservations
+
+enum EncryptedPortableEnvelopeScratchNamespaceV1 {
+    private static let prefix: (UInt8, UInt8, UInt8, UInt8) = (0xc5, 0x54, 0x00, 0x01)
+
+    static func leaseID(for attemptID: UUID, slot: UInt8 = 0) -> UUID {
+        var source = attemptID.uuid
+        var sourceData = withUnsafeBytes(of: &source) { Data($0) }
+        sourceData.append(slot)
+        let digest = Array(SHA256.hash(data: sourceData))
+        return UUID(uuid: (
+            prefix.0, prefix.1, prefix.2, prefix.3,
+            digest[0], digest[1], digest[2], digest[3],
+            digest[4], digest[5], digest[6], digest[7],
+            digest[8], digest[9], digest[10], digest[11]
+        ))
+    }
+
+    static func contains(_ leaseID: UUID) -> Bool {
+        let bytes = leaseID.uuid
+        return bytes.0 == prefix.0 && bytes.1 == prefix.1
+            && bytes.2 == prefix.2 && bytes.3 == prefix.3
+    }
+}
+
+protocol EncryptedPortableEnvelopeScratchRecoveringV1: ScratchDataLeasePortV1 {
+    func recoverEncryptedPortableEnvelopeScratch() async throws
+        -> ScratchDataLeaseRecoverySummaryV1
+}
+
+protocol EncryptedPortableEnvelopeStreamingScratchPortV1: ScratchDataLeasePortV1 {
+    func makeEncryptedPortableEnvelopeStreamingScratch(
+        named: String,
+        lease: ScratchDataLeaseV1,
+        maximumByteCount: UInt64
+    ) async throws -> any EncryptedEnvelopeProtectedScratchSinkV1
+}
+
+final class EncryptedPortableEnvelopeProtectedFileScratchV1:
+    EncryptedEnvelopeProtectedScratchSinkV1,
+    @unchecked Sendable {
+    static let maximumAppendByteCount = 1_048_604
+
+    let protectionClass = EncryptedEnvelopeProtectionClassV1.complete
+    let isExcludedFromBackup = true
+
+    private let url: URL
+    private let maximumByteCount: UInt64
+    private let descriptor: Int32
+    private let device: UInt64
+    private let inode: UInt64
+    private let lock = NSLock()
+    private var expectedByteCount: UInt64?
+    private var writtenByteCount: UInt64 = 0
+
+    init(url: URL, pinnedDescriptor: Int32, maximumByteCount: UInt64) throws {
+        guard url.isFileURL,
+              pinnedDescriptor >= 0,
+              maximumByteCount <= EncryptedPortableEnvelopeResourceLimitsV1
+                .maximumOperationalScratchByteCount else {
+            if pinnedDescriptor >= 0 { _ = Darwin.close(pinnedDescriptor) }
+            throw EncryptedPortableEnvelopeFailureV1.resourceLimitExceeded
+        }
+        self.url = url.standardizedFileURL
+        self.maximumByteCount = maximumByteCount
+        var status = stat()
+        guard Darwin.fstat(pinnedDescriptor, &status) == 0,
+              (status.st_mode & S_IFMT) == S_IFREG,
+              status.st_nlink == 1 else {
+            _ = Darwin.close(pinnedDescriptor)
+            throw EncryptedPortableEnvelopeFailureV1.resourceLimitExceeded
+        }
+        descriptor = pinnedDescriptor
+        device = UInt64(status.st_dev)
+        inode = UInt64(status.st_ino)
+    }
+
+    deinit { _ = Darwin.close(descriptor) }
+
+    func prepareForStreamingWrite(expectedByteCount: UInt64) throws {
+        try lock.withLock {
+            guard expectedByteCount <= maximumByteCount else {
+                throw EncryptedPortableEnvelopeFailureV1.resourceLimitExceeded
+            }
+            try verifyPinnedDescriptor()
+            guard Darwin.ftruncate(descriptor, 0) == 0 else {
+                throw EncryptedPortableEnvelopeFailureV1.resourceLimitExceeded
+            }
+            self.expectedByteCount = expectedByteCount
+            writtenByteCount = 0
+        }
+    }
+
+    func appendStreamingBytes(_ bytes: Data) throws {
+        try lock.withLock {
+            guard let expectedByteCount,
+                  bytes.count <= Self.maximumAppendByteCount else {
+                throw EncryptedPortableEnvelopeFailureV1.resourceLimitExceeded
+            }
+            let (next, overflow) = writtenByteCount.addingReportingOverflow(
+                UInt64(bytes.count)
+            )
+            guard !overflow, next <= expectedByteCount else {
+                throw EncryptedPortableEnvelopeFailureV1.resourceLimitExceeded
+            }
+            try verifyPinnedDescriptor()
+            var consumed = 0
+            try bytes.withUnsafeBytes { raw in
+                while consumed < bytes.count {
+                    let count = Darwin.pwrite(
+                        descriptor,
+                        raw.baseAddress!.advanced(by: consumed),
+                        bytes.count - consumed,
+                        off_t(writtenByteCount) + off_t(consumed)
+                    )
+                    guard count > 0 else {
+                        throw EncryptedPortableEnvelopeFailureV1.resourceLimitExceeded
+                    }
+                    consumed += count
+                }
+            }
+            writtenByteCount = next
+        }
+    }
+
+    func synchronizeStreamingWrite() throws {
+        try lock.withLock {
+            guard let expectedByteCount, writtenByteCount == expectedByteCount else {
+                throw EncryptedPortableEnvelopeFailureV1.invalidFrameLayout
+            }
+            try verifyPinnedDescriptor()
+            guard Darwin.fsync(descriptor) == 0 else {
+                throw EncryptedPortableEnvelopeFailureV1.resourceLimitExceeded
+            }
+            try ProtectedFilePolicyV1.verify(.temporaryFile, at: url)
+        }
+    }
+
+    func encryptedEnvelopeByteCount() throws -> UInt64 {
+        try lock.withLock {
+            let status = try pinnedStatus()
+            guard status.st_size >= 0 else {
+                throw EncryptedPortableEnvelopeFailureV1.resourceLimitExceeded
+            }
+            return UInt64(status.st_size)
+        }
+    }
+
+    func readExactly(atOffset: UInt64, byteCount: Int) throws -> Data {
+        try lock.withLock {
+            guard byteCount >= 0,
+                  byteCount <= Self.maximumAppendByteCount,
+                  atOffset <= maximumByteCount,
+                  UInt64(byteCount) <= maximumByteCount - atOffset else {
+                throw EncryptedPortableEnvelopeFailureV1.resourceLimitExceeded
+            }
+            try verifyPinnedDescriptor()
+            var bytes = Data(count: byteCount)
+            var consumed = 0
+            try bytes.withUnsafeMutableBytes { raw in
+                while consumed < byteCount {
+                    let count = Darwin.pread(
+                        descriptor,
+                        raw.baseAddress!.advanced(by: consumed),
+                        byteCount - consumed,
+                        off_t(atOffset) + off_t(consumed)
+                    )
+                    guard count > 0 else {
+                        throw EncryptedPortableEnvelopeFailureV1.invalidFrameLayout
+                    }
+                    consumed += count
+                }
+            }
+            return bytes
+        }
+    }
+
+    func discardStreamingBytes() throws {
+        try lock.withLock {
+            try verifyPinnedDescriptor()
+            guard Darwin.ftruncate(descriptor, 0) == 0,
+                  Darwin.fsync(descriptor) == 0 else {
+                throw EncryptedPortableEnvelopeFailureV1.resourceLimitExceeded
+            }
+            expectedByteCount = nil
+            writtenByteCount = 0
+        }
+    }
+
+    private func pinnedStatus() throws -> stat {
+        var status = stat()
+        guard Darwin.fstat(descriptor, &status) == 0,
+              (status.st_mode & S_IFMT) == S_IFREG,
+              status.st_nlink == 1,
+              UInt64(status.st_dev) == device,
+              UInt64(status.st_ino) == inode else {
+            throw EncryptedPortableEnvelopeFailureV1.resourceLimitExceeded
+        }
+        return status
+    }
+
+    private func verifyPinnedDescriptor() throws { _ = try pinnedStatus() }
+}
+
+struct EncryptedPortableEnvelopeStorageReservationRequestV1: Equatable, Sendable {
+    let purpose: EncryptedPortableEnvelopeStoragePurposeV1
+    let workspaceID: WorkspaceID
+    let attemptID: UUID
+    let mutationID: MutationIDV1
+    let requiredBytes: Int64
+
+    init(
+        purpose: EncryptedPortableEnvelopeStoragePurposeV1,
+        workspaceID: WorkspaceID,
+        attemptID: UUID,
+        mutationID: MutationIDV1,
+        requiredBytes: Int64
+    ) throws {
+        let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0,
+                               0, 0, 0, 0, 0, 0, 0, 0))
+        guard workspaceID.rawValue != zero,
+              attemptID != zero,
+              requiredBytes > 0 else {
+            throw OwnedStorageLedgerFailureV1.accountingOverflow
+        }
+        self.purpose = purpose
+        self.workspaceID = workspaceID
+        self.attemptID = attemptID
+        self.mutationID = mutationID
+        self.requiredBytes = requiredBytes
+    }
+}
+
+struct EncryptedPortableEnvelopeStorageReservationV1: Equatable, Sendable {
+    let request: EncryptedPortableEnvelopeStorageReservationRequestV1
+    let reservation: OwnedStorageReservationV1
+}
+
+extension OwnedStorageLedgerV1 {
+    /// Reuses the closed set of app-owned roots and the process-local ledger.
+    /// Exact retries adopt their reservation; no envelope store or root exists.
+    func reserveEncryptedPortableEnvelope(
+        _ request: EncryptedPortableEnvelopeStorageReservationRequestV1
+    ) throws -> EncryptedPortableEnvelopeStorageReservationV1 {
+        let identity = try OwnedStorageAttemptIDV1(
+            workspaceID: request.workspaceID,
+            generationID: request.attemptID,
+            mutationID: request.mutationID
+        )
+        return EncryptedPortableEnvelopeStorageReservationV1(
+            request: request,
+            reservation: try reserve(
+                attemptID: identity,
+                requiredBytes: request.requiredBytes
+            )
+        )
+    }
+
+    func releaseEncryptedPortableEnvelope(
+        _ reservation: EncryptedPortableEnvelopeStorageReservationV1
+    ) {
+        release(reservation: reservation.reservation)
+    }
+
+    static let c54UsesExistingOwnedScratchRoot = true
+    static let c54CreatesParallelStoreOrRoot = false
+    static let c54PressureNeverAuthorizesDeletion = true
+}
+
+extension ScratchDataLeaseStoreV1: EncryptedPortableEnvelopeScratchRecoveringV1 {
+    /// Deletes only C54's reserved lease namespace after relaunch. Other
+    /// resumable scratch families retain their established recovery policy.
+    func recoverEncryptedPortableEnvelopeScratch() async throws
+        -> ScratchDataLeaseRecoverySummaryV1 {
+        let recovered = try recoverScratchLeaseState()
+        let interrupted = recovered.active.filter {
+            EncryptedPortableEnvelopeScratchNamespaceV1.contains($0.request.leaseID)
+        }
+        var removedBytes: UInt64 = 0
+        for lease in interrupted {
+            let directory = rootURL.appendingPathComponent(
+                lease.relativeDirectory,
+                isDirectory: true
+            )
+            let descriptor = try openLeaseDirectory(lease.relativeDirectory)
+            let actualBytes: UInt64
+            do {
+                actualBytes = try payloadByteCount(
+                    directoryDescriptor: descriptor,
+                    directoryURL: directory
+                )
+            } catch {
+                _ = Darwin.close(descriptor)
+                throw error
+            }
+            _ = Darwin.close(descriptor)
+            let (next, overflow) = removedBytes.addingReportingOverflow(
+                actualBytes
+            )
+            guard !overflow else {
+                throw ScratchDataLeaseStoreFailureV1.sizeLimitExceeded
+            }
+            removedBytes = next
+            try await releaseScratchLease(lease, terminal: .recoveredExpired)
+        }
+        return try ScratchDataLeaseRecoverySummaryV1(
+            recoveredExpiredLeaseCount: interrupted.count,
+            removedByteCount: removedBytes
+        )
+    }
+}
+
+extension ScratchDataLeaseStoreV1: EncryptedPortableEnvelopeStreamingScratchPortV1 {
+    func makeEncryptedPortableEnvelopeStreamingScratch(
+        named: String,
+        lease: ScratchDataLeaseV1,
+        maximumByteCount: UInt64
+    ) async throws -> any EncryptedEnvelopeProtectedScratchSinkV1 {
+        guard maximumByteCount <= lease.request.requestedByteCount else {
+            throw EncryptedPortableEnvelopeFailureV1.resourceLimitExceeded
+        }
+        let url = try await writeScratchData(Data(), named: named, lease: lease)
+        guard !named.isEmpty,
+              !named.contains("/"),
+              !named.contains("\\"),
+              url.lastPathComponent == named else {
+            throw EncryptedPortableEnvelopeFailureV1.resourceLimitExceeded
+        }
+        let directoryDescriptor = try openLeaseDirectory(lease.relativeDirectory)
+        defer { _ = Darwin.close(directoryDescriptor) }
+        let descriptor = Darwin.openat(directoryDescriptor, named, O_RDWR | O_NOFOLLOW)
+        guard descriptor >= 0 else {
+            throw EncryptedPortableEnvelopeFailureV1.resourceLimitExceeded
+        }
+        do {
+            try ProtectedFilePolicyV1.verify(.temporaryFile, at: url)
+            var linked = stat()
+            var pinned = stat()
+            guard Darwin.fstatat(directoryDescriptor, named, &linked, AT_SYMLINK_NOFOLLOW) == 0,
+                  Darwin.fstat(descriptor, &pinned) == 0,
+                  (linked.st_mode & S_IFMT) == S_IFREG,
+                  linked.st_nlink == 1,
+                  linked.st_dev == pinned.st_dev,
+                  linked.st_ino == pinned.st_ino else {
+                throw EncryptedPortableEnvelopeFailureV1.resourceLimitExceeded
+            }
+        } catch {
+            _ = Darwin.close(descriptor)
+            throw error
+        }
+        return try EncryptedPortableEnvelopeProtectedFileScratchV1(
+            url: url,
+            pinnedDescriptor: descriptor,
+            maximumByteCount: maximumByteCount
+        )
     }
 }

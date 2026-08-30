@@ -846,6 +846,33 @@ extension V9_12SystemHealthOperationalDiagnosticsTests {
     }
 }
 
+extension V9_12SystemHealthOperationalDiagnosticsTests {
+    func testV23P03C54ReceiptsAndDiagnosticsCannotLeakPassphraseKeyOrCustomerMetadata() throws {
+        let forbidden = "C54-SECRET-CUSTOMER-WORKSPACE-PASSPHRASE"
+        let diagnostic = try C54EncryptedPortableEnvelopeDiagnosticClassificationV1(
+            stage: .open,
+            category: .wrongPassphraseOrDamage
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let encoded = try encoder.encode(diagnostic)
+        let rendered = String(decoding: encoded, as: UTF8.self)
+
+        XCTAssertFalse(rendered.contains(forbidden))
+        XCTAssertEqual(rendered, "{\"category\":\"WRONG_PASSPHRASE_OR_DAMAGE\",\"stage\":\"OPEN\"}")
+        XCTAssertFalse(EphemeralSecretHandlingDispositionV1.secretAppearsInReceipts)
+        XCTAssertTrue(C54EncryptedPortableEnvelopeDiagnosticLifecycleBoundaryV1.validate())
+        XCTAssertTrue(C54EncryptedPortableEnvelopeDiagnosticLifecycleBoundaryV1.diagnosticsClassifyOnly)
+        XCTAssertFalse(C54EncryptedPortableEnvelopeDiagnosticLifecycleBoundaryV1.diagnosticsOwnCleanup)
+        let neutralFilename = try EncryptedPortableEnvelopeFilenameV1.neutralFileName(
+            innerKind: .workspaceBackup,
+            publicEnvelopeID: Data(repeating: 0x54, count: 16)
+        )
+        XCTAssertEqual(neutralFilename, "AssetRounds-Backup-54545454545454545454545454545454.arenvelope")
+        XCTAssertFalse(neutralFilename.lowercased().contains("workspace"))
+    }
+}
+
 private final class C53SharedDiagnosticsReliabilityTests: XCTestCase {
     func testV23P03C53DiagnosticsRemainTruthfulAndNoncanonical() {
         XCTAssertTrue(C53SharedMeasurementLifecycleBoundaryV1.measurementRowsAreNotReliabilityMetricOutputs)

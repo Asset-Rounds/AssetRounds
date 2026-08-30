@@ -1,0 +1,70 @@
+{
+  "authority": {
+    "appBaseHead": "efdd77f67e8184cc8d32673f0bf4ba06385d5965",
+    "appBaseTree": "38547059ec0f7931903014bad7234567836d1b94",
+    "authorizedOverlapCount": 217,
+    "contextDigest": "6ff43b0c6ea104ca91a63e9e14312ad8fc12ecabc542b41f00fce33286c99d05",
+    "coordinationCASSequence": 360,
+    "coordinationHead": "1001ebfba07212c659c42caae88afa5dbc0be63c",
+    "coordinationLedgerDigest": "0a6f663c832ddedabd22b64b4a4a39f397458e6d587c89fd3f1e14625e08b923",
+    "coordinationProjectionDigest": "2cf7b0a1c83cc1cd38f22eb525ac27c334d6dd8176aa6e301bc78724ca2460f3",
+    "coordinationTree": "9f131dd4bb6cf3bca780ab4b642f3c2fd066070a",
+    "directPrerequisiteFences": {
+      "V23-P02-C08": "486696b004021f1a5095fd41de92b1a4b9a6692cd98a4e463fe09c7ace6f2ce5"
+    },
+    "fenceCorrectionReceiptDigest": "bae9195a6ca691b81f00c091ea78c1630143595c7272f6822474f5c3bb9da1de",
+    "fenceCorrectionTransitionDigest": "aace65272552486b3efacb151926920f11c8d865bc048ce57f785037b70aab39",
+    "hydrationTransitionDigest": "daee87982c8b8185c8e17bcf47efdfd020b747c63ccb1799eed931686f01d7b3",
+    "inheritedV21PayloadPresent": false,
+    "pathFenceDigest": "be5dc8f42a5b026596149b405814a3e6c96f1a500ce2750339a439c18364fcec",
+    "priorFenceCount": 83,
+    "priorOwnedPathCount": 1356,
+    "provisionalPrerequisiteDigest": "a032ac617bf796226769f1bfb4c1c98ce77b7e71a3b6a851d907bdec6b68e1cb",
+    "registerOrdinal": 85,
+    "unauthorizedOverlapCount": 0
+  },
+  "cardID": "V23-P03-C54",
+  "cases": [
+    "V23-P03-C54-G01",
+    "V23-P03-C54-A01",
+    "V23-P03-C54-H01",
+    "V23-P03-C54-I01",
+    "V23-P03-C54-R01"
+  ],
+  "evidenceIDs": [
+    "V23-P03-C54-G01",
+    "V23-P03-C54-A01",
+    "V23-P03-C54-H01",
+    "V23-P03-C54-I01",
+    "V23-P03-C54-R01"
+  ],
+  "hostedDispatchEnabled": false,
+  "journey": "FJ11",
+  "nativeCompileRan": false,
+  "physicalLockedState": "REQUIRED_PENDING_OWNER",
+  "priorPrerequisiteProof": {
+    "cards": [
+      "V23-P02-C08"
+    ],
+    "fences": {
+      "V23-P02-C08": "486696b004021f1a5095fd41de92b1a4b9a6692cd98a4e463fe09c7ace6f2ce5"
+    },
+    "liveResealRequired": false
+  },
+  "s10ReservationOverlapCount": 0,
+  "s10ReservedPathCount": 86,
+  "schema": "V23P03C54EncryptedPortableEnvelopeEvidenceReceiptV1",
+  "schemaVersion": 1,
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidence": false,
+    "release": false
+  }
+}

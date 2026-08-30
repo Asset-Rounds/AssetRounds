@@ -529,6 +529,9 @@ struct DiagnosticExportService {
         let canonicalData = try DiagnosticExportCanonicalEncoderV1.encode(value)
         try IntegrationProjectionDiagnosticExclusionV1.validate(canonicalData)
         try C34SceneNavigationDiagnosticExclusionV1.validate(canonicalData)
+        try C54EncryptedPortableEnvelopeDiagnosticPrivacyBoundaryV1.validate(
+            canonicalData
+        )
         return PreparedDiagnosticExportV1(value: value, canonicalData: canonicalData)
     }
 }
@@ -605,6 +608,7 @@ enum DiagnosticExportCanonicalEncoderV1 {
         }
         let data = try CanonicalJSONV1.encode(.object(object))
         try IntegrationProjectionDiagnosticExclusionV1.validate(data)
+        try C54EncryptedPortableEnvelopeDiagnosticPrivacyBoundaryV1.validate(data)
         return data
     }
 
@@ -1025,6 +1029,9 @@ struct SupportBundleBuilderV1: Sendable {
                   ) == diagnostic.canonicalData else {
                 throw SupportBundleBuilderFailureV1.invalidSource
             }
+            try C54EncryptedPortableEnvelopeDiagnosticPrivacyBoundaryV1.validate(
+                diagnostic.canonicalData
+            )
         } catch let failure as SupportBundleBuilderFailureV1 {
             throw failure
         } catch {
@@ -1040,10 +1047,14 @@ struct SupportBundleBuilderV1: Sendable {
                 guard snapshot.counters.isValid else {
                     throw SupportBundleBuilderFailureV1.invalidSource
                 }
+                let healthData = try Self.encodeCanonical(snapshot)
+                try C54EncryptedPortableEnvelopeDiagnosticPrivacyBoundaryV1.validate(
+                    healthData
+                )
                 members.append((
                     .systemHealth,
                     "system-health.json",
-                    try Self.encodeCanonical(snapshot)
+                    healthData
                 ))
             } catch let failure as SupportBundleBuilderFailureV1 {
                 throw failure
@@ -1087,6 +1098,7 @@ struct SupportBundleBuilderV1: Sendable {
             manifest: manifest,
             members: Dictionary(uniqueKeysWithValues: members.map { ($0.1, $0.2) })
         ))
+        try C54EncryptedPortableEnvelopeDiagnosticPrivacyBoundaryV1.validate(payload)
         guard payload.count <= SupportBundleManifestV1.maximumCanonicalBytes else {
             throw SupportBundleBuilderFailureV1.sizeLimitExceeded
         }
@@ -2473,3 +2485,264 @@ enum C53ServiceReliabilityDiagnosticBoundaryV1 {
         return value
     }
 }
+
+// MARK: - C54 encrypted-envelope diagnostic/privacy boundary
+
+/// C54 has no diagnostic payload.  The encrypted-envelope operation may
+/// report only a closed stage and the one neutral external-input category;
+/// all envelope, secret, content, identity, and locator material is rejected
+/// before it can reach an export, support bundle, or log/MetricKit adapter.
+enum C54EncryptedPortableEnvelopeDiagnosticPrivacyBoundaryV1 {
+    static let schemaVersion = 1
+
+    static let diagnosticsAreMetadataOnly = true
+    static let diagnosticProjectionIsDerivedMetadataOnly = true
+    static let envelopeBytesExported = false
+    static let envelopeBytesIncluded = false
+    static let passphrasesExported = false
+    static let passphraseMaterialExported = false
+    static let derivedKeysExported = false
+    static let keyMaterialExported = false
+    static let saltsAndNonceMaterialExported = false
+    static let saltAndNonceMaterialExported = false
+    static let plaintextDigestsExported = false
+    static let customerDigestsExported = false
+    static let rawMetadataExported = false
+    static let linkablePublicIdentifiersExported = false
+    static let linkableFilenamesExported = false
+    static let publicIDsOrFilenamesExported = false
+    static let scratchPathsExported = false
+    static let customerDataExported = false
+    static let countersPreserved = true
+    static let envelopeBytesEmitted = false
+    static let passphrasesEmitted = false
+    static let derivedKeysEmitted = false
+    static let saltsOrNoncesEmitted = false
+    static let plaintextOrCustomerDigestsEmitted = false
+    static let rawMetadataEmitted = false
+    static let linkableIDsOrFilenamesEmitted = false
+    static let scratchPathsEmitted = false
+    static let noCustomerData = true
+
+    static let logsIncludeEnvelopeBytes = false
+    static let logsIncludePassphrases = false
+    static let logsIncludeDerivedKeys = false
+    static let logsIncludeSaltOrNonceMaterial = false
+    static let logsIncludePlaintextOrCustomerDigests = false
+    static let logsIncludeRawMetadata = false
+    static let logsIncludeLinkableIDsOrFilenames = false
+    static let logsIncludeScratchPaths = false
+
+    static let metricKitIncludesEnvelopeBytes = false
+    static let metricKitIncludesSecrets = false
+    static let metricKitIncludesRawMetadata = false
+    static let metricKitIncludesCustomerData = false
+
+    static let supportBundleIncludesEnvelopeBytes = false
+    static let supportBundleIncludesSecrets = false
+    static let supportBundleIncludesRawMetadata = false
+    static let supportBundleIncludesLinkableIDsOrFilenames = false
+    static let supportBundleIncludesScratchPaths = false
+    static let supportBundleExcluded = true
+
+    static let searchIndexesEnvelope = false
+    static let spotlightIndexesEnvelope = false
+    static let quickLookPresentsEnvelope = false
+    static let searchIncludesEnvelopeBytes = false
+    static let spotlightIncludesEnvelopeBytes = false
+    static let quickLookIncludesEnvelopeBytes = false
+    static let searchExcluded = true
+    static let spotlightExcluded = true
+    static let quickLookExcluded = true
+
+    static let diagnosticsOwnCleanup = false
+    static let lifecycleIsClassificationOnly = true
+    static let allowedStages =
+        C54EncryptedPortableEnvelopeDiagnosticStageV1.allCases
+    static let allowedCategories =
+        C54EncryptedPortableEnvelopeDiagnosticCategoryV1.allCases
+    static let wrongPassphraseOrDamageCategory =
+        C54EncryptedPortableEnvelopeDiagnosticCategoryV1.wrongPassphraseOrDamage
+    static let sharedWrongPassphraseOrDamageCategory =
+        C54EncryptedPortableEnvelopeDiagnosticCategoryV1.wrongPassphraseOrDamage
+    static let externalWrongPassphraseOrDamageCategory =
+        C54EncryptedPortableEnvelopeDiagnosticCategoryV1.wrongPassphraseOrDamage
+    static let lifecycleClassifications =
+        C54EncryptedPortableEnvelopeDiagnosticLifecycleBoundaryV1.classifications
+
+    /// Exact JSON member names that identify material owned by the encrypted
+    /// envelope.  Matching is case-insensitive so a casing change cannot turn
+    /// a secret-bearing field into an accepted diagnostic field.
+    static let forbiddenJSONKeys = [
+        "envelope",
+        "envelopeBytes",
+        "envelopeData",
+        "encryptedEnvelope",
+        "encryptedBytes",
+        "header",
+        "headers",
+        "metadata",
+        "profile",
+        "protocolIdentifier",
+        "innerKind",
+        "kdfProfile",
+        "aeadProfile",
+        "frameCount",
+        "plaintextByteCount",
+        "envelopeByteCount",
+        "authenticationTag",
+        "authenticationTagBytes",
+        "passphrase",
+        "passphraseBytes",
+        "derivedKey",
+        "derivedKeyBytes",
+        "keyMaterial",
+        "salt",
+        "saltBytes",
+        "nonce",
+        "noncePrefix",
+        "nonceBytes",
+        "plaintext",
+        "plaintextBytes",
+        "plaintextDigest",
+        "customerDigest",
+        "contentDigest",
+        "envelopeSHA256",
+        "canonicalHeaderSHA256",
+        "encryptedFileSHA256",
+        "rawMetadata",
+        "metadataBytes",
+        "publicID",
+        "publicId",
+        "publicEnvelopeID",
+        "identifier",
+        "operationID",
+        "attemptID",
+        "filename",
+        "fileName",
+        "neutralFilename",
+        "filePath",
+        "relativePath",
+        "scratchPath",
+        "scratchURL",
+        "scratchDirectory",
+        "workspaceID",
+        "reviewID",
+        "backupID",
+        "candidateHead",
+        "candidateTree",
+        "toolchainIdentifier",
+    ]
+
+    static func validate(
+        stage: C54EncryptedPortableEnvelopeDiagnosticStageV1,
+        category: C54EncryptedPortableEnvelopeDiagnosticCategoryV1
+    ) throws {
+        guard allowedStages.contains(stage),
+              category == .wrongPassphraseOrDamage else {
+            throw DiagnosticExportError.invalidValue
+        }
+    }
+
+    static func validate(
+        _ classification: C54EncryptedPortableEnvelopeDiagnosticClassificationV1
+    ) throws {
+        try classification.validate()
+        try validate(stage: classification.stage, category: classification.category)
+    }
+
+    static func validate(_ data: Data) throws {
+        let text = String(decoding: data, as: UTF8.self).lowercased()
+        guard forbiddenJSONKeys.allSatisfy({
+            !text.contains("\"\($0.lowercased())\"")
+        }) else {
+            throw DiagnosticExportError.invalidValue
+        }
+    }
+
+    static func validate() -> Bool {
+        do {
+            try validate(stage: .seal, category: .wrongPassphraseOrDamage)
+        } catch {
+            return false
+        }
+        return schemaVersion == 1
+            && diagnosticsAreMetadataOnly
+            && diagnosticProjectionIsDerivedMetadataOnly
+            && !envelopeBytesExported
+            && !envelopeBytesIncluded
+            && !passphrasesExported
+            && !passphraseMaterialExported
+            && !derivedKeysExported
+            && !keyMaterialExported
+            && !saltsAndNonceMaterialExported
+            && !saltAndNonceMaterialExported
+            && !plaintextDigestsExported
+            && !customerDigestsExported
+            && !rawMetadataExported
+            && !linkablePublicIdentifiersExported
+            && !linkableFilenamesExported
+            && !publicIDsOrFilenamesExported
+            && !scratchPathsExported
+            && !customerDataExported
+            && countersPreserved
+            && !envelopeBytesEmitted
+            && !passphrasesEmitted
+            && !derivedKeysEmitted
+            && !saltsOrNoncesEmitted
+            && !plaintextOrCustomerDigestsEmitted
+            && !rawMetadataEmitted
+            && !linkableIDsOrFilenamesEmitted
+            && !scratchPathsEmitted
+            && noCustomerData
+            && !logsIncludeEnvelopeBytes
+            && !logsIncludePassphrases
+            && !logsIncludeDerivedKeys
+            && !logsIncludeSaltOrNonceMaterial
+            && !logsIncludePlaintextOrCustomerDigests
+            && !logsIncludeRawMetadata
+            && !logsIncludeLinkableIDsOrFilenames
+            && !logsIncludeScratchPaths
+            && !metricKitIncludesEnvelopeBytes
+            && !metricKitIncludesSecrets
+            && !metricKitIncludesRawMetadata
+            && !metricKitIncludesCustomerData
+            && !supportBundleIncludesEnvelopeBytes
+            && !supportBundleIncludesSecrets
+            && !supportBundleIncludesRawMetadata
+            && !supportBundleIncludesLinkableIDsOrFilenames
+            && !supportBundleIncludesScratchPaths
+            && supportBundleExcluded
+            && !searchIndexesEnvelope
+            && !spotlightIndexesEnvelope
+            && !quickLookPresentsEnvelope
+            && !searchIncludesEnvelopeBytes
+            && !spotlightIncludesEnvelopeBytes
+            && !quickLookIncludesEnvelopeBytes
+            && searchExcluded
+            && spotlightExcluded
+            && quickLookExcluded
+            && lifecycleIsClassificationOnly
+            && !diagnosticsOwnCleanup
+            && lifecycleClassifications == [
+                .cancellation,
+                .memoryPressure,
+            ]
+            && C54EncryptedPortableEnvelopeDiagnosticLifecycleBoundaryV1.validate()
+    }
+}
+
+typealias C54EncryptedEnvelopeDiagnosticPrivacyBoundaryV1 =
+    C54EncryptedPortableEnvelopeDiagnosticPrivacyBoundaryV1
+typealias EncryptedPortableEnvelopeDiagnosticPrivacyBoundaryV1 =
+    C54EncryptedPortableEnvelopeDiagnosticPrivacyBoundaryV1
+typealias C54EncryptedPortableEnvelopeDiagnosticsBoundaryV1 =
+    C54EncryptedPortableEnvelopeDiagnosticPrivacyBoundaryV1
+typealias C54EncryptedPortableEnvelopeSupportBundleBoundaryV1 =
+    C54EncryptedPortableEnvelopeDiagnosticPrivacyBoundaryV1
+typealias C54EncryptedPortableEnvelopeSearchBoundaryV1 =
+    C54EncryptedPortableEnvelopeDiagnosticPrivacyBoundaryV1
+typealias C54EncryptedPortableEnvelopeSpotlightBoundaryV1 =
+    C54EncryptedPortableEnvelopeDiagnosticPrivacyBoundaryV1
+typealias C54EncryptedPortableEnvelopeQuickLookBoundaryV1 =
+    C54EncryptedPortableEnvelopeDiagnosticPrivacyBoundaryV1

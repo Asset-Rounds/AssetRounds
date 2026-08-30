@@ -666,3 +666,14 @@ final class S2PersistenceLedgerTests: XCTestCase {
         Data(String(decoding: data, as: UTF8.self).replacingOccurrences(of: target, with: replacement).utf8)
     }
 }
+
+extension S2PersistenceLedgerTests {
+    func testV23P03C54EncryptedEnvelopeAddsNoPersistentModelWriterOrLedgerFamily() {
+        XCTAssertTrue(C54EncryptedPortableEnvelopeSyncClassificationBoundaryV1.validate())
+        XCTAssertEqual(C54EncryptedPortableEnvelopeSyncClassificationBoundaryV1.storeEnrollmentCount, 0)
+        XCTAssertEqual(C54EncryptedPortableEnvelopeSyncClassificationBoundaryV1.writerEnrollmentCount, 0)
+        XCTAssertEqual(C54EncryptedPortableEnvelopeSyncClassificationBoundaryV1.persistentModelCountAdded, 0)
+        XCTAssertFalse(EphemeralSecretHandlingDispositionV1.passphraseIsPersisted)
+        XCTAssertFalse(EphemeralSecretHandlingDispositionV1.derivedKeyIsPersisted)
+    }
+}
