@@ -107,7 +107,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         try assertFile(
             dispatcherPath,
             byteCount: 56_665,
-            sha256: "8DB0C9DC18B7543D191A1D3F69A89829104A25640A148FA8327261AC4784FAC5"
+            sha256: "1E52E3A3F5CE5276D05DBC556B95F7ECA1022E2CE378E35782AC0DB2FBF37B4E"
         )
         let dispatcherSource = try text(dispatcherPath)
         let bitriseProbePath = ".github/workflows/bitrise-build-hub-probe.yml"
@@ -121,11 +121,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         try assertFile(
             workflowPath,
             byteCount: 234_135,
-            sha256: "766552D0702F542AE6BCB97DB20B5CE037A8B73030D0FF7AD86AA86600B476C4"
+            sha256: "FE1588FCCC682647030B42C90935C8563977B3CBB2D4736B234C0BD8656A6A7F"
         )
         let workflowSource = try text(workflowPath)
-        let currentF25WatchdogTuple = "] == [420, 900, 1200, 2220, 4500]"
-        let retiredF25WatchdogTuple = "] == [420, 900, 1200, 1920, 4500]"
+        let currentF25WatchdogTuple = "] == [420, 900, 1200, 2520, 4500]"
+        let retiredF25WatchdogTuple = "] == [420, 900, 1200, 2220, 4500]"
         XCTAssertEqual(
             dispatcherSource.components(separatedBy: currentF25WatchdogTuple).count - 1,
             1
@@ -827,7 +827,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(workerExecutionSource.utf8.count, 101_018)
         XCTAssertEqual(
             Data(workerExecutionSource.utf8).sha256,
-            "EABAE368288FE25740DBFB9DDCAE1F6EACD9BACB15C627D4E7E171C1B60871AA"
+            "4194E3DAC190DAC173E0B64EE3EE76AD65DD4D4ED969984CE161797F2A850BEB"
         )
         let selectedSimulatorWait =
             "      - name: Await selected Simulator boot\n" +
@@ -889,7 +889,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(warpExecutionSource.utf8.count, 36_998)
         XCTAssertEqual(
             Data(warpExecutionSource.utf8).sha256,
-            "42FA9949B846E7F0F3510116110C5FBAE39652A19ED27AF6660A43DE259445A3"
+            "2874E4E53B4DF961B2A4596881258131A7951E62D234CC588FA8285A25635AEC"
         )
         XCTAssertEqual(
             warpExecutionSource.components(
@@ -1552,13 +1552,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             accessibilityFeatures
         )
 
-        let selector = #"{"schemaVersion":1,"taskID":"S10.4","tier":"F25","runUISmoke":true,"setupArtifactTimeoutSeconds":420,"buildTimeoutSeconds":900,"testTimeoutSeconds":1200,"uiTimeoutSeconds":2220,"totalBudgetSeconds":4500,"unitTestSelectors":["FieldEvidenceAppTests/S10_4AutomatedBrandLabTests"],"uiTestSelectors":["FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests"]}"# + "\n"
+        let selector = #"{"schemaVersion":1,"taskID":"S10.4","tier":"F25","runUISmoke":true,"setupArtifactTimeoutSeconds":420,"buildTimeoutSeconds":900,"testTimeoutSeconds":1200,"uiTimeoutSeconds":2520,"totalBudgetSeconds":4500,"unitTestSelectors":["FieldEvidenceAppTests/S10_4AutomatedBrandLabTests"],"uiTestSelectors":["FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests"]}"# + "\n"
         let selectorData = try data("Scripts/ci-selection.json")
         XCTAssertEqual(selectorData, Data(selector.utf8))
         XCTAssertEqual(selectorData.count, 354)
         XCTAssertEqual(
             selectorData.sha256,
-            "DFFD90763485EB63788291ED13E4725AC514F5E45954D5864C8827913C7416D6"
+            "692DD6F7DBCF771170191E7839C6B6281FB0A72603475FF2D0D81E35078330E2"
         )
 
         let shardContract = try json(shardPath)
@@ -20402,7 +20402,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         try assertFile(
             planPath,
             byteCount: 19_363,
-            sha256: "F8A3FE45A4DA39F8AD7125C20153DF4FCF67E986C46894429FF7485E829A4B34"
+            sha256: "FE7111FA069658B68B63460FEE053637363F7D4D69D4AA656297872E1ACE1764"
         )
         XCTAssertFalse(planSource.contains("\r"))
         XCTAssertEqual(try int(plan, "schemaVersion"), 1)
@@ -20481,7 +20481,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let exactKernelPins = [
             "selectorSHA256":
-                "DFFD90763485EB63788291ED13E4725AC514F5E45954D5864C8827913C7416D6",
+                "692DD6F7DBCF771170191E7839C6B6281FB0A72603475FF2D0D81E35078330E2",
             "shardContractSHA256":
                 "C023ADE99CAB0F9ED2984C90BCC0E03B0D05A05643DF7185201CC00772E3C8E4",
             "inventorySHA256":
@@ -20841,7 +20841,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             evidenceKernelData.sha256,
-            "28B41B4EA0D41214577243A2D18B4D3E4E9C1C41ABEE079D89DD9F418789C1C3"
+            "6133BA0616219FF2F7801E3C3C622C757E971D41F5EFE327B987CD26D7C1C5E6"
         )
         XCTAssertEqual(
             try string(plan, "evidenceKernelSHA256"),
@@ -24330,7 +24330,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         try assertFile(
             assemblerPath,
             byteCount: 35_765,
-            sha256: "748B54D7BF2339A5622B027D6A7FE63C969AEC602E25CE69264E77AE14A1194D"
+            sha256: "F5BEB8969193597988D9F12D46ABF3523CF7112B7FF3DBF2D754D8BADF88F47D"
         )
         XCTAssertFalse(assemblerSource.contains("\r"))
         XCTAssertTrue(
