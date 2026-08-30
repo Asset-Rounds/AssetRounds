@@ -3704,8 +3704,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             workValidationRouteSource[workValidationBaselineRange.lowerBound...]
         )
         for (source, bytes, sha256) in [
-            (workValidationPrefixSource, 437,
-             "BE69C6C019B926DE04A7504C4E21296EC2334482485DCF1A9076ABEB354AFDE4"),
+            (workValidationPrefixSource, 490,
+             "15FCAE2B6BB16C79921E6AA4B299FC00B64D44137CB1E0B73D6D8523EA5BD449"),
             (workValidationGateSource, 466,
              "2902A778908209C97C3B4F1508040331BB439B49C5D8187E47D46CFE79D18453"),
             (workValidationTailSource, 100,
@@ -8377,10 +8377,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 workEditingPositioningStartRange.lowerBound..<workEditingPositioningEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(workEditingPositioningSource.utf8.count, 19_803)
+        XCTAssertEqual(workEditingPositioningSource.utf8.count, 19_823)
         XCTAssertEqual(
             Data(workEditingPositioningSource.utf8).sha256,
-            "0E05EB39D69FE3342CEF60B2514346543F32560ED4CB6C6875CC9744D06F56A4"
+            "37C042B0B3BA97FD04E5262EA6E0DD0171D06454FB0A46021A02107E2EBC8C4A"
         )
         let workEditingRouteBeforeEvidence =
             #"        let workPreview = element("s5.1.work.photo", in: app)"# + "\n" +
@@ -8389,6 +8389,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 workEditingPositioningStart
         XCTAssertEqual(
             uiSource.components(separatedBy: workEditingRouteBeforeEvidence).count - 1,
+            1
+        )
+        let recordWorkTitleObservation =
+            #"        assertControl(saveWork, label: "Record work")"# + "\n" +
+                "        let observedRecordWorkTitle = saveWork.label\n" +
+                "        saveWork.tap()"
+        XCTAssertEqual(
+            uiSource.components(separatedBy: recordWorkTitleObservation).count - 1,
             1
         )
         for (workEditingLocalizedLabelBinding, count) in [
@@ -8479,7 +8487,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 #"            identifier: "s5.1.work.photo""# + "\n" +
                 "        )\n" +
                 "        let workNavigationBars = app.navigationBars.matching(\n" +
-                #"            identifier: "Record work""# + "\n" +
+                "            identifier: observedRecordWorkTitle\n" +
                 "        )"
         XCTAssertEqual(
             workEditingPositioningSource.components(
@@ -8577,7 +8585,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             (#"workScrollView.label == """#, 1),
             (#"(workScrollView.value as? String) == """#, 1),
             ("workNavigationBar.elementType == .navigationBar", 1),
-            (#"workNavigationBar.identifier == "Record work""#, 1),
+            ("workNavigationBar.identifier == observedRecordWorkTitle", 1),
             (#"workNavigationBar.label == """#, 1),
             (#"(workNavigationBar.value as? String) == """#, 1),
             ("workEditingTabBar.elementType == .tabBar", 1),
@@ -8593,6 +8601,18 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 workEditingIdentityLock
             )
         }
+        XCTAssertEqual(
+            workEditingPositioningSource.components(
+                separatedBy: #"identifier: "Record work""#
+            ).count - 1,
+            0
+        )
+        XCTAssertEqual(
+            workEditingPositioningSource.components(
+                separatedBy: #"workNavigationBar.identifier == "Record work""#
+            ).count - 1,
+            0
+        )
 
         let workEditingFrameValidator =
             "        let workEditingFrameIsValid: (CGRect) -> Bool = { frame in\n" +
@@ -20816,10 +20836,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 781_351)
+        XCTAssertEqual(uiSource.utf8.count, 781_424)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "523BDD0DD3C6F440F488ACCDB2D1BDFC59AE5F366BA89260AF2A434D71E7FF12"
+            "DFBB89D59809377BFD014578EA764139075F62604496CF29C83549B31DC23746"
         )
         let assertControlSource = try boundedSource(
             uiSource,

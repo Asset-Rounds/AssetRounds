@@ -4818,6 +4818,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let saveWork = element("s5.1.work.save", in: app)
         scroll(saveWork, in: app)
         assertControl(saveWork, label: "Record work")
+        let observedRecordWorkTitle = saveWork.label
         saveWork.tap()
         let validation = element("s5.1.work.validation", in: app)
         XCTAssertTrue(validation.waitForExistence(timeout: 10))
@@ -4873,7 +4874,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             identifier: "s5.1.work.photo"
         )
         let workNavigationBars = app.navigationBars.matching(
-            identifier: "Record work"
+            identifier: observedRecordWorkTitle
         )
         let workHelper = workHelperTexts.firstMatch
         let minimumOSWorkImportFixtureLabel = workHelperTexts.element(boundBy: 1)
@@ -4953,7 +4954,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && workScrollView.label == ""
                 && (workScrollView.value as? String) == ""
                 && workNavigationBar.elementType == .navigationBar
-                && workNavigationBar.identifier == "Record work"
+                && workNavigationBar.identifier == observedRecordWorkTitle
                 && workNavigationBar.label == ""
                 && (workNavigationBar.value as? String) == ""
                 && workEditingTabBar.elementType == .tabBar
