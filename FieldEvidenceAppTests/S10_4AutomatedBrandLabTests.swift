@@ -20850,10 +20850,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 782_860)
+        XCTAssertEqual(uiSource.utf8.count, 783_682)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "0F646508D633E76C6C77B5FE44E68E11A77114A546398C4E4A722AE35034715A"
+            "875F40F5398DEDB36C4C85ACE2E2401AFCB3C1B7E687EFA6225C59BF545FD04D"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,
@@ -22840,24 +22840,35 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "\n\n    @MainActor\n" +
                     "    private func diagnoseSegment3AXTextSignSelectionNativeContrast("
         )
-        XCTAssertEqual(settingsHubDiagnosticSource.utf8.count, 11_968)
+        XCTAssertEqual(settingsHubDiagnosticSource.utf8.count, 12_419)
         XCTAssertEqual(
             Data(settingsHubDiagnosticSource.utf8).sha256,
-            "8AFF9F21E17A9BA3C545AE41BA1992BF2EB6776B092BEBD43AD60812E346B02D"
+            "A80654A2D41C8DA6DB093C75BB4FB3850F7F9010B3DB17A4E7F27F6D6B6CEB81"
         )
         for exact in [
             #"let stateID = "state.settings.hub""#,
-            #"Self.segmentedRouteStateIDs[50..<59]"#,
-            #"Self.segmentedRouteStateIDs[50..<58]"#,
+            #"Self.segmentedRouteStateIDs.prefix(59)"#,
+            #"Self.segmentedRouteStateIDs.prefix(58)"#,
+            #""state.check-preflight.ready""#,
+            #""state.issue.open""#,
+            #""state.issue.recheck-due""#,
+            #""state.issue.resolved""#,
+            #""state.new-sign.editing""#,
+            #""state.paywall.purchase-complete""#,
+            #""state.recheck-capture.wide-ready""#,
+            #""state.recheck-preflight.ready""#,
             #""state.report-correction.validation-error""#,
+            #""state.report-history.ready""#,
+            #""state.reports-index.ready""#,
+            #""state.work.validation-error""#,
             #"shard.shardID == "s10.4.current.ax-text""#,
-            #"automationSegment == .segment3"#,
-            #"automationSegment.replayCount == 22"#,
-            #"automationSegment.ownedStartOrdinal == 51"#,
-            #"automationSegment.ownedCount == 17"#,
+            #"automationSegment == .none"#,
+            #"automationSegment.replayCount == 0"#,
+            #"automationSegment.ownedStartOrdinal == 1"#,
+            #"automationSegment.ownedCount == 67"#,
             #"automationSegment.finalOrdinal == 67"#,
             #"Self.segmentedRouteStateIDs[58] == stateID"#,
-            #"segmentedRouteStateCursor == 59"#,
+            #"segmentedRouteStateCursor == 0"#,
             #"migratedStateIDs == expectedMigratedStateIDs"#,
             #"automationAXTreeDigests.keys.sorted()"#,
             #"automationContrastExceptions.keys.sorted()"#,
@@ -22904,6 +22915,36 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertTrue(settingsHubDiagnosticSource.contains(exact), exact)
         }
+        let expectedSettingsHubContrastExceptionStateIDs = [
+            "state.check-preflight.ready",
+            "state.issue.open",
+            "state.issue.recheck-due",
+            "state.issue.resolved",
+            "state.new-sign.editing",
+            "state.paywall.purchase-complete",
+            "state.recheck-capture.wide-ready",
+            "state.recheck-preflight.ready",
+            "state.report-correction.validation-error",
+            "state.report-history.ready",
+            "state.reports-index.ready",
+            "state.work.validation-error",
+        ]
+        XCTAssertEqual(
+            expectedSettingsHubContrastExceptionStateIDs,
+            expectedSettingsHubContrastExceptionStateIDs.sorted()
+        )
+        let expectedSettingsHubContrastExceptionSource =
+            "        let expectedContrastExceptionStateIDs = [\n"
+            + expectedSettingsHubContrastExceptionStateIDs.map {
+                "            \"\($0)\",\n"
+            }.joined()
+            + "        ]"
+        XCTAssertEqual(
+            settingsHubDiagnosticSource.components(
+                separatedBy: expectedSettingsHubContrastExceptionSource
+            ).count - 1,
+            1
+        )
         var settingsHubQueryTail =
             settingsHubDiagnosticSource[settingsHubDiagnosticSource.startIndex...]
         for queryName in [
@@ -23158,10 +23199,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "    private func captureBaseline(\n",
             before: "\n\n    @MainActor\n    private func shouldPrepareNormalEvidence("
         )
-        XCTAssertEqual(captureSource.utf8.count, 8_124)
+        XCTAssertEqual(captureSource.utf8.count, 8_495)
         XCTAssertEqual(
             Data(captureSource.utf8).sha256,
-            "78070B06CBBFA8F6063BE8E4DB6FCC74AFFD1F3A0BCC0B146AEEFF2C0DFCC427"
+            "76A954FEA47A704E34D588C5DA08BCC535A974C27A4A4D15EEA5B21528F1A443"
         )
         let captureReplayGateSource = try boundedSource(
             captureSource,
@@ -23182,12 +23223,32 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let normalMarker = try XCTUnwrap(
             captureSource.range(of: "print(\"S10_MIGRATION_STATE state=\\(stateID)\")")
         )
+        let hostedNotificationCleanup = try XCTUnwrap(
+            captureSource.range(
+                of: "dismissHostedAppleIntelligenceNotificationIfPresent(",
+                range: normalMarker.upperBound..<captureSource.endIndex
+            )
+        )
+        let settingsHubDiagnosticCall = try XCTUnwrap(
+            captureSource.range(
+                of: "try diagnoseSegment3AXTextSettingsHubNativeContrast(in: app)",
+                range: hostedNotificationCleanup.upperBound..<captureSource.endIndex
+            )
+        )
         let normalExceptionLookup = try XCTUnwrap(
             captureSource.range(of: "let eligibleExceptions =")
         )
         XCTAssertLessThan(replayCall.lowerBound, normalAppend.lowerBound)
         XCTAssertLessThan(normalAppend.lowerBound, normalMarker.lowerBound)
-        XCTAssertLessThan(normalMarker.lowerBound, normalExceptionLookup.lowerBound)
+        XCTAssertLessThan(normalMarker.lowerBound, hostedNotificationCleanup.lowerBound)
+        XCTAssertLessThan(
+            hostedNotificationCleanup.lowerBound,
+            settingsHubDiagnosticCall.lowerBound
+        )
+        XCTAssertLessThan(
+            settingsHubDiagnosticCall.lowerBound,
+            normalExceptionLookup.lowerBound
+        )
         XCTAssertEqual(
             captureSource.components(
                 separatedBy: "try diagnoseSegment2AXTextIssueResolvedNativeContrast(in: app)"
@@ -23214,11 +23275,20 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             0
         )
-        XCTAssertFalse(
-            captureSource.contains(
-                "try diagnoseSegment3AXTextSettingsHubNativeContrast(in: app)"
-            )
+        XCTAssertEqual(
+            captureSource.components(
+                separatedBy: "try diagnoseSegment3AXTextSettingsHubNativeContrast(in: app)"
+            ).count - 1,
+            1
         )
+        for exact in [
+            #"shard.shardID == "s10.4.current.ax-text""#,
+            #"automationSegment == .none"#,
+            #"stateID == "state.settings.hub""#,
+            #"XCTFail(String(describing: error), file: file, line: line)"#,
+        ] {
+            XCTAssertTrue(captureSource.contains(exact), exact)
+        }
         XCTAssertFalse(captureSource.contains("segmentedRouteStateCursor += 1"))
 
         let preparationPredicateSource = try boundedSource(

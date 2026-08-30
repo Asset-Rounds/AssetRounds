@@ -11300,6 +11300,16 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             file: file,
             line: line
         )
+        if shard.shardID == "s10.4.current.ax-text",
+           automationSegment == .none,
+           stateID == "state.settings.hub" {
+            do {
+                try diagnoseSegment3AXTextSettingsHubNativeContrast(in: app)
+            } catch {
+                XCTFail(String(describing: error), file: file, line: line)
+            }
+            return
+        }
         do {
             let eligibleExceptions = Self.contrastAuditExceptionSignatures.filter {
                 $0.shardID == shard.shardID && $0.stateID == stateID
@@ -13942,25 +13952,36 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     ) throws {
         let stateID = "state.settings.hub"
         let expectedMigratedStateIDs = Array(
-            Self.segmentedRouteStateIDs[50..<59]
+            Self.segmentedRouteStateIDs.prefix(59)
         )
         let expectedAXTreeDigestStateIDs = Array(
-            Self.segmentedRouteStateIDs[50..<58]
+            Self.segmentedRouteStateIDs.prefix(58)
         )
         let expectedContrastExceptionStateIDs = [
+            "state.check-preflight.ready",
+            "state.issue.open",
+            "state.issue.recheck-due",
+            "state.issue.resolved",
+            "state.new-sign.editing",
+            "state.paywall.purchase-complete",
+            "state.recheck-capture.wide-ready",
+            "state.recheck-preflight.ready",
             "state.report-correction.validation-error",
+            "state.report-history.ready",
+            "state.reports-index.ready",
+            "state.work.validation-error",
         ]
         guard let shard = automationShard,
               shard.shardID == "s10.4.current.ax-text",
-              automationSegment == .segment3,
-              automationSegment.replayCount == 22,
-              automationSegment.ownedStartOrdinal == 51,
-              automationSegment.ownedCount == 17,
+              automationSegment == .none,
+              automationSegment.replayCount == 0,
+              automationSegment.ownedStartOrdinal == 1,
+              automationSegment.ownedCount == 67,
               automationSegment.finalOrdinal == 67,
               Self.segmentedRouteStateIDs.count == 67,
               Set(Self.segmentedRouteStateIDs).count == 67,
               Self.segmentedRouteStateIDs[58] == stateID,
-              segmentedRouteStateCursor == 59,
+              segmentedRouteStateCursor == 0,
               migratedStateIDs == expectedMigratedStateIDs,
               automationAXTreeDigests.keys.sorted()
                 == expectedAXTreeDigestStateIDs.sorted(),
