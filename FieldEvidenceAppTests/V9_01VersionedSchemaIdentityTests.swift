@@ -379,16 +379,16 @@ final class V9_01VersionedSchemaIdentityTests: XCTestCase {
         )
         XCTAssertEqual(
             PersistentSchemaReleaseRegistryV1.releases,
-            [.v1, .v2, .v3, .v4, .v5, .v6, .v7, .v8, .v9, .v10, .v11]
+            [.v1, .v2, .v3, .v4, .v5, .v6, .v7, .v8, .v9, .v10, .v11, .v12, .v13, .v14, .v15, .v16, .v17, .v18, .v19, .v20, .v21, .v22, .v23, .v24, .v25, .v26, .v27, .v28, .v29, .v30, .v31, .v32, .v33, .v34, .v35, .v36, .v37, .v38, .v39, .v40, .v41, .v42]
         )
-        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeRelease, .v11)
+        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeRelease, .v42)
         XCTAssertEqual(
             PersistentSchemaReleaseRegistryV1.activeVersionIdentifier,
-            PersistentSchemaV11.versionIdentifier
+            PersistentSchemaV42.versionIdentifier
         )
         XCTAssertEqual(
             PersistentSchemaReleaseRegistryV1.activeCompatibilityID,
-            PersistentSchemaReleaseRegistryV1.v11CompatibilityID
+            PersistentSchemaReleaseRegistryV1.v42CompatibilityID
         )
         XCTAssertNoThrow(try PersistentSchemaReleaseRegistryV1.validate())
         XCTAssertEqual(
@@ -1271,6 +1271,22 @@ extension C50VersionedSchemaIdentityTests {
 }
 
 extension V9_01VersionedSchemaIdentityTests {
+    func testC57V42AddsExactlyTwoMyDayHistoryModels() throws {
+        XCTAssertEqual(PersistentSchemaV42.versionIdentifier, Schema.Version(42, 0, 0))
+        XCTAssertEqual(PersistentSchemaV42.models.count, 142)
+        XCTAssertEqual(
+            PersistentSchemaV42.models.suffix(2).map { ObjectIdentifier($0) },
+            [ObjectIdentifier(MyDayPlanRowV1.self), ObjectIdentifier(MyDayCarryoverReceiptRowV1.self)]
+        )
+        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeRelease, .v42)
+        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.releases.count, 42)
+        XCTAssertEqual(ObjectIdentifier(PersistentSchemaReleaseRegistryV1.activeMigrationPlan),
+                       ObjectIdentifier(PersistentSchemaMigrationPlanV41.self))
+        XCTAssertEqual(PersistentSchemaMigrationPlanV41.schemas.map { ObjectIdentifier($0) },
+                       [ObjectIdentifier(PersistentSchemaV41.self), ObjectIdentifier(PersistentSchemaV42.self)])
+        XCTAssertNoThrow(try PersistentSchemaReleaseRegistryV1.validate())
+    }
+
     func testV23P03C34SceneSnapshotRoundTripKeepsVersionAndStableIDs() throws {
         let workspaceID = WorkspaceID(
             rawValue: UUID(uuidString: "00000000-0000-4000-8000-000000003405")!

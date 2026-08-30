@@ -1281,6 +1281,107 @@ private final class C49WorkResourceSearchBoundaryTests: XCTestCase {
     }
 }
 
+private enum C57MyDaySearchFixtureV1 {
+    static let evaluatedAt = Date(timeIntervalSince1970: 1_804_000_000)
+    static func id(_ prefix: String, _ value: Int) -> UUID {
+        UUID(uuidString: "\(prefix)0000-0000-4000-8000-" + String(format: "%012x", value))!
+    }
+    static func values(prefix: String = "c57a") throws
+        -> (MyDayPlanV1, MyDayReadinessProjectionV1) {
+        let workspace = WorkspaceID(rawValue: id(prefix, 1))
+        let actorReference = try LocalActorReferenceV1(
+            actorReferenceID: id(prefix, 2), workspaceID: workspace,
+            displayName: "C57 search recorder"
+        )
+        let actor = try ActorSnapshotV1(
+            snapshotID: id(prefix, 3), workspaceID: workspace, actor: actorReference,
+            responsibility: .recordedBy, displayNameAtTime: actorReference.displayName,
+            capturedAt: evaluatedAt
+        )
+        let references: [MyDayEligibleReferenceV1] = [
+            .roundSession(workspaceID: workspace, sessionID: id(prefix, 10), revision: 1,
+                          sessionSHA256: String(repeating: "a", count: 64)),
+            .resumableDraft(workspaceID: workspace, draftID: id(prefix, 11), revision: 1,
+                            checkpointSHA256: String(repeating: "b", count: 64),
+                            anchor: try DraftResumeAnchorV1(
+                                sectionID: "c57-owner", fieldID: "c57-field",
+                                selectedStableID: "c57-selection", boundedPosition: 1
+                            )),
+        ]
+        let items = try references.enumerated().map { index, reference in
+            try MyDayItemV1(
+                membershipID: id(prefix, 20 + index), reference: reference,
+                manualOrder: index,
+                estimate: index == 0 ? .init(wholeMinutes: 45) : nil
+            )
+        }
+        let plan = try MyDayPlanV1(
+            planID: id(prefix, 30),
+            key: .init(workspaceID: workspace,
+                       civilDate: try .init(year: 2026, month: 8, day: 30),
+                       ianaTimeZoneIdentifier: "America/New_York"),
+            items: items, revision: 1,
+            mutationID: try .init(rawValue: id(prefix, 31)),
+            authoredBy: actor, authoredAt: evaluatedAt
+        )
+        let frontiers = try items.enumerated().map { index, item in
+            try MyDaySourceFrontierV1(
+                membershipID: item.membershipID, plannedReference: item.reference,
+                currentReference: item.reference,
+                state: index == 0 ? .active : .completed,
+                readiness: index == 0 ? .ready : .notReady,
+                dueAt: index == 0 ? evaluatedAt.addingTimeInterval(3_600) : nil,
+                evaluatedAt: evaluatedAt
+            )
+        }
+        return (plan, try MyDayReadinessProjectionV1(
+            plan: plan, evaluatedAt: evaluatedAt, frontiers: frontiers
+        ))
+    }
+}
+
+private final class C57MyDayLocalSearchProjectionTests: XCTestCase {
+    func testC57SearchIsDeterministicWorkspaceScopedDisposableAndSourcePrivate() throws {
+        let (plan, readiness) = try C57MyDaySearchFixtureV1.values()
+        let first = try C57MyDaySearchRebuildBoundaryV1.records(
+            plans: [plan], readiness: [readiness]
+        )
+        let second = try C57MyDaySearchRebuildBoundaryV1.records(
+            plans: [plan], readiness: [readiness]
+        )
+        XCTAssertEqual(first, second)
+        XCTAssertEqual(first.count, 2)
+        XCTAssertTrue(first.allSatisfy { $0.sourceClosureSHA256 == readiness.sourceClosureSHA256 })
+        XCTAssertTrue(first.allSatisfy { !$0.normalizedTokens.contains(where: { $0.contains("c57-owner") }) })
+
+        let ready = try SearchCoordinatorV1.searchMyDayMetadata(
+            query: "ready", workspaceID: plan.key.workspaceID, records: first
+        )
+        XCTAssertEqual(ready.map(\.membershipID), [plan.items[0].membershipID])
+        XCTAssertThrowsError(try C57MyDaySearchRebuildBoundaryV1.records(
+            plans: [plan], readiness: []
+        ))
+
+        let bytes = try C57MyDayLocalSearchIndexBoundaryV1.serializedEnvelope(
+            plan: plan, readiness: readiness
+        )
+        XCTAssertNil(bytes.range(of: Data(C57MyDaySearchFixtureV1.id("c57a", 10).uuidString.utf8)))
+        XCTAssertNil(bytes.range(of: Data(C57MyDaySearchFixtureV1.id("c57a", 10).uuidString.lowercased().utf8)))
+        XCTAssertNil(bytes.range(of: Data("1804003600000".utf8)))
+        XCTAssertNil(bytes.range(of: Data("C57 search recorder".utf8)))
+
+        let (otherPlan, otherReadiness) = try C57MyDaySearchFixtureV1.values(prefix: "c57b")
+        let other = try C57MyDaySearchRebuildBoundaryV1.records(
+            plans: [otherPlan], readiness: [otherReadiness]
+        )
+        XCTAssertThrowsError(try SearchCoordinatorV1.searchMyDayMetadata(
+            query: "ready", workspaceID: plan.key.workspaceID, records: first + other
+        )) {
+            XCTAssertEqual($0 as? SearchContractFailureV1, .scopeMismatch)
+        }
+    }
+}
+
 extension V9_19LocalSearchTests {
     func testV23P03C34SearchAnchorIsSortedBoundedAndStable() throws {
         let anchor = try RouteSearchAnchorV1(

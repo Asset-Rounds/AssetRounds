@@ -41,6 +41,17 @@ private final class C30EvidenceContextAnchorV9_17KernelPersistence: XCTestCase {
 }
 
 final class V9_17KernelPersistenceTests: XCTestCase {
+    func testC57MyDayPlanRowsUseImmutableCompositeRevisionIdentity() {
+        let planID = UUID(uuidString: "00000000-0000-4000-8000-000000005701")!
+        XCTAssertEqual(MyDayPlanRowV1.rowID(planID: planID, revision: 1),
+                       "00000000-0000-4000-8000-000000005701|00000000000000000001")
+        XCTAssertNotEqual(MyDayPlanRowV1.rowID(planID: planID, revision: 1),
+                          MyDayPlanRowV1.rowID(planID: planID, revision: 2))
+        XCTAssertEqual(PersistentSchemaV42.models.count, 142)
+        XCTAssertTrue(PersistentSchemaV42.models.contains { ObjectIdentifier($0) == ObjectIdentifier(MyDayPlanRowV1.self) })
+        XCTAssertTrue(PersistentSchemaV42.models.contains { ObjectIdentifier($0) == ObjectIdentifier(MyDayCarryoverReceiptRowV1.self) })
+    }
+
     func testV23P03C37TypedPoseContractAnchor() throws {
         let axis = try PoseAxisDescriptorV1(
             axisID: PoseAxisID(rawValue: "axis.c37.anchor"),

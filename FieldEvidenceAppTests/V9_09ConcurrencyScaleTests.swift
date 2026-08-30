@@ -967,6 +967,24 @@ final class V9_09ConcurrencyScaleTests: XCTestCase {
     }
 }
 
+extension V9_09ConcurrencyScaleTests {
+    func testV23P03C57ConcurrencySurfaceIsBoundedAndSendable() throws {
+        func requireSendable<T: Sendable>(_: T) {}
+        let fixture = try C57MyDayExistingSuiteFixtureV1.make()
+        requireSendable(fixture.saveCommand)
+        requireSendable(fixture.carryoverCommand)
+        requireSendable(fixture.sourcePlan)
+        requireSendable(fixture.carryoverReceipt)
+        XCTAssertEqual(MyDayLimitsV1.maximumItems, 50)
+        XCTAssertEqual(MyDayLimitsV1.minimumEstimateMinutes, 1)
+        XCTAssertEqual(MyDayLimitsV1.maximumEstimateMinutes, 720)
+        XCTAssertNotEqual(
+            try fixture.saveCommand.canonicalSHA256(),
+            try fixture.carryoverCommand.canonicalSHA256()
+        )
+    }
+}
+
 private actor V909Gate {
     private var isOpen = false
     private var continuations: [CheckedContinuation<Void, Never>] = []

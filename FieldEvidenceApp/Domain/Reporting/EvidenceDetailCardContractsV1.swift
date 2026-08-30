@@ -2174,3 +2174,23 @@ enum C53ServiceReliabilityEvidenceDetailBoundaryV1 {
         return value
     }
 }
+
+// MARK: - C57 My Day evidence-detail guard
+
+enum C57MyDayEvidenceDetailProjectionGuardV1 {
+    static let acceptsDerivedProjectionOnly = true
+    static let readinessStatusAndDueAreNotWriterInputs = true
+
+    static func validate(
+        _ projection: C57MyDayReportProjectionV1,
+        plan: MyDayPlanV1,
+        readiness: MyDayReadinessProjectionV1
+    ) throws -> C57MyDayReportProjectionV1 {
+        do {
+            try projection.validate(plan: plan, readiness: readiness)
+            return projection
+        } catch {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+    }
+}

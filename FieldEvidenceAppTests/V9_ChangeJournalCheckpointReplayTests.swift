@@ -7,6 +7,35 @@ private enum C52ServiceRequestBoundary_V9_ChangeJournalCheckpointReplayTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
+extension V9_ChangeJournalCheckpointReplayTests {
+    func testV23P03C57JournalContractBindsAtomicCarryoverImagesOnly() throws {
+        let fixture = try C57MyDayExistingSuiteFixtureV1.make()
+        let expected = try fixture.expectedRevision(
+            for: fixture.carryoverCommand,
+            workspaceRevision: 1,
+            generationID: UUID(uuidString: "57000000-0000-4000-8000-000000000301")!,
+            writerInstanceID: UUID(uuidString: "57000000-0000-4000-8000-000000000302")!
+        )
+        let mutation = try MyDayMutationV1(
+            command: fixture.carryoverCommand,
+            expectedRevision: expected
+        )
+        XCTAssertEqual(MyDayChangeJournalPolicyV1.commandKind, .applyMyDay)
+        XCTAssertTrue(MyDayChangeJournalPolicyV1.sourceAndTargetCarryoverIsAtomic)
+        XCTAssertTrue(MyDayChangeJournalPolicyV1.readinessAndDueAreDerived)
+        XCTAssertEqual(try mutation.affectedIdentities.count, 2)
+        XCTAssertEqual(try mutation.concurrencyIdentities.count, 3)
+        XCTAssertEqual(
+            try mutation.affectedIdentities,
+            try mutation.mutationPostImages.map { try $0.identity }
+        )
+        XCTAssertEqual(Set(try mutation.mutationPostImages.map { try $0.identity.kind }), [
+            .myDayPlan, .myDayCarryoverReceipt,
+        ])
+        XCTAssertFalse(try MyDayCanonicalCodecV1.data(fixture.carryoverCommand).isEmpty)
+    }
+}
+
 private enum C53AssetServiceReliabilityBoundary_V9_ChangeJournalCheckpointReplayTests {
     static let typedAnchor: C53AssetServiceReliabilityBoundaryTokenV1.Type = C53AssetServiceReliabilityBoundaryTokenV1.self
 }

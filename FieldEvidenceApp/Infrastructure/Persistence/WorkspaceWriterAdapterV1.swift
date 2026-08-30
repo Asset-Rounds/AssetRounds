@@ -51,6 +51,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             .applyPortableReview,
             .applyWorkResource,
             .applyPartsStock,
+            .applyMyDay,
             .applyServiceRequest,
             .applyServiceReliability,
         ])
@@ -223,6 +224,8 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             return try applyWorkResource(value, temporaryRelativePath: temporaryRelativePath)
         case let .applyPartsStock(value):
             return try applyPartsStock(value, temporaryRelativePath: temporaryRelativePath)
+        case let .applyMyDay(value):
+            return try applyMyDay(value, temporaryRelativePath: temporaryRelativePath)
         case let .applyServiceRequest(value):
             return try applyServiceRequest(value, temporaryRelativePath: temporaryRelativePath)
         case let .applyServiceReliability(value):
@@ -237,6 +240,229 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
              .archiveEntities:
             throw WorkspaceMutationFailureV1.unsupportedCommand
         }
+    }
+
+    private func requireCurrentMyDaySources(
+        _ items: [MyDayItemV1],
+        workspaceID: WorkspaceID
+    ) throws {
+        for item in items {
+            switch item.reference {
+            case let .workPacket(reference):
+                let rows = try modelContext.fetch(FetchDescriptor<WorkPacketManifestRow>(
+                    predicate: #Predicate { $0.manifestID == reference.manifestID }
+                ))
+                guard rows.count == 1,
+                      let value = try rows.first?.value(),
+                      value.workspaceID == workspaceID,
+                      try WorkPacketManifestReferenceV1(value) == reference else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            case let .roundSession(referenceWorkspaceID, sessionID, revision, digest):
+                let rows = try modelContext.fetch(FetchDescriptor<SurveySessionRow>(
+                    predicate: #Predicate { $0.sessionID == sessionID }
+                ))
+                guard rows.count == 1,
+                      let value = try rows.first?.value(),
+                      referenceWorkspaceID == workspaceID,
+                      value.workspaceID == workspaceID,
+                      value.revision == revision,
+                      value.sessionSHA256 == digest,
+                      ![.superseded, .archived, .deleted].contains(value.state) else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            case let .scheduleOccurrence(anchor, digest):
+                let rows = try modelContext.fetch(FetchDescriptor<OccurrenceHistoryEventRow>())
+                let events = try rows.map { try $0.value() }.filter {
+                    $0.workspaceID == workspaceID && $0.occurrenceID == anchor.occurrenceID
+                }.sorted { $0.revision < $1.revision }
+                guard !events.isEmpty,
+                      Set(events.map(\.revision)).count == events.count,
+                      events.first?.revision == 1 else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+                try events[0].validate(predecessor: nil)
+                for index in events.indices.dropFirst() {
+                    try events[index].validate(predecessor: events[index - 1])
+                }
+                guard let current = events.last,
+                      try C34OccurrenceNavigationAnchorV1(event: current) == anchor,
+                      current.eventSHA256 == digest,
+                      current.action != .complete,
+                      !(current.exception.map {
+                          [.skipped, .cancelled, .missed, .retiredForRuleChange].contains($0.kind)
+                      } ?? false) else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            case let .resumableDraft(referenceWorkspaceID, draftID, revision, digest, anchor):
+                guard let value = try exactDraftCheckpoint(draftID, workspaceID: workspaceID),
+                      referenceWorkspaceID == workspaceID,
+                      value.draftRevision == revision,
+                      value.checkpointSHA256 == digest,
+                      value.resumeAnchor == anchor,
+                      [.active, .conflicted, .recoveryRequired].contains(value.state) else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            }
+        }
+    }
+
+    /// The My Day rows deliberately retain only canonical membership/order
+    /// truth.  Source work, schedule, readiness, and due-state are read-only
+    /// inputs to the command and are never projected into this mutation.
+    private func applyMyDay(
+        _ mutation: MyDayMutationV1,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1 {
+        do {
+            try mutation.validate()
+            let successor = mutation.resultingPlan
+            try requireCurrentMyDaySources(successor.items, workspaceID: mutation.workspaceID)
+            let planRows = try modelContext.fetch(FetchDescriptor<MyDayPlanRowV1>())
+            let decodedPlans = try planRows.map { try $0.value() }
+            func lineage(planID: UUID) throws -> [MyDayPlanV1] {
+                let values = decodedPlans.filter { $0.planID == planID }.sorted { $0.revision < $1.revision }
+                guard values.allSatisfy({ $0.key.workspaceID == mutation.workspaceID }),
+                      Set(values.map(\.revision)).count == values.count else {
+                    throw WorkspaceMutationFailureV1.persistenceFailed
+                }
+                for (offset, value) in values.enumerated() {
+                    if offset == 0 {
+                        guard value.revision == 1, value.predecessorPlanSHA256 == nil else {
+                            throw WorkspaceMutationFailureV1.persistenceFailed
+                        }
+                    } else {
+                        try value.validate(predecessor: values[offset - 1])
+                    }
+                }
+                return values
+            }
+            let existingLineage = try lineage(planID: successor.planID)
+            let sameKey = decodedPlans.filter { $0.key == successor.key }
+            guard Set(sameKey.map(\.planID)).count <= 1,
+                  sameKey.first.map({ $0.planID == successor.planID }) ?? true else {
+                throw WorkspaceMutationFailureV1.sequenceCollision
+            }
+
+            switch mutation.command {
+            case let .save(value, predecessor):
+                guard value == successor else { throw WorkspaceMutationFailureV1.invalidCommand }
+                if let predecessor {
+                    guard let persistedTip = existingLineage.last,
+                          persistedTip == predecessor,
+                          predecessor.key.workspaceID == mutation.workspaceID else {
+                        throw WorkspaceMutationFailureV1.staleEntityRevision(
+                            try .init(kind: .myDayPlan, id: successor.planID)
+                        )
+                    }
+                    try value.validate(predecessor: predecessor)
+                    modelContext.insert(try MyDayPlanRowV1(successor))
+                } else {
+                    guard existingLineage.isEmpty, sameKey.isEmpty, successor.revision == 1 else {
+                        throw WorkspaceMutationFailureV1.sequenceCollision
+                    }
+                    modelContext.insert(try MyDayPlanRowV1(successor))
+                }
+
+            case let .carryover(plan, source, target, receipt):
+                guard target == successor,
+                      source.key.workspaceID == mutation.workspaceID,
+                      try MyDayPlanReferenceV1(source) == plan.sourcePlan,
+                      try MyDayPlanReferenceV1(target) == receipt.targetPlan else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+                let sourceLineage = try lineage(planID: source.planID)
+                guard sourceLineage.contains(source),
+                      try MyDayPlanReferenceV1(source) == plan.sourcePlan else {
+                    throw WorkspaceMutationFailureV1.staleEntityRevision(
+                        try .init(kind: .myDayPlan, id: source.planID)
+                    )
+                }
+                if let expected = plan.expectedTargetPlan {
+                    guard let persistedTip = existingLineage.last,
+                          expected.planID == target.planID else {
+                        throw WorkspaceMutationFailureV1.staleEntityRevision(
+                            try .init(kind: .myDayPlan, id: target.planID)
+                        )
+                    }
+                    guard persistedTip == expected,
+                          target.predecessorPlanSHA256 == persistedTip.planSHA256 else {
+                        throw WorkspaceMutationFailureV1.staleEntityRevision(
+                            try .init(kind: .myDayPlan, id: target.planID)
+                        )
+                    }
+                    try target.validate(predecessor: persistedTip)
+                    modelContext.insert(try MyDayPlanRowV1(target))
+                } else {
+                    guard existingLineage.isEmpty, sameKey.isEmpty, target.revision == 1 else {
+                        throw WorkspaceMutationFailureV1.sequenceCollision
+                    }
+                    modelContext.insert(try MyDayPlanRowV1(target))
+                }
+                let receipts = try modelContext.fetch(FetchDescriptor<MyDayCarryoverReceiptRowV1>()).filter {
+                    $0.receiptSHA256 == receipt.receiptSHA256 ||
+                    ($0.workspaceID == mutation.workspaceID.rawValue && $0.mutationID == mutation.mutationID.rawValue)
+                }
+                guard receipts.isEmpty else { throw WorkspaceMutationFailureV1.sequenceCollision }
+                modelContext.insert(try MyDayCarryoverReceiptRowV1(receipt))
+            }
+            return try WorkspaceMutationEffectV1(
+                affectedEntities: mutation.affectedIdentities,
+                temporaryRelativePath: temporaryRelativePath
+            )
+        } catch let failure as WorkspaceMutationFailureV1 {
+            modelContext.rollback(); throw failure
+        } catch {
+            modelContext.rollback(); throw WorkspaceMutationFailureV1.invalidCommand
+        }
+    }
+
+    func persistedMyDayEffectMatches(_ mutation: MyDayMutationV1) throws -> Bool {
+        try mutation.validate()
+        let planRows = try modelContext.fetch(FetchDescriptor<MyDayPlanRowV1>()).filter {
+            $0.planID == mutation.resultingPlan.planID &&
+            $0.workspaceID == mutation.workspaceID.rawValue
+        }
+        let plans = try planRows.map { try $0.value() }.sorted { $0.revision < $1.revision }
+        guard Set(plans.map(\.revision)).count == plans.count,
+              plans.first?.revision == 1,
+              plans.first?.predecessorPlanSHA256 == nil else {
+            return false
+        }
+        for index in plans.indices.dropFirst() {
+            try plans[index].validate(predecessor: plans[index - 1])
+        }
+        guard plans.filter({ $0.revision == mutation.resultingPlan.revision }).count == 1,
+              plans.first(where: { $0.revision == mutation.resultingPlan.revision }) == mutation.resultingPlan else {
+            return false
+        }
+        guard let receipt = mutation.carryoverReceipt else { return true }
+        let receiptRows = try modelContext.fetch(FetchDescriptor<MyDayCarryoverReceiptRowV1>()).filter {
+            $0.workspaceID == mutation.workspaceID.rawValue &&
+            $0.mutationID == mutation.mutationID.rawValue &&
+            $0.receiptSHA256 == receipt.receiptSHA256
+        }
+        return receiptRows.count == 1 && (try receiptRows[0].value()) == receipt
+    }
+
+    func currentMyDayPlan(for key: MyDayKeyV1) throws -> MyDayPlanV1? {
+        try key.validate()
+        let rows = try modelContext.fetch(FetchDescriptor<MyDayPlanRowV1>())
+        let values = try rows.map { try $0.value() }.filter { $0.key == key }
+        guard !values.isEmpty else { return nil }
+        guard Set(values.map(\.planID)).count == 1,
+              Set(values.map(\.revision)).count == values.count else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        let ordered = values.sorted { $0.revision < $1.revision }
+        guard ordered.first?.revision == 1,
+              ordered.first?.predecessorPlanSHA256 == nil else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        for index in ordered.indices.dropFirst() {
+            try ordered[index].validate(predecessor: ordered[index - 1])
+        }
+        return ordered.last
     }
 
     private func applyPartsStock(_ mutation: PartsStockMutationV1, temporaryRelativePath: String) throws -> WorkspaceMutationEffectV1 {

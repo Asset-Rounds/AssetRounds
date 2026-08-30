@@ -859,7 +859,10 @@ private extension BackupExportService {
                 serviceRequests: records.serviceRequests,
                 serviceRequestDispositionEvents: records.serviceRequestDispositionEvents,
                 serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents,
-                partsStockSnapshot: records.partsStockSnapshot
+                partsStockSnapshot: records.partsStockSnapshot,
+                myDayPlans: records.myDayPlans,
+                myDayCarryoverReceipts: records.myDayCarryoverReceipts,
+                nonactivePlanReferences: records.nonactivePlanReferences
             )
             semanticRecordsData = try BackupCanonicalEncoderV1()
                 .encodeSemanticRecords(semanticRecords).data
@@ -1121,9 +1124,9 @@ private extension BackupExportService {
             source: .init(
                 appBuild: appBuild(),
                 appVersion: appVersion(),
-                persistentSchemaVersion: C55PartsStockBackupExportBoundaryV1.persistentSchemaVersion,
+                persistentSchemaVersion: C57MyDayBackupEnrollmentV1.persistentSchemaVersion,
                 replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: C55PartsStockBackupExportBoundaryV1.recordsSchemaVersion,
+                recordsSchemaVersion: C57MyDayBackupEnrollmentV1.recordsSchemaVersion,
                 sourceGenerationID: generationID,
                 workspaceID: sourceIdentity.workspaceID.rawValue
             )
@@ -2396,6 +2399,19 @@ private extension BackupExportService {
                 workspaceID: try currentStreamingWorkspaceIdentity().workspaceID
             )
         }
+        let myDayPlans = mutationHistory == nil ? [] : try modelContext
+            .fetch(FetchDescriptor<MyDayPlanRowV1>())
+            .filter { $0.workspaceID == sourceIdentity.workspaceID.rawValue }
+            .map { try $0.value() }
+            .sorted { ($0.key, $0.planID.uuidString, $0.revision)
+                < ($1.key, $1.planID.uuidString, $1.revision) }
+        let myDayCarryoverReceipts = mutationHistory == nil ? [] : try modelContext
+            .fetch(FetchDescriptor<MyDayCarryoverReceiptRowV1>())
+            .filter { $0.workspaceID == sourceIdentity.workspaceID.rawValue }
+            .map { try $0.value() }
+            .sorted { ($0.committedAt, $0.receiptSHA256) < ($1.committedAt, $1.receiptSHA256) }
+        let nonactivePlanReferences = try C57MyDayBackupEnrollmentV1
+            .exactNonactiveReferences(for: myDayPlans)
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveys,
             assetLocators: assetLocators,
@@ -2465,7 +2481,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : C55PartsStockBackupExportBoundaryV1.recordsSchemaVersion,
+                : C57MyDayBackupEnrollmentV1.recordsSchemaVersion,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -2514,7 +2530,10 @@ private extension BackupExportService {
              serviceRestorationAssertions: serviceRestorationAssertions,
              qualifiedServiceExposures: qualifiedServiceExposures,
              serviceReliabilityReceipts: serviceReliabilityReceipts,
-             partsStockSnapshot: partsStockSnapshot
+             partsStockSnapshot: partsStockSnapshot,
+             myDayPlans: myDayPlans,
+             myDayCarryoverReceipts: myDayCarryoverReceipts,
+             nonactivePlanReferences: nonactivePlanReferences
          )
     }
 

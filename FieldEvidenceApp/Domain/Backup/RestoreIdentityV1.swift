@@ -33,6 +33,33 @@ enum BackupRestoreMode: String, CaseIterable, Codable, Equatable, Sendable {
     case fork
 }
 
+enum C57MyDayRestoreIdentityBoundaryV1 {
+    static func canonicalTruth(
+        plans: [MyDayPlanV1],
+        carryovers: [MyDayCarryoverReceiptV1],
+        nonactivePlanReferences: [MyDayPlanReferenceV1],
+        mode: BackupRestoreMode
+    ) throws -> (plans: [MyDayPlanV1], carryovers: [MyDayCarryoverReceiptV1]) {
+        try plans.forEach { try $0.validate() }
+        try carryovers.forEach { try $0.validate() }
+        let expected = try C57MyDayBackupEnrollmentV1.exactNonactiveReferences(for: plans)
+        guard nonactivePlanReferences == expected else { throw MyDayFailureV1.divergentMutation }
+        switch mode {
+        case .emptyInstall, .replaceExisting:
+            return (plans, carryovers)
+        case .clone:
+            return ([], [])
+        case .fork:
+            let identities = Set(nonactivePlanReferences)
+            let retained = try plans.filter { identities.contains(try MyDayPlanReferenceV1($0)) }
+            let retainedReceipts = carryovers.filter {
+                identities.contains($0.sourcePlan) && identities.contains($0.targetPlan)
+            }
+            return (retained, retainedReceipts)
+        }
+    }
+}
+
 enum AccessibleDocumentRestoreIdentityDispositionV1:String,Codable,Equatable,Sendable{
     case preserveAcceptedSourceBinding="PRESERVE_ACCEPTED_SOURCE_BINDING"
     case reboundAsIncompleteHistoricSourceEvidence="REBOUND_AS_INCOMPLETE_HISTORIC_SOURCE_EVIDENCE"
@@ -947,7 +974,7 @@ enum C53ServiceReliabilityRestoreIdentityBoundaryV1 {
               cloneForkRequiresExplicitWorkspaceRebind,
               !cloneForkAutomaticallyActivatesSourceRows,
               derivedProjectionsAreRebuilt,
-              records.recordsSchemaVersion <= C55PartsStockBackupEnrollmentV1.recordsSchemaVersion else {
+              records.recordsSchemaVersion <= C57MyDayBackupEnrollmentV1.recordsSchemaVersion else {
             throw RestoreIdentityDecisionErrorV1.invalidMode
         }
         do {

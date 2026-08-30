@@ -60,6 +60,29 @@ enum C55PartsStockKernelBackupRestoreEnrollmentV1 {
     static func validate() throws { guard persistentSchemaVersion == 41, durableFamilies.count == 7, canonicalSnapshotType == "PartsStockBackupSnapshotV1", replaceRestorePreservesExactTruth, cloneCopiesDefinitionsOnly, forkRequiresRecount else { throw KernelPersistenceV4Failure.incompleteCoverage } }
 }
 
+enum C57MyDayKernelBackupRestoreEnrollmentV1 {
+    static let persistentSchemaVersion = 42
+    static let recordsSchemaVersion = 41
+    static let durableFamilies = ["MyDayPlanRowV1", "MyDayCarryoverReceiptRowV1"]
+    static let derivedFamiliesExcluded = ["MyDayReadinessProjectionV1", "MyDaySourceFrontierV1"]
+    static let replacePreservesExactHistory = true
+    static let configurationCloneOmitsHistory = true
+    static let forkRetainsNonactiveHistoryOnly = true
+    static let immutableRevisionRowsArePreserved = true
+    static let forkUsesExactPlanReferences = true
+    static let predecessorClosureIsRequired = true
+    static let carryoverEndpointsResolveExactly = true
+    static func validate() throws {
+        guard durableFamilies.count == 2, derivedFamiliesExcluded.count == 2,
+              replacePreservesExactHistory, configurationCloneOmitsHistory,
+              forkRetainsNonactiveHistoryOnly, immutableRevisionRowsArePreserved,
+              forkUsesExactPlanReferences, predecessorClosureIsRequired,
+              carryoverEndpointsResolveExactly else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}
+
 enum C30EvidenceContextBackupRestoreRegistryV1 {
     static let persistentSchemaVersion = 30
     static let recordsSchemaVersion = 29

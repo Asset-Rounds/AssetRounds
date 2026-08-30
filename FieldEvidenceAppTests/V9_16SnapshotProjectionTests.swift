@@ -1022,6 +1022,112 @@ private final class C49WorkResourceSnapshotProjectionBoundaryTests: XCTestCase {
     }
 }
 
+private enum C57MyDaySnapshotFixtureV1 {
+    static let workspace = WorkspaceID(rawValue: id(1))
+    static let evaluatedAt = Date(timeIntervalSince1970: 1_804_000_000)
+    static func id(_ value: Int) -> UUID {
+        UUID(uuidString: String(format: "c5700000-0000-4000-8000-%012x", value))!
+    }
+    static func reference(_ value: Int, digest: Character) -> MyDayEligibleReferenceV1 {
+        .roundSession(workspaceID: workspace, sessionID: id(value), revision: 1,
+                      sessionSHA256: String(repeating: digest, count: 64))
+    }
+    static func values() throws -> (MyDayPlanV1, MyDayReadinessProjectionV1) {
+        let actorReference = try LocalActorReferenceV1(
+            actorReferenceID: id(2), workspaceID: workspace, displayName: "C57 recorder"
+        )
+        let actor = try ActorSnapshotV1(
+            snapshotID: id(3), workspaceID: workspace, actor: actorReference,
+            responsibility: .recordedBy, displayNameAtTime: actorReference.displayName,
+            capturedAt: evaluatedAt
+        )
+        let firstReference = reference(10, digest: "a")
+        let secondReference = reference(11, digest: "b")
+        let items = [
+            try MyDayItemV1(membershipID: id(20), reference: firstReference,
+                            manualOrder: 0, estimate: .init(wholeMinutes: 30)),
+            try MyDayItemV1(membershipID: id(21), reference: secondReference,
+                            manualOrder: 1),
+        ]
+        let plan = try MyDayPlanV1(
+            planID: id(30),
+            key: .init(workspaceID: workspace,
+                       civilDate: try .init(year: 2026, month: 8, day: 30),
+                       ianaTimeZoneIdentifier: "America/New_York"),
+            items: items, revision: 1,
+            mutationID: try .init(rawValue: id(31)), authoredBy: actor,
+            authoredAt: evaluatedAt
+        )
+        let frontiers = [
+            try MyDaySourceFrontierV1(
+                membershipID: items[0].membershipID, plannedReference: firstReference,
+                currentReference: firstReference, state: .active, readiness: .ready,
+                dueAt: evaluatedAt.addingTimeInterval(3_600), evaluatedAt: evaluatedAt
+            ),
+            try MyDaySourceFrontierV1(
+                membershipID: items[1].membershipID, plannedReference: secondReference,
+                currentReference: secondReference, state: .completed, readiness: .notReady,
+                dueAt: nil, evaluatedAt: evaluatedAt
+            ),
+        ]
+        return (plan, try MyDayReadinessProjectionV1(
+            plan: plan, evaluatedAt: evaluatedAt, frontiers: frontiers
+        ))
+    }
+}
+
+private final class C57MyDaySnapshotProjectionTests: XCTestCase {
+    func testC57ProjectionAndOpenJSONAreDeterministicSourceBoundAndPrivacyBounded() throws {
+        let (plan, readiness) = try C57MyDaySnapshotFixtureV1.values()
+        let first = try C57MyDayReportProjectionRegistryV1.projection(
+            plan: plan, readiness: readiness
+        )
+        let second = try C57MyDayReportProjectionRegistryV1.projection(
+            plan: plan, readiness: readiness
+        )
+        XCTAssertEqual(first, second)
+        XCTAssertEqual(first.items.map(\.manualOrder), [0, 1])
+        XCTAssertEqual(first.sourceClosureSHA256, readiness.sourceClosureSHA256)
+        XCTAssertNoThrow(try C57MyDaySnapshotValidatorBoundaryV1.validate(
+            first, plan: plan, readiness: readiness
+        ))
+
+        let bytesA = try C57MyDayOpenJSONRendererV1.render(
+            first, plan: plan, readiness: readiness
+        )
+        let bytesB = try C57MyDayOpenJSONRendererV1.render(
+            second, plan: plan, readiness: readiness
+        )
+        XCTAssertEqual(bytesA, bytesB)
+        let reopened = try C57MyDayOpenJSONRendererV1.reopen(bytesA)
+        XCTAssertEqual(reopened.itemCount, 2)
+        XCTAssertEqual(reopened.estimatedItemCount, 1)
+        XCTAssertEqual(reopened.dueItemCount, 1)
+        XCTAssertNil(bytesA.range(of: Data("ROUND_SESSION".utf8)))
+        XCTAssertNil(bytesA.range(of: Data(C57MyDaySnapshotFixtureV1.id(10).uuidString.utf8)))
+        XCTAssertNil(bytesA.range(of: Data(C57MyDaySnapshotFixtureV1.id(10).uuidString.lowercased().utf8)))
+        XCTAssertNil(bytesA.range(of: Data("1804003600000".utf8)))
+        XCTAssertNil(bytesA.range(of: Data("C57 recorder".utf8)))
+
+        let staleFrontiers = try readiness.frontiers.enumerated().map { index, frontier in
+            try MyDaySourceFrontierV1(
+                membershipID: frontier.membershipID,
+                plannedReference: frontier.plannedReference,
+                currentReference: frontier.currentReference,
+                state: index == 0 ? .cancelled : frontier.state,
+                readiness: index == 0 ? .blocked : frontier.readiness,
+                dueAt: frontier.dueAt, evaluatedAt: readiness.evaluatedAt
+            )
+        }
+        let stale = try MyDayReadinessProjectionV1(
+            plan: plan, evaluatedAt: readiness.evaluatedAt, frontiers: staleFrontiers
+        )
+        XCTAssertThrowsError(try C57MyDaySnapshotValidatorBoundaryV1.validate(
+            first, plan: plan, readiness: stale
+        ))
+    }
+}
+
 extension V9_16SnapshotProjectionTests {
     func testV23P03C34SnapshotProjectionValidatesSelectedRootAndTarget() throws {
         let workspace = WorkspaceID()

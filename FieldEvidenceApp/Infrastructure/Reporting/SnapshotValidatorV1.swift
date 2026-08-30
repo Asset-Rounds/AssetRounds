@@ -2023,3 +2023,20 @@ enum C53ServiceReliabilitySnapshotValidatorV1 {
         return projection
     }
 }
+
+// MARK: - C57 My Day source-bound validation
+
+enum C57MyDaySnapshotValidatorBoundaryV1 {
+    static let derivedValuesRequireLiveSourceClosure = true
+    static let staleProjectionFailsClosed = true
+
+    static func validate(
+        _ projection: C57MyDayReportProjectionV1,
+        plan: MyDayPlanV1,
+        readiness: MyDayReadinessProjectionV1
+    ) throws -> C57MyDayReportProjectionV1 {
+        try C57MyDayEvidenceDetailProjectionGuardV1.validate(
+            projection, plan: plan, readiness: readiness
+        )
+    }
+}

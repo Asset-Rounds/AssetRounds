@@ -1472,3 +1472,71 @@ enum C53ServiceReliabilitySearchPersistenceBoundaryV1 {
         return try SearchPersistenceCodecV1.encode(envelope)
     }
 }
+
+// MARK: - C57 My Day search persistence boundary
+
+/// Serialized only as a disposable local-index envelope. It is excluded from
+/// canonical My Day persistence, journal replay, backup, and export.
+struct C57MyDaySearchPersistenceEnvelopeV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let reportProjectionSHA256: String
+    let sourceClosureSHA256: String
+    let records: [C57MyDaySearchRecordV1]
+    let lifecycle: [SearchIndexLifecycleDispositionV1]
+
+    init(report: C57MyDayReportProjectionV1,
+         plan: MyDayPlanV1,
+         readiness: MyDayReadinessProjectionV1) throws {
+        try report.validate(plan: plan, readiness: readiness)
+        schemaVersion = Self.schemaVersion
+        reportProjectionSHA256 = report.projectionSHA256
+        sourceClosureSHA256 = report.sourceClosureSHA256
+        records = try C57MyDaySearchProjectionBoundaryV1.records(from: report)
+        lifecycle = Self.expectedLifecycle
+        try validate()
+    }
+
+    func validate() throws {
+        try records.forEach { try $0.validate() }
+        guard schemaVersion == Self.schemaVersion,
+              MutationEnvelopeV1.isSHA256(reportProjectionSHA256),
+              MutationEnvelopeV1.isSHA256(sourceClosureSHA256),
+              lifecycle == Self.expectedLifecycle,
+              records == records.sorted(by: { $0.projectionIdentity < $1.projectionIdentity }),
+              Set(records.map(\.projectionIdentity)).count == records.count,
+              records.allSatisfy({
+                  $0.reportProjectionSHA256 == reportProjectionSHA256
+                      && $0.sourceClosureSHA256 == sourceClosureSHA256
+              }) else {
+            throw SearchContractFailureV1.staleIndex
+        }
+    }
+
+    static let expectedLifecycle: [SearchIndexLifecycleDispositionV1] = [
+        .excludedFromMigration, .excludedFromBackup, .excludedFromExport,
+        .purgeOnDelete, .purgeOnErase, .dropAndRebuildAfterRestore,
+        .dropAndRebuildOnDowngrade,
+    ]
+}
+
+enum C57MyDaySearchPersistenceBoundaryV1 {
+    static let createsCanonicalMyDayRowFamily = false
+    static let readinessStatusAndDueAreNotCanonicalPersistence = true
+    static let indexIsDisposableAndRebuildable = true
+
+    static func envelope(report: C57MyDayReportProjectionV1,
+                         plan: MyDayPlanV1,
+                         readiness: MyDayReadinessProjectionV1) throws
+        -> C57MyDaySearchPersistenceEnvelopeV1 {
+        try .init(report: report, plan: plan, readiness: readiness)
+    }
+
+    static func encode(report: C57MyDayReportProjectionV1,
+                       plan: MyDayPlanV1,
+                       readiness: MyDayReadinessProjectionV1) throws -> Data {
+        try SearchPersistenceCodecV1.encode(envelope(
+            report: report, plan: plan, readiness: readiness
+        ))
+    }
+}

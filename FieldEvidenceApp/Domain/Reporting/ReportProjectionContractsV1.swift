@@ -6153,3 +6153,130 @@ enum C53ServiceReliabilityReportProjectionBoundaryV1 {
         return value
     }
 }
+
+// MARK: - C57 My Day derived report projection
+
+struct C57MyDayReportItemProjectionV1: Codable, Equatable, Sendable {
+    let membershipID: UUID
+    let referenceStableKey: String
+    let manualOrder: Int
+    let estimateWholeMinutes: Int?
+    let sourceState: MyDaySourceStateV1
+    let readiness: MyDayReadinessV1
+    let dueAt: Date?
+    let sourceFrontierSHA256: String
+
+    init(item: MyDayItemV1, frontier: MyDaySourceFrontierV1) throws {
+        try item.validate(); try frontier.validate()
+        guard item.membershipID == frontier.membershipID,
+              item.reference == frontier.plannedReference else {
+            throw MyDayFailureV1.staleRevision
+        }
+        membershipID = item.membershipID
+        referenceStableKey = item.reference.stableKey
+        manualOrder = item.manualOrder
+        estimateWholeMinutes = item.estimate?.wholeMinutes
+        sourceState = frontier.state
+        readiness = frontier.readiness
+        dueAt = frontier.dueAt
+        sourceFrontierSHA256 = frontier.frontierSHA256
+        try validate()
+    }
+
+    func validate() throws {
+        try MyDayLimitsV1.id(membershipID)
+        try MyDayLimitsV1.digest(sourceFrontierSHA256)
+        try dueAt.map(MyDayLimitsV1.millisecondInstant)
+        if let estimateWholeMinutes {
+            _ = try MyDayEstimateV1(wholeMinutes: estimateWholeMinutes)
+        }
+        guard !referenceStableKey.isEmpty,
+              referenceStableKey.utf8.count <= MyDayLimitsV1.maximumTimeZoneBytes,
+              manualOrder >= 0,
+              manualOrder < MyDayLimitsV1.maximumItems else {
+            throw MyDayFailureV1.invalidValue
+        }
+    }
+}
+
+/// Renderer-neutral and rebuildable. Source state, readiness, and due values
+/// remain bound to the exact canonical plan and source-frontier closure; this
+/// value is never accepted as a My Day writer input.
+struct C57MyDayReportProjectionV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let workspaceID: WorkspaceID
+    let plan: MyDayPlanReferenceV1
+    let evaluatedAt: Date
+    let sourceClosureSHA256: String
+    let readinessProjectionSHA256: String
+    let items: [C57MyDayReportItemProjectionV1]
+    let projectionSHA256: String
+
+    init(plan: MyDayPlanV1, readiness: MyDayReadinessProjectionV1) throws {
+        try plan.validate(); try readiness.validate(plan: plan)
+        schemaVersion = Self.schemaVersion
+        workspaceID = plan.key.workspaceID
+        self.plan = try .init(plan)
+        evaluatedAt = readiness.evaluatedAt
+        sourceClosureSHA256 = readiness.sourceClosureSHA256
+        readinessProjectionSHA256 = readiness.projectionSHA256
+        items = try zip(plan.items, readiness.frontiers).map {
+            try .init(item: $0, frontier: $1)
+        }
+        projectionSHA256 = try MyDayCanonicalCodecV1.sha256(Basis(
+            schemaVersion: Self.schemaVersion, workspaceID: workspaceID,
+            plan: self.plan, evaluatedAt: evaluatedAt,
+            sourceClosureSHA256: sourceClosureSHA256,
+            readinessProjectionSHA256: readinessProjectionSHA256, items: items
+        ))
+        try validate()
+    }
+
+    func validate() throws {
+        try plan.validate(); try MyDayLimitsV1.millisecondInstant(evaluatedAt)
+        try MyDayLimitsV1.digest(sourceClosureSHA256)
+        try MyDayLimitsV1.digest(readinessProjectionSHA256)
+        try items.forEach { try $0.validate() }
+        guard schemaVersion == Self.schemaVersion,
+              workspaceID == plan.key.workspaceID,
+              items.count <= MyDayLimitsV1.maximumItems,
+              items.map(\.manualOrder) == Array(0..<items.count),
+              Set(items.map(\.membershipID)).count == items.count,
+              projectionSHA256 == (try MyDayCanonicalCodecV1.sha256(basis)) else {
+            throw MyDayFailureV1.invalidDigest
+        }
+    }
+
+    func validate(plan sourcePlan: MyDayPlanV1,
+                  readiness sourceReadiness: MyDayReadinessProjectionV1) throws {
+        try validate(); try sourceReadiness.validate(plan: sourcePlan)
+        let expected = try Self(plan: sourcePlan, readiness: sourceReadiness)
+        guard self == expected else { throw MyDayFailureV1.staleRevision }
+    }
+
+    private var basis: Basis { .init(
+        schemaVersion: schemaVersion, workspaceID: workspaceID, plan: plan,
+        evaluatedAt: evaluatedAt, sourceClosureSHA256: sourceClosureSHA256,
+        readinessProjectionSHA256: readinessProjectionSHA256, items: items
+    ) }
+    private struct Basis: Codable {
+        let schemaVersion: Int; let workspaceID: WorkspaceID; let plan: MyDayPlanReferenceV1
+        let evaluatedAt: Date; let sourceClosureSHA256: String
+        let readinessProjectionSHA256: String; let items: [C57MyDayReportItemProjectionV1]
+    }
+}
+
+enum C57MyDayReportProjectionBoundaryV1 {
+    static let projectionIsDerivedAndRebuildable = true
+    static let sourceStateReadinessAndDueAreNotCanonicalMyDayTruth = true
+    static let projectionCannotBeUsedAsWriterInput = true
+    static let sourceFrontierClosureIsRequired = true
+
+    static func projection(plan: MyDayPlanV1,
+                           readiness: MyDayReadinessProjectionV1) throws
+        -> C57MyDayReportProjectionV1 {
+        try .init(plan: plan, readiness: readiness)
+    }
+}

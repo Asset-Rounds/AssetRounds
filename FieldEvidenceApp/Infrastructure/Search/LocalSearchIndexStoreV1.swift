@@ -1625,3 +1625,33 @@ enum C53ServiceReliabilityLocalSearchIndexBoundaryV1 {
         return try C53ServiceReliabilitySearchPersistenceBoundaryV1.encode(record)
     }
 }
+
+// MARK: - C57 My Day local-index boundary
+
+enum C57MyDayLocalSearchIndexBoundaryV1 {
+    static let storeType: LocalSearchIndexStoreV1.Type = LocalSearchIndexStoreV1.self
+    static let rowsAreDerivedAndDisposable = true
+    static let staleRowsAreDroppedNotReconciledAsTruth = true
+
+    static func records(
+        plan: MyDayPlanV1,
+        readiness: MyDayReadinessProjectionV1
+    ) throws -> [C57MyDaySearchRecordV1] {
+        let report = try C57MyDayReportProjectionRegistryV1.projection(
+            plan: plan, readiness: readiness
+        )
+        return try C57MyDaySearchProjectionBoundaryV1.records(from: report)
+    }
+
+    static func serializedEnvelope(
+        plan: MyDayPlanV1,
+        readiness: MyDayReadinessProjectionV1
+    ) throws -> Data {
+        let report = try C57MyDayReportProjectionRegistryV1.projection(
+            plan: plan, readiness: readiness
+        )
+        try C57MyDaySearchPersistenceBoundaryV1.encode(
+            report: report, plan: plan, readiness: readiness
+        )
+    }
+}

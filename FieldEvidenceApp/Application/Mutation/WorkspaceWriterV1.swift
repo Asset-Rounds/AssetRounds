@@ -23,6 +23,8 @@ protocol WorkspaceWriterAdapterPortV1: AnyObject {
     func persistedServiceReliabilityEffectMatches(
         _ bundle: ServiceReliabilityAtomicBundleV1
     ) throws -> Bool
+    func persistedMyDayEffectMatches(_ mutation: MyDayMutationV1) throws -> Bool
+    func currentMyDayPlan(for key: MyDayKeyV1) throws -> MyDayPlanV1?
     func persistAppliedActivityContractEffect(
         _ mutation: ActivityContractMutationV2
     ) throws
@@ -56,6 +58,10 @@ extension WorkspaceWriterAdapterPortV1 {
         false
     }
     func persistedServiceReliabilityEffectMatches(_ bundle:ServiceReliabilityAtomicBundleV1)throws->Bool{false}
+    func persistedMyDayEffectMatches(_ mutation: MyDayMutationV1) throws -> Bool { false }
+    func currentMyDayPlan(for key: MyDayKeyV1) throws -> MyDayPlanV1? {
+        throw WorkspaceMutationFailureV1.unsupportedCommand
+    }
 
     func persistedActivityContractEffectMatches(
         _ mutation: ActivityContractMutationV2
@@ -662,6 +668,16 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
                       try targets.allSatisfy({ expected[$0] == (try value.expectedRevision(for: $0)) }) else { throw WorkspaceMutationFailureV1.invalidCommand }
             } catch let failure as WorkspaceMutationFailureV1 { throw failure }
               catch { throw WorkspaceMutationFailureV1.invalidCommand }
+        case .applyMyDay(let value):
+            do {
+                try value.validate()
+                guard value.workspaceID == identity.workspaceID,
+                      value.mutationID == request.mutationID,
+                      value.expectedRevision == request.expectedRevision else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            } catch let failure as WorkspaceMutationFailureV1 { throw failure }
+              catch { throw WorkspaceMutationFailureV1.invalidCommand }
         case .applyServiceRequest(let value):
             do {
                 try value.validateForCanonicalWriter()
@@ -944,6 +960,10 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
                     entityRevisions[try image.identity] = image.revision
                     entityRevisions[try image.concurrencyIdentity] = image.revision
                 }
+            }
+        } else if case let .applyMyDay(mutation) = request.command {
+            for image in try mutation.mutationPostImages {
+                entityRevisions[try image.identity] = image.revision
             }
         } else if case let .applyServiceRequest(mutation) = request.command {
             for image in try mutation.mutationPostImages {
@@ -1459,6 +1479,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             try value.validate();values=try value.affectedIdentities
         case let .applyPartsStock(value):
             try value.validate(); values = try value.affectedIdentities
+        case let .applyMyDay(value):
+            try value.validate(); values = try value.affectedIdentities
         case let .applyServiceRequest(value):
             try value.validateForCanonicalWriter();values=try value.affectedIdentities
         case let .applyServiceReliability(value):
@@ -1522,6 +1544,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         if case let .applyPortableReview(value)=command{try value.validate();return try value.concurrencyIdentities}
         if case let .applyWorkResource(value)=command{try value.validate();return try value.concurrencyIdentities}
         if case let .applyPartsStock(value)=command{try value.validate();return try value.concurrencyIdentities}
+        if case let .applyMyDay(value)=command{try value.validate();return try value.concurrencyIdentities}
         if case let .applyServiceRequest(value)=command{try value.validateForCanonicalWriter();return try value.concurrencyIdentities}
         if case let .applyServiceReliability(value)=command{try value.validateForCanonicalWriter();return try value.concurrencyIdentities}
         return try targetIdentities(for: command)
@@ -1655,6 +1678,140 @@ extension WorkspaceWriterV1: PartsStockCanonicalWriterPortV1 {
         _ = try execute(.init(mutationID: mutation.mutationID, expectedRevision: expected, command: .applyPartsStock(mutation)))
         guard let receipt = try journalStore.receipt(mutationID: mutation.mutationID) else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
         return try PartsStockMutationReceiptV1(workspaceID: mutation.workspaceID, mutationID: mutation.mutationID, mutationSHA256: try PartsStockCanonicalCodecV1.sha256(mutation), committedAt: receipt.committedAt)
+    }
+}
+
+// MARK: - C57 My Day sole writer
+
+extension WorkspaceWriterV1 {
+    func commitMyDay(_ mutation: MyDayMutationV1) throws -> MyDayMutationReceiptV1 {
+        try mutation.validate()
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        let command = WorkspaceCommandV1.applyMyDay(mutation)
+        let commandDigest = try WorkspaceMutationCanonicalV1.sha256(command)
+        if let existing = try journalStore.receipt(mutationID: mutation.mutationID) {
+            guard existing.identity.workspaceID == mutation.workspaceID,
+                  existing.commandBodySHA256 == commandDigest,
+                  try adapter.persistedMyDayEffectMatches(mutation) else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            let prior = try MyDayMutationReceiptV1(
+                command: mutation.command,
+                resultingPlan: mutation.resultingPlan,
+                carryoverReceipt: mutation.carryoverReceipt,
+                disposition: .committed,
+                committedAt: existing.committedAt
+            )
+            return try MyDayCommandReplayResolutionV1.resolve(
+                command: mutation.command,
+                priorReceipt: prior
+            ).receipt
+        }
+        let current = try currentRevision()
+        let targets = try mutation.concurrencyIdentities
+        let known = Dictionary(uniqueKeysWithValues: current.entityRevisions.map { ($0.identity, $0.revision) })
+        guard current.workspaceID == mutation.workspaceID,
+              mutation.expectedRevision.workspaceID == current.workspaceID,
+              mutation.expectedRevision.generationID == current.generationID,
+              mutation.expectedRevision.writerInstanceID == current.writerInstanceID,
+              mutation.expectedRevision.workspaceRevision == current.revision,
+              try targets.allSatisfy({ known[$0, default: 0] == (try mutation.expectedRevision(for: $0)) }) else {
+            throw WorkspaceMutationFailureV1.staleWorkspaceRevision
+        }
+        _ = try execute(.init(
+            mutationID: mutation.mutationID,
+            expectedRevision: mutation.expectedRevision,
+            command: command
+        ))
+        guard let persisted = try journalStore.receipt(mutationID: mutation.mutationID) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        _ = try MyDayWorkspaceMutationReceiptV1(mutation: mutation, mutationReceipt: persisted)
+        return try MyDayMutationReceiptV1(
+            command: mutation.command,
+            resultingPlan: mutation.resultingPlan,
+            carryoverReceipt: mutation.carryoverReceipt,
+            disposition: .committed,
+            committedAt: persisted.committedAt
+        )
+    }
+}
+
+// MARK: - C57 My Day application writer bridge
+
+extension WorkspaceWriterV1: MyDayWritingV1 {
+    func currentPlan(for key: MyDayKeyV1) throws -> MyDayPlanV1? {
+        try key.validate()
+        guard key.workspaceID == identity.workspaceID else {
+            throw WorkspaceMutationFailureV1.wrongWorkspace
+        }
+        return try adapter.currentMyDayPlan(for: key)
+    }
+
+    func result(
+        workspaceID: WorkspaceID,
+        mutationID: MutationIDV1
+    ) throws -> MyDayCommandResultV1? {
+        guard workspaceID == identity.workspaceID else {
+            throw WorkspaceMutationFailureV1.wrongWorkspace
+        }
+        guard let journalStore,
+              let mutation = try journalStore.myDayMutation(mutationID: mutationID),
+              let journalReceipt = try journalStore.receipt(mutationID: mutationID) else {
+            return nil
+        }
+        _ = try MyDayWorkspaceMutationReceiptV1(
+            mutation: mutation,
+            mutationReceipt: journalReceipt
+        )
+        let receipt = try MyDayMutationReceiptV1(
+            command: mutation.command,
+            resultingPlan: mutation.resultingPlan,
+            carryoverReceipt: mutation.carryoverReceipt,
+            disposition: .committed,
+            committedAt: journalReceipt.committedAt
+        )
+        let value = MyDayCommandResultV1(plan: mutation.resultingPlan, receipt: receipt)
+        try value.validate()
+        try receipt.validate(command: mutation.command)
+        return value
+    }
+
+    func commit(_ command: MyDayCommandV1) throws -> MyDayCommandResultV1 {
+        try command.validate()
+        guard command.workspaceID == identity.workspaceID else {
+            throw WorkspaceMutationFailureV1.wrongWorkspace
+        }
+        let current = try currentRevision()
+        let targetPlan: MyDayPlanV1
+        var identities: [WorkspaceEntityIdentityV1] = []
+        switch command {
+        case let .save(successor, _):
+            targetPlan = successor
+            identities.append(try .init(kind: .myDayPlan, id: successor.planID))
+        case let .carryover(_, source, target, _):
+            targetPlan = target
+            identities.append(try .init(kind: .myDayPlan, id: source.planID))
+            identities.append(try .init(kind: .myDayPlan, id: target.planID))
+            identities.append(try .init(kind: .myDayCarryoverReceipt, id: command.mutationID.rawValue))
+        }
+        let targets = Array(Set(identities)).sorted { $0.stableKey < $1.stableKey }
+        let revisions = Dictionary(uniqueKeysWithValues: current.entityRevisions.map { ($0.identity, $0.revision) })
+        let expected = try WorkspaceExpectedRevisionV1(
+            workspaceID: current.workspaceID,
+            generationID: current.generationID,
+            writerInstanceID: current.writerInstanceID,
+            workspaceRevision: current.revision,
+            entityRevisions: targets.map {
+                .init(identity: $0, revision: revisions[$0, default: 0])
+            }
+        )
+        let mutation = try MyDayMutationV1(command: command, expectedRevision: expected)
+        let receipt = try commitMyDay(mutation)
+        let value = MyDayCommandResultV1(plan: targetPlan, receipt: receipt)
+        try value.validate()
+        return value
     }
 }
 

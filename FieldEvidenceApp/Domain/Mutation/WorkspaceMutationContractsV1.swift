@@ -54,6 +54,8 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case stockUseReversalReceipt
     case stockReturnReceipt
     case stockAbandonment
+    case myDayPlan
+    case myDayCarryoverReceipt
     case serviceRequestRecord
     case serviceRequestDispositionEvent
     case serviceRequestWorkLinkEvent
@@ -2275,6 +2277,141 @@ extension ServiceReliabilityAtomicBundleV1 {
     func canonicalWorkspaceMutationRequest()throws->WorkspaceMutationRequestV1{try validateForCanonicalWriter();return .init(mutationID:mutationID,expectedRevision:expectedRevision,command:.applyServiceReliability(self))}
 }
 
+// MARK: - C57 My Day sole-writer bridge
+
+/// My Day's domain command owns only plan membership/order/estimate. This
+/// bridge supplies the incumbent writer's workspace and entity CAS envelope;
+/// source work/schedule state is deliberately absent from postimages.
+struct MyDayMutationV1: Codable, Equatable, Sendable {
+    let command: MyDayCommandV1
+    let expectedRevision: WorkspaceExpectedRevisionV1
+
+    init(command: MyDayCommandV1, expectedRevision: WorkspaceExpectedRevisionV1) throws {
+        self.command = command
+        self.expectedRevision = expectedRevision
+        try validate()
+    }
+
+    var workspaceID: WorkspaceID { command.workspaceID }
+    var mutationID: MutationIDV1 { command.mutationID }
+
+    var resultingPlan: MyDayPlanV1 {
+        switch command {
+        case .save(let successor, _): return successor
+        case .carryover(_, _, let target, _): return target
+        }
+    }
+
+    var carryoverReceipt: MyDayCarryoverReceiptV1? {
+        if case let .carryover(_, _, _, receipt) = command { return receipt }
+        return nil
+    }
+
+    /// The receipt has no separately allocated identifier. Its command
+    /// mutation ID is already a workspace-unique stable identifier and keeps
+    /// replay, persistence, and postimage identity aligned.
+    var carryoverReceiptID: UUID? { carryoverReceipt == nil ? nil : mutationID.rawValue }
+
+    var affectedIdentities: [WorkspaceEntityIdentityV1] {
+        get throws { try mutationPostImages.map { try $0.identity } }
+    }
+
+    var concurrencyIdentities: [WorkspaceEntityIdentityV1] {
+        get throws {
+            var values = [try WorkspaceEntityIdentityV1(kind: .myDayPlan, id: resultingPlan.planID)]
+            if case let .carryover(_, source, _, _) = command {
+                values.append(try .init(kind: .myDayPlan, id: source.planID))
+            }
+            if let receiptID = carryoverReceiptID {
+                values.append(try .init(kind: .myDayCarryoverReceipt, id: receiptID))
+            }
+            return Array(Set(values)).sorted { $0.stableKey < $1.stableKey }
+        }
+    }
+
+    func expectedRevision(for identity: WorkspaceEntityIdentityV1) throws -> UInt64 {
+        guard try concurrencyIdentities.contains(identity),
+              let value = expectedRevision.entityRevisions.first(where: { $0.identity == identity }) else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+        return value.revision
+    }
+
+    var mutationPostImages: [MutationPostImageV1] {
+        get throws {
+            let planIdentity = try WorkspaceEntityIdentityV1(kind: .myDayPlan, id: resultingPlan.planID)
+            var values: [MutationPostImageV1] = [
+                .myDayPlan(
+                    id: resultingPlan.planID,
+                    concurrencyIdentity: planIdentity,
+                    revision: resultingPlan.revision,
+                    semanticSHA256: resultingPlan.planSHA256
+                )
+            ]
+            if let receipt = carryoverReceipt, let receiptID = carryoverReceiptID {
+                let receiptIdentity = try WorkspaceEntityIdentityV1(kind: .myDayCarryoverReceipt, id: receiptID)
+                values.append(.myDayCarryoverReceipt(
+                    id: receiptID,
+                    concurrencyIdentity: receiptIdentity,
+                    revision: 1,
+                    semanticSHA256: receipt.receiptSHA256
+                ))
+            }
+            return try values.sorted { try $0.identity.stableKey < $1.identity.stableKey }
+        }
+    }
+
+    func validate() throws {
+        try command.validate()
+        guard expectedRevision.workspaceID == workspaceID else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+        switch command {
+        case let .save(successor, predecessor):
+            try successor.validate(predecessor: predecessor)
+        case let .carryover(plan, source, target, receipt):
+            try plan.validate()
+            try receipt.validate(plan: plan, source: source, target: target)
+            let targetBaseRevision = plan.expectedTargetPlan?.revision ?? 0
+            let (targetRevision, overflow) = targetBaseRevision.addingReportingOverflow(1)
+            guard plan.sourcePlan == (try MyDayPlanReferenceV1(source)),
+                  plan.targetKey == target.key,
+                  target.predecessorPlanSHA256 == plan.expectedTargetPlan?.planSHA256,
+                  plan.expectedTargetPlan.map({ target.planID == $0.planID }) ?? true,
+                  !overflow,
+                  target.revision == targetRevision else {
+                throw WorkspaceMutationContractFailureV1.invalidPlan
+            }
+        }
+        let concurrency = try concurrencyIdentities
+        let images = try mutationPostImages
+        let affected = try images.map { try $0.identity }
+        guard images.count <= MutationReceiptV1.maximumPostImageCount,
+              Set(concurrency).count == concurrency.count,
+              Set(affected).count == affected.count,
+              expectedRevision.entityRevisions.count == concurrency.count,
+              Set(expectedRevision.entityRevisions.map(\.identity)) == Set(concurrency),
+              try concurrency.allSatisfy({ identity in
+                  let expected = try self.expectedRevision(for: identity)
+                  guard expected < UInt64.max else { return false }
+                  if identity.kind == .myDayCarryoverReceipt { return expected == 0 }
+                  if case let .carryover(_, source, _, _) = command,
+                     identity.kind == .myDayPlan,
+                     identity.id == source.planID {
+                      return expected == source.revision
+                  }
+                  return resultingPlan.revision == expected + 1
+              }) else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+    }
+
+    func canonicalWorkspaceMutationRequest() throws -> WorkspaceMutationRequestV1 {
+        try validate()
+        return .init(mutationID: mutationID, expectedRevision: expectedRevision, command: .applyMyDay(self))
+    }
+}
+
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
     case createCheckDraft(CheckDraftMutationV1)
@@ -2323,6 +2460,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyPortableReview(PortableReviewMutationV1)
     case applyWorkResource(WorkResourceMutationV1)
     case applyPartsStock(PartsStockMutationV1)
+    case applyMyDay(MyDayMutationV1)
     case applyServiceRequest(ServiceRequestMutationV1)
     case applyServiceReliability(ServiceReliabilityAtomicBundleV1)
 
@@ -2375,6 +2513,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyPortableReview:.applyPortableReview
         case .applyWorkResource:.applyWorkResource
         case .applyPartsStock:.applyPartsStock
+        case .applyMyDay:.applyMyDay
         case .applyServiceRequest:.applyServiceRequest
         case .applyServiceReliability:.applyServiceReliability
         }
@@ -2429,6 +2568,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyPortableReview="apply_portable_review_v1"
     case applyWorkResource="apply_work_resource_v1"
     case applyPartsStock="apply_parts_stock_v1"
+    case applyMyDay="apply_my_day_v1"
     case applyServiceRequest="apply_service_request_v1"
     case applyServiceReliability="apply_service_reliability_v1"
 }
@@ -3232,6 +3372,7 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind:.applyPortableReview,disposition:.compensatable,stableReason:"append_existing_c14_review_successor_only"),
         .init(commandKind:.applyWorkResource,disposition:.compensatable,stableReason:"append_work_resource_successor_only"),
         .init(commandKind:.applyPartsStock,disposition:.compensatable,stableReason:"append_stock_movement_and_atomic_work_resource_successor_only"),
+        .init(commandKind:.applyMyDay,disposition:.compensatable,stableReason:"append_my_day_plan_successor_and_carryover_receipt_only"),
         .init(commandKind:.applyServiceRequest,disposition:.compensatable,stableReason:"append_request_history_or_explicit_unlink_reversal_only"),
         .init(commandKind:.applyServiceReliability,disposition:.compensatable,stableReason:"append_incident_impact_cause_remedy_repair_restoration_or_exposure_successor_only"),
     ]

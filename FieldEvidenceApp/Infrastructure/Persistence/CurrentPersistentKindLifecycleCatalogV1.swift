@@ -283,6 +283,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
         let c74=TemporalOriginV1(card:"V23_P03_C47",ordinal:74)
         let c75=TemporalOriginV1(card:"V23_P03_C49",ordinal:75)
         let c76=TemporalOriginV1(card:"V23_P03_C55",ordinal:76)
+        let c77=TemporalOriginV1(card:"V23_P03_C57",ordinal:77)
         let groups: [(TemporalOriginV1, [String])] = [
             (c16, [
                 "JOURNAL:CurrentGenerationPointerV2",
@@ -456,6 +457,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
             (c74,["PERSISTENT_MODEL:ActivitySessionEnvelopeRow","PERSISTENT_MODEL:ActivityStateTransitionRow","PERSISTENT_MODEL:InstallationTaskResultRow","PERSISTENT_MODEL:InstallationAsBuiltSnapshotRow","PERSISTENT_MODEL:PunchReviewBasisSnapshotRow","PROJECTION:StoreSemanticEnvelopeV36"]),
             (c75,["PERSISTENT_MODEL:ManualWorkResourceRecordRow","PROJECTION:StoreSemanticEnvelopeV37"]),
             (c76,["PERSISTENT_MODEL:LocalPartDefinitionRowV1","PERSISTENT_MODEL:StockStorageLocationRowV1","PERSISTENT_MODEL:StockMovementEventRowV1","PERSISTENT_MODEL:StockUseReceiptRowV1","PERSISTENT_MODEL:StockUseReversalReceiptRowV1","PERSISTENT_MODEL:StockReturnReceiptRowV1","PERSISTENT_MODEL:AbandonUnverifiedStockRowV1","PROJECTION:StoreSemanticEnvelopeV41"]),
+            (c77,["PERSISTENT_MODEL:MyDayPlanRowV1","PERSISTENT_MODEL:MyDayCarryoverReceiptRowV1","PROJECTION:StoreSemanticEnvelopeV42"]),
         ]
         return groups.reduce(into: [:]) { result, group in
             for kindID in group.1 {

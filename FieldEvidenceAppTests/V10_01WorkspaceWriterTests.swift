@@ -616,6 +616,76 @@ extension V10_01WorkspaceWriterTests {
 }
 
 extension V10_01WorkspaceWriterTests {
+    func testV23P03C57MyDayMutationClosesCASIdentityAndAtomicCarryoverImages() throws {
+        let fixture = try C57MyDayExistingSuiteFixtureV1.make()
+        let generationID = UUID(uuidString: "57000000-0000-4000-8000-000000000101")!
+        let writerInstanceID = UUID(uuidString: "57000000-0000-4000-8000-000000000102")!
+
+        let saveExpected = try fixture.expectedRevision(
+            for: fixture.saveCommand,
+            workspaceRevision: 0,
+            generationID: generationID,
+            writerInstanceID: writerInstanceID
+        )
+        let save = try MyDayMutationV1(
+            command: fixture.saveCommand,
+            expectedRevision: saveExpected
+        )
+        try save.validate()
+        XCTAssertEqual(WorkspaceCommandV1.applyMyDay(save).kind, .applyMyDay)
+        XCTAssertEqual(try save.concurrencyIdentities, [
+            try .init(kind: .myDayPlan, id: fixture.sourcePlan.planID),
+        ])
+        XCTAssertEqual(try save.mutationPostImages.count, 1)
+        XCTAssertEqual(try save.mutationPostImages.first?.identity.kind, .myDayPlan)
+        XCTAssertEqual(try save.expectedRevision(for: save.concurrencyIdentities[0]), 0)
+
+        let carryExpected = try fixture.expectedRevision(
+            for: fixture.carryoverCommand,
+            workspaceRevision: 1,
+            generationID: generationID,
+            writerInstanceID: writerInstanceID
+        )
+        let carryover = try MyDayMutationV1(
+            command: fixture.carryoverCommand,
+            expectedRevision: carryExpected
+        )
+        try carryover.validate()
+        XCTAssertEqual(WorkspaceCommandV1.applyMyDay(carryover).kind, .applyMyDay)
+        XCTAssertEqual(Set(try carryover.concurrencyIdentities.map(\.kind)), [
+            .myDayPlan, .myDayCarryoverReceipt,
+        ])
+        XCTAssertEqual(try carryover.concurrencyIdentities.count, 3)
+        XCTAssertEqual(Set(try carryover.mutationPostImages.map { try $0.identity.kind }), [
+            .myDayPlan, .myDayCarryoverReceipt,
+        ])
+        XCTAssertEqual(try carryover.mutationPostImages.count, 2)
+        XCTAssertEqual(
+            carryover.carryoverReceiptID,
+            fixture.carryoverReceipt.mutationID.rawValue
+        )
+
+        let stalePlanIdentity = try WorkspaceEntityIdentityV1(
+            kind: .myDayPlan,
+            id: fixture.sourcePlan.planID
+        )
+        let staleExpected = try WorkspaceExpectedRevisionV1(
+            workspaceID: fixture.workspaceID,
+            generationID: generationID,
+            writerInstanceID: writerInstanceID,
+            workspaceRevision: 0,
+            entityRevisions: [.init(identity: stalePlanIdentity, revision: 1)]
+        )
+        XCTAssertThrowsError(try MyDayMutationV1(
+            command: fixture.saveCommand,
+            expectedRevision: staleExpected
+        )) {
+            XCTAssertEqual($0 as? WorkspaceMutationContractFailureV1, .invalidPlan)
+        }
+    }
+}
+
+extension V10_01WorkspaceWriterTests {
     func testV23P03C15WriterMutationUsesPacketIdentityAndCanonicalReceiptBytes() throws {
         let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_201)
         let mutation = try WorkPacketMutationV1(
@@ -986,5 +1056,285 @@ extension V10_01WorkspaceWriterTests {
         XCTAssertEqual(result.disposition, .resolved)
         XCTAssertEqual(result.canonicalMutationCount, 0)
         XCTAssertFalse(result.startsAutomaticWork)
+    }
+}
+
+extension V10_01WorkspaceWriterTests {
+    @MainActor
+    func testV23P03C57WorkspaceWriterCommitsCarryoverAtomicallyAndReplaysExactly() throws {
+        let seedFixture = try C57MyDayExistingSuiteFixtureV1.make()
+        var fixture = seedFixture
+        let schema = Schema(
+            PersistentSchemaV42.models,
+            version: PersistentSchemaV42.versionIdentifier
+        )
+        let container = try ModelContainer(
+            for: schema,
+            migrationPlan: nil,
+            configurations: [ModelConfiguration(
+                "C57-Existing-Writer",
+                schema: schema,
+                isStoredInMemoryOnly: true,
+                allowsSave: true,
+                cloudKitDatabase: .none
+            )]
+        )
+        let context = container.mainContext
+        context.autosaveEnabled = false
+        let generationID = UUID(uuidString: "57000000-0000-4000-8000-000000000201")!
+        let writerInstanceID = UUID(uuidString: "57000000-0000-4000-8000-000000000202")!
+        let identity = try WorkspaceReplicaIdentityV1(
+            workspaceID: seedFixture.workspaceID,
+            replicaID: .init(rawValue: UUID(
+                uuidString: "57000000-0000-4000-8000-000000000203"
+            )!)
+        )
+        let journal = try MutationJournalStoreV1(
+            modelContext: context,
+            identity: identity,
+            generationID: generationID
+        )
+        let writer = try WorkspaceWriterV1(
+            identity: identity,
+            generationID: generationID,
+            initialRevision: journal.currentRevision(writerInstanceID: writerInstanceID),
+            clock: TestApplicationClockV1(
+                value: Date(timeIntervalSince1970: 1_800_100_100)
+            ),
+            idSource: TestApplicationIDSourceV1(value: writerInstanceID),
+            fileAuthority: TestApplicationFileAuthorityV1(),
+            adapter: WorkspaceWriterAdapterV1(modelContext: context),
+            journalStore: journal
+        )
+
+        let missingExpected = try seedFixture.expectedRevision(
+            for: seedFixture.saveCommand,
+            workspaceRevision: 0,
+            generationID: generationID,
+            writerInstanceID: writerInstanceID
+        )
+        let missingMutation = try MyDayMutationV1(
+            command: seedFixture.saveCommand,
+            expectedRevision: missingExpected
+        )
+        XCTAssertThrowsError(try writer.commitMyDay(missingMutation)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .invalidCommand)
+        }
+        XCTAssertEqual(try writer.currentRevision().revision, 0)
+        XCTAssertTrue(try context.fetch(FetchDescriptor<MyDayPlanRowV1>()).isEmpty)
+
+        let release = try C26SurveySessionTestSupport.release(
+            workspaceID: seedFixture.workspaceID
+        )
+        let authority = try C26SurveySessionTestSupport.authority(for: release)
+        let provisional = try C26SurveySessionTestSupport.provisional(
+            workspaceID: seedFixture.workspaceID
+        )
+        guard case let .roundSession(_, activeSessionID, _, _) =
+                seedFixture.sourcePlan.items[0].reference else {
+            XCTFail("Expected the fixed C57 round-session reference")
+            return
+        }
+        let activeSession = try C26SurveySessionTestSupport.session(
+            authority: authority,
+            workspaceID: seedFixture.workspaceID,
+            sessionID: activeSessionID,
+            subject: .provisional(provisional.reference),
+            state: .draft,
+            transition: .create,
+            revision: 1,
+            actorSlot: 570
+        )
+        context.insert(try SurveySessionRow(activeSession))
+        try context.save()
+
+        let staleReference = MyDayEligibleReferenceV1.roundSession(
+            workspaceID: seedFixture.workspaceID,
+            sessionID: activeSession.sessionID,
+            revision: activeSession.revision + 1,
+            sessionSHA256: activeSession.sessionSHA256
+        )
+        let staleFixture = try C57MyDayExistingSuiteFixtureV1.make(
+            reference: staleReference,
+            sourceMutationSlot: 11
+        )
+        let staleExpected = try staleFixture.expectedRevision(
+            for: staleFixture.saveCommand,
+            workspaceRevision: 0,
+            generationID: generationID,
+            writerInstanceID: writerInstanceID
+        )
+        let staleMutation = try MyDayMutationV1(
+            command: staleFixture.saveCommand,
+            expectedRevision: staleExpected
+        )
+        XCTAssertThrowsError(try writer.commitMyDay(staleMutation)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .invalidCommand)
+        }
+
+        let otherWorkspace = WorkspaceID(rawValue: UUID(
+            uuidString: "57000000-0000-4000-8000-000000000204"
+        )!)
+        XCTAssertThrowsError(try C57MyDayExistingSuiteFixtureV1.make(reference:
+            .roundSession(
+                workspaceID: otherWorkspace,
+                sessionID: activeSession.sessionID,
+                revision: activeSession.revision,
+                sessionSHA256: activeSession.sessionSHA256
+            )
+        )) {
+            XCTAssertEqual($0 as? MyDayFailureV1, .invalidValue)
+        }
+
+        let terminalID = C26SurveySessionTestSupport.id(5_700)
+        let terminalDraft = try C26SurveySessionTestSupport.session(
+            authority: authority,
+            workspaceID: seedFixture.workspaceID,
+            sessionID: terminalID,
+            subject: .provisional(provisional.reference),
+            state: .draft,
+            transition: .create,
+            revision: 1,
+            actorSlot: 571
+        )
+        let terminalSession = try C26SurveySessionTestSupport.session(
+            authority: authority,
+            workspaceID: seedFixture.workspaceID,
+            sessionID: terminalID,
+            subject: .provisional(provisional.reference),
+            state: .deleted,
+            transition: .delete,
+            predecessor: terminalDraft,
+            revision: 2,
+            actorSlot: 572
+        )
+        context.insert(try SurveySessionRow(terminalSession))
+        try context.save()
+        let terminalFixture = try C57MyDayExistingSuiteFixtureV1.make(
+            reference: .roundSession(
+                workspaceID: seedFixture.workspaceID,
+                sessionID: terminalSession.sessionID,
+                revision: terminalSession.revision,
+                sessionSHA256: terminalSession.sessionSHA256
+            ),
+            sourceMutationSlot: 12
+        )
+        let terminalExpected = try terminalFixture.expectedRevision(
+            for: terminalFixture.saveCommand,
+            workspaceRevision: 0,
+            generationID: generationID,
+            writerInstanceID: writerInstanceID
+        )
+        let terminalMutation = try MyDayMutationV1(
+            command: terminalFixture.saveCommand,
+            expectedRevision: terminalExpected
+        )
+        XCTAssertThrowsError(try writer.commitMyDay(terminalMutation)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .invalidCommand)
+        }
+        XCTAssertEqual(try writer.currentRevision().revision, 0)
+
+        fixture = try C57MyDayExistingSuiteFixtureV1.make(
+            reference: .roundSession(
+                workspaceID: seedFixture.workspaceID,
+                sessionID: activeSession.sessionID,
+                revision: activeSession.revision,
+                sessionSHA256: activeSession.sessionSHA256
+            ),
+            sourceMutationSlot: 13,
+            targetMutationSlot: 14
+        )
+
+        let sourceExpected = try fixture.expectedRevision(
+            for: fixture.saveCommand,
+            workspaceRevision: 0,
+            generationID: generationID,
+            writerInstanceID: writerInstanceID
+        )
+        let sourceMutation = try MyDayMutationV1(
+            command: fixture.saveCommand,
+            expectedRevision: sourceExpected
+        )
+        let sourceReceipt = try writer.commitMyDay(sourceMutation)
+        try sourceReceipt.validate(command: fixture.saveCommand)
+        XCTAssertEqual(
+            try writer.currentPlan(for: fixture.sourcePlan.key),
+            fixture.sourcePlan
+        )
+
+        let carryExpected = try fixture.expectedRevision(
+            for: fixture.carryoverCommand,
+            workspaceRevision: 1,
+            generationID: generationID,
+            writerInstanceID: writerInstanceID
+        )
+        let carryMutation = try MyDayMutationV1(
+            command: fixture.carryoverCommand,
+            expectedRevision: carryExpected
+        )
+        let carryReceipt = try writer.commitMyDay(carryMutation)
+        try carryReceipt.validate(command: fixture.carryoverCommand)
+        XCTAssertEqual(try writer.commitMyDay(carryMutation), carryReceipt)
+        let applicationResult = try XCTUnwrap(writer.result(
+            workspaceID: fixture.workspaceID,
+            mutationID: carryMutation.mutationID
+        ))
+        XCTAssertEqual(applicationResult.plan, fixture.targetPlan)
+        try applicationResult.receipt.validate(command: fixture.carryoverCommand)
+        let durableCarryReceipt = try XCTUnwrap(
+            journal.receipt(mutationID: carryMutation.mutationID)
+        )
+        let typedCarryReceipt = try MyDayWorkspaceMutationReceiptV1(
+            mutation: carryMutation,
+            mutationReceipt: durableCarryReceipt
+        )
+        XCTAssertEqual(
+            typedCarryReceipt.affectedIdentities,
+            try carryMutation.affectedIdentities
+        )
+        XCTAssertEqual(
+            durableCarryReceipt.postImages,
+            try carryMutation.mutationPostImages
+        )
+
+        let sourceSuccessor = try fixture.sourceSuccessor()
+        let successorCommand = MyDayCommandV1.save(
+            successor: sourceSuccessor,
+            predecessor: fixture.sourcePlan
+        )
+        let successorResult = try writer.commit(successorCommand)
+        XCTAssertEqual(successorResult.plan, sourceSuccessor)
+        try successorResult.receipt.validate(command: successorCommand)
+        XCTAssertEqual(
+            try writer.currentPlan(for: fixture.sourcePlan.key),
+            sourceSuccessor
+        )
+
+        let plans = try context.fetch(FetchDescriptor<MyDayPlanRowV1>()).map {
+            try $0.value()
+        }
+        XCTAssertEqual(Set(plans), [
+            fixture.sourcePlan, sourceSuccessor, fixture.targetPlan,
+        ])
+        XCTAssertEqual(
+            plans.filter { $0.planID == fixture.sourcePlan.planID }
+                .sorted { $0.revision < $1.revision },
+            [fixture.sourcePlan, sourceSuccessor]
+        )
+        XCTAssertEqual(
+            try context.fetch(FetchDescriptor<MyDayCarryoverReceiptRowV1>())
+                .map { try $0.value() },
+            [fixture.carryoverReceipt]
+        )
+        XCTAssertEqual(try writer.currentRevision().revision, 3)
+
+        let divergentMutation = try MyDayMutationV1(
+            command: fixture.divergentSaveCommand(),
+            expectedRevision: sourceExpected
+        )
+        XCTAssertThrowsError(try writer.commitMyDay(divergentMutation)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+        }
+        XCTAssertEqual(try writer.currentRevision().revision, 3)
     }
 }

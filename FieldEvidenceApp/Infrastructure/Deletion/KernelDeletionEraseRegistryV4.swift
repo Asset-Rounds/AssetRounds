@@ -62,6 +62,19 @@ enum C55PartsStockKernelDeletionEraseEnrollmentV1 {
     static func validate() throws { guard durableFamilies.count == 7, ordinaryPartRetirementUsesCanonicalSuccessor, ordinaryDeletePreservesAppendOnlyMovements, workspaceEraseClearsAllSevenFamilies else { throw KernelPersistenceV4Failure.incompleteCoverage } }
 }
 
+enum C57MyDayKernelDeletionEraseEnrollmentV1 {
+    static let durableFamilies = ["MyDayPlanRowV1", "MyDayCarryoverReceiptRowV1"]
+    static let ordinaryRemovalPreservesPlanHistory = true
+    static let workspaceEraseClearsAllMyDayTruth = true
+    static let projectionsOwnNoDeletionTruth = true
+    static func validate() throws {
+        guard durableFamilies.count == 2, ordinaryRemovalPreservesPlanHistory,
+              workspaceEraseClearsAllMyDayTruth, projectionsOwnNoDeletionTruth else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}
+
 
 /// C33 has exactly two SwiftData rows. Derivative and retention values are
 /// journal/content support, not additional row families.

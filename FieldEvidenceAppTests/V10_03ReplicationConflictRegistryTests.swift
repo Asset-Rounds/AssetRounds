@@ -7,6 +7,26 @@ private enum C53AssetServiceReliabilityBoundary_V10_03ReplicationConflictRegistr
     static let typedAnchor: C53AssetServiceReliabilityBoundaryTokenV1.Type = C53AssetServiceReliabilityBoundaryTokenV1.self
 }
 
+extension V10_03ReplicationConflictRegistryTests {
+    func testV23P03C57MyDayIsDeviceLocalDurableAndNotAReplicationLedger() throws {
+        XCTAssertEqual(PersistentSchemaV42.models.count, 142)
+        XCTAssertEqual(PersistentSchemaV42.models.count, PersistentSchemaV41.models.count + 2)
+        XCTAssertTrue(PersistentSchemaV42.models.contains {
+            ObjectIdentifier($0) == ObjectIdentifier(MyDayPlanRowV1.self)
+        })
+        XCTAssertTrue(PersistentSchemaV42.models.contains {
+            ObjectIdentifier($0) == ObjectIdentifier(MyDayCarryoverReceiptRowV1.self)
+        })
+        XCTAssertFalse(CurrentSyncClassificationCatalogV1.persistentModelNames.contains(
+            "MyDayPlanRowV1"
+        ))
+        XCTAssertFalse(CurrentSyncClassificationCatalogV1.persistentModelNames.contains(
+            "MyDayCarryoverReceiptRowV1"
+        ))
+        XCTAssertTrue(C57MyDayLifecycleBoundaryV1.canonicalWriterIsIncumbentWorkspaceWriter)
+    }
+}
+
 final class V10_03ReplicationConflictRegistryTests: XCTestCase {
     func testV23P03C40SupersessionCarriesDistinctReplicationAndConcurrencyIdentities() throws {
         let workspaceID = WorkspaceID(rawValue: Self.id(70))

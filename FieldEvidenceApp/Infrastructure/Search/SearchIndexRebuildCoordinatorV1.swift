@@ -2512,3 +2512,47 @@ enum C53ServiceReliabilitySearchRebuildBoundaryV1 {
         return sorted
     }
 }
+
+// MARK: - C57 deterministic My Day index rebuild
+
+enum C57MyDaySearchRebuildBoundaryV1 {
+    static let rebuildsFromCanonicalPlansAndCurrentSourceFrontiers = true
+    static let rebuildWritesNoMyDayCanonicalState = true
+    static let staleIndexIsDroppedBeforePublication = true
+
+    static func records(
+        plans: [MyDayPlanV1],
+        readiness: [MyDayReadinessProjectionV1]
+    ) throws -> [C57MyDaySearchRecordV1] {
+        guard plans.count <= SearchContractLimitsV1.maximumCanonicalRecords,
+              readiness.count == plans.count else {
+            throw SearchContractFailureV1.limitExceeded
+        }
+        try plans.forEach { try $0.validate() }
+        try readiness.forEach { try $0.validate() }
+        let grouped = Dictionary(grouping: readiness, by: \.plan)
+        guard Set(plans.map(\.key)).count == plans.count,
+              grouped.values.allSatisfy({ $0.count == 1 }) else {
+            throw SearchContractFailureV1.duplicateProjection
+        }
+        let planReferences = try plans.map(MyDayPlanReferenceV1.init)
+        guard Set(planReferences).count == planReferences.count,
+              Set(grouped.keys) == Set(planReferences) else {
+            throw SearchContractFailureV1.staleIndex
+        }
+        let values = try plans.flatMap { plan -> [C57MyDaySearchRecordV1] in
+            let reference = try MyDayPlanReferenceV1(plan)
+            guard let source = grouped[reference]?.first else {
+                throw SearchContractFailureV1.staleIndex
+            }
+            return try C57MyDayLocalSearchIndexBoundaryV1.records(
+                plan: plan, readiness: source
+            )
+        }.sorted { $0.projectionIdentity < $1.projectionIdentity }
+        guard values.count <= SearchContractLimitsV1.maximumProjectionRecords,
+              Set(values.map(\.projectionIdentity)).count == values.count else {
+            throw SearchContractFailureV1.duplicateProjection
+        }
+        return values
+    }
+}

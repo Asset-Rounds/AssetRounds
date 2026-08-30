@@ -31,7 +31,7 @@ enum C49WorkResourceBackupImportBoundaryV1 {
     static let derivedTotalsSearchAndDraftsAreRebuilt = true
 
     static func validate(_ records: V4BackupRecordsV1) throws {
-        guard (recordsSchemaVersion...C55PartsStockBackupEnrollmentV1.recordsSchemaVersion)
+        guard (recordsSchemaVersion...C57MyDayBackupEnrollmentV1.recordsSchemaVersion)
             .contains(records.recordsSchemaVersion) else {
             throw WorkResourceContractFailureV1.invalidValue
         }
@@ -468,7 +468,7 @@ enum C53ServiceReliabilityBackupImportContractBoundaryV1 {
     ) throws {
         guard persistent == records + 1,
               records == backup.recordsSchemaVersion,
-              (recordsSchemaVersion...C55PartsStockBackupEnrollmentV1.recordsSchemaVersion)
+              (recordsSchemaVersion...C57MyDayBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records),
               persistentSchemaVersion == 40,
               durableFamilyCount == 7,

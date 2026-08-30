@@ -81,6 +81,12 @@ final class MutationReceiptRecoveryServiceV1 {
     func recoverWorkResourceEffectsBeforeWriterActivation()throws{
         try recoverBeforeWriterActivation()
     }
+    /// C57 restores only canonical daily-plan membership and immutable
+    /// carryover receipts through the existing journal. Readiness, due, and
+    /// source-work state remain derived or owned by their respective seams.
+    func recoverMyDayEffectsBeforeWriterActivation() throws {
+        try recoverBeforeWriterActivation()
+    }
     /// C52 revalidates all three append-only row families and their exact
     /// receipt before activation; derived duplicate/state projections remain disposable.
     func recoverServiceRequestEffectsBeforeWriterActivation()throws{

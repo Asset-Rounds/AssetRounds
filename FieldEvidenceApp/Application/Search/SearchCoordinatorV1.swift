@@ -622,3 +622,41 @@ enum C52ServiceRequestBoundary_FieldEvidenceApp_Application_Search_SearchCoordin
     static let unverifiedAssertionsAreVerified: Bool = false
     static let automaticWorkNetworkSLAOrAIClaimsPermitted: Bool = false
 }
+
+
+// MARK: - C57 My Day derived metadata search
+
+extension SearchCoordinatorV1 {
+    static func searchMyDayMetadata(
+        query: String,
+        workspaceID: WorkspaceID,
+        records: [C57MyDaySearchRecordV1],
+        maximumResults: Int = 100
+    ) throws -> [C57MyDaySearchRecordV1] {
+        guard maximumResults > 0,
+              maximumResults <= SearchContractLimitsV1.maximumCanonicalRecords,
+              records.count <= SearchContractLimitsV1.maximumProjectionRecords else {
+            throw SearchContractFailureV1.limitExceeded
+        }
+        guard records.allSatisfy({ $0.workspaceID == workspaceID }) else {
+            throw SearchContractFailureV1.scopeMismatch
+        }
+        try records.forEach { try $0.validate() }
+        let tokens = normalizedTokens(query)
+        guard !tokens.isEmpty else { throw SearchContractFailureV1.invalidQuery }
+        let matches = records.filter { record in
+            tokens.allSatisfy { queryToken in
+                record.normalizedTokens.contains { indexedToken in
+                    indexedToken == queryToken || indexedToken.hasPrefix(queryToken)
+                }
+            }
+        }.sorted { $0.projectionIdentity < $1.projectionIdentity }
+        return Array(matches.prefix(maximumResults))
+    }
+}
+
+enum C57MyDaySearchCoordinatorBoundaryV1 {
+    static let queryReadsDerivedRowsOnly = true
+    static let queryCannotMutatePlanOrSourceWork = true
+    static let workspaceScopeIsRequired = true
+}

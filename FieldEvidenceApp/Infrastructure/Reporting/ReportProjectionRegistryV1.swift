@@ -2614,3 +2614,29 @@ enum C53ServiceReliabilityReportProjectionRegistryV1 {
         try projection.validate()
     }
 }
+
+// MARK: - C57 My Day derived projection registry
+
+enum C57MyDayReportProjectionRegistryV1 {
+    static let registryOwnsNoMyDayPersistence = true
+    static let rebuildRequiresExactPlanAndSourceFrontier = true
+
+    static func projection(
+        plan: MyDayPlanV1,
+        readiness: MyDayReadinessProjectionV1
+    ) throws -> C57MyDayReportProjectionV1 {
+        let value = try C57MyDayReportProjectionBoundaryV1.projection(
+            plan: plan, readiness: readiness
+        )
+        try value.validate(plan: plan, readiness: readiness)
+        return value
+    }
+
+    static func validate(
+        _ projection: C57MyDayReportProjectionV1,
+        plan: MyDayPlanV1,
+        readiness: MyDayReadinessProjectionV1
+    ) throws {
+        try projection.validate(plan: plan, readiness: readiness)
+    }
+}

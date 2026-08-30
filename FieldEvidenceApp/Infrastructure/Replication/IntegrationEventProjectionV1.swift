@@ -56,6 +56,7 @@ struct IntegrationEventProjectionV1: Sendable {
             try Self.validateOperationalContactReceiptShape(receipt)
             try Self.validatePortableReviewReconciliationReceiptShape(receipt)
             try Self.validateWorkResourceReceiptShape(receipt)
+            try Self.validateMyDayReceiptShape(receipt)
             guard receipt.identity.workspaceID == workspaceID,
                   receipt.resultingRevision.workspaceID == workspaceID else {
                 throw IntegrationEventFailureV1.wrongWorkspace
@@ -218,10 +219,39 @@ struct IntegrationEventProjectionV1: Sendable {
               expected < UInt64.max,
               image.revision == expected + 1 else { throw IntegrationEventFailureV1.divergentEvent }
     }
+
+    /// C57 has only plan membership/order and an optional immutable carryover
+    /// receipt.  The projection never infers readiness, due time, or source
+    /// work state from those canonical events.
+    static func validateMyDayReceiptShape(_ receipt: MutationReceiptV1) throws {
+        let identities = try receipt.postImages.map { try $0.identity }
+        let kinds = Set(identities.map(\.kind))
+        let myDayKinds: Set<WorkspaceEntityKindV1> = [.myDayPlan, .myDayCarryoverReceipt]
+        guard !kinds.intersection(myDayKinds).isEmpty else { return }
+        guard kinds.isSubset(of: myDayKinds),
+              identities.count == Set(identities).count,
+              identities.filter({ $0.kind == .myDayPlan }).count == 1,
+              identities.filter({ $0.kind == .myDayCarryoverReceipt }).count <= 1 else {
+            throw IntegrationEventFailureV1.divergentEvent
+        }
+        for image in receipt.postImages {
+            let identity = try image.identity
+            let concurrency = try image.concurrencyIdentity
+            let expected = receipt.expectedRevision.entityRevisions.first(where: { $0.identity == concurrency })?.revision
+            guard identity == concurrency, let expected, expected < UInt64.max,
+                  image.revision == expected + 1,
+                  identity.kind == .myDayCarryoverReceipt ? expected == 0 : true else {
+                throw IntegrationEventFailureV1.divergentEvent
+            }
+        }
+    }
     func validatePortableReviewReconciliationReplay(_ receipts: [MutationReceiptV1]) throws {
         let found = try receipts.contains { try $0.postImages.contains { C48PortableReviewReconciliationIntegrationEventBoundaryV1.canonicalReconciliationKinds.contains(try $0.identity.kind) } }
         if found { try C48PortableReviewReconciliationIntegrationEventBoundaryV1.validate(registry: registry) }
         try receipts.forEach { try Self.validatePortableReviewReconciliationReceiptShape($0) }
+    }
+    func validateMyDayReplay(_ receipts: [MutationReceiptV1]) throws {
+        try receipts.forEach { try Self.validateMyDayReceiptShape($0) }
     }
 
     func validateProjectedStream(_ events: [IntegrationEventV1], workspaceID: WorkspaceID) throws -> [IntegrationEventV1] {

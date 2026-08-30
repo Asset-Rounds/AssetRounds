@@ -1072,3 +1072,30 @@ enum C52ServiceRequestBoundary_ContractManifestV1 {
     static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
     static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
 }
+
+// MARK: - C57 My Day report contract manifest
+
+enum C57MyDayContractManifestBoundaryV1 {
+    static let canonicalContractTypes = [
+        "MyDayKeyV1", "MyDayPlanV1", "MyDayCarryoverReceiptV1",
+    ]
+    static let derivedContractTypes = [
+        "MyDayReadinessProjectionV1", "C57MyDayReportProjectionV1",
+    ]
+    static let derivedFieldIDs = [
+        "source_state", "readiness", "due_at", "estimate_whole_minutes",
+    ]
+    static let derivedFieldsAreCanonicalWriterInputs = false
+    static let sourceFrontierBindingRequired = true
+
+    static func validate(_ projection: C57MyDayReportProjectionV1) throws {
+        try projection.validate()
+        guard Set(canonicalContractTypes).count == canonicalContractTypes.count,
+              Set(derivedContractTypes).count == derivedContractTypes.count,
+              Set(derivedFieldIDs).count == derivedFieldIDs.count,
+              !derivedFieldsAreCanonicalWriterInputs,
+              sourceFrontierBindingRequired else {
+            throw SnapshotProjectionFailureV1.invalidValue
+        }
+    }
+}

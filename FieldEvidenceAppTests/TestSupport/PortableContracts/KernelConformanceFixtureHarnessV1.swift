@@ -10,6 +10,211 @@ private enum C53AssetServiceReliabilityBoundary_KernelConformanceFixtureHarnessV
     static let typedAnchor: C53AssetServiceReliabilityBoundaryTokenV1.Type = C53AssetServiceReliabilityBoundaryTokenV1.self
 }
 
+// MARK: - C57 existing-suite fixture
+
+enum C57MyDayExistingSuiteFixtureV1 {
+    struct Fixture {
+        let workspaceID: WorkspaceID
+        let sourcePlan: MyDayPlanV1
+        let targetPlan: MyDayPlanV1
+        let carryoverPlan: MyDayCarryoverPlanV1
+        let carryoverReceipt: MyDayCarryoverReceiptV1
+
+        var saveCommand: MyDayCommandV1 {
+            .save(successor: sourcePlan, predecessor: nil)
+        }
+
+        var carryoverCommand: MyDayCommandV1 {
+            .carryover(
+                plan: carryoverPlan,
+                source: sourcePlan,
+                target: targetPlan,
+                receipt: carryoverReceipt
+            )
+        }
+
+        func divergentSaveCommand() throws -> MyDayCommandV1 {
+            guard let original = sourcePlan.items.first else {
+                throw MyDayFailureV1.invalidValue
+            }
+            let changed = try MyDayItemV1(
+                membershipID: original.membershipID,
+                reference: original.reference,
+                manualOrder: original.manualOrder,
+                estimate: .init(wholeMinutes: 31)
+            )
+            let divergent = try MyDayPlanV1(
+                planID: sourcePlan.planID,
+                key: sourcePlan.key,
+                items: [changed],
+                revision: sourcePlan.revision,
+                mutationID: sourcePlan.mutationID,
+                authoredBy: sourcePlan.authoredBy,
+                authoredAt: sourcePlan.authoredAt
+            )
+            return .save(successor: divergent, predecessor: nil)
+        }
+
+        func sourceSuccessor() throws -> MyDayPlanV1 {
+            guard let original = sourcePlan.items.first else {
+                throw MyDayFailureV1.invalidValue
+            }
+            let changed = try MyDayItemV1(
+                membershipID: original.membershipID,
+                reference: original.reference,
+                manualOrder: original.manualOrder,
+                estimate: .init(wholeMinutes: 45)
+            )
+            return try MyDayPlanV1(
+                planID: sourcePlan.planID,
+                key: sourcePlan.key,
+                items: [changed],
+                predecessor: sourcePlan,
+                revision: 2,
+                mutationID: .init(rawValue: C57MyDayExistingSuiteFixtureV1.id(10)),
+                authoredBy: sourcePlan.authoredBy,
+                authoredAt: sourcePlan.authoredAt.addingTimeInterval(3)
+            )
+        }
+
+        func expectedRevision(
+            for command: MyDayCommandV1,
+            workspaceRevision: UInt64,
+            generationID: UUID,
+            writerInstanceID: UUID
+        ) throws -> WorkspaceExpectedRevisionV1 {
+            let plan: MyDayPlanV1
+            var revisions: [WorkspaceEntityRevisionV1]
+            switch command {
+            case .save(let successor, let predecessor):
+                plan = successor
+                revisions = [try .init(
+                    identity: .init(kind: .myDayPlan, id: successor.planID),
+                    revision: predecessor?.revision ?? 0
+                )]
+            case .carryover(_, _, let target, let receipt):
+                plan = target
+                revisions = [
+                    try .init(
+                        identity: .init(kind: .myDayPlan, id: sourcePlan.planID),
+                        revision: sourcePlan.revision
+                    ),
+                    try .init(
+                        identity: .init(kind: .myDayPlan, id: target.planID),
+                        revision: 0
+                    ),
+                    try .init(
+                        identity: .init(
+                            kind: .myDayCarryoverReceipt,
+                            id: receipt.mutationID.rawValue
+                        ),
+                        revision: 0
+                    ),
+                ]
+            }
+            return try WorkspaceExpectedRevisionV1(
+                workspaceID: plan.key.workspaceID,
+                generationID: generationID,
+                writerInstanceID: writerInstanceID,
+                workspaceRevision: workspaceRevision,
+                entityRevisions: revisions
+            )
+        }
+    }
+
+    static func make(
+        reference suppliedReference: MyDayEligibleReferenceV1? = nil,
+        sourceMutationSlot: UInt8 = 7,
+        targetMutationSlot: UInt8 = 9
+    ) throws -> Fixture {
+        let workspaceID = WorkspaceID(rawValue: id(1))
+        let instant = Date(timeIntervalSince1970: 1_800_100_000)
+        let actor = try LocalActorReferenceV1(
+            actorReferenceID: id(2),
+            workspaceID: workspaceID,
+            displayName: "C57 Operator"
+        )
+        let snapshot = try ActorSnapshotV1(
+            snapshotID: id(3),
+            workspaceID: workspaceID,
+            actor: actor,
+            responsibility: .recordedBy,
+            displayNameAtTime: actor.displayName,
+            capturedAt: instant
+        )
+        let reference = suppliedReference ?? MyDayEligibleReferenceV1.roundSession(
+            workspaceID: workspaceID,
+            sessionID: id(4),
+            revision: 1,
+            sessionSHA256: String(repeating: "a", count: 64)
+        )
+        let membershipID = id(5)
+        let sourceItem = try MyDayItemV1(
+            membershipID: membershipID,
+            reference: reference,
+            manualOrder: 0,
+            estimate: .init(wholeMinutes: 30)
+        )
+        let sourceKey = try MyDayKeyV1(
+            workspaceID: workspaceID,
+            civilDate: .init(year: 2026, month: 8, day: 30),
+            ianaTimeZoneIdentifier: "America/New_York"
+        )
+        let sourcePlan = try MyDayPlanV1(
+            planID: id(6),
+            key: sourceKey,
+            items: [sourceItem],
+            revision: 1,
+            mutationID: .init(rawValue: id(sourceMutationSlot)),
+            authoredBy: snapshot,
+            authoredAt: instant
+        )
+        let targetKey = try MyDayKeyV1(
+            workspaceID: workspaceID,
+            civilDate: .init(year: 2026, month: 8, day: 31),
+            ianaTimeZoneIdentifier: "America/New_York"
+        )
+        let targetItem = try MyDayItemV1(
+            membershipID: membershipID,
+            reference: reference,
+            manualOrder: 0,
+            estimate: .init(wholeMinutes: 30)
+        )
+        let targetPlan = try MyDayPlanV1(
+            planID: id(8),
+            key: targetKey,
+            items: [targetItem],
+            revision: 1,
+            mutationID: .init(rawValue: id(targetMutationSlot)),
+            authoredBy: snapshot,
+            authoredAt: instant.addingTimeInterval(1)
+        )
+        let carryover = try MyDayCarryoverPlanV1(
+            sourcePlan: sourcePlan,
+            targetKey: targetKey,
+            membershipIDs: [membershipID]
+        )
+        let receipt = try MyDayCarryoverReceiptV1(
+            plan: carryover,
+            source: sourcePlan,
+            target: targetPlan,
+            mutationID: targetPlan.mutationID,
+            committedAt: instant.addingTimeInterval(2)
+        )
+        return Fixture(
+            workspaceID: workspaceID,
+            sourcePlan: sourcePlan,
+            targetPlan: targetPlan,
+            carryoverPlan: carryover,
+            carryoverReceipt: receipt
+        )
+    }
+
+    private static func id(_ value: UInt8) -> UUID {
+        UUID(uuid: (0x57, value, 0, 0, 0, 0x40, 0, 0x80, 0, 0, 0, 0, 0, 0, value))
+    }
+}
+
 enum KernelConformanceFixtureFailureV1: Error, Equatable {
     case missingArtifact(String)
     case invalidArtifact(String)

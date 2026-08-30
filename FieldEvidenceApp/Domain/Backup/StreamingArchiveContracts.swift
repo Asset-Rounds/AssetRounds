@@ -10,7 +10,7 @@ enum C50IncumbentFileExchangeStreamingArchiveBoundaryV1 {
 
     static func validate(recordsSchemaVersion: Int) -> Bool {
         excludesSceneRouteState
-            && recordsSchemaVersion <= C55PartsStockBackupEnrollmentV1.recordsSchemaVersion
+            && recordsSchemaVersion <= C57MyDayBackupEnrollmentV1.recordsSchemaVersion
             && adapterSourceMemberCount == 0
             && adapterQuarantineMemberCount == 0
             && profileSelectionMemberCount == 0

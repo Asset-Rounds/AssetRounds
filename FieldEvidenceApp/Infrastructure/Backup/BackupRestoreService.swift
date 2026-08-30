@@ -2138,7 +2138,10 @@ private extension BackupRestoreService {
             serviceRestorationAssertions: records.serviceRestorationAssertions,
             qualifiedServiceExposures: records.qualifiedServiceExposures,
             serviceReliabilityReceipts: records.serviceReliabilityReceipts,
-            partsStockSnapshot: records.partsStockSnapshot
+            partsStockSnapshot: records.partsStockSnapshot,
+            myDayPlans: records.myDayPlans,
+            myDayCarryoverReceipts: records.myDayCarryoverReceipts,
+            nonactivePlanReferences: records.nonactivePlanReferences
         )
     }
 
@@ -2223,8 +2226,66 @@ private extension BackupRestoreService {
             serviceRestorationAssertions: records.serviceRestorationAssertions,
             qualifiedServiceExposures: records.qualifiedServiceExposures,
             serviceReliabilityReceipts: records.serviceReliabilityReceipts,
-            partsStockSnapshot: records.partsStockSnapshot
+            partsStockSnapshot: records.partsStockSnapshot,
+            myDayPlans: records.myDayPlans,
+            myDayCarryoverReceipts: records.myDayCarryoverReceipts,
+            nonactivePlanReferences: records.nonactivePlanReferences
         )
+    }
+
+    func myDayTargetReferences(
+        requiredBy plans: [MyDayPlanV1],
+        in records: V4BackupRecordsV1
+    ) throws -> [MyDayEligibleReferenceV1] {
+        let required = Set(plans.flatMap { $0.items.map(\.reference.stableKey) })
+        guard !required.isEmpty else { return [] }
+        var candidates: [MyDayEligibleReferenceV1] = []
+        candidates += try records.workPackets.compactMap { record in
+            guard record.kind == .manifest else { return nil }
+            let value = try WorkPacketCanonicalCodecV1.decode(
+                WorkPacketManifestV1.self, from: record.canonicalData
+            )
+            return .workPacket(try WorkPacketManifestReferenceV1(value))
+        }
+        candidates += try records.guidedSurveys.compactMap { record in
+            guard record.kind == .session else { return nil }
+            let value = try SurveySessionCanonicalCodecV1.decode(
+                SurveySessionV1.self, from: record.canonicalData
+            )
+            return .roundSession(
+                workspaceID: value.workspaceID, sessionID: value.sessionID,
+                revision: value.revision, sessionSHA256: value.sessionSHA256
+            )
+        }
+        candidates += try records.schedules.compactMap { record in
+            guard record.kind == .occurrenceHistory else { return nil }
+            let value = try ScheduleCanonicalCodecV1.decode(
+                OccurrenceHistoryEventV1.self, from: record.canonicalData
+            )
+            return .scheduleOccurrence(
+                try C34OccurrenceNavigationAnchorV1(event: value),
+                sourceEventSHA256: value.eventSHA256
+            )
+        }
+        candidates += try records.fieldDrafts.compactMap { record in
+            guard record.kind == .checkpoint else { return nil }
+            let value = try FieldDraftCanonicalCodecV1.decode(
+                FieldDraftCheckpointV1.self, from: record.canonicalData
+            )
+            return .resumableDraft(
+                workspaceID: value.workspaceID, draftID: value.draftID,
+                revision: value.draftRevision, checkpointSHA256: value.checkpointSHA256,
+                anchor: value.resumeAnchor
+            )
+        }
+        let grouped = Dictionary(grouping: candidates, by: \.stableKey)
+        return try required.sorted().map { key in
+            guard let values = grouped[key],
+                  let latest = values.max(by: { $0.sourceRevision < $1.sourceRevision }),
+                  latest.stableKey == key else { throw MyDayFailureV1.missingSource }
+            try latest.validate()
+            return latest
+        }
     }
 
     func recordsForMaterialization(
@@ -2243,6 +2304,21 @@ private extension BackupRestoreService {
         if records.recordsSchemaVersion >= C49BackupEnrollmentV1.recordsSchemaVersion {
             _ = try records.validateC49WorkResources()
         } else if !records.workResources.isEmpty {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        if records.recordsSchemaVersion >= C57MyDayBackupEnrollmentV1.recordsSchemaVersion {
+            do {
+                try C57MyDayBackupEnrollmentV1.validate(records)
+                _ = try C57MyDayRestoreIdentityBoundaryV1.canonicalTruth(
+                    plans: records.myDayPlans,
+                    carryovers: records.myDayCarryoverReceipts,
+                    nonactivePlanReferences: records.nonactivePlanReferences,
+                    mode: identityDecision?.mode ?? .replaceExisting
+                )
+            } catch let error as BackupRestoreServiceError { throw error }
+            catch { throw BackupRestoreServiceError.invalidPackage }
+        } else if !records.myDayPlans.isEmpty || !records.myDayCarryoverReceipts.isEmpty
+                    || !records.nonactivePlanReferences.isEmpty {
             throw BackupRestoreServiceError.invalidPackage
         }
         if records.recordsSchemaVersion >= C53ServiceReliabilityBackupEnrollmentV1.recordsSchemaVersion {
@@ -2467,6 +2543,49 @@ private extension BackupRestoreService {
                 )
             } catch let error as BackupRestoreServiceError { throw error }
             catch { throw BackupRestoreServiceError.invalidRestoreAuthority }
+        }
+        if normalized.recordsSchemaVersion >= C57MyDayBackupEnrollmentV1.recordsSchemaVersion {
+            do {
+                let sourceWorkspaceID = WorkspaceID(rawValue:
+                    identityDecision?.source.workspaceID
+                        ?? normalized.myDayPlans.first?.key.workspaceID.rawValue
+                        ?? legacyDestinationIdentity.workspaceID.rawValue
+                )
+                let targetWorkspaceID = WorkspaceID(rawValue:
+                    identityDecision?.targetPointer.workspaceID
+                        ?? legacyDestinationIdentity.workspaceID.rawValue
+                )
+                let source = try MyDayBackupSnapshotV1(
+                    workspaceID: sourceWorkspaceID,
+                    plans: records.myDayPlans,
+                    carryoverReceipts: records.myDayCarryoverReceipts,
+                    nonactivePlanReferences: records.nonactivePlanReferences
+                )
+                let disposition: MyDayRestoreDispositionV1
+                switch identityDecision?.mode ?? .replaceExisting {
+                case .emptyInstall, .replaceExisting: disposition = .replaceExact
+                case .clone: disposition = .configurationCloneOmit
+                case .fork: disposition = .workspaceForkNonactiveHistory
+                }
+                let selected = Set(source.nonactivePlanReferences)
+                let retainedPlans = try source.plans.filter {
+                    selected.contains(try MyDayPlanReferenceV1($0))
+                }
+                let targetReferences = disposition == .workspaceForkNonactiveHistory
+                    ? try myDayTargetReferences(requiredBy: retainedPlans, in: normalized)
+                    : []
+                let prepared = try MyDayLifecycleAdapterV1.preparedRestoreSnapshot(
+                    source,
+                    targetWorkspaceID: targetWorkspaceID,
+                    disposition: disposition,
+                    operationID: partsStockOperationID,
+                    targetReferences: targetReferences
+                )
+                normalized = normalized.replacingMyDay(prepared)
+                try C57MyDayBackupEnrollmentV1.validate(normalized)
+            } catch {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
         }
         guard let history = normalized.mutationHistory else {
             throw BackupRestoreServiceError.invalidPackage
@@ -2740,7 +2859,10 @@ private extension BackupRestoreService {
             serviceRestorationAssertions: records.serviceRestorationAssertions,
             qualifiedServiceExposures: records.qualifiedServiceExposures,
             serviceReliabilityReceipts: records.serviceReliabilityReceipts,
-            partsStockSnapshot: records.partsStockSnapshot
+            partsStockSnapshot: records.partsStockSnapshot,
+            myDayPlans: records.myDayPlans,
+            myDayCarryoverReceipts: records.myDayCarryoverReceipts,
+            nonactivePlanReferences: records.nonactivePlanReferences
         )
     }
 
@@ -3069,7 +3191,10 @@ private extension BackupRestoreService {
                 serviceRestorationAssertions: records.serviceRestorationAssertions,
                 qualifiedServiceExposures: records.qualifiedServiceExposures,
                 serviceReliabilityReceipts: records.serviceReliabilityReceipts,
-                partsStockSnapshot: records.partsStockSnapshot
+            partsStockSnapshot: records.partsStockSnapshot,
+            myDayPlans: records.myDayPlans,
+            myDayCarryoverReceipts: records.myDayCarryoverReceipts,
+            nonactivePlanReferences: records.nonactivePlanReferences
             )
         }
         let receipt = try LocationPersistenceCodecV1.decode(
@@ -3168,7 +3293,10 @@ private extension BackupRestoreService {
             serviceRestorationAssertions: records.serviceRestorationAssertions,
             qualifiedServiceExposures: records.qualifiedServiceExposures,
             serviceReliabilityReceipts: records.serviceReliabilityReceipts,
-            partsStockSnapshot: records.partsStockSnapshot
+            partsStockSnapshot: records.partsStockSnapshot,
+            myDayPlans: records.myDayPlans,
+            myDayCarryoverReceipts: records.myDayCarryoverReceipts,
+            nonactivePlanReferences: records.nonactivePlanReferences
         )
     }
 
@@ -7803,7 +7931,10 @@ private extension BackupRestoreService {
             serviceRestorationAssertions: records.serviceRestorationAssertions,
             qualifiedServiceExposures: records.qualifiedServiceExposures,
             serviceReliabilityReceipts: records.serviceReliabilityReceipts,
-            partsStockSnapshot: records.partsStockSnapshot
+            partsStockSnapshot: records.partsStockSnapshot,
+            myDayPlans: records.myDayPlans,
+            myDayCarryoverReceipts: records.myDayCarryoverReceipts,
+            nonactivePlanReferences: records.nonactivePlanReferences
         )
     }
 
@@ -8392,7 +8523,8 @@ private extension BackupRestoreService {
                 || records.recordsSchemaVersion == 37
                 || records.recordsSchemaVersion == 38
                 || records.recordsSchemaVersion == C53ServiceReliabilityBackupEnrollmentV1.recordsSchemaVersion
-                || records.recordsSchemaVersion == C55PartsStockBackupEnrollmentV1.recordsSchemaVersion)
+                || records.recordsSchemaVersion == C55PartsStockBackupEnrollmentV1.recordsSchemaVersion
+                || records.recordsSchemaVersion == C57MyDayBackupEnrollmentV1.recordsSchemaVersion)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -8419,7 +8551,8 @@ private extension BackupRestoreService {
              (35, let ledger?, _), (36, let ledger?, _),
              (37, let ledger?, _), (38, let ledger?, _),
              (C53ServiceReliabilityBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _),
-             (C55PartsStockBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _):
+             (C55PartsStockBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _),
+             (C57MyDayBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _):
             do {
                 try ledger.validate()
                 try DeletionLedgerStore(context: context).stageUnion(ledger.entries)
@@ -9356,6 +9489,29 @@ private extension BackupRestoreService {
         } else if !records.workResources.isEmpty {
             throw BackupRestoreServiceError.invalidPackage
         }
+        if records.recordsSchemaVersion >= C57MyDayBackupEnrollmentV1.recordsSchemaVersion {
+            do {
+                try C57MyDayBackupEnrollmentV1.validate(records)
+                let workspaceID = identityDecision?.targetPointer.workspaceID
+                    ?? legacyDestinationIdentity.workspaceID.rawValue
+                guard records.myDayPlans.allSatisfy({
+                    $0.key.workspaceID.rawValue == workspaceID
+                }), records.myDayCarryoverReceipts.allSatisfy({
+                    $0.sourcePlan.key.workspaceID.rawValue == workspaceID
+                        && $0.targetPlan.key.workspaceID.rawValue == workspaceID
+                }) else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                for value in records.myDayPlans { context.insert(try MyDayPlanRowV1(value)) }
+                for value in records.myDayCarryoverReceipts {
+                    context.insert(try MyDayCarryoverReceiptRowV1(value))
+                }
+            } catch let error as BackupRestoreServiceError { throw error }
+            catch { throw BackupRestoreServiceError.invalidPackage }
+        } else if !records.myDayPlans.isEmpty || !records.myDayCarryoverReceipts.isEmpty
+                    || !records.nonactivePlanReferences.isEmpty {
+            throw BackupRestoreServiceError.invalidPackage
+        }
         if records.recordsSchemaVersion >= C52ServiceRequestReplaceRestoreBoundaryV1.recordsSchemaVersion {
             do {
                 if let identityDecision {
@@ -9473,7 +9629,8 @@ private extension BackupRestoreService {
                     || records.recordsSchemaVersion == 37
                     || records.recordsSchemaVersion == C52ServiceRequestReplaceRestoreBoundaryV1.recordsSchemaVersion
                     || records.recordsSchemaVersion == C53ServiceReliabilityBackupEnrollmentV1.recordsSchemaVersion
-                    || records.recordsSchemaVersion == C55PartsStockBackupEnrollmentV1.recordsSchemaVersion else {
+                    || records.recordsSchemaVersion == C55PartsStockBackupEnrollmentV1.recordsSchemaVersion
+                    || records.recordsSchemaVersion == C57MyDayBackupEnrollmentV1.recordsSchemaVersion else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {
@@ -9494,7 +9651,7 @@ private extension BackupRestoreService {
                             == identityDecision?.oldPointer.replicaID) {
                     disposition = .preserve
                 } else if records.recordsSchemaVersion
-                            == C55PartsStockBackupEnrollmentV1.recordsSchemaVersion,
+                            >= C55PartsStockBackupEnrollmentV1.recordsSchemaVersion,
                           let identityDecision,
                           identityDecision.mode == .emptyInstall
                             || identityDecision.mode == .replaceExisting {
@@ -10840,7 +10997,10 @@ private extension BackupRestoreService {
             serviceRestorationAssertions: records.serviceRestorationAssertions,
             qualifiedServiceExposures: records.qualifiedServiceExposures,
             serviceReliabilityReceipts: records.serviceReliabilityReceipts,
-            partsStockSnapshot: records.partsStockSnapshot
+            partsStockSnapshot: records.partsStockSnapshot,
+            myDayPlans: records.myDayPlans,
+            myDayCarryoverReceipts: records.myDayCarryoverReceipts,
+            nonactivePlanReferences: records.nonactivePlanReferences
         )
     }
 
@@ -10891,7 +11051,10 @@ private extension BackupRestoreService {
             serviceRestorationAssertions: expected.serviceRestorationAssertions,
             qualifiedServiceExposures: expected.qualifiedServiceExposures,
             serviceReliabilityReceipts: expected.serviceReliabilityReceipts,
-            partsStockSnapshot: expected.partsStockSnapshot
+            partsStockSnapshot: expected.partsStockSnapshot,
+            myDayPlans: expected.myDayPlans,
+            myDayCarryoverReceipts: expected.myDayCarryoverReceipts,
+            nonactivePlanReferences: expected.nonactivePlanReferences
         )
         guard predecessor == expected,
               actual.locationNodes.isEmpty,
@@ -11026,6 +11189,10 @@ private extension BackupRestoreService {
         let partsStockReversalRows = try context.fetch(FetchDescriptor<StockUseReversalReceiptRowV1>())
         let partsStockReturnRows = try context.fetch(FetchDescriptor<StockReturnReceiptRowV1>())
         let partsStockAbandonmentRows = try context.fetch(FetchDescriptor<AbandonUnverifiedStockRowV1>())
+        let myDayPlanRows = try context.fetch(FetchDescriptor<MyDayPlanRowV1>())
+        let myDayCarryoverReceiptRows = try context.fetch(
+            FetchDescriptor<MyDayCarryoverReceiptRowV1>()
+        )
         let workResourceRows = try context.fetch(
             FetchDescriptor<ManualWorkResourceRecordRow>()
         )
@@ -11492,6 +11659,14 @@ private extension BackupRestoreService {
                 workspaceID: WorkspaceID(rawValue: $0)
             )
         }
+        let myDayPlans = try myDayPlanRows.map { try $0.value() }.sorted {
+            ($0.key.stableKey, $0.planID.uuidString, $0.revision)
+                < ($1.key.stableKey, $1.planID.uuidString, $1.revision)
+        }
+        let myDayCarryoverReceipts = try myDayCarryoverReceiptRows.map { try $0.value() }
+            .sorted { $0.receiptSHA256 < $1.receiptSHA256 }
+        let nonactivePlanReferences = try C57MyDayBackupEnrollmentV1
+            .exactNonactiveReferences(for: myDayPlans)
         let hasServiceReliabilityHistory = try mutationHistory?.receipts.contains { record in
             let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
             if case .applyServiceReliability = envelope.command { return true }
@@ -11766,7 +11941,7 @@ private extension BackupRestoreService {
                     : 11)
                 : 12)
                 : 13)
-                : 14) : C55PartsStockBackupEnrollmentV1.recordsSchemaVersion,
+                : 14) : C57MyDayBackupEnrollmentV1.recordsSchemaVersion,
             reports: reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -11820,7 +11995,10 @@ private extension BackupRestoreService {
             serviceRestorationAssertions: serviceRestorationAssertionRecords,
             qualifiedServiceExposures: qualifiedServiceExposureRecords,
             serviceReliabilityReceipts: serviceReliabilityReceiptRecords,
-            partsStockSnapshot: partsStockSnapshot
+            partsStockSnapshot: partsStockSnapshot,
+            myDayPlans: myDayPlans,
+            myDayCarryoverReceipts: myDayCarryoverReceipts,
+            nonactivePlanReferences: nonactivePlanReferences
         )
     }
 

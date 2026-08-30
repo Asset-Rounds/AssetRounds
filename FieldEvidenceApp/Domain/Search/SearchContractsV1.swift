@@ -4094,3 +4094,110 @@ enum C53ServiceReliabilitySearchProjectionBoundaryV1 {
         return value
     }
 }
+
+// MARK: - C57 My Day disposable search projection
+
+struct C57MyDaySearchRecordV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let workspaceID: WorkspaceID
+    let planKeySHA256: String
+    let planRevision: UInt64
+    let membershipID: UUID
+    let sourceKind: String
+    let sourceStableKeySHA256: String
+    let sourceClosureSHA256: String
+    let sourceFrontierSHA256: String
+    let reportProjectionSHA256: String
+    let sourceState: MyDaySourceStateV1
+    let readiness: MyDayReadinessV1
+    let hasDueAt: Bool
+    let hasEstimate: Bool
+    let normalizedTokens: [String]
+
+    var projectionIdentity: String {
+        "\(workspaceID.rawValue.uuidString.lowercased())|\(planKeySHA256)|\(membershipID.uuidString.lowercased())"
+    }
+
+    init(report: C57MyDayReportProjectionV1,
+         item: C57MyDayReportItemProjectionV1) throws {
+        try report.validate(); try item.validate()
+        guard report.items.contains(item) else { throw SearchContractFailureV1.scopeMismatch }
+        schemaVersion = Self.schemaVersion
+        workspaceID = report.workspaceID
+        planKeySHA256 = report.plan.key.keySHA256
+        planRevision = report.plan.revision
+        membershipID = item.membershipID
+        sourceKind = item.referenceStableKey.split(separator: "|", maxSplits: 1)
+            .first.map(String.init) ?? ""
+        sourceStableKeySHA256 = KernelCanonicalHashV1.sha256(Data(item.referenceStableKey.utf8))
+        sourceClosureSHA256 = report.sourceClosureSHA256
+        sourceFrontierSHA256 = item.sourceFrontierSHA256
+        reportProjectionSHA256 = report.projectionSHA256
+        sourceState = item.sourceState
+        readiness = item.readiness
+        hasDueAt = item.dueAt != nil
+        hasEstimate = item.estimateWholeMinutes != nil
+        normalizedTokens = Self.tokens(
+            "my day", sourceKind, sourceState.rawValue, readiness.rawValue,
+            hasDueAt ? "due date" : "no due date",
+            hasEstimate ? "estimated" : "no estimate"
+        )
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              SearchContractValidationV1.validID(projectionIdentity),
+              Self.allowedSourceKinds.contains(sourceKind),
+              planRevision > 0,
+              membershipID != SearchContractValidationV1.zeroUUID,
+              MutationEnvelopeV1.isSHA256(planKeySHA256),
+              MutationEnvelopeV1.isSHA256(sourceStableKeySHA256),
+              MutationEnvelopeV1.isSHA256(sourceClosureSHA256),
+              MutationEnvelopeV1.isSHA256(sourceFrontierSHA256),
+              MutationEnvelopeV1.isSHA256(reportProjectionSHA256),
+              normalizedTokens == normalizedTokens.sorted(),
+              normalizedTokens == Self.tokens(
+                  "my day",
+                  sourceKind,
+                  sourceState.rawValue, readiness.rawValue,
+                  hasDueAt ? "due date" : "no due date",
+                  hasEstimate ? "estimated" : "no estimate"
+              ),
+              SearchContractValidationV1.normalizedTokensAreCanonical(normalizedTokens) else {
+            throw SearchContractFailureV1.invalidField
+        }
+    }
+
+    private static func tokens(_ values: String...) -> [String] {
+        Array(Set(values.flatMap {
+            SearchContractValidationV1.normalizeSearchText($0)
+                .split { !CharacterSet.alphanumerics.contains($0) }
+                .map(String.init)
+        })).sorted()
+    }
+
+    private static let allowedSourceKinds: Set<String> = [
+        "WORK_PACKET", "ROUND_SESSION", "SCHEDULE_OCCURRENCE", "RESUMABLE_DRAFT",
+    ]
+}
+
+enum C57MyDaySearchProjectionBoundaryV1 {
+    static let rowsAreDerivedAndDisposable = true
+    static let sourceStateReadinessAndDueAreNeverCanonicalSearchTruth = true
+    static let sourceFrontierClosureIsRequired = true
+    static let searchRowsAreNeverWriterInputs = true
+
+    static func records(from report: C57MyDayReportProjectionV1) throws
+        -> [C57MyDaySearchRecordV1] {
+        try report.validate()
+        let values = try report.items.map { try C57MyDaySearchRecordV1(report: report, item: $0) }
+        let sorted = values.sorted { $0.projectionIdentity < $1.projectionIdentity }
+        guard Set(sorted.map(\.projectionIdentity)).count == sorted.count else {
+            throw SearchContractFailureV1.duplicateProjection
+        }
+        return sorted
+    }
+}

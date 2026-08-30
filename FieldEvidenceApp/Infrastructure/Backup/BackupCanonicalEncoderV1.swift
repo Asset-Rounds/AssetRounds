@@ -237,6 +237,16 @@ struct BackupCanonicalEncoderV1: Sendable {
             }
             fields["partsStockSnapshot"] = try Self.partsStockSnapshot(snapshot)
         }
+        if records.recordsSchemaVersion >= C57MyDayBackupEnrollmentV1.recordsSchemaVersion {
+            try C57MyDayBackupEnrollmentV1.validate(records)
+            fields["myDayPlans"] = .array(try records.myDayPlans.map(Self.myDayCanonicalValue))
+            fields["myDayCarryoverReceipts"] = .array(
+                try records.myDayCarryoverReceipts.map(Self.myDayCanonicalValue)
+            )
+            fields["nonactivePlanReferences"] = .array(
+                try records.nonactivePlanReferences.map(Self.myDayCanonicalValue)
+            )
+        }
         if let deletionLedger = records.deletionLedger {
             fields["deletionLedger"] = Self.deletionLedger(deletionLedger)
         }
@@ -303,6 +313,12 @@ private extension BackupCanonicalEncoderV1 {
         return try canonicalPartsStockJSON(object)
     }
 
+    static func myDayCanonicalValue<T: Encodable>(_ value: T) throws -> CanonicalJSONValueV1 {
+        let data = try MyDayCanonicalCodecV1.data(value)
+        let object = try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
+        return try canonicalPartsStockJSON(object)
+    }
+
     static func canonicalPartsStockJSON(_ value: Any) throws -> CanonicalJSONValueV1 {
         if value is NSNull { return .null }
         if let value = value as? [String: Any] {
@@ -328,7 +344,7 @@ private extension BackupCanonicalEncoderV1 {
     }
 
     static func validSemantic(_ records: V4BackupRecordsV1) -> Bool {
-        guard (4...C55PartsStockBackupEncodingBoundaryV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
+        guard (4...C57MyDayBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               records.mutationHistory == nil,
               let ledger = records.deletionLedger,
               (try? ledger.validate()) != nil else {
@@ -402,7 +418,7 @@ private extension BackupCanonicalEncoderV1 {
              (13, let ledger?, let history?), (14, let ledger?, let history?),
              (15, let ledger?, let history?), (16, let ledger?, let history?),
              (17, let ledger?, let history?), (18, let ledger?, let history?), (19, let ledger?, let history?),
-             (20, let ledger?, let history?), (21, let ledger?, let history?), (22, let ledger?, let history?), (23, let ledger?, let history?), (24, let ledger?, let history?), (25, let ledger?, let history?), (26, let ledger?, let history?), (27, let ledger?, let history?), (28, let ledger?, let history?), (29, let ledger?, let history?), (30, let ledger?, let history?), (31, let ledger?, let history?), (32, let ledger?, let history?), (33, let ledger?, let history?), (34, let ledger?, let history?), (35, let ledger?, let history?), (36, let ledger?, let history?), (37, let ledger?, let history?), (38, let ledger?, let history?), (39, let ledger?, let history?), (C55PartsStockBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?):
+             (20, let ledger?, let history?), (21, let ledger?, let history?), (22, let ledger?, let history?), (23, let ledger?, let history?), (24, let ledger?, let history?), (25, let ledger?, let history?), (26, let ledger?, let history?), (27, let ledger?, let history?), (28, let ledger?, let history?), (29, let ledger?, let history?), (30, let ledger?, let history?), (31, let ledger?, let history?), (32, let ledger?, let history?), (33, let ledger?, let history?), (34, let ledger?, let history?), (35, let ledger?, let history?), (36, let ledger?, let history?), (37, let ledger?, let history?), (38, let ledger?, let history?), (39, let ledger?, let history?), (C55PartsStockBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (C57MyDayBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?):
             ledgerIsValid = (try? ledger.validate()) != nil
                 && (try? MutationJournalStoreV1.validateImportedSnapshot(history)) != nil
                 && validMutationHistoryOrder(history)
@@ -1129,7 +1145,7 @@ private extension BackupCanonicalEncoderV1 {
                 && records.serviceReliabilityReceipts.isEmpty
         }
         guard (C53ServiceReliabilityBackupEnrollmentV1.recordsSchemaVersion...
-                C55PartsStockBackupEncodingBoundaryV1.recordsSchemaVersion)
+                C57MyDayBackupEnrollmentV1.recordsSchemaVersion)
             .contains(records.recordsSchemaVersion) else {
             return false
         }

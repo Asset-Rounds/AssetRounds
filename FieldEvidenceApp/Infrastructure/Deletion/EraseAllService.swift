@@ -263,6 +263,15 @@ enum ScheduleEraseAllPolicyV1 {
     }
 }
 
+enum C57MyDayEraseAllPolicyV1 {
+    static func validatePublishedEmptyGeneration(_ context: ModelContext) throws {
+        guard try context.fetchCount(FetchDescriptor<MyDayPlanRowV1>()) == 0,
+              try context.fetchCount(FetchDescriptor<MyDayCarryoverReceiptRowV1>()) == 0 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+}
+
 enum PlanEraseAllPolicyV1 {
     static let persistentSchemaVersion = 28
     static let recordsSchemaVersion = 27
@@ -1516,6 +1525,7 @@ private extension EraseAllService {
         try SurveySessionEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try AssetLocatorEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try ScheduleEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
+        try C57MyDayEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try ServiceRequestEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try AssetServiceReliabilityEraseAllPolicyV1.validatePublishedEmptyGeneration(
             session.modelContext

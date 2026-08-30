@@ -32,6 +32,23 @@ private final class C30EvidenceContextAnchorV9_13PersistentKindLifecycleCoverage
 
 @MainActor
 final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
+    func testC57MyDayLifecycleInventoryIsCompleteAndReadinessIsDerived() throws {
+        XCTAssertEqual(CurrentSyncClassificationCatalogV1.v42PersistentModelNames,
+                       ["MyDayCarryoverReceiptRowV1", "MyDayPlanRowV1"])
+        XCTAssertTrue(CurrentSyncClassificationCatalogV1.activePersistentModelNames.contains("MyDayPlanRowV1"))
+        XCTAssertTrue(CurrentSyncClassificationCatalogV1.activePersistentModelNames.contains("MyDayCarryoverReceiptRowV1"))
+        XCTAssertFalse(CurrentSyncClassificationCatalogV1.activePersistentModelNames.contains("MyDayReadinessProjectionV1"))
+        XCTAssertEqual(C57MyDayPersistentLifecycleBoundaryV1.persistentSchemaVersion, 42)
+        XCTAssertEqual(C57MyDayPersistentLifecycleBoundaryV1.recordsSchemaVersion, 41)
+        XCTAssertTrue(C57MyDayPersistentLifecycleBoundaryV1.readinessIsNonpersistent)
+        XCTAssertTrue(C57MyDayPersistentLifecycleBoundaryV1.replaceIsExact)
+        XCTAssertTrue(C57MyDayPersistentLifecycleBoundaryV1.cloneOmitsPlans)
+        XCTAssertTrue(C57MyDayPersistentLifecycleBoundaryV1.forkRetainsNonactiveHistoryOnly)
+        XCTAssertTrue(C57MyDayPersistentLifecycleBoundaryV1.eraseRemovesWorkspaceRows)
+        XCTAssertNoThrow(try CurrentSyncClassificationCatalogV1.validate())
+        XCTAssertNoThrow(try CurrentPersistentKindLifecycleCatalogV1.validate())
+    }
+
     func testV23P03C37TypedPoseContractAnchor() throws {
         let axis = try PoseAxisDescriptorV1(
             axisID: PoseAxisID(rawValue: "axis.c37.anchor"),

@@ -7,6 +7,32 @@ private enum C52ServiceRequestBoundary_V9_10LifecycleBoundaryTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
+extension V9_10LifecycleBoundaryTests {
+    func testV23P03C57LifecycleOwnsNoDerivedOrSourceMutationState() {
+        XCTAssertTrue(C57MyDayLifecycleBoundaryV1.canonicalWriterIsIncumbentWorkspaceWriter)
+        XCTAssertTrue(C57MyDayLifecycleBoundaryV1.readinessAndSourceStateAreNonpersistent)
+        XCTAssertTrue(C57MyDayLifecycleBoundaryV1.replaceRestorePreservesExactPlans)
+        XCTAssertTrue(C57MyDayLifecycleBoundaryV1.configurationCloneOmitsPlans)
+        XCTAssertTrue(C57MyDayLifecycleBoundaryV1.workspaceForkRetainsNonactiveHistoryOnly)
+        XCTAssertFalse(C57MyDayLifecycleBoundaryV1.removalMutatesSourceWork)
+        XCTAssertFalse(C57MyDayLifecycleBoundaryV1.automaticallyCarriesAcrossDateOrZone)
+        XCTAssertFalse(C57MyDayLifecycleBoundaryV1.dispatchesOrSchedulesWork)
+        XCTAssertFalse(C57MyDayLifecycleBoundaryV1.storesActualDuration)
+        XCTAssertEqual(C57MyDayCoordinatorLifecycleBoundaryV1.applicationLifecycleCommandCount, 0)
+        XCTAssertTrue(C57MyDayCoordinatorLifecycleBoundaryV1.lifecycleIsInfrastructureOwned)
+        XCTAssertEqual(C57MyDayCoordinatorLifecycleBoundaryV1.sourceMutationCount, 0)
+        XCTAssertEqual(C57MyDayCoordinatorLifecycleBoundaryV1.storedDerivedProjectionCount, 0)
+        XCTAssertEqual(C57MyDayPersistentLifecycleBoundaryV1.persistentSchemaVersion, 42)
+        XCTAssertEqual(C57MyDayPersistentLifecycleBoundaryV1.recordsSchemaVersion, 41)
+        XCTAssertEqual(C57MyDayPersistentLifecycleBoundaryV1.persistentModelCount, 2)
+        XCTAssertTrue(C57MyDayPersistentLifecycleBoundaryV1.readinessIsNonpersistent)
+        XCTAssertTrue(C57MyDayPersistentLifecycleBoundaryV1.replaceIsExact)
+        XCTAssertTrue(C57MyDayPersistentLifecycleBoundaryV1.cloneOmitsPlans)
+        XCTAssertTrue(C57MyDayPersistentLifecycleBoundaryV1.forkRetainsNonactiveHistoryOnly)
+        XCTAssertTrue(C57MyDayPersistentLifecycleBoundaryV1.eraseRemovesWorkspaceRows)
+    }
+}
+
 private final class C45LifecycleBoundaryCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityClosesReprintLifecycleOutcomes() {
         XCTAssertEqual(LabelReprintEligibilityV1.activeExactReprint.rawValue, "ACTIVE_EXACT_REPRINT")

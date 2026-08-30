@@ -7,6 +7,26 @@ private enum C52ServiceRequestBoundary_V9_20KernelConformanceTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
+extension V9_20KernelConformanceTests {
+    func testV23P03C57KernelRegistryCountsAndCanonicalSurfaceAreClosed() throws {
+        XCTAssertEqual(PersistentSchemaV42.versionIdentifier, Schema.Version(42, 0, 0))
+        XCTAssertEqual(PersistentSchemaV42.models.count, 142)
+        XCTAssertEqual(WorkspaceCommandKindV1.applyMyDay.rawValue, "apply_my_day_v1")
+        XCTAssertEqual(WorkspaceEntityKindV1.myDayPlan.rawValue, "myDayPlan")
+        XCTAssertEqual(
+            WorkspaceEntityKindV1.myDayCarryoverReceipt.rawValue,
+            "myDayCarryoverReceipt"
+        )
+        XCTAssertEqual(MyDayCommandDispositionV1.allCases, [
+            .committed, .idempotentReplay,
+        ])
+        XCTAssertTrue(C57MyDayLifecycleBoundaryV1.readinessAndSourceStateAreNonpersistent)
+        XCTAssertTrue(C57MyDayLifecycleBoundaryV1.replaceRestorePreservesExactPlans)
+        XCTAssertTrue(C57MyDayLifecycleBoundaryV1.configurationCloneOmitsPlans)
+        XCTAssertTrue(C57MyDayLifecycleBoundaryV1.workspaceForkRetainsNonactiveHistoryOnly)
+    }
+}
+
 private final class C50KernelConformanceTests: XCTestCase {
     func testV23P03C50DisabledRegistryIsClosedZeroProductionAndTruthful() throws {
         let selection = try IncumbentSelectionReceiptV1(

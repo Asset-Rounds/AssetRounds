@@ -3670,3 +3670,102 @@ enum C53ServiceReliabilityOpenJSONRendererV1 {
         )
     }
 }
+
+// MARK: - C57 My Day privacy-bounded Open JSON
+
+struct C57MyDayOpenJSONCountV1: Codable, Equatable, Sendable {
+    let value: String
+    let count: Int
+}
+
+struct C57MyDayOpenJSONEnvelopeV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let planRevision: UInt64
+    let itemCount: Int
+    let estimatedItemCount: Int
+    let dueItemCount: Int
+    let sourceStateCounts: [C57MyDayOpenJSONCountV1]
+    let readinessCounts: [C57MyDayOpenJSONCountV1]
+    let sourceClosureSHA256: String
+    let readinessProjectionSHA256: String
+    let reportProjectionSHA256: String
+
+    init(_ projection: C57MyDayReportProjectionV1) throws {
+        try projection.validate()
+        schemaVersion = Self.schemaVersion
+        planRevision = projection.plan.revision
+        itemCount = projection.items.count
+        estimatedItemCount = projection.items.filter { $0.estimateWholeMinutes != nil }.count
+        dueItemCount = projection.items.filter { $0.dueAt != nil }.count
+        sourceStateCounts = Self.counts(projection.items.map(\.sourceState.rawValue))
+        readinessCounts = Self.counts(projection.items.map(\.readiness.rawValue))
+        sourceClosureSHA256 = projection.sourceClosureSHA256
+        readinessProjectionSHA256 = projection.readinessProjectionSHA256
+        reportProjectionSHA256 = projection.projectionSHA256
+        try validate()
+    }
+
+    func validate() throws {
+        let stateValues = sourceStateCounts.map(\.value)
+        let readinessValues = readinessCounts.map(\.value)
+        guard schemaVersion == Self.schemaVersion, planRevision > 0,
+              itemCount >= 0, itemCount <= MyDayLimitsV1.maximumItems,
+              estimatedItemCount >= 0, estimatedItemCount <= itemCount,
+              dueItemCount >= 0, dueItemCount <= itemCount,
+              sourceStateCounts == sourceStateCounts.sorted(by: { $0.value < $1.value }),
+              readinessCounts == readinessCounts.sorted(by: { $0.value < $1.value }),
+              Set(stateValues).count == stateValues.count,
+              Set(readinessValues).count == readinessValues.count,
+              Set(stateValues).isSubset(of: Set(MyDaySourceStateV1.allCases.map(\.rawValue))),
+              Set(readinessValues).isSubset(of: Set(MyDayReadinessV1.allCases.map(\.rawValue))),
+              sourceStateCounts.reduce(0, { $0 + $1.count }) == itemCount,
+              readinessCounts.reduce(0, { $0 + $1.count }) == itemCount,
+              sourceStateCounts.allSatisfy({ $0.count > 0 }),
+              readinessCounts.allSatisfy({ $0.count > 0 }),
+              KernelCanonicalHashV1.validSHA256(sourceClosureSHA256),
+              KernelCanonicalHashV1.validSHA256(readinessProjectionSHA256),
+              KernelCanonicalHashV1.validSHA256(reportProjectionSHA256) else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+    }
+
+    private static func counts(_ values: [String]) -> [C57MyDayOpenJSONCountV1] {
+        Dictionary(grouping: values, by: { $0 }).map {
+            .init(value: $0.key, count: $0.value.count)
+        }.sorted { $0.value < $1.value }
+    }
+}
+
+enum C57MyDayOpenJSONRendererV1 {
+    static let exactDueTimestampsEmitted = false
+    static let sourceStableIdentifiersEmitted = false
+    static let actorOrMutationIdentifiersEmitted = false
+
+    static func render(
+        _ projection: C57MyDayReportProjectionV1,
+        plan: MyDayPlanV1,
+        readiness: MyDayReadinessProjectionV1
+    ) throws -> Data {
+        try projection.validate(plan: plan, readiness: readiness)
+        let envelope = try C57MyDayOpenJSONEnvelopeV1(projection)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return try encoder.encode(envelope)
+    }
+
+    static func reopen(_ data: Data) throws -> C57MyDayOpenJSONEnvelopeV1 {
+        guard !data.isEmpty, data.count <= MyDayLimitsV1.maximumCanonicalBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        let decoder = JSONDecoder()
+        let value = try decoder.decode(C57MyDayOpenJSONEnvelopeV1.self, from: data)
+        try value.validate()
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        guard try encoder.encode(value) == data else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return value
+    }
+}

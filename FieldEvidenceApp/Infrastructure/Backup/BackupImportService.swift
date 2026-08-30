@@ -73,7 +73,8 @@ enum C31LightingBackupImportPolicyV1 {
                 || (manifest.persistentSchemaVersion == 38 && records.recordsSchemaVersion == 37)
                 || (manifest.persistentSchemaVersion == 39 && records.recordsSchemaVersion == 38)
                 || (manifest.persistentSchemaVersion == 40 && records.recordsSchemaVersion == 39)
-                || (manifest.persistentSchemaVersion == 41 && records.recordsSchemaVersion == 40)) else {
+                || (manifest.persistentSchemaVersion == 41 && records.recordsSchemaVersion == 40)
+                || (manifest.persistentSchemaVersion == 42 && records.recordsSchemaVersion == 41)) else {
             throw BackupImportServiceError.invalidGeneration
         }
         do {
@@ -618,6 +619,7 @@ private extension BackupImportService {
             try C52ServiceRequestBackupImportServiceBoundaryV1.validate(temporaryValue)
             try C53ServiceReliabilityBackupImportServiceBoundaryV1.validate(temporaryValue)
             try C55PartsStockBackupImportServiceBoundaryV1.validate(temporaryValue)
+            try C57MyDayBackupImportServiceBoundaryV1.validate(temporaryValue)
             guard temporaryValue.manifest == source.manifest,
                   try BackupPackageAnchoredFile.rootIdentity(at: sourceURL)
                     == source.rootIdentity else {
@@ -661,6 +663,7 @@ private extension BackupImportService {
             try C52ServiceRequestBackupImportServiceBoundaryV1.validate(value)
             try C53ServiceReliabilityBackupImportServiceBoundaryV1.validate(value)
             try C55PartsStockBackupImportServiceBoundaryV1.validate(value)
+            try C57MyDayBackupImportServiceBoundaryV1.validate(value)
             guard value.manifest == source.manifest else {
                 throw BackupImportServiceError.invalidSource
             }
@@ -777,6 +780,7 @@ private extension BackupImportService {
             try C52ServiceRequestBackupImportServiceBoundaryV1.validate(temporaryValue)
             try C53ServiceReliabilityBackupImportServiceBoundaryV1.validate(temporaryValue)
             try C55PartsStockBackupImportServiceBoundaryV1.validate(temporaryValue)
+            try C57MyDayBackupImportServiceBoundaryV1.validate(temporaryValue)
             let indexByPath = Dictionary(
                 uniqueKeysWithValues: extraction.index.entries.map { ($0.path, $0) }
             )
@@ -823,6 +827,7 @@ private extension BackupImportService {
             try C52ServiceRequestBackupImportServiceBoundaryV1.validate(value)
             try C53ServiceReliabilityBackupImportServiceBoundaryV1.validate(value)
             try C55PartsStockBackupImportServiceBoundaryV1.validate(value)
+            try C57MyDayBackupImportServiceBoundaryV1.validate(value)
             guard value.manifest == temporaryValue.manifest,
                   value.records == temporaryValue.records,
                   value.members.keys == temporaryValue.members.keys else {
@@ -1606,7 +1611,7 @@ enum C49WorkResourceBackupImportPolicyV1 {
             return
         }
         guard (C49BackupEnrollmentV1.recordsSchemaVersion...
-                C55PartsStockBackupEnrollmentV1.recordsSchemaVersion)
+                C57MyDayBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
               persistentSchemaVersion == records.recordsSchemaVersion + 1 else {
             throw BackupImportServiceError.invalidGeneration
@@ -1634,7 +1639,7 @@ enum C52ServiceRequestBackupImportServiceBoundaryV1 {
             return
         }
         guard persistent == records.recordsSchemaVersion + 1,
-              (recordsSchemaVersion...C55PartsStockBackupEnrollmentV1.recordsSchemaVersion)
+              (recordsSchemaVersion...C57MyDayBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
               importsCanonicalHistoryThroughRestoreAuthority,
               !importedOutstandingCapabilitiesRemainValid,
@@ -1673,7 +1678,7 @@ enum C53ServiceReliabilityBackupImportServiceBoundaryV1 {
             return
         }
         guard persistent == records.recordsSchemaVersion + 1,
-              (recordsSchemaVersion...C55PartsStockBackupEnrollmentV1.recordsSchemaVersion)
+              (recordsSchemaVersion...C57MyDayBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
               importsAllSevenSourceFamilies,
               validatesCanonicalHistoryBeforeMaterialization,
@@ -1715,6 +1720,38 @@ enum C55PartsStockBackupImportServiceBoundaryV1 {
                 package.records,
                 workspaceID: package.manifest.source.workspaceID.map(WorkspaceID.init(rawValue:))
             )
+        } catch {
+            throw BackupImportServiceError.invalidGeneration
+        }
+    }
+}
+
+enum C57MyDayBackupImportServiceBoundaryV1 {
+    static let persistentSchemaVersion = C57MyDayBackupEnrollmentV1.persistentSchemaVersion
+    static let recordsSchemaVersion = C57MyDayBackupEnrollmentV1.recordsSchemaVersion
+
+    static func validate(_ package: ValidatedV4BackupPackageV1) throws {
+        guard package.records.recordsSchemaVersion >= recordsSchemaVersion
+                || package.manifest.source.persistentSchemaVersion >= persistentSchemaVersion else {
+            try C57MyDayBackupEnrollmentV1.validate(package.records)
+            return
+        }
+        guard package.records.recordsSchemaVersion == recordsSchemaVersion,
+              package.manifest.source.persistentSchemaVersion == persistentSchemaVersion,
+              package.manifest.source.recordsSchemaVersion == recordsSchemaVersion else {
+            throw BackupImportServiceError.invalidGeneration
+        }
+        do {
+            try C57MyDayBackupEnrollmentV1.validate(package.records)
+            guard let workspaceID = package.manifest.source.workspaceID,
+                  package.records.myDayPlans.allSatisfy({
+                      $0.key.workspaceID.rawValue == workspaceID
+                  }), package.records.myDayCarryoverReceipts.allSatisfy({
+                      $0.sourcePlan.key.workspaceID.rawValue == workspaceID
+                          && $0.targetPlan.key.workspaceID.rawValue == workspaceID
+                  }), package.records.nonactivePlanReferences.allSatisfy({
+                      $0.key.workspaceID.rawValue == workspaceID
+                  }) else { throw BackupImportServiceError.invalidGeneration }
         } catch {
             throw BackupImportServiceError.invalidGeneration
         }

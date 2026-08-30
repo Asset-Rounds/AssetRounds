@@ -16,6 +16,7 @@ enum IntegrationEventFailureV1: Error, Equatable, Sendable {
     case staleCheckpoint
 }
 enum C47ActivityContractIntegrationEventBoundaryV2 { static let canonicalCommand:WorkspaceCommandKindV1 = .applyActivityContract;static let conformanceReceiptsProjected=false;static let noPlanFallbackProjected=false }
+enum C57MyDayIntegrationEventBoundaryV1 { static let canonicalCommand: WorkspaceCommandKindV1 = .applyMyDay; static let carryoverIsAtomic = true; static let derivedReadinessOrDueIsProjected = false }
 
 enum IntegrationEventVisibilityV1: String, CaseIterable, Codable, Hashable, Sendable {
     case publicSafe = "PUBLIC_SAFE"

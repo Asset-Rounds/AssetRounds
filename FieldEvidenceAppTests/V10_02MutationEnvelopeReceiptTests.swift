@@ -1262,6 +1262,54 @@ extension V10_02MutationEnvelopeReceiptTests {
 }
 
 extension V10_02MutationEnvelopeReceiptTests {
+    func testV23P03C57ReceiptReplayIsExactAndDivergenceFailsClosed() throws {
+        let fixture = try C57MyDayExistingSuiteFixtureV1.make()
+        let receipt = try MyDayMutationReceiptV1(
+            command: fixture.saveCommand,
+            resultingPlan: fixture.sourcePlan,
+            disposition: .committed,
+            committedAt: fixture.sourcePlan.authoredAt.addingTimeInterval(3)
+        )
+        try receipt.validate(command: fixture.saveCommand)
+        XCTAssertEqual(receipt.resultingPlan, try MyDayPlanReferenceV1(fixture.sourcePlan))
+        XCTAssertNil(receipt.carryoverReceiptSHA256)
+
+        let replay = try MyDayCommandReplayResolutionV1.resolve(
+            command: fixture.saveCommand,
+            priorReceipt: receipt
+        )
+        XCTAssertEqual(replay.disposition, .idempotentReplay)
+        XCTAssertEqual(replay.receipt, receipt)
+
+        let divergent = try fixture.divergentSaveCommand()
+        XCTAssertEqual(divergent.mutationID, fixture.saveCommand.mutationID)
+        XCTAssertNotEqual(
+            try divergent.canonicalSHA256(),
+            try fixture.saveCommand.canonicalSHA256()
+        )
+        XCTAssertThrowsError(try MyDayCommandReplayResolutionV1.resolve(
+            command: divergent,
+            priorReceipt: receipt
+        )) {
+            XCTAssertEqual($0 as? MyDayFailureV1, .divergentMutation)
+        }
+
+        let carryoverReceipt = try MyDayMutationReceiptV1(
+            command: fixture.carryoverCommand,
+            resultingPlan: fixture.targetPlan,
+            carryoverReceipt: fixture.carryoverReceipt,
+            disposition: .committed,
+            committedAt: fixture.carryoverReceipt.committedAt
+        )
+        try carryoverReceipt.validate(command: fixture.carryoverCommand)
+        XCTAssertEqual(
+            carryoverReceipt.carryoverReceiptSHA256,
+            fixture.carryoverReceipt.receiptSHA256
+        )
+    }
+}
+
+extension V10_02MutationEnvelopeReceiptTests {
     func testV23P03C34RestorationReceiptBindsStableIdentityWithoutMutation() throws {
         let workspaceID = WorkspaceID(
             rawValue: UUID(uuidString: "00000000-0000-4000-8000-000000003402")!
