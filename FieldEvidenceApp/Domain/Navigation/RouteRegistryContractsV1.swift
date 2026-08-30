@@ -26,6 +26,7 @@ enum NavigationDestinationV1: String, CaseIterable, Codable, Hashable, Sendable 
     case packageSurface = "PACKAGE_SURFACE"
     case startupMaintenance = "STARTUP_MAINTENANCE"
     case mutationRecovery = "MUTATION_RECOVERY"
+    case recoveryCenter = "RECOVERY_CENTER"
 }
 
 enum NavigationRequestedModeV1: String, Codable, Hashable, Sendable {
@@ -103,7 +104,7 @@ struct NavigationFallbackV1: Codable, Equatable, Hashable, Sendable {
     }
 
     func validate() throws {
-        let safeDestinations: Set<NavigationDestinationV1> = [.today, .work, .assets, .reports, .settings, .draftReview, .searchResults]
+        let safeDestinations: Set<NavigationDestinationV1> = [.today, .work, .assets, .reports, .settings, .draftReview, .searchResults, .recoveryCenter]
         guard safeDestinations.contains(destination), RouteRegistryV1.root(for: destination) == root else {
             throw RouteContractFailureV1.invalidFallback
         }
@@ -386,7 +387,11 @@ struct RouteRegistryV1: Sendable {
 
     func fallback(for target: NavigationTargetV1, context: RouteResolutionContextV1, reason: RouteFallbackReasonV1) throws -> RouteResolutionResultV1 {
         let safeDestination: NavigationDestinationV1
-        if (try? target.fallback.validate()) != nil { safeDestination = target.fallback.destination }
+        // Recovery is the fail-closed startup/support surface. A malformed or
+        // unavailable recovery target must stay there rather than falling
+        // through to a normal-shell destination.
+        if target.destination == .recoveryCenter { safeDestination = .recoveryCenter }
+        else if (try? target.fallback.validate()) != nil { safeDestination = target.fallback.destination }
         else { safeDestination = .today }
         let safe = try NavigationTargetV1(workspaceID: context.currentWorkspaceID, destination: safeDestination, fallback: .today)
         return RouteResolutionResultV1(disposition: .safeFallback, target: safe, reason: reason, canonicalMutationCount: 0, startsAutomaticWork: false)
@@ -397,7 +402,7 @@ struct RouteRegistryV1: Sendable {
         case .today, .startupMaintenance: return .today
         case .work, .draftReview, .scheduleOccurrence, .signoffEditor, .mutationRecovery: return .work
         case .assets, .searchResults, .recipientReviewRequest, .recipientReviewResponseQuarantine, .packageSurface: return .assets
-        case .reports, .signoffHistory, .settings: return .reports
+        case .reports, .signoffHistory, .settings, .recoveryCenter: return .reports
         }
     }
 

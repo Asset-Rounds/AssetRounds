@@ -103,13 +103,51 @@ private struct DeviceOperationalSupportEnvelopeV2: Codable, Equatable, Sendable 
     }
 }
 
-actor DiagnosticsStore: DeviceOperationalSupportStoreV2 {
+private struct DeviceOperationalSupportEnvelopeV3: Codable, Equatable, Sendable {
+    static let schemaVersion = 3
+    let schemaVersion: Int
+    let health: SystemHealthDiagnosticsV1
+    let counters: DiagnosticsV1
+    let feedbackDraft: SupportFeedbackDraftV1?
+    let feedbackDraftRecoveryRequired: Bool
+
+    init(
+        health: SystemHealthDiagnosticsV1,
+        counters: DiagnosticsV1,
+        feedbackDraft: SupportFeedbackDraftV1?,
+        feedbackDraftRecoveryRequired: Bool
+    ) throws {
+        schemaVersion = Self.schemaVersion
+        self.health = health
+        self.counters = counters
+        self.feedbackDraft = feedbackDraft
+        self.feedbackDraftRecoveryRequired = feedbackDraftRecoveryRequired
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion, counters.isValid else {
+            throw DiagnosticsFailure.invalidFile
+        }
+        try health.validate()
+        try feedbackDraft?.validate()
+        guard !feedbackDraftRecoveryRequired || feedbackDraft == nil else {
+            throw DiagnosticsFailure.invalidFile
+        }
+    }
+}
+
+actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
+    /// Process-wide serialization for the sole device-operational support
+    /// format. Per-instance actor isolation alone cannot serialize two store
+    /// handles opened against the same application-support root.
+    private static let formatLease = NSRecursiveLock()
     static let maximumOperationalRecordBytes =
-        DeviceOperationalSupportStoreSchemaV2.maximumRecordBytes
+        DeviceOperationalSupportStoreSchemaV3.maximumRecordBytes
     static let maximumOperationalTotalBytes =
-        DeviceOperationalSupportStoreSchemaV2.maximumTotalBytes
+        DeviceOperationalSupportStoreSchemaV3.maximumTotalBytes
     static let maximumOperationalRecords =
-        DeviceOperationalSupportStoreSchemaV2.maximumRecords
+        DeviceOperationalSupportStoreSchemaV3.maximumRecords
     private struct FileIdentity: Equatable {
         let device: UInt64
         let inode: UInt64
@@ -342,6 +380,9 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV2 {
     private let storagePreflight: StoragePreflightService
     private var counters = DiagnosticsV1.zero
     private var health: SystemHealthDiagnosticsV1?
+    private var feedbackDraft: SupportFeedbackDraftV1?
+    private var feedbackDraftRecoveryRequired = false
+    private var lastCommittedData: Data?
     private var isPrepared = false
     private var preparationFailure: DiagnosticsFailure?
 
@@ -373,6 +414,7 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV2 {
             capacityProvider: capacityProvider
         )
         self.health = nil
+        self.feedbackDraft = nil
     }
 
     func prepare() {
@@ -429,9 +471,12 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV2 {
                 )
                 counters = decoded.counters
                 health = decoded.health
+                lastCommittedData = data
                 isPrepared = true
                 preparationFailure = nil
-                if !isV2Envelope(data) {
+                feedbackDraft = decoded.feedbackDraft
+                feedbackDraftRecoveryRequired = decoded.feedbackDraftRecoveryRequired
+                if !isV3Envelope(data) {
                     guard persist(counters, health: decoded.health) else {
                         isPrepared = false
                         return
@@ -447,9 +492,12 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV2 {
             let decoded = try decodeOperationalStore(data)
             counters = decoded.counters
             health = decoded.health
+            lastCommittedData = data
+            feedbackDraft = decoded.feedbackDraft
+            feedbackDraftRecoveryRequired = decoded.feedbackDraftRecoveryRequired
             isPrepared = true
             preparationFailure = nil
-            if !isV2Envelope(data) {
+            if !isV3Envelope(data) {
                 guard persist(counters, health: decoded.health) else {
                     isPrepared = false
                     return
@@ -464,6 +512,29 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV2 {
             // rewrites them; a compatible forward upgrade is required.
             preparationFailure = .unsupportedVersion
             logger.record(.countersWriteFailed)
+        } catch DiagnosticsFailure.recoveryRequired {
+            logger.record(.countersWriteFailed)
+            // Quarantine the unreadable bytes, recreate the operational file,
+            // and persist the visible recovery-required state. The draft is
+            // never represented as empty success while its safe copy exists.
+            let candidate = try? emptyHealth()
+            if let candidate,
+               persist(
+                   .zero,
+                   health: candidate,
+                   feedbackDraft: .some(nil),
+                   feedbackDraftRecoveryRequired: true,
+                   repairExisting: true
+               ) {
+                counters = .zero
+                health = candidate
+                feedbackDraft = nil
+                feedbackDraftRecoveryRequired = true
+                isPrepared = true
+                preparationFailure = nil
+            } else {
+                preparationFailure = .recoveryRequired
+            }
         } catch {
             logger.record(.invalidCountersReset)
             if persist(.zero, repairExisting: true) {
@@ -485,6 +556,9 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV2 {
         counters = .zero
         do {
             health = try emptyHealth()
+            feedbackDraft = nil
+            feedbackDraftRecoveryRequired = false
+            lastCommittedData = nil
             isPrepared = true
             preparationFailure = nil
         } catch {
@@ -500,6 +574,8 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV2 {
             && health?.state == .unknown
             && health?.failures.isEmpty == true
             && health?.metricKit == nil
+            && feedbackDraft == nil
+            && !feedbackDraftRecoveryRequired
     }
 
     func operationalSupportSnapshot() async throws -> DeviceOperationalSupportSnapshotV2 {
@@ -508,6 +584,27 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV2 {
             throw preparationFailure ?? DiagnosticsFailure.invalidFile
         }
         return try DeviceOperationalSupportSnapshotV2(health: health, counters: counters)
+    }
+
+    /// Internal verification bytes for lifecycle owners that must compare the
+    /// physical file against the actual current schema. This deliberately does
+    /// not expose the private envelope type or provide another encoder.
+    func canonicalOperationalSupportEnvelopeDataV3() async throws -> Data {
+        prepare()
+        guard isPrepared, let health else {
+            throw preparationFailure ?? DiagnosticsFailure.invalidFile
+        }
+        let envelope = try DeviceOperationalSupportEnvelopeV3(
+            health: health,
+            counters: counters,
+            feedbackDraft: feedbackDraft,
+            feedbackDraftRecoveryRequired: feedbackDraftRecoveryRequired
+        )
+        let data = try canonicalData(for: envelope)
+        guard data.count <= Self.maximumOperationalTotalBytes else {
+            throw DiagnosticsFailure.sizeLimitExceeded
+        }
+        return data
     }
 
     func recordOperationalFailure(_ failure: OperationalFailureV1) async throws {
@@ -586,17 +683,157 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV2 {
 
     func resetOperationalSupport() async throws {
         prepare()
-        guard isPrepared else {
+        let isExplicitRecoveryReset = preparationFailure == .recoveryRequired
+            || feedbackDraftRecoveryRequired
+        guard isPrepared || isExplicitRecoveryReset else {
             throw preparationFailure ?? DiagnosticsFailure.invalidFile
         }
         let candidate = try emptyHealth()
-        guard persist(.zero, health: candidate) else {
+        if preparationFailure == .recoveryRequired {
+            guard persist(
+                .zero,
+                health: candidate,
+                feedbackDraft: .some(nil),
+                feedbackDraftRecoveryRequired: true,
+                repairExisting: true
+            ) else { throw DiagnosticsFailure.invalidFile }
+            counters = .zero
+            health = candidate
+            feedbackDraft = nil
+            feedbackDraftRecoveryRequired = true
+            isPrepared = true
+            preparationFailure = nil
+        }
+        if isExplicitRecoveryReset {
+            try removeFeedbackRecoveryCopyIfPresent()
+        }
+        guard persist(
+            .zero,
+            health: candidate,
+            feedbackDraft: .some(nil),
+            feedbackDraftRecoveryRequired: false,
+            repairExisting: false
+        ) else {
             throw DiagnosticsFailure.invalidFile
         }
         counters = .zero
         health = candidate
+        feedbackDraft = nil
+        feedbackDraftRecoveryRequired = false
         isPrepared = true
         preparationFailure = nil
+    }
+
+    func supportFeedbackDraftSnapshot() async throws -> SupportFeedbackDraftStoreSnapshotV1 {
+        prepare()
+        if preparationFailure == .recoveryRequired || feedbackDraftRecoveryRequired {
+            return try SupportFeedbackDraftStoreSnapshotV1(
+                state: .recoveryRequired,
+                draft: nil,
+                safeCopyAvailable: (try? feedbackRecoveryCopyExists()) == true
+            )
+        }
+        guard isPrepared else {
+            throw preparationFailure ?? DiagnosticsFailure.invalidFile
+        }
+        if let feedbackDraft {
+            return try SupportFeedbackDraftStoreSnapshotV1(
+                state: .available,
+                draft: feedbackDraft,
+                safeCopyAvailable: false
+            )
+        }
+        return try SupportFeedbackDraftStoreSnapshotV1(
+            state: .empty,
+            draft: nil,
+            safeCopyAvailable: false
+        )
+    }
+
+    func supportFeedbackRecoveryCopy() async throws -> Data? {
+        prepare()
+        guard preparationFailure == .recoveryRequired || feedbackDraftRecoveryRequired else {
+            return nil
+        }
+        guard let authority = try PinnedDiagnosticsAuthority.open(
+            applicationSupportURL: applicationSupportURL,
+            diagnosticsURL: directoryURL,
+            fileManager: fileManager,
+            createIfMissing: false
+        ) else { return nil }
+        let authorityCheck = { try authority.verify() }
+        let url = directoryURL.appendingPathComponent(
+            Self.quarantineName,
+            isDirectory: false
+        )
+        guard let identity = try fileIdentityIfPresent(
+            at: url,
+            authorityCheck: authorityCheck
+        ) else { return nil }
+        try ProtectedFilePolicyV1.verify(.diagnostics, at: url)
+        let data = try readData(
+            at: url,
+            expected: identity,
+            authorityCheck: authorityCheck
+        )
+        guard data.count <= Self.maximumOperationalTotalBytes else {
+            throw DiagnosticsFailure.sizeLimitExceeded
+        }
+        return data
+    }
+
+    func saveSupportFeedbackDraft(
+        _ draft: SupportFeedbackDraftV1,
+        expectedRevision: UInt64?
+    ) async throws {
+        prepare()
+        guard isPrepared else {
+            throw preparationFailure ?? DiagnosticsFailure.invalidFile
+        }
+        try draft.validate()
+        guard !feedbackDraftRecoveryRequired else {
+            throw DiagnosticsFailure.recoveryRequired
+        }
+        let record = try canonicalData(for: draft)
+        guard record.count <= DeviceOperationalSupportStoreSchemaV3.maximumRecordBytes else {
+            throw DiagnosticsFailure.sizeLimitExceeded
+        }
+        switch (feedbackDraft, expectedRevision) {
+        case (nil, nil):
+            guard draft.revision == 1 else { throw DiagnosticsFailure.concurrentMutation }
+        case let (current?, expected?):
+            let (next, overflow) = expected.addingReportingOverflow(1)
+            guard !overflow,
+                  current.draftID == draft.draftID,
+                  current.revision == expected,
+                  draft.revision == next,
+                  draft.createdAt == current.createdAt,
+                  draft.updatedAt >= current.updatedAt else {
+                throw DiagnosticsFailure.concurrentMutation
+            }
+        default:
+            throw DiagnosticsFailure.concurrentMutation
+        }
+        guard persist(counters, health: health, feedbackDraft: .some(draft)) else {
+            throw DiagnosticsFailure.invalidFile
+        }
+        feedbackDraft = draft
+    }
+
+    func discardSupportFeedbackDraft(
+        expectedDraftID: UUID,
+        expectedRevision: UInt64
+    ) async throws {
+        prepare()
+        guard isPrepared, let current = feedbackDraft,
+              current.draftID == expectedDraftID,
+              current.revision == expectedRevision else {
+            throw preparationFailure ?? DiagnosticsFailure.concurrentMutation
+        }
+        guard persist(counters, health: health, feedbackDraft: .some(nil)) else {
+            throw DiagnosticsFailure.invalidFile
+        }
+        feedbackDraft = nil
     }
 
     func increment(_ counter: Counter) {
@@ -664,8 +901,12 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV2 {
     private func persist(
         _ candidate: DiagnosticsV1,
         health healthCandidate: SystemHealthDiagnosticsV1? = nil,
+        feedbackDraft feedbackDraftCandidate: SupportFeedbackDraftV1?? = nil,
+        feedbackDraftRecoveryRequired recoveryCandidate: Bool? = nil,
         repairExisting: Bool = false
     ) -> Bool {
+        Self.formatLease.lock()
+        defer { Self.formatLease.unlock() }
         let temporaryURL = directoryURL.appendingPathComponent(
             Self.temporaryName,
             isDirectory: false
@@ -700,13 +941,20 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV2 {
                 at: directoryURL,
                 authorityCheck: authorityCheck
             )
-            let state = try DeviceOperationalSupportEnvelopeV2(
+            let state = try DeviceOperationalSupportEnvelopeV3(
                 health: try resolvedHealth(healthCandidate),
-                counters: candidate
+                counters: candidate,
+                feedbackDraft: feedbackDraftCandidate ?? feedbackDraft,
+                feedbackDraftRecoveryRequired: recoveryCandidate
+                    ?? feedbackDraftRecoveryRequired
             )
             let data = try canonicalData(for: state)
+            let privacyState = try DeviceOperationalSupportEnvelopeV2(
+                health: state.health,
+                counters: state.counters
+            )
             try C54EncryptedPortableEnvelopeDiagnosticPrivacyBoundaryV1.validate(
-                data
+                canonicalData(for: privacyState)
             )
             guard data.count <= Self.maximumOperationalTotalBytes else {
                 throw DiagnosticsFailure.sizeLimitExceeded
@@ -761,6 +1009,22 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV2 {
                 at: countersURL,
                 authorityCheck: authorityCheck
             )
+            if !repairExisting {
+                switch (oldIdentity, lastCommittedData) {
+                case let (identity?, expected?):
+                    guard try readData(
+                        at: countersURL,
+                        expected: identity,
+                        authorityCheck: authorityCheck
+                    ) == expected else {
+                        throw DiagnosticsFailure.concurrentMutation
+                    }
+                case (nil, nil):
+                    break
+                default:
+                    throw DiagnosticsFailure.concurrentMutation
+                }
+            }
             if let oldIdentity {
                 if !repairExisting {
                     try authorityCheck()
@@ -903,6 +1167,7 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV2 {
                 try syncDirectory(authorityCheck: authorityCheck)
             }
             try syncDirectory(authorityCheck: authorityCheck)
+            lastCommittedData = data
             return true
         } catch {
             isPrepared = false
@@ -1298,6 +1563,52 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV2 {
         }
     }
 
+    private func removeFeedbackRecoveryCopyIfPresent() throws {
+        guard let authority = try PinnedDiagnosticsAuthority.open(
+            applicationSupportURL: applicationSupportURL,
+            diagnosticsURL: directoryURL,
+            fileManager: fileManager,
+            createIfMissing: false
+        ) else { return }
+        let authorityCheck = { try authority.verify() }
+        let quarantineURL = directoryURL.appendingPathComponent(
+            Self.quarantineName,
+            isDirectory: false
+        )
+        guard let identity = try fileIdentityIfPresent(
+            at: quarantineURL,
+            authorityCheck: authorityCheck
+        ) else { return }
+        _ = try readData(
+            at: quarantineURL,
+            expected: identity,
+            authorityCheck: authorityCheck
+        )
+        try ProtectedFilePolicyV1.verify(.diagnostics, at: quarantineURL)
+        try removeOwnedFile(
+            at: quarantineURL,
+            expected: identity,
+            authorityCheck: authorityCheck
+        )
+        try syncDirectory(authorityCheck: authorityCheck)
+    }
+
+    private func feedbackRecoveryCopyExists() throws -> Bool {
+        guard let authority = try PinnedDiagnosticsAuthority.open(
+            applicationSupportURL: applicationSupportURL,
+            diagnosticsURL: directoryURL,
+            fileManager: fileManager,
+            createIfMissing: false
+        ) else { return false }
+        return try fileIdentityIfPresent(
+            at: directoryURL.appendingPathComponent(
+                Self.quarantineName,
+                isDirectory: false
+            ),
+            authorityCheck: { try authority.verify() }
+        ) != nil
+    }
+
     private func canonicalData<T: Encodable>(for value: T) throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
@@ -1306,12 +1617,12 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV2 {
 
     private func decodeOperationalStore(
         _ data: Data
-    ) throws -> DeviceOperationalSupportEnvelopeV2 {
+    ) throws -> DeviceOperationalSupportEnvelopeV3 {
         do {
             let object = try JSONSerialization.jsonObject(with: data)
             if let dictionary = object as? [String: Any],
                let version = dictionary["schemaVersion"] as? NSNumber,
-               version.intValue > DeviceOperationalSupportStoreSchemaV2.version {
+               version.intValue > DeviceOperationalSupportStoreSchemaV3.version {
                 throw DiagnosticsFailure.unsupportedVersion
             }
         } catch DiagnosticsFailure.unsupportedVersion {
@@ -1321,7 +1632,7 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV2 {
         }
         do {
             let value = try JSONDecoder().decode(
-                DeviceOperationalSupportEnvelopeV2.self,
+                DeviceOperationalSupportEnvelopeV3.self,
                 from: data
             )
             try value.validate()
@@ -1331,22 +1642,49 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV2 {
             }
             return value
         } catch DiagnosticsFailure.invalidFile {
-            throw DiagnosticsFailure.invalidFile
+            if schemaVersion(in: data) == DeviceOperationalSupportEnvelopeV3.schemaVersion {
+                throw DiagnosticsFailure.recoveryRequired
+            }
+            // Older released formats are decoded below. Their corrupt bytes
+            // retain the existing repair-on-prepare behavior because they
+            // could not contain a feedback draft.
         } catch {
-            // A released DiagnosticsV1 document is the sole older format.
+            if schemaVersion(in: data) == DeviceOperationalSupportEnvelopeV3.schemaVersion {
+                throw DiagnosticsFailure.recoveryRequired
+            }
         }
-        let legacy = try JSONDecoder().decode(DiagnosticsV1.self, from: data)
-        guard legacy.isValid, try canonicalData(for: legacy) == data else {
-            throw DiagnosticsFailure.invalidFile
+        if let v2 = try? JSONDecoder().decode(DeviceOperationalSupportEnvelopeV2.self, from: data),
+           (try? v2.validate()) != nil,
+           (try? canonicalData(for: v2)) == data {
+            return try DeviceOperationalSupportEnvelopeV3(
+                health: v2.health,
+                counters: v2.counters,
+                feedbackDraft: nil,
+                feedbackDraftRecoveryRequired: false
+            )
         }
-        let migrated = try DeviceOperationalSupportEnvelopeV2(
+        // A released DiagnosticsV1 document is the sole older format.
+        let legacy: DiagnosticsV1
+        do {
+            legacy = try JSONDecoder().decode(DiagnosticsV1.self, from: data)
+            guard legacy.isValid, try canonicalData(for: legacy) == data else {
+                throw DiagnosticsFailure.recoveryRequired
+            }
+        } catch DiagnosticsFailure.recoveryRequired {
+            throw DiagnosticsFailure.recoveryRequired
+        } catch {
+            throw DiagnosticsFailure.recoveryRequired
+        }
+        let migrated = try DeviceOperationalSupportEnvelopeV3(
             health: try emptyHealth(),
-            counters: legacy
+            counters: legacy,
+            feedbackDraft: nil,
+            feedbackDraftRecoveryRequired: false
         )
         return migrated
     }
 
-    private func isV2Envelope(_ data: Data) -> Bool {
+    private func isV3Envelope(_ data: Data) -> Bool {
         let object: Any
         do {
             object = try JSONSerialization.jsonObject(with: data)
@@ -1357,9 +1695,16 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV2 {
               let version = dictionary["schemaVersion"] as? NSNumber else {
             return false
         }
-        return version.intValue == DeviceOperationalSupportEnvelopeV2.schemaVersion
+        return version.intValue == DeviceOperationalSupportEnvelopeV3.schemaVersion
             && dictionary["health"] != nil
             && dictionary["counters"] != nil
+            && dictionary["feedbackDraftRecoveryRequired"] != nil
+    }
+
+    private func schemaVersion(in data: Data) -> Int? {
+        guard let dictionary = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let version = dictionary["schemaVersion"] as? NSNumber else { return nil }
+        return version.intValue
     }
 
     private func canonicalRecordData(_ value: OperationalFailureV1) throws -> Data {
@@ -1399,11 +1744,13 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV2 {
     }
 }
 
-private enum DiagnosticsFailure: Error {
+private enum DiagnosticsFailure: Error, Equatable {
     case invalidFile
     case protectedDataUnavailable
     case sizeLimitExceeded
     case unsupportedVersion
+    case recoveryRequired
+    case concurrentMutation
 }
 
 typealias DeviceOperationalSupportStoreV1 = DiagnosticsStore

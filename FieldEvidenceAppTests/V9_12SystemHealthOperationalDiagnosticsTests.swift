@@ -650,12 +650,12 @@ final class V9_12SystemHealthOperationalDiagnosticsTests: XCTestCase {
         let envelope = try JSONSerialization.jsonObject(
             with: Data(contentsOf: Self.diagnosticsURL(root))
         ) as? [String: Any]
-        XCTAssertEqual((envelope?["schemaVersion"] as? NSNumber)?.intValue, 2)
+        XCTAssertEqual((envelope?["schemaVersion"] as? NSNumber)?.intValue, 3)
 
         let futureRoot = try Self.temporaryRoot("R01-future")
         defer { try? FileManager.default.removeItem(at: futureRoot) }
         var futureObject = try XCTUnwrap(envelope)
-        futureObject["schemaVersion"] = 99
+        futureObject["schemaVersion"] = 4
         let futureBytes = try JSONSerialization.data(
             withJSONObject: futureObject, options: [.sortedKeys, .withoutEscapingSlashes]
         )
@@ -670,17 +670,47 @@ final class V9_12SystemHealthOperationalDiagnosticsTests: XCTestCase {
         XCTAssertTrue(futureRejected)
         XCTAssertEqual(try Data(contentsOf: Self.diagnosticsURL(futureRoot)), futureBytes)
 
+        let corruptSeedRoot = try Self.temporaryRoot("R01-corrupt-seed")
+        defer { try? FileManager.default.removeItem(at: corruptSeedRoot) }
+        let corruptSeedStore = DiagnosticsStore(
+            applicationSupportURL: corruptSeedRoot,
+            now: { corpus.createdAt }
+        )
+        _ = try await corruptSeedStore.operationalSupportSnapshot()
+        var corruptObject = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: Data(contentsOf: Self.diagnosticsURL(corruptSeedRoot))
+        ) as? [String: Any])
+        corruptObject["feedbackDraftRecoveryRequired"] = "not-a-boolean"
+        let corruptBytes = try JSONSerialization.data(
+            withJSONObject: corruptObject,
+            options: [.sortedKeys, .withoutEscapingSlashes]
+        )
+
         let corruptRoot = try Self.temporaryRoot("R01-corrupt")
         defer { try? FileManager.default.removeItem(at: corruptRoot) }
-        try Self.writeDiagnosticsBytes(Data("{corrupt".utf8), at: corruptRoot)
-        let corruptStore = DiagnosticsStore(applicationSupportURL: corruptRoot, now: { corpus.createdAt })
-        let repaired = try await corruptStore.operationalSupportSnapshot()
-        XCTAssertEqual(repaired.counters, .zero)
+        try Self.writeDiagnosticsBytes(corruptBytes, at: corruptRoot)
+        let corruptStore = DiagnosticsStore(
+            applicationSupportURL: corruptRoot,
+            now: { corpus.createdAt }
+        )
+        let recovery = try await corruptStore.supportFeedbackDraftSnapshot()
+        XCTAssertEqual(recovery.state, .recoveryRequired)
+        XCTAssertTrue(recovery.safeCopyAvailable)
+        let recoveryCopy = try await corruptStore.supportFeedbackRecoveryCopy()
+        XCTAssertEqual(
+            recoveryCopy,
+            corruptBytes
+        )
         XCTAssertTrue(FileManager.default.fileExists(
             atPath: Self.diagnosticsURL(corruptRoot)
                 .deletingLastPathComponent()
                 .appendingPathComponent(".counters.json.quarantine").path
         ))
+        try await corruptStore.resetOperationalSupport()
+        let recoveredEmpty = try await corruptStore.supportFeedbackDraftSnapshot()
+        XCTAssertEqual(recoveredEmpty.state, .empty)
+        let removedRecoveryCopy = try await corruptStore.supportFeedbackRecoveryCopy()
+        XCTAssertNil(removedRecoveryCopy)
 
         let lowStorageRoot = try Self.temporaryRoot("R01-low-store")
         defer { try? FileManager.default.removeItem(at: lowStorageRoot) }

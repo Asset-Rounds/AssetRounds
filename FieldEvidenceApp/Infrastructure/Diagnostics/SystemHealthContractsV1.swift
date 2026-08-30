@@ -641,11 +641,72 @@ enum DeviceOperationalSupportStoreSchemaV2 {
     static let maximumRecords = 128
 }
 
+/// The sole forward successor of the device-operational support format. It
+/// adds one bounded feedback draft without creating a workspace record, index,
+/// journal, backup member, or second persistence writer.
+enum DeviceOperationalSupportStoreSchemaV3 {
+    static let version = 3
+    static let maximumRecordBytes = DeviceOperationalSupportStoreSchemaV2.maximumRecordBytes
+    static let maximumTotalBytes = DeviceOperationalSupportStoreSchemaV2.maximumTotalBytes
+    static let maximumRecords = DeviceOperationalSupportStoreSchemaV2.maximumRecords
+    static let maximumFeedbackDrafts = 1
+}
+
+enum SupportFeedbackDraftPersistenceStateV1: String, CaseIterable, Codable, Sendable {
+    case empty = "EMPTY"
+    case available = "AVAILABLE"
+    case recoveryRequired = "RECOVERY_REQUIRED"
+}
+
+struct SupportFeedbackDraftStoreSnapshotV1: Equatable, Sendable {
+    let state: SupportFeedbackDraftPersistenceStateV1
+    let draft: SupportFeedbackDraftV1?
+    let safeCopyAvailable: Bool
+
+    init(
+        state: SupportFeedbackDraftPersistenceStateV1,
+        draft: SupportFeedbackDraftV1?,
+        safeCopyAvailable: Bool
+    ) throws {
+        self.state = state
+        self.draft = draft
+        self.safeCopyAvailable = safeCopyAvailable
+        switch state {
+        case .empty:
+            guard draft == nil, !safeCopyAvailable else {
+                throw OperationalDiagnosticsValidationFailureV1.invalidValue
+            }
+        case .available:
+            guard let draft, !safeCopyAvailable else {
+                throw OperationalDiagnosticsValidationFailureV1.invalidValue
+            }
+            try draft.validate()
+        case .recoveryRequired:
+            guard draft == nil else {
+                throw OperationalDiagnosticsValidationFailureV1.invalidValue
+            }
+        }
+    }
+}
+
 protocol DeviceOperationalSupportStoreV2: Sendable {
     func operationalSupportSnapshot() async throws -> DeviceOperationalSupportSnapshotV2
     func recordOperationalFailure(_ failure: OperationalFailureV1) async throws
     func replaceSystemHealth(_ health: SystemHealthDiagnosticsV1) async throws
     func resetOperationalSupport() async throws
+}
+
+protocol DeviceOperationalSupportStoreV3: DeviceOperationalSupportStoreV2 {
+    func supportFeedbackDraftSnapshot() async throws -> SupportFeedbackDraftStoreSnapshotV1
+    func supportFeedbackRecoveryCopy() async throws -> Data?
+    func saveSupportFeedbackDraft(
+        _ draft: SupportFeedbackDraftV1,
+        expectedRevision: UInt64?
+    ) async throws
+    func discardSupportFeedbackDraft(
+        expectedDraftID: UUID,
+        expectedRevision: UInt64
+    ) async throws
 }
 
 enum ScratchDataPurposeV1: String, CaseIterable, Codable, Hashable, Sendable {

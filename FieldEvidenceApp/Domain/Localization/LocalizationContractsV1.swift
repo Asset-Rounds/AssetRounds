@@ -5299,3 +5299,224 @@ enum C53SharedServiceReliabilitySemanticBoundaryV1 {
     static let rawCapabilitiesAndDiagnosticProjectionsExcluded = true
     static let zeroExposureDisposition = "UNAVAILABLE_ZERO_QUALIFIED_EXPOSURE"
 }
+
+// MARK: - C01 Support & Recovery Center localization
+
+/// C01's display vocabulary is a closed, English-source projection of typed
+/// local facts.  It contains no customer/work content, identifiers, paths,
+/// secrets, legal copy, delivery claim, or capability bytes.
+enum RecoveryCenterLocalizationKeyV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case actionCancel = "recovery.center.action.cancel"
+    case actionChooseFile = "recovery.center.action.choose_file"
+    case actionCloseOtherOperation = "recovery.center.action.close_other_operation"
+    case actionContactSupport = "recovery.center.action.contact_support"
+    case actionFreeStorage = "recovery.center.action.free_storage"
+    case actionOpenSettings = "recovery.center.action.open_settings"
+    case actionRestart = "recovery.center.action.restart"
+    case actionResume = "recovery.center.action.resume"
+    case actionRetry = "recovery.center.action.retry"
+    case actionUnlockDevice = "recovery.center.action.unlock_device"
+    case backupStandardAction = "recovery.center.backup.standard.action"
+    case backupStandardDescription = "recovery.center.backup.standard.description"
+    case backupStandardHeading = "recovery.center.backup.standard.heading"
+    case backupStandardUnavailable = "recovery.center.backup.standard.unavailable"
+    case encryptedBackupAction = "recovery.center.backup.encrypted.action"
+    case encryptedBackupAvailable = "recovery.center.backup.encrypted.available"
+    case encryptedBackupHeading = "recovery.center.backup.encrypted.heading"
+    case encryptedBackupUnavailable = "recovery.center.backup.encrypted.unavailable"
+    case failureFallback = "recovery.center.failure.fallback"
+    case failureHeading = "recovery.center.failure.heading"
+    case failureHelp = "recovery.center.failure.help"
+    case failurePrimary = "recovery.center.failure.primary"
+    case feedbackDraftAvailable = "recovery.center.feedback.draft_available"
+    case feedbackExternalEffect = "recovery.center.feedback.external_effect"
+    case feedbackHandoffAction = "recovery.center.feedback.handoff_action"
+    case feedbackHandoffReady = "recovery.center.feedback.handoff_ready"
+    case feedbackHandoffUnavailable = "recovery.center.feedback.handoff_unavailable"
+    case feedbackHeading = "recovery.center.feedback.heading"
+    case feedbackInvalid = "recovery.center.feedback.invalid"
+    case freshnessCurrent = "recovery.center.freshness.current"
+    case freshnessHeading = "recovery.center.freshness.heading"
+    case freshnessHistoric = "recovery.center.freshness.historic"
+    case freshnessUnavailable = "recovery.center.freshness.unavailable"
+    case heading = "recovery.center.heading"
+    case helpBackup = "recovery.center.help.backup"
+    case helpCommerce = "recovery.center.help.commerce"
+    case helpDiagnosticsReset = "recovery.center.help.diagnostics_reset"
+    case helpPermissions = "recovery.center.help.permissions"
+    case helpReports = "recovery.center.help.reports"
+    case helpStorage = "recovery.center.help.storage"
+    case helpSupportExport = "recovery.center.help.support_export"
+    case intro = "recovery.center.intro"
+    case privacyAction = "recovery.center.privacy.action"
+    case privacyBlocked = "recovery.center.privacy.blocked"
+    case privacyDraftLocal = "recovery.center.privacy.draft_local"
+    case privacyHeading = "recovery.center.privacy.heading"
+    case privacyLiveAvailable = "recovery.center.privacy.live_available"
+    case refreshAction = "recovery.center.action.refresh"
+    case reliabilityHeading = "recovery.center.reliability.heading"
+    case sourceBackup = "recovery.center.source.backup"
+    case sourceCommerce = "recovery.center.source.commerce"
+    case sourceDiagnostics = "recovery.center.source.diagnostics"
+    case sourceFinalization = "recovery.center.source.finalization"
+    case sourceGeneration = "recovery.center.source.generation"
+    case sourceJobs = "recovery.center.source.jobs"
+    case sourcePackageReadiness = "recovery.center.source.package_readiness"
+    case sourceProtectedData = "recovery.center.source.protected_data"
+    case sourceReporting = "recovery.center.source.reporting"
+    case sourceRestore = "recovery.center.source.restore"
+    case sourceStorage = "recovery.center.source.storage"
+    case stateActionable = "recovery.center.state.actionable"
+    case stateChecking = "recovery.center.state.checking"
+    case stateComplete = "recovery.center.state.complete"
+    case stateExternalActionRequired = "recovery.center.state.external_action_required"
+    case stateFileRequired = "recovery.center.state.file_required"
+    case stateHealthy = "recovery.center.state.healthy"
+    case stateInProgress = "recovery.center.state.in_progress"
+    case stateInterrupted = "recovery.center.state.interrupted"
+    case statePartialSafe = "recovery.center.state.partial_safe"
+    case stateRestartRequired = "recovery.center.state.restart_required"
+    case stateValidationFailed = "recovery.center.state.validation_failed"
+    case statusHeading = "recovery.center.status.heading"
+    case supportExportAction = "recovery.center.support.export_action"
+    case supportExternalEffect = "recovery.center.support.external_effect"
+    case supportHeading = "recovery.center.support.heading"
+    case supportPrepareAction = "recovery.center.support.prepare_action"
+    case supportPreviewAction = "recovery.center.support.preview_action"
+    case supportPreviewBytes = "recovery.center.support.preview.bytes"
+    case supportPreviewEntries = "recovery.center.support.preview.entries"
+    case supportPreviewPrivacy = "recovery.center.support.preview.privacy"
+    case supportPreviewUnavailable = "recovery.center.support.preview.unavailable"
+    case supportPreviewHeading = "recovery.center.support.preview.heading"
+
+    var localizationKey: LocalizationKeyV1 {
+        // This is a closed repository-owned vocabulary; registry construction
+        // remains the throwing validation boundary.
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+}
+
+enum RecoveryCenterLocalizationPolicyV1 {
+    static let sourceLocale = "en"
+    static let shippingLocale = "en"
+    static let metadataLocale = "en-US"
+    static let englishOnly = true
+    static let semanticNamespace = "v23.p04.c01.recovery-center"
+    static let keys = RecoveryCenterLocalizationKeyV1.allCases.map(\.rawValue).sorted()
+    static let excludesCustomerContent = true
+    static let excludesWorkContent = true
+    static let excludesIdentifiersAndPaths = true
+    static let excludesSecretsAndLegalCopy = true
+    static let noOptimisticCompletionOrDeliveryClaim = true
+    static let externalEffectsAreExplicit = true
+    static let standardRecoveryIsIndependent = true
+
+    static func english(_ key: RecoveryCenterLocalizationKeyV1) -> String {
+        switch key {
+        case .actionCancel: return "Cancel"
+        case .actionChooseFile: return "Choose a file"
+        case .actionCloseOtherOperation: return "Close the other operation"
+        case .actionContactSupport: return "Contact support"
+        case .actionFreeStorage: return "Free storage"
+        case .actionOpenSettings: return "Open Settings"
+        case .actionRestart: return "Restart"
+        case .actionResume: return "Resume"
+        case .actionRetry: return "Try again"
+        case .actionUnlockDevice: return "Unlock this device"
+        case .backupStandardAction: return "Create a standard backup"
+        case .backupStandardDescription: return "Standard backup remains available independently of the optional encrypted-backup choice."
+        case .backupStandardHeading: return "Standard backup"
+        case .backupStandardUnavailable: return "Standard backup status is unavailable."
+        case .encryptedBackupAction: return "Use encrypted backup"
+        case .encryptedBackupAvailable: return "Encrypted backup is available as an optional choice."
+        case .encryptedBackupHeading: return "Encrypted backup"
+        case .encryptedBackupUnavailable: return "Encrypted backup is unavailable; standard recovery is not blocked."
+        case .failureFallback: return "Fallback action"
+        case .failureHeading: return "Recovery action"
+        case .failureHelp: return "Help topic"
+        case .failurePrimary: return "Primary action"
+        case .feedbackDraftAvailable: return "A feedback draft is available for review."
+        case .feedbackExternalEffect: return "Choosing Mail or Share opens another app; this does not confirm sending or delivery."
+        case .feedbackHandoffAction: return "Review feedback handoff"
+        case .feedbackHandoffReady: return "A feedback handoff preview is ready for review."
+        case .feedbackHandoffUnavailable: return "No feedback handoff preview is available."
+        case .feedbackHeading: return "Feedback"
+        case .feedbackInvalid: return "The feedback preview could not be matched to its draft."
+        case .freshnessCurrent: return "Current"
+        case .freshnessHeading: return "Freshness"
+        case .freshnessHistoric: return "Historic"
+        case .freshnessUnavailable: return "Unavailable"
+        case .heading: return "Support & Recovery"
+        case .helpBackup: return "Backup help"
+        case .helpCommerce: return "Subscription help"
+        case .helpDiagnosticsReset: return "Diagnostics reset help"
+        case .helpPermissions: return "Permissions help"
+        case .helpReports: return "Reports help"
+        case .helpStorage: return "Storage help"
+        case .helpSupportExport: return "Support export help"
+        case .intro: return "Review local reliability and recovery choices on this iPhone."
+        case .privacyAction: return "Open the live privacy policy"
+        case .privacyBlocked: return "Privacy details are unavailable until the bundled policy is available."
+        case .privacyDraftLocal: return "A local privacy summary is available; the live policy is not available."
+        case .privacyHeading: return "Privacy & Data"
+        case .privacyLiveAvailable: return "A bundled privacy summary and live policy link are available."
+        case .refreshAction: return "Check again"
+        case .reliabilityHeading: return "Local reliability"
+        case .sourceBackup: return "Backup"
+        case .sourceCommerce: return "Subscription"
+        case .sourceDiagnostics: return "Diagnostics"
+        case .sourceFinalization: return "Finalization"
+        case .sourceGeneration: return "Generation"
+        case .sourceJobs: return "Jobs"
+        case .sourcePackageReadiness: return "Package readiness"
+        case .sourceProtectedData: return "Protected data"
+        case .sourceReporting: return "Reporting"
+        case .sourceRestore: return "Restore"
+        case .sourceStorage: return "Storage"
+        case .stateActionable: return "Action required"
+        case .stateChecking: return "Checking"
+        case .stateComplete: return "Complete"
+        case .stateExternalActionRequired: return "External action required"
+        case .stateFileRequired: return "File required"
+        case .stateHealthy: return "Healthy"
+        case .stateInProgress: return "In progress"
+        case .stateInterrupted: return "Interrupted"
+        case .statePartialSafe: return "Partial state available"
+        case .stateRestartRequired: return "Restart required"
+        case .stateValidationFailed: return "Validation failed"
+        case .statusHeading: return "Recovery status"
+        case .supportExportAction: return "Export support bundle"
+        case .supportExternalEffect: return "Export opens a system share surface. The app cannot recall a copy after you choose a destination."
+        case .supportHeading: return "Support"
+        case .supportPrepareAction: return "Prepare support preview"
+        case .supportPreviewAction: return "Review support preview"
+        case .supportPreviewBytes: return "Bytes"
+        case .supportPreviewEntries: return "Entries"
+        case .supportPreviewPrivacy: return "This preview excludes customer content, identifiers, and raw logs."
+        case .supportPreviewUnavailable: return "Support export preview is unavailable."
+        case .supportPreviewHeading: return "Support export preview"
+        }
+    }
+
+    static func validate() throws {
+        let values = RecoveryCenterLocalizationKeyV1.allCases
+        let rawValues = values.map(\.rawValue)
+        guard sourceLocale == "en",
+              shippingLocale == "en",
+              metadataLocale == "en-US",
+              englishOnly,
+              rawValues.count == Set(rawValues).count,
+              Set(rawValues) == Set(keys),
+              values.allSatisfy({ !$0.localizationKey.rawValue.isEmpty && !english($0).isEmpty }),
+              excludesCustomerContent,
+              excludesWorkContent,
+              excludesIdentifiersAndPaths,
+              excludesSecretsAndLegalCopy,
+              noOptimisticCompletionOrDeliveryClaim,
+              externalEffectsAreExplicit,
+              standardRecoveryIsIndependent else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}

@@ -4017,6 +4017,334 @@
     "navigation.route.fallback.reason.wrong_workspace" : {
       "comment" : "C34 safe fallback reason for a route bound to another workspace.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "That destination belongs to a different workspace." } } }
+    },
+    "recovery.center.action.cancel" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Cancel" } } }
+    },
+    "recovery.center.action.choose_file" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose a file" } } }
+    },
+    "recovery.center.action.close_other_operation" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Close the other operation" } } }
+    },
+    "recovery.center.action.contact_support" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Contact support" } } }
+    },
+    "recovery.center.action.free_storage" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Free storage" } } }
+    },
+    "recovery.center.action.open_settings" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Open Settings" } } }
+    },
+    "recovery.center.action.refresh" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Check again" } } }
+    },
+    "recovery.center.action.restart" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Restart" } } }
+    },
+    "recovery.center.action.resume" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Resume" } } }
+    },
+    "recovery.center.action.retry" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Try again" } } }
+    },
+    "recovery.center.action.unlock_device" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Unlock this device" } } }
+    },
+    "recovery.center.backup.encrypted.action" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Use encrypted backup" } } }
+    },
+    "recovery.center.backup.encrypted.available" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Encrypted backup is available as an optional choice." } } }
+    },
+    "recovery.center.backup.encrypted.heading" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Encrypted backup" } } }
+    },
+    "recovery.center.backup.encrypted.unavailable" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Encrypted backup is unavailable; standard recovery is not blocked." } } }
+    },
+    "recovery.center.backup.standard.action" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Create a standard backup" } } }
+    },
+    "recovery.center.backup.standard.description" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Standard backup remains available independently of the optional encrypted-backup choice." } } }
+    },
+    "recovery.center.backup.standard.heading" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Standard backup" } } }
+    },
+    "recovery.center.backup.standard.unavailable" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Standard backup status is unavailable." } } }
+    },
+    "recovery.center.failure.fallback" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Fallback action" } } }
+    },
+    "recovery.center.failure.heading" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recovery action" } } }
+    },
+    "recovery.center.failure.help" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Help topic" } } }
+    },
+    "recovery.center.failure.primary" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Primary action" } } }
+    },
+    "recovery.center.feedback.draft_available" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "A feedback draft is available for review." } } }
+    },
+    "recovery.center.feedback.external_effect" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Choosing Mail or Share opens another app; this does not confirm sending or delivery." } } }
+    },
+    "recovery.center.feedback.handoff_action" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review feedback handoff" } } }
+    },
+    "recovery.center.feedback.handoff_ready" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "A feedback handoff preview is ready for review." } } }
+    },
+    "recovery.center.feedback.handoff_unavailable" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "No feedback handoff preview is available." } } }
+    },
+    "recovery.center.feedback.heading" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Feedback" } } }
+    },
+    "recovery.center.feedback.invalid" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "The feedback preview could not be matched to its draft." } } }
+    },
+    "recovery.center.freshness.current" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Current" } } }
+    },
+    "recovery.center.freshness.heading" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Freshness" } } }
+    },
+    "recovery.center.freshness.historic" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Historic" } } }
+    },
+    "recovery.center.freshness.unavailable" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Unavailable" } } }
+    },
+    "recovery.center.heading" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Support & Recovery" } } }
+    },
+    "recovery.center.help.backup" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Backup help" } } }
+    },
+    "recovery.center.help.commerce" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Subscription help" } } }
+    },
+    "recovery.center.help.diagnostics_reset" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Diagnostics reset help" } } }
+    },
+    "recovery.center.help.permissions" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Permissions help" } } }
+    },
+    "recovery.center.help.reports" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reports help" } } }
+    },
+    "recovery.center.help.storage" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Storage help" } } }
+    },
+    "recovery.center.help.support_export" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Support export help" } } }
+    },
+    "recovery.center.intro" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review local reliability and recovery choices on this iPhone." } } }
+    },
+    "recovery.center.privacy.action" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Open the live privacy policy" } } }
+    },
+    "recovery.center.privacy.blocked" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Privacy details are unavailable until the bundled policy is available." } } }
+    },
+    "recovery.center.privacy.draft_local" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "A local privacy summary is available; the live policy is not available." } } }
+    },
+    "recovery.center.privacy.heading" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Privacy & Data" } } }
+    },
+    "recovery.center.privacy.live_available" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "A bundled privacy summary and live policy link are available." } } }
+    },
+    "recovery.center.reliability.heading" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Local reliability" } } }
+    },
+    "recovery.center.source.backup" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Backup" } } }
+    },
+    "recovery.center.source.commerce" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Subscription" } } }
+    },
+    "recovery.center.source.diagnostics" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Diagnostics" } } }
+    },
+    "recovery.center.source.finalization" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Finalization" } } }
+    },
+    "recovery.center.source.generation" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Generation" } } }
+    },
+    "recovery.center.source.jobs" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Jobs" } } }
+    },
+    "recovery.center.source.package_readiness" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Package readiness" } } }
+    },
+    "recovery.center.source.protected_data" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Protected data" } } }
+    },
+    "recovery.center.source.reporting" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reporting" } } }
+    },
+    "recovery.center.source.restore" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Restore" } } }
+    },
+    "recovery.center.source.storage" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Storage" } } }
+    },
+    "recovery.center.state.actionable" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Action required" } } }
+    },
+    "recovery.center.state.checking" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Checking" } } }
+    },
+    "recovery.center.state.complete" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Complete" } } }
+    },
+    "recovery.center.state.external_action_required" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "External action required" } } }
+    },
+    "recovery.center.state.file_required" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "File required" } } }
+    },
+    "recovery.center.state.healthy" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Healthy" } } }
+    },
+    "recovery.center.state.in_progress" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "In progress" } } }
+    },
+    "recovery.center.state.interrupted" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Interrupted" } } }
+    },
+    "recovery.center.state.partial_safe" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Partial state available" } } }
+    },
+    "recovery.center.state.restart_required" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Restart required" } } }
+    },
+    "recovery.center.state.validation_failed" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Validation failed" } } }
+    },
+    "recovery.center.status.heading" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recovery status" } } }
+    },
+    "recovery.center.support.export_action" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Export support bundle" } } }
+    },
+    "recovery.center.support.external_effect" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Export opens a system share surface. The app cannot recall a copy after you choose a destination." } } }
+    },
+    "recovery.center.support.heading" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Support" } } }
+    },
+    "recovery.center.support.prepare_action" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Prepare support preview" } } }
+    },
+    "recovery.center.support.preview_action" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review support preview" } } }
+    },
+    "recovery.center.support.preview.bytes" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Bytes" } } }
+    },
+    "recovery.center.support.preview.entries" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Entries" } } }
+    },
+    "recovery.center.support.preview.heading" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Support export preview" } } }
+    },
+    "recovery.center.support.preview.privacy" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "This preview excludes customer content, identifiers, and raw logs." } } }
+    },
+    "recovery.center.support.preview.unavailable" : {
+      "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Support export preview is unavailable." } } }
     }
   },
   "version" : "1.0"

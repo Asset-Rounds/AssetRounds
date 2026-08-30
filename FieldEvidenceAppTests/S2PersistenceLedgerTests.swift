@@ -252,10 +252,38 @@ final class S2PersistenceLedgerTests: XCTestCase {
         XCTAssertEqual(initialOperationalSnapshot.schemaVersion, 2)
         XCTAssertEqual(initialOperationalSnapshot.counters, .zero)
         XCTAssertEqual(initialOperationalSnapshot.health.generatedAt, now)
+        let initialV3Bytes = try await store.canonicalOperationalSupportEnvelopeDataV3()
         XCTAssertEqual(
             try Data(contentsOf: countersURL),
-            try canonicalOperationalSupportData(initialOperationalSnapshot)
+            initialV3Bytes
         )
+
+        let v2MigrationRoot = try makeTemporaryApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: v2MigrationRoot) }
+        let v2MigrationURL = diagnosticsCountersURL(in: v2MigrationRoot)
+        try fileManager.createDirectory(
+            at: v2MigrationURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let v2Bytes = try canonicalOperationalSupportData(initialOperationalSnapshot)
+        try v2Bytes.write(to: v2MigrationURL, options: .atomic)
+        let v2MigrationStore = DiagnosticsStore(
+            applicationSupportURL: v2MigrationRoot,
+            now: { now }
+        )
+        let migratedV2Snapshot = try await v2MigrationStore.operationalSupportSnapshot()
+        XCTAssertEqual(migratedV2Snapshot.schemaVersion, 2)
+        XCTAssertEqual(migratedV2Snapshot.counters, .zero)
+        let migratedV3Bytes = try await v2MigrationStore
+            .canonicalOperationalSupportEnvelopeDataV3()
+        let migratedV3Object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: migratedV3Bytes) as? [String: Any]
+        )
+        XCTAssertEqual(
+            (migratedV3Object["schemaVersion"] as? NSNumber)?.intValue,
+            3
+        )
+        XCTAssertEqual(try Data(contentsOf: v2MigrationURL), migratedV3Bytes)
 
         for counter in allCounters {
             await store.increment(counter)
@@ -286,9 +314,10 @@ final class S2PersistenceLedgerTests: XCTestCase {
         let persistedBytes = try Data(contentsOf: countersURL)
         let incrementedOperationalSnapshot = try await store.operationalSupportSnapshot()
         XCTAssertEqual(incrementedOperationalSnapshot.counters, expected)
+        let incrementedV3Bytes = try await store.canonicalOperationalSupportEnvelopeDataV3()
         XCTAssertEqual(
             persistedBytes,
-            try canonicalOperationalSupportData(incrementedOperationalSnapshot)
+            incrementedV3Bytes
         )
         let reloaded = DiagnosticsStore(applicationSupportURL: root, now: { now })
         let reloadedSnapshot = await reloaded.snapshot()
@@ -343,9 +372,10 @@ final class S2PersistenceLedgerTests: XCTestCase {
         XCTAssertEqual(migrated.counters, maximumValue)
         XCTAssertEqual(migrated.health.generatedAt, now)
         XCTAssertNotEqual(try Data(contentsOf: countersURL), maximumBytes)
+        let saturatedV3Bytes = try await store.canonicalOperationalSupportEnvelopeDataV3()
         XCTAssertEqual(
             try Data(contentsOf: countersURL),
-            try canonicalOperationalSupportData(migrated)
+            saturatedV3Bytes
         )
     }
 
@@ -359,7 +389,7 @@ final class S2PersistenceLedgerTests: XCTestCase {
             ("negative counter", replacing("\"first_sign_created\":0", with: "\"first_sign_created\":-1", in: canonicalZero)),
             ("duplicate counter", inserting("\"first_sign_created\":0,", after: "{", in: canonicalZero)),
             ("noncanonical whitespace", Data(" \(String(decoding: canonicalZero, as: UTF8.self))".utf8)),
-            ("unsupported schema", replacing("\"schemaVersion\":1", with: "\"schemaVersion\":2", in: canonicalZero)),
+            ("malformed legacy schema", replacing("\"schemaVersion\":1", with: "\"schemaVersion\":2", in: canonicalZero)),
             (
                 "unknown purchase bucket",
                 replacing(
@@ -402,11 +432,30 @@ final class S2PersistenceLedgerTests: XCTestCase {
             XCTAssertEqual(resetSnapshot.schemaVersion, 2, testCase.name)
             XCTAssertEqual(resetSnapshot.counters, .zero, testCase.name)
             XCTAssertEqual(resetSnapshot.health.generatedAt, now, testCase.name)
+            let persistedEnvelope = try XCTUnwrap(
+                JSONSerialization.jsonObject(with: Data(contentsOf: countersURL))
+                    as? [String: Any]
+            )
             XCTAssertEqual(
-                try Data(contentsOf: countersURL),
-                try canonicalOperationalSupportData(resetSnapshot),
+                (persistedEnvelope["schemaVersion"] as? NSNumber)?.intValue,
+                3,
                 testCase.name
             )
+            XCTAssertEqual(
+                (persistedEnvelope["feedbackDraftRecoveryRequired"] as? NSNumber)?.boolValue,
+                true,
+                testCase.name
+            )
+            let persistedV3Bytes = try await store
+                .canonicalOperationalSupportEnvelopeDataV3()
+            XCTAssertEqual(
+                try Data(contentsOf: countersURL),
+                persistedV3Bytes,
+                testCase.name
+            )
+            let recoverySnapshot = try await store.supportFeedbackDraftSnapshot()
+            XCTAssertEqual(recoverySnapshot.state, .recoveryRequired, testCase.name)
+            XCTAssertTrue(recoverySnapshot.safeCopyAvailable, testCase.name)
             XCTAssertEqual(try Data(contentsOf: currentURL), currentSentinel, testCase.name)
             XCTAssertEqual(try Data(contentsOf: retiredURL), retiredSentinel, testCase.name)
             XCTAssertEqual(try Data(contentsOf: modelURL), modelSentinel, testCase.name)
@@ -415,11 +464,10 @@ final class S2PersistenceLedgerTests: XCTestCase {
         let forwardRoot = try makeTemporaryApplicationSupportURL()
         defer { try? fileManager.removeItem(at: forwardRoot) }
         let seed = DiagnosticsStore(applicationSupportURL: forwardRoot, now: { now })
-        let released = try await seed.operationalSupportSnapshot()
-        let releasedBytes = try canonicalOperationalSupportData(released)
+        let releasedBytes = try await seed.canonicalOperationalSupportEnvelopeDataV3()
         let forwardBytes = replacing(
-            "\"schemaVersion\":2",
-            with: "\"schemaVersion\":3",
+            "\"schemaVersion\":3",
+            with: "\"schemaVersion\":4",
             in: releasedBytes
         )
         try forwardBytes.write(to: diagnosticsCountersURL(in: forwardRoot), options: .atomic)

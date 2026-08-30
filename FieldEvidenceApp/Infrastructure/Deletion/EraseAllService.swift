@@ -1342,9 +1342,9 @@ private extension EraseAllService {
         try auxiliary.removeFrozenTargets()
         userDefaults.removePersistentDomain(forName: bundleIdentifier)
         // Recreate through a fresh adapter after removing the old anchored
-        // directory. This publishes the canonical V2 operational envelope;
-        // writing DiagnosticsV1.zero directly would leave legacy bytes for a
-        // later migration and would not prove the Erase result at this edge.
+        // directory. This publishes the canonical current operational
+        // envelope; writing DiagnosticsV1.zero directly would leave legacy
+        // bytes and would not prove the Erase result at this edge.
         let replacementDiagnosticsStore = DiagnosticsStore(
             applicationSupportURL: applicationSupportURL,
             fileManager: fileManager
@@ -1358,9 +1358,15 @@ private extension EraseAllService {
               diagnosticsZeroSnapshot.health.failures.isEmpty else {
             throw EraseAllServiceError.invalidAuthority
         }
-        let diagnosticsZero = try canonicalDiagnosticsZero(
-            diagnosticsZeroSnapshot
-        )
+        let feedbackZeroSnapshot = try await replacementDiagnosticsStore
+            .supportFeedbackDraftSnapshot()
+        guard feedbackZeroSnapshot.state == .empty,
+              feedbackZeroSnapshot.draft == nil,
+              !feedbackZeroSnapshot.safeCopyAvailable else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let diagnosticsZero = try await replacementDiagnosticsStore
+            .canonicalOperationalSupportEnvelopeDataV3()
         await diagnosticsStore.acceptDescriptorErasedZero()
         guard await diagnosticsStore.isExactlyZero(),
               (userDefaults.persistentDomain(forName: bundleIdentifier) ?? [:])
@@ -1838,14 +1844,6 @@ private extension EraseAllService {
         if failureInjection?.consume(point) == true {
             throw EraseAllServiceError.injectedFailure
         }
-    }
-
-    func canonicalDiagnosticsZero(
-        _ snapshot: DeviceOperationalSupportSnapshotV2
-    ) throws -> Data {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-        return try encoder.encode(snapshot)
     }
 
     static func canonical(_ id: UUID) -> String {

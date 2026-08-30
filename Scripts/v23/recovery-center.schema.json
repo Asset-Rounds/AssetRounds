@@ -1,0 +1,122 @@
+{
+  "$id": "https://assetrounds.invalid/v23/recovery-center.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "cardID": {
+      "const": "V23-P04-C01"
+    },
+    "closedStateCount": {
+      "const": 11
+    },
+    "contractRefs": {
+      "const": [
+        "V21ToV23RequirementRebindingV1(V21-P04-C01).CONTRACTS",
+        "RecoveryCenterProjectionV1",
+        "RecoverabilityVerificationStagingV1",
+        "RecoverabilityVerificationReceiptV1",
+        "DirectPrerequisiteEvidenceSetV1",
+        "CardAcceptanceInclusionProofV1",
+        "CardAcceptanceInclusionProofRecoveryReceiptV1",
+        "CandidateAcceptanceCompatibilityReceiptV1"
+      ]
+    },
+    "evidenceIDs": {
+      "const": [
+        "V23-P04-C01-G01",
+        "V23-P04-C01-A01",
+        "V23-P04-C01-H01",
+        "V23-P04-C01-I01",
+        "V23-P04-C01-R01"
+      ]
+    },
+    "finalHashesSealed": {
+      "const": true
+    },
+    "journeyRefs": {
+      "const": [
+        "FJ11"
+      ]
+    },
+    "nonpersistentTypes": {
+      "const": [
+        "RecoveryCenterProjectionV1",
+        "ReliabilityStateProjectionV1",
+        "RecoveryAuthoritySnapshotV1",
+        "PresentationClockV1",
+        "SupportExportPreviewProjectionV1"
+      ]
+    },
+    "optionalEncryptedBackup": {
+      "type": "object"
+    },
+    "persistentChangeMode": {
+      "const": "NONPERSISTENT_DERIVED_RECOVERY_CENTER_PROJECTION_AND_DEVICE_OPERATIONAL_SUPPORT_DRAFT"
+    },
+    "persistentContractSchema": {
+      "const": "NONPERSISTENT_RECOVERY_CENTER_V1"
+    },
+    "persistentRowTypes": {
+      "const": [
+        "SupportFeedbackDraftV1"
+      ]
+    },
+    "provisional": {
+      "const": false
+    },
+    "recoveryStates": {
+      "const": [
+        "HEALTHY",
+        "CHECKING",
+        "ACTIONABLE",
+        "IN_PROGRESS",
+        "INTERRUPTED",
+        "FILE_REQUIRED",
+        "VALIDATION_FAILED",
+        "PARTIAL_SAFE",
+        "COMPLETE",
+        "RESTART_REQUIRED",
+        "EXTERNAL_ACTION_REQUIRED"
+      ]
+    },
+    "schema": {
+      "const": "V22P04C01RecoveryCenterCorpusV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "selectors": {
+      "const": [
+        "testV23P04C01G01HealthyProjectionRoutesAndOptionalBackupAreCanonical",
+        "testV23P04C01A01ClosedStatesFreshnessPrivacyAndEntitlementFallbacksRemainVisible",
+        "testV23P04C01H01HostileDuplicateFalseHealthyPrivacySupportAndDraftInputsFailClosed",
+        "testV23P04C01I01InterruptionCancellationAndReplayLeaveNoPartialCanonicalEffect",
+        "testV23P04C01R01RecoveryFeedbackStoreResetEraseAndFJ11TruthRemainDurable"
+      ]
+    },
+    "supportFeedbackDraft": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "evidenceIDs",
+    "selectors",
+    "recoveryStates",
+    "closedStateCount",
+    "contractRefs",
+    "journeyRefs",
+    "persistentChangeMode",
+    "persistentContractSchema",
+    "persistentRowTypes",
+    "nonpersistentTypes",
+    "optionalEncryptedBackup",
+    "supportFeedbackDraft",
+    "finalHashesSealed",
+    "provisional"
+  ],
+  "title": "Visible local reliability, recovery freshness, encrypted-backup option, and user-controlled Support and Recovery Center",
+  "type": "object"
+}

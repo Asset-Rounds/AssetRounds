@@ -2678,3 +2678,81 @@ enum C53AssetServiceReliabilityAccessibilityPolicyV1 {
         }
     }
 }
+
+// MARK: - C01 Support & Recovery Center accessibility
+
+/// C01 keeps the six UI selectors stable for VoiceOver, Voice Control, and
+/// UI automation.  The phase-qualified values are view selectors, not
+/// persistence identities or route keys.
+enum RecoveryCenterAccessibilityIDV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case screen = "v23.p04.c01.recovery-center.screen"
+    case status = "v23.p04.c01.recovery-center.status"
+    case standardBackup = "v23.p04.c01.recovery-center.standard-backup"
+    case encryptedBackup = "v23.p04.c01.recovery-center.encrypted-backup"
+    case supportDraft = "v23.p04.c01.recovery-center.support-draft"
+    case privacyBlocked = "v23.p04.c01.recovery-center.privacy-blocked"
+}
+
+enum RecoveryCenterAccessibilityPolicyV1 {
+    static let semanticIDs = RecoveryCenterAccessibilityIDV1.allCases.map(\.rawValue)
+    static let statusIsNotColorOnly = true
+    static let stateAndFreshnessAreSpoken = true
+    static let primaryFallbackAndHelpAreActionable = true
+    static let requiresNonColorStateText = true
+    static let requiresTextAndIconForIndeterminateStates = true
+    static let requiresActionableNextStep = true
+    static let dynamicTypeRequired = true
+    static let voiceOverRequired = true
+    static let voiceOverLabelAndValueRequired = true
+    static let voiceControlRequired = true
+    static let voiceControlSafeDestinationRequired = true
+    static let switchControlRequired = true
+    static let contrastWithoutColorRequired = true
+    static let increasedContrastRequired = true
+    static let reduceMotionSupported = true
+    static let rtlReadingOrderRequired = true
+    static let uiConformanceClaimed = false
+    static let uiAdoptionClaimed = false
+
+    static func localizationKey(
+        for id: RecoveryCenterAccessibilityIDV1
+    ) -> RecoveryCenterLocalizationKeyV1 {
+        switch id {
+        case .screen: return .heading
+        case .status: return .statusHeading
+        case .standardBackup: return .backupStandardHeading
+        case .encryptedBackup: return .encryptedBackupHeading
+        case .supportDraft: return .feedbackHeading
+        case .privacyBlocked: return .privacyBlocked
+        }
+    }
+
+    static func validate() throws {
+        let values = RecoveryCenterAccessibilityIDV1.allCases
+        let rawValues = values.map(\.rawValue)
+        let keys = values.map { localizationKey(for: $0).rawValue }
+        guard rawValues.count == Set(rawValues).count,
+              Set(rawValues) == Set(semanticIDs),
+              keys.count == Set(keys).count,
+              statusIsNotColorOnly,
+              stateAndFreshnessAreSpoken,
+              primaryFallbackAndHelpAreActionable,
+              requiresNonColorStateText,
+              requiresTextAndIconForIndeterminateStates,
+              requiresActionableNextStep,
+              dynamicTypeRequired,
+              voiceOverRequired,
+              voiceOverLabelAndValueRequired,
+              voiceControlRequired,
+              voiceControlSafeDestinationRequired,
+              switchControlRequired,
+              contrastWithoutColorRequired,
+              increasedContrastRequired,
+              reduceMotionSupported,
+              rtlReadingOrderRequired,
+              !uiConformanceClaimed,
+              !uiAdoptionClaimed else {
+            throw LocalizationContractFailureV1.invalidAccessibilityBinding
+        }
+    }
+}

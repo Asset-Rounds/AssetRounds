@@ -23,6 +23,16 @@ enum StartupStep: String, CaseIterable, Sendable {
     case pdf
 }
 
+/// Read-only bootstrap input for the Recovery Center. It deliberately carries
+/// no store session or recovery action, so a support projection cannot bypass
+/// this router's validation gate.
+enum StartupRecoveryBootstrapStateV1: Equatable, Sendable {
+    case checking
+    case ready
+    case eraseCleanupPending
+    case maintenance(StartupMaintenanceReason)
+}
+
 @MainActor
 final class StartupRouter: ObservableObject {
     enum Route {
@@ -40,6 +50,22 @@ final class StartupRouter: ObservableObject {
     private(set) var maintenanceRestoreSession: StoreGenerationSession?
     private(set) var maintenanceEraseSession: StoreGenerationSession?
     var maintenanceDiagnosticsStore: DiagnosticsStore { diagnosticsStore }
+    var recoverySupportDiagnosticsStore: DiagnosticsStore { diagnosticsStore }
+
+    /// The Recovery Center may derive bootstrap support state from this value,
+    /// but cannot obtain a session or run a repair through it.
+    var recoveryBootstrapState: StartupRecoveryBootstrapStateV1 {
+        switch route {
+        case .checking:
+            return .checking
+        case .ready:
+            return .ready
+        case .eraseCleanupPending:
+            return .eraseCleanupPending
+        case .maintenance(let reason):
+            return .maintenance(reason)
+        }
+    }
 
     private let applicationSupportURL: URL
     private let generationFactory: StoreGenerationFactory

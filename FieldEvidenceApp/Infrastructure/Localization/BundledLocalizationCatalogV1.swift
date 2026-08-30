@@ -3382,6 +3382,9 @@ enum BundledLocalizationCatalogV1 {
         // criterion, and stop labels. The source catalog remains English-only
         // and rejects operational or compliance conclusions.
         supportedKeys.formUnion(C31LightingLocalizationKeyV1.allCases.map(\.rawValue))
+        // C01 adds the closed Support & Recovery Center vocabulary. It is
+        // additive to the frozen base registry and remains English-only.
+        supportedKeys.formUnion(RecoveryCenterLocalizationKeyV1.allCases.map(\.rawValue))
         guard registeredKeys.isSubset(of: Set(strings.keys)),
               Set(strings.keys).isSubset(of: supportedKeys) else {
             throw LocalizationContractFailureV1.invalidValue
@@ -4940,5 +4943,49 @@ enum C53AssetServiceReliabilityLocalizationBoundaryV1 {
               !releaseToServiceLocalized else {
             throw LocalizationContractFailureV1.invalidValue
         }
+    }
+}
+
+// MARK: - C01 Support & Recovery Center localization
+
+extension BundledLocalizationCatalogV1 {
+    static func recoveryCenterEnglish(
+        _ key: RecoveryCenterLocalizationKeyV1
+    ) -> String {
+        RecoveryCenterLocalizationPolicyV1.english(key)
+    }
+
+    static func recoveryCenterLocalized(
+        _ key: RecoveryCenterLocalizationKeyV1,
+        bundle: Bundle = .main,
+        locale: Locale = .current
+    ) -> String {
+        String(
+            localized: key.rawValue,
+            defaultValue: recoveryCenterEnglish(key),
+            bundle: bundle,
+            locale: locale,
+            comment: "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim."
+        )
+    }
+
+    /// C01's keys are additive. The frozen base registry remains available to
+    /// inherited callers while this registry supplies the typed feature set.
+    static func recoveryCenterRegistry() throws -> LocalizationKeyRegistryV1 {
+        try RecoveryCenterLocalizationPolicyV1.validate()
+        let base = try registry()
+        let additions = RecoveryCenterLocalizationKeyV1.allCases.map { key in
+            LocalizationKeyDefinitionV1(
+                key: key.localizationKey,
+                meaningID: key.rawValue,
+                translatorComment: "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
+                englishDefaultValue: recoveryCenterEnglish(key),
+                arguments: [],
+                requiredEnglishPluralCategories: [],
+                state: .active,
+                deprecatedFallbackKey: nil
+            )
+        }
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
     }
 }

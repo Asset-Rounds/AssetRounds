@@ -216,9 +216,32 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         let diagnosticsURL = harness.support
             .appendingPathComponent("FieldEvidenceDiagnostics", isDirectory: true)
             .appendingPathComponent("counters.json")
+        let persistedBytes = try Data(contentsOf: diagnosticsURL)
+        let canonicalV3Bytes = try await harness.diagnostics
+            .canonicalOperationalSupportEnvelopeDataV3()
+        XCTAssertEqual(persistedBytes, canonicalV3Bytes)
+        let persistedEnvelope = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: persistedBytes) as? [String: Any]
+        )
         XCTAssertEqual(
-            try Data(contentsOf: diagnosticsURL),
-            try canonicalOperationalSupportData(operationalAfterErase)
+            (persistedEnvelope["schemaVersion"] as? NSNumber)?.intValue,
+            3
+        )
+        let persistedCounters = try XCTUnwrap(
+            persistedEnvelope["counters"] as? [String: Any]
+        )
+        let counterEncoder = JSONEncoder()
+        counterEncoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let expectedCounters = try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: counterEncoder.encode(DiagnosticsV1.zero)
+            ) as? [String: Any]
+        )
+        XCTAssertEqual(persistedCounters as NSDictionary, expectedCounters as NSDictionary)
+        XCTAssertNil(persistedEnvelope["feedbackDraft"])
+        XCTAssertEqual(
+            (persistedEnvelope["feedbackDraftRecoveryRequired"] as? NSNumber)?.boolValue,
+            false
         )
         XCTAssertFalse(fileManager.fileExists(
             atPath: harness.support
@@ -995,14 +1018,6 @@ private extension S6_6EraseRecoveryTests {
                 line: line
             )
         }
-    }
-
-    func canonicalOperationalSupportData(
-        _ value: DeviceOperationalSupportSnapshotV2
-    ) throws -> Data {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-        return try encoder.encode(value)
     }
 
     func cleanup(_ harness: Harness) {

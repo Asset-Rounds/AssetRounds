@@ -158,6 +158,7 @@ enum CapabilityIDV1: String, CaseIterable, Codable, Hashable, Sendable {
     case filesAndShare = "FILES_AND_SHARE"
     case diagnostics = "DIAGNOSTICS"
     case haptics = "HAPTICS"
+    case encryptedBackup = "ENCRYPTED_BACKUP"
 }
 
 enum CapabilityPermissionStateV1: String, CaseIterable, Codable, Hashable, Sendable {
@@ -310,6 +311,7 @@ struct CapabilityPermissionMatrixV1: Sendable {
             item(.filesAndShare, "UniformTypeIdentifiers", nil, .saveLocally, .importData),
             item(.diagnostics, "MetricKit.local", nil, .saveLocally, .supportExport),
             item(.haptics, "UIKit.feedbackGenerator", nil, .noFallback, .none),
+            item(.encryptedBackup, "AssetRounds.encryptedPortableEnvelope", nil, .saveLocally, .none),
         ])
     }
 }
