@@ -281,6 +281,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
         let c73=TemporalOriginV1(card:"V23_P03_C46",ordinal:73)
         let c74=TemporalOriginV1(card:"V23_P03_C47",ordinal:74)
         let c75=TemporalOriginV1(card:"V23_P03_C49",ordinal:75)
+        let c76=TemporalOriginV1(card:"V23_P03_C55",ordinal:76)
         let groups: [(TemporalOriginV1, [String])] = [
             (c16, [
                 "JOURNAL:CurrentGenerationPointerV2",
@@ -453,6 +454,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
             (c73,["PERSISTENT_MODEL:ServiceContactPointRow","PERSISTENT_MODEL:SystemHandoffIntentRow","PROJECTION:StoreSemanticEnvelopeV35"]),
             (c74,["PERSISTENT_MODEL:ActivitySessionEnvelopeRow","PERSISTENT_MODEL:ActivityStateTransitionRow","PERSISTENT_MODEL:InstallationTaskResultRow","PERSISTENT_MODEL:InstallationAsBuiltSnapshotRow","PERSISTENT_MODEL:PunchReviewBasisSnapshotRow","PROJECTION:StoreSemanticEnvelopeV36"]),
             (c75,["PERSISTENT_MODEL:ManualWorkResourceRecordRow","PROJECTION:StoreSemanticEnvelopeV37"]),
+            (c76,["PERSISTENT_MODEL:LocalPartDefinitionRowV1","PERSISTENT_MODEL:StockStorageLocationRowV1","PERSISTENT_MODEL:StockMovementEventRowV1","PERSISTENT_MODEL:StockUseReceiptRowV1","PERSISTENT_MODEL:StockUseReversalReceiptRowV1","PERSISTENT_MODEL:StockReturnReceiptRowV1","PERSISTENT_MODEL:AbandonUnverifiedStockRowV1","PROJECTION:StoreSemanticEnvelopeV41"]),
         ]
         return groups.reduce(into: [:]) { result, group in
             for kindID in group.1 {
@@ -1079,6 +1081,7 @@ enum C49WorkResourcePersistentLifecycleBoundaryV1 {
     static let localPartReferenceIsEmbeddedSnapshot = true
     static let noLiveInventoryRow = true
 }
+enum C55PartsStockPersistentLifecycleBoundaryV1 { static let persistentSchemaVersion = 41; static let durableRows = ["LocalPartDefinitionRowV1","StockStorageLocationRowV1","StockMovementEventRowV1","StockUseReceiptRowV1","StockUseReversalReceiptRowV1","StockReturnReceiptRowV1","AbandonUnverifiedStockRowV1"]; static let movementHistoryIsAppendOnly = true; static let stockAndWorkResourceUseIsAtomic = true }
 
 enum C50IncumbentFileExchangePersistentLifecycleBoundaryV1 {
     static let persistentSchemaVersion = 37

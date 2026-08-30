@@ -50,6 +50,16 @@ enum C49WorkResourceKernelBackupRestoreEnrollmentV1 {
     }
 }
 
+enum C55PartsStockKernelBackupRestoreEnrollmentV1 {
+    static let persistentSchemaVersion = 41
+    static let durableFamilies = ["LocalPartDefinitionRowV1","StockStorageLocationRowV1","StockMovementEventRowV1","StockUseReceiptRowV1","StockUseReversalReceiptRowV1","StockReturnReceiptRowV1","AbandonUnverifiedStockRowV1"]
+    static let canonicalSnapshotType = "PartsStockBackupSnapshotV1"
+    static let replaceRestorePreservesExactTruth = true
+    static let cloneCopiesDefinitionsOnly = true
+    static let forkRequiresRecount = true
+    static func validate() throws { guard persistentSchemaVersion == 41, durableFamilies.count == 7, canonicalSnapshotType == "PartsStockBackupSnapshotV1", replaceRestorePreservesExactTruth, cloneCopiesDefinitionsOnly, forkRequiresRecount else { throw KernelPersistenceV4Failure.incompleteCoverage } }
+}
+
 enum C30EvidenceContextBackupRestoreRegistryV1 {
     static let persistentSchemaVersion = 30
     static let recordsSchemaVersion = 29

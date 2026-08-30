@@ -178,6 +178,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
     case serviceRepairInterval(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case serviceRestorationAssertion(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case qualifiedServiceExposure(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case partsStock(id:UUID,kind:WorkspaceEntityKindV1,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case workflowRecord(id: UUID, revision: UInt64, semanticSHA256: String)
     case evidenceFile(id: UUID, revision: UInt64, semanticSHA256: String)
     case issue(id: UUID, revision: UInt64, semanticSHA256: String)
@@ -299,6 +300,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
             case let .serviceRepairInterval(id,_,_,_):return try .init(kind:.serviceRepairInterval,id:id)
             case let .serviceRestorationAssertion(id,_,_,_):return try .init(kind:.serviceRestorationAssertion,id:id)
             case let .qualifiedServiceExposure(id,_,_,_):return try .init(kind:.qualifiedServiceExposure,id:id)
+            case let .partsStock(id,kind,_,_,_):return try .init(kind:kind,id:id)
             case let .workflowRecord(id, _, _): return try .init(kind: .workflowRecord, id: id)
             case let .evidenceFile(id, _, _): return try .init(kind: .evidenceFile, id: id)
             case let .issue(id, _, _): return try .init(kind: .issue, id: id)
@@ -318,6 +320,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
              let .serviceImpactSegment(_,_,_,value),let .serviceCauseAssertion(_,_,_,value),
              let .serviceRemedyAssertion(_,_,_,value),let .serviceRepairInterval(_,_,_,value),
              let .serviceRestorationAssertion(_,_,_,value),let .qualifiedServiceExposure(_,_,_,value): return value
+        case let .partsStock(_,_,_,_,value): return value
         case let .accessibleDocumentAssessmentReceipt(_,_,_,value),let .surveyDefinitionIdentity(_,_,_,value),let .surveyDefinitionRelease(_,_,_,value),let .surveySession(_,_,_,value),let .factCapture(_,_,_,value),let .provisionalSubject(_,_,_,value),let .subjectPromotionReceipt(_,_,_,value),let .surveyPublicationSnapshot(_,_,_,value),let .assetLocator(_,_,_,value),let .locatorBindingReceipt(_,_,_,value),let .scheduleDefinitionRelease(_,_,_,value),let .occurrenceHistoryEvent(_,_,_,value),let .exceptionCalendarRelease(_,_,_,value),let .scheduleOverrideEvent(_,_,_,value),let .planDocument(_,_,_,value),let .planRevision(_,_,_,value),let .planPlacement(_,_,_,value),let .planRebaseReceipt(_,_,_,value),let .assetPoseEvent(_,_,_,value),let .spatialAnchorObservation(_,_,_,value),let .evidenceContext(_,_,_,value),let .pairedObservationLink(_,_,_,value),let .lightingSystem(_,_,_,value),let .lightingObservation(_,_,_,value),let .lightingIssue(_,_,_,value),let .lightingMeasurementPlan(_,_,_,value),let .lightingClaimState(_,_,_,value),let .temporalEvidenceClip(_,_,_,value),let .timecodedEvidenceAnchor(_,_,_,value),let .acceptedLabelGenerationSnapshot(_,_,_,value),let .serviceContactPoint(_,_,_,value),let .systemHandoffIntent(_,_,_,value),let .activitySessionEnvelope(_,_,_,value),let .activityStateTransition(_,_,_,value),let .installationTaskResult(_,_,_,value),let .installationAsBuiltSnapshot(_,_,_,value),let .punchReviewBasisSnapshot(_,_,_,value),let .workResourceEntry(_,_,_,value):return value
         case let .site(_, _, value), let .asset(_, _, value), let .locationNode(_, _, value),
              let .assetPlacementEvent(_, _, value), let .assetCompositionEdge(_, _, value),
@@ -459,6 +462,21 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
             case let .installationAsBuiltSnapshot(_,v,_,_):guard v.kind == .installationAsBuiltSnapshot else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             case let .punchReviewBasisSnapshot(_,v,_,_):guard v.kind == .punchReviewBasisSnapshot else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             case let .workResourceEntry(_,v,_,_):guard v.kind == .workResourceEntry else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+            case let .partsStock(_, kind, value, _, _):
+                switch kind {
+                case .stockMovementEvent:
+                    guard value.kind == .stockBalanceStream else {
+                        throw WorkspaceMutationFailureV1.invalidReceipt
+                    }
+                case .localPartDefinition, .stockStorageLocation, .stockUseReceipt,
+                     .stockUseReversalReceipt, .stockReturnReceipt, .stockAbandonment:
+                    guard value.kind == kind else {
+                        throw WorkspaceMutationFailureV1.invalidReceipt
+                    }
+                default:
+                    throw WorkspaceMutationFailureV1.invalidReceipt
+                }
+                return value
             default:
                 return try identity
             }
@@ -473,6 +491,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
              let .serviceImpactSegment(_,_,value,_),let .serviceCauseAssertion(_,_,value,_),
              let .serviceRemedyAssertion(_,_,value,_),let .serviceRepairInterval(_,_,value,_),
              let .serviceRestorationAssertion(_,_,value,_),let .qualifiedServiceExposure(_,_,value,_): return value
+        case let .partsStock(_,_,_,value,_): return value
         case let .accessibleDocumentAssessmentReceipt(_,_,value,_),let .surveyDefinitionIdentity(_,_,value,_),let .surveyDefinitionRelease(_,_,value,_),let .surveySession(_,_,value,_),let .factCapture(_,_,value,_),let .provisionalSubject(_,_,value,_),let .subjectPromotionReceipt(_,_,value,_),let .surveyPublicationSnapshot(_,_,value,_),let .assetLocator(_,_,value,_),let .locatorBindingReceipt(_,_,value,_),let .scheduleDefinitionRelease(_,_,value,_),let .occurrenceHistoryEvent(_,_,value,_),let .exceptionCalendarRelease(_,_,value,_),let .scheduleOverrideEvent(_,_,value,_),let .planDocument(_,_,value,_),let .planRevision(_,_,value,_),let .planPlacement(_,_,value,_),let .planRebaseReceipt(_,_,value,_),let .assetPoseEvent(_,_,value,_),let .spatialAnchorObservation(_,_,value,_),let .evidenceContext(_,_,value,_),let .pairedObservationLink(_,_,value,_),let .lightingSystem(_,_,value,_),let .lightingObservation(_,_,value,_),let .lightingIssue(_,_,value,_),let .lightingMeasurementPlan(_,_,value,_),let .lightingClaimState(_,_,value,_),let .temporalEvidenceClip(_,_,value,_),let .timecodedEvidenceAnchor(_,_,value,_),let .acceptedLabelGenerationSnapshot(_,_,value,_),let .serviceContactPoint(_,_,value,_),let .systemHandoffIntent(_,_,value,_),let .activitySessionEnvelope(_,_,value,_),let .activityStateTransition(_,_,value,_),let .installationTaskResult(_,_,value,_),let .installationAsBuiltSnapshot(_,_,value,_),let .punchReviewBasisSnapshot(_,_,value,_),let .workResourceEntry(_,_,value,_):return value
         case let .site(_, value, _), let .asset(_, value, _),
              let .locationNode(_, value, _), let .assetPlacementEvent(_, value, _),
@@ -571,12 +590,20 @@ struct MutationReceiptV1: Codable, Equatable, Sendable {
         try identity.validate()
         let identities = try postImages.map { try $0.identity }
         let concurrencyIdentities = try postImages.map { try $0.concurrencyIdentity }
-        let expectedByIdentity = Dictionary(
-            uniqueKeysWithValues: expectedRevision.entityRevisions.map { ($0.identity, $0.revision) }
-        )
-        let resultingByIdentity = Dictionary(
-            uniqueKeysWithValues: resultingRevision.entityRevisions.map { ($0.identity, $0.revision) }
-        )
+        func exactRevision(
+            for identity: WorkspaceEntityIdentityV1,
+            in revisions: [WorkspaceEntityRevisionV1]
+        ) -> UInt64? {
+            let matches = revisions.filter { $0.identity == identity }
+            guard matches.count == 1 else { return nil }
+            return matches[0].revision
+        }
+        let hasPartsStockPostImage = postImages.contains {
+            if case .partsStock = $0 { return true }
+            return false
+        }
+        let expectedIdentitySet = Set(expectedRevision.entityRevisions.map(\.identity))
+        let postImageConcurrencySet = Set(concurrencyIdentities)
         let hasActivityContractEnvelope = postImages.contains { image in
             guard let identity = try? image.identity else { return false }
             return identity.kind == .activitySessionEnvelope
@@ -592,16 +619,43 @@ struct MutationReceiptV1: Codable, Equatable, Sendable {
               postImages.count <= Self.maximumPostImageCount,
               Set(identities).count == identities.count,
               Set(concurrencyIdentities).count == concurrencyIdentities.count,
+              !hasPartsStockPostImage || (
+                  expectedRevision.entityRevisions.count == postImageConcurrencySet.count
+                    && expectedIdentitySet == postImageConcurrencySet
+              ),
               identities.map(\.stableKey) == identities.map(\.stableKey).sorted(),
               postImages.allSatisfy({ image in
-                  guard let identity = try? image.identity,
-                        let concurrencyIdentity = try? image.concurrencyIdentity else { return false }
+                  let physicalIdentity: WorkspaceEntityIdentityV1
+                  let concurrencyIdentity: WorkspaceEntityIdentityV1
+                  let validatedImageRevision: UInt64
+                  let isPartsStockPostImage: Bool
+                  switch image {
+                  case let .partsStock(id, kind, concurrency, revision, _):
+                      guard let physical = try? WorkspaceEntityIdentityV1(
+                        kind: kind,
+                        id: id
+                      ) else { return false }
+                      physicalIdentity = physical
+                      concurrencyIdentity = concurrency
+                      validatedImageRevision = revision
+                      isPartsStockPostImage = true
+                  default:
+                      guard let physical = try? image.identity,
+                            let concurrency = try? image.concurrencyIdentity else { return false }
+                      physicalIdentity = physical
+                      concurrencyIdentity = concurrency
+                      validatedImageRevision = image.revision
+                      isPartsStockPostImage = false
+                  }
                   let before: UInt64
-                  if let explicit = expectedByIdentity[concurrencyIdentity] {
+                  if let explicit = exactRevision(
+                    for: concurrencyIdentity,
+                    in: expectedRevision.entityRevisions
+                  ) {
                       before = explicit
                   } else if hasActivityContractEnvelope,
                             image.isC47IndependentRevisionImage,
-                            identity == concurrencyIdentity {
+                            physicalIdentity == concurrencyIdentity {
                       before = 0
                   } else {
                       return false
@@ -609,11 +663,20 @@ struct MutationReceiptV1: Codable, Equatable, Sendable {
                   guard before < .max else { return false }
                   let independentRevision = hasActivityContractEnvelope
                     && image.isC47IndependentRevisionImage
-                    && identity == concurrencyIdentity
+                    && physicalIdentity == concurrencyIdentity
                     && before == 0
-                    && image.revision > 0
-                  return (independentRevision || image.revision == before + 1)
-                    && resultingByIdentity[identity] == image.revision
+                    && validatedImageRevision > 0
+                  let physicalRevision = exactRevision(
+                    for: physicalIdentity,
+                    in: resultingRevision.entityRevisions
+                  )
+                  let concurrencyRevision = exactRevision(
+                    for: concurrencyIdentity,
+                    in: resultingRevision.entityRevisions
+                  )
+                  return (independentRevision || validatedImageRevision == before + 1)
+                    && physicalRevision == validatedImageRevision
+                    && (!isPartsStockPostImage || concurrencyRevision == validatedImageRevision)
               }),
               contentDependencyIDs.count <= MutationEnvelopeV1.maximumDependencyCount,
               contentDependencyIDs == contentDependencyIDs.sorted(),
@@ -1326,6 +1389,7 @@ struct MutationHistorySnapshotV1: Codable, Equatable, Sendable {
 enum MutationHistoryRestoreIdentityV1: Equatable, Sendable {
     case preserve
     case destination(WorkspaceReplicaIdentityV1, generationID: UUID)
+    case destinationPreservingPartsStock(WorkspaceReplicaIdentityV1, generationID: UUID)
 }
 
 extension PlanMutationV1{

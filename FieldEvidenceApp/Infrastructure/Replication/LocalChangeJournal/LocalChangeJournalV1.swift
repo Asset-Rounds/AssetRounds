@@ -575,6 +575,7 @@ final class LocalChangeJournalV1 {
             try Self.validateInspectionReviewChange(change)
             try Self.validatePortableReviewChange(change)
             try Self.validateWorkResourceChange(change)
+            try Self.validatePartsStockChange(change)
             try WorkPacketJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)
             try FieldDraftJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)
             try FieldReferenceJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)
@@ -1663,6 +1664,7 @@ final class LocalChangeJournalV1 {
     private static func validateInspectionReviewChange(_ change:JournalChangeV1)throws{do{try InspectionReviewJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)}catch let f as ChangeJournalFailureV1{throw f}catch{throw ChangeJournalFailureV1.tamperedBatch}}
     private static func validatePortableReviewChange(_ change:JournalChangeV1)throws{do{try PortableReviewJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)}catch let f as ChangeJournalFailureV1{throw f}catch{throw ChangeJournalFailureV1.tamperedBatch}}
     private static func validateWorkResourceChange(_ change:JournalChangeV1)throws{do{try WorkResourceJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)}catch let f as ChangeJournalFailureV1{throw f}catch{throw ChangeJournalFailureV1.tamperedBatch}}
+    private static func validatePartsStockChange(_ change:JournalChangeV1)throws{do{try PartsStockJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)}catch let f as ChangeJournalFailureV1{throw f}catch{throw ChangeJournalFailureV1.tamperedBatch}}
     private static func validateC51ScheduleExceptionChange(_ change: JournalChangeV1) throws {
         guard case let .applySchedule(mutation) = change.envelope.command else { return }
         switch mutation.payload {

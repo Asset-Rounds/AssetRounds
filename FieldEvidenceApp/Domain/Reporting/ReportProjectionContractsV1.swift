@@ -5505,6 +5505,16 @@ enum C48PortableReviewReportProjectionBoundaryV1 {
 
 // MARK: - C49 manual work-resource report projection
 
+/// C55 may contribute only reviewed immutable catalog/material references.
+/// Live balances, storage labels, movements, and attention remain operational
+/// local state and are never report projection inputs.
+enum C55PartsStockReportProjectionBoundaryV1 {
+    static let permittedSourceType = "LocalPartReferenceSnapshotV1"
+    static let prohibitedSourceFields = ["balance", "storageLocation", "movement", "attention"]
+    static let reviewedCatalogOnly = true
+    static let reportsDoNotExposeOperationalStock = true
+}
+
 /// C49's reporting value is derived from immutable work-resource snapshots.
 /// It intentionally contains no live-stock, locator, actor, or source-byte
 /// fields.  All arithmetic is integer based so a report can be rebuilt

@@ -858,7 +858,8 @@ private extension BackupExportService {
                 workResources: records.workResources,
                 serviceRequests: records.serviceRequests,
                 serviceRequestDispositionEvents: records.serviceRequestDispositionEvents,
-                serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents
+                serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents,
+                partsStockSnapshot: records.partsStockSnapshot
             )
             semanticRecordsData = try BackupCanonicalEncoderV1()
                 .encodeSemanticRecords(semanticRecords).data
@@ -1120,9 +1121,9 @@ private extension BackupExportService {
             source: .init(
                 appBuild: appBuild(),
                 appVersion: appVersion(),
-                persistentSchemaVersion: C49WorkResourcePersistenceBoundaryV1.persistentSchemaVersion,
+                persistentSchemaVersion: C55PartsStockBackupExportBoundaryV1.persistentSchemaVersion,
                 replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: C49BackupEnrollmentV1.recordsSchemaVersion,
+                recordsSchemaVersion: C55PartsStockBackupExportBoundaryV1.recordsSchemaVersion,
                 sourceGenerationID: generationID,
                 workspaceID: sourceIdentity.workspaceID.rawValue
             )
@@ -2390,6 +2391,11 @@ private extension BackupExportService {
         let serviceReliabilityReceipts = try C53ServiceReliabilityBackupEnrollmentV1.receiptRecords(
             from: mutationHistory
         )
+        let partsStockSnapshot = try mutationHistory.map { _ in
+            try PartsStockLifecycleAdapterV1(modelContext: modelContext).snapshotForBackup(
+                workspaceID: try currentStreamingWorkspaceIdentity().workspaceID
+            )
+        }
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveys,
             assetLocators: assetLocators,
@@ -2459,7 +2465,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : C53ServiceReliabilityBackupExportBoundaryV1.recordsSchemaVersion,
+                : C55PartsStockBackupExportBoundaryV1.recordsSchemaVersion,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -2507,7 +2513,8 @@ private extension BackupExportService {
              serviceRepairIntervals: serviceRepairIntervals,
              serviceRestorationAssertions: serviceRestorationAssertions,
              qualifiedServiceExposures: qualifiedServiceExposures,
-             serviceReliabilityReceipts: serviceReliabilityReceipts
+             serviceReliabilityReceipts: serviceReliabilityReceipts,
+             partsStockSnapshot: partsStockSnapshot
          )
     }
 
@@ -3715,4 +3722,11 @@ enum C53ServiceReliabilityBackupExportBoundaryV1 {
     static let exportsDerivedMetricProjection = false
     static let exportsRawCapability = false
     static let preservesReliabilityIdentityEpoch = true
+}
+
+enum C55PartsStockBackupExportBoundaryV1 {
+    static let recordsSchemaVersion = C55PartsStockBackupEnrollmentV1.recordsSchemaVersion
+    static let persistentSchemaVersion = C55PartsStockBackupEnrollmentV1.persistentSchemaVersion
+    static let exportsOneCanonicalSnapshot = true
+    static let exportsAllSevenDurableFamilies = true
 }

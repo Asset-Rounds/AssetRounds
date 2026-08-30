@@ -26,6 +26,16 @@ final class MutationJournalFailureInjectionV1 {
 final class MutationJournalStoreV1 {
     nonisolated static let maximumReceiptValidationCount = 100_000
     nonisolated static let maximumMutableContentValidationCount = 100_000
+    /// C55 permits 100,000 durable stock rows. Each movement has both a
+    /// physical event and a virtual balance-stream terminal row; a use,
+    /// reversal, or return also carries a work-resource successor. Thus the
+    /// exact worst-case C55 terminal map is two rows per durable row.
+    nonisolated static let maximumC55TerminalRevisionRowCount = 200_000
+    /// A history terminal map is workspace-wide state, not one receipt's
+    /// postimage list. Keep this independently bounded at the incumbent
+    /// C55 terminal-state bound; `MutationReceiptV1.maximumPostImageCount`
+    /// remains the per-receipt admission limit.
+    nonisolated static let maximumImportedEntityRevisionValidationCount = maximumC55TerminalRevisionRowCount
 
     private enum AccessMode {
         case canonicalWriter(StaleWriterFenceV1)
@@ -125,6 +135,83 @@ final class MutationJournalStoreV1 {
             revision: try domainRevision(state.workspaceRevision),
             entityRevisions: revisions
         )
+    }
+
+    /// C55 movement postimages use their virtual balance stream as the
+    /// concurrency identity, while the sole writer also persists an immutable
+    /// physical movement row. Both terminal revision rows are authoritative.
+    /// Other Parts Stock postimages use the same physical and concurrency
+    /// identity, so this returns one deterministic entry for them.
+    nonisolated private static func terminalStateIdentities(
+        for image: MutationPostImageV1
+    ) throws -> [WorkspaceEntityIdentityV1] {
+        guard case let .partsStock(id, kind, concurrency, _, _) = image else {
+            return [try image.identity]
+        }
+        let physical = try WorkspaceEntityIdentityV1(kind: kind, id: id)
+        return physical == concurrency ? [physical] : [physical, concurrency]
+    }
+
+    nonisolated private static func isPartsStockKind(_ kind: WorkspaceEntityKindV1) -> Bool {
+        switch kind {
+        case .localPartDefinition, .stockStorageLocation, .stockMovementEvent,
+             .stockUseReceipt, .stockUseReversalReceipt, .stockReturnReceipt,
+             .stockAbandonment, .stockBalanceStream:
+            return true
+        default:
+            return false
+        }
+    }
+
+    nonisolated private static func isPartsStockCatalogKind(_ kind: WorkspaceEntityKindV1) -> Bool {
+        kind == .localPartDefinition || kind == .stockStorageLocation
+    }
+
+    /// Receipt identity ordering is replica-local, not workspace-revision
+    /// ordering. Reconstruct the latter explicitly so retained source
+    /// histories may coexist with a projected destination baseline.
+    nonisolated private static func validateWorkspaceReceiptChain(
+        _ receipts: [MutationReceiptV1],
+        allowsNonzeroNativeBaseline: Bool
+    ) throws -> UInt64? {
+        let ordered = receipts.sorted {
+            if $0.resultingRevision.workspaceRevision != $1.resultingRevision.workspaceRevision {
+                return $0.resultingRevision.workspaceRevision < $1.resultingRevision.workspaceRevision
+            }
+            return $0.identity.stableKey < $1.identity.stableKey
+        }
+        var importedTerminal: UInt64?
+        var nativeTerminal: UInt64?
+        var sawNativeReceipt = false
+        for receipt in ordered {
+            if receipt.sourceKind == .importedHistory {
+                guard !sawNativeReceipt else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+                if let importedTerminal {
+                    guard receipt.resultingRevision.workspaceRevision > importedTerminal else {
+                        throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                    }
+                }
+                importedTerminal = receipt.resultingRevision.workspaceRevision
+                continue
+            }
+            if let nativeTerminal {
+                guard receipt.expectedRevision.workspaceRevision == nativeTerminal else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+            } else if let importedTerminal {
+                guard receipt.expectedRevision.workspaceRevision == importedTerminal else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+            } else if !allowsNonzeroNativeBaseline,
+                      receipt.expectedRevision.workspaceRevision != 0 {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            sawNativeReceipt = true
+            nativeTerminal = receipt.resultingRevision.workspaceRevision
+        }
+        return nativeTerminal ?? importedTerminal
     }
 
     func nextLocalSequence() throws -> UInt64 {
@@ -357,6 +444,7 @@ final class MutationJournalStoreV1 {
         if case let .applyActivityContract(value)=envelope.command{try value.validateForCanonicalMutation();guard affectedEntities==(try value.affectedIdentities)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyPortableReview(value)=envelope.command{try value.validate();guard affectedEntities==(try value.affectedIdentities)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyWorkResource(value)=envelope.command{try value.validate();guard affectedEntities==(try value.affectedIdentities)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyPartsStock(value)=envelope.command{try value.validate();guard affectedEntities==(try value.affectedIdentities)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyServiceRequest(value)=envelope.command{try value.validateForCanonicalWriter();guard affectedEntities==(try value.affectedIdentities)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyServiceReliability(value)=envelope.command{try value.validateForCanonicalWriter();guard affectedEntities==(try value.affectedIdentities)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyAssetPlacementChange(plan)=envelope.command{try plan.validate();try validateAssetPlacementPoseReferences(plan);guard let expected=try envelope.command.canonicalLocationAffectedIdentities(),affectedEntities==expected else{throw WorkspaceMutationFailureV1.invalidCommand}}
@@ -435,6 +523,7 @@ final class MutationJournalStoreV1 {
             }else if case let .applyActivityContract(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
             }else if case let .applyPortableReview(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
             }else if case let .applyWorkResource(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
+            }else if case let .applyPartsStock(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
             }else if case let .applyServiceRequest(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
             }else if case let .applyServiceReliability(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
             }else if case let .applyAssetPlacementChange(plan)=envelope.command,let mutation=try plan.placementPoseMutation,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
@@ -450,6 +539,8 @@ final class MutationJournalStoreV1 {
             } else if case let .applyPortableReview(mutation) = envelope.command {
                 expectedRevision = try mutation.expectedRevision(for: concurrencyIdentity)
             } else if case let .applyWorkResource(mutation) = envelope.command {
+                expectedRevision = try mutation.expectedRevision(for: concurrencyIdentity)
+            } else if case let .applyPartsStock(mutation) = envelope.command {
                 expectedRevision = try mutation.expectedRevision(for: concurrencyIdentity)
             } else if case let .applyServiceRequest(mutation) = envelope.command {
                 expectedRevision = try mutation.expectedRevision(for: concurrencyIdentity)
@@ -480,7 +571,17 @@ final class MutationJournalStoreV1 {
             if let existing = rows.first {
                 guard existing.revision >= 0, existing.revision < Int64.max else { throw WorkspaceMutationFailureV1.revisionOverflow }
                 existing.revision += 1
-                existing.externalProjectionSHA256 = nil
+                if case let .applyPartsStock(mutation) = envelope.command,
+                   existing.externalProjectionSHA256 != nil,
+                   entity.kind == .localPartDefinition || entity.kind == .stockStorageLocation,
+                   let image = try mutation.mutationPostImages.first(where: { try $0.identity == entity }) {
+                    // A clone/fork catalog baseline remains explicitly
+                    // projected after later canonical catalog revisions. The
+                    // exact C55 postimage check below still proves this digest.
+                    existing.externalProjectionSHA256 = image.semanticSHA256
+                } else {
+                    existing.externalProjectionSHA256 = nil
+                }
                 row = existing
             } else {
                 let initialRevision: UInt64
@@ -514,6 +615,7 @@ final class MutationJournalStoreV1 {
                 }else if case let .applyActivityContract(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
                 }else if case let .applyPortableReview(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
                 }else if case let .applyWorkResource(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
+                }else if case let .applyPartsStock(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
                 }else if case let .applyServiceRequest(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
                 }else if case let .applyServiceReliability(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
                 }else if case let .applyAssetPlacementChange(plan)=envelope.command,let mutation=try plan.placementPoseMutation,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
@@ -541,6 +643,39 @@ final class MutationJournalStoreV1 {
                     identity: entity,
                     revision: try domainRevision(row.revision)
                 ))
+            }
+        }
+        // A balance stream is a virtual optimistic-concurrency target: it has
+        // no C55 model row and never appears in the receipt postimage list.
+        // Its generic revision row is nevertheless required so the next
+        // per-part/location movement observes the prior stream frontier.
+        if case let .applyPartsStock(mutation) = envelope.command {
+            let images = try mutation.mutationPostImages
+            for concurrency in try mutation.concurrencyIdentities where concurrency.kind == .stockBalanceStream {
+                let expected = try mutation.expectedRevision(for: concurrency)
+                let (successor, overflow) = expected.addingReportingOverflow(1)
+                guard !overflow,
+                      let image = images.first(where: { (try? $0.concurrencyIdentity) == concurrency }),
+                      image.revision == successor,
+                      expected <= UInt64(Int64.max), image.revision <= UInt64(Int64.max) else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+                let rows = try modelContext.fetch(FetchDescriptor<EntityMutationRevisionRow>(
+                    predicate: #Predicate { $0.stableIdentity == concurrency.stableKey }
+                ))
+                guard rows.count <= 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+                if let row = rows.first {
+                    guard row.revision == Int64(expected) else {
+                        throw WorkspaceMutationFailureV1.staleEntityRevision(concurrency)
+                    }
+                    row.revision = Int64(image.revision)
+                    row.externalProjectionSHA256 = nil
+                } else {
+                    guard expected == 0 else {
+                        throw WorkspaceMutationFailureV1.staleEntityRevision(concurrency)
+                    }
+                    modelContext.insert(EntityMutationRevisionRow(identity: concurrency, revision: image.revision))
+                }
             }
         }
         if case let .applyAuthorityCriterion(mutation) = envelope.command {
@@ -577,6 +712,7 @@ final class MutationJournalStoreV1 {
         if case let .applyActivityContract(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyPortableReview(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyWorkResource(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyPartsStock(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyServiceRequest(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyServiceReliability(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyAssetPlacementChange(plan)=envelope.command,let mutation=try plan.placementPoseMutation{let poseImages=try mutation.mutationPostImages;guard poseImages.allSatisfy({postImages.contains($0)})else{throw WorkspaceMutationFailureV1.invalidCommand}}
@@ -1247,14 +1383,15 @@ final class MutationJournalStoreV1 {
                     receipt.resultingRevision.workspaceRevision
                 )
                 for image in receipt.postImages {
-                    let entity = try image.identity
-                    if let prior = latestPostImageByIdentity[entity] {
-                        if prior.revision == image.revision, prior != image {
-                            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                    for entity in try Self.terminalStateIdentities(for: image) {
+                        if let prior = latestPostImageByIdentity[entity] {
+                            if prior.revision == image.revision, prior != image {
+                                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                            }
+                            if prior.revision >= image.revision { continue }
                         }
-                        if prior.revision >= image.revision { continue }
+                        latestPostImageByIdentity[entity] = image
                     }
-                    latestPostImageByIdentity[entity] = image
                 }
             }
             let key = MutationWorkspaceKeyV1.value(workspaceID: receipt.identity.workspaceID, mutationID: receipt.mutationID)
@@ -1356,13 +1493,84 @@ final class MutationJournalStoreV1 {
               state.mutableSemanticSHA256 == (try mutableSemanticSHA256()) else {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
-        let revisionRows = try modelContext.fetch(FetchDescriptor<EntityMutationRevisionRow>())
+        var balanceStreamFrontier: [WorkspaceEntityIdentityV1: UInt64] = [:]
+        let orderedReceipts = receiptsByMutation.values.filter {
+            $0.identity.workspaceID == identity.workspaceID
+        }.sorted {
+            if $0.resultingRevision.workspaceRevision != $1.resultingRevision.workspaceRevision {
+                return $0.resultingRevision.workspaceRevision < $1.resultingRevision.workspaceRevision
+            }
+            return $0.identity.stableKey < $1.identity.stableKey
+        }
+        for receipt in orderedReceipts {
+            let expectedByIdentity = Dictionary(uniqueKeysWithValues: receipt.expectedRevision.entityRevisions.map { ($0.identity, $0.revision) })
+            let resultingByIdentity = Dictionary(uniqueKeysWithValues: receipt.resultingRevision.entityRevisions.map { ($0.identity, $0.revision) })
+            var receiptBalanceStreams = Set<WorkspaceEntityIdentityV1>()
+            for image in receipt.postImages {
+                guard case let .partsStock(_, kind, concurrency, imageRevision, _) = image,
+                      kind == .stockMovementEvent,
+                      concurrency.kind == .stockBalanceStream else {
+                    continue
+                }
+                guard receiptBalanceStreams.insert(concurrency).inserted,
+                      let expected = expectedByIdentity[concurrency],
+                      let resulting = resultingByIdentity[concurrency],
+                      expected == balanceStreamFrontier[concurrency, default: 0] else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+                let (successor, overflow) = expected.addingReportingOverflow(1)
+                guard !overflow, imageRevision == successor, resulting == imageRevision else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+                balanceStreamFrontier[concurrency] = imageRevision
+            }
+        }
+        let revisionRows = try boundedTerminalRevisionRows()
         let revisionIdentities = try Set(revisionRows.map { row -> WorkspaceEntityIdentityV1 in
             guard let kind = WorkspaceEntityKindV1(rawValue: row.kind) else {
                 throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
             return try WorkspaceEntityIdentityV1(kind: kind, id: row.entityID)
         })
+        let balanceStreamRevisionIdentities = try Set(revisionRows.compactMap { row -> WorkspaceEntityIdentityV1? in
+            guard let kind = WorkspaceEntityKindV1(rawValue: row.kind) else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            guard kind == .stockBalanceStream else { return nil }
+            return try WorkspaceEntityIdentityV1(kind: kind, id: row.entityID)
+        })
+        guard balanceStreamRevisionIdentities.count == revisionRows.filter({ $0.kind == WorkspaceEntityKindV1.stockBalanceStream.rawValue }).count,
+              balanceStreamRevisionIdentities == Set(balanceStreamFrontier.keys) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        let hasProjectedBaseline = revisionRows.contains { $0.externalProjectionSHA256 != nil }
+        let hasC55CatalogBaseline = revisionRows.contains { row in
+            row.externalProjectionSHA256 != nil
+                && (row.kind == WorkspaceEntityKindV1.localPartDefinition.rawValue
+                    || row.kind == WorkspaceEntityKindV1.stockStorageLocation.rawValue)
+        }
+        if let activeTerminal = try Self.validateWorkspaceReceiptChain(
+            orderedReceipts,
+            allowsNonzeroNativeBaseline: hasProjectedBaseline && !hasC55CatalogBaseline
+        ) {
+            guard try domainRevision(state.workspaceRevision) == activeTerminal else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+        }
+        try validateTerminalRows(
+            revisionRows: revisionRows,
+            revisionIdentities: revisionIdentities,
+            latestPostImageByIdentity: latestPostImageByIdentity,
+            balanceStreamFrontier: balanceStreamFrontier
+        )
+    }
+
+    private func validateTerminalRows(
+        revisionRows: [EntityMutationRevisionRow],
+        revisionIdentities: Set<WorkspaceEntityIdentityV1>,
+        latestPostImageByIdentity: [WorkspaceEntityIdentityV1: MutationPostImageV1],
+        balanceStreamFrontier: [WorkspaceEntityIdentityV1: UInt64]
+    ) throws {
         guard Set(latestPostImageByIdentity.keys).isSubset(of: revisionIdentities) else {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
@@ -1374,7 +1582,17 @@ final class MutationJournalStoreV1 {
             let revision = try domainRevision(row.revision)
             let current = try currentPostImage(identity: entity, revision: revision)
             let validProjection: Bool
-            if let external = row.externalProjectionSHA256 {
+            if entity.kind == .stockBalanceStream {
+                validProjection = row.externalProjectionSHA256 == nil
+                    && balanceStreamFrontier[entity] == revision
+                    && current == (try tombstone(entity, revision))
+            } else if Self.isPartsStockKind(entity.kind),
+                      !Self.isPartsStockCatalogKind(entity.kind) {
+                // C55 immutable facts are always receipt-backed. Its mutable
+                // catalog rows retain the generic projection-boundary rule.
+                validProjection = row.externalProjectionSHA256 == nil
+                    && latestPostImageByIdentity[entity] == current
+            } else if let external = row.externalProjectionSHA256 {
                 validProjection = MutationEnvelopeV1.isSHA256(external)
                     && current.semanticSHA256 == external
             } else {
@@ -1446,7 +1664,7 @@ final class MutationJournalStoreV1 {
         guard snapshot.schemaVersion == MutationHistorySnapshotV1.schemaVersion,
               snapshot.receipts.count <= maximumReceiptValidationCount,
               snapshot.quarantines.count <= maximumReceiptValidationCount,
-              snapshot.entityRevisions.count <= MutationReceiptV1.maximumPostImageCount,
+              snapshot.entityRevisions.count <= maximumImportedEntityRevisionValidationCount,
               Set(try snapshot.quarantines.map {
                   MutationWorkspaceKeyV1.value(
                     workspaceID: $0.workspaceID,
@@ -1492,11 +1710,12 @@ final class MutationJournalStoreV1 {
             }
             totalPostImageCount += receipt.postImages.count
             for image in receipt.postImages {
-                let entity = try image.identity
-                maximumPostImageRevisionByEntity[entity] = max(
-                    maximumPostImageRevisionByEntity[entity, default: 0],
-                    image.revision
-                )
+                for entity in try Self.terminalStateIdentities(for: image) {
+                    maximumPostImageRevisionByEntity[entity] = max(
+                        maximumPostImageRevisionByEntity[entity, default: 0],
+                        image.revision
+                    )
+                }
             }
             if let data = record.reversalBasisData {
                 let basis = try ReversalBasisV1.decodeCanonical(from: data)
@@ -1516,7 +1735,12 @@ final class MutationJournalStoreV1 {
             }
         }
         guard snapshot.entityRevisions.allSatisfy({ value in
-            value.externalProjectionSHA256.map { MutationEnvelopeV1.isSHA256($0) } ?? true
+            guard value.externalProjectionSHA256.map({ MutationEnvelopeV1.isSHA256($0) }) ?? true else {
+                return false
+            }
+            return !Self.isPartsStockKind(value.identity.kind)
+                || Self.isPartsStockCatalogKind(value.identity.kind)
+                || value.externalProjectionSHA256 == nil
         }) else {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
@@ -1527,6 +1751,23 @@ final class MutationJournalStoreV1 {
             projectionRevisionByEntity[entity].map { $0 >= maximumRevision } ?? false
         }) else {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        let hasProjectedBaseline = snapshot.entityRevisions.contains {
+            $0.externalProjectionSHA256 != nil
+        }
+        let hasC55CatalogBaseline = snapshot.entityRevisions.contains { value in
+            value.externalProjectionSHA256 != nil
+                && (value.identity.kind == .localPartDefinition
+                    || value.identity.kind == .stockStorageLocation)
+        }
+        for group in Dictionary(grouping: receiptsByMutation.values, by: { $0.identity.workspaceID }).values {
+            // Static validation has no active destination identity, but its
+            // terminal rows still distinguish a normalized C55 catalog
+            // baseline from unrelated retained legacy projections.
+            _ = try Self.validateWorkspaceReceiptChain(
+                group,
+                allowsNonzeroNativeBaseline: hasProjectedBaseline && !hasC55CatalogBaseline
+            )
         }
         for (mutationKey, reversal) in reversalsByMutation {
             let targetKey = MutationWorkspaceKeyV1.value(workspaceID: reversal.targetReceiptIdentity.workspaceID, mutationID: reversal.reversesMutationID)
@@ -1611,6 +1852,16 @@ final class MutationJournalStoreV1 {
             }
             state.workspaceRevision = Int64(snapshot.workspaceRevision)
             state.lastLocalSequence = 0
+        case let .destinationPreservingPartsStock(destination, targetGenerationID):
+            destinationProjection = true
+            guard destination == identity, targetGenerationID == generationID else {
+                throw WorkspaceMutationFailureV1.wrongGeneration
+            }
+            guard snapshot.workspaceRevision <= UInt64(Int64.max) else {
+                throw WorkspaceMutationFailureV1.revisionOverflow
+            }
+            state.workspaceRevision = Int64(snapshot.workspaceRevision)
+            state.lastLocalSequence = 0
         }
         for record in snapshot.receipts {
             let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
@@ -1631,7 +1882,36 @@ final class MutationJournalStoreV1 {
         }
         for value in snapshot.entityRevisions {
             let externalProjection: String?
-            if destinationProjection {
+            if Self.isPartsStockKind(value.identity.kind) {
+                switch identityDisposition {
+                case .preserve:
+                    // Replacement retains C55 catalog provenance. Immutable
+                    // stock facts stay receipt-backed; virtual streams remain
+                    // derived only from receipts.
+                    externalProjection = Self.isPartsStockCatalogKind(value.identity.kind)
+                        ? value.externalProjectionSHA256
+                        : nil
+                case .destination:
+                    // Clone/fork projects only catalog definitions. It must
+                    // not carry source movement, receipt, abandonment, or
+                    // virtual-stream terminal state into the destination.
+                    guard Self.isPartsStockCatalogKind(value.identity.kind) else {
+                        continue
+                    }
+                    externalProjection = try currentPostImage(
+                        identity: value.identity,
+                        revision: value.revision
+                    ).semanticSHA256
+                case .destinationPreservingPartsStock:
+                    // A fresh-replica exact replacement preserves every C55
+                    // terminal row. Only catalog definitions retain external
+                    // provenance; immutable facts and derived streams remain
+                    // receipt-backed with no external projection.
+                    externalProjection = Self.isPartsStockCatalogKind(value.identity.kind)
+                        ? value.externalProjectionSHA256
+                        : nil
+                }
+            } else if destinationProjection {
                 externalProjection = try currentPostImage(
                     identity: value.identity,
                     revision: value.revision
@@ -1690,10 +1970,24 @@ final class MutationJournalStoreV1 {
                 throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
             let identity = try WorkspaceEntityIdentityV1(kind: kind, id: row.entityID)
-            row.externalProjectionSHA256 = try currentPostImage(
-                identity: identity,
-                revision: domainRevision(row.revision)
-            ).semanticSHA256
+            if Self.isPartsStockKind(identity.kind) {
+                // Only mutable C55 catalog rows can be projected at an
+                // external checkpoint. Streams and immutable stock facts are
+                // always validated from canonical receipt history.
+                if Self.isPartsStockCatalogKind(identity.kind) {
+                    row.externalProjectionSHA256 = try currentPostImage(
+                        identity: identity,
+                        revision: domainRevision(row.revision)
+                    ).semanticSHA256
+                } else {
+                    row.externalProjectionSHA256 = nil
+                }
+            } else {
+                row.externalProjectionSHA256 = try currentPostImage(
+                    identity: identity,
+                    revision: domainRevision(row.revision)
+                ).semanticSHA256
+            }
         }
         state.mutableSemanticSHA256 = try mutableSemanticSHA256()
     }
@@ -1845,6 +2139,7 @@ final class MutationJournalStoreV1 {
         if case let .applyActivityContract(mutation)=envelope.command{try mutation.validateForCanonicalMutation()}
         if case let .applyPortableReview(mutation)=envelope.command{try mutation.validate()}
         if case let .applyWorkResource(mutation)=envelope.command{try mutation.validate()}
+        if case let .applyPartsStock(mutation)=envelope.command{try mutation.validate()}
         if case let .applyServiceRequest(mutation)=envelope.command{try mutation.validateForCanonicalWriter()}
         if case let .applyServiceReliability(mutation)=envelope.command{try mutation.validateForCanonicalWriter()}
         let receipt = try MutationReceiptV1.decodeCanonical(from: row.receiptData)
@@ -1935,6 +2230,14 @@ final class MutationJournalStoreV1 {
         revision: UInt64
     ) throws -> MutationPostImageV1 {
         switch identity.kind {
+        case .stockBalanceStream: return try tombstone(identity, revision)
+        case .localPartDefinition: let rows=try modelContext.fetch(FetchDescriptor<LocalPartDefinitionRowV1>()).filter{$0.partID==identity.id&&$0.workspaceUUID==self.identity.workspaceID.rawValue};guard let row=try exactlyOneOrAbsent(rows)else{return try tombstone(identity,revision)};let v=try row.value();return .partsStock(id:identity.id,kind:.localPartDefinition,concurrencyIdentity:identity,revision:v.revision,semanticSHA256:v.partSHA256)
+        case .stockStorageLocation: let rows=try modelContext.fetch(FetchDescriptor<StockStorageLocationRowV1>()).filter{$0.locationID==identity.id&&$0.workspaceUUID==self.identity.workspaceID.rawValue};guard let row=try exactlyOneOrAbsent(rows)else{return try tombstone(identity,revision)};let v=try row.value();return .partsStock(id:identity.id,kind:.stockStorageLocation,concurrencyIdentity:identity,revision:v.revision,semanticSHA256:try PartsStockCanonicalCodecV1.sha256(v))
+        case .stockMovementEvent: let rows=try modelContext.fetch(FetchDescriptor<StockMovementEventRowV1>()).filter{$0.movementID==identity.id&&$0.workspaceUUID==self.identity.workspaceID.rawValue};guard let row=try exactlyOneOrAbsent(rows)else{return try tombstone(identity,revision)};let v=try row.value();return .partsStock(id:identity.id,kind:.stockMovementEvent,concurrencyIdentity:try StockBalanceStreamIdentityV1.entity(partID:v.part.partID,locationID:v.locationID),revision:v.locationRevision,semanticSHA256:v.eventSHA256)
+        case .stockUseReceipt: let rows=try modelContext.fetch(FetchDescriptor<StockUseReceiptRowV1>()).filter{$0.receiptID==identity.id&&$0.workspaceUUID==self.identity.workspaceID.rawValue};guard let row=try exactlyOneOrAbsent(rows)else{return try tombstone(identity,revision)};let v=try row.value();return .partsStock(id:identity.id,kind:.stockUseReceipt,concurrencyIdentity:identity,revision:1,semanticSHA256:v.receiptSHA256)
+        case .stockUseReversalReceipt: let rows=try modelContext.fetch(FetchDescriptor<StockUseReversalReceiptRowV1>()).filter{$0.receiptID==identity.id&&$0.workspaceUUID==self.identity.workspaceID.rawValue};guard let row=try exactlyOneOrAbsent(rows)else{return try tombstone(identity,revision)};let v=try row.value();return .partsStock(id:identity.id,kind:.stockUseReversalReceipt,concurrencyIdentity:identity,revision:1,semanticSHA256:v.receiptSHA256)
+        case .stockReturnReceipt: let rows=try modelContext.fetch(FetchDescriptor<StockReturnReceiptRowV1>()).filter{$0.receiptID==identity.id&&$0.workspaceUUID==self.identity.workspaceID.rawValue};guard let row=try exactlyOneOrAbsent(rows)else{return try tombstone(identity,revision)};let v=try row.value();return .partsStock(id:identity.id,kind:.stockReturnReceipt,concurrencyIdentity:identity,revision:1,semanticSHA256:v.receiptSHA256)
+        case .stockAbandonment: let rows=try modelContext.fetch(FetchDescriptor<AbandonUnverifiedStockRowV1>()).filter{$0.dispositionID==identity.id&&$0.workspaceUUID==self.identity.workspaceID.rawValue};guard let row=try exactlyOneOrAbsent(rows)else{return try tombstone(identity,revision)};let v=try row.value();return .partsStock(id:identity.id,kind:.stockAbandonment,concurrencyIdentity:identity,revision:1,semanticSHA256:try PartsStockCanonicalCodecV1.sha256(v))
         case .site:
             let id = identity.id
             let rows = try modelContext.fetch(FetchDescriptor<Site>(predicate: #Predicate { $0.id == id }))
@@ -2249,7 +2552,7 @@ final class MutationJournalStoreV1 {
     }
 
     private func mutableSemanticSHA256() throws -> String {
-        let revisionRows = try boundedFetch(FetchDescriptor<EntityMutationRevisionRow>())
+        let revisionRows = try boundedTerminalRevisionRows()
         var revisionByIdentity: [String: UInt64] = [:]
         for row in revisionRows {
             guard revisionByIdentity[row.stableIdentity] == nil else {
@@ -2353,6 +2656,16 @@ final class MutationJournalStoreV1 {
         bounded.fetchLimit = Self.maximumMutableContentValidationCount + 1
         let rows = try modelContext.fetch(bounded)
         guard rows.count <= Self.maximumMutableContentValidationCount else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        return rows
+    }
+
+    private func boundedTerminalRevisionRows() throws -> [EntityMutationRevisionRow] {
+        var descriptor = FetchDescriptor<EntityMutationRevisionRow>()
+        descriptor.fetchLimit = Self.maximumC55TerminalRevisionRowCount + 1
+        let rows = try modelContext.fetch(descriptor)
+        guard rows.count <= Self.maximumC55TerminalRevisionRowCount else {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
         return rows
@@ -2472,6 +2785,8 @@ final class MutationJournalStoreV1 {
 
     private static func postImage(identity: WorkspaceEntityIdentityV1, revision: UInt64, digest: String) throws -> MutationPostImageV1 {
         switch identity.kind {
+        case .stockBalanceStream: return .tombstone(identity: identity, revision: revision, semanticSHA256: digest)
+        case .localPartDefinition, .stockStorageLocation, .stockMovementEvent, .stockUseReceipt, .stockUseReversalReceipt, .stockReturnReceipt, .stockAbandonment: return .partsStock(id: identity.id, kind: identity.kind, concurrencyIdentity: identity, revision: revision, semanticSHA256: digest)
         case .site: return .site(id: identity.id, revision: revision, semanticSHA256: digest)
         case .asset: return .asset(id: identity.id, revision: revision, semanticSHA256: digest)
         case .locationNode: return .locationNode(id: identity.id, revision: revision, semanticSHA256: digest)

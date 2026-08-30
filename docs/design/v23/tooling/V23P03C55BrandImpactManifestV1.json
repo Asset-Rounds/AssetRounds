@@ -1,0 +1,140 @@
+{
+  "authority": {
+    "allowedPathCount": 177,
+    "appBaseHead": "e4bb386889a4051efeb9359fef9a90fbd7c70d54",
+    "appBaseTree": "1a409af2305ddc1e78754ccd70ea05f9572ed44d",
+    "attemptID": 1,
+    "authorizedOverlapCount": 3915,
+    "cardID": "V23-P03-C55",
+    "contextDigest": "dbd3e3505c1a0e91a0bb2ede75b9bcd4ee32caa8665f70d32f78c2d4ff6f8ee7",
+    "coordinationCASSequence": 364,
+    "coordinationHead": "3aa53643bccfecf070b9805041faf7f5536684c7",
+    "coordinationLedgerDigest": "47705368b24e20e196067451b07d7c4fedc700c94576164e425bbe342b2148a8",
+    "coordinationProjectionDigest": "26e44dafb53b79340b47715141948d3886f3f6c67e4f5fbc7509fc95ec8f306f",
+    "coordinationTree": "a6c2a8f5319761ad333ac91d66f07764d4a14b2d",
+    "directPrerequisiteFences": {
+      "V23-P03-C27": "9864db2f420a45c4497326da79d41f27cbfb187c0fb62c3fca96c051694adc0a",
+      "V23-P03-C49": "1f98c92b714a1e4dbecc689efa070f53bbd679fbbc681e5f37da49bdda53d431"
+    },
+    "dossierSHA256": "cd8af6fd0f7d03098aac5df963a1f5902400ee71c93e3cb3a322f38d87bc83e8",
+    "dossierUTF8Length": 7916,
+    "existingPathCount": 163,
+    "finalHashesSealed": true,
+    "hydrationTransitionDigest": "52f225304d45a333bf31ed861879c63e60b345c5dd038601d14aa6937a85988e",
+    "inheritedV21PayloadPresent": false,
+    "newPathCount": 14,
+    "pathFenceDigest": "7c8198a356f283683194f05b593e6cb11b0cdb32e4a1fad3d2a48d049e64b906",
+    "priorFenceCount": 84,
+    "priorOwnedPathCount": 1370,
+    "provisionalPrerequisiteDigest": "6f2d54da1c0cf5aea1740df3e24ceb4e910bbf834f32f92c7aa118e4c839ceee",
+    "registerOrdinal": 86,
+    "registerRowSHA256": "acef3136f58f6eb9003f7813e7308661854acd701be09978c3ed57eab23dbed9",
+    "registerRowUTF8Length": 313,
+    "registerSectionSHA256": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+    "registerSectionUTF8Length": 44217,
+    "s10ReservationOverlapCount": 0,
+    "s10ReservedPathCount": 86,
+    "title": "Bounded local Parts & Stock catalog, storage labels, append-only movements, work usage, transfer, and balance projection",
+    "unauthorizedOverlapCount": 0
+  },
+  "brandSurfaceDelta": true,
+  "cardID": "V23-P03-C55",
+  "customerIdentityVerified": false,
+  "deliveryOrLegalSignatureClaimed": false,
+  "evidenceIDs": [
+    "V23-P03-C55-G01",
+    "V23-P03-C55-A01",
+    "V23-P03-C55-H01",
+    "V23-P03-C55-I01",
+    "V23-P03-C55-R01"
+  ],
+  "finalHashesSealed": true,
+  "networkOrTelemetryFlow": false,
+  "physicalLockedState": "REQUIRED_PENDING_OWNER",
+  "priorPrerequisiteProof": {
+    "cards": [
+      "V23-P03-C27",
+      "V23-P03-C49"
+    ],
+    "fences": {
+      "V23-P03-C27": "9864db2f420a45c4497326da79d41f27cbfb187c0fb62c3fca96c051694adc0a",
+      "V23-P03-C49": "1f98c92b714a1e4dbecc689efa070f53bbd679fbbc681e5f37da49bdda53d431"
+    },
+    "liveResealRequired": false,
+    "provisionalUntilSourceLanesReady": false
+  },
+  "provisional": true,
+  "requiresS10_6Reconciliation": true,
+  "s10ReservationOverlapCount": 0,
+  "s10ReservedPathCount": 86,
+  "schema": "V23P03C55BrandImpactManifestV1",
+  "schemaVersion": 1,
+  "shippingBrandClaimAuthorized": false,
+  "sourceProjection": {
+    "disposition": "READY_FOR_SOURCE_REPROOF",
+    "finalHashesSealed": true,
+    "missingPathCount": 0,
+    "missingPaths": [],
+    "paths": [
+      {
+        "byteCount": 59527,
+        "path": "FieldEvidenceApp/Domain/PartsStock/PartsStockContractsV1.swift",
+        "sha256": "7091564277d1f30bcffaba1af2ebcbf1efeda6c6b9fc5bb5eba370d4cd0fba5b",
+        "status": "SEALED"
+      },
+      {
+        "byteCount": 12715,
+        "path": "FieldEvidenceApp/Domain/Models/PartsStockPersistenceModelsV1.swift",
+        "sha256": "e914761b5c9dd539c011b3d15423ae504e76ae7ea28f4bac70cb36272da200f3",
+        "status": "SEALED"
+      },
+      {
+        "byteCount": 18286,
+        "path": "FieldEvidenceApp/Application/PartsStock/PartsStockCoordinatorV1.swift",
+        "sha256": "5970d6690ff5f22f9eaa950507e066a85414dff7dd68d14944e0b91588f3a051",
+        "status": "SEALED"
+      },
+      {
+        "byteCount": 19133,
+        "path": "FieldEvidenceApp/Infrastructure/PartsStock/PartsStockLifecycleAdapterV1.swift",
+        "sha256": "60dbb8e834853ef0c40c8027d8eeb980712cd4feb2982aca578a99a76a64c46b",
+        "status": "SEALED"
+      },
+      {
+        "byteCount": 225722,
+        "path": "FieldEvidenceAppTests/V9_63PartsStockTests.swift",
+        "sha256": "1b61f2676f5823d1290353295db2d3298d628154fabba7d9b157a7f92e811af6",
+        "status": "SEALED"
+      },
+      {
+        "byteCount": 6530,
+        "path": "FieldEvidenceAppTests/Fixtures/V22/PartsStock/V22P03C55PartsStockCorpusV1.json",
+        "sha256": "d57f666871371a6f26cd9331b5b56a3e18c5b601c9cdcbb7746d8aa0acc7eea8",
+        "status": "SEALED"
+      }
+    ],
+    "presentPathCount": 6,
+    "presentPaths": [
+      "FieldEvidenceApp/Domain/PartsStock/PartsStockContractsV1.swift",
+      "FieldEvidenceApp/Domain/Models/PartsStockPersistenceModelsV1.swift",
+      "FieldEvidenceApp/Application/PartsStock/PartsStockCoordinatorV1.swift",
+      "FieldEvidenceApp/Infrastructure/PartsStock/PartsStockLifecycleAdapterV1.swift",
+      "FieldEvidenceAppTests/V9_63PartsStockTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V22/PartsStock/V22P03C55PartsStockCorpusV1.json"
+    ],
+    "requiredPathCount": 6
+  },
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidence": false,
+    "release": false
+  },
+  "uiSurfaceDelta": true
+}

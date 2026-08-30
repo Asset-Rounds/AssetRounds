@@ -50,6 +50,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             .applyActivityContract,
             .applyPortableReview,
             .applyWorkResource,
+            .applyPartsStock,
             .applyServiceRequest,
             .applyServiceReliability,
         ])
@@ -220,6 +221,8 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             )
         case let .applyWorkResource(value):
             return try applyWorkResource(value, temporaryRelativePath: temporaryRelativePath)
+        case let .applyPartsStock(value):
+            return try applyPartsStock(value, temporaryRelativePath: temporaryRelativePath)
         case let .applyServiceRequest(value):
             return try applyServiceRequest(value, temporaryRelativePath: temporaryRelativePath)
         case let .applyServiceReliability(value):
@@ -234,6 +237,236 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
              .archiveEntities:
             throw WorkspaceMutationFailureV1.unsupportedCommand
         }
+    }
+
+    private func applyPartsStock(_ mutation: PartsStockMutationV1, temporaryRelativePath: String) throws -> WorkspaceMutationEffectV1 {
+        do {
+            try mutation.validate()
+            func savePart(_ value: LocalPartDefinitionV1) throws {
+                let rows = try modelContext.fetch(FetchDescriptor<LocalPartDefinitionRowV1>()).filter { $0.workspaceUUID == value.workspaceID.rawValue && $0.partID == value.partID }
+                if rows.isEmpty { guard value.revision == 1 else { throw WorkspaceMutationFailureV1.staleEntityRevision(try .init(kind: .localPartDefinition, id: value.partID)) }; modelContext.insert(try LocalPartDefinitionRowV1(value)); return }
+                guard rows.count == 1, let row = rows.first else { throw WorkspaceMutationFailureV1.staleEntityRevision(try .init(kind: .localPartDefinition, id: value.partID)) }
+                let predecessor = try row.value()
+                let (successorRevision, overflow) = predecessor.revision.addingReportingOverflow(1)
+                guard !overflow, row.revision == predecessor.revision, successorRevision == value.revision else { throw WorkspaceMutationFailureV1.staleEntityRevision(try .init(kind: .localPartDefinition, id: value.partID)) }
+                if predecessor.canonicalUnit != value.canonicalUnit {
+                    let movements = try modelContext.fetch(FetchDescriptor<StockMovementEventRowV1>()).map { try $0.value() }
+                    guard !movements.contains(where: { $0.workspaceID == value.workspaceID && $0.part.partID == value.partID }) else {
+                        throw WorkspaceMutationFailureV1.invalidCommand
+                    }
+                }
+                row.revision = value.revision; row.archived = value.archived; row.displayName = value.displayName; row.canonicalData = try PartsStockPersistenceCodecV1.encode(value)
+            }
+            func saveLocation(_ value: StockStorageLocationV1) throws {
+                let rows = try modelContext.fetch(FetchDescriptor<StockStorageLocationRowV1>()).filter { $0.workspaceUUID == value.workspaceID.rawValue && $0.locationID == value.locationID }
+                if rows.isEmpty { guard value.revision == 1 else { throw WorkspaceMutationFailureV1.staleEntityRevision(try .init(kind: .stockStorageLocation, id: value.locationID)) }; modelContext.insert(try StockStorageLocationRowV1(value)); return }
+                guard rows.count == 1, let row = rows.first else { throw WorkspaceMutationFailureV1.staleEntityRevision(try .init(kind: .stockStorageLocation, id: value.locationID)) }
+                let predecessor = try row.value()
+                let (successorRevision, overflow) = predecessor.revision.addingReportingOverflow(1)
+                guard !overflow, row.revision == predecessor.revision, successorRevision == value.revision else { throw WorkspaceMutationFailureV1.staleEntityRevision(try .init(kind: .stockStorageLocation, id: value.locationID)) }
+                row.revision = value.revision; row.archived = value.archived; row.label = value.label; row.canonicalData = try PartsStockPersistenceCodecV1.encode(value)
+            }
+            func replayBalanceStream(_ source: [StockMovementEventV1], partID: UUID, locationID: UUID, workspaceID: WorkspaceID, unit: StockUnitV1) throws -> StockBalanceProjectionV1 {
+                let stream = source.sorted { ($0.locationRevision, $0.movementID.uuidString) < ($1.locationRevision, $1.movementID.uuidString) }
+                guard Set(stream.map(\.movementID)).count == stream.count,
+                      Set(stream.map(\.locationRevision)).count == stream.count else {
+                    throw WorkspaceMutationFailureV1.persistenceFailed
+                }
+                var balance: StockBalanceV1 = .unknown
+                var revision: UInt64 = 0
+                var lastMovementID: UUID?
+                for event in stream {
+                    try event.validate()
+                    let (nextRevision, overflow) = revision.addingReportingOverflow(1)
+                    guard !overflow,
+                          event.workspaceID == workspaceID,
+                          event.part.partID == partID,
+                          event.locationID == locationID,
+                          event.unit == unit,
+                          event.expectedLocationRevision == revision,
+                          event.locationRevision == nextRevision,
+                          event.preBalance == balance else {
+                        throw WorkspaceMutationFailureV1.persistenceFailed
+                    }
+                    if lastMovementID == nil {
+                        guard event.preBalance == .unknown,
+                              event.kind == .openingCount || event.kind == .physicalCount else {
+                            throw WorkspaceMutationFailureV1.persistenceFailed
+                        }
+                    } else if event.kind == .openingCount {
+                        throw WorkspaceMutationFailureV1.persistenceFailed
+                    }
+                    balance = .known(event.postBalance)
+                    revision = event.locationRevision
+                    lastMovementID = event.movementID
+                }
+                return StockBalanceProjectionV1(workspaceID: workspaceID, partID: partID, locationID: locationID, unit: unit, balance: balance, locationRevision: revision, lastMovementID: lastMovementID)
+            }
+            func appendMovement(_ value: StockMovementEventV1) throws {
+                let duplicate = try modelContext.fetch(FetchDescriptor<StockMovementEventRowV1>()).filter { $0.workspaceUUID == value.workspaceID.rawValue && $0.movementID == value.movementID }
+                guard duplicate.isEmpty else { throw WorkspaceMutationFailureV1.sequenceCollision }
+                let partRows = try modelContext.fetch(FetchDescriptor<LocalPartDefinitionRowV1>()).filter { $0.workspaceUUID == value.workspaceID.rawValue && $0.partID == value.part.partID }
+                guard partRows.count == 1, let part = try partRows.first?.value(), !part.archived,
+                      value.unit == part.canonicalUnit, value.part == (try part.frozenReference()) else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+                let stream = try modelContext.fetch(FetchDescriptor<StockMovementEventRowV1>()).map { try $0.value() }.filter {
+                    $0.workspaceID == value.workspaceID && $0.part.partID == value.part.partID && $0.locationID == value.locationID
+                }
+                let prior = try replayBalanceStream(stream, partID: value.part.partID, locationID: value.locationID, workspaceID: value.workspaceID, unit: value.unit)
+                let (nextRevision, overflow) = prior.locationRevision.addingReportingOverflow(1)
+                guard !overflow,
+                      value.expectedLocationRevision == prior.locationRevision,
+                      value.locationRevision == nextRevision,
+                      value.preBalance == prior.balance else {
+                    throw WorkspaceMutationFailureV1.staleEntityRevision(try StockBalanceStreamIdentityV1.entity(partID: value.part.partID, locationID: value.locationID))
+                }
+                if prior.lastMovementID == nil {
+                    guard value.preBalance == .unknown,
+                          value.kind == .openingCount || value.kind == .physicalCount else {
+                        throw WorkspaceMutationFailureV1.invalidCommand
+                    }
+                } else if value.kind == .openingCount {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+                modelContext.insert(try StockMovementEventRowV1(value))
+            }
+            func currentBalances(partID: UUID, workspaceID: WorkspaceID, unit: StockUnitV1) throws -> [StockBalanceProjectionV1] {
+                let locations = try modelContext.fetch(FetchDescriptor<StockStorageLocationRowV1>()).map { try $0.value() }.filter { $0.workspaceID == workspaceID }
+                guard Set(locations.map(\.locationID)).count == locations.count else { throw WorkspaceMutationFailureV1.persistenceFailed }
+                let events = try modelContext.fetch(FetchDescriptor<StockMovementEventRowV1>()).map { try $0.value() }.filter { $0.workspaceID == workspaceID && $0.part.partID == partID }
+                let locationIDs = Set(locations.map(\.locationID))
+                guard events.allSatisfy({ locationIDs.contains($0.locationID) }) else { throw WorkspaceMutationFailureV1.persistenceFailed }
+                return try locations.map { location in
+                    try replayBalanceStream(events.filter { $0.locationID == location.locationID }, partID: partID, locationID: location.locationID, workspaceID: workspaceID, unit: unit)
+                }.sorted { $0.locationID.uuidString < $1.locationID.uuidString }
+            }
+            func requireCurrentArchivePredecessor(_ declared: LocalPartDefinitionV1, successor: LocalPartDefinitionV1) throws {
+                let rows = try modelContext.fetch(FetchDescriptor<LocalPartDefinitionRowV1>()).filter {
+                    $0.workspaceUUID == successor.workspaceID.rawValue && $0.partID == successor.partID
+                }
+                guard rows.count == 1, let predecessor = try rows.first?.value(),
+                      predecessor == declared,
+                      !predecessor.archived,
+                      successor.archived,
+                      predecessor.partID == successor.partID,
+                      predecessor.workspaceID == successor.workspaceID,
+                      predecessor.displayName == successor.displayName,
+                      predecessor.canonicalUnit == successor.canonicalUnit,
+                      predecessor.productIdentities == successor.productIdentities,
+                      predecessor.preferredMinimum == successor.preferredMinimum,
+                      predecessor.revision < UInt64.max,
+                      successor.revision == predecessor.revision + 1 else {
+                    throw WorkspaceMutationFailureV1.staleEntityRevision(try .init(kind: .localPartDefinition, id: successor.partID))
+                }
+            }
+            switch mutation {
+            case let .upsertPart(value): try savePart(value)
+            case let .retirePart(value):
+                try requireCurrentArchivePredecessor(value.predecessorPart, successor: value.archivedPartSuccessor)
+                let actual = try currentBalances(partID: value.archivedPartSuccessor.partID, workspaceID: value.archivedPartSuccessor.workspaceID, unit: value.archivedPartSuccessor.canonicalUnit)
+                guard actual == value.verifiedBalances, actual.allSatisfy({ if case let .known(q) = $0.balance { return q.mantissa == 0 }; return false }) else { throw WorkspaceMutationFailureV1.invalidCommand }
+                try savePart(value.archivedPartSuccessor)
+            case let .upsertLocation(value, _): try saveLocation(value)
+            case let .appendMovement(value): try appendMovement(value)
+            case let .transfer(value): try appendMovement(value.outbound); try appendMovement(value.inbound)
+            case let .use(value):
+                try appendMovement(value.movement)
+                guard value.workResourceSuccessor.materials.first(where: { $0.lineID == value.frozenMaterialLineID })?.unit == value.movement.unit.rawValue else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+                let existing = try modelContext.fetch(FetchDescriptor<StockUseReceiptRowV1>()).filter { $0.workspaceUUID == value.workspaceID.rawValue && $0.receiptID == value.receiptID }
+                guard existing.isEmpty else { throw WorkspaceMutationFailureV1.sequenceCollision }
+                _ = try applyWorkResource(try .init(workspaceID: value.workspaceID, mutationID: value.mutationID, postImage: value.workResourceSuccessor), temporaryRelativePath: temporaryRelativePath)
+                modelContext.insert(try StockUseReceiptRowV1(value))
+            case let .reverseUse(value):
+                try appendMovement(value.reversalMovement)
+                let uses = try modelContext.fetch(FetchDescriptor<StockUseReceiptRowV1>()).filter { $0.workspaceUUID == value.workspaceID.rawValue && $0.receiptID == value.sourceUse.receiptID }
+                guard uses.count == 1, try uses[0].value().receiptSHA256 == value.sourceUse.receiptSHA256 else { throw WorkspaceMutationFailureV1.invalidCommand }
+                let existingReversals = try modelContext.fetch(FetchDescriptor<StockUseReversalReceiptRowV1>()).filter { $0.workspaceUUID == value.workspaceID.rawValue }
+                let existingReturns = try modelContext.fetch(FetchDescriptor<StockReturnReceiptRowV1>()).filter { $0.workspaceUUID == value.workspaceID.rawValue }
+                guard try !existingReversals.contains(where: { try $0.value().sourceUse.receiptID == value.sourceUse.receiptID }),
+                      try !existingReturns.contains(where: { try $0.value().sourceUseReceiptID == value.sourceUse.receiptID }) else {
+                    throw WorkspaceMutationFailureV1.sequenceCollision
+                }
+                _ = try applyWorkResource(try .init(workspaceID: value.workspaceID, mutationID: value.mutationID, postImage: value.workResourceSuccessor), temporaryRelativePath: temporaryRelativePath)
+                modelContext.insert(try StockUseReversalReceiptRowV1(value))
+            case let .returnAgainstUse(value):
+                let uses = try modelContext.fetch(FetchDescriptor<StockUseReceiptRowV1>()).filter { $0.workspaceUUID == value.workspaceID.rawValue && $0.receiptID == value.sourceUseReceiptID }
+                guard uses.count == 1 else { throw WorkspaceMutationFailureV1.invalidCommand }
+                let sourceUse = try uses[0].value()
+                guard sourceUse == value.sourceUse,
+                      sourceUse.receiptSHA256 == value.sourceUseReceiptSHA256 else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+                let reversals = try modelContext.fetch(FetchDescriptor<StockUseReversalReceiptRowV1>()).filter { $0.workspaceUUID == value.workspaceID.rawValue }
+                guard try !reversals.contains(where: { try $0.value().sourceUse.receiptID == sourceUse.receiptID }) else {
+                    throw WorkspaceMutationFailureV1.sequenceCollision
+                }
+                let existing = try modelContext.fetch(FetchDescriptor<StockReturnReceiptRowV1>()).filter { $0.workspaceUUID == value.workspaceID.rawValue && $0.receiptID == value.receiptID }
+                guard existing.isEmpty else { throw WorkspaceMutationFailureV1.sequenceCollision }
+                let returns = try modelContext.fetch(FetchDescriptor<StockReturnReceiptRowV1>()).map { try $0.value() }.filter {
+                    $0.workspaceID == value.workspaceID && $0.sourceUseReceiptID == sourceUse.receiptID
+                }
+                guard returns.allSatisfy({ $0.sourceUse == sourceUse && $0.sourceUseReceiptSHA256 == sourceUse.receiptSHA256 }),
+                      Set(returns.map(\.receiptID)).count == returns.count else {
+                    throw WorkspaceMutationFailureV1.persistenceFailed
+                }
+                var frontier: StockReturnFrontierSnapshotV1?
+                var remaining = returns
+                while !remaining.isEmpty {
+                    let candidates = remaining.filter { $0.predecessorFrontier == frontier }
+                    guard candidates.count == 1, let next = candidates.first else {
+                        throw WorkspaceMutationFailureV1.staleEntityRevision(try .init(kind: .stockUseReceipt, id: sourceUse.receiptID))
+                    }
+                    frontier = try next.frontierSnapshot()
+                    remaining.removeAll { $0.receiptID == next.receiptID }
+                }
+                guard value.predecessorFrontier == frontier else {
+                    throw WorkspaceMutationFailureV1.staleEntityRevision(try .init(kind: .stockUseReceipt, id: sourceUse.receiptID))
+                }
+                let predecessorID = frontier?.workResourceSuccessorID ?? sourceUse.workResourceSuccessor.entryID
+                let predecessorRows = try modelContext.fetch(FetchDescriptor<ManualWorkResourceRecordRow>()).filter {
+                    $0.entryID == predecessorID && $0.workspaceID == value.workspaceID.rawValue
+                }
+                guard predecessorRows.count == 1, let persistedPredecessor = try predecessorRows.first?.value(),
+                      persistedPredecessor == value.workResourcePredecessor else {
+                    throw WorkspaceMutationFailureV1.staleEntityRevision(try .init(kind: .workResourceEntry, id: predecessorID))
+                }
+                if let frontier {
+                    guard persistedPredecessor.revision == frontier.workResourceSuccessorRevision,
+                          persistedPredecessor.entrySHA256 == frontier.workResourceSuccessorSHA256 else {
+                        throw WorkspaceMutationFailureV1.staleEntityRevision(try .init(kind: .workResourceEntry, id: predecessorID))
+                    }
+                } else {
+                    guard persistedPredecessor == sourceUse.workResourceSuccessor else {
+                        throw WorkspaceMutationFailureV1.invalidCommand
+                    }
+                }
+                try appendMovement(value.returnMovement)
+                _ = try applyWorkResource(try .init(workspaceID: value.workspaceID, mutationID: value.mutationID, postImage: value.workResourceSuccessor), temporaryRelativePath: temporaryRelativePath)
+                modelContext.insert(try StockReturnReceiptRowV1(value))
+            case let .abandon(value):
+                try requireCurrentArchivePredecessor(value.predecessorPart, successor: value.archivedPartSuccessor)
+                let existingIDs = Set(value.dispositions.map(\.dispositionID))
+                let existing = try modelContext.fetch(FetchDescriptor<AbandonUnverifiedStockRowV1>()).filter { $0.workspaceUUID == value.archivedPartSuccessor.workspaceID.rawValue && existingIDs.contains($0.dispositionID) }
+                guard existing.isEmpty else { throw WorkspaceMutationFailureV1.sequenceCollision }
+                let actual = try currentBalances(partID: value.archivedPartSuccessor.partID, workspaceID: value.archivedPartSuccessor.workspaceID, unit: value.archivedPartSuccessor.canonicalUnit)
+                let unknownIDs = Set(actual.compactMap { if case .unknown = $0.balance { return $0.locationID }; return nil })
+                let actualByLocation = Dictionary(uniqueKeysWithValues: actual.map { ($0.locationID, $0) })
+                guard unknownIDs == Set(value.dispositions.map(\.locationID)),
+                      !actual.contains(where: { if case let .known(q) = $0.balance { return q.mantissa > 0 }; return false }),
+                      value.dispositions.allSatisfy({ disposition in
+                          guard let projection = actualByLocation[disposition.locationID] else { return false }
+                          return disposition.lastLocationRevision == projection.locationRevision
+                              && disposition.lastMovementID == projection.lastMovementID
+                      }) else { throw WorkspaceMutationFailureV1.invalidCommand }
+                try savePart(value.archivedPartSuccessor)
+                for disposition in value.dispositions { modelContext.insert(try AbandonUnverifiedStockRowV1(disposition)) }
+            }
+            return try WorkspaceMutationEffectV1(affectedEntities: mutation.affectedIdentities, temporaryRelativePath: temporaryRelativePath)
+        } catch let failure as WorkspaceMutationFailureV1 { modelContext.rollback(); throw failure }
+          catch { modelContext.rollback(); throw WorkspaceMutationFailureV1.invalidCommand }
     }
 
     private func applyWorkResource(_ mutation: WorkResourceMutationV1, temporaryRelativePath: String) throws -> WorkspaceMutationEffectV1 {
@@ -2264,6 +2497,14 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             let id = identity.id
             let exists: Bool
             switch identity.kind {
+            case .stockBalanceStream: exists = false
+            case .localPartDefinition: exists = try modelContext.fetch(FetchDescriptor<LocalPartDefinitionRowV1>()).contains { $0.partID == id }
+            case .stockStorageLocation: exists = try modelContext.fetch(FetchDescriptor<StockStorageLocationRowV1>()).contains { $0.locationID == id }
+            case .stockMovementEvent: exists = try modelContext.fetch(FetchDescriptor<StockMovementEventRowV1>()).contains { $0.movementID == id }
+            case .stockUseReceipt: exists = try modelContext.fetch(FetchDescriptor<StockUseReceiptRowV1>()).contains { $0.receiptID == id }
+            case .stockUseReversalReceipt: exists = try modelContext.fetch(FetchDescriptor<StockUseReversalReceiptRowV1>()).contains { $0.receiptID == id }
+            case .stockReturnReceipt: exists = try modelContext.fetch(FetchDescriptor<StockReturnReceiptRowV1>()).contains { $0.receiptID == id }
+            case .stockAbandonment: exists = try modelContext.fetch(FetchDescriptor<AbandonUnverifiedStockRowV1>()).contains { $0.dispositionID == id }
             case .site:
                 let values = try modelContext.fetch(FetchDescriptor<Site>(
                     predicate: #Predicate { $0.id == id }

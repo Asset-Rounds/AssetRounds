@@ -858,7 +858,7 @@ enum C52ServiceRequestRestoreIdentityPolicyV1 {
             expectedWorkspaceID = sourceWorkspaceID
         }
         do {
-            if records.recordsSchemaVersion == C53ServiceReliabilityBackupEnrollmentV1.recordsSchemaVersion {
+            if records.recordsSchemaVersion >= C53ServiceReliabilityBackupEnrollmentV1.recordsSchemaVersion {
                 try C53ServiceReliabilityBackupEnrollmentV1.validate(
                     records: records,
                     workspaceID: expectedWorkspaceID
@@ -869,6 +869,10 @@ enum C52ServiceRequestRestoreIdentityPolicyV1 {
                     workspaceID: expectedWorkspaceID
                 )
             }
+            try C55PartsStockBackupEnrollmentV1.validate(
+                records,
+                workspaceID: expectedWorkspaceID.map { WorkspaceID(rawValue: $0) }
+            )
         } catch {
             throw RestoreIdentityDecisionErrorV1.invalidPointerIdentity
         }
@@ -943,7 +947,7 @@ enum C53ServiceReliabilityRestoreIdentityBoundaryV1 {
               cloneForkRequiresExplicitWorkspaceRebind,
               !cloneForkAutomaticallyActivatesSourceRows,
               derivedProjectionsAreRebuilt,
-              records.recordsSchemaVersion <= recordsSchemaVersion else {
+              records.recordsSchemaVersion <= C55PartsStockBackupEnrollmentV1.recordsSchemaVersion else {
             throw RestoreIdentityDecisionErrorV1.invalidMode
         }
         do {
@@ -953,6 +957,19 @@ enum C53ServiceReliabilityRestoreIdentityBoundaryV1 {
             )
         } catch {
             throw RestoreIdentityDecisionErrorV1.invalidPointerIdentity
+        }
+    }
+}
+
+enum C55PartsStockRestoreIdentityBoundaryV1 {
+    static let persistentSchemaVersion = C55PartsStockBackupEnrollmentV1.persistentSchemaVersion
+    static let recordsSchemaVersion = C55PartsStockBackupEnrollmentV1.recordsSchemaVersion
+
+    static func disposition(for mode: BackupRestoreMode) -> PartsStockRestoreDispositionV1 {
+        switch mode {
+        case .emptyInstall, .replaceExisting: return .replace
+        case .clone: return .cloneDefinitions
+        case .fork: return .forkRequiresRecount
         }
     }
 }

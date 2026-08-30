@@ -46,6 +46,14 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case installationAsBuiltSnapshot
     case punchReviewBasisSnapshot
     case workResourceEntry
+    case localPartDefinition
+    case stockStorageLocation
+    case stockBalanceStream
+    case stockMovementEvent
+    case stockUseReceipt
+    case stockUseReversalReceipt
+    case stockReturnReceipt
+    case stockAbandonment
     case serviceRequestRecord
     case serviceRequestDispositionEvent
     case serviceRequestWorkLinkEvent
@@ -180,6 +188,21 @@ struct WorkspaceEntityIdentityV1: Codable, Hashable, Sendable {
     }
 
     var stableKey: String { "\(kind.rawValue):\(id.uuidString.lowercased())" }
+}
+
+/// Virtual, deterministic per-part/location balance concurrency stream. It is
+/// never a persisted row or postimage identity; its sole purpose is to keep
+/// stock movement CAS independent from storage-catalog revisions and from
+/// other parts stored at the same location.
+enum StockBalanceStreamIdentityV1 {
+    private struct Basis: Codable { let partID: UUID; let locationID: UUID }
+    static func id(partID: UUID, locationID: UUID) throws -> UUID {
+        let digest = Array(SHA256.hash(data: try WorkspaceMutationCanonicalV1.data(Basis(partID: partID, locationID: locationID))))
+        let value = UUID(uuid: (digest[0], digest[1], digest[2], digest[3], digest[4], digest[5], digest[6], digest[7], digest[8], digest[9], digest[10], digest[11], digest[12], digest[13], digest[14], digest[15]))
+        guard value != UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0)) else { throw WorkspaceMutationContractFailureV1.invalidID }
+        return value
+    }
+    static func entity(partID: UUID, locationID: UUID) throws -> WorkspaceEntityIdentityV1 { try .init(kind: .stockBalanceStream, id: id(partID: partID, locationID: locationID)) }
 }
 
 struct WorkspaceEntityRevisionV1: Codable, Equatable, Sendable {
@@ -2003,6 +2026,135 @@ struct WorkResourceMutationV1: Codable, Equatable, Sendable {
     }
 }
 
+// MARK: - C55 parts-stock sole-writer bridge
+
+extension PartsStockMutationV1 {
+    private func image(_ id: UUID, _ kind: WorkspaceEntityKindV1, _ concurrency: WorkspaceEntityIdentityV1, _ revision: UInt64, _ digest: String) -> MutationPostImageV1 {
+        .partsStock(id: id, kind: kind, concurrencyIdentity: concurrency, revision: revision, semanticSHA256: digest)
+    }
+
+    var affectedIdentities: [WorkspaceEntityIdentityV1] {
+        get throws {
+            switch self {
+            case let .upsertPart(value): return [try .init(kind: .localPartDefinition, id: value.partID)]
+            case let .retirePart(value): return [try .init(kind: .localPartDefinition, id: value.archivedPartSuccessor.partID)]
+            case let .upsertLocation(value, _): return [try .init(kind: .stockStorageLocation, id: value.locationID)]
+            case let .appendMovement(value): return [try .init(kind: .stockMovementEvent, id: value.movementID)]
+            case let .transfer(value): return try [
+                .init(kind: .stockMovementEvent, id: value.outbound.movementID),
+                .init(kind: .stockMovementEvent, id: value.inbound.movementID)
+            ].sorted { $0.stableKey < $1.stableKey }
+            case let .use(value): return try [
+                .init(kind: .stockMovementEvent, id: value.movement.movementID),
+                .init(kind: .stockUseReceipt, id: value.receiptID),
+                .init(kind: .workResourceEntry, id: value.workResourceSuccessor.entryID)
+            ].sorted { $0.stableKey < $1.stableKey }
+            case let .reverseUse(value): return try [.init(kind: .stockMovementEvent, id: value.reversalMovement.movementID), .init(kind: .stockUseReversalReceipt, id: value.receiptID), .init(kind: .workResourceEntry, id: value.workResourceSuccessor.entryID)].sorted { $0.stableKey < $1.stableKey }
+            case let .returnAgainstUse(value): return try [
+                .init(kind: .stockMovementEvent, id: value.returnMovement.movementID),
+                .init(kind: .stockReturnReceipt, id: value.receiptID),
+                .init(kind: .workResourceEntry, id: value.workResourceSuccessor.entryID)
+            ].sorted { $0.stableKey < $1.stableKey }
+            case let .abandon(value): return try ([
+                .init(kind: .localPartDefinition, id: value.archivedPartSuccessor.partID)
+            ] + value.dispositions.map { try .init(kind: .stockAbandonment, id: $0.dispositionID) }).sorted { $0.stableKey < $1.stableKey }
+            }
+        }
+    }
+
+    var concurrencyIdentities: [WorkspaceEntityIdentityV1] {
+        get throws {
+            switch self {
+            case let .upsertPart(value): return [try .init(kind: .localPartDefinition, id: value.partID)]
+            case let .retirePart(value): return [try .init(kind: .localPartDefinition, id: value.archivedPartSuccessor.partID)]
+            case let .upsertLocation(value, _): return [try .init(kind: .stockStorageLocation, id: value.locationID)]
+            case let .appendMovement(value): return [try StockBalanceStreamIdentityV1.entity(partID: value.part.partID, locationID: value.locationID)]
+            case let .transfer(value): return try [
+                StockBalanceStreamIdentityV1.entity(partID: value.outbound.part.partID, locationID: value.outbound.locationID),
+                StockBalanceStreamIdentityV1.entity(partID: value.inbound.part.partID, locationID: value.inbound.locationID)
+            ].sorted { $0.stableKey < $1.stableKey }
+            case let .use(value): return try [
+                StockBalanceStreamIdentityV1.entity(partID: value.movement.part.partID, locationID: value.movement.locationID),
+                .init(kind: .stockUseReceipt, id: value.receiptID),
+                .init(kind: .workResourceEntry, id: value.workResourceSuccessor.supersedesEntryID ?? value.workResourceSuccessor.entryID)
+            ].sorted { $0.stableKey < $1.stableKey }
+            case let .reverseUse(value): return try [StockBalanceStreamIdentityV1.entity(partID: value.reversalMovement.part.partID, locationID: value.reversalMovement.locationID), .init(kind: .stockUseReversalReceipt, id: value.receiptID), .init(kind: .workResourceEntry, id: value.workResourceSuccessor.supersedesEntryID ?? value.workResourceSuccessor.entryID)].sorted { $0.stableKey < $1.stableKey }
+            case let .returnAgainstUse(value): return try [
+                StockBalanceStreamIdentityV1.entity(partID: value.returnMovement.part.partID, locationID: value.returnMovement.locationID),
+                .init(kind: .stockReturnReceipt, id: value.receiptID),
+                .init(kind: .workResourceEntry, id: value.workResourceSuccessor.supersedesEntryID ?? value.workResourceSuccessor.entryID)
+            ].sorted { $0.stableKey < $1.stableKey }
+            case let .abandon(value): return try ([ .init(kind: .localPartDefinition, id: value.archivedPartSuccessor.partID) ] + value.dispositions.map { try .init(kind: .stockAbandonment, id: $0.dispositionID) }).sorted { $0.stableKey < $1.stableKey }
+            }
+        }
+    }
+
+    func expectedRevision(for identity: WorkspaceEntityIdentityV1) throws -> UInt64 {
+        switch self {
+        case let .upsertPart(value):
+            guard identity == (try .init(kind: .localPartDefinition, id: value.partID)), value.revision > 0 else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+            return value.revision - 1
+        case let .retirePart(value):
+            let successor = value.archivedPartSuccessor
+            guard identity == (try .init(kind: .localPartDefinition, id: successor.partID)), successor.revision > 0 else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+            return successor.revision - 1
+        case let .abandon(value):
+            let successor = value.archivedPartSuccessor
+            if identity == (try .init(kind: .localPartDefinition, id: successor.partID)) { guard successor.revision > 0 else { throw WorkspaceMutationContractFailureV1.invalidPlan }; return successor.revision - 1 }
+            if value.dispositions.contains(where: { $0.dispositionID == identity.id }) && identity.kind == .stockAbandonment { return 0 }
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        case let .upsertLocation(value, _):
+            guard identity == (try .init(kind: .stockStorageLocation, id: value.locationID)), value.revision > 0 else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+            return value.revision - 1
+        case let .appendMovement(value):
+            guard identity == (try StockBalanceStreamIdentityV1.entity(partID: value.part.partID, locationID: value.locationID)) else { throw WorkspaceMutationContractFailureV1.invalidPlan }; return value.expectedLocationRevision
+        case let .transfer(value):
+            if identity == (try StockBalanceStreamIdentityV1.entity(partID: value.outbound.part.partID, locationID: value.outbound.locationID)) { return value.outbound.expectedLocationRevision }
+            if identity == (try StockBalanceStreamIdentityV1.entity(partID: value.inbound.part.partID, locationID: value.inbound.locationID)) { return value.inbound.expectedLocationRevision }
+        case let .use(value):
+            if identity == (try StockBalanceStreamIdentityV1.entity(partID: value.movement.part.partID, locationID: value.movement.locationID)) { return value.movement.expectedLocationRevision }
+            if identity == (try .init(kind: .workResourceEntry, id: value.workResourceSuccessor.supersedesEntryID ?? value.workResourceSuccessor.entryID)) { return value.workResourceSuccessor.expectedRevision }
+            if identity == (try .init(kind: .stockUseReceipt, id: value.receiptID)) { return 0 }
+        case let .reverseUse(value):
+            if identity == (try StockBalanceStreamIdentityV1.entity(partID: value.reversalMovement.part.partID, locationID: value.reversalMovement.locationID)) { return value.reversalMovement.expectedLocationRevision }
+            if identity == (try .init(kind: .workResourceEntry, id: value.workResourceSuccessor.supersedesEntryID ?? value.workResourceSuccessor.entryID)) { return value.workResourceSuccessor.expectedRevision }
+            if identity == (try .init(kind: .stockUseReversalReceipt, id: value.receiptID)) { return 0 }
+        case let .returnAgainstUse(value):
+            if identity == (try StockBalanceStreamIdentityV1.entity(partID: value.returnMovement.part.partID, locationID: value.returnMovement.locationID)) { return value.returnMovement.expectedLocationRevision }
+            if identity == (try .init(kind: .workResourceEntry, id: value.workResourceSuccessor.supersedesEntryID ?? value.workResourceSuccessor.entryID)) { return value.workResourceSuccessor.expectedRevision }
+            if identity == (try .init(kind: .stockReturnReceipt, id: value.receiptID)) { return 0 }
+        }
+        throw WorkspaceMutationContractFailureV1.invalidPlan
+    }
+
+    var mutationPostImages: [MutationPostImageV1] {
+        get throws {
+            switch self {
+            case let .upsertPart(v): return [image(v.partID, .localPartDefinition, try .init(kind: .localPartDefinition, id: v.partID), v.revision, v.partSHA256)]
+            case let .retirePart(v): let successor = v.archivedPartSuccessor; return [image(successor.partID, .localPartDefinition, try .init(kind: .localPartDefinition, id: successor.partID), successor.revision, successor.partSHA256)]
+            case let .upsertLocation(v, _): return [image(v.locationID, .stockStorageLocation, try .init(kind: .stockStorageLocation, id: v.locationID), v.revision, try PartsStockCanonicalCodecV1.sha256(v))]
+            case let .appendMovement(v): return [image(v.movementID, .stockMovementEvent, try StockBalanceStreamIdentityV1.entity(partID: v.part.partID, locationID: v.locationID), v.locationRevision, v.eventSHA256)]
+            case let .transfer(v): return try [
+                image(v.outbound.movementID, .stockMovementEvent, StockBalanceStreamIdentityV1.entity(partID: v.outbound.part.partID, locationID: v.outbound.locationID), v.outbound.locationRevision, v.outbound.eventSHA256),
+                image(v.inbound.movementID, .stockMovementEvent, StockBalanceStreamIdentityV1.entity(partID: v.inbound.part.partID, locationID: v.inbound.locationID), v.inbound.locationRevision, v.inbound.eventSHA256)
+            ].sorted { try $0.identity.stableKey < $1.identity.stableKey }
+            case let .use(v): return try [
+                image(v.movement.movementID, .stockMovementEvent, StockBalanceStreamIdentityV1.entity(partID: v.movement.part.partID, locationID: v.movement.locationID), v.movement.locationRevision, v.movement.eventSHA256),
+                image(v.receiptID, .stockUseReceipt, .init(kind: .stockUseReceipt, id: v.receiptID), 1, v.receiptSHA256),
+                .workResourceEntry(id: v.workResourceSuccessor.entryID, concurrencyIdentity: .init(kind: .workResourceEntry, id: v.workResourceSuccessor.supersedesEntryID ?? v.workResourceSuccessor.entryID), revision: v.workResourceSuccessor.revision, semanticSHA256: v.workResourceSuccessor.entrySHA256)
+            ].sorted { try $0.identity.stableKey < $1.identity.stableKey }
+            case let .reverseUse(v): return try [image(v.reversalMovement.movementID, .stockMovementEvent, StockBalanceStreamIdentityV1.entity(partID: v.reversalMovement.part.partID, locationID: v.reversalMovement.locationID), v.reversalMovement.locationRevision, v.reversalMovement.eventSHA256), image(v.receiptID, .stockUseReversalReceipt, .init(kind: .stockUseReversalReceipt, id: v.receiptID), 1, v.receiptSHA256), .workResourceEntry(id: v.workResourceSuccessor.entryID, concurrencyIdentity: .init(kind: .workResourceEntry, id: v.workResourceSuccessor.supersedesEntryID ?? v.workResourceSuccessor.entryID), revision: v.workResourceSuccessor.revision, semanticSHA256: v.workResourceSuccessor.entrySHA256)].sorted { try $0.identity.stableKey < $1.identity.stableKey }
+            case let .returnAgainstUse(v): return try [
+                image(v.returnMovement.movementID, .stockMovementEvent, StockBalanceStreamIdentityV1.entity(partID: v.returnMovement.part.partID, locationID: v.returnMovement.locationID), v.returnMovement.locationRevision, v.returnMovement.eventSHA256),
+                image(v.receiptID, .stockReturnReceipt, .init(kind: .stockReturnReceipt, id: v.receiptID), 1, v.receiptSHA256),
+                .workResourceEntry(id: v.workResourceSuccessor.entryID, concurrencyIdentity: .init(kind: .workResourceEntry, id: v.workResourceSuccessor.supersedesEntryID ?? v.workResourceSuccessor.entryID), revision: v.workResourceSuccessor.revision, semanticSHA256: v.workResourceSuccessor.entrySHA256)
+            ].sorted { try $0.identity.stableKey < $1.identity.stableKey }
+            case let .abandon(v): return try ([image(v.archivedPartSuccessor.partID, .localPartDefinition, .init(kind: .localPartDefinition, id: v.archivedPartSuccessor.partID), v.archivedPartSuccessor.revision, v.archivedPartSuccessor.partSHA256)] + v.dispositions.map { image($0.dispositionID, .stockAbandonment, try .init(kind: .stockAbandonment, id: $0.dispositionID), 1, try PartsStockCanonicalCodecV1.sha256($0)) }).sorted { try $0.identity.stableKey < $1.identity.stableKey }
+            }
+        }
+    }
+}
+
 // MARK: - C52 canonical service-request mutation bridge
 
 extension ServiceRequestMutationPayloadV1 {
@@ -2170,6 +2322,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyActivityContract(ActivityContractMutationV2)
     case applyPortableReview(PortableReviewMutationV1)
     case applyWorkResource(WorkResourceMutationV1)
+    case applyPartsStock(PartsStockMutationV1)
     case applyServiceRequest(ServiceRequestMutationV1)
     case applyServiceReliability(ServiceReliabilityAtomicBundleV1)
 
@@ -2221,6 +2374,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyActivityContract:.applyActivityContract
         case .applyPortableReview:.applyPortableReview
         case .applyWorkResource:.applyWorkResource
+        case .applyPartsStock:.applyPartsStock
         case .applyServiceRequest:.applyServiceRequest
         case .applyServiceReliability:.applyServiceReliability
         }
@@ -2274,6 +2428,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyActivityContract="apply_activity_contract_v2"
     case applyPortableReview="apply_portable_review_v1"
     case applyWorkResource="apply_work_resource_v1"
+    case applyPartsStock="apply_parts_stock_v1"
     case applyServiceRequest="apply_service_request_v1"
     case applyServiceReliability="apply_service_reliability_v1"
 }
@@ -3076,6 +3231,7 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind:.applyActivityContract,disposition:.compensatable,stableReason:"append_activity_contract_successor_only"),
         .init(commandKind:.applyPortableReview,disposition:.compensatable,stableReason:"append_existing_c14_review_successor_only"),
         .init(commandKind:.applyWorkResource,disposition:.compensatable,stableReason:"append_work_resource_successor_only"),
+        .init(commandKind:.applyPartsStock,disposition:.compensatable,stableReason:"append_stock_movement_and_atomic_work_resource_successor_only"),
         .init(commandKind:.applyServiceRequest,disposition:.compensatable,stableReason:"append_request_history_or_explicit_unlink_reversal_only"),
         .init(commandKind:.applyServiceReliability,disposition:.compensatable,stableReason:"append_incident_impact_cause_remedy_repair_restoration_or_exposure_successor_only"),
     ]

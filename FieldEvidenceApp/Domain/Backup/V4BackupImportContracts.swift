@@ -31,7 +31,8 @@ enum C49WorkResourceBackupImportBoundaryV1 {
     static let derivedTotalsSearchAndDraftsAreRebuilt = true
 
     static func validate(_ records: V4BackupRecordsV1) throws {
-        guard records.recordsSchemaVersion == recordsSchemaVersion else {
+        guard (recordsSchemaVersion...C55PartsStockBackupEnrollmentV1.recordsSchemaVersion)
+            .contains(records.recordsSchemaVersion) else {
             throw WorkResourceContractFailureV1.invalidValue
         }
         _ = try records.validateC49WorkResources()
@@ -80,10 +81,32 @@ enum C52ServiceRequestBackupImportBoundaryV1 {
 
     static func validate(_ backup: V4BackupRecordsV1) throws {
         try validate(
-            persistent: persistentSchemaVersion,
+            persistent: backup.recordsSchemaVersion + 1,
             records: backup.recordsSchemaVersion,
             backup: backup
         )
+    }
+}
+
+/// The C55 import boundary accepts only the typed canonical snapshot. The
+/// incumbent lifecycle port owns atomic materialization and all derived
+/// balance/search rebuild work; this contract never creates a second store.
+enum C55PartsStockBackupImportBoundaryV1 {
+    static let persistentSchemaVersion = C55PartsStockBackupEnrollmentV1.persistentSchemaVersion
+    static let recordsSchemaVersion = C55PartsStockBackupEnrollmentV1.recordsSchemaVersion
+    static let restoresSevenFamiliesAtomically = true
+    static let usesIncumbentLifecyclePort = true
+    static let derivedBalanceAndSearchAreRebuilt = true
+
+    static func validate(_ records: V4BackupRecordsV1, workspaceID: WorkspaceID? = nil) throws {
+        guard records.recordsSchemaVersion == recordsSchemaVersion,
+              persistentSchemaVersion == 41,
+              restoresSevenFamiliesAtomically,
+              usesIncumbentLifecyclePort,
+              derivedBalanceAndSearchAreRebuilt else {
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
+        }
+        try C55PartsStockBackupEnrollmentV1.validate(records, workspaceID: workspaceID)
     }
 }
 
@@ -443,9 +466,10 @@ enum C53ServiceReliabilityBackupImportContractBoundaryV1 {
         backup: V4BackupRecordsV1,
         workspaceID: UUID? = nil
     ) throws {
-        guard persistent == persistentSchemaVersion,
+        guard persistent == records + 1,
               records == backup.recordsSchemaVersion,
-              records == recordsSchemaVersion,
+              (recordsSchemaVersion...C55PartsStockBackupEnrollmentV1.recordsSchemaVersion)
+                .contains(records),
               persistentSchemaVersion == 40,
               durableFamilyCount == 7,
               canonicalRowKinds == C53ServiceReliabilityBackupEnrollmentV1.canonicalRowKinds,
@@ -470,7 +494,7 @@ enum C53ServiceReliabilityBackupImportContractBoundaryV1 {
 
     static func validate(_ backup: V4BackupRecordsV1, workspaceID: UUID? = nil) throws {
         try validate(
-            persistent: persistentSchemaVersion,
+            persistent: backup.recordsSchemaVersion + 1,
             records: backup.recordsSchemaVersion,
             backup: backup,
             workspaceID: workspaceID

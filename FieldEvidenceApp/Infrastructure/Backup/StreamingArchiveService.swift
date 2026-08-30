@@ -89,6 +89,10 @@ enum GuidedSurveyStreamingArchiveDispositionV1 {
             do { try C52ServiceRequestStreamingArchiveBoundaryV1.validate(records: records) }
             catch { throw StreamingArchiveFailureV1.invalidArchive }
         }
+        if records.recordsSchemaVersion >= C55PartsStockStreamingArchiveBoundaryV1.recordsSchemaVersion {
+            do { try C55PartsStockStreamingArchiveBoundaryV1.validate(records: records) }
+            catch { throw StreamingArchiveFailureV1.invalidArchive }
+        }
     }
 }
 

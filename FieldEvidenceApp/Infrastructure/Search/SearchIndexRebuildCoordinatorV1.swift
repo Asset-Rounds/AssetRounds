@@ -2423,6 +2423,13 @@ enum C49WorkResourceSearchRebuildBoundaryV1 {
     }
 }
 
+enum C55PartsStockSearchRebuildBoundaryV1 {
+    static let source = "LocalPartDefinitionV1"
+    static let rebuildsOnlyDerivedCatalogTokens = true
+    static let balancesOrStorageAreIndexed = false
+    static func validateField(_ fieldID: String) throws { try C55PartsStockLocalSearchBoundaryV1.validateField(fieldID) }
+}
+
 
 enum C50IncumbentFileExchangeSearchRebuildBoundaryV1 {
     static let rebuildsAdapterSessionOrProfileState = false

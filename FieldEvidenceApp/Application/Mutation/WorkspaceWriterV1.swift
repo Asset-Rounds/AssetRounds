@@ -527,6 +527,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         case .applyAssetSemantics(let value):
             do {
                 try value.validate()
+                if case let .upsertPart(part) = value, part.archived { throw WorkspaceMutationFailureV1.invalidCommand }
                 let target = try value.affectedIdentity
                 let expectedEntityRevision = request.expectedRevision.entityRevisions
                     .first(where: { $0.identity == target })?.revision
@@ -648,6 +649,17 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
                 guard value.workspaceID == identity.workspaceID,
                       value.mutationID == request.mutationID,
                       expected == value.postImage.expectedRevision else { throw WorkspaceMutationFailureV1.invalidCommand }
+            } catch let failure as WorkspaceMutationFailureV1 { throw failure }
+              catch { throw WorkspaceMutationFailureV1.invalidCommand }
+        case .applyPartsStock(let value):
+            do {
+                try value.validate()
+                let targets = try value.concurrencyIdentities
+                let expected = Dictionary(uniqueKeysWithValues: request.expectedRevision.entityRevisions.map { ($0.identity, $0.revision) })
+                guard value.workspaceID == identity.workspaceID,
+                      value.mutationID == request.mutationID,
+                      Set(targets).count == targets.count,
+                      try targets.allSatisfy({ expected[$0] == (try value.expectedRevision(for: $0)) }) else { throw WorkspaceMutationFailureV1.invalidCommand }
             } catch let failure as WorkspaceMutationFailureV1 { throw failure }
               catch { throw WorkspaceMutationFailureV1.invalidCommand }
         case .applyServiceRequest(let value):
@@ -922,6 +934,17 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             }
         } else if case let .applyWorkResource(mutation) = request.command {
             entityRevisions[try mutation.affectedIdentity] = mutation.postImage.revision
+        } else if case let .applyPartsStock(mutation) = request.command {
+            for image in try mutation.mutationPostImages {
+                if case let .partsStock(id, kind, concurrency, revision, _) = image {
+                    let physical = try WorkspaceEntityIdentityV1(kind: kind, id: id)
+                    entityRevisions[physical] = revision
+                    entityRevisions[concurrency] = revision
+                } else {
+                    entityRevisions[try image.identity] = image.revision
+                    entityRevisions[try image.concurrencyIdentity] = image.revision
+                }
+            }
         } else if case let .applyServiceRequest(mutation) = request.command {
             for image in try mutation.mutationPostImages {
                 entityRevisions[try image.identity] = image.revision
@@ -1434,6 +1457,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             try value.validate();values=try value.affectedIdentities
         case let .applyWorkResource(value):
             try value.validate();values=try value.affectedIdentities
+        case let .applyPartsStock(value):
+            try value.validate(); values = try value.affectedIdentities
         case let .applyServiceRequest(value):
             try value.validateForCanonicalWriter();values=try value.affectedIdentities
         case let .applyServiceReliability(value):
@@ -1496,6 +1521,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         if case let .applyActivityContract(value)=command{try value.validateForCanonicalMutation();return try value.concurrencyIdentities}
         if case let .applyPortableReview(value)=command{try value.validate();return try value.concurrencyIdentities}
         if case let .applyWorkResource(value)=command{try value.validate();return try value.concurrencyIdentities}
+        if case let .applyPartsStock(value)=command{try value.validate();return try value.concurrencyIdentities}
         if case let .applyServiceRequest(value)=command{try value.validateForCanonicalWriter();return try value.concurrencyIdentities}
         if case let .applyServiceReliability(value)=command{try value.validateForCanonicalWriter();return try value.concurrencyIdentities}
         return try targetIdentities(for: command)
@@ -1589,6 +1615,46 @@ extension WorkspaceWriterV1 {
         }
         _ = try PlacementPoseMutationReceiptV1(mutation: mutation, mutationReceipt: receipt)
         return receipt
+    }
+}
+
+// MARK: - C55 parts-stock sole writer
+
+extension WorkspaceWriterV1: PartsStockCanonicalWriterPortV1 {
+    func commitPartsStock(_ mutation: PartsStockMutationV1) throws -> PartsStockMutationReceiptV1 {
+        try mutation.validate()
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        if let existing = try journalStore.receipt(mutationID: mutation.mutationID) {
+            let commandDigest = try WorkspaceMutationCanonicalV1.sha256(WorkspaceCommandV1.applyPartsStock(mutation))
+            guard existing.identity.workspaceID == mutation.workspaceID,
+                  existing.commandBodySHA256 == commandDigest else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            return try PartsStockMutationReceiptV1(
+                workspaceID: mutation.workspaceID,
+                mutationID: mutation.mutationID,
+                mutationSHA256: try PartsStockCanonicalCodecV1.sha256(mutation),
+                committedAt: existing.committedAt
+            )
+        }
+        let current = try currentRevision()
+        let targets = try mutation.concurrencyIdentities
+        let known = Dictionary(uniqueKeysWithValues: current.entityRevisions.map { ($0.identity, $0.revision) })
+        guard mutation.workspaceID == current.workspaceID,
+              try targets.allSatisfy({ known[$0, default: 0] == (try mutation.expectedRevision(for: $0)) }) else {
+            throw WorkspaceMutationFailureV1.staleWorkspaceRevision
+        }
+        let expected = try WorkspaceExpectedRevisionV1(
+            workspaceID: current.workspaceID,
+            generationID: current.generationID,
+            writerInstanceID: current.writerInstanceID,
+            workspaceRevision: current.revision,
+            entityRevisions: try targets.map { .init(identity: $0, revision: try mutation.expectedRevision(for: $0)) }
+        )
+        _ = try execute(.init(mutationID: mutation.mutationID, expectedRevision: expected, command: .applyPartsStock(mutation)))
+        guard let receipt = try journalStore.receipt(mutationID: mutation.mutationID) else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        return try PartsStockMutationReceiptV1(workspaceID: mutation.workspaceID, mutationID: mutation.mutationID, mutationSHA256: try PartsStockCanonicalCodecV1.sha256(mutation), committedAt: receipt.committedAt)
     }
 }
 

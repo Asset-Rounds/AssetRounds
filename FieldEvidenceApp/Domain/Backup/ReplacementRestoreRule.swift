@@ -473,7 +473,8 @@ private extension ReplacementRestoreRule {
             activityContracts: records.activityContracts,
             serviceRequests: records.serviceRequests,
             serviceRequestDispositionEvents: records.serviceRequestDispositionEvents,
-            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents
+            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents,
+            partsStockSnapshot: records.partsStockSnapshot
         )
         guard validReferences(result), noDeletedLiveIdentity(result, ledger: ledger),
               validLocationReferences(result, ledger: ledger) else {
@@ -528,7 +529,8 @@ private extension ReplacementRestoreRule {
             activityContracts: records.activityContracts,
             serviceRequests: records.serviceRequests,
             serviceRequestDispositionEvents: records.serviceRequestDispositionEvents,
-            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents
+            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents,
+            partsStockSnapshot: records.partsStockSnapshot
         )
     }
 
@@ -581,7 +583,8 @@ private extension ReplacementRestoreRule {
             activityContracts: records.activityContracts,
             serviceRequests: records.serviceRequests,
             serviceRequestDispositionEvents: records.serviceRequestDispositionEvents,
-            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents
+            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents,
+            partsStockSnapshot: records.partsStockSnapshot
         )
     }
 
@@ -625,7 +628,8 @@ private extension ReplacementRestoreRule {
             activityContracts: records.activityContracts,
             serviceRequests: records.serviceRequests,
             serviceRequestDispositionEvents: records.serviceRequestDispositionEvents,
-            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents
+            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents,
+            partsStockSnapshot: records.partsStockSnapshot
         )
     }
 
@@ -1331,7 +1335,7 @@ enum C52ServiceRequestReplacementRestorePolicyV1 {
             throw ReplacementRestoreRuleError.invalidAuthority
         }
         do {
-            if records.recordsSchemaVersion == C53ServiceReliabilityBackupEnrollmentV1.recordsSchemaVersion {
+            if records.recordsSchemaVersion >= C53ServiceReliabilityBackupEnrollmentV1.recordsSchemaVersion {
                 try C53ServiceReliabilityBackupEnrollmentV1.validate(
                     records: records,
                     workspaceID: targetWorkspaceID
@@ -1342,6 +1346,10 @@ enum C52ServiceRequestReplacementRestorePolicyV1 {
                     workspaceID: targetWorkspaceID
                 )
             }
+            try C55PartsStockBackupEnrollmentV1.validate(
+                records,
+                workspaceID: targetWorkspaceID.map { WorkspaceID(rawValue: $0) }
+            )
         } catch {
             throw ReplacementRestoreRuleError.invalidAuthority
         }
@@ -1420,8 +1428,8 @@ enum C53ServiceReliabilityReplacementRestoreBoundaryV1 {
               cloneForkRequiresExplicitWorkspaceRebind,
               !cloneForkAutomaticallyActivatesSourceRows,
               derivedProjectionsAreRebuilt,
-              current.recordsSchemaVersion <= recordsSchemaVersion,
-              incoming.recordsSchemaVersion <= recordsSchemaVersion else {
+              current.recordsSchemaVersion <= C55PartsStockBackupEnrollmentV1.recordsSchemaVersion,
+              incoming.recordsSchemaVersion <= C55PartsStockBackupEnrollmentV1.recordsSchemaVersion else {
             throw ReplacementRestoreRuleError.invalidAuthority
         }
         do {

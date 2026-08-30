@@ -1,0 +1,1057 @@
+{
+  "$defs": {
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "allowedPathCount": {
+          "const": 177
+        },
+        "appBaseHead": {
+          "$ref": "#/$defs/digest"
+        },
+        "appBaseTree": {
+          "$ref": "#/$defs/digest"
+        },
+        "attemptID": {
+          "const": 1
+        },
+        "authorizedOverlapCount": {
+          "const": 3915
+        },
+        "cardID": {
+          "const": "V23-P03-C55"
+        },
+        "contextDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "coordinationCASSequence": {
+          "const": 364
+        },
+        "coordinationHead": {
+          "$ref": "#/$defs/digest"
+        },
+        "coordinationLedgerDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "coordinationProjectionDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "coordinationTree": {
+          "$ref": "#/$defs/digest"
+        },
+        "directPrerequisiteFences": {
+          "additionalProperties": false,
+          "properties": {
+            "V23-P03-C27": {
+              "const": "9864db2f420a45c4497326da79d41f27cbfb187c0fb62c3fca96c051694adc0a"
+            },
+            "V23-P03-C49": {
+              "const": "1f98c92b714a1e4dbecc689efa070f53bbd679fbbc681e5f37da49bdda53d431"
+            }
+          },
+          "required": [
+            "V23-P03-C27",
+            "V23-P03-C49"
+          ],
+          "type": "object"
+        },
+        "dossierSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dossierUTF8Length": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "existingPathCount": {
+          "const": 163
+        },
+        "finalHashesSealed": {
+          "const": true
+        },
+        "hydrationTransitionDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "inheritedV21PayloadPresent": {
+          "const": false
+        },
+        "newPathCount": {
+          "const": 14
+        },
+        "pathFenceDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "priorFenceCount": {
+          "const": 84
+        },
+        "priorOwnedPathCount": {
+          "const": 1370
+        },
+        "provisionalPrerequisiteDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "registerOrdinal": {
+          "const": 86
+        },
+        "registerRowSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "registerRowUTF8Length": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "registerSectionSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "registerSectionUTF8Length": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "s10ReservationOverlapCount": {
+          "const": 0
+        },
+        "s10ReservedPathCount": {
+          "const": 86
+        },
+        "title": {
+          "type": "string"
+        },
+        "unauthorizedOverlapCount": {
+          "const": 0
+        }
+      },
+      "required": [
+        "cardID",
+        "attemptID",
+        "registerOrdinal",
+        "appBaseHead",
+        "appBaseTree",
+        "coordinationHead",
+        "coordinationTree",
+        "coordinationCASSequence",
+        "contextDigest",
+        "pathFenceDigest",
+        "provisionalPrerequisiteDigest",
+        "hydrationTransitionDigest",
+        "coordinationLedgerDigest",
+        "coordinationProjectionDigest",
+        "allowedPathCount",
+        "existingPathCount",
+        "newPathCount",
+        "authorizedOverlapCount",
+        "unauthorizedOverlapCount",
+        "s10ReservationOverlapCount",
+        "s10ReservedPathCount",
+        "priorFenceCount",
+        "priorOwnedPathCount",
+        "directPrerequisiteFences",
+        "finalHashesSealed"
+      ],
+      "type": "object"
+    },
+    "digest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "semantics": {
+      "additionalProperties": false,
+      "properties": {
+        "activeRev1CloneFork": {
+          "const": true
+        },
+        "adjustmentRequiresKnownBalance": {
+          "const": true
+        },
+        "appendOnlyMovements": {
+          "const": [
+            "OPENING_COUNT",
+            "PHYSICAL_COUNT",
+            "ADJUSTMENT_INCREASE",
+            "ADJUSTMENT_DECREASE",
+            "USE_ON_WORK",
+            "RETURN_AGAINST_USE",
+            "TRANSFER_OUT",
+            "TRANSFER_IN",
+            "REVERSE_USE"
+          ]
+        },
+        "atomicSuccessor": {
+          "additionalProperties": false,
+          "properties": {
+            "effectBeforeReceiptRecovery": {
+              "const": true
+            },
+            "oneCanonicalWriterTransaction": {
+              "const": true
+            },
+            "retryIsIdempotent": {
+              "const": true
+            },
+            "sameMutationIDAndExpectedRevision": {
+              "const": true
+            },
+            "stockAndWorkResourceUpdatedTogether": {
+              "const": true
+            },
+            "stockUseReversalIdentityBound": {
+              "const": true
+            }
+          },
+          "required": [
+            "stockAndWorkResourceUpdatedTogether",
+            "sameMutationIDAndExpectedRevision",
+            "oneCanonicalWriterTransaction",
+            "effectBeforeReceiptRecovery",
+            "stockUseReversalIdentityBound",
+            "retryIsIdempotent"
+          ],
+          "type": "object"
+        },
+        "backupPropagation": {
+          "additionalProperties": false,
+          "properties": {
+            "canonicalSnapshotType": {
+              "const": "PartsStockBackupSnapshotV1"
+            },
+            "derivedBalanceAndSearchAreRebuilt": {
+              "const": true
+            },
+            "durableFamilyCount": {
+              "const": 7
+            },
+            "exactTopology": {
+              "additionalProperties": false,
+              "properties": {
+                "abandonmentDispositions": {
+                  "const": "abandonments"
+                },
+                "movementEvents": {
+                  "const": "movements"
+                },
+                "returnReceipts": {
+                  "const": "returns"
+                },
+                "transfer": {
+                  "const": "paired_transfer_out_and_in_movements"
+                },
+                "useReceipts": {
+                  "const": "uses"
+                },
+                "useReversalReceipts": {
+                  "const": "reversals"
+                }
+              },
+              "required": [
+                "movementEvents",
+                "transfer",
+                "useReceipts",
+                "useReversalReceipts",
+                "returnReceipts",
+                "abandonmentDispositions"
+              ],
+              "type": "object"
+            },
+            "materializeRestoreStaging": {
+              "const": true
+            },
+            "persistentSchemaVersion": {
+              "const": 41
+            },
+            "preparedRestoreSnapshot": {
+              "const": true
+            },
+            "recordEnvelopeField": {
+              "const": "partsStockSnapshot"
+            },
+            "recordsSchemaVersion": {
+              "const": 40
+            },
+            "restoresSevenFamiliesAtomically": {
+              "const": true
+            },
+            "usesIncumbentLifecyclePort": {
+              "const": true
+            }
+          },
+          "required": [
+            "persistentSchemaVersion",
+            "recordsSchemaVersion",
+            "durableFamilyCount",
+            "canonicalSnapshotType",
+            "recordEnvelopeField",
+            "restoresSevenFamiliesAtomically",
+            "usesIncumbentLifecyclePort",
+            "derivedBalanceAndSearchAreRebuilt",
+            "preparedRestoreSnapshot",
+            "materializeRestoreStaging",
+            "exactTopology"
+          ],
+          "type": "object"
+        },
+        "balanceStates": {
+          "const": [
+            "UNKNOWN",
+            "KNOWN"
+          ]
+        },
+        "binLabelMaximumUTF8Bytes": {
+          "const": 40
+        },
+        "canonicalUnitRule": {
+          "const": "UPPERCASE_CLOSED_CODE_NO_FREEFORM_ALIAS"
+        },
+        "canonicalUnits": {
+          "const": [
+            "EACH",
+            "MILLIMETER",
+            "CENTIMETER",
+            "METER",
+            "INCH",
+            "FOOT",
+            "GRAM",
+            "KILOGRAM",
+            "OUNCE",
+            "POUND",
+            "MILLILITER",
+            "LITER",
+            "FLUID_OUNCE",
+            "GALLON"
+          ]
+        },
+        "customerSafeReport": {
+          "type": "object"
+        },
+        "dualPhysicalAndStreamPostImages": {
+          "const": true
+        },
+        "excludedCapabilities": {
+          "const": [
+            "VENDORS",
+            "PROCUREMENT",
+            "PURCHASING",
+            "PURCHASE_ORDERS",
+            "VALUATION",
+            "TAX",
+            "INVOICING",
+            "SERIALIZED_LOTS",
+            "RESERVATIONS",
+            "CLOUD_SYNC",
+            "REPLENISHMENT_AUTOMATION"
+          ]
+        },
+        "historyRenamesDoNotRewrite": {
+          "const": true
+        },
+        "knownOnlyMovementKinds": {
+          "const": [
+            "ADJUSTMENT_INCREASE",
+            "ADJUSTMENT_DECREASE",
+            "USE_ON_WORK",
+            "TRANSFER_OUT",
+            "TRANSFER_IN"
+          ]
+        },
+        "knownOnlyMutations": {
+          "const": [
+            "ADJUSTMENT",
+            "USE",
+            "TRANSFER"
+          ]
+        },
+        "locationsAreNotSites": {
+          "const": true
+        },
+        "materializeBeforeInsert": {
+          "const": true
+        },
+        "nativeProjectedWorkspaceClosure": {
+          "const": true
+        },
+        "nilStreamExternalProjection": {
+          "const": true
+        },
+        "openingAndCountEstablishKnownBalance": {
+          "const": true
+        },
+        "ordinaryRetirement": {
+          "additionalProperties": false,
+          "properties": {
+            "archivedPartSuccessorRequired": {
+              "const": true
+            },
+            "completeKnownZeroProjectionRequired": {
+              "const": true
+            },
+            "operation": {
+              "const": "RETIRE_PART"
+            },
+            "receiptType": {
+              "const": "StockPartRetirementReceiptV1"
+            },
+            "revisePartCannotArchive": {
+              "const": true
+            },
+            "verifiedProjectionNonempty": {
+              "const": true
+            },
+            "zeroOnly": {
+              "const": true
+            }
+          },
+          "required": [
+            "receiptType",
+            "operation",
+            "completeKnownZeroProjectionRequired",
+            "zeroOnly",
+            "verifiedProjectionNonempty",
+            "archivedPartSuccessorRequired",
+            "revisePartCannotArchive"
+          ],
+          "type": "object"
+        },
+        "partLocationOnlyExternalBaselines": {
+          "const": true
+        },
+        "partsAreNotAssets": {
+          "const": true
+        },
+        "persistenceLifecycleSearchReportBackup": {
+          "type": "object"
+        },
+        "persistenceRowCount": {
+          "const": 7
+        },
+        "persistenceRows": {
+          "const": [
+            "LocalPartDefinitionRowV1",
+            "StockStorageLocationRowV1",
+            "StockMovementEventRowV1",
+            "StockUseReceiptRowV1",
+            "StockReturnReceiptRowV1",
+            "StockUseReversalReceiptRowV1",
+            "AbandonUnverifiedStockRowV1"
+          ]
+        },
+        "quantityRepresentation": {
+          "const": "EXACT_DECIMAL_MANTISSA_AND_SCALE_NO_FLOATING_POINT"
+        },
+        "restoreIdentity": {
+          "additionalProperties": false,
+          "properties": {
+            "cloneForkDisposition": {
+              "const": "destination"
+            },
+            "cloneForkDropsNonCatalogStock": {
+              "const": true
+            },
+            "freshC55Disposition": {
+              "const": "destinationPreservingPartsStock"
+            },
+            "freshC55EmptyInstallOrReplaceExisting": {
+              "const": true
+            },
+            "freshC55ExternalProjectionOnlyPartAndLocation": {
+              "const": true
+            },
+            "freshC55PreservesEveryTerminalRow": {
+              "const": true
+            },
+            "freshC55ResetsSequence": {
+              "const": true
+            },
+            "sameReplicaReplaceDisposition": {
+              "const": "preserve"
+            }
+          },
+          "required": [
+            "freshC55Disposition",
+            "freshC55EmptyInstallOrReplaceExisting",
+            "freshC55ResetsSequence",
+            "freshC55PreservesEveryTerminalRow",
+            "freshC55ExternalProjectionOnlyPartAndLocation",
+            "cloneForkDisposition",
+            "cloneForkDropsNonCatalogStock",
+            "sameReplicaReplaceDisposition"
+          ],
+          "type": "object"
+        },
+        "returnContract": {
+          "additionalProperties": false,
+          "properties": {
+            "casProtectedOutstandingFrontier": {
+              "const": true
+            },
+            "exactPriorUseRequired": {
+              "const": true
+            },
+            "exactWorkResourcePredecessorRequired": {
+              "const": true
+            },
+            "firstReturnRequiresNilPredecessor": {
+              "const": true
+            },
+            "freeFormCorrectionIsAdjustment": {
+              "const": true
+            },
+            "frontierResolutionUsesPriorAndResultingRemaining": {
+              "const": true
+            },
+            "fullSourceUseIncluded": {
+              "const": true
+            },
+            "knownDestinationRequired": {
+              "const": true
+            },
+            "partialDoubleAndOverflowReturnRejected": {
+              "const": true
+            },
+            "positiveQuantityRequired": {
+              "const": true
+            },
+            "reportingOverflowRejected": {
+              "const": true
+            },
+            "samePartUnitAndWorkLineageRequired": {
+              "const": true
+            },
+            "sourceUse": {
+              "const": "StockUseOnWorkReceiptV1"
+            },
+            "sourceUseAndWorkResourcePredecessorBound": {
+              "const": true
+            },
+            "subsequentReturnRequiresPredecessorFrontier": {
+              "const": true
+            },
+            "type": {
+              "const": "StockReturnAgainstUseReceiptV1"
+            },
+            "workResourcePredecessor": {
+              "const": "WorkResourceEntryV1"
+            },
+            "workResourcePredecessorIncluded": {
+              "const": true
+            }
+          },
+          "required": [
+            "type",
+            "exactPriorUseRequired",
+            "fullSourceUseIncluded",
+            "sourceUse",
+            "workResourcePredecessorIncluded",
+            "workResourcePredecessor",
+            "sourceUseAndWorkResourcePredecessorBound",
+            "samePartUnitAndWorkLineageRequired",
+            "knownDestinationRequired",
+            "positiveQuantityRequired",
+            "casProtectedOutstandingFrontier",
+            "partialDoubleAndOverflowReturnRejected",
+            "reportingOverflowRejected",
+            "exactWorkResourcePredecessorRequired",
+            "firstReturnRequiresNilPredecessor",
+            "subsequentReturnRequiresPredecessorFrontier",
+            "frontierResolutionUsesPriorAndResultingRemaining",
+            "freeFormCorrectionIsAdjustment"
+          ],
+          "type": "object"
+        },
+        "securityAudit": {
+          "additionalProperties": false,
+          "properties": {
+            "activeRev1CloneFork": {
+              "const": true
+            },
+            "c49SuccessorSchemaAdmissionAndWorkClosure": {
+              "const": true
+            },
+            "cloneForkDefinitionsOnlyJournalQuarantine": {
+              "const": true
+            },
+            "contiguousMovementStreamReplayAndGenesis": {
+              "const": true
+            },
+            "decodedPredecessorCatalogBinding": {
+              "const": true
+            },
+            "dualPhysicalAndStreamPostImages": {
+              "const": true
+            },
+            "exactAbandonmentRetirementReplayBinding": {
+              "const": true
+            },
+            "exactBackupTransferUseReversalReturnTopology": {
+              "const": true
+            },
+            "exactC55ExpectedIdentityMembership": {
+              "const": true
+            },
+            "exactPartsStockSnapshotJournalClosure": {
+              "const": true
+            },
+            "exactReplayDigestComparison": {
+              "const": true
+            },
+            "firstAndSubsequentReturnFrontierResolution": {
+              "const": true
+            },
+            "integerNSNumberNoFractionalTruncation": {
+              "const": true
+            },
+            "materializeBeforeInsert": {
+              "const": true
+            },
+            "mixedHistoryRetainedReceiptProjection": {
+              "const": true
+            },
+            "nativeProjectedWorkspaceClosure": {
+              "const": true
+            },
+            "nilStreamExternalProjection": {
+              "const": true
+            },
+            "overflowSafeCatalogAndBalanceReplay": {
+              "const": true
+            },
+            "partLocationOnlyExternalBaselines": {
+              "const": true
+            },
+            "records40Persistent41SystematicAdmission": {
+              "const": true
+            },
+            "retirementCompletenessThrows": {
+              "const": true
+            },
+            "singleCloneForkPreparation": {
+              "const": true
+            },
+            "stableMutationPostImageOrdering": {
+              "const": true
+            },
+            "statefulRevisionMapReplayTerminalEquality": {
+              "const": true
+            },
+            "terminalIdentityBoundIncludesWorkResourceSuccessors": {
+              "const": true
+            },
+            "unitHistoryAndExplicitMaterialUnitBinding": {
+              "const": true
+            },
+            "virtualPartLocationStockBalanceStreamCASSeparateFromLocationCatalog": {
+              "const": true
+            }
+          },
+          "required": [
+            "virtualPartLocationStockBalanceStreamCASSeparateFromLocationCatalog",
+            "dualPhysicalAndStreamPostImages",
+            "nativeProjectedWorkspaceClosure",
+            "partLocationOnlyExternalBaselines",
+            "activeRev1CloneFork",
+            "materializeBeforeInsert",
+            "nilStreamExternalProjection",
+            "terminalIdentityBoundIncludesWorkResourceSuccessors",
+            "contiguousMovementStreamReplayAndGenesis",
+            "stableMutationPostImageOrdering",
+            "exactC55ExpectedIdentityMembership",
+            "statefulRevisionMapReplayTerminalEquality",
+            "cloneForkDefinitionsOnlyJournalQuarantine",
+            "mixedHistoryRetainedReceiptProjection",
+            "overflowSafeCatalogAndBalanceReplay",
+            "exactReplayDigestComparison",
+            "firstAndSubsequentReturnFrontierResolution",
+            "unitHistoryAndExplicitMaterialUnitBinding",
+            "retirementCompletenessThrows",
+            "decodedPredecessorCatalogBinding",
+            "exactBackupTransferUseReversalReturnTopology",
+            "exactPartsStockSnapshotJournalClosure",
+            "c49SuccessorSchemaAdmissionAndWorkClosure",
+            "exactAbandonmentRetirementReplayBinding",
+            "records40Persistent41SystematicAdmission",
+            "integerNSNumberNoFractionalTruncation",
+            "singleCloneForkPreparation"
+          ],
+          "type": "object"
+        },
+        "selectors": {
+          "const": [
+            "V23-P03-C55-G01",
+            "V23-P03-C55-A01",
+            "V23-P03-C55-H01",
+            "V23-P03-C55-I01",
+            "V23-P03-C55-R01"
+          ]
+        },
+        "snapshotRowCap": {
+          "const": 100000
+        },
+        "storageLabelKinds": {
+          "const": [
+            "SHOP",
+            "VEHICLE",
+            "KIT",
+            "OTHER"
+          ]
+        },
+        "storageLabelMaximumUTF8Bytes": {
+          "const": 80
+        },
+        "terminalIdentityBoundIncludesWorkResourceSuccessors": {
+          "const": true
+        },
+        "terminalIdentityCap": {
+          "const": 200000
+        },
+        "transferRequiresKnownSourceAndDestination": {
+          "const": true
+        },
+        "unknownIsNeverZero": {
+          "const": true
+        },
+        "unknownStockAbandonment": {
+          "additionalProperties": false,
+          "properties": {
+            "archivedPartSuccessor": {
+              "const": "LOCAL_PART_ARCHIVE_SUCCESSOR"
+            },
+            "archivedPartSuccessorRequired": {
+              "const": true
+            },
+            "auditReceiptRequired": {
+              "const": true
+            },
+            "dispositions": {
+              "const": "IMMUTABLE_UNKNOWN_QUANTITY_DISPOSITIONS"
+            },
+            "dispositionsArrayRequired": {
+              "const": true
+            },
+            "immutableUnknownQuantityDisposition": {
+              "const": true
+            },
+            "neverAssertsZeroOrLoss": {
+              "const": true
+            },
+            "operation": {
+              "const": "ABANDON_UNVERIFIED_STOCK"
+            },
+            "ordinaryRetirementRequiresKnownZero": {
+              "const": true
+            },
+            "receiptType": {
+              "const": "StockAbandonmentReceiptV1"
+            }
+          },
+          "required": [
+            "operation",
+            "receiptType",
+            "auditReceiptRequired",
+            "dispositionsArrayRequired",
+            "archivedPartSuccessorRequired",
+            "dispositions",
+            "archivedPartSuccessor",
+            "immutableUnknownQuantityDisposition",
+            "neverAssertsZeroOrLoss",
+            "ordinaryRetirementRequiresKnownZero"
+          ],
+          "type": "object"
+        },
+        "unknownUntilOpeningOrCount": {
+          "const": true
+        },
+        "useRequiresSufficientKnownSource": {
+          "const": true
+        }
+      },
+      "required": [
+        "persistenceRowCount",
+        "persistenceRows",
+        "snapshotRowCap",
+        "terminalIdentityCap",
+        "terminalIdentityBoundIncludesWorkResourceSuccessors",
+        "dualPhysicalAndStreamPostImages",
+        "nativeProjectedWorkspaceClosure",
+        "partLocationOnlyExternalBaselines",
+        "activeRev1CloneFork",
+        "materializeBeforeInsert",
+        "nilStreamExternalProjection",
+        "canonicalUnits",
+        "canonicalUnitRule",
+        "quantityRepresentation",
+        "storageLabelKinds",
+        "storageLabelMaximumUTF8Bytes",
+        "binLabelMaximumUTF8Bytes",
+        "partsAreNotAssets",
+        "locationsAreNotSites",
+        "balanceStates",
+        "unknownUntilOpeningOrCount",
+        "unknownIsNeverZero",
+        "knownOnlyMutations",
+        "knownOnlyMovementKinds",
+        "openingAndCountEstablishKnownBalance",
+        "adjustmentRequiresKnownBalance",
+        "useRequiresSufficientKnownSource",
+        "transferRequiresKnownSourceAndDestination",
+        "returnContract",
+        "atomicSuccessor",
+        "restoreIdentity",
+        "unknownStockAbandonment",
+        "ordinaryRetirement",
+        "appendOnlyMovements",
+        "historyRenamesDoNotRewrite",
+        "excludedCapabilities",
+        "persistenceLifecycleSearchReportBackup",
+        "backupPropagation",
+        "securityAudit",
+        "customerSafeReport",
+        "selectors"
+      ],
+      "type": "object"
+    },
+    "sourceProjection": {
+      "additionalProperties": false,
+      "properties": {
+        "disposition": {
+          "enum": [
+            "PROVISIONAL_MISSING_SOURCE_LANES",
+            "READY_FOR_SOURCE_REPROOF"
+          ]
+        },
+        "finalHashesSealed": {
+          "const": true
+        },
+        "missingPathCount": {
+          "maximum": 6,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "missingPaths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "paths": {
+          "maxItems": 6,
+          "minItems": 6,
+          "type": "array"
+        },
+        "presentPathCount": {
+          "maximum": 6,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "presentPaths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "requiredPathCount": {
+          "const": 6
+        }
+      },
+      "required": [
+        "disposition",
+        "finalHashesSealed",
+        "missingPaths",
+        "presentPaths",
+        "requiredPathCount",
+        "presentPathCount",
+        "missingPathCount",
+        "paths"
+      ],
+      "type": "object"
+    },
+    "statusFlags": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance": {
+          "const": false
+        },
+        "activation": {
+          "const": false
+        },
+        "adoption": {
+          "const": false
+        },
+        "hosted": {
+          "const": false
+        },
+        "hostedAcceptance": {
+          "const": false
+        },
+        "native": {
+          "const": false
+        },
+        "nativeAcceptance": {
+          "const": false
+        },
+        "phase10PollingDuringParallelExecution": {
+          "const": false
+        },
+        "physicalEvidence": {
+          "const": false
+        },
+        "release": {
+          "const": false
+        }
+      },
+      "required": [
+        "activation",
+        "native",
+        "hosted",
+        "adoption",
+        "acceptance",
+        "release",
+        "nativeAcceptance",
+        "hostedAcceptance",
+        "physicalEvidence",
+        "phase10PollingDuringParallelExecution"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "urn:assetrounds:v23:p03:c55:parts-stock:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "authority": {
+      "$ref": "#/$defs/authority"
+    },
+    "cardID": {
+      "const": "V23-P03-C55"
+    },
+    "contractRefs": {
+      "const": [
+        "LocalPartDefinitionV1",
+        "StockStorageLocationV1",
+        "StockMovementEventV1",
+        "StockBalanceProjectionV1",
+        "StockTransferReceiptV1",
+        "StockUseOnWorkReceiptV1",
+        "StockUseReversalReceiptV1",
+        "StockReturnAgainstUseReceiptV1",
+        "AbandonUnverifiedStockDispositionV1",
+        "StockAbandonmentReceiptV1",
+        "StockPartRetirementReceiptV1",
+        "PartsStockMutationV1",
+        "PartsStockBackupSnapshotV1"
+      ]
+    },
+    "directPrerequisites": {
+      "const": [
+        "V23-P03-C27",
+        "V23-P03-C49"
+      ]
+    },
+    "evidenceIDs": {
+      "const": [
+        "V23-P03-C55-G01",
+        "V23-P03-C55-A01",
+        "V23-P03-C55-H01",
+        "V23-P03-C55-I01",
+        "V23-P03-C55-R01"
+      ]
+    },
+    "finalHashesSealed": {
+      "const": true
+    },
+    "journeyRefs": {
+      "const": [
+        "FJ06",
+        "FJ13"
+      ]
+    },
+    "priorPrerequisiteProof": {
+      "type": "object"
+    },
+    "provisional": {
+      "const": true
+    },
+    "s10ReservationOverlapCount": {
+      "const": 0
+    },
+    "s10ReservedPathCount": {
+      "const": 86
+    },
+    "schema": {
+      "const": "V23P03C55PartsStockContractV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "semantics": {
+      "$ref": "#/$defs/semantics"
+    },
+    "sourceLaneNote": {
+      "const": "Six source rows are audited, never synthesized, and sealed with the complete current fence input inventory."
+    },
+    "sourceProjection": {
+      "$ref": "#/$defs/sourceProjection"
+    },
+    "statusFlags": {
+      "$ref": "#/$defs/statusFlags"
+    },
+    "title": {
+      "const": "Bounded local Parts & Stock catalog, storage labels, append-only movements, work usage, transfer, and balance projection",
+      "type": "string"
+    },
+    "unsupportedClaims": {
+      "const": [
+        "VENDORS",
+        "PROCUREMENT",
+        "PURCHASING",
+        "PURCHASE_ORDERS",
+        "VALUATION",
+        "TAX",
+        "INVOICING",
+        "SERIALIZED_LOTS",
+        "RESERVATIONS",
+        "CLOUD_SYNC",
+        "REPLENISHMENT_AUTOMATION"
+      ]
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "title",
+    "authority",
+    "evidenceIDs",
+    "contractRefs",
+    "journeyRefs",
+    "directPrerequisites",
+    "semantics",
+    "sourceProjection",
+    "provisional",
+    "finalHashesSealed",
+    "priorPrerequisiteProof",
+    "unsupportedClaims",
+    "sourceLaneNote",
+    "s10ReservationOverlapCount",
+    "s10ReservedPathCount",
+    "statusFlags"
+  ],
+  "title": "V23 P03 C55 Parts & Stock Contract",
+  "type": "object"
+}

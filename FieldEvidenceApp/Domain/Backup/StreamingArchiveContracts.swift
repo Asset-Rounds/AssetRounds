@@ -10,7 +10,7 @@ enum C50IncumbentFileExchangeStreamingArchiveBoundaryV1 {
 
     static func validate(recordsSchemaVersion: Int) -> Bool {
         excludesSceneRouteState
-            && recordsSchemaVersion <= C50IncumbentFileExchangeBackupBoundaryV1.recordsSchemaVersion
+            && recordsSchemaVersion <= C55PartsStockBackupEnrollmentV1.recordsSchemaVersion
             && adapterSourceMemberCount == 0
             && adapterQuarantineMemberCount == 0
             && profileSelectionMemberCount == 0
@@ -657,6 +657,26 @@ enum C52ServiceRequestStreamingArchiveBoundaryV1 {
         } catch {
             throw StreamingArchiveFailureV1.invalidArchive
         }
+    }
+}
+
+/// C55 streams the single canonical snapshot in records.json.  No balance
+/// projection, catalog sidecar, or operational scratch archive member exists.
+enum C55PartsStockStreamingArchiveBoundaryV1 {
+    static let recordsSchemaVersion = C55PartsStockBackupEnrollmentV1.recordsSchemaVersion
+    static let durableFamilyCount = C55PartsStockBackupEnrollmentV1.durableFamilyCount
+    static let canonicalSnapshotSharesRecordsEnvelope = true
+    static let parallelArchiveMemberExists = false
+
+    static func validate(records: V4BackupRecordsV1) throws {
+        guard records.recordsSchemaVersion == recordsSchemaVersion,
+              durableFamilyCount == 7,
+              canonicalSnapshotSharesRecordsEnvelope,
+              !parallelArchiveMemberExists else {
+            throw StreamingArchiveFailureV1.invalidArchive
+        }
+        do { try C55PartsStockBackupEnrollmentV1.validate(records) }
+        catch { throw StreamingArchiveFailureV1.invalidArchive }
     }
 }
 

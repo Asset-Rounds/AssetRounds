@@ -71,7 +71,9 @@ enum C31LightingBackupImportPolicyV1 {
                 || (manifest.persistentSchemaVersion == 36 && records.recordsSchemaVersion == 35)
                 || (manifest.persistentSchemaVersion == 37 && records.recordsSchemaVersion == 36)
                 || (manifest.persistentSchemaVersion == 38 && records.recordsSchemaVersion == 37)
-                || (manifest.persistentSchemaVersion == 39 && records.recordsSchemaVersion == 38)) else {
+                || (manifest.persistentSchemaVersion == 39 && records.recordsSchemaVersion == 38)
+                || (manifest.persistentSchemaVersion == 40 && records.recordsSchemaVersion == 39)
+                || (manifest.persistentSchemaVersion == 41 && records.recordsSchemaVersion == 40)) else {
             throw BackupImportServiceError.invalidGeneration
         }
         do {
@@ -615,6 +617,7 @@ private extension BackupImportService {
             try C49WorkResourceBackupImportPolicyV1.validate(temporaryValue)
             try C52ServiceRequestBackupImportServiceBoundaryV1.validate(temporaryValue)
             try C53ServiceReliabilityBackupImportServiceBoundaryV1.validate(temporaryValue)
+            try C55PartsStockBackupImportServiceBoundaryV1.validate(temporaryValue)
             guard temporaryValue.manifest == source.manifest,
                   try BackupPackageAnchoredFile.rootIdentity(at: sourceURL)
                     == source.rootIdentity else {
@@ -657,6 +660,7 @@ private extension BackupImportService {
             try C49WorkResourceBackupImportPolicyV1.validate(value)
             try C52ServiceRequestBackupImportServiceBoundaryV1.validate(value)
             try C53ServiceReliabilityBackupImportServiceBoundaryV1.validate(value)
+            try C55PartsStockBackupImportServiceBoundaryV1.validate(value)
             guard value.manifest == source.manifest else {
                 throw BackupImportServiceError.invalidSource
             }
@@ -772,6 +776,7 @@ private extension BackupImportService {
             try C49WorkResourceBackupImportPolicyV1.validate(temporaryValue)
             try C52ServiceRequestBackupImportServiceBoundaryV1.validate(temporaryValue)
             try C53ServiceReliabilityBackupImportServiceBoundaryV1.validate(temporaryValue)
+            try C55PartsStockBackupImportServiceBoundaryV1.validate(temporaryValue)
             let indexByPath = Dictionary(
                 uniqueKeysWithValues: extraction.index.entries.map { ($0.path, $0) }
             )
@@ -817,6 +822,7 @@ private extension BackupImportService {
             try C49WorkResourceBackupImportPolicyV1.validate(value)
             try C52ServiceRequestBackupImportServiceBoundaryV1.validate(value)
             try C53ServiceReliabilityBackupImportServiceBoundaryV1.validate(value)
+            try C55PartsStockBackupImportServiceBoundaryV1.validate(value)
             guard value.manifest == temporaryValue.manifest,
                   value.records == temporaryValue.records,
                   value.members.keys == temporaryValue.members.keys else {
@@ -1047,6 +1053,8 @@ private extension BackupImportService {
         case (4, 40, 39):
             schemaPairIsValid = (try? AssetServiceReliabilityPersistenceEnrollmentV1.validate()) != nil
                 && C53ServiceReliabilityBackupImportServiceBoundaryV1.recordsSchemaVersion == 39
+        case (4, 41, 40):
+            schemaPairIsValid = (try? C55PartsStockBackupImportBoundaryV1.validate(records)) != nil
         default:
             schemaPairIsValid = false
         }
@@ -1597,8 +1605,10 @@ enum C49WorkResourceBackupImportPolicyV1 {
             }
             return
         }
-        guard records.recordsSchemaVersion == C49BackupEnrollmentV1.recordsSchemaVersion,
-              persistentSchemaVersion == C49WorkResourcePersistenceBoundaryV1.persistentSchemaVersion else {
+        guard (C49BackupEnrollmentV1.recordsSchemaVersion...
+                C55PartsStockBackupEnrollmentV1.recordsSchemaVersion)
+                .contains(records.recordsSchemaVersion),
+              persistentSchemaVersion == records.recordsSchemaVersion + 1 else {
             throw BackupImportServiceError.invalidGeneration
         }
         do {
@@ -1619,28 +1629,28 @@ enum C52ServiceRequestBackupImportServiceBoundaryV1 {
     static func validate(_ package: ValidatedV4BackupPackageV1) throws {
         let persistent=package.manifest.source.persistentSchemaVersion
         let records=package.records
-        if persistent == C53ServiceReliabilityBackupImportServiceBoundaryV1.persistentSchemaVersion {
-            guard records.recordsSchemaVersion == C53ServiceReliabilityBackupImportServiceBoundaryV1.recordsSchemaVersion else {
-                throw BackupImportServiceError.invalidGeneration
-            }
-            return
-        }
         guard records.recordsSchemaVersion >= recordsSchemaVersion || persistent >= 39 else {
             try C52ServiceRequestBackupDecodingBoundaryV1.validate(records)
             return
         }
-        guard persistent == 39,records.recordsSchemaVersion == recordsSchemaVersion,
+        guard persistent == records.recordsSchemaVersion + 1,
+              (recordsSchemaVersion...C55PartsStockBackupEnrollmentV1.recordsSchemaVersion)
+                .contains(records.recordsSchemaVersion),
               importsCanonicalHistoryThroughRestoreAuthority,
               !importedOutstandingCapabilitiesRemainValid,
               importedDuplicateProjectionIsRebuilt else {
             throw BackupImportServiceError.invalidGeneration
         }
         do {
-            try C52ServiceRequestBackupImportBoundaryV1.validate(
-                persistent: persistent,
-                records: records.recordsSchemaVersion,
-                backup: records
-            )
+            if records.recordsSchemaVersion == recordsSchemaVersion {
+                try C52ServiceRequestBackupImportBoundaryV1.validate(
+                    persistent: persistent,
+                    records: records.recordsSchemaVersion,
+                    backup: records
+                )
+            } else {
+                try C52ServiceRequestBackupDecodingBoundaryV1.validate(records)
+            }
         }
         catch { throw BackupImportServiceError.invalidGeneration }
     }
@@ -1662,8 +1672,9 @@ enum C53ServiceReliabilityBackupImportServiceBoundaryV1 {
             try C53ServiceReliabilityBackupEnrollmentV1.validate(records: records)
             return
         }
-        guard persistent == persistentSchemaVersion,
-              records.recordsSchemaVersion == recordsSchemaVersion,
+        guard persistent == records.recordsSchemaVersion + 1,
+              (recordsSchemaVersion...C55PartsStockBackupEnrollmentV1.recordsSchemaVersion)
+                .contains(records.recordsSchemaVersion),
               importsAllSevenSourceFamilies,
               validatesCanonicalHistoryBeforeMaterialization,
               preservesIdentityEpochs,
@@ -1676,6 +1687,33 @@ enum C53ServiceReliabilityBackupImportServiceBoundaryV1 {
             try C53ServiceReliabilityBackupEnrollmentV1.validate(
                 records: records,
                 workspaceID: package.manifest.source.workspaceID
+            )
+        } catch {
+            throw BackupImportServiceError.invalidGeneration
+        }
+    }
+}
+
+enum C55PartsStockBackupImportServiceBoundaryV1 {
+    static let persistentSchemaVersion = C55PartsStockBackupImportBoundaryV1.persistentSchemaVersion
+    static let recordsSchemaVersion = C55PartsStockBackupImportBoundaryV1.recordsSchemaVersion
+    static let acceptsParallelStore = false
+
+    static func validate(_ package: ValidatedV4BackupPackageV1) throws {
+        guard package.records.recordsSchemaVersion >= recordsSchemaVersion
+                || package.manifest.source.persistentSchemaVersion >= persistentSchemaVersion else {
+            try C55PartsStockBackupEnrollmentV1.validate(package.records)
+            return
+        }
+        guard package.records.recordsSchemaVersion == recordsSchemaVersion,
+              package.manifest.source.persistentSchemaVersion == persistentSchemaVersion,
+              !acceptsParallelStore else {
+            throw BackupImportServiceError.invalidGeneration
+        }
+        do {
+            try C55PartsStockBackupImportBoundaryV1.validate(
+                package.records,
+                workspaceID: package.manifest.source.workspaceID.map(WorkspaceID.init(rawValue:))
             )
         } catch {
             throw BackupImportServiceError.invalidGeneration

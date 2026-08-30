@@ -124,10 +124,11 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
     static let v37PersistentModelNames=["ManualWorkResourceRecordRow"]
     static let v39PersistentModelNames=["ServiceRequestDispositionEventRow","ServiceRequestRecordRow","ServiceRequestWorkLinkEventRow"]
     static let v40PersistentModelNames=["AssetServiceIncidentRow","ServiceImpactSegmentRow","ServiceCauseAssertionRow","ServiceRemedyAssertionRow","ServiceRepairIntervalRow","ServiceRestorationAssertionRow","QualifiedServiceExposureRow"]
+    static let v41PersistentModelNames=["LocalPartDefinitionRowV1","StockStorageLocationRowV1","StockMovementEventRowV1","StockUseReceiptRowV1","StockUseReversalReceiptRowV1","StockReturnReceiptRowV1","AbandonUnverifiedStockRowV1"]
     static let activePersistentModelNames =
         (persistentModelNames + v6PersistentModelNames + v7PersistentModelNames
             + v8PersistentModelNames + v9PersistentModelNames + v10PersistentModelNames
-            + v11PersistentModelNames + v12PersistentModelNames + v13PersistentModelNames + v14PersistentModelNames + v15PersistentModelNames + v16PersistentModelNames + v17PersistentModelNames + v18PersistentModelNames + v19PersistentModelNames + v20PersistentModelNames + v21PersistentModelNames + v22PersistentModelNames + v23PersistentModelNames + v24PersistentModelNames + v25PersistentModelNames + v26PersistentModelNames + v27PersistentModelNames + v28PersistentModelNames + v29PersistentModelNames + v30PersistentModelNames + v31PersistentModelNames + v32PersistentModelNames + v33PersistentModelNames + v34PersistentModelNames + v35PersistentModelNames + v36PersistentModelNames + v37PersistentModelNames + v38PersistentModelNames + v39PersistentModelNames + v40PersistentModelNames).sorted()
+            + v11PersistentModelNames + v12PersistentModelNames + v13PersistentModelNames + v14PersistentModelNames + v15PersistentModelNames + v16PersistentModelNames + v17PersistentModelNames + v18PersistentModelNames + v19PersistentModelNames + v20PersistentModelNames + v21PersistentModelNames + v22PersistentModelNames + v23PersistentModelNames + v24PersistentModelNames + v25PersistentModelNames + v26PersistentModelNames + v27PersistentModelNames + v28PersistentModelNames + v29PersistentModelNames + v30PersistentModelNames + v31PersistentModelNames + v32PersistentModelNames + v33PersistentModelNames + v34PersistentModelNames + v35PersistentModelNames + v36PersistentModelNames + v37PersistentModelNames + v38PersistentModelNames + v39PersistentModelNames + v40PersistentModelNames + v41PersistentModelNames).sorted()
 
     static let ownedFileClassNames = [
         "cache", "commerceEntitlementCache", "database", "databaseSHM", "databaseWAL",
@@ -260,7 +261,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "StoreSemanticEnvelopeV27","ExceptionCalendarReleaseV1","ScheduleOverrideEventV1","OccurrenceGenerationPlanV1","DueQueueProjectionV1","ReminderProjectionV1",
         "StoreSemanticEnvelopeV28","PlanDocumentV1","PlanRevisionV1","SpatialReferenceFrameV1","PlanPlacementV1","RebasePreviewV1","RebaseReceiptV1",
         "StoreSemanticEnvelopeV29","PoseAxisDescriptorRegistryV1","AssetPoseCurrentTipV1","CompletedPlacementPoseSnapshotV1",
-        "StoreSemanticEnvelopeV30","EvidenceContextV1","PairedObservationLinkV1","StoreSemanticEnvelopeV31","LightingTopologyV1","LightingDuePreviewV1","StoreSemanticEnvelopeV32","StoreSemanticEnvelopeV33","StoreSemanticEnvelopeV34","StoreSemanticEnvelopeV35","StoreSemanticEnvelopeV36","StoreSemanticEnvelopeV37","StoreSemanticEnvelopeV38","StoreSemanticEnvelopeV39",
+        "StoreSemanticEnvelopeV30","EvidenceContextV1","PairedObservationLinkV1","StoreSemanticEnvelopeV31","LightingTopologyV1","LightingDuePreviewV1","StoreSemanticEnvelopeV32","StoreSemanticEnvelopeV33","StoreSemanticEnvelopeV34","StoreSemanticEnvelopeV35","StoreSemanticEnvelopeV36","StoreSemanticEnvelopeV37","StoreSemanticEnvelopeV38","StoreSemanticEnvelopeV39","StoreSemanticEnvelopeV40","StoreSemanticEnvelopeV41",
         "WorkspaceMutationStateSemanticV1",
         "entityMutationRevision",
         "workspaceMutationState",
@@ -862,6 +863,7 @@ private extension CurrentSyncClassificationCatalogV1 {
             ))
         }
         for name in v40PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[try subject(category:.persistentModel,name:"MutationReceiptRow")]))}
+        for name in v41PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[try subject(category:.persistentModel,name:"MutationReceiptRow")]))}
 
         for name in portableContentProjectionNames {
             let profile: AdditionalProfile = name == "ReportSnapshotV1"
@@ -1381,7 +1383,8 @@ private extension CurrentSyncClassificationCatalogV1 {
         case "StoreSemanticEnvelopeV37":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v38PersistentModelNames+v39PersistentModelNames+v40PersistentModelNames).contains($0)})
         case "StoreSemanticEnvelopeV38":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v39PersistentModelNames+v40PersistentModelNames).contains($0)})
         case "StoreSemanticEnvelopeV39":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!v40PersistentModelNames.contains($0)})
-        case "StoreSemanticEnvelopeV40":return try subjects(category:.persistentModel,names:activePersistentModelNames)
+        case "StoreSemanticEnvelopeV40":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!v41PersistentModelNames.contains($0)})
+        case "StoreSemanticEnvelopeV41":return try subjects(category:.persistentModel,names:activePersistentModelNames)
         case "PlanDocumentV1","PlanRevisionV1","SpatialReferenceFrameV1","PlanPlacementV1","RebasePreviewV1","RebaseReceiptV1":return try subjects(category:.persistentModel,names:v28PersistentModelNames)
         case "PoseAxisDescriptorRegistryV1","AssetPoseCurrentTipV1","CompletedPlacementPoseSnapshotV1":return try subjects(category:.persistentModel,names:v29PersistentModelNames)
         case "EvidenceContextV1","PairedObservationLinkV1":return try subjects(category:.persistentModel,names:v30PersistentModelNames)
@@ -1568,8 +1571,9 @@ private extension CurrentSyncClassificationCatalogV1 {
             ManualWorkResourceRecordRow.self,
             ServiceRequestRecordRow.self,ServiceRequestDispositionEventRow.self,ServiceRequestWorkLinkEventRow.self,
             AssetServiceIncidentRow.self,ServiceImpactSegmentRow.self,ServiceCauseAssertionRow.self,ServiceRemedyAssertionRow.self,ServiceRepairIntervalRow.self,ServiceRestorationAssertionRow.self,QualifiedServiceExposureRow.self,
+            LocalPartDefinitionRowV1.self,StockStorageLocationRowV1.self,StockMovementEventRowV1.self,StockUseReceiptRowV1.self,StockUseReversalReceiptRowV1.self,StockReturnReceiptRowV1.self,AbandonUnverifiedStockRowV1.self,
         ]
-        let runtimeNames = PersistentSchemaV40.models.map { modelType in
+        let runtimeNames = PersistentSchemaV41.models.map { modelType in
             String(describing: modelType)
                 .split(separator: ".")
                 .last
@@ -1582,9 +1586,9 @@ private extension CurrentSyncClassificationCatalogV1 {
               Set(PersistentSchemaV5.models.map { ObjectIdentifier($0) })
                 == Set(frozenV5.map { ObjectIdentifier($0) }),
               frozenNames == persistentModelNames,
-              PersistentSchemaV40.models.count == 133,
-              PersistentSchemaV40.models.count == expected.count,
-              Set(PersistentSchemaV40.models.map { ObjectIdentifier($0) })
+              PersistentSchemaV41.models.count == 140,
+              PersistentSchemaV41.models.count == expected.count,
+              Set(PersistentSchemaV41.models.map { ObjectIdentifier($0) })
                 == Set(expected.map { ObjectIdentifier($0) }),
               runtimeNames.count == Set(runtimeNames).count,
               runtimeNames.allSatisfy(ReplicationContractValidationV1.validToken),
@@ -1714,6 +1718,7 @@ enum C52ServiceRequestSyncClassificationBoundaryV1 {
     }
 }
 enum C53AssetServiceReliabilitySyncClassificationBoundaryV1{static let localOnlyCanonicalKinds=AssetServiceReliabilityPersistenceEnrollmentV1.durableModels.map{String(describing:$0)};static let integrationEventKinds=["ASSET_SERVICE_INCIDENT","SERVICE_IMPACT_SEGMENT","SERVICE_CAUSE_ASSERTION","SERVICE_REMEDY_ASSERTION","SERVICE_REPAIR_INTERVAL","SERVICE_RESTORATION_ASSERTION","QUALIFIED_SERVICE_EXPOSURE"];static let reliabilityProjectionIsCanonicalSyncState=false;static func validate()->Bool{Set(localOnlyCanonicalKinds)==Set(CurrentSyncClassificationCatalogV1.v40PersistentModelNames)&&integrationEventKinds.count==7&&!reliabilityProjectionIsCanonicalSyncState}}
+enum C55PartsStockSyncClassificationBoundaryV1{static let durableRows=CurrentSyncClassificationCatalogV1.v41PersistentModelNames;static let canonicalSyncStateIsLocalOnly=true;static let balanceProjectionIsDerived=true}
 
 enum C54EncryptedPortableEnvelopeSyncClassificationBoundaryV1 {
     static let envelopeSession = "NONPERSISTENT"

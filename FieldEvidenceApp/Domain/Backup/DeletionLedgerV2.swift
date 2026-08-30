@@ -589,6 +589,7 @@ struct DeletionLedgerV2: Codable, Equatable, Sendable {
         try C33TemporalEvidenceDeletionLedgerPolicyV1.validate()
         try C52ServiceRequestDeletionLedgerPolicyV1.validate()
         try C53ServiceReliabilityDeletionLedgerBoundaryV1.validate()
+        try C55PartsStockDeletionLedgerBoundaryV1.validate()
         guard schemaVersion == 2 else {
             throw DeletionLedgerFailureV2.invalidSchemaVersion
         }
@@ -693,6 +694,25 @@ enum C53ServiceReliabilityDeletionLedgerBoundaryV1 {
             records: records,
             workspaceID: workspaceID
         )
+    }
+}
+
+/// C55 has no backup-specific tombstone family. Ordinary catalog retirement
+/// keeps movement/use/return history; only the incumbent workspace erase
+/// authority clears the seven canonical rows together.
+enum C55PartsStockDeletionLedgerBoundaryV1 {
+    static let durableFamilyCount = C55PartsStockKernelBackupRestoreEnrollmentV1.durableFamilies.count
+    static let ordinaryDeletePreservesAppendOnlyHistory = true
+    static let workspaceEraseClearsAllFamilies = true
+    static let createsParallelTombstoneFamily = false
+
+    static func validate() throws {
+        guard durableFamilyCount == 7,
+              ordinaryDeletePreservesAppendOnlyHistory,
+              workspaceEraseClearsAllFamilies,
+              !createsParallelTombstoneFamily else {
+            throw DeletionLedgerFailureV2.invalidSchemaVersion
+        }
     }
 }
 

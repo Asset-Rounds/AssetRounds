@@ -54,6 +54,14 @@ enum C49WorkResourceKernelDeletionEraseEnrollmentV1 {
     static let eraseDisposition = "CLEAR_WITH_WORKSPACE_GENERATION"
 }
 
+enum C55PartsStockKernelDeletionEraseEnrollmentV1 {
+    static let durableFamilies = C55PartsStockPersistenceBoundaryV1.persistentTypes.map { String(describing: $0) }
+    static let ordinaryPartRetirementUsesCanonicalSuccessor = true
+    static let ordinaryDeletePreservesAppendOnlyMovements = true
+    static let workspaceEraseClearsAllSevenFamilies = true
+    static func validate() throws { guard durableFamilies.count == 7, ordinaryPartRetirementUsesCanonicalSuccessor, ordinaryDeletePreservesAppendOnlyMovements, workspaceEraseClearsAllSevenFamilies else { throw KernelPersistenceV4Failure.incompleteCoverage } }
+}
+
 
 /// C33 has exactly two SwiftData rows. Derivative and retention values are
 /// journal/content support, not additional row families.
@@ -614,6 +622,7 @@ enum KernelDeletionEraseRegistryV4 {
         try validateIntegrationProjectionLifecycle()
         try validateAssistanceLifecycle()
         try C53AssetServiceReliabilityKernelDeletionEraseEnrollmentV1.validate()
+        try C55PartsStockKernelDeletionEraseEnrollmentV1.validate()
         try validate(registrations)
     }
 

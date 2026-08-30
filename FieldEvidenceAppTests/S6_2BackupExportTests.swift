@@ -909,6 +909,24 @@ extension C45BackupExportCompatibilityTests {
 }
 
 extension S6_2BackupExportTests {
+    func testC55PartsStockCanonicalNumberBridgeRejectsFractionalNSNumberText() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: root.appendingPathComponent(
+                "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift"
+            ),
+            encoding: .utf8
+        )
+        XCTAssertTrue(source.contains("CFGetTypeID(value) != CFBooleanGetTypeID()"))
+        XCTAssertTrue(source.contains("!representation.contains(\".\")"))
+        XCTAssertTrue(source.contains("!representation.contains(\"e\")"))
+        XCTAssertTrue(source.contains("!representation.contains(\"E\")"))
+        XCTAssertTrue(source.contains("let integer = Int(representation)"))
+        XCTAssertFalse(source.contains("value.int64Value"))
+    }
+
     func testV23P03C34SceneStateIsExcludedFromBackupAndExport() {
         let lifecycle = SceneNavigationLifecycleDispositionV1()
         XCTAssertFalse(lifecycle.workspaceTruth)

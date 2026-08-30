@@ -989,6 +989,13 @@ enum C49WorkResourceLocalSearchBoundaryV1 {
     }
 }
 
+enum C55PartsStockLocalSearchBoundaryV1 {
+    static let canonicalRecordType = "LocalPartDefinitionV1"
+    static let permittedFields = ["parts_stock.display_name", "parts_stock.product_identity"]
+    static let prohibitedFields = ["parts_stock.balance", "parts_stock.storage_label", "parts_stock.movement_reason"]
+    static func validateField(_ fieldID: String) throws { guard permittedFields.contains(fieldID), !prohibitedFields.contains(fieldID) else { throw LocalSearchIndexStoreFailureV1.invalidQuery } }
+}
+
 // MARK: - C30 operating-context search adapter
 
 extension LocalSearchIndexStoreV1 {
