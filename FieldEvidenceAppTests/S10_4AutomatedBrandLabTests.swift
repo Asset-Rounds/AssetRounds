@@ -12704,6 +12704,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "            XCTFail(\"Diagnostics route ScrollView is missing.\")\n" +
                 "            return\n" +
                 "        }\n" +
+                "        if automationShard?.shardID ==\n" +
+                "            \"s10.4.current.differentiate-without-color\" {\n" +
+                "            try diagnoseDifferentiateWithoutColorDiagnosticsPositioning(in: app)\n" +
+                "        }\n" +
                 "        let topClearance: CGFloat = 12"
         XCTAssertEqual(
             diagnosticsPositioningSource.components(
@@ -12711,32 +12715,346 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
-        let removedDifferentiateDiagnosticsTelemetryForms = [
+        let differentiateDiagnosticsTelemetryGate =
             "        if automationShard?.shardID ==\n" +
                 "            \"s10.4.current.differentiate-without-color\" {\n" +
                 "            try diagnoseDifferentiateWithoutColorDiagnosticsPositioning(in: app)\n" +
-                "        }",
-            "diagnoseDifferentiateWithoutColorDiagnosticsPositioning",
-            "S10_4_DIAGNOSTICS_POSITIONING_TELEMETRY",
-            "S10.4 differentiate-without-color Diagnostics positioning telemetry",
-            "Diagnostics positioning telemetry pre app",
-            "Diagnostics positioning telemetry pre accessibility tree",
-            "Diagnostics positioning telemetry terminal app",
-            "Diagnostics positioning telemetry terminal accessibility tree",
-            "diagnosticsScreenQuery",
-            "diagnosticsHeadingQuery",
-            "diagnosticsAuthorityQuery",
-            "diagnosticsExportQuery",
-            "signsTabQuery",
-            "func elementObject(_ value: XCUIElement)",
-            "func routeObject()",
-            "S10.4 differentiate-without-color Diagnostics positioning telemetry completed nonaccepting",
+                "        }"
+        XCTAssertEqual(
+            diagnosticsPositioningSource.components(
+                separatedBy: differentiateDiagnosticsTelemetryGate
+            ).count - 1,
+            1
+        )
+        let differentiateDiagnosticsTelemetryStart =
+            "    @MainActor\n" +
+                "    private func diagnoseDifferentiateWithoutColorDiagnosticsPositioning(\n" +
+                "        in app: XCUIApplication\n" +
+                "    ) throws {"
+        let differentiateDiagnosticsTelemetryEnd =
+            "   @MainActor\n" +
+                "   private func acceptImportedPhoto("
+        let differentiateDiagnosticsTelemetryStartRange = try XCTUnwrap(
+            uiSource.range(of: differentiateDiagnosticsTelemetryStart)
+        )
+        let differentiateDiagnosticsTelemetryEndRange = try XCTUnwrap(
+            uiSource.range(
+                of: differentiateDiagnosticsTelemetryEnd,
+                range: differentiateDiagnosticsTelemetryStartRange.upperBound
+                    ..< uiSource.endIndex
+            )
+        )
+        let differentiateDiagnosticsTelemetrySource = String(
+            uiSource[
+                differentiateDiagnosticsTelemetryStartRange.lowerBound
+                    ..< differentiateDiagnosticsTelemetryEndRange.lowerBound
+            ]
+        )
+        XCTAssertEqual(differentiateDiagnosticsTelemetrySource.utf8.count, 17_834)
+        XCTAssertEqual(
+            Data(differentiateDiagnosticsTelemetrySource.utf8).sha256,
+            "E330B9E8E5D3D08859C8342FA2384B06FF630AD77F95E634B6D8903309BFB7CC"
+        )
+        XCTAssertEqual(diagnosticsPositioningSource.utf8.count, 10_549)
+        XCTAssertEqual(
+            Data(diagnosticsPositioningSource.utf8).sha256,
+            "4BD0C5638E881F07C4D6D38C095C264F9B1C1CF93A2F1B2667B6A31E4680BB2C"
+        )
+        let normalDiagnosticsPositioningStart = try XCTUnwrap(
+            diagnosticsPositioningSource.range(
+                of: "        let topClearance: CGFloat = 12"
+            )
+        )
+        let normalDiagnosticsPositioningSource = String(
+            diagnosticsPositioningSource[
+                normalDiagnosticsPositioningStart.lowerBound
+                    ..< diagnosticsPositioningSource.endIndex
+            ]
+        )
+        XCTAssertEqual(normalDiagnosticsPositioningSource.utf8.count, 9_114)
+        XCTAssertEqual(
+            Data(normalDiagnosticsPositioningSource.utf8).sha256,
+            "E4E53D836E55BF061DD8FA20A9C43718FF5AF279B9A6CF68C29F51E54715F7BE"
+        )
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: "diagnoseDifferentiateWithoutColorDiagnosticsPositioning"
+            ).count - 1,
+            2
+        )
+        let differentiateDiagnosticsQueryLocks = [
+            "        let diagnosticsScreenQuery = app.descendants(matching: .any)\n" +
+                "            .matching(identifier: \"s8.3.diagnostics.screen\")",
+            "        let diagnosticsHeadingQuery = app.descendants(matching: .any)\n" +
+                "            .matching(identifier: \"s8.3.diagnostics.heading\")",
+            "        let diagnosticsAuthorityQuery = app.descendants(matching: .any)\n" +
+                "            .matching(identifier: \"s8.3.diagnostics.authority\")",
+            "        let diagnosticsExportQuery = app.descendants(matching: .any)\n" +
+                "            .matching(identifier: \"s8.3.diagnostics.export\")",
+            "        let navigationBars = app.navigationBars",
+            "        let signsTabQuery = app.descendants(matching: .any)\n" +
+                "            .matching(identifier: \"s1.tab.signs\")",
+            "        let diagnosticsScrollViews = app.scrollViews.containing(\n" +
+                "            .staticText,\n" +
+                "            identifier: \"s8.3.diagnostics.heading\"\n" +
+                "        )",
         ]
-        for removedTelemetry in removedDifferentiateDiagnosticsTelemetryForms {
+        for lock in differentiateDiagnosticsQueryLocks {
             XCTAssertEqual(
-                uiSource.components(separatedBy: removedTelemetry).count - 1,
-                0,
-                removedTelemetry
+                differentiateDiagnosticsTelemetrySource.components(
+                    separatedBy: lock
+                ).count - 1,
+                1,
+                lock
+            )
+        }
+        var differentiateDiagnosticsQueryTail =
+            differentiateDiagnosticsTelemetrySource[
+                differentiateDiagnosticsTelemetrySource.startIndex...
+            ]
+        for lock in differentiateDiagnosticsQueryLocks {
+            let range = try XCTUnwrap(
+                differentiateDiagnosticsQueryTail.range(of: lock),
+                lock
+            )
+            differentiateDiagnosticsQueryTail =
+                differentiateDiagnosticsQueryTail[range.upperBound...]
+        }
+        for serializerLock in [
+            "func elementObject(_ value: XCUIElement) -> [String: Any]",
+            "func queryObject(_ query: XCUIElementQuery) -> [String: Any]",
+            "func routeObject() -> [String: Any]",
+            "func nullableNumber(_ value: CGFloat?) -> Any",
+            "func nullableString(_ value: String?) -> Any",
+            "\"exists\": value.exists",
+            "\"isHittable\": value.isHittable",
+            "\"identifier\": value.identifier",
+            "\"label\": value.label",
+            "\"value\": publicValue",
+            "\"elementTypeRawValue\": String(describing: value.elementType.rawValue)",
+            "\"frame\": auditFrameObject(value.frame)",
+            "return [\"count\": count, \"elements\": elements]",
+        ] {
+            XCTAssertEqual(
+                differentiateDiagnosticsTelemetrySource.components(
+                    separatedBy: serializerLock
+                ).count - 1,
+                1,
+                serializerLock
+            )
+        }
+        XCTAssertEqual(
+            differentiateDiagnosticsTelemetrySource.components(
+                separatedBy:
+                    "attempt[\"failureReason\"] = nullableString(failureReason)"
+            ).count - 1,
+            7
+        )
+        let differentiateDiagnosticsConstants =
+            "        let topClearance: CGFloat = 12\n" +
+                "        let bottomClearance: CGFloat = 16\n" +
+                "        let minimumGestureDistance: CGFloat = 44\n" +
+                "        let dragInset: CGFloat = 24\n" +
+                "        var measuredUndertravel: CGFloat = 0\n" +
+                "        var correctionDirection: CGFloat?\n" +
+                "        var previousResidualMagnitude: CGFloat?"
+        XCTAssertEqual(
+            differentiateDiagnosticsTelemetrySource.components(
+                separatedBy: differentiateDiagnosticsConstants
+            ).count - 1,
+            1
+        )
+        for algorithmLock in [
+            "if diagnosticsScrollViews.count != 1 {\n" +
+                "            selectedBranch = \"route-cardinality\"\n" +
+                "            failureReason = \"heading-containing ScrollView count was not one\"\n" +
+                "        }",
+            "let attemptOrdinals = failureReason == nil ? Array(1...2) : []",
+            "for attemptOrdinal in attemptOrdinals",
+            "let minimumShift = navigationBar.frame.maxY",
+            "let maximumShift = min(",
+            "let targetDistance: CGFloat",
+            "let direction: CGFloat = targetDistance > 0 ? 1 : -1",
+            "guard correctionDirection == direction else {",
+            "guard residualMagnitude < previousResidualMagnitude else {",
+            "let requestedDistance = targetDistance\n" +
+                "                + direction * measuredUndertravel",
+            "guard abs(requestedDistance) >= minimumGestureDistance else {",
+            "withNormalizedOffset: CGVector(dx: 0.01, dy: 0.45)",
+            "diagnosticsScrollView.frame.minY + dragInset",
+            "diagnosticsScrollView.frame.maxY - dragInset - startPoint.y",
+            "guard availableDistance >= abs(requestedDistance) else {",
+            "dragStart.press(\n" +
+                "                forDuration: 0.2,\n" +
+                "                thenDragTo: dragEnd,\n" +
+                "                withVelocity: .slow,\n" +
+                "                thenHoldForDuration: 0.2\n" +
+                "            )",
+            "let signedProgress = actualDistance * direction > 0",
+            "measuredUndertravel = max(\n" +
+                "                0,\n" +
+                "                abs(requestedDistance) - abs(actualDistance)\n" +
+                "            )",
+        ] {
+            XCTAssertEqual(
+                differentiateDiagnosticsTelemetrySource.components(
+                    separatedBy: algorithmLock
+                ).count - 1,
+                1,
+                algorithmLock
+            )
+        }
+        let differentiateDiagnosticsTopLevelFields = [
+            "schemaVersion", "diagnosticID", "shardID", "requirementID",
+            "deviceProfileID", "segmentID", "applicationStateRawValue",
+            "foreground", "applicationFrame", "startQueries", "topClearance",
+            "bottomClearance", "minimumGestureDistance", "dragInset", "attempts",
+            "actionCount", "finalMinimumShift", "finalMaximumShift",
+            "finalHeadingFrame", "finalAuthorityFrame", "finalExportFrame",
+            "finalNavigationFrame", "finalSignsTabFrame", "finalScrollViewFrame",
+            "terminalApplicationStateRawValue", "terminalForeground",
+            "terminalApplicationFrame", "terminalQueries", "selectedBranch",
+            "failureReason", "terminalReason", "elapsedMilliseconds",
+        ]
+        let differentiateDiagnosticsAttemptFields = [
+            "ordinal", "preQueries", "navigationFrame", "headingFrame",
+            "authorityFrame", "exportFrame", "signsTabFrame", "scrollViewFrame",
+            "minimumShift", "maximumShift", "containsZero", "targetDistance",
+            "direction", "correctionDirectionBefore", "previousResidualMagnitude",
+            "residualMagnitude", "measuredUndertravelBefore", "requestedDistance",
+            "dragStart", "dragEnd", "availableDistance", "authorityFrameBefore",
+            "authorityFrameAfter", "actualDistance", "signedProgress",
+            "measuredUndertravelAfter", "postNavigationFrame", "postHeadingFrame",
+            "postAuthorityFrame", "postExportFrame", "postSignsTabFrame",
+            "postScrollViewFrame", "postMinimumShift", "postMaximumShift",
+            "branch", "failureReason",
+        ]
+        for field in differentiateDiagnosticsTopLevelFields
+            + differentiateDiagnosticsAttemptFields {
+            XCTAssertTrue(
+                differentiateDiagnosticsTelemetrySource.contains("\"\(field)\""),
+                field
+            )
+        }
+        let differentiateDiagnosticsAttemptStart = try XCTUnwrap(
+            differentiateDiagnosticsTelemetrySource.range(
+                of: "            var attempt: [String: Any] = ["
+            )
+        )
+        let differentiateDiagnosticsAttemptEnd = try XCTUnwrap(
+            differentiateDiagnosticsTelemetrySource.range(
+                of: "            ]\n            guard minimumShift <= maximumShift else {",
+                range: differentiateDiagnosticsAttemptStart.upperBound
+                    ..< differentiateDiagnosticsTelemetrySource.endIndex
+            )
+        )
+        var differentiateDiagnosticsAttemptTail =
+            differentiateDiagnosticsTelemetrySource[
+                differentiateDiagnosticsAttemptStart.lowerBound
+                    ..< differentiateDiagnosticsAttemptEnd.lowerBound
+            ]
+        for field in differentiateDiagnosticsAttemptFields {
+            let range = try XCTUnwrap(
+                differentiateDiagnosticsAttemptTail.range(of: "\"\(field)\""),
+                field
+            )
+            differentiateDiagnosticsAttemptTail =
+                differentiateDiagnosticsAttemptTail[range.upperBound...]
+        }
+        let differentiateDiagnosticsTopLevelStart = try XCTUnwrap(
+            differentiateDiagnosticsTelemetrySource.range(
+                of: "        let telemetry: [String: Any] = ["
+            )
+        )
+        let differentiateDiagnosticsTopLevelEnd = try XCTUnwrap(
+            differentiateDiagnosticsTelemetrySource.range(
+                of: "        ]\n\n        let terminalScreenshot = XCTAttachment(",
+                range: differentiateDiagnosticsTopLevelStart.upperBound
+                    ..< differentiateDiagnosticsTelemetrySource.endIndex
+            )
+        )
+        var differentiateDiagnosticsTopLevelTail =
+            differentiateDiagnosticsTelemetrySource[
+                differentiateDiagnosticsTopLevelStart.lowerBound
+                    ..< differentiateDiagnosticsTopLevelEnd.lowerBound
+            ]
+        for field in differentiateDiagnosticsTopLevelFields {
+            let range = try XCTUnwrap(
+                differentiateDiagnosticsTopLevelTail.range(of: "\"\(field)\""),
+                field
+            )
+            differentiateDiagnosticsTopLevelTail =
+                differentiateDiagnosticsTopLevelTail[range.upperBound...]
+        }
+        XCTAssertEqual(
+            differentiateDiagnosticsTelemetrySource.components(
+                separatedBy: "S10.4-DIFFERENTIATE-DIAGNOSTICS-POSITIONING-V2"
+            ).count - 1,
+            1
+        )
+        let differentiateDiagnosticsAttachmentPrefix =
+            "S10.4 s10.4.current.differentiate-without-color Diagnostics positioning telemetry"
+        for attachmentLock in [
+            "let attachmentPrefix =\n" +
+                "            \"\(differentiateDiagnosticsAttachmentPrefix)\"",
+            "preScreenshot.name = \"\\(attachmentPrefix) pre app\"",
+            "preTree.name = \"\\(attachmentPrefix) pre accessibility tree\"",
+            "terminalScreenshot.name = \"\\(attachmentPrefix) terminal app\"",
+            "terminalTree.name = \"\\(attachmentPrefix) terminal accessibility tree\"",
+        ] {
+            XCTAssertEqual(
+                differentiateDiagnosticsTelemetrySource.components(
+                    separatedBy: attachmentLock
+                ).count - 1,
+                1,
+                attachmentLock
+            )
+        }
+        for (attachmentFragment, expectedCount) in [
+            ("XCTAttachment(", 4),
+            (".lifetime = .keepAlways", 4),
+            ("        add(", 4),
+            ("XCUIScreen.main.screenshot()", 2),
+            ("XCTAttachment(string: app.debugDescription)", 2),
+        ] {
+            XCTAssertEqual(
+                differentiateDiagnosticsTelemetrySource.components(
+                    separatedBy: attachmentFragment
+                ).count - 1,
+                expectedCount,
+                attachmentFragment
+            )
+        }
+        let differentiateDiagnosticsTerminal =
+            "        printJSONLine(\n" +
+                "            prefix: \"S10_4_DIAGNOSTICS_POSITIONING_TELEMETRY\",\n" +
+                "            object: telemetry\n" +
+                "        )\n" +
+                "        throw AutomationConfigurationError.invalid(\n" +
+                "            \"S10.4 differentiate-without-color Diagnostics positioning telemetry completed nonaccepting\"\n" +
+                "        )"
+        XCTAssertEqual(
+            differentiateDiagnosticsTelemetrySource.components(
+                separatedBy: differentiateDiagnosticsTerminal
+            ).count - 1,
+            1
+        )
+        for prohibitedDiagnosticForm in [
+            "Array(1...3)", "for attemptOrdinal in 1...3",
+            "for _ in 0..<4", "for _ in 0..<6", "stagingCount",
+            "stagedFinalDirection", "upwardUndertravel", "downwardUndertravel",
+            "epsilon", "tolerance", "app.coordinate(", "app.swipeUp()",
+            "app.swipeDown()", "Thread.sleep", ".tap()", ".typeText(",
+            "performAccessibilityAudit", "eligibleExceptions", "captureBaseline(",
+            "assertMigrationStateCoverage", "emitAutomatedLabAccessibilityRowsIfNeeded",
+            "S10_MIGRATION_STATE", "S10_4_AX_STATE", "S10_4_CONTRAST",
+            "S10_4_CANDIDATE", "S10_4_TASK", "S10_4_SHARD_RECEIPT",
+            "automatedEvidenceIDs.append", "automationAXTreeDigests",
+            "automationContrastExceptions", "storeKitSession", "SKTestSession",
+        ] {
+            XCTAssertFalse(
+                differentiateDiagnosticsTelemetrySource.contains(prohibitedDiagnosticForm),
+                prohibitedDiagnosticForm
             )
         }
 
@@ -20961,10 +21279,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 785_795)
+        XCTAssertEqual(uiSource.utf8.count, 803_817)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "D05EBF1238A9B22339558D4D532555F8EFE0EDB5A676CE68614E8D2F24EA11E8"
+            "289A832A8E56512B57FDFF9676303018213A9F8F866911D26C3794F58468A4F4"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,
