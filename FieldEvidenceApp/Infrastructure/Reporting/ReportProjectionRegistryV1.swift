@@ -8,6 +8,22 @@ enum GuidedSurveyReportProjectionRegistryV1 {
     }
 }
 
+// MARK: - C48 portable-review derived projection registry boundary
+
+enum C48PortableReviewReportProjectionRegistryBoundaryV1 {
+    static let existingReportProjectionRegistryIsSoleRenderer = true
+    static let derivedMetadataOnly = true
+    static let capabilityBytesRegistered = false
+    static let capabilityProofBytesRegistered = false
+    static let responseBodyRegistered = false
+    static let rawRequestResponseBytesRegistered = false
+    static let workspaceAndReplicaIdentityRegistered = false
+
+    static func validate(_ projection: C48PortableReviewDerivedHistoryProjectionV1) throws {
+        try C48PortableReviewReportProjectionBoundaryV1.validate(projection)
+    }
+}
+
 enum IntegrationProjectionReportExclusionV1 {
     static func validate() throws {
         let coverage = IntegrationEventJournalCoverageV1()

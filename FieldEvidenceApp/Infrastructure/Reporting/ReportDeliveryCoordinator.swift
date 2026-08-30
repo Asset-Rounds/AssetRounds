@@ -2703,3 +2703,14 @@ enum C47ActivityContractConformance_FieldEvidenceApp_Infrastructure_Reporting_Re
     static let createsSecondRendererWriterOrStore = false
     static func validateReadable(_ value: ActivitySessionEnvelopeV2) throws { try value.validateForRead() }
 }
+
+enum C48PortableReviewReportDeliveryBoundaryV1 {
+    static let responseRecordIsNotDeliveryReceipt = true
+    static let responseDispositionIsNotDeliveryProof = true
+    static let capabilityBytesEmitted = false
+    static let capabilityProofBytesEmitted = false
+    static let responseBodyEmitted = false
+    static let rawRequestResponseBytesEmitted = false
+    static let verifiedIdentityEmitted = false
+    static let existingDeliveryCoordinatorRemainsPresentationOnly = true
+}

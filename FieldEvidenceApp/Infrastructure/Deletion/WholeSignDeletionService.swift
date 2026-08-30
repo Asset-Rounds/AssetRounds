@@ -908,6 +908,35 @@ final class WholeSignDeletionService {
             for plan in preview.assetPlans {
                 try await cleanup(plan.intent.withPhase(.databaseCommitted))
             }
+            let workspaceID: WorkspaceID?
+            switch lifecycleRoute {
+            case .live(let dependencies):
+                workspaceID = dependencies.workspaceID
+            case .expiringCompatibility:
+                let states = try modelContext.fetch(FetchDescriptor<WorkspaceMutationStateRow>())
+                guard states.count <= 1 else {
+                    throw WholeSignDeletionServiceError.journalInvalid
+                }
+                workspaceID = states.first.map { WorkspaceID(rawValue: $0.workspaceID) }
+            }
+            if let workspaceID {
+                let store = try PortableExchangeSessionStoreV2(
+                    applicationSupportURL: generationRootURL
+                        .deletingLastPathComponent()
+                        .deletingLastPathComponent(),
+                    fileManager: fileManager
+                )
+                let subjectIDs = Set(preview.ledgerEntries.flatMap {
+                    [$0.identity.id.uuidString, $0.identity.id.uuidString.lowercased()]
+                })
+                for subjectID in subjectIDs.sorted() {
+                    _ = try await store.invalidateForDeletedSubject(
+                        workspaceID: workspaceID,
+                        subjectID: subjectID,
+                        operationID: preview.deletionID
+                    )
+                }
+            }
         } catch let error as WholeSignDeletionServiceError {
             throw error
         } catch {
@@ -1284,6 +1313,42 @@ final class WholeSignDeletionService {
                 generationRootURL: generationRootURL,
                 fileManager: fileManager
             ).removeAttempts(referencing: intent.assetID)
+        } catch {
+            throw WholeSignDeletionServiceError.cleanupFailed
+        }
+        do {
+            let workspaceID: WorkspaceID?
+            switch lifecycleRoute {
+            case .live(let dependencies):
+                workspaceID = dependencies.workspaceID
+            case .expiringCompatibility:
+                let states = try modelContext.fetch(FetchDescriptor<WorkspaceMutationStateRow>())
+                guard states.count <= 1 else {
+                    throw WholeSignDeletionServiceError.journalInvalid
+                }
+                workspaceID = states.first.map { WorkspaceID(rawValue: $0.workspaceID) }
+            }
+            if let workspaceID {
+                try PortableExchangeProtectedFilePolicyV2.validate()
+                let store = try PortableExchangeSessionStoreV2(
+                    applicationSupportURL: generationRootURL
+                        .deletingLastPathComponent()
+                        .deletingLastPathComponent(),
+                    fileManager: fileManager
+                )
+                let subjectIDs = Set(intent.ledgerEntries.flatMap {
+                    [$0.identity.id.uuidString, $0.identity.id.uuidString.lowercased()]
+                })
+                for subjectID in subjectIDs.sorted() {
+                    _ = try await store.invalidateForDeletedSubject(
+                        workspaceID: workspaceID,
+                        subjectID: subjectID,
+                        operationID: intent.deletionID
+                    )
+                }
+            }
+        } catch let error as WholeSignDeletionServiceError {
+            throw error
         } catch {
             throw WholeSignDeletionServiceError.cleanupFailed
         }

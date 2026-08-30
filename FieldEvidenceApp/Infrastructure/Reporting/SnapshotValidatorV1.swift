@@ -1891,3 +1891,17 @@ enum C47ActivityContractConformance_FieldEvidenceApp_Infrastructure_Reporting_Sn
         )
     }
 }
+
+enum C48PortableReviewSnapshotValidationBoundaryV1 {
+    static let validatesDerivedHistoryBeforeConsumerUse = true
+    static let capabilityBytesAccepted = false
+    static let capabilityProofBytesAccepted = false
+    static let responseBodyAccepted = false
+    static let rawRequestResponseBytesAccepted = false
+    static let workspaceAndReplicaIdentityAccepted = false
+    static let validationDoesNotAuthorizeMutation = true
+
+    static func validate(_ projection: C48PortableReviewDerivedHistoryProjectionV1) throws {
+        try projection.validate()
+    }
+}

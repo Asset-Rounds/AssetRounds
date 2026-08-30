@@ -2355,3 +2355,12 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_3B
         XCTAssertTrue(ActivityContractPersistenceEnrollmentV2.usesSoleWorkspaceWriter)
     }
 }
+
+private final class C48PortableReviewS63BackupValidationTests: XCTestCase {
+    func testC48BackupValidationUsesNonpersistentSessionEnvelope() {
+        XCTAssertEqual(C48PortableExchangePersistentLifecycleBoundaryV2.canonicalRowsAdded, 0)
+        XCTAssertEqual(C48PortableExchangePersistentLifecycleBoundaryV2.persistentSchemaVersion, 36)
+        XCTAssertTrue(C48PortableExchangePersistentLifecycleBoundaryV2.acceptedResponseUsesExistingC14Writer)
+        XCTAssertTrue(C48PortableExchangeMigrationBoundaryV2.preservesExactBytes)
+    }
+}

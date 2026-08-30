@@ -1828,6 +1828,86 @@ extension ActivityContractMutationV2 {
     }
 }
 
+/// The canonical writer accepts only the apply-to-C14 branch of portable
+/// review. History-only, discard, and quarantine remain device-local session
+/// operations and must never masquerade as workspace mutations.
+struct PortableReviewMutationV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let workspaceID: WorkspaceID
+    let mutationID: MutationIDV1
+    let plan: ExternalReviewImportPlanV1
+    let importReceipt: ExternalReviewImportReceiptV1
+    let inspectionReviewMutation: InspectionReviewMutationV1
+
+    init(
+        workspaceID: WorkspaceID,
+        mutationID: MutationIDV1,
+        plan: ExternalReviewImportPlanV1,
+        importReceipt: ExternalReviewImportReceiptV1,
+        inspectionReviewMutation: InspectionReviewMutationV1
+    ) throws {
+        schemaVersion = Self.schemaVersion
+        self.workspaceID = workspaceID
+        self.mutationID = mutationID
+        self.plan = plan
+        self.importReceipt = importReceipt
+        self.inspectionReviewMutation = inspectionReviewMutation
+        try validate()
+    }
+
+    var affectedIdentities: [WorkspaceEntityIdentityV1] { get throws { try inspectionReviewMutation.affectedIdentities } }
+    var concurrencyIdentities: [WorkspaceEntityIdentityV1] { get throws { try inspectionReviewMutation.concurrencyIdentities } }
+    var mutationPostImages: [MutationPostImageV1] { get throws { try inspectionReviewMutation.postImage.mutationPostImages } }
+    func expectedRevision(for identity: WorkspaceEntityIdentityV1) throws -> UInt64 {
+        guard (try concurrencyIdentities).contains(identity) else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+        guard let image = try mutationPostImages.first(where: { try $0.concurrencyIdentity == identity }),
+              image.revision > 0 else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+        return image.revision - 1
+    }
+
+    func validate() throws {
+        try plan.validate()
+        try importReceipt.validate()
+        try inspectionReviewMutation.validate()
+        let c14EffectDigest = Data(SHA256.hash(data: try WorkspaceMutationCanonicalV1.data(inspectionReviewMutation)))
+        guard schemaVersion == Self.schemaVersion,
+              plan.basisWorkspaceRevision < UInt64.max,
+              plan.disposition == .exactPendingDecision,
+              plan.decision == .acceptAndApply,
+              plan.proofAssessment.applicationEligibility == .eligible,
+              plan.mutationID == mutationID,
+              importReceipt.workspaceID == workspaceID,
+              importReceipt.basisWorkspaceRevision == plan.basisWorkspaceRevision,
+              importReceipt.responseRecordID == plan.responseRecord.recordID,
+              importReceipt.canonicalResponseSHA256 == plan.responseRecord.canonicalResponse.sha256,
+              importReceipt.mutationID == mutationID,
+              importReceipt.decision == .acceptAndApply,
+              importReceipt.proofAssessment == plan.proofAssessment,
+              importReceipt.effectDigest == c14EffectDigest,
+              importReceipt.appliedWorkspaceRevision == plan.basisWorkspaceRevision + 1,
+              inspectionReviewMutation.workspaceID == workspaceID,
+              inspectionReviewMutation.mutationID == mutationID,
+              !(try affectedIdentities).isEmpty else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+        switch plan.responseRecord.source {
+        case .portableFile:
+            guard plan.proofAssessment.proofValidity == .valid else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+        case .originRecordedElsewhere:
+            guard plan.proofAssessment.proofValidity == .unavailable else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+        }
+        guard case let .applyReviewBundle(bundle) = inspectionReviewMutation.postImage,
+              bundle.transition.mutationID == mutationID,
+              bundle.transition.workspaceID == workspaceID else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+        try PortableReviewC14ReconciliationV1.validate(plan: plan, bundle: bundle)
+    }
+
+    func canonicalSHA256() throws -> String { try validate(); return try WorkspaceMutationCanonicalV1.sha256(self) }
+}
+
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
     case createCheckDraft(CheckDraftMutationV1)
@@ -1873,6 +1953,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyAssetLabel(AssetLabelMutationV1)
     case applyOperationalContact(OperationalContactMutationV1)
     case applyActivityContract(ActivityContractMutationV2)
+    case applyPortableReview(PortableReviewMutationV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -1920,6 +2001,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyAssetLabel:.applyAssetLabel
         case .applyOperationalContact:.applyOperationalContact
         case .applyActivityContract:.applyActivityContract
+        case .applyPortableReview:.applyPortableReview
         }
     }
 }
@@ -1969,6 +2051,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyAssetLabel="apply_asset_label"
     case applyOperationalContact="apply_operational_contact"
     case applyActivityContract="apply_activity_contract_v2"
+    case applyPortableReview="apply_portable_review_v1"
 }
 
 extension WorkspaceCommandV1 {
@@ -2766,6 +2849,8 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind:.applyTemporalEvidence,disposition:.compensatable,stableReason:"immutable_original_with_governed_successor_or_tombstone_retention"),
         .init(commandKind:.applyAssetLabel,disposition:.compensatable,stableReason:"immutable_accepted_label_snapshot_with_historic_reprint_only"),
         .init(commandKind:.applyOperationalContact,disposition:.compensatable,stableReason:"append_contact_successor_or_retirement_only"),
+        .init(commandKind:.applyActivityContract,disposition:.compensatable,stableReason:"append_activity_contract_successor_only"),
+        .init(commandKind:.applyPortableReview,disposition:.compensatable,stableReason:"append_existing_c14_review_successor_only"),
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {

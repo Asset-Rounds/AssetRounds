@@ -1089,3 +1089,11 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_3R
         XCTAssertEqual(Set(ActivityContractPersistenceEnrollmentV2.nonpersistentFamilies).count, 3)
     }
 }
+
+private final class C48PortableReviewS43DeliveryTests: XCTestCase {
+    func testC48ResponseIsNeitherDeliveryReceiptNorDeliveryProof() {
+        XCTAssertTrue(C48PortableReviewReportDeliveryBoundaryV1.responseRecordIsNotDeliveryReceipt)
+        XCTAssertTrue(C48PortableReviewReportDeliveryBoundaryV1.responseDispositionIsNotDeliveryProof)
+        XCTAssertFalse(C48PortableReviewReportDeliveryBoundaryV1.rawRequestResponseBytesEmitted)
+    }
+}

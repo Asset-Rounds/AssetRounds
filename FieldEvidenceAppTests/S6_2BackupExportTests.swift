@@ -860,3 +860,12 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_2B
         XCTAssertTrue(ActivityContractPersistenceEnrollmentV2.usesSoleWorkspaceWriter)
     }
 }
+
+private final class C48PortableReviewS62BackupExportTests: XCTestCase {
+    func testC48BackupOwnerPreservesExchangeBytesButExcludesQuarantine() {
+        XCTAssertTrue(C48PortableReviewPersistenceBoundaryV1.sessionStoreIsNonpersistent)
+        XCTAssertTrue(C48PortableReviewPersistenceBoundaryV1.quarantineIsExcludedFromBackup)
+        XCTAssertTrue(C48PortableExchangeMigrationBoundaryV2.preservesExactBytes)
+        XCTAssertTrue(C48PortableExchangeMigrationBoundaryV2.quarantineExcludedFromBackup)
+    }
+}

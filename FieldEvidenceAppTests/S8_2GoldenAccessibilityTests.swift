@@ -316,3 +316,12 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S8_2G
         XCTAssertEqual(Set(ActivityContractPersistenceEnrollmentV2.nonpersistentFamilies).count, 3)
     }
 }
+
+private final class C48PortableReviewS82AccessibilityTests: XCTestCase {
+    func testC48AccessibilitySpeaksTrustLimitWithoutSecrets() {
+        XCTAssertTrue(C48PortableReviewAccessibilityPolicyV1.statusIsNotColorOnly)
+        XCTAssertTrue(C48PortableReviewAccessibilityPolicyV1.explicitTrustLimitationIsSpoken)
+        XCTAssertFalse(C48PortableReviewAccessibilityPolicyV1.capabilityBytesSpoken)
+        XCTAssertFalse(C48PortableReviewAccessibilityPolicyV1.verifiedIdentitySpoken)
+    }
+}

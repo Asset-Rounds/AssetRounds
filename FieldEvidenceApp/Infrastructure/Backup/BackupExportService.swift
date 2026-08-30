@@ -178,6 +178,7 @@ final class BackupExportService {
     private struct StreamingSource: Equatable, Sendable {
         enum Location: Equatable, Sendable {
             case generatedRecords
+            case generatedPortableExchangeSnapshot
             case generationRelative(String)
             case draftRelative(String)
         }
@@ -194,6 +195,7 @@ final class BackupExportService {
         let manifest: V4BackupManifestV1
         let manifestData: Data
         let recordsData: Data
+        let portableExchangeSnapshotData: Data
         let mutationHistory: MutationHistorySnapshotV1
         let checkpointBasis: BackupCanonicalCheckpointBasisV1
         let sources: [StreamingSource]
@@ -605,6 +607,9 @@ final class BackupExportService {
         let recordsSource = stagingRoot.appendingPathComponent(
             ".backup-export-\(uuid(previewID))-records.json"
         )
+        let portableExchangeSnapshotSource = stagingRoot.appendingPathComponent(
+            ".backup-export-\(uuid(previewID))-portable-exchange.json"
+        )
         var createdSources = [OwnedStagingSource]()
         var publishedURL: URL?
         do {
@@ -616,6 +621,11 @@ final class BackupExportService {
             createdSources.append(try writeOwnedStagingSource(
                 frozen.recordsData,
                 to: recordsSource,
+                expectedRootIdentity: stagingRootIdentity
+            ))
+            createdSources.append(try writeOwnedStagingSource(
+                frozen.portableExchangeSnapshotData,
+                to: portableExchangeSnapshotSource,
                 expectedRootIdentity: stagingRootIdentity
             ))
             try validateGenerationLease()
@@ -638,6 +648,10 @@ final class BackupExportService {
                 case .generatedRecords:
                     sourceRootURL = stagingRoot
                     sourceRelativePath = recordsSource.lastPathComponent
+                    expectedSourceRootIdentity = stagingRootIdentity
+                case .generatedPortableExchangeSnapshot:
+                    sourceRootURL = stagingRoot
+                    sourceRelativePath = portableExchangeSnapshotSource.lastPathComponent
                     expectedSourceRootIdentity = stagingRootIdentity
                 case .generationRelative(let relativePath):
                     sourceRootURL = generationRootURL
@@ -772,6 +786,7 @@ private extension BackupExportService {
         )
         let recordsData: Data
         let semanticRecordsData: Data
+        let portableExchangeSnapshotData: Data
         do {
             recordsData = try BackupCanonicalEncoderV1().encodeRecords(records).data
             let semanticRecords = V4BackupRecordsV1(
@@ -814,6 +829,10 @@ private extension BackupExportService {
             )
             semanticRecordsData = try BackupCanonicalEncoderV1()
                 .encodeSemanticRecords(semanticRecords).data
+            portableExchangeSnapshotData = try portableExchangeBackupSnapshotData(
+                snapshotID: previewID,
+                createdAt: exportedAt
+            )
         } catch {
             throw BackupExportServiceError.invalidAuthority
         }
@@ -830,6 +849,13 @@ private extension BackupExportService {
             sha256: CanonicalJSONV1.sha256(recordsData),
             location: .generatedRecords
         )]
+        sources.append(StreamingSource(
+            path: PortableExchangeBackupMemberV2.path,
+            mimeType: PortableExchangeBackupMemberV2.mimeType,
+            byteCount: portableExchangeSnapshotData.count,
+            sha256: CanonicalJSONV1.sha256(portableExchangeSnapshotData),
+            location: .generatedPortableExchangeSnapshot
+        ))
         let normalizer = MediaNormalizerV1()
         for evidence in rows.evidence.sorted(by: { uuid($0.id) < uuid($1.id) }) {
             guard !Task.isCancelled else {
@@ -1102,6 +1128,7 @@ private extension BackupExportService {
             manifest: manifest,
             manifestData: manifestData,
             recordsData: recordsData,
+            portableExchangeSnapshotData: portableExchangeSnapshotData,
             mutationHistory: mutationHistory,
             checkpointBasis: checkpointBasis,
             sources: sources
@@ -1131,6 +1158,33 @@ private extension BackupExportService {
             throw BackupExportServiceError.invalidGeneration
         }
         return generationID
+    }
+
+    func portableExchangeBackupSnapshotData(
+        snapshotID: UUID,
+        createdAt: Date
+    ) throws -> Data {
+        try PortableExchangeProtectedFilePolicyV2.validate()
+        let applicationSupportURL = generationRootURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try PortableExchangeSessionStoreV2.snapshotForBackup(
+            applicationSupportURL: applicationSupportURL,
+            fileManager: fileManager
+        )
+        let normalized = try PortableExchangeBackupSnapshotV2(
+            snapshotID: snapshotID,
+            createdAt: createdAt,
+            sessions: source.sessions,
+            immutablePayloads: source.immutablePayloads,
+            protectedCapabilityArtifacts: source.protectedCapabilityArtifacts
+        )
+        let data = try StoreMigrationCanonicalJSONV1.encode(normalized)
+        guard data.count <= PortableExchangeBackupMemberV2.maximumByteCount,
+              Int64(data.count) <= archiveLimits.maximumUncompressedEntryByteCount else {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        return data
     }
 
     func buildPrepared(

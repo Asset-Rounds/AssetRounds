@@ -949,3 +949,11 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_16
         XCTAssertFalse(ActivityStateMachineV2.permits(from: .finalized, to: .draft))
     }
 }
+
+private final class C48PortableReviewV916SnapshotTests: XCTestCase {
+    func testC48SnapshotProjectionContainsDerivedHistoryOnly() {
+        XCTAssertTrue(C48PortableReviewReportSnapshotBoundaryV1.reportSnapshotCarriesDerivedHistoryOnly)
+        XCTAssertTrue(C48PortableReviewReportSnapshotBoundaryV1.capabilityProofIsExcluded)
+        XCTAssertTrue(C48PortableReviewReportSnapshotBoundaryV1.rawResponseBytesAreExcluded)
+    }
+}

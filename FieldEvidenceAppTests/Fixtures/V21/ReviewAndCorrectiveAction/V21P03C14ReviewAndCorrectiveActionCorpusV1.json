@@ -62,5 +62,12 @@
     "adoption": false,
     "acceptance": false,
     "release": false
+  },
+  "c48PortableReview": {
+    "canonicalOwner": "C14",
+    "previewWriteCount": 0,
+    "exactReplayIdempotent": true,
+    "divergentResponseFailsClosed": true,
+    "originIdentityVerified": false
   }
 }

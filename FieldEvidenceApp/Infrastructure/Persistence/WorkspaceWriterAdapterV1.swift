@@ -48,6 +48,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             .applyAssetLabel,
             .applyOperationalContact,
             .applyActivityContract,
+            .applyPortableReview,
         ])
 
     /// C22 receipts are appended by the existing fenced journal authority;
@@ -205,6 +206,12 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             return try applyOperationalContact(value, temporaryRelativePath: temporaryRelativePath)
         case let .applyActivityContract(value):
             return try applyActivityContract(value, temporaryRelativePath: temporaryRelativePath)
+        case let .applyPortableReview(value):
+            try value.validate()
+            return try applyInspectionReview(
+                value.inspectionReviewMutation,
+                temporaryRelativePath: temporaryRelativePath
+            )
         case .deleteAsset,
              .deleteSite,
              .eraseWorkspace,

@@ -1734,3 +1734,12 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_03
         XCTAssertTrue(ActivityContractPersistenceEnrollmentV2.usesSoleWorkspaceWriter)
     }
 }
+
+private final class C48PortableReviewV903MigrationTests: XCTestCase {
+    func testC48SessionMigrationPreservesBytesWithoutSwiftDataMigration() {
+        XCTAssertEqual(C48PortableExchangeMigrationBoundaryV2.sourceVersion, 1)
+        XCTAssertEqual(C48PortableExchangeMigrationBoundaryV2.targetVersion, 2)
+        XCTAssertFalse(C48PortableExchangeMigrationBoundaryV2.canonicalSwiftDataSchemaChanged)
+        XCTAssertTrue(C48PortableExchangeMigrationBoundaryV2.preservesExactBytes)
+    }
+}

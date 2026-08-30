@@ -1302,3 +1302,23 @@ enum C47ActivityContractSearchPersistenceBoundaryV2 {
     static let noPlanFallbackIndexed = false
     static let projectionIsDerivedAndBackupExcluded = true
 }
+
+// MARK: - C48 portable-review search persistence boundary
+
+enum C48PortableReviewSearchPersistenceBoundaryV1 {
+    static let derivedProjectionType = C48PortableReviewDerivedHistoryProjectionV1.self
+    static let createsCanonicalReviewRow = false
+    static let createsSearchRowFamily = false
+    static let currentStateProjectionOnly = true
+    static let historyMetadataMayBeRebuilt = true
+    static let capabilityBytesPersisted = false
+    static let capabilityProofBytesPersisted = false
+    static let responseBodyPersisted = false
+    static let rawRequestResponseBytesPersisted = false
+    static let workspaceAndReplicaIdentityPersisted = false
+    static let indexIsDisposableAndRebuildable = true
+
+    static func validate(_ projection: C48PortableReviewDerivedHistoryProjectionV1) throws {
+        try projection.validate()
+    }
+}

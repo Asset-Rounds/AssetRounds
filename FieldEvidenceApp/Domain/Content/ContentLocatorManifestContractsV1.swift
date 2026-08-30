@@ -405,3 +405,10 @@ enum C46OperationalContactConformance_FieldEvidenceApp_Domain_Content_ContentLoc
     static let contactExportExcludedByDefault = true
     static let siteRoleOwnershipForbidden = true
 }
+
+enum C48PortableReviewContentLocatorBoundaryV1 {
+    static let capabilityProofLocatorIsAllowed = false
+    static let responseByteLocatorIsAllowed = false
+    static let derivedProjectionMayExposeFilesystemIdentity = false
+    static let customerSafeReportUsesExistingContentLocatorsOnly = true
+}

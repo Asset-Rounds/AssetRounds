@@ -968,3 +968,15 @@ enum C46OperationalContactContractManifestBoundaryV1{
     static let systemOutcomeCreatesCommunicationClaim=false
     static func validate()throws{guard durableFamilies==["ServiceContactPointRow","SystemHandoffIntentRow"],!defaultExportEnabled,!customerContactValuesAreReportSafe,!systemOutcomeCreatesCommunicationClaim else{throw SnapshotProjectionFailureV1.invalidValue}}
 }
+
+enum C48PortableReviewContractManifestBoundaryV1 {
+    static let manifestDeclaresDerivedFieldsOnly = true
+    static let allowedDerivedFieldIDs = C48PortableReviewDerivedHistoryProjectionV1.allowedFieldIDs
+    static let capabilityProofAndResponseBytesAreNotManifestFields = true
+    static let workspaceAndReplicaIdentityAreNotManifestFields = true
+    static let externalIdentityIsSelfAssertedOnly = true
+
+    static func validateFieldIDs(_ values: [String]) throws {
+        try C48PortableReviewDerivedHistoryProjectionV1.validateFieldIDs(values)
+    }
+}

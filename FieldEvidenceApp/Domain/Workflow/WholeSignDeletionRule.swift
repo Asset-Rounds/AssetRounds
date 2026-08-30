@@ -1110,3 +1110,17 @@ enum C45AcceptedLabelWholeSignBoundaryV1 { static let activeLocatorTruthMayBlock
 
 enum C46OperationalContactBoundary_40{static let assetOrSiteCascadeDeletesPartyContacts=false;static let workspaceEraseOwnsRows=true}
 enum C47ActivityContractWholeSignDeletionBoundaryV2 { static let unfinalizedMatchingSubjectGraphCanBeRemoved=true;static let finalizedAndSupersededHistoryCannotCascade=true;static let cancelledAndUnableHistoryCannotCascade=true;static let immutableActivityEvidenceCannotCascade=true;static let unrelatedActivitiesRemain=true }
+
+enum C48PortableExchangeWholeSignDeletionRuleV2 {
+    static func mayInvalidate(
+        _ session: PortableExchangeSessionRecordV2,
+        workspaceID: WorkspaceID,
+        subjectID: String
+    ) -> Bool {
+        C48PortableExchangeDeletionIntentBoundaryV2.invalidatesSession(
+            session,
+            workspaceID: workspaceID,
+            canonicalSubjectIdentity: subjectID
+        )
+    }
+}

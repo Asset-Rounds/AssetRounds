@@ -578,3 +578,17 @@ enum C47ActivityContractCompatibility_FieldEvidenceApp_Domain_InspectionKernel_I
     static let legacyInspectionTruthIsNotRewritten = true
     static let threeReceiptIsolationIsRequired = true
 }
+
+enum C48PortableReviewPackageReleaseBoundaryV1 {
+    static let packageReleaseBindsSubjectSnapshotOnly = true
+    static let capabilityProofIsNotPackageIdentity = true
+    static let responseBytesAreNotPackageIdentity = true
+    static let existingReportRendererRemainsTheOnlyRenderer = true
+    static let externalReviewDoesNotFinalizeActivity = true
+
+    static func validateDerivedHistory(
+        _ projection: C48PortableReviewDerivedHistoryProjectionV1
+    ) throws {
+        try projection.validate()
+    }
+}

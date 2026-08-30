@@ -933,3 +933,11 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_4H
         XCTAssertFalse(ActivityContractPersistenceEnrollmentV2.planOrScanProviderRequired)
     }
 }
+
+private final class C48PortableReviewS44HistoryTests: XCTestCase {
+    func testC48HistoryIsImmutableAndCannotReopenCurrentWork() {
+        XCTAssertTrue(C48PortableReviewReportHistoryBoundaryV1.responseHistoryIsImmutable)
+        XCTAssertTrue(C48PortableReviewReportHistoryBoundaryV1.historyOnlyCannotReopenCurrentWork)
+        XCTAssertFalse(C48PortableReviewReportHistoryBoundaryV1.capabilityBytesRetainedByHistoryProjection)
+    }
+}

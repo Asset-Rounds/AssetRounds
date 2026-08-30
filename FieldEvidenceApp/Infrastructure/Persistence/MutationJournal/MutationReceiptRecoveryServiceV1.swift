@@ -63,6 +63,12 @@ final class MutationReceiptRecoveryServiceV1 {
     func recoverOperationalContactEffectsBeforeWriterActivation()throws{
         try recoverBeforeWriterActivation()
     }
+    /// C48 repairs only the existing C14 rows and canonical mutation receipt.
+    /// Exact portable bytes are finalized by PortableExchangeSessionStoreV2
+    /// after this proof succeeds; session-only history never enters this path.
+    func recoverPortableReviewEffectsBeforeWriterActivation()throws{
+        try recoverBeforeWriterActivation()
+    }
 }
 
 enum LightingMutationReceiptRecoveryPolicyV1 { static func validateRecovered(operation:LightingWriteOperationV1,receipt:MutationReceiptV1)throws{_ = try LightingMutationReceiptV1(operation:operation,mutationReceipt:receipt)} }
@@ -135,3 +141,4 @@ enum C45AcceptedLabelRecoveryBoundaryV1 { static let commandKind:WorkspaceComman
 
 enum C46OperationalContactBoundary_20{static let persistentFamilies=OperationalContactPersistenceEnrollmentV1.persistentFamilies;static let platformOutcomesPersistent=false}
 enum C47ActivityContractRecoveryBoundaryV2 { static let commandKind:WorkspaceCommandKindV1 = .applyActivityContract;static let effectBeforeReceiptRecoveryIsIdempotent=true;static let completedSnapshotBytesAreNeverReencoded=true }
+enum C48PortableReviewRecoveryBoundaryV1 { static let commandKind:WorkspaceCommandKindV1 = .applyPortableReview;static let canonicalEffectUsesExistingC14Rows=true;static let sessionEvidenceFinalizesOnlyAfterExactReceipt=true;static let historyOnlyNeverEntersWorkspaceJournal=true }

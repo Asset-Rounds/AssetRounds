@@ -710,3 +710,19 @@ enum C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Content_Co
     static let contactExportExcludedByDefault = true
     static let noContactProjectionOrNetworkDelivery = true
 }
+
+// MARK: - C48 portable-review derived-content integrity boundary
+
+enum C48PortableReviewContentIntegrityBoundaryV1 {
+    static let integrityInputIsDerivedMetadataOnly = true
+    static let capabilityBytesAreHashedForDerivedConsumers = false
+    static let capabilityProofBytesAreHashedForDerivedConsumers = false
+    static let rawRequestResponseBytesAreHashedForDerivedConsumers = false
+    static let existingContentIntegrityRemainsByteOwner = true
+
+    static func validateDerivedMetadata(
+        _ projection: C48PortableReviewDerivedHistoryProjectionV1
+    ) throws {
+        try projection.validate()
+    }
+}

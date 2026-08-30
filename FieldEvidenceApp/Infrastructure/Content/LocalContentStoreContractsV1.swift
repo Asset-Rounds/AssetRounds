@@ -512,3 +512,21 @@ enum C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Content_Lo
     static let contactExportExcludedByDefault = true
     static let noContactProjectionOrNetworkDelivery = true
 }
+
+// MARK: - C48 portable-review derived-content admission boundary
+
+enum C48PortableReviewLocalContentStoreBoundaryV1 {
+    static let exchangeStagingRemainsProtectedAndEphemeral = true
+    static let derivedMetadataMayEnterExistingContentPipeline = true
+    static let capabilityBytesMayEnterLocalContentStore = false
+    static let capabilityProofBytesMayEnterLocalContentStore = false
+    static let rawRequestResponseBytesMayEnterDerivedContentStore = false
+    static let workspaceAndReplicaIdentityMayEnterDerivedContentStore = false
+    static let secondByteStoreOrWriter = false
+
+    static func validateDerivedMetadata(
+        _ projection: C48PortableReviewDerivedHistoryProjectionV1
+    ) throws {
+        try projection.validate()
+    }
+}

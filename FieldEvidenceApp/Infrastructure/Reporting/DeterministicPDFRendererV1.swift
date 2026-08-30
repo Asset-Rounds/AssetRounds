@@ -1628,3 +1628,26 @@ enum C47ActivityContractConformance_FieldEvidenceApp_Infrastructure_Reporting_De
     static let usesExistingInfrastructureOnly = true
     static let createsSecondWriterRendererStoreRouteOrInspectionAlias = false
 }
+
+// MARK: - C48 portable-review derived PDF boundary
+
+extension DeterministicPDFRendererV1 {
+    /// PDF generation remains owned by the existing deterministic renderer;
+    /// only the already-derived history metadata may be validated here.
+    static func validatePortableReviewDerivedHistory(
+        _ projection: C48PortableReviewDerivedHistoryProjectionV1
+    ) throws -> C48PortableReviewDerivedHistoryProjectionV1 {
+        try C48PortableReviewReportProjectionBoundaryV1.validate(projection)
+        return projection
+    }
+}
+
+enum C48PortableReviewPDFBoundaryV1 {
+    static let usesExistingPDFRenderer = true
+    static let emitsDerivedMetadataOnly = true
+    static let capabilityBytesEmitted = false
+    static let capabilityProofBytesEmitted = false
+    static let responseBodyEmitted = false
+    static let rawRequestResponseBytesEmitted = false
+    static let workspaceAndReplicaIdentityEmitted = false
+}

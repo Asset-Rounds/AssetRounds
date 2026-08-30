@@ -40,3 +40,18 @@ struct AccessibleDocumentLocalEvidenceResolverV1:AccessibleDocumentEvidenceResol
     func acceptedReceipt(for assessment:AccessibleDocumentAssessmentReceiptV1,tree:AccessibleDocumentSemanticTreeV1)async throws->AccessibleDocumentAssessmentReceiptV1?{try assessment.validate(tree:tree);let mutation=AccessibleDocumentMutationV1(receipt:assessment);guard let canonical=try journalStore.receipt(mutationID:assessment.mutationID)else{return nil};_ = try AccessibleDocumentMutationReceiptV1(mutation:mutation,mutationReceipt:canonical);return assessment}
     func append(_ assessment:AccessibleDocumentAssessmentReceiptV1,tree:AccessibleDocumentSemanticTreeV1)async throws->AccessibleDocumentAssessmentReceiptV1{try assessment.validate(tree:tree);let mutation=AccessibleDocumentMutationV1(receipt:assessment);let canonical=try writer.commitAccessibleDocumentAssessment(mutation,validatedAgainst:tree);_ = try AccessibleDocumentMutationReceiptV1(mutation:mutation,mutationReceipt:canonical);return assessment}
 }
+
+// C48 accessible-document lifecycle consumes only a validated derived
+// projection; it never persists or speaks exchange secrets or response bytes.
+enum C48PortableReviewAccessibleDocumentLifecycleBoundaryV1 {
+    static let usesExistingAccessibleDocumentLifecycle = true
+    static let capabilityBytesAccepted = false
+    static let capabilityProofBytesAccepted = false
+    static let responseBodyAccepted = false
+    static let rawRequestResponseBytesAccepted = false
+    static let externalReviewCannotWriteAssessment = true
+
+    static func validate(_ projection: C48PortableReviewDerivedHistoryProjectionV1) throws {
+        try C48PortableReviewAccessibleDocumentBoundaryV1.validate(projection)
+    }
+}

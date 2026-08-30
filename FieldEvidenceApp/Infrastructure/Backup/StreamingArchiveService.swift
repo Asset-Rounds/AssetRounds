@@ -147,6 +147,7 @@ struct StreamingArchiveService: Sendable {
     ) throws -> StreamingArchiveWriteReceiptV1 {
         try limits.validate()
         try cancellation.checkpoint()
+        try validateArchiveExtension(destinationURL, writing: true)
         let ordered = try validateWritePlan(plan)
         var expectedPayloadBytes: Int64 = 0
         for entry in ordered {
@@ -571,6 +572,7 @@ struct StreamingArchiveService: Sendable {
         guard archiveURL.isFileURL, extractedDirectoryURL.isFileURL else {
             throw StreamingArchiveFailureV1.invalidArchive
         }
+        try validateArchiveExtension(archiveURL, writing: false)
         let archive = archiveURL.standardizedFileURL
         let archiveDescriptor = Darwin.open(archive.path, O_RDONLY | O_NOFOLLOW)
         guard archiveDescriptor >= 0 else { throw Self.mapOpenFailure() }
@@ -597,6 +599,9 @@ struct StreamingArchiveService: Sendable {
         let index = try decodeCanonicalIndex(indexData)
         try validateIndex(index)
         if pathProfile == .surveyTemplate{try SurveyTemplateArchiveAdmissionV1.validate(index)}
+        if pathProfile == .portableReviewRequest {
+            try PortableReviewRequestArchiveAdmissionV1.validate(index)
+        }
         let expectedArchiveBytes = try adding(
             Int64(StreamingArchiveFormatV1.headerByteCount),
             try adding(
@@ -862,6 +867,13 @@ private extension StreamingArchiveService {
                 failure: .uncompressedLimitExceeded
             )
         }
+        if pathProfile == .portableReviewRequest {
+            try PortableReviewRequestArchiveAdmissionV1.validateDeclaredEntries(
+                ordered.map {
+                    ($0.path, $0.mimeType, $0.expectedUncompressedByteCount)
+                }
+            )
+        }
         return ordered
     }
 
@@ -933,8 +945,12 @@ private extension StreamingArchiveService {
             separator: "/",
             omittingEmptySubsequences: false
         ).map(String.init)
+        let maximumDepth = pathProfile == .surveyTemplate
+            ? SurveyTemplateArchiveAdmissionV1.maximumDepth
+            : (pathProfile == .portableReviewRequest
+                ? PortableReviewRequestArchiveAdmissionV1.maximumDepth : 2)
         guard !components.isEmpty,
-              components.count <= (pathProfile == .surveyTemplate ? SurveyTemplateArchiveAdmissionV1.maximumDepth:2),
+              components.count <= maximumDepth,
               components.allSatisfy({
                 !$0.isEmpty && $0 != "." && $0 != ".."
                     && $0 == $0.precomposedStringWithCanonicalMapping
@@ -942,9 +958,27 @@ private extension StreamingArchiveService {
             throw StreamingArchiveFailureV1.hostilePath
         }
         let valid: Bool
-        if pathProfile == .surveyTemplate{valid=ContentContractValidationV1.validMediaType(mimeType)}else{switch components {
+        if pathProfile == .surveyTemplate {
+            valid=ContentContractValidationV1.validMediaType(mimeType)
+        } else if pathProfile == .portableReviewRequest {
+            switch components {
+            case [let name] where PortableReviewRequestArchiveAdmissionV1.requiredEntries[name] != nil:
+                valid = mimeType == PortableReviewRequestArchiveAdmissionV1.requiredEntries[name]
+            case ["report", "report.pdf"]:
+                valid = mimeType == "application/pdf"
+            case ["report", "report.txt"]:
+                valid = mimeType == "text/plain"
+            case ["media", let name]:
+                valid = canonicalUUIDLeaf(name, suffix: ".jpg")
+                    && mimeType == "image/jpeg"
+            default:
+                valid = false
+            }
+        } else {switch components {
         case ["manifest.json"], ["records.json"]:
             valid = mimeType == "application/json"
+        case ["review-exchange", "snapshot.json"]:
+            valid = mimeType == PortableExchangeBackupMemberV2.mimeType
         case ["media", let name], ["thumbnails", let name]:
             valid = canonicalUUIDLeaf(name, suffix: ".jpg")
                 && mimeType == "image/jpeg"
@@ -958,6 +992,16 @@ private extension StreamingArchiveService {
             valid = false
         }}
         guard valid else { throw StreamingArchiveFailureV1.hostilePath }
+    }
+
+    func validateArchiveExtension(_ url: URL, writing: Bool) throws {
+        guard pathProfile == .portableReviewRequest else { return }
+        guard url.isFileURL,
+              url.pathExtension == PortableReviewRequestArchiveAdmissionV1.fileExtension else {
+            throw writing
+                ? StreamingArchiveFailureV1.invalidDestination
+                : StreamingArchiveFailureV1.invalidArchive
+        }
     }
 
     func copySource(

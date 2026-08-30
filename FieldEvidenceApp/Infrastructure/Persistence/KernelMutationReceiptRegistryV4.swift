@@ -460,3 +460,4 @@ enum C45AcceptedLabelMutationReceiptEnrollmentV1 { static let commandKind:Worksp
 
 enum C46OperationalContactBoundary_48{static let persistentFamilies=OperationalContactPersistenceEnrollmentV1.persistentFamilies;static let platformOutcomesPersistent=false}
 enum C47ActivityContractMutationReceiptEnrollmentV2 { static let commandKind:WorkspaceCommandKindV1 = .applyActivityContract;static let receiptValidatesExactFiveRowPostimages=true;static let completedSnapshotReferenceIsCompatibilityOnly=true }
+enum C48PortableReviewMutationReceiptEnrollmentV1 { static let commandKind:WorkspaceCommandKindV1 = .applyPortableReview;static let canonicalPostimagesAreExistingC14Families=true;static let exactResponseBytesRemainEnvelopeAndSessionBound=true;static let sessionOnlyDecisionsAreNotKernelMutations=true }

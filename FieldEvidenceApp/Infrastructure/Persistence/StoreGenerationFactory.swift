@@ -11747,3 +11747,10 @@ private enum CurrentPointerCodecV1 {
         }
     }
 }
+
+enum C48PortableReviewStoreGenerationBoundaryV1 {
+    static let activePersistentSchemaVersion = 36
+    static let semanticEnvelopeUnchanged = true
+    static let sessionStoreIsNonpersistent = true
+    static let historicalPreC47ActivityContractsRemainUntouched = true
+}

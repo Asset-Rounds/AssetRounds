@@ -607,6 +607,19 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             do{try value.validate();guard value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,value.expectedRevision==request.expectedRevision else{throw WorkspaceMutationFailureV1.invalidCommand}}catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
         case .applyActivityContract(let value):
             do{try value.validateForCanonicalMutation();guard C47ActivityContractPersistenceBoundaryV2.acceptsCanonicalRow(kind:value.successorEnvelope.kind),value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,value.expectedRevision==request.expectedRevision else{throw WorkspaceMutationFailureV1.invalidCommand}}catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
+        case .applyPortableReview(let value):
+            do {
+                try value.validate()
+                let targets = try value.concurrencyIdentities
+                let expected = Dictionary(uniqueKeysWithValues: request.expectedRevision.entityRevisions.map { ($0.identity, $0.revision) })
+                guard value.workspaceID == identity.workspaceID,
+                      value.mutationID == request.mutationID,
+                      value.plan.basisWorkspaceRevision == request.expectedRevision.workspaceRevision,
+                      sourceKind == .importedHistory || occurredAtOverride != nil || (try targets.allSatisfy {
+                          expected[$0] == (try value.expectedRevision(for: $0))
+                      }) else { throw WorkspaceMutationFailureV1.invalidCommand }
+            } catch let failure as WorkspaceMutationFailureV1 { throw failure }
+              catch { throw WorkspaceMutationFailureV1.invalidCommand }
         default:
             break
         }
@@ -857,6 +870,10 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
                 entityRevisions[try image.identity] = image.revision
             }
         } else if case let .applyActivityContract(mutation) = request.command {
+            for image in try mutation.mutationPostImages {
+                entityRevisions[try image.identity] = image.revision
+            }
+        } else if case let .applyPortableReview(mutation) = request.command {
             for image in try mutation.mutationPostImages {
                 entityRevisions[try image.identity] = image.revision
             }
@@ -1362,6 +1379,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             try value.validate();values=try value.affectedIdentities
         case let .applyActivityContract(value):
             try value.validateForCanonicalMutation();values=try value.affectedIdentities
+        case let .applyPortableReview(value):
+            try value.validate();values=try value.affectedIdentities
         }
         guard Set(values).count == values.count else {
             throw WorkspaceMutationFailureV1.invalidCommand
@@ -1418,6 +1437,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         if case let .applyAssetLabel(value)=command{try value.validate();return[try value.affectedIdentity]}
         if case let .applyOperationalContact(value)=command{try value.validate();return try value.concurrencyIdentities}
         if case let .applyActivityContract(value)=command{try value.validateForCanonicalMutation();return try value.concurrencyIdentities}
+        if case let .applyPortableReview(value)=command{try value.validate();return try value.concurrencyIdentities}
         return try targetIdentities(for: command)
     }
 
@@ -1584,6 +1604,50 @@ extension WorkspaceWriterV1: AssistanceCanonicalWorkspaceWritingV1 {
 extension WorkspaceWriterV1:TemporalEvidenceCanonicalWorkspaceWritingV1{
     func commitTemporalEvidence(_ mutation:TemporalEvidenceMutationV1)throws->TemporalEvidenceMutationReceiptV1{try mutation.validate();guard isActive else{throw WorkspaceMutationFailureV1.writerInvalidated};guard let journalStore else{throw WorkspaceMutationFailureV1.persistenceFailed};if let existing=try journalStore.receipt(mutationID:mutation.mutationID){return try .init(mutation:mutation,mutationReceipt:existing)};let current=try currentRevision();guard mutation.expectedRevision.workspaceID==current.workspaceID,mutation.expectedRevision.generationID==current.generationID,mutation.expectedRevision.writerInstanceID==current.writerInstanceID,mutation.expectedRevision.workspaceRevision==current.revision else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision};_ = try execute(mutation.canonicalWorkspaceMutationRequest());guard let receipt=try journalStore.receipt(mutationID:mutation.mutationID)else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return try .init(mutation:mutation,mutationReceipt:receipt)}
     func temporalEvidenceReceipt(mutationID:MutationIDV1)throws->MutationReceiptV1?{guard isActive else{throw WorkspaceMutationFailureV1.writerInvalidated};guard let journalStore else{throw WorkspaceMutationFailureV1.persistenceFailed};return try journalStore.receipt(mutationID:mutationID)}
+}
+
+// MARK: - C48 portable-review accept-and-apply sole writer
+
+extension WorkspaceWriterV1 {
+    func commitPortableReview(
+        _ mutation: PortableReviewMutationV1,
+        expectedRevision: WorkspaceExpectedRevisionV1
+    ) throws -> PortableReviewMutationReceiptV1 {
+        try mutation.validate()
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        if let existing = try journalStore.receipt(mutationID: mutation.mutationID) {
+            return try PortableReviewMutationReceiptV1(mutation: mutation, mutationReceipt: existing)
+        }
+        let current = try currentRevision()
+        guard expectedRevision.workspaceID == current.workspaceID,
+              expectedRevision.generationID == current.generationID,
+              expectedRevision.writerInstanceID == current.writerInstanceID,
+              expectedRevision.workspaceRevision == current.revision,
+              expectedRevision.workspaceRevision == mutation.plan.basisWorkspaceRevision,
+              Set(expectedRevision.entityRevisions.map(\.identity)) == Set(try mutation.concurrencyIdentities),
+              try mutation.concurrencyIdentities.allSatisfy({ identity in
+                  expectedRevision.entityRevisions.first(where: { $0.identity == identity })?.revision
+                      == (try mutation.expectedRevision(for: identity))
+              }) else { throw WorkspaceMutationFailureV1.staleWorkspaceRevision }
+        _ = try execute(try WorkspaceMutationRequestV1(
+            mutationID: mutation.mutationID,
+            expectedRevision: expectedRevision,
+            command: .applyPortableReview(mutation)
+        ))
+        guard let receipt = try journalStore.receipt(mutationID: mutation.mutationID) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        return try PortableReviewMutationReceiptV1(mutation: mutation, mutationReceipt: receipt)
+    }
+
+    func portableReviewReceipt(
+        mutationID: MutationIDV1
+    ) throws -> PortableReviewMutationReceiptV1? {
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        return try journalStore.portableReviewReceipt(mutationID: mutationID)
+    }
 }
 
 // MARK: - C45 accepted-label sole writer

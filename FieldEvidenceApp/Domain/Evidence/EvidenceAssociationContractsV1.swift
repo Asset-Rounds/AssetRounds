@@ -16,6 +16,13 @@ extension EvidenceAssociationV1 {
     }
 }
 
+enum C48PortableReviewEvidenceAssociationBoundaryV1 {
+    static let responseAttachmentsAreUnsupported = true
+    static let capabilityProofCannotBecomeEvidence = true
+    static let rawResponseBytesCannotBecomeEvidence = true
+    static let acceptedAssociationsContinueThroughExistingCanonicalWriter = true
+}
+
 struct EvidenceAssociationTargetV1: Codable, Equatable, Hashable, Sendable {
     let workspaceID: String
     let kind: EvidenceTargetKindV1

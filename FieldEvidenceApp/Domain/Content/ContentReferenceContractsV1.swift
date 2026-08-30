@@ -388,3 +388,9 @@ enum C46OperationalContactConformance_FieldEvidenceApp_Domain_Content_ContentRef
     static let contactExportExcludedByDefault = true
     static let siteRoleOwnershipForbidden = true
 }
+
+enum C48PortableReviewContentReferenceBoundaryV1 {
+    static let rawCapabilityOrResponseBytesAreContentReferences = false
+    static let derivedMetadataUsesPublicRequestIdentityOnly = true
+    static let evidenceAssociationRemainsCanonical = true
+}

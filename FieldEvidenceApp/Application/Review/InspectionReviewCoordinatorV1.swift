@@ -14,4 +14,5 @@ import Foundation
 
     func reviewProjection(workspaceID: WorkspaceID, reviewID: UUID) throws -> InspectionReviewProjectionV1 { try lifecycle.reviewProjection(workspaceID: workspaceID, reviewID: reviewID) }
     func correctiveActionProjection(workspaceID: WorkspaceID, actionID: UUID, now: Date) throws -> CorrectiveActionProjectionV1 { try lifecycle.correctiveActionProjection(workspaceID: workspaceID, actionID: actionID, now: now) }
+    func portableReviewBasis(mapping:ReviewRequestC14SubjectItemMappingV1,reviewID:UUID)throws->InspectionReviewProjectionV1{try lifecycle.portableReviewBasis(mapping:mapping,reviewID:reviewID)}
 }

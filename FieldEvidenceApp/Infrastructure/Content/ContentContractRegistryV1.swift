@@ -376,3 +376,19 @@ enum C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Content_Co
     static let contactExportExcludedByDefault = true
     static let noContactProjectionOrNetworkDelivery = true
 }
+
+// MARK: - C48 portable-review derived-content boundary
+
+enum C48PortableReviewContentContractRegistryBoundaryV1 {
+    static let derivedMetadataContract = C48PortableReviewDerivedHistoryProjectionV1.self
+    static let requestAndResponseRemainExchangeOwned = true
+    static let rawCapabilityBytesAreContentContractMembers = false
+    static let capabilityProofBytesAreContentContractMembers = false
+    static let rawRequestResponseBytesAreContentContractMembers = false
+    static let workspaceAndReplicaIdentityAreContentContractMembers = false
+    static let existingContentRegistryRemainsCanonical = true
+
+    static func validate(_ projection: C48PortableReviewDerivedHistoryProjectionV1) throws {
+        try projection.validate()
+    }
+}

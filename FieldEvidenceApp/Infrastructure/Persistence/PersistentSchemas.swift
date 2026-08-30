@@ -1349,3 +1349,15 @@ enum PersistentSchemaReleaseRegistryV1 {
         return Schema(PersistentSchemaV36.models,version:PersistentSchemaV36.versionIdentifier)
     }
 }
+
+/// C48 enrolls the portable review exchange as a nonpersistent staging
+/// boundary. The SwiftData release remains V36 with the V35 record contract;
+/// no exchange/session row is added to this schema.
+enum C48PortableReviewSchemaBoundaryV1 {
+    static let persistentSchemaVersion = 36
+    static let recordsSchemaVersion = 35
+    static let canonicalSwiftDataSchemaChanged = false
+    static let newPersistentRowCount = 0
+    static let sessionStoreIsNonpersistent = true
+    static let portableExchangeHasSwiftDataModel = false
+}

@@ -913,3 +913,11 @@ extension V9_36RecoverabilityVerificationTests {
         XCTAssertNoThrow(try V22FieldReferenceImportBoundaryV1.validate(persistent: 22, records: 21))
     }
 }
+
+private final class C48PortableReviewV936RecoverabilityTests: XCTestCase {
+    func testC48RecoverabilityPreservesExactExchangeBytesOutsideCanonicalSchema() {
+        XCTAssertTrue(C48PortableExchangeMigrationBoundaryV2.preservesExactBytes)
+        XCTAssertFalse(C48PortableExchangeMigrationBoundaryV2.canonicalSwiftDataSchemaChanged)
+        XCTAssertTrue(C48PortableReviewPersistenceBoundaryV1.sessionStoreIsNonpersistent)
+    }
+}

@@ -2524,3 +2524,20 @@ enum C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Media_Evid
     static let contactExportExcludedByDefault = true
     static let noContactProjectionOrNetworkDelivery = true
 }
+
+// MARK: - C48 portable-review evidence boundary
+
+enum C48PortableReviewEvidenceBundleBoundaryV1 {
+    static let portableReviewResponseBytesRemainExchangeOwned = true
+    static let capabilityBytesBecomeEvidence = false
+    static let capabilityProofBytesBecomeEvidence = false
+    static let rawRequestResponseBytesBecomeEvidence = false
+    static let derivedHistoryMayReferenceExistingEvidenceOnly = true
+    static let createsSecondByteStore = false
+
+    static func validateDerivedHistory(
+        _ projection: C48PortableReviewDerivedHistoryProjectionV1
+    ) throws {
+        try projection.validate()
+    }
+}

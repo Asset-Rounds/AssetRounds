@@ -1135,3 +1135,16 @@ enum C45AcceptedLabelOrphanCleanupBoundaryV1 { static let cleansOnlyLeasedDerive
 
 enum C46OperationalContactBoundary_46{static let assetOrSiteCascadeDeletesPartyContacts=false;static let workspaceEraseOwnsRows=true}
 enum C47ActivityContractOrphanCleanupBoundaryV2 { static let canonicalRowsAreNeverOrphanFiles=true;static let releasedCompletedSnapshotUsesExistingReportCleanup=true;static let derivedSearchAndScratchMayBeRebuilt=true }
+
+enum C48PortableExchangeOrphanCleanupBoundaryV2 {
+    static let sessionStoreOwnsImmutablePayloadCleanup = true
+    static let genericOrphanCleanupMayDeleteSessionBytes = false
+    static let eraseRemovesWholeProtectedRoot = true
+    static func validate() throws {
+        guard sessionStoreOwnsImmutablePayloadCleanup,
+              !genericOrphanCleanupMayDeleteSessionBytes,
+              eraseRemovesWholeProtectedRoot else {
+            throw OrphanFileCleanupServiceError.invalidOwnedLayout
+        }
+    }
+}

@@ -607,3 +607,15 @@ enum C46OperationalContactConformance_FieldEvidenceApp_Domain_Replication_Integr
     static let contactExportExcludedByDefault = true
     static let siteRoleOwnershipForbidden = true
 }
+
+enum C48PortableReviewReconciliationIntegrationEventBoundaryV1 {
+    static let canonicalReconciliationKinds: Set<WorkspaceEntityKindV1> = [.inspectionReviewTransition, .reviewDisposition, .changeRequest]
+    static let capabilityProofAndResponseBytesNeverProject = true
+    static let originMetadataIsSelfAssertedOnly = true
+    static func definitions() throws -> [IntegrationEventContractDefinitionV1] {
+        try [("portable_review.reconciliation_transition.v1", WorkspaceEntityKindV1.inspectionReviewTransition), ("portable_review.reconciliation_disposition.v1", .reviewDisposition), ("portable_review.reconciliation_change_request.v1", .changeRequest)].map {
+            try IntegrationEventContractDefinitionV1(eventKind: $0.0, eventVersion: 1, sourceEntityKind: $0.1, sensitivity: .workspaceData, emittedVisibility: .workspaceInternal, redaction: .notRequired)
+        }.sorted { $0.stableKey < $1.stableKey }
+    }
+    static func validate(registry: IntegrationContractRegistryV1) throws { for definition in try definitions() { guard try registry.definition(for: definition.sourceEntityKind) == definition else { throw IntegrationEventFailureV1.unknownEventKind } } }
+}

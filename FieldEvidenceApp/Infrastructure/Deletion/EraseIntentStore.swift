@@ -1383,3 +1383,19 @@ enum C45AcceptedLabelEraseStoreBoundaryV1 { static let durableSnapshotCountParti
 
 enum C46OperationalContactBoundary_42{static let assetOrSiteCascadeDeletesPartyContacts=false;static let workspaceEraseOwnsRows=true}
 enum C47ActivityContractEraseStoreBoundaryV2 { static let durableRowInventoryCount=5;static let releasedCompletedSnapshotUsesExistingFileInventory=true;static let conformanceReceiptsCreateNoRows=true }
+
+enum C48PortableExchangeEraseIntentStoreEnrollmentV2 {
+    static let rootName = PortableExchangeSessionStoreLayoutV2.directoryName
+    static let protectedFileKinds: Set<OwnedFileKindV1> = [
+        .portableExchangeSessionFile,
+        .portableExchangeJournalFile,
+        .portableExchangeQuarantineFile,
+    ]
+    static func validate() throws {
+        guard rootName == "PortableReviewExchangeV2",
+              protectedFileKinds.count == 3 else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        try PortableExchangeProtectedFilePolicyV2.validate()
+    }
+}

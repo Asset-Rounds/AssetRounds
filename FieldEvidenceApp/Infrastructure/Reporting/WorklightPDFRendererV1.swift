@@ -804,3 +804,13 @@ enum C47ActivityContractConformance_FieldEvidenceApp_Infrastructure_Reporting_Wo
     static let createsSecondRouteOrInspectionAlias = false
     static func validateReadable(_ value: ActivitySessionEnvelopeV2) throws { try value.validateForRead() }
 }
+
+enum C48PortableReviewWorklightRendererBoundaryV1 {
+    static let portableReviewUsesExistingReportRenderer = true
+    static let derivedMetadataOnly = true
+    static let capabilityBytesRendered = false
+    static let capabilityProofBytesRendered = false
+    static let responseBodyRendered = false
+    static let rawRequestResponseBytesRendered = false
+    static let externalReviewCannotChangeWorklightSnapshot = true
+}

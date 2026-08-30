@@ -943,3 +943,17 @@ enum C47ActivityContractConformance_FieldEvidenceApp_Infrastructure_Reporting_Re
     static let createsSecondRendererWriterOrStore = false
     static func validateReadable(_ value: ActivitySessionEnvelopeV2) throws { try value.validateForRead() }
 }
+
+enum C48PortableReviewReportHistoryBoundaryV1 {
+    static let responseHistoryIsImmutable = true
+    static let historyOnlyCannotReopenCurrentWork = true
+    static let capabilityBytesRetainedByHistoryProjection = false
+    static let capabilityProofBytesRetainedByHistoryProjection = false
+    static let responseBodyRetainedByHistoryProjection = false
+    static let rawRequestResponseBytesRetainedByHistoryProjection = false
+    static let workspaceAndReplicaIdentityRetainedByHistoryProjection = false
+
+    static func validate(_ projection: C48PortableReviewDerivedHistoryProjectionV1) throws {
+        try projection.validate()
+    }
+}

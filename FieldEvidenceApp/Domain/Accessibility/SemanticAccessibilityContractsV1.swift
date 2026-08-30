@@ -2463,3 +2463,55 @@ enum OperationalContactAccessibilityPolicyV1 {
         }
     }
 }
+
+// MARK: - C48 portable-review derived-consumer accessibility
+
+/// The accessible projection exposes only the recorded lifecycle/disposition
+/// and the explicit trust limitation.  It never speaks capability bytes,
+/// proof bytes, response text, private identifiers, or verified identity.
+enum C48PortableReviewAccessibilityIDV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case responseState = "portable_review.response.state"
+    case responseDisposition = "portable_review.response.disposition"
+    case responseTrustBoundary = "portable_review.response.trust_boundary"
+    case historyOnly = "portable_review.response.history_only"
+}
+
+enum C48PortableReviewAccessibilityPolicyV1 {
+    static let statusIsNotColorOnly = true
+    static let stateAndDispositionAreSpoken = true
+    static let explicitTrustLimitationIsSpoken = true
+    static let capabilityBytesSpoken = false
+    static let capabilityProofSpoken = false
+    static let responseBodySpoken = false
+    static let rawRequestResponseBytesSpoken = false
+    static let workspaceAndReplicaIdentitySpoken = false
+    static let verifiedIdentitySpoken = false
+
+    static func localizationKey(
+        for id: C48PortableReviewAccessibilityIDV1
+    ) -> C48PortableReviewLocalizationKeyV1 {
+        switch id {
+        case .responseState: .responseRecorded
+        case .responseDisposition: .responseRecorded
+        case .responseTrustBoundary: .responseNotVerified
+        case .historyOnly: .historyOnly
+        }
+    }
+
+    static func validate() throws {
+        let ids = C48PortableReviewAccessibilityIDV1.allCases
+        guard ids.map(\.rawValue).count == Set(ids.map(\.rawValue)).count,
+              ids.allSatisfy({ !localizationKey(for: $0).rawValue.isEmpty }),
+              statusIsNotColorOnly,
+              stateAndDispositionAreSpoken,
+              explicitTrustLimitationIsSpoken,
+              !capabilityBytesSpoken,
+              !capabilityProofSpoken,
+              !responseBodySpoken,
+              !rawRequestResponseBytesSpoken,
+              !workspaceAndReplicaIdentitySpoken,
+              !verifiedIdentitySpoken else {
+            throw LocalizationContractFailureV1.invalidAccessibilityBinding
+        }
+    }
+}

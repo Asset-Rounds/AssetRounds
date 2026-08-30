@@ -879,7 +879,7 @@ private extension BackupPackageValidatorV1 {
         case (1, 1, 1), (2, 1, 1), (2, 3, 2), (3, 4, 3),
              (4, 5, 4), (4, 6, 5), (4, 7, 6), (4, 8, 7), (4, 9, 8),
              (4, 10, 9), (4, 11, 10), (4, 12, 11), (4, 13, 12),
-             (4, 14, 13), (4, 15, 14), (4, 16, 15), (4, 17, 16), (4, 18, 17), (4, 19, 18), (4, 20, 19), (4, 21, 20), (4, 22, 21), (4, 23, 22), (4, 24, 23), (4, 25, 24), (4, 26, 25), (4, 27, 26), (4, 28, 27), (4, 29, 28), (4, 30, 29), (4, 31, 30):
+             (4, 14, 13), (4, 15, 14), (4, 16, 15), (4, 17, 16), (4, 18, 17), (4, 19, 18), (4, 20, 19), (4, 21, 20), (4, 22, 21), (4, 23, 22), (4, 24, 23), (4, 25, 24), (4, 26, 25), (4, 27, 26), (4, 28, 27), (4, 29, 28), (4, 30, 29), (4, 31, 30), (4, 32, 31), (4, 33, 32), (4, 34, 33), (4, 35, 34), (4, 36, 35):
             schemaPairIsValid = true
         default:
             schemaPairIsValid = false
@@ -1052,6 +1052,10 @@ private extension BackupPackageValidatorV1 {
         try C46OperationalContactPackageValidationV1.validate(records, manifest: manifest)
         try C47ActivityContractPackageValidationV2.validate(
             records, manifest: manifest, members: members
+        )
+        _ = try C48PortableExchangeBackupPackageValidationV2.snapshot(
+            manifest: manifest,
+            members: members
         )
         try validateAssetSemantics(records, manifest: manifest)
         try validateAuthorityCriterion(records, manifest: manifest)
@@ -3632,6 +3636,13 @@ private extension BackupPackageValidatorV1 {
         cancellation: StreamingArchiveCancellationV1
     ) throws {
         var expected = Set(["manifest.json", "records.json"])
+        if members.descriptors[PortableExchangeBackupMemberV2.path] != nil {
+            _ = try C48PortableExchangeBackupPackageValidationV2.snapshot(
+                manifest: manifest,
+                members: members
+            )
+            expected.insert(PortableExchangeBackupMemberV2.path)
+        }
         let normalizer = MediaNormalizerV1()
         for evidence in records.evidenceFiles {
             try cancellation.checkpoint()
@@ -3692,6 +3703,74 @@ private extension BackupPackageValidatorV1 {
               Set(manifest.entries.map(\.path)) == expected.subtracting(["manifest.json"]) else {
             throw invalid()
         }
+    }
+}
+
+enum C48PortableExchangeBackupPackageValidationV2 {
+    static func snapshot(
+        manifest: V4BackupManifestV1,
+        members: ValidatedV4BackupMembersV1
+    ) throws -> PortableExchangeBackupSnapshotV2? {
+        guard let descriptor = members.descriptors[PortableExchangeBackupMemberV2.path] else {
+            return nil // Released pre-C48 V4 packages carry no session staging member.
+        }
+        guard descriptor.byteCount > 0,
+              descriptor.byteCount <= Int64(PortableExchangeBackupMemberV2.maximumByteCount),
+              manifest.entries.contains(where: {
+                  $0.path == PortableExchangeBackupMemberV2.path
+                      && $0.mimeType == PortableExchangeBackupMemberV2.mimeType
+                      && Int64($0.byteCount) == descriptor.byteCount
+                      && $0.sha256 == descriptor.sha256
+              }),
+              let bytes = members[PortableExchangeBackupMemberV2.path] else {
+            throw BackupPackageValidationErrorV1.invalidPackage
+        }
+        let snapshot: PortableExchangeBackupSnapshotV2
+        do {
+            snapshot = try StoreMigrationCanonicalJSONV1.decodeCanonicalContract(
+                PortableExchangeBackupSnapshotV2.self,
+                from: bytes,
+                validate: { try $0.validate() }
+            )
+        } catch {
+            throw BackupPackageValidationErrorV1.invalidPackage
+        }
+        let payloadKeys = snapshot.immutablePayloads.map {
+            "\($0.role.rawValue):\($0.sha256)"
+        }
+        let referencedPayloadKeys = snapshot.sessions.flatMap { session in
+            session.immutableBytes.map { "\($0.role.rawValue):\($0.sha256)" }
+        }
+        let capabilitySessionIDs = snapshot.protectedCapabilityArtifacts.map(\.sessionID)
+        let activeSessionIDs = snapshot.sessions.filter {
+            $0.capabilityState.isActive
+        }.map(\.sessionID)
+        let orderedSessions = snapshot.sessions.sorted {
+            ($0.namespace.rawValue, $0.publicRequestID, $0.revision)
+                < ($1.namespace.rawValue, $1.publicRequestID, $1.revision)
+        }
+        guard snapshot.sessions == orderedSessions,
+              snapshot.sessions.allSatisfy({ session in
+                  session.workspaceID == nil
+                      || session.workspaceID == manifest.source.workspaceID
+              }),
+              snapshot.sessions.allSatisfy({ session in
+                  (session.protectedCapability != nil) == session.capabilityState.isActive
+              }),
+              Set(payloadKeys).count == payloadKeys.count,
+              Set(referencedPayloadKeys) == Set(payloadKeys),
+              Set(capabilitySessionIDs).count == capabilitySessionIDs.count,
+              Set(capabilitySessionIDs) == Set(activeSessionIDs),
+              snapshot.protectedCapabilityArtifacts.allSatisfy { capability in
+                  snapshot.sessions.contains(where: {
+                      $0.sessionID == capability.sessionID
+                          && $0.capabilityState == capability.state
+                          && $0.protectedCapability?.sha256 == capability.sha256
+                  })
+              } else {
+            throw BackupPackageValidationErrorV1.invalidPackage
+        }
+        return snapshot
     }
 }
 

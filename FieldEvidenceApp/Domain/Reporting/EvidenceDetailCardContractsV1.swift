@@ -2024,3 +2024,17 @@ enum C45AssetLabelBoundary_EvidenceDetailCardContractsV1 {
 }
 
 enum C46OperationalContactBoundary_25{static let defaultProjection="EXCLUDED";static let rawPhoneOrEmailEmitted=false;static let platformOutcomeClaimEmitted=false}
+
+enum C48PortableReviewEvidenceDetailBoundaryV1 {
+    static let derivedMetadataOnly = true
+    static let capabilityBytesEmitted = false
+    static let capabilityProofEmitted = false
+    static let rawResponseBytesEmitted = false
+    static let responseBodyEmitted = false
+    static let verifiedRecipientIdentityEmitted = false
+    static let selfAssertedOriginMayBeDisplayed = true
+
+    static func validate(_ projection: C48PortableReviewDerivedHistoryProjectionV1) throws {
+        try projection.validate()
+    }
+}

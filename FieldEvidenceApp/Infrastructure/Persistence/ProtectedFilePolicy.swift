@@ -46,6 +46,10 @@ enum OwnedFileKindV1: String, CaseIterable, Equatable, Hashable, Sendable {
     case reportPDF
     case diagnostics
     case commerceEntitlementCache
+    case portableExchangeDirectory
+    case portableExchangeSessionFile
+    case portableExchangeJournalFile
+    case portableExchangeQuarantineFile
     case cache
     case scratch
     case searchIndex
@@ -149,6 +153,7 @@ enum ProtectedFilePolicyV1 {
         case .stagingDirectory,
              .restoreStaging,
              .generationLeaseDirectory,
+             .portableExchangeDirectory,
              .cache,
              .scratch:
             return OwnedFileProtectionDispositionV1(
@@ -166,6 +171,9 @@ enum ProtectedFilePolicyV1 {
              .journalTemporary,
              .diagnostics,
              .commerceEntitlementCache,
+             .portableExchangeSessionFile,
+             .portableExchangeJournalFile,
+             .portableExchangeQuarantineFile,
              .searchIndex:
             return OwnedFileProtectionDispositionV1(
                 expectsDirectory: false,
@@ -556,6 +564,32 @@ enum ProtectedFilePolicyV1 {
             return .protectedDataUnavailable
         }
         return .attributeWriteFailed
+    }
+}
+
+/// C48 exchange state is app-owned protected data, but it is not workspace
+/// canonical truth and is never admitted to filesystem backup implicitly.
+/// Eligible sessions enter an explicit V4 backup projection instead.
+enum PortableExchangeProtectedFilePolicyV2 {
+    static let directoryKind: OwnedFileKindV1 = .portableExchangeDirectory
+    static let sessionKind: OwnedFileKindV1 = .portableExchangeSessionFile
+    static let journalKind: OwnedFileKindV1 = .portableExchangeJournalFile
+    static let quarantineKind: OwnedFileKindV1 = .portableExchangeQuarantineFile
+    static let restoreSidecarKind: OwnedFileKindV1 = .stagingFile
+    static let fileProtection: FileProtectionType = .complete
+
+    static func validate() throws {
+        guard ProtectedFilePolicyV1.requiredFileProtection == fileProtection,
+              ProtectedFilePolicyV1.disposition(for: directoryKind)
+                == .init(expectsDirectory: true, isExcludedFromBackup: true),
+              [sessionKind, journalKind, quarantineKind].allSatisfy({
+                  ProtectedFilePolicyV1.disposition(for: $0)
+                    == .init(expectsDirectory: false, isExcludedFromBackup: true)
+              }),
+              ProtectedFilePolicyV1.disposition(for: restoreSidecarKind)
+                == .init(expectsDirectory: false, isExcludedFromBackup: true) else {
+            throw ProtectedFilePolicyError.resourceValueMismatch
+        }
     }
 }
 

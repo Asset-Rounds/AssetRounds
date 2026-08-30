@@ -634,3 +634,9 @@ enum C45AcceptedLabelEraseIntentBoundaryV1 { static let eraseRemovesAcceptedSnap
 
 enum C46OperationalContactBoundary_39{static let assetOrSiteCascadeDeletesPartyContacts=false;static let workspaceEraseOwnsRows=true}
 enum C47ActivityContractEraseIntentBoundaryV2 { static let clearsFiveNewRows=true;static let clearsReleasedCompletedSnapshotThroughExistingReportLifecycle=true;static let clearsDerivedSearchProjection=true }
+
+enum C48PortableExchangeEraseIntentBoundaryV2 {
+    static let namespaces = PortableExchangeSessionNamespaceV2.allCases
+    static let clearsSessionsCapabilitiesPayloadsJournalAndQuarantine = true
+    static let escapedCopiesCannotBeRecalled = true
+}

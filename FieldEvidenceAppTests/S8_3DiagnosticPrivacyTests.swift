@@ -862,3 +862,12 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S8_3D
         XCTAssertEqual(Set(ActivityContractPersistenceEnrollmentV2.nonpersistentFamilies).count, 3)
     }
 }
+
+private final class C48PortableReviewS83DiagnosticPrivacyTests: XCTestCase {
+    func testC48DiagnosticsExposeDerivedMetadataOnly() {
+        XCTAssertTrue(C48PortableReviewDiagnosticPrivacyBoundaryV1.diagnosticProjectionIsDerivedMetadataOnly)
+        XCTAssertFalse(C48PortableReviewDiagnosticPrivacyBoundaryV1.capabilityBytesEmitted)
+        XCTAssertFalse(C48PortableReviewDiagnosticPrivacyBoundaryV1.supportBundleIncludesResponseBytes)
+        XCTAssertFalse(C48PortableReviewDiagnosticPrivacyBoundaryV1.authorIdentityEmitted)
+    }
+}

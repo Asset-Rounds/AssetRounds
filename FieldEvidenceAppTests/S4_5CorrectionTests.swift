@@ -2611,3 +2611,11 @@ extension S4_5CorrectionTests {
         XCTAssertEqual(fixture.actions[3].closureEvidence.count, 2)
     }
 }
+
+private final class C48PortableReviewS45CorrectionTests: XCTestCase {
+    func testC48ExternalResponseDoesNotFinalizeOrRewriteHistoricSnapshot() {
+        XCTAssertTrue(C48PortableReviewFinalizationBoundaryV1.externalReviewCannotFinalize)
+        XCTAssertTrue(C48PortableReviewReportSnapshotBoundaryV1.externalReviewCannotRewriteHistoricSnapshot)
+        XCTAssertTrue(C48PortableReviewWorkflowBoundaryV1.acceptanceDoesNotAutoFinalize)
+    }
+}

@@ -141,9 +141,31 @@ final class S6_4AtomicRestoreTests: XCTestCase {
                 XCTAssertEqual(error as? BackupRestoreServiceError, .injectedFailure)
             }
 
+            let portableSidecarURL = harness.support.appendingPathComponent(
+                "FieldEvidenceRestore/portable-exchange-restore.json",
+                isDirectory: false
+            )
+            if point == .beforePointerSwitch {
+                XCTAssertTrue(fileManager.fileExists(atPath: portableSidecarURL.path))
+                XCTAssertEqual(try harness.factory.currentGenerationID(), oldID)
+            } else if point == .afterPointerSwitch {
+                XCTAssertTrue(fileManager.fileExists(atPath: portableSidecarURL.path))
+                XCTAssertEqual(try harness.factory.currentGenerationID(), newID)
+            }
+
             let recovery = try BackupRestoreService(
                 applicationSupportURL: harness.support
             )
+            if point == .afterPointerSwitch {
+                let exactSidecar = try Data(contentsOf: portableSidecarURL)
+                var hostileSidecar = exactSidecar
+                hostileSidecar.append(0x20)
+                try hostileSidecar.write(to: portableSidecarURL, options: .atomic)
+                try ProtectedFilePolicyV1.applyAndVerify(.stagingFile, at: portableSidecarURL)
+                XCTAssertThrowsError(try recovery.reconcileAtStartup())
+                try exactSidecar.write(to: portableSidecarURL, options: .atomic)
+                try ProtectedFilePolicyV1.applyAndVerify(.stagingFile, at: portableSidecarURL)
+            }
             let recoveredNew = try recovery.reconcileAtStartup()
             let expectedID = oldOutcome.contains(point) ? oldID : newID
             XCTAssertEqual(try harness.factory.currentGenerationID(), expectedID, "\(point)")
@@ -163,6 +185,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
                 )
             }
             XCTAssertNil(try recovery.reconcileAtStartup(), "\(point)")
+            XCTAssertFalse(fileManager.fileExists(atPath: portableSidecarURL.path), "\(point)")
             XCTAssertFalse(fileManager.fileExists(
                 atPath: harness.support.appendingPathComponent(
                     "FieldEvidenceRestore/restore.json"
@@ -1753,5 +1776,15 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_4A
         XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_4AtomicRestoreTests_swift.threeReceiptIsolationIsRequired)
         XCTAssertEqual(ActivityContractPersistenceEnrollmentV2.persistentFamilies.count, 6)
         XCTAssertTrue(ActivityContractPersistenceEnrollmentV2.usesSoleWorkspaceWriter)
+    }
+}
+
+private final class C48PortableReviewS64AtomicRestoreBoundaryTests: XCTestCase {
+    func testC48RestoreSidecarContractRequiresExactBytesAndCloneForkInvalidation() {
+        XCTAssertTrue(BackupRestoreFailurePoint.allCases.contains(.afterPointerSwitch))
+        XCTAssertTrue(C48PortableExchangeMigrationBoundaryV2.preservesExactBytes)
+        XCTAssertTrue(C48PortableExchangeMigrationBoundaryV2.cloneOrForkInvalidatesCapabilities)
+        XCTAssertFalse(C48PortableExchangeMigrationBoundaryV2.canonicalSwiftDataSchemaChanged)
+        XCTAssertTrue(C48PortableReviewPersistenceBoundaryV1.sessionStoreIsNonpersistent)
     }
 }

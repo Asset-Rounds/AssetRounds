@@ -308,3 +308,15 @@ enum C45AcceptedLabelImportBoundaryV1 {
 
 enum C46OperationalContactBoundary_02{static let recordsSchemaVersion=34;static let sourceBytesPersistent=false;static let platformOutcomesPersistent=false}
 enum C47ActivityContractImportBoundaryV2 { static let persistentSchemaVersion=36;static let recordsSchemaVersion=35;static let canonicalFiveRowRecordsImportable=true;static let completedSnapshotUsesReleasedArchiveMember=true;static let conformanceReceiptsImportable=false }
+
+enum C48PortableExchangeImportBoundaryV2 {
+    static let member = PortableExchangeBackupMemberV2.relativePath
+    static let sessionTruthIsNonpersistent = true
+    static func validate(_ snapshot: PortableExchangeBackupSnapshotV2) throws {
+        try snapshot.validate()
+        guard member == "review-exchange/snapshot.json",
+              sessionTruthIsNonpersistent else {
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
+        }
+    }
+}

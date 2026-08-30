@@ -1534,3 +1534,16 @@ private struct FileIdentity: Hashable {
 }
 
 enum C45AcceptedLabelBackupImportPolicyV1 { static let persistentSchemaVersion=AssetLabelPersistenceEnrollmentV1.persistentSchemaVersion;static let recordsSchemaVersion=AssetLabelPersistenceEnrollmentV1.recordsSchemaVersion;static func validate(_ records:V4BackupRecordsV1)throws{_ = try records.validateC45AcceptedLabelSnapshots()} }
+
+enum C48PortableExchangeBackupImportPolicyV2 {
+    static func validate(_ package: ValidatedV4BackupPackageV1) throws {
+        do {
+            if let snapshot = try C48PortableExchangeBackupPackageValidationV2.snapshot(
+                manifest: package.manifest,
+                members: package.members
+            ) {
+                try C48PortableExchangeImportBoundaryV2.validate(snapshot)
+            }
+        } catch { throw BackupImportServiceError.invalidGeneration }
+    }
+}

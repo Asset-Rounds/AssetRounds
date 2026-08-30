@@ -2349,3 +2349,32 @@ enum C45AcceptedLabelIndexRebuildBoundaryV1 {
     static let rebuildsTypedMetadata=true
     static func metadata(from rows:[AcceptedLabelGenerationSnapshotRow])throws->[AcceptedLabelSearchMetadataV1]{try rows.map{try .init($0.value())}.sorted{$0.snapshotID.uuidString<$1.snapshotID.uuidString}}
 }
+
+// MARK: - C48 portable-review rebuild boundary
+
+enum C48PortableReviewSearchRebuildBoundaryV1 {
+    static let rebuildsOnlyDerivedMetadata = true
+    static let responseHistoryIsReadOnly = true
+    static let capabilityBytesRebuilt = false
+    static let capabilityProofBytesRebuilt = false
+    static let responseBodyRebuilt = false
+    static let rawRequestResponseBytesRebuilt = false
+    static let workspaceAndReplicaIdentityRebuilt = false
+    static let staleIndexMustBeDiscarded = true
+
+    static func validate(_ projection: C48PortableReviewDerivedHistoryProjectionV1) throws {
+        try projection.validate()
+    }
+
+    static func metadata(
+        state: ReviewRequestStateProjectionV1,
+        response: ExternalReviewResponseRecordV1? = nil,
+        conflictCount: Int = 0
+    ) throws -> C48PortableReviewDerivedHistoryProjectionV1 {
+        let projection = try C48PortableReviewSearchBoundaryV1.derivedHistory(
+            state: state, response: response, conflictCount: conflictCount
+        )
+        try validate(projection)
+        return projection
+    }
+}

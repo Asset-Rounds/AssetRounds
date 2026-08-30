@@ -48,6 +48,7 @@ struct IntegrationEventProjectionV1: Sendable {
             try Self.validatePlacementPoseReceiptShape(receipt)
             try Self.validateEvidenceContextReceiptShape(receipt)
             try Self.validateOperationalContactReceiptShape(receipt)
+            try Self.validatePortableReviewReconciliationReceiptShape(receipt)
             guard receipt.identity.workspaceID == workspaceID,
                   receipt.resultingRevision.workspaceID == workspaceID else {
                 throw IntegrationEventFailureV1.wrongWorkspace
@@ -189,6 +190,18 @@ struct IntegrationEventProjectionV1: Sendable {
     }
     func validateOperationalContactReplay(_ receipts: [MutationReceiptV1]) throws {
         try receipts.forEach { try Self.validateOperationalContactReceiptShape($0) }
+    }
+
+    static func validatePortableReviewReconciliationReceiptShape(_ receipt: MutationReceiptV1) throws {
+        let identities = try receipt.postImages.map { try $0.identity }
+        let present = Set(identities.map(\.kind)).intersection(C48PortableReviewReconciliationIntegrationEventBoundaryV1.canonicalReconciliationKinds)
+        guard !present.isEmpty else { return }
+        guard Set(identities).count == identities.count, identities.allSatisfy({ C48PortableReviewReconciliationIntegrationEventBoundaryV1.canonicalReconciliationKinds.contains($0.kind) }) else { throw IntegrationEventFailureV1.divergentEvent }
+    }
+    func validatePortableReviewReconciliationReplay(_ receipts: [MutationReceiptV1]) throws {
+        let found = try receipts.contains { try $0.postImages.contains { C48PortableReviewReconciliationIntegrationEventBoundaryV1.canonicalReconciliationKinds.contains(try $0.identity.kind) } }
+        if found { try C48PortableReviewReconciliationIntegrationEventBoundaryV1.validate(registry: registry) }
+        try receipts.forEach { try Self.validatePortableReviewReconciliationReceiptShape($0) }
     }
 
     func validateProjectedStream(_ events: [IntegrationEventV1], workspaceID: WorkspaceID) throws -> [IntegrationEventV1] {

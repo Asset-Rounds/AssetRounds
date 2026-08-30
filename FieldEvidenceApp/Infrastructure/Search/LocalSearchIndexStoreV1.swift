@@ -1486,3 +1486,35 @@ enum C45AcceptedLabelIndexStoreBoundaryV1 {
 
 enum C46OperationalContactBoundary_36{static let permittedProjection="PARTY_METADATA_ONLY";static let rawPhoneOrEmailIndexed=false}
 enum C47ActivityContractLocalSearchBoundaryV2 { static let projectsCurrentEnvelopeHeads=true;static let permittedFields=["work_identifier","work_summary","status"];static let transitionReceiptAndNoPlanBytesAreExcluded=true;static let indexIsDerivedAndBackupExcluded=true }
+
+// MARK: - C48 portable-review local search boundary
+
+enum C48PortableReviewLocalSearchBoundaryV1 {
+    static let existingIndexRemainsTheOnlySearchStore = true
+    static let derivedMetadataOnly = true
+    static let capabilityBytesIndexed = false
+    static let capabilityProofBytesIndexed = false
+    static let responseBodyIndexed = false
+    static let rawRequestResponseBytesIndexed = false
+    static let workspaceAndReplicaIdentityIndexed = false
+    static let authorIdentityIndexed = false
+    static let externalResponseCannotMutateCanonicalState = true
+
+    static func validate(_ projection: C48PortableReviewDerivedHistoryProjectionV1) throws {
+        try projection.validate()
+    }
+}
+
+extension LocalSearchIndexStoreV1 {
+    nonisolated static func portableReviewDerivedHistory(
+        state: ReviewRequestStateProjectionV1,
+        response: ExternalReviewResponseRecordV1? = nil,
+        conflictCount: Int = 0
+    ) throws -> C48PortableReviewDerivedHistoryProjectionV1 {
+        let projection = try C48PortableReviewSearchBoundaryV1.derivedHistory(
+            state: state, response: response, conflictCount: conflictCount
+        )
+        try C48PortableReviewLocalSearchBoundaryV1.validate(projection)
+        return projection
+    }
+}

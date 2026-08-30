@@ -667,3 +667,18 @@ enum C46OperationalContactBackupRestoreRegistryV1 {
 
 enum C46OperationalContactBoundary_12{static let recordsSchemaVersion=34;static let sourceBytesPersistent=false;static let platformOutcomesPersistent=false}
 enum C47ActivityContractKernelBackupRestoreEnrollmentV2 { static let persistentSchemaVersion=36;static let recordsSchemaVersion=35;static let semanticFamilyCount=6;static let newRowCount=5;static let completedSnapshotReusesReleasedArchiveLifecycle=true }
+
+enum C48PortableExchangeKernelBackupRestoreEnrollmentV2 {
+    static let durableRowCount = 0
+    static let explicitArchiveMember = PortableExchangeBackupMemberV2.relativePath
+    static let restoreUsesProtectedSidecar = true
+    static let cloneForkInvalidatesCapabilities = true
+    static func validate() throws {
+        guard durableRowCount == 0,
+              explicitArchiveMember == "review-exchange/snapshot.json",
+              restoreUsesProtectedSidecar,
+              cloneForkInvalidatesCapabilities else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}

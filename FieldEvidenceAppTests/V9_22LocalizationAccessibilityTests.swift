@@ -2029,3 +2029,13 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_22
         XCTAssertEqual(Set(ActivityContractPersistenceEnrollmentV2.nonpersistentFamilies).count, 3)
     }
 }
+
+private final class C48PortableReviewV922LocalizationTests: XCTestCase {
+    func testC48EnglishTrustWordingIsExplicitAndNonSecret() throws {
+        try C48PortableReviewLocalizationPolicyV1.validate()
+        try C48PortableReviewLocalizationCatalogBoundaryV1.validate()
+        XCTAssertTrue(C48PortableReviewLocalizationPolicyV1.selfAssertedIdentityIsUnverified)
+        XCTAssertTrue(C48PortableReviewLocalizationPolicyV1.noDeliveryOrApprovalClaim)
+        XCTAssertFalse(C48PortableReviewAccessibilityPolicyV1.capabilityProofSpoken)
+    }
+}

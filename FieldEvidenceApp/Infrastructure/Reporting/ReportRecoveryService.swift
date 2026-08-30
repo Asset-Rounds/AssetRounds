@@ -1070,6 +1070,20 @@ extension ReportRecoveryService {
         try C37PoseReportRecoveryPolicyV1.validate(projection)
     }
 }
+
+enum C48PortableReviewReportRecoveryBoundaryV1 {
+    static let recoveryReadsImmutableResponseHistory = true
+    static let recoveryDoesNotRewriteResponseBytes = true
+    static let capabilityBytesRecoveredIntoDerivedSurface = false
+    static let capabilityProofBytesRecoveredIntoDerivedSurface = false
+    static let responseBodyRecoveredIntoDerivedSurface = false
+    static let rawRequestResponseBytesRecoveredIntoDerivedSurface = false
+    static let externalReviewCannotRecoverFinalization = true
+
+    static func validate(_ projection: C48PortableReviewDerivedHistoryProjectionV1) throws {
+        try projection.validate()
+    }
+}
 // MARK: - C30 operating-context recovery
 
 extension ReportRecoveryService {

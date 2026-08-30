@@ -1232,6 +1232,18 @@ private extension EraseAllService {
             clock: Date.init
         )
         try await scratchDataLeaseStore.eraseScratchData()
+        try PortableExchangeProtectedFilePolicyV2.validate()
+        let portableExchangeStore = try PortableExchangeSessionStoreV2(
+            applicationSupportURL: applicationSupportURL,
+            fileManager: fileManager
+        )
+        let portableExchangeReceipt = try await portableExchangeStore.erase(
+            operationID: activated.eraseID
+        )
+        try portableExchangeReceipt.validate()
+        guard try await portableExchangeStore.sessions(in: nil).isEmpty else {
+            throw EraseAllServiceError.invalidAuthority
+        }
         // C45 render attempts live under each generation's jobs directory.
         // `cleanupGenerations` above removes that complete generation-owned
         // scratch namespace; there is no application-support-level C45 root.
@@ -1860,6 +1872,7 @@ private final class EraseAuxiliaryAuthority {
             "FieldEvidenceDiagnostics",
             "FieldEvidenceErase",
             LocalSearchIndexStoreV1.directoryName,
+            PortableExchangeSessionStoreLayoutV2.directoryName,
         ] {
             try Self.requireAbsentOrValidDirectory(
                 parent: applicationSupportDescriptor,
@@ -1928,6 +1941,7 @@ private final class EraseAuxiliaryAuthority {
             "FieldEvidenceCommerce",
             "FieldEvidenceDiagnostics",
             LocalSearchIndexStoreV1.directoryName,
+            PortableExchangeSessionStoreLayoutV2.directoryName,
         ] {
             try Self.removeDirectoryIfPresent(
                 parent: applicationSupportDescriptor,
@@ -1952,6 +1966,7 @@ private final class EraseAuxiliaryAuthority {
             "FieldEvidenceOperations",
             "FieldEvidenceCommerce",
             LocalSearchIndexStoreV1.directoryName,
+            PortableExchangeSessionStoreLayoutV2.directoryName,
         ] {
             guard try !Self.itemExists(
                 parent: applicationSupportDescriptor,

@@ -816,3 +816,12 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_20
         XCTAssertFalse(ActivityStateMachineV2.permits(from: .finalized, to: .draft))
     }
 }
+
+private final class C48PortableReviewV920KernelTests: XCTestCase {
+    func testC48JournalReplayUsesExactResponseAndExistingC14Postimages() {
+        XCTAssertEqual(PortableReviewChangeJournalPolicyV1.commandKind, .applyPortableReview)
+        XCTAssertTrue(PortableReviewChangeJournalPolicyV1.replaysExactResponseBytes)
+        XCTAssertTrue(PortableReviewChangeJournalPolicyV1.postimagesUseOnlyExistingC14Families)
+        XCTAssertTrue(PortableReviewChangeJournalPolicyV1.historyDiscardAndQuarantineAreSessionOnly)
+    }
+}

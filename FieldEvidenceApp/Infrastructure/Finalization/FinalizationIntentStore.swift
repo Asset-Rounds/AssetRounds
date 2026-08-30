@@ -2402,3 +2402,15 @@ enum C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Finalizati
     static let contactExportExcludedByDefault = true
     static let noContactProjectionOrNetworkDelivery = true
 }
+
+// MARK: - C48 portable-review finalization boundary
+
+enum C48PortableReviewFinalizationIntentBoundaryV1 {
+    static let externalResponseIsNotFinalizationIntent = true
+    static let responseDispositionIsNotCompletionTruth = true
+    static let capabilityBytesEnterFinalization = false
+    static let capabilityProofBytesEnterFinalization = false
+    static let responseBodyEntersFinalization = false
+    static let rawRequestResponseBytesEnterFinalization = false
+    static let existingFinalizationIntentStoreRemainsCanonical = true
+}

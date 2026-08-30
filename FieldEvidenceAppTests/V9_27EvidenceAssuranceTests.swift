@@ -434,3 +434,11 @@ extension V9_27EvidenceAssuranceTests {
         XCTAssertEqual(fixture.actions[3].verifier?.responsibility, .verifiedBy)
     }
 }
+
+private final class C48PortableReviewV927EvidenceAssuranceTests: XCTestCase {
+    func testC48ReviewResponseIsNotEvidenceAssurance() {
+        XCTAssertTrue(C48PortableReviewEvidenceAssuranceBoundaryV1.reviewResponseIsNotEvidenceAssurance)
+        XCTAssertFalse(C48PortableReviewEvidenceAssuranceBoundaryV1.capabilityProofBytesBecomeEvidence)
+        XCTAssertTrue(C48PortableReviewEvidenceAssuranceBoundaryV1.existingAssuranceManifestRemainsCanonical)
+    }
+}

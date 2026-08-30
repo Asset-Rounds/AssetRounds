@@ -1024,3 +1024,12 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_38
         XCTAssertEqual(Set(ActivityContractPersistenceEnrollmentV2.nonpersistentFamilies).count, 3)
     }
 }
+
+private final class C48PortableReviewV938AccessibleDocumentTests: XCTestCase {
+    func testC48AccessibleDocumentsSpeakOnlyDerivedUnverifiedMetadata() {
+        XCTAssertTrue(C48PortableReviewAccessibleDocumentBoundaryV1.spokenProjectionIsDerivedMetadataOnly)
+        XCTAssertTrue(C48PortableReviewAccessibleDocumentBoundaryV1.selfAssertedOriginMayBeSpoken)
+        XCTAssertFalse(C48PortableReviewAccessibleDocumentBoundaryV1.capabilityBytesSpoken)
+        XCTAssertFalse(C48PortableReviewAccessibleDocumentPersistenceBoundaryV1.rawRequestResponseBytesPersisted)
+    }
+}

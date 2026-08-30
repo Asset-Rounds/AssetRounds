@@ -551,3 +551,10 @@ enum C45AcceptedLabelDeletionLedgerBoundaryV1 { static let snapshotDeletionRequi
 
 enum C46OperationalContactBoundary_05{static let recordsSchemaVersion=34;static let sourceBytesPersistent=false;static let platformOutcomesPersistent=false}
 enum C47ActivityContractDeletionLedgerBoundaryV2 { static let finalizedAndSupersededActivityHistoryIsRetained=true;static let cancelledAndUnableActivityHistoryIsRetained=true;static let immutableActivityEvidenceIsRetained=true;static let unfinalizedMatchingSubjectGraphMayBeDeleted=true;static let ordinaryRemovalRequiresAssetTombstone=true;static let workspaceEraseOwnsAllCanonicalRowsAndReleasedSnapshotFiles=true }
+
+enum C48PortableExchangeDeletionLedgerBoundaryV2 {
+    static let createsParallelTombstoneKind = false
+    static let ordinaryDeletionInvalidatesExactMappedSessions = true
+    static let immutableExchangeHistoryIsRetained = true
+    static let workspaceEraseClearsProtectedLocalStore = true
+}

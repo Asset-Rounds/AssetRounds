@@ -3765,6 +3765,34 @@
     "operational_contact.handoff.claim_boundary" : {
       "comment" : "C46 truthful platform-outcome boundary.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Handoff does not confirm a call connected, a message or email was sent or delivered, or that anyone arrived." } } }
+    },
+    "portable_review.response.recorded" : {
+      "comment" : "C48 recorded response state; does not claim delivery, identity, or approval.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Response recorded" } } }
+    },
+    "portable_review.response.not_verified" : {
+      "comment" : "C48 explicit trust boundary for a self-asserted external response.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Not verified by AssetRounds" } } }
+    },
+    "portable_review.response.acknowledged" : {
+      "comment" : "C48 recorded acknowledgment disposition; it does not finalize work.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Acknowledged" } } }
+    },
+    "portable_review.response.approved" : {
+      "comment" : "C48 self-asserted approval response; no verified customer approval claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Approval response recorded" } } }
+    },
+    "portable_review.response.changes_requested" : {
+      "comment" : "C48 recorded changes-requested disposition.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Changes requested" } } }
+    },
+    "portable_review.response.history_only" : {
+      "comment" : "C48 immutable response history; it cannot reopen or rewrite current work.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "History only" } } }
+    },
+    "portable_review.capability.forwardable_warning" : {
+      "comment" : "C48 cleartext capability warning; possession proves no identity or delivery.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Anyone who can open or copy this file can respond" } } }
     }
   },
   "version" : "1.0"

@@ -6,3 +6,26 @@ private func reviewStoredRevision(_ v:UInt64)throws->Int64{guard v>0,v<=UInt64(I
 @Model final class ChangeRequestRow{@Attribute(.unique)private(set)var requestRevisionID:UUID;private(set)var requestID:UUID;private(set)var reviewID:UUID;private(set)var workspaceID:UUID;private(set)var revision:Int64;private(set)var mutationID:UUID;private(set)var canonicalSHA256:String;private(set)var canonicalData:Data;init(_ value:ChangeRequestV1)throws{try value.validate();let d=try InspectionReviewCanonicalCodecV1.encode(value);let v=try InspectionReviewCanonicalCodecV1.decode(ChangeRequestV1.self,from:d);requestRevisionID=v.requestRevisionID;requestID=v.requestID;reviewID=v.reviewID;workspaceID=v.workspaceID.rawValue;revision=try reviewStoredRevision(v.revision);mutationID=v.mutationID.rawValue;canonicalSHA256=v.requestSHA256;canonicalData=d}func value()throws->ChangeRequestV1{let v=try InspectionReviewCanonicalCodecV1.decode(ChangeRequestV1.self,from:canonicalData);guard revision>0,v.requestRevisionID==requestRevisionID,v.requestID==requestID,v.reviewID==reviewID,v.workspaceID.rawValue==workspaceID,v.revision==UInt64(revision),v.mutationID.rawValue==mutationID,v.requestSHA256==canonicalSHA256 else{throw InspectionReviewFailureV1.digestMismatch};return v}}
 @Model final class CorrectiveActionPolicyRow{@Attribute(.unique)private(set)var releaseID:UUID;private(set)var policyID:UUID;private(set)var workspaceID:UUID;private(set)var revision:Int64;private(set)var mutationID:UUID;private(set)var canonicalSHA256:String;private(set)var canonicalData:Data;init(_ value:CorrectiveActionPolicyV1)throws{try value.validate();let d=try InspectionReviewCanonicalCodecV1.encode(value);let v=try InspectionReviewCanonicalCodecV1.decode(CorrectiveActionPolicyV1.self,from:d);releaseID=v.releaseID;policyID=v.policyID;workspaceID=v.workspaceID.rawValue;revision=try reviewStoredRevision(v.revision);mutationID=v.mutationID.rawValue;canonicalSHA256=v.policySHA256;canonicalData=d}func value()throws->CorrectiveActionPolicyV1{let v=try InspectionReviewCanonicalCodecV1.decode(CorrectiveActionPolicyV1.self,from:canonicalData);guard revision>0,v.releaseID==releaseID,v.policyID==policyID,v.workspaceID.rawValue==workspaceID,v.revision==UInt64(revision),v.mutationID.rawValue==mutationID,v.policySHA256==canonicalSHA256 else{throw InspectionReviewFailureV1.digestMismatch};return v}}
 @Model final class CorrectiveActionEventRow{@Attribute(.unique)private(set)var eventID:UUID;private(set)var actionID:UUID;private(set)var workspaceID:UUID;private(set)var revision:Int64;private(set)var mutationID:UUID;private(set)var canonicalSHA256:String;private(set)var canonicalData:Data;init(_ value:CorrectiveActionEventV1)throws{try value.validate();let d=try InspectionReviewCanonicalCodecV1.encode(value);let v=try InspectionReviewCanonicalCodecV1.decode(CorrectiveActionEventV1.self,from:d);eventID=v.eventID;actionID=v.actionID;workspaceID=v.workspaceID.rawValue;revision=try reviewStoredRevision(v.revision);mutationID=v.mutationID.rawValue;canonicalSHA256=v.eventSHA256;canonicalData=d}func value()throws->CorrectiveActionEventV1{let v=try InspectionReviewCanonicalCodecV1.decode(CorrectiveActionEventV1.self,from:canonicalData);guard revision>0,v.eventID==eventID,v.actionID==actionID,v.workspaceID.rawValue==workspaceID,v.revision==UInt64(revision),v.mutationID.rawValue==mutationID,v.eventSHA256==canonicalSHA256 else{throw InspectionReviewFailureV1.digestMismatch};return v}}
+
+/// C48 accept-and-apply reuses these existing C14 row families exclusively.
+/// Exact portable response/session bytes remain owned by the noncanonical
+/// session store and deliberately introduce no SwiftData model or schema kind.
+enum C48PortableReviewC14PersistenceBoundaryV1 {
+    static let canonicalRowTypes: [Any.Type] = [
+        InspectionReviewTransitionRow.self,
+        ReviewDispositionRow.self,
+        ChangeRequestRow.self,
+        CorrectiveActionPolicyRow.self,
+        CorrectiveActionEventRow.self,
+    ]
+    static let canonicalRowFamilyCount = 5
+    static let createsPortableReviewSwiftDataRow = false
+
+    static func acceptsExistingCanonicalRow(_ row: Any) -> Bool {
+        row is InspectionReviewTransitionRow ||
+            row is ReviewDispositionRow ||
+            row is ChangeRequestRow ||
+            row is CorrectiveActionPolicyRow ||
+            row is CorrectiveActionEventRow
+    }
+}

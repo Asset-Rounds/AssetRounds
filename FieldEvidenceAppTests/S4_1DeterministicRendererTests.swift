@@ -1375,3 +1375,12 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_1D
         XCTAssertEqual(Set(ActivityContractPersistenceEnrollmentV2.nonpersistentFamilies).count, 3)
     }
 }
+
+private final class C48PortableReviewS41RendererTests: XCTestCase {
+    func testC48OpenJSONRendersDerivedMetadataWithoutExchangeSecrets() {
+        XCTAssertTrue(C48PortableReviewOpenJSONBoundaryV1.usesExistingOpenJSONRenderer)
+        XCTAssertTrue(C48PortableReviewOpenJSONBoundaryV1.emitsDerivedMetadataOnly)
+        XCTAssertFalse(C48PortableReviewOpenJSONBoundaryV1.capabilityBytesEmitted)
+        XCTAssertFalse(C48PortableReviewOpenJSONBoundaryV1.rawRequestResponseBytesEmitted)
+    }
+}

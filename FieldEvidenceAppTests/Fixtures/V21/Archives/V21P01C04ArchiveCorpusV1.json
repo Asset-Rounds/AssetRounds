@@ -230,5 +230,12 @@
       "expected": "accept",
       "assertions": ["idempotent-result", "byte-identical-repeat", "no-orphan-staging"]
     }
-  ]
+  ],
+  "c48PortableReview": {
+    "releasedBytesPreservedExactly": true,
+    "quarantineExcluded": true,
+    "activeCapabilityExcludedFromCloneFork": true,
+    "hostileMembersFailClosed": true,
+    "capabilityOrProofLeakageAllowed": false
+  }
 }

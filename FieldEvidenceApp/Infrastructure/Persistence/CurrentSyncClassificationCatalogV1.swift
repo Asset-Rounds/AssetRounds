@@ -131,6 +131,8 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "generationLeaseControlTemporary", "generationLeaseDirectory",
         "generationLeaseOwnerLock", "generationPointer", "generationPointerTemporary",
         "journal", "journalTemporary", "mediaOriginal", "mediaThumbnail", "reportPDF",
+        "portableExchangeDirectory", "portableExchangeJournalFile",
+        "portableExchangeQuarantineFile", "portableExchangeSessionFile",
         "reportSnapshot", "restoreStaging", "scratch", "stagingDirectory", "stagingFile",
         "temporaryFile", "searchIndex",
     ]
@@ -1585,3 +1587,9 @@ enum C45AcceptedLabelSyncBoundaryV1 { static let acceptedSnapshotIsDeviceLocalDu
 
 enum C46OperationalContactBoundary_17{static let persistentFamilies=OperationalContactPersistenceEnrollmentV1.persistentFamilies;static let platformOutcomesPersistent=false}
 enum C47ActivityContractSyncBoundaryV2 { static let canonicalFamiliesAreDeviceLocalDurable=true;static let completedSnapshotUsesExistingReportSyncClassification=true;static let conformanceReceiptsAndNoPlanAreNotSynced=true }
+enum C48PortableExchangeSyncBoundaryV2 {
+    static let sessionStoreIsNonpersistent = true
+    static let canonicalAcceptedResponseOwner = "C14"
+    static let rawCapabilityExcludedFromSyncSearchReport = true
+    static let reviewAndServiceNamespacesIndependent = true
+}

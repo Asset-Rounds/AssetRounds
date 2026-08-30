@@ -725,3 +725,19 @@ enum C47ActivityContractKernelDeletionEnrollmentV2 {
         }
     }
 }
+
+
+enum C48PortableExchangeKernelDeletionEnrollmentV2 {
+    static let persistentRowCount = 0
+    static let ordinaryDeletionRetainsHistory = true
+    static let workspaceEraseRemovesProtectedStore = true
+    static let exportedCopiesAreNonrecallable = true
+    static func validate() throws {
+        guard persistentRowCount == 0,
+              ordinaryDeletionRetainsHistory,
+              workspaceEraseRemovesProtectedStore,
+              exportedCopiesAreNonrecallable else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}

@@ -179,6 +179,190 @@ enum ContentDerivativeTransformV1: Codable, Equatable, Sendable {
     }
 }
 
+/// C48 derived review metadata is intentionally a closed, public-surface
+/// projection.  It carries the request's public lifecycle facts only; the
+/// transferable capability, its proof, the response body, and every raw
+/// request/response byte remain outside all derived consumers.
+enum C48PortableReviewDerivedFieldV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case requestPublicID = "request_public_id"
+    case requestState = "request_state"
+    case responseDisposition = "response_disposition"
+    case responseAcquisition = "response_acquisition"
+    case responseOrigin = "response_origin"
+    case responseItemCount = "response_item_count"
+    case conflictCount = "conflict_count"
+    case historyOnly = "history_only"
+}
+
+struct C48PortableReviewDerivedHistoryProjectionV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let maximumTokenBytes = 160
+    static let maximumItemCount = 128
+
+    let schemaVersion: Int
+    let requestPublicID: String
+    let requestState: String
+    let responseDisposition: String?
+    let responseAcquisition: String?
+    let responseOrigin: String?
+    let responseItemCount: Int
+    let conflictCount: Int
+    let historyOnly: Bool
+
+    init(
+        requestPublicID: String,
+        requestState: String,
+        responseDisposition: String? = nil,
+        responseAcquisition: String? = nil,
+        responseOrigin: String? = nil,
+        responseItemCount: Int = 0,
+        conflictCount: Int = 0,
+        historyOnly: Bool = false
+    ) throws {
+        schemaVersion = Self.schemaVersion
+        self.requestPublicID = requestPublicID
+        self.requestState = requestState
+        self.responseDisposition = responseDisposition
+        self.responseAcquisition = responseAcquisition
+        self.responseOrigin = responseOrigin
+        self.responseItemCount = responseItemCount
+        self.conflictCount = conflictCount
+        self.historyOnly = historyOnly
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              Self.validToken(requestPublicID),
+              Self.validToken(requestState),
+              responseDisposition.map(Self.validToken) ?? true,
+              responseAcquisition.map(Self.validToken) ?? true,
+              responseOrigin.map(Self.validToken) ?? true,
+              (0...Self.maximumItemCount).contains(responseItemCount),
+              (0...Self.maximumItemCount).contains(conflictCount) else {
+            throw ContentContractFailureV1.invalidValue
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, requestPublicID, requestState, responseDisposition
+        case responseAcquisition, responseOrigin, responseItemCount
+        case conflictCount, historyOnly
+    }
+
+    init(from decoder: any Decoder) throws {
+        try ContentClosedCodingV1.requireExact(
+            decoder,
+            keys: CodingKeys.allCases.map(\.rawValue)
+        )
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        guard try values.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion else {
+            throw ContentContractFailureV1.incompatibleVersion
+        }
+        try self.init(
+            requestPublicID: values.decode(String.self, forKey: .requestPublicID),
+            requestState: values.decode(String.self, forKey: .requestState),
+            responseDisposition: values.decodeIfPresent(String.self, forKey: .responseDisposition),
+            responseAcquisition: values.decodeIfPresent(String.self, forKey: .responseAcquisition),
+            responseOrigin: values.decodeIfPresent(String.self, forKey: .responseOrigin),
+            responseItemCount: values.decode(Int.self, forKey: .responseItemCount),
+            conflictCount: values.decode(Int.self, forKey: .conflictCount),
+            historyOnly: values.decode(Bool.self, forKey: .historyOnly)
+        )
+    }
+
+    static let metadataOnly = true
+    static let publicRequestIdentityOnly = true
+    static let capabilityBytesExcluded = true
+    static let capabilityProofExcluded = true
+    static let responseBodyExcluded = true
+    static let rawRequestResponseBytesExcluded = true
+    static let workspaceAndReplicaIdentityExcluded = true
+
+    static let allowedFieldIDs = C48PortableReviewDerivedFieldV1.allCases
+        .map(\.rawValue)
+        .sorted()
+
+    static func validateFieldIDs(_ values: [String]) throws {
+        guard values == values.sorted(),
+              Set(values).count == values.count,
+              values.allSatisfy({ allowedFieldIDs.contains($0) }) else {
+            throw ContentContractFailureV1.invalidValue
+        }
+    }
+
+    private static func validToken(_ value: String) -> Bool {
+        ContentContractValidationV1.validID(value)
+            && value.utf8.count <= maximumTokenBytes
+    }
+}
+
+extension C48PortableReviewDerivedHistoryProjectionV1 {
+    /// Builds the closed projection from the released review state and, when
+    /// present, the canonical response record.  The response is decoded only
+    /// to select bounded public disposition metadata; capability, proof,
+    /// author text, workspace identity, and canonical bytes are never copied
+    /// into the projection.
+    init(
+        state: ReviewRequestStateProjectionV1,
+        response: ExternalReviewResponseRecordV1? = nil,
+        conflictCount: Int = 0
+    ) throws {
+        try state.requestPublicID.validate()
+
+        var responseDisposition: String?
+        var responseAcquisition: String?
+        var responseOrigin: String?
+        var responseItemCount = 0
+
+        if let response {
+            try response.validate()
+            guard response.requestManifest.requestPublicID == state.requestPublicID else {
+                throw ContentContractFailureV1.invalidValue
+            }
+            let payload = try PortableReviewCanonicalCodecV1.decodeCanonicalResponseRecord(
+                response.canonicalResponse.canonicalBytes
+            )
+            let body: ReviewResponseBodyV1
+            switch payload {
+            case let .portable(envelope):
+                body = envelope.body
+            case let .originRecorded(origin):
+                body = origin.responseBody
+            }
+            responseDisposition = body.disposition.rawValue
+            responseItemCount = body.changeItems.count
+            responseOrigin = body.author.source.rawValue
+            switch response.source {
+            case .portableFile:
+                responseAcquisition = ReviewResponseAcquisitionKindV1.portableFile.rawValue
+            case .originRecordedElsewhere:
+                responseAcquisition = ReviewResponseAcquisitionKindV1.originRecordedElsewhere.rawValue
+            }
+        }
+
+        let historyOnly: Bool
+        switch state.lifecycleState {
+        case .historyOnlyTerminal, .historyOnlySuperseded, .historyOnlyClonedOrForked,
+             .erasePending, .erased, .unavailableCorruptOrMissing:
+            historyOnly = true
+        case .issuedNotExported, .exportedAccepting, .responsePendingDecision:
+            historyOnly = state.state == .superseded || state.state == .closedWithoutResponse
+        }
+
+        try self.init(
+            requestPublicID: state.requestPublicID.rawValue,
+            requestState: state.state.rawValue,
+            responseDisposition: responseDisposition,
+            responseAcquisition: responseAcquisition,
+            responseOrigin: responseOrigin,
+            responseItemCount: responseItemCount,
+            conflictCount: conflictCount,
+            historyOnly: historyOnly
+        )
+    }
+}
+
 struct ContentDerivativeProvenanceV1: Codable, Equatable, Identifiable, Sendable {
     static let schemaVersion = 1
     let schemaVersion: Int
@@ -592,4 +776,18 @@ enum C46OperationalContactConformance_FieldEvidenceApp_Domain_Content_ContentPro
     static let subscriberConsentCampaignAndMeasurementProjectionForbidden = true
     static let contactExportExcludedByDefault = true
     static let siteRoleOwnershipForbidden = true
+}
+
+enum C48PortableReviewContentProjectionBoundaryV1 {
+    static let derivedMetadataType = C48PortableReviewDerivedHistoryProjectionV1.self
+    static let metadataOnly = C48PortableReviewDerivedHistoryProjectionV1.metadataOnly
+    static let capabilityBytesExcluded = C48PortableReviewDerivedHistoryProjectionV1.capabilityBytesExcluded
+    static let capabilityProofExcluded = C48PortableReviewDerivedHistoryProjectionV1.capabilityProofExcluded
+    static let responseBodyExcluded = C48PortableReviewDerivedHistoryProjectionV1.responseBodyExcluded
+    static let rawRequestResponseBytesExcluded = C48PortableReviewDerivedHistoryProjectionV1.rawRequestResponseBytesExcluded
+    static let workspaceAndReplicaIdentityExcluded = C48PortableReviewDerivedHistoryProjectionV1.workspaceAndReplicaIdentityExcluded
+
+    static func validate(_ projection: C48PortableReviewDerivedHistoryProjectionV1) throws {
+        try projection.validate()
+    }
 }

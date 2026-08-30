@@ -212,6 +212,17 @@ final class V9_05RestoreIdentityTests: XCTestCase {
             } verify: { error in
                 XCTAssertEqual(error as? BackupRestoreServiceError, .injectedFailure, "\(point)")
             }
+            let portableSidecarURL = scenario.target.support.appendingPathComponent(
+                "FieldEvidenceRestore/portable-exchange-restore.json",
+                isDirectory: false
+            )
+            if point == .beforePointerSwitch {
+                XCTAssertTrue(fileManager.fileExists(atPath: portableSidecarURL.path))
+                XCTAssertEqual(try scenario.target.factory.currentGenerationID(), oldID)
+            } else if point == .afterPointerSwitch {
+                XCTAssertTrue(fileManager.fileExists(atPath: portableSidecarURL.path))
+                XCTAssertEqual(try scenario.target.factory.currentGenerationID(), newID)
+            }
             let recovery = try BackupRestoreService(applicationSupportURL: scenario.target.support, storagePreflight: unlimitedStorage)
             let recovered = try recovery.reconcileAtStartup()
             let expectedID = oldOutcome.contains(point) ? oldID : newID
@@ -226,6 +237,7 @@ final class V9_05RestoreIdentityTests: XCTestCase {
                 XCTAssertNotEqual(session.replicaID.rawValue, scenario.sourceReplicaID, "\(point)")
             }
             XCTAssertNil(try recovery.reconcileAtStartup(), "\(point)")
+            XCTAssertFalse(fileManager.fileExists(atPath: portableSidecarURL.path), "\(point)")
             let manifest = try StoreMigrationJournalStoreV1(
                 applicationSupportURL: scenario.target.support
             ).loadManifestIfPresent(targetGenerationID: newID)
@@ -1190,5 +1202,14 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_05
         XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_05RestoreIdentityTests_swift.threeReceiptIsolationIsRequired)
         XCTAssertEqual(ActivityContractPersistenceEnrollmentV2.persistentFamilies.count, 6)
         XCTAssertTrue(ActivityContractPersistenceEnrollmentV2.usesSoleWorkspaceWriter)
+    }
+}
+
+private final class C48PortableReviewV905RestoreIdentityBoundaryTests: XCTestCase {
+    func testC48ReplacePreservesWhileCloneForkInvalidatesActiveCapability() {
+        XCTAssertTrue(BackupRestoreFailurePoint.allCases.contains(.afterPointerSwitch))
+        XCTAssertTrue(C48PortableExchangeMigrationBoundaryV2.cloneOrForkInvalidatesCapabilities)
+        XCTAssertTrue(C48PortableReviewReleasedDataCompatibilityBoundaryV1.cloneAndForkMustNotReuseActiveCapability)
+        XCTAssertTrue(C48PortableReviewPersistenceBoundaryV1.sessionStoreIsNonpersistent)
     }
 }

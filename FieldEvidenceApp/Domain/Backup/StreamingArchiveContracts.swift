@@ -284,6 +284,18 @@ struct StreamingArchiveLimitsV1: Codable, Equatable, Sendable {
         bufferByteCount: 64 * 1_024,
         stagingReserveByteCount: 16 * 1_048_576
     )
+    static let card48PortableReviewRequest = StreamingArchiveLimitsV1(
+        maximumIndexByteCount: 256 * 1_024,
+        maximumEntryCount: 37,
+        maximumPathUTF8ByteCount: 240,
+        maximumStoredEntryByteCount: 32 * 1_048_576,
+        maximumUncompressedEntryByteCount: 32 * 1_048_576,
+        maximumStoredAggregateByteCount: 64 * 1_048_576,
+        maximumUncompressedAggregateByteCount: 64 * 1_048_576,
+        maximumCompressionRatio: 1,
+        bufferByteCount: 64 * 1_024,
+        stagingReserveByteCount: 16 * 1_048_576
+    )
 
     let maximumIndexByteCount: Int
     let maximumEntryCount: Int
@@ -313,10 +325,95 @@ struct StreamingArchiveLimitsV1: Codable, Equatable, Sendable {
     }
 }
 
-enum StreamingArchivePathProfileV1:String,Codable,Sendable{case backupV4="BACKUP_V4",surveyTemplate="SURVEY_TEMPLATE"}
+enum StreamingArchivePathProfileV1:String,Codable,Sendable{
+    case backupV4="BACKUP_V4"
+    case surveyTemplate="SURVEY_TEMPLATE"
+    case portableReviewRequest="PORTABLE_REVIEW_REQUEST"
+}
 enum SurveyTemplateArchiveAdmissionV1{
     static let maximumTotalBytes:Int64=16*1_048_576,maximumEntryBytes:Int64=8*1_048_576,maximumEntries=128,maximumPathUTF8Bytes=240,maximumDepth=8,maximumCompressionRatio:Int64=20
     static func validate(_ index:StreamingArchiveIndexV1)throws{guard !index.entries.isEmpty,index.entries.count<=maximumEntries,index.storedPayloadByteCount<=maximumTotalBytes,index.uncompressedPayloadByteCount<=maximumTotalBytes else{throw StreamingArchiveFailureV1.entryLimitExceeded};for entry in index.entries{let depth=entry.path.split(separator:"/",omittingEmptySubsequences:false).count;guard entry.path.utf8.count<=maximumPathUTF8Bytes,(1...maximumDepth).contains(depth),entry.storedByteCount>=0,entry.uncompressedByteCount>=0,entry.storedByteCount<=maximumEntryBytes,entry.uncompressedByteCount<=maximumEntryBytes else{throw StreamingArchiveFailureV1.hostilePath};if entry.storedByteCount==0{guard entry.uncompressedByteCount==0 else{throw StreamingArchiveFailureV1.compressionRatioExceeded}}else{guard entry.uncompressedByteCount<=entry.storedByteCount*maximumCompressionRatio else{throw StreamingArchiveFailureV1.compressionRatioExceeded}}}}
+}
+
+/// The review request is a bounded cleartext use of the released streaming
+/// archive framing. It is deliberately a profile, not a second archive
+/// parser. The response remains one canonical JSON document and never enters
+/// this archive grammar.
+enum PortableReviewRequestArchiveAdmissionV1 {
+    static let fileExtension = "arreviewrequest"
+    static let responseFileExtension = "arreviewresponse"
+    static let requestTypeIdentifier = "com.assetrounds.review-request"
+    static let responseTypeIdentifier = "com.assetrounds.review-response"
+    static let maximumMediaEntries = 32
+    static let maximumEntries = 5 + maximumMediaEntries
+    static let maximumDepth = 2
+    static let responseCapabilityByteCount = Int64(PortableReviewLimitsV1.capabilityByteCount)
+    static let maximumAggregateBytes: Int64 = 64 * 1_048_576
+    static let requiredEntries: [String: String] = [
+        ReviewRequestFileEntryV1.manifest.rawValue: "application/json",
+        ReviewRequestFileEntryV1.request.rawValue: "application/json",
+        ReviewRequestFileEntryV1.responseCapability.rawValue: "application/octet-stream",
+        ReviewRequestFileEntryV1.reportPDF.rawValue: "application/pdf",
+        ReviewRequestFileEntryV1.reportText.rawValue: "text/plain",
+    ]
+
+    static func validate(_ index: StreamingArchiveIndexV1) throws {
+        try validateDeclaredEntries(index.entries.map {
+            ($0.path, $0.mimeType, $0.uncompressedByteCount)
+        })
+        guard index.storedPayloadByteCount == index.uncompressedPayloadByteCount,
+              index.uncompressedPayloadByteCount <= maximumAggregateBytes else {
+            throw StreamingArchiveFailureV1.uncompressedLimitExceeded
+        }
+    }
+
+    static func validateDeclaredEntries(
+        _ entries: [(path: String, mimeType: String, byteCount: Int64)]
+    ) throws {
+        guard entries.count >= requiredEntries.count,
+              entries.count <= maximumEntries else {
+            throw StreamingArchiveFailureV1.entryLimitExceeded
+        }
+        var values: [String: (path: String, mimeType: String, byteCount: Int64)] = [:]
+        for entry in entries {
+            guard values.updateValue(entry, forKey: entry.path) == nil else {
+                throw StreamingArchiveFailureV1.duplicatePath
+            }
+        }
+        for (path, mimeType) in requiredEntries {
+            guard let entry = values[path], entry.mimeType == mimeType else {
+                throw StreamingArchiveFailureV1.invalidArchive
+            }
+        }
+        guard values[ReviewRequestFileEntryV1.responseCapability.rawValue]?.byteCount
+                == responseCapabilityByteCount else {
+            throw StreamingArchiveFailureV1.invalidArchive
+        }
+        let media = entries.filter { $0.path.hasPrefix("media/") }
+        guard media.count <= maximumMediaEntries,
+              entries.allSatisfy({ requiredEntries[$0.path] != nil || $0.path.hasPrefix("media/") }),
+              entries.allSatisfy({ $0.byteCount >= 0 }),
+              entries.reduce(Int64(0), { partial, entry in
+                  let (sum, overflow) = partial.addingReportingOverflow(entry.byteCount)
+                  return overflow ? Int64.max : sum
+              }) <= maximumAggregateBytes else {
+            throw StreamingArchiveFailureV1.invalidArchive
+        }
+    }
+}
+
+/// A response is a single bounded canonical JSON value, never an archive.
+/// Decoding delegates to the released C48 codec so this boundary cannot
+/// acquire a competing response grammar.
+enum PortableReviewResponseFileAdmissionV1 {
+    static let maximumByteCount = PortableReviewLimitsV1.maximumResponseBytes
+
+    static func validate(_ bytes: Data) throws -> CanonicalReviewResponseBytesV1 {
+        guard !bytes.isEmpty, bytes.count <= maximumByteCount else {
+            throw PortableReviewFailureV1.invalidValue
+        }
+        return try CanonicalReviewResponseBytesV1(canonicalBytes: bytes)
+    }
 }
 
 struct StreamingArchiveEntryV1: Codable, Equatable, Sendable {

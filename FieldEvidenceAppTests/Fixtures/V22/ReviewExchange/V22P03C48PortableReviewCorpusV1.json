@@ -1,0 +1,339 @@
+{
+  "schema": "V22P03C48PortableReviewCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P03-C48",
+  "corpusID": "v23-p03-c48-portable-review-v1",
+  "testOnly": true,
+  "synthetic": true,
+  "immutable": true,
+  "containsCustomerData": false,
+  "containsSecrets": false,
+  "contracts": [
+    "PortableReviewProtocolReleaseV1",
+    "BearerResponseCapabilityV1",
+    "ReviewCapabilityProofV1",
+    "ReviewResponseAcquisitionKindV1",
+    "OriginRecordedReviewResponseV1",
+    "ReviewRequestManifestV1",
+    "ReviewSubjectSnapshotBindingV1",
+    "ReviewRequestPurposeV1",
+    "ReviewRequestFileEntryV1",
+    "ReviewResponseEnvelopeV1",
+    "ReviewResponseBodyV1",
+    "ReviewResponseItemV1",
+    "ResponseAuthorAssertionV1",
+    "RecipientReviewRequestEventV1",
+    "ReviewRequestExportReceiptV1",
+    "ExternalReviewResponseRecordV1",
+    "ExternalReviewImportPlanV1",
+    "ExternalReviewImportDecisionV1",
+    "ExternalReviewImportReceiptV1",
+    "ReviewRequestStateProjectionV1",
+    "ReviewExchangeBudgetV1",
+    "PortableExchangeSessionStoreV2"
+  ],
+  "protocol": {
+    "releaseID": "portable-review-v1",
+    "releaseDigestHex": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+    "hmacAlgorithm": "HMAC-SHA256-CRYPTOKIT",
+    "transcriptDomainASCII": "AssetRounds.ReviewCapabilityProof.V1",
+    "transcriptDomainNULTerminated": true,
+    "lengthPrefix": "UInt32BE",
+    "digestEncoding": "RAW_32_BYTES",
+    "requestIDEncoding": "CANONICAL_ASCII_NO_NUL",
+    "constantTimeVerification": true,
+    "proofCarriesCapability": false,
+    "proofValidityIndependentOfApplicationEligibility": true,
+    "proofValidButStaleCanBeHistoryOnly": true,
+    "capabilityByteCount": 32
+  },
+  "normativeVectors": [
+    {
+      "vectorID": "RV1-001",
+      "capabilityHex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "requestPublicID": "review-request-00000000-0000-0000-0000-000000000001",
+      "requestManifestDigestHex": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f",
+      "innerRequestPackageDigestHex": "606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f",
+      "canonicalResponseBodyDigestHex": "808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f",
+      "transcriptByteCount": 236,
+      "transcriptSHA256": "5ab5c377885c524b13b17985b5782c34937ada353916c7861a7da97a23c0f0e6",
+      "expectedHMACHex": "fb0b14df9c1bdbf6f19222ab40954b07a5c847eca3c5095a3cc379ff6fa5501d",
+      "transcriptHex": "4173736574526f756e64732e5265766965774361706162696c69747950726f6f662e56310000000020202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000000337265766965772d726571756573742d30303030303030302d303030302d303030302d303030302d30303030303030303030303100000020404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f00000020606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f00000020808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f"
+    }
+  ],
+  "requestArchive": {
+    "uti": "com.assetrounds.review-request",
+    "fileExtension": ".arreviewrequest",
+    "members": [
+      "manifest.json",
+      "review-request.json",
+      "response-capability.bin",
+      "report/report.pdf",
+      "report/report.txt"
+    ],
+    "optionalMemberPrefix": "media/",
+    "customerSafeReportRevision": 7,
+    "requestPublicID": "review-request-00000000-0000-0000-0000-000000000001",
+    "itemPublicIDs": [
+      "review-item-00000000-0000-0000-0000-000000000001",
+      "review-item-00000000-0000-0000-0000-000000000002"
+    ],
+    "projectionStates": [
+      "OPEN_UNEXPORTED",
+      "EXPORTED_AWAITING_RESPONSE",
+      "ACKNOWLEDGED_AWAITING_DECISION",
+      "APPROVAL_RESPONSE_RECORDED",
+      "CHANGES_RESPONSE_RECORDED",
+      "SUPERSEDED",
+      "CLOSED_WITHOUT_RESPONSE"
+    ],
+    "excludedFromExchange": [
+      "WorkspaceID",
+      "ReplicaID",
+      "filesystem identity",
+      "local sequence",
+      "PartyID",
+      "internal stable keys",
+      "raw originals",
+      "internal notes",
+      "contacts",
+      "diagnostics",
+      "local paths",
+      "scripts",
+      "forms",
+      "macros"
+    ]
+  },
+  "responseArchive": {
+    "uti": "com.assetrounds.review-response",
+    "fileExtension": ".arreviewresponse",
+    "canonicalDocumentCount": 1,
+    "textOnly": true,
+    "attachmentsAllowed": false,
+    "executableContentAllowed": false,
+    "responsePublicID": "review-response-00000000-0000-0000-0000-000000000002",
+    "requestPublicID": "review-request-00000000-0000-0000-0000-000000000001",
+    "responseItemPublicIDs": [
+      "review-item-00000000-0000-0000-0000-000000000001",
+      "review-item-00000000-0000-0000-0000-000000000002"
+    ],
+    "authorAssertion": {
+      "displayName": "External reviewer",
+      "organization": "Example organization",
+      "source": "SELF_ENTERED_IN_RESPONDER",
+      "identityVerified": false,
+      "responseTimeInformational": true,
+      "disclosureRelease": "portable-review-disclosure-v1"
+    },
+    "dispositions": [
+      {
+        "kind": "ACKNOWLEDGED",
+        "terminal": false,
+        "requiresChangeItems": false,
+        "projectionAfter": "ACKNOWLEDGED_AWAITING_DECISION"
+      },
+      {
+        "kind": "APPROVED",
+        "terminal": true,
+        "requiresChangeItems": false,
+        "forbidsChangeItems": true,
+        "projectionAfter": "APPROVAL_RESPONSE_RECORDED"
+      },
+      {
+        "kind": "CHANGES_REQUESTED",
+        "terminal": true,
+        "requiresChangeItems": true,
+        "projectionAfter": "CHANGES_RESPONSE_RECORDED"
+      }
+    ]
+  },
+  "acquisition": {
+    "kinds": [
+      "PORTABLE_FILE",
+      "ORIGIN_RECORDED_ELSEWHERE"
+    ],
+    "originRecordedElsewhereSource": "ORIGIN_USER_ASSERTION_UNVERIFIED",
+    "requiresExistingExportedRequest": true,
+    "fabricatesCapabilityProof": false,
+    "fabricatesResponseFile": false,
+    "trustClaims": [
+      "Response recorded",
+      "Not verified by AssetRounds",
+      "Response proof verified for this request"
+    ],
+    "forbiddenTrustClaims": [
+      "Customer approved",
+      "verified customer",
+      "authenticated response",
+      "secure response",
+      "signed",
+      "tamperproof",
+      "delivered",
+      "legal signature",
+      "nonrepudiation"
+    ]
+  },
+  "import": {
+    "dispositions": [
+      "EXACT_PENDING_DECISION",
+      "DUPLICATE_ALREADY_APPLIED",
+      "STALE_LOCAL_REVISION",
+      "SUPERSEDED_REQUEST",
+      "UNKNOWN_REQUEST",
+      "REQUEST_DIGEST_MISMATCH",
+      "CAPABILITY_PROOF_INVALID",
+      "UNSUPPORTED_PROTOCOL",
+      "ITEM_MAPPING_FAILED",
+      "POLICY_BLOCKED",
+      "DIVERGENT_SAME_RESPONSE_ID"
+    ],
+    "decisions": [
+      "ACCEPT_AND_APPLY",
+      "RECORD_AS_HISTORY_ONLY",
+      "DISCARD_UNIMPORTED",
+      "KEEP_QUARANTINED"
+    ],
+    "preview": {
+      "zeroWrite": true,
+      "repeatable": true,
+      "canonicalWriteCount": 0,
+      "receiptCount": 0,
+      "projectionChanges": 0,
+      "quarantineIsCanonical": false
+    },
+    "acceptAndApply": {
+      "rechecksCurrentRevision": true,
+      "promotesExactResponseBytes": true,
+      "recordsExternalResponse": true,
+      "recordsDecisionReceipt": true,
+      "invokesExistingReviewTruth": true,
+      "recordsSelfAssertedActorSnapshot": true,
+      "updatesProjectionAtomically": true,
+      "automaticFinalization": false
+    },
+    "staleResponseDisposition": "RECORD_AS_HISTORY_ONLY",
+    "sameResponseIDExactReplayIdempotent": true,
+    "divergentSameResponseIDQuarantined": true,
+    "noOverwriteOnDivergence": true,
+    "conflictsPreserved": true
+  },
+  "proofMutationCases": [
+    "DOMAIN_BIT_FLIP",
+    "DOMAIN_NUL_REMOVED",
+    "LENGTH_PREFIX_BIT_FLIP",
+    "PROTOCOL_DIGEST_BIT_FLIP",
+    "REQUEST_ID_BIT_FLIP",
+    "REQUEST_ID_ALTERNATE_UUID_SPELLING",
+    "REQUEST_MANIFEST_DIGEST_BIT_FLIP",
+    "INNER_PACKAGE_DIGEST_BIT_FLIP",
+    "RESPONSE_BODY_DIGEST_BIT_FLIP",
+    "RAW_DIGEST_REPLACED_WITH_HEX_ASCII",
+    "CAPABILITY_BIT_FLIP",
+    "PROOF_BIT_FLIP",
+    "TRUNCATED_TRANSCRIPT",
+    "EXTENDED_TRANSCRIPT",
+    "REORDERED_FIELDS"
+  ],
+  "hostileArchiveCases": [
+    "PATH_TRAVERSAL",
+    "ABSOLUTE_PATH",
+    "DUPLICATE_MEMBER",
+    "CASE_COLLISION",
+    "SYMLINK_MEMBER",
+    "HARDLINK_MEMBER",
+    "ZIP_BOMB",
+    "OVERSIZE_MEMBER",
+    "UNSUPPORTED_CONTENT",
+    "ACTIVE_HTML",
+    "ACTIVE_SCRIPT",
+    "FORM",
+    "MACRO",
+    "UNKNOWN_PROTOCOL_VERSION",
+    "WRONG_REQUEST",
+    "WRONG_REPORT",
+    "WRONG_ITEM",
+    "FORWARDED_PACKET",
+    "TWO_TERMINAL_RESPONSES",
+    "LOW_STORAGE",
+    "PROTECTED_DATA_LOCK",
+    "CONCURRENT_LOCAL_AMENDMENT"
+  ],
+  "leakageCanaries": [
+    "capability bytes",
+    "response capability",
+    "WorkspaceID",
+    "ReplicaID",
+    "filesystem path",
+    "local sequence",
+    "PartyID",
+    "internal stable key",
+    "diagnostic",
+    "private note",
+    "verified customer",
+    "authenticated response",
+    "secure response",
+    "signed",
+    "tamperproof",
+    "delivered",
+    "customer approved"
+  ],
+  "interruption": {
+    "boundaries": [
+      "REQUEST_RENDER",
+      "REQUEST_SEAL",
+      "REQUEST_SHARE",
+      "RESPONSE_SEAL",
+      "QUARANTINE_VALIDATION",
+      "PREVIEW",
+      "CONTENT_PROMOTION",
+      "CANONICAL_EFFECT",
+      "RECEIPT"
+    ],
+    "disposition": "ZERO_OR_COMPLETE",
+    "retryDisposition": "EXACT_EFFECT_AND_RECEIPT_OR_NO_EFFECT"
+  },
+  "lifecycle": {
+    "capabilityStates": [
+      "ISSUED_NOT_EXPORTED",
+      "EXPORTED_ACCEPTING",
+      "RESPONSE_PENDING_DECISION",
+      "HISTORY_ONLY_TERMINAL",
+      "HISTORY_ONLY_SUPERSEDED",
+      "HISTORY_ONLY_CLONED_OR_FORKED",
+      "UNAVAILABLE_CORRUPT_OR_MISSING",
+      "ERASE_PENDING",
+      "ERASED"
+    ],
+    "restoreModes": [
+      "REPLACE_PRESERVES_OPEN_CAPABILITY",
+      "CLONE_HISTORY_ONLY_INVALIDATES_ACTIVE_CAPABILITY",
+      "FORK_HISTORY_ONLY_INVALIDATES_ACTIVE_CAPABILITY",
+      "OLDER_RESTORE_REQUIRES_RECONCILIATION"
+    ],
+    "historicReadExport": true,
+    "exactBytesImmutableAfterAcceptance": true,
+    "eraseRemoves": [
+      "local mappings",
+      "capability secrets",
+      "quarantine scratch",
+      "exchange sessions"
+    ],
+    "eraseCannotRecallSharedFiles": true,
+    "namespaces": [
+      "REVIEW",
+      "SERVICE_REQUEST"
+    ],
+    "namespaceQuotasIndependent": true,
+    "searchIncludesSecrets": false,
+    "diagnosticsIncludeSecrets": false,
+    "accessibilitySpeechIncludesSecrets": false
+  },
+  "compatibility": {
+    "releasedV1BytesPreserved": true,
+    "historicReaderRequired": true,
+    "historicBytesMigratedInPlace": false,
+    "successorRequestGetsNewID": true,
+    "successorRequestGetsNewCapability": true,
+    "successorRequestGetsNewDigest": true
+  }
+}

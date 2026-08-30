@@ -4914,3 +4914,46 @@ enum C47ActivityContractConformance_FieldEvidenceApp_Domain_Localization_Localiz
     static let createsSecondRouteOrInspectionAlias = false
     static func validateReadable(_ value: ActivitySessionEnvelopeV2) throws { try value.validateForRead() }
 }
+
+// MARK: - C48 portable-review derived-consumer localization
+
+/// Customer-facing wording for the derived review history surface.  These
+/// keys deliberately describe a recorded state or an unverified assertion;
+/// they do not offer delivery, identity, security, or approval claims.
+enum C48PortableReviewLocalizationKeyV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case capabilityWarning = "portable_review.capability.forwardable_warning"
+    case responseAcknowledged = "portable_review.response.acknowledged"
+    case responseApproved = "portable_review.response.approved"
+    case responseChangesRequested = "portable_review.response.changes_requested"
+    case historyOnly = "portable_review.response.history_only"
+    case responseNotVerified = "portable_review.response.not_verified"
+    case responseRecorded = "portable_review.response.recorded"
+
+    var localizationKey: LocalizationKeyV1 {
+        get throws { try LocalizationKeyV1(rawValue) }
+    }
+}
+
+enum C48PortableReviewLocalizationPolicyV1 {
+    static let sourceLocale = "en"
+    static let englishOnly = true
+    static let explicitRecordedWording = true
+    static let selfAssertedIdentityIsUnverified = true
+    static let capabilityIsNotSecurityWording = true
+    static let noDeliveryOrApprovalClaim = true
+
+    static let keys = C48PortableReviewLocalizationKeyV1.allCases
+
+    static func validate() throws {
+        let rawValues = keys.map(\.rawValue)
+        guard rawValues == rawValues.sorted(),
+              Set(rawValues).count == rawValues.count,
+              keys.allSatisfy({ !$0.rawValue.isEmpty }),
+              explicitRecordedWording,
+              selfAssertedIdentityIsUnverified,
+              capabilityIsNotSecurityWording,
+              noDeliveryOrApprovalClaim else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}

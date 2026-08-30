@@ -524,3 +524,12 @@ final class V9_28InspectionReviewCorrectiveActionTests: XCTestCase {
         XCTAssertEqual(try InspectionReviewCanonicalCodecV1.encode(decoded), data)
     }
 }
+
+private final class C48PortableReviewV928C14ReconciliationTests: XCTestCase {
+    func testC48AcceptedResponseUsesExistingC14WriterAndOriginRemainsUnverified() {
+        XCTAssertTrue(C48PortableExchangePersistentLifecycleBoundaryV2.acceptedResponseUsesExistingC14Writer)
+        XCTAssertEqual(C48PortableExchangeSyncBoundaryV2.canonicalAcceptedResponseOwner, "C14")
+        XCTAssertTrue(C48PortableReviewOriginMetadataBoundaryV1.originIsSelfAssertedAndUnverified)
+        XCTAssertTrue(C48PortableReviewOriginMetadataBoundaryV1.identityVerificationIsForbidden)
+    }
+}

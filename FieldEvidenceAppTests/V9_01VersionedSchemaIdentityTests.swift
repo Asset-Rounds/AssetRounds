@@ -1216,3 +1216,12 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_01
         XCTAssertTrue(ActivityContractPersistenceEnrollmentV2.usesSoleWorkspaceWriter)
     }
 }
+
+private final class C48PortableReviewV901SchemaTests: XCTestCase {
+    func testC48DoesNotAdvanceCanonicalPersistentSchema() {
+        XCTAssertEqual(C48PortableReviewStoreGenerationBoundaryV1.activePersistentSchemaVersion, 36)
+        XCTAssertTrue(C48PortableReviewStoreGenerationBoundaryV1.semanticEnvelopeUnchanged)
+        XCTAssertTrue(C48PortableReviewStoreGenerationBoundaryV1.sessionStoreIsNonpersistent)
+        XCTAssertEqual(C48PortableExchangePersistentLifecycleBoundaryV2.canonicalRowsAdded, 0)
+    }
+}

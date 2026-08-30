@@ -5241,3 +5241,31 @@ struct ActivityContractReportProjectionV2: Equatable, Sendable {
     static let cloneForkSourceAndTargetSnapshotIdentityRemainDistinct = true
     static let completionClaimsApprovalComplianceOrCertification = false
 }
+
+enum C48PortableReviewReportProjectionBoundaryV1 {
+    static let derivedMetadataType = C48PortableReviewDerivedHistoryProjectionV1.self
+    static let allowedDerivedFieldIDs = C48PortableReviewDerivedHistoryProjectionV1.allowedFieldIDs
+    static let emitsDerivedMetadataOnly = C48PortableReviewDerivedHistoryProjectionV1.metadataOnly
+    static let capabilityBytesExcluded = C48PortableReviewDerivedHistoryProjectionV1.capabilityBytesExcluded
+    static let capabilityProofExcluded = C48PortableReviewDerivedHistoryProjectionV1.capabilityProofExcluded
+    static let responseBodyExcluded = C48PortableReviewDerivedHistoryProjectionV1.responseBodyExcluded
+    static let rawRequestResponseBytesExcluded = C48PortableReviewDerivedHistoryProjectionV1.rawRequestResponseBytesExcluded
+    static let workspaceAndReplicaIdentityExcluded = C48PortableReviewDerivedHistoryProjectionV1.workspaceAndReplicaIdentityExcluded
+    static let externalIdentityIsSelfAssertedOnly = true
+
+    static func validate(_ projection: C48PortableReviewDerivedHistoryProjectionV1) throws {
+        try projection.validate()
+    }
+
+    static func validateFieldIDs(_ values: [String]) throws {
+        try C48PortableReviewDerivedHistoryProjectionV1.validateFieldIDs(values)
+    }
+
+    static func derivedHistory(
+        state: ReviewRequestStateProjectionV1,
+        response: ExternalReviewResponseRecordV1? = nil,
+        conflictCount: Int = 0
+    ) throws -> C48PortableReviewDerivedHistoryProjectionV1 {
+        try .init(state: state, response: response, conflictCount: conflictCount)
+    }
+}

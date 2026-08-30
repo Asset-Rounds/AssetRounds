@@ -25,3 +25,20 @@ enum AccessibleDocumentPersistenceFailureV1:Error{case corruptRow}
     func value()throws->AccessibleDocumentAssessmentReceiptV1{let value=try AccessibleDocumentCanonicalCodecV1.decode(AccessibleDocumentAssessmentReceiptV1.self,from:canonicalData);try value.validateIntrinsic();guard value.receiptID==receiptID,value.workspaceID.rawValue==workspaceID,value.revision==revision,value.mutationID.rawValue==mutationID,value.treeSHA256==treeSHA256,value.outputSHA256==outputSHA256,value.receiptSHA256==receiptSHA256,value.scope.rawValue==scopeRawValue,value.audience.rawValue==audienceRawValue,value.projectionVersion==projectionVersion,value.manifestID==manifestID,value.manifestVersion==manifestVersion,value.profileRelease==profileRelease,value.brandProfileID==brandProfileID,value.brandProfileRelease==brandProfileRelease else{throw AccessibleDocumentPersistenceFailureV1.corruptRow};return value}
     func value(tree:AccessibleDocumentSemanticTreeV1)throws->AccessibleDocumentAssessmentReceiptV1{let value=try value();try value.validate(tree:tree);return value}
 }
+
+// C48 review history is a derived, non-SwiftData projection.  This guard
+// documents that the existing accessibility receipt row never gains a second
+// exchange payload or a secret-bearing column.
+enum C48PortableReviewAccessibleDocumentPersistenceBoundaryV1 {
+    static let derivedHistoryIsNotPersistedInAssessmentReceiptRow = true
+    static let capabilityBytesPersisted = false
+    static let capabilityProofBytesPersisted = false
+    static let responseBodyPersisted = false
+    static let rawRequestResponseBytesPersisted = false
+    static let workspaceAndReplicaIdentityPersistedInDerivedHistory = false
+    static let existingAccessibleDocumentRowSchemaRemainsUnchanged = true
+
+    static func validate(_ projection: C48PortableReviewDerivedHistoryProjectionV1) throws {
+        try projection.validate()
+    }
+}

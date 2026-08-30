@@ -1097,6 +1097,32 @@ struct InspectionReviewMutationReceiptV1:Codable,Equatable,Sendable{
     }
 }
 
+struct PortableReviewMutationReceiptV1: Codable, Equatable, Sendable {
+    let mutationSHA256: String
+    let mutationReceipt: MutationReceiptV1
+    let importReceipt: ExternalReviewImportReceiptV1
+
+    init(mutation: PortableReviewMutationV1, mutationReceipt: MutationReceiptV1) throws {
+        try mutation.validate(); try mutationReceipt.validate(); try mutation.importReceipt.validate()
+        let images = try mutation.mutationPostImages
+        let expected = Dictionary(uniqueKeysWithValues: mutationReceipt.expectedRevision.entityRevisions.map { ($0.identity, $0.revision) })
+        let resulting = Dictionary(uniqueKeysWithValues: mutationReceipt.resultingRevision.entityRevisions.map { ($0.identity, $0.revision) })
+        guard mutationReceipt.mutationID == mutation.mutationID,
+              mutationReceipt.identity.workspaceID == mutation.workspaceID,
+              mutationReceipt.expectedRevision.workspaceRevision == mutation.plan.basisWorkspaceRevision,
+              mutationReceipt.commandBodySHA256 == (try WorkspaceMutationCanonicalV1.sha256(WorkspaceCommandV1.applyPortableReview(mutation))),
+              mutationReceipt.postImages == images,
+              try mutation.concurrencyIdentities.allSatisfy({ expected[$0] == (try mutation.expectedRevision(for: $0)) }),
+              try images.allSatisfy({ resulting[try $0.identity] == $0.revision }),
+              mutation.importReceipt.appliedWorkspaceRevision == mutationReceipt.resultingRevision.workspaceRevision else {
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+        mutationSHA256 = try mutation.canonicalSHA256()
+        self.mutationReceipt = mutationReceipt
+        importReceipt = mutation.importReceipt
+    }
+}
+
 struct WorkPacketMutationReceiptV1:Codable,Equatable,Sendable{let mutationSHA256:String;let mutationReceipt:MutationReceiptV1;let affectedIdentity:WorkspaceEntityIdentityV1;let concurrencyIdentity:WorkspaceEntityIdentityV1;init(mutation:WorkPacketMutationV1,mutationReceipt:MutationReceiptV1)throws{try mutation.validate();try mutationReceipt.validate();let a=try mutation.affectedIdentity;let c=try mutation.concurrencyIdentity;let image=try mutation.postImage.mutationPostImage;guard mutationReceipt.mutationID==mutation.mutationID,mutationReceipt.identity.workspaceID==mutation.workspaceID,mutationReceipt.commandBodySHA256==(try WorkspaceMutationCanonicalV1.sha256(WorkspaceCommandV1.applyWorkPacket(mutation))),mutationReceipt.expectedRevision.entityRevisions.first(where:{$0.identity==c})?.revision==mutation.expectedRevision,mutationReceipt.resultingRevision.entityRevisions.first(where:{$0.identity==a})?.revision==mutation.postImage.revision,mutationReceipt.postImages==[image]else{throw WorkspaceMutationFailureV1.invalidReceipt};mutationSHA256=try mutation.canonicalSHA256();self.mutationReceipt=mutationReceipt;affectedIdentity=a;concurrencyIdentity=c}}
 struct FieldDraftMutationReceiptV1:Codable,Equatable,Sendable{let mutationSHA256:String;let mutationReceipt:MutationReceiptV1;let affectedIdentities:[WorkspaceEntityIdentityV1];let concurrencyIdentities:[WorkspaceEntityIdentityV1];init(mutation:FieldDraftMutationV1,mutationReceipt:MutationReceiptV1)throws{try mutation.validate();try mutationReceipt.validate();let affected=try mutation.affectedIdentities,concurrency=try mutation.concurrencyIdentities,images=try mutation.postImage.mutationPostImages;guard mutationReceipt.mutationID==mutation.mutationID,mutationReceipt.identity.workspaceID==mutation.workspaceID,mutationReceipt.commandBodySHA256==(try WorkspaceMutationCanonicalV1.sha256(WorkspaceCommandV1.applyFieldDraft(mutation))),mutationReceipt.postImages==images,try concurrency.allSatisfy({identity in mutationReceipt.expectedRevision.entityRevisions.first(where:{$0.identity==identity})?.revision == (try mutation.expectedRevision(for:identity))}),try images.allSatisfy({image in mutationReceipt.resultingRevision.entityRevisions.first(where:{$0.identity==(try image.identity)})?.revision==image.revision})else{throw WorkspaceMutationFailureV1.invalidReceipt};mutationSHA256=try mutation.canonicalSHA256();self.mutationReceipt=mutationReceipt;affectedIdentities=affected;concurrencyIdentities=concurrency}}
 struct PackagePromotionMutationReceiptV1:Codable,Equatable,Sendable{let mutationSHA256:String;let mutationReceipt:MutationReceiptV1;let affectedIdentities:[WorkspaceEntityIdentityV1];let concurrencyIdentities:[WorkspaceEntityIdentityV1];init(mutation:PackagePromotionMutationV1,mutationReceipt:MutationReceiptV1)throws{try mutation.validate();try mutationReceipt.validate();let affected=try mutation.affectedIdentities,concurrency=try mutation.concurrencyIdentities,images=try mutation.mutationPostImages;guard mutationReceipt.mutationID==mutation.mutationID,mutationReceipt.identity.workspaceID==mutation.workspaceID,mutationReceipt.commandBodySHA256==(try WorkspaceMutationCanonicalV1.sha256(WorkspaceCommandV1.applyPackagePromotion(mutation))),mutationReceipt.postImages==images,try concurrency.allSatisfy({identity in mutationReceipt.expectedRevision.entityRevisions.first(where:{$0.identity==identity})?.revision == (try mutation.expectedRevision(for:identity))}),try images.allSatisfy({image in mutationReceipt.resultingRevision.entityRevisions.first(where:{$0.identity==(try image.identity)})?.revision==image.revision})else{throw WorkspaceMutationFailureV1.invalidReceipt};mutationSHA256=try mutation.canonicalSHA256();self.mutationReceipt=mutationReceipt;affectedIdentities=affected;concurrencyIdentities=concurrency}}

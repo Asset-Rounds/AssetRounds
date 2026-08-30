@@ -658,3 +658,15 @@ enum C45AcceptedLabelDeletionIntentBoundaryV1 { static let ordinaryAssetDeletion
 
 enum C46OperationalContactBoundary_38{static let assetOrSiteCascadeDeletesPartyContacts=false;static let workspaceEraseOwnsRows=true}
 enum C47ActivityContractDeletionIntentBoundaryV2 { static let matchingUnfinalizedSubjectGraphIsClosed=true;static let finalizedAndSupersededHistoryIsRetained=true;static let nonpersistentReceiptsCreateNoCleanupIntent=true }
+
+enum C48PortableExchangeDeletionIntentBoundaryV2 {
+    static func invalidatesSession(
+        _ session: PortableExchangeSessionRecordV2,
+        workspaceID: WorkspaceID,
+        canonicalSubjectIdentity: String
+    ) -> Bool {
+        session.workspaceID == workspaceID.rawValue
+            && session.canonicalSubjectIdentity == canonicalSubjectIdentity
+            && session.capabilityState.isActive
+    }
+}

@@ -555,3 +555,12 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_17
         XCTAssertTrue(ActivityContractPersistenceEnrollmentV2.usesSoleWorkspaceWriter)
     }
 }
+
+private final class C48PortableReviewV917PersistenceTests: XCTestCase {
+    func testC48PersistenceUsesExistingC14RowsOnly() {
+        XCTAssertEqual(C48PortableExchangePersistentLifecycleBoundaryV2.canonicalRowsAdded, 0)
+        XCTAssertTrue(C48PortableExchangePersistentLifecycleBoundaryV2.acceptedResponseUsesExistingC14Writer)
+        XCTAssertEqual(C48PortableExchangeSyncBoundaryV2.canonicalAcceptedResponseOwner, "C14")
+        XCTAssertTrue(PortableReviewChangeJournalPolicyV1.postimagesUseOnlyExistingC14Families)
+    }
+}

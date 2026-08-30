@@ -639,3 +639,63 @@ extension AssuranceManifestV1 {
               self.workspaceID == workspaceID else { throw EvidenceAssuranceFailureV1.invalidValue }
     }
 }
+
+/// C48 review metadata may be rendered beside assurance data, but it is not
+/// assurance evidence.  The claim surface is deliberately narrower than the
+/// derived review projection: response origin is status-only and cannot be
+/// used to assert identity, authorship, approval, or nonrepudiation.
+enum C48PortableReviewAssuranceTrustBoundaryV1 {
+    static let metadataOnly = true
+    static let capabilityBytesExcluded = true
+    static let capabilityProofExcluded = true
+    static let rawResponseBytesExcluded = true
+    static let responseBodyExcluded = true
+    static let unverifiedOriginExcludedFromAssuranceClaims = true
+    static let externalIdentityVerified = false
+    static let responseDispositionIsAssurance = false
+    static let canonicalAssuranceManifestRemainsAuthoritative = true
+
+    /// Only bounded lifecycle metadata may enter an assurance claim.  The
+    /// origin field remains available to non-assurance history consumers so
+    /// they can label its trust boundary truthfully.
+    static let assuranceClaimFieldIDs: [String] = [
+        C48PortableReviewDerivedFieldV1.requestPublicID.rawValue,
+        C48PortableReviewDerivedFieldV1.requestState.rawValue,
+        C48PortableReviewDerivedFieldV1.responseDisposition.rawValue,
+        C48PortableReviewDerivedFieldV1.responseAcquisition.rawValue,
+        C48PortableReviewDerivedFieldV1.responseItemCount.rawValue,
+        C48PortableReviewDerivedFieldV1.conflictCount.rawValue,
+        C48PortableReviewDerivedFieldV1.historyOnly.rawValue
+    ].sorted()
+
+    static let excludedAssuranceFieldIDs: [String] = [
+        C48PortableReviewDerivedFieldV1.responseOrigin.rawValue
+    ]
+
+    static func validateClaimFieldIDs(_ fieldIDs: [String]) throws {
+        try C48PortableReviewDerivedHistoryProjectionV1.validateFieldIDs(fieldIDs)
+        guard fieldIDs == fieldIDs.sorted(),
+              Set(fieldIDs).count == fieldIDs.count,
+              !fieldIDs.contains(C48PortableReviewDerivedFieldV1.responseOrigin.rawValue) else {
+            throw EvidenceAssuranceFailureV1.invalidValue
+        }
+    }
+
+    static func validate(_ projection: C48PortableReviewDerivedHistoryProjectionV1) throws {
+        try projection.validate()
+        try validateClaimFieldIDs(assuranceClaimFieldIDs)
+        guard metadataOnly,
+              capabilityBytesExcluded,
+              capabilityProofExcluded,
+              rawResponseBytesExcluded,
+              responseBodyExcluded,
+              unverifiedOriginExcludedFromAssuranceClaims,
+              !externalIdentityVerified,
+              !responseDispositionIsAssurance,
+              canonicalAssuranceManifestRemainsAuthoritative,
+              !assuranceClaimFieldIDs.contains(C48PortableReviewDerivedFieldV1.responseOrigin.rawValue),
+              excludedAssuranceFieldIDs == [C48PortableReviewDerivedFieldV1.responseOrigin.rawValue] else {
+            throw EvidenceAssuranceFailureV1.invalidValue
+        }
+    }
+}

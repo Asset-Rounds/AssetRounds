@@ -11,3 +11,16 @@ enum EvidenceAssuranceAccessibleDocumentLifecycleV1{
     static let externalProofRequiresCanonicalEvidenceLinks=true
     static let assessmentDoesNotReplaceAssuranceManifest=true
 }
+
+enum C48PortableReviewEvidenceAssuranceBoundaryV1 {
+    static let reviewResponseIsNotEvidenceAssurance = true
+    static let capabilityBytesBecomeEvidence = false
+    static let capabilityProofBytesBecomeEvidence = false
+    static let responseBodyBecomesEvidence = false
+    static let rawRequestResponseBytesBecomeEvidence = false
+    static let existingAssuranceManifestRemainsCanonical = true
+
+    static func validate(_ projection: C48PortableReviewDerivedHistoryProjectionV1) throws {
+        try projection.validate()
+    }
+}

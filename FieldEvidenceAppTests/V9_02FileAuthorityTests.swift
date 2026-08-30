@@ -13,6 +13,7 @@ final class V9_02FileAuthorityTests: XCTestCase {
             .stagingDirectory,
             .restoreStaging,
             .generationLeaseDirectory,
+            .portableExchangeDirectory,
             .cache,
             .scratch,
         ]
@@ -20,6 +21,7 @@ final class V9_02FileAuthorityTests: XCTestCase {
             .stagingDirectory,
             .restoreStaging,
             .stagingFile,
+            .fieldDraftStagingFile,
             .temporaryFile,
             .generationPointerTemporary,
             .generationLeaseControl,
@@ -27,14 +29,18 @@ final class V9_02FileAuthorityTests: XCTestCase {
             .generationLeaseOwnerLock,
             .journal,
             .journalTemporary,
+            .portableExchangeSessionFile,
+            .portableExchangeJournalFile,
+            .portableExchangeQuarantineFile,
             .diagnostics,
             .commerceEntitlementCache,
+            .portableExchangeDirectory,
             .cache,
             .scratch,
             .searchIndex,
         ]
 
-        XCTAssertEqual(OwnedFileKindV1.allCases.count, 25)
+        XCTAssertEqual(OwnedFileKindV1.allCases.count, 30)
         XCTAssertEqual(
             Set(OwnedFileKindV1.allCases),
             directoryKinds.union(excludedKinds).union(Set([
@@ -66,7 +72,14 @@ final class V9_02FileAuthorityTests: XCTestCase {
                 excludedKinds.contains(kind),
                 kind.rawValue
             )
+            XCTAssertTrue(ProtectedFilePolicyV1.countsTowardOwnedStorage(kind), kind.rawValue)
+            XCTAssertFalse(
+                ProtectedFilePolicyV1.permitsAutomaticStoragePressureDeletion(kind),
+                kind.rawValue
+            )
         }
+
+        try PortableExchangeProtectedFilePolicyV2.validate()
     }
 
     func testTemporaryFileSystemAppliesAndReadsBackEveryOwnedKind() throws {

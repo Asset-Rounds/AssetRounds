@@ -291,6 +291,15 @@ enum V4BackupEvidenceMemberKeyV1{
     static func thumbnail(_ evidenceID:UUID)->String{"thumbnails/\(evidenceID.uuidString.lowercased()).jpg"}
 }
 
+/// Explicit transport for C48's protected, non-SwiftData session staging.
+/// Quarantine never enters this member; the snapshot contract enforces that.
+enum PortableExchangeBackupMemberV2 {
+    static let path = "review-exchange/snapshot.json"
+    static let mimeType = "application/json"
+    static let maximumByteCount = C48PortableReviewPersistenceLimitsV1.maximumEnvelopeBytes
+        + Int(2 * C48PortableReviewPersistenceLimitsV1.maximumStagedBytes)
+}
+
 struct V4BackupIssueDTO: Codable, Equatable, Identifiable, Sendable {
     let id: UUID
     let schemaVersion: Int

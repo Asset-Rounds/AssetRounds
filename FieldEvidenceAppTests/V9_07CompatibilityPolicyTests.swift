@@ -542,3 +542,11 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_07
         XCTAssertEqual(ActivityKindV1CompatibilityAdapterV2.v1(.survey), .survey)
     }
 }
+
+private final class C48PortableReviewV907CompatibilityPolicyTests: XCTestCase {
+    func testC48ReleasedProtocolFailsClosedWithoutRewritingHistory() {
+        XCTAssertTrue(C48PortableReviewReleasedDataCompatibilityBoundaryV1.exchangeProtocolIsSeparateFromWorkspaceSchema)
+        XCTAssertTrue(C48PortableReviewReleasedDataCompatibilityBoundaryV1.derivedHistoryNeverRequiresHistoricSnapshotRewrite)
+        XCTAssertTrue(C48PortableReviewReleasedDataCompatibilityBoundaryV1.unknownProtocolVersionsFailClosed)
+    }
+}

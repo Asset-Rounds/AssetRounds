@@ -427,3 +427,4 @@ enum C45AcceptedLabelProjectionCheckpointBoundaryV1 { static let checkpointIsRep
 
 enum C46OperationalContactBoundary_50{static let commandKind:WorkspaceCommandKindV1 = .applyOperationalContact;static let platformOutcomesProjected=false}
 enum C47ActivityContractProjectionCheckpointBoundaryV2 { static let commandKind:WorkspaceCommandKindV1 = .applyActivityContract;static let checkpointIsReplaceable=true;static let checkpointIsNotCanonicalActivityTruth=true }
+enum C48PortableReviewProjectionCheckpointBoundaryV1 { static let checkpointIsReplaceable=true;static let checkpointIsNotCanonicalReviewTruth=true;static let checkpointNeverCarriesCapabilityProofOrResponseBytes=true;static let originMetadataIsSelfAssertedOnly=true }

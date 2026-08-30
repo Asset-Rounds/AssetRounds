@@ -599,3 +599,15 @@ enum C45AssetLabelBoundary_Row126 {
         try snapshot.validate()
     }
 }
+
+enum C48PortableReviewOriginMetadataBoundaryV1 {
+    static let originIsSelfAssertedAndUnverified = true
+    static let identityVerificationIsForbidden = true
+    static let legalSignatureInferenceIsForbidden = true
+    static let rawCapabilityProofAndResponseBytesAreForbidden = true
+
+    static func validateOriginSnapshot(_ snapshot: SignoffSnapshotV1, workspaceID: WorkspaceID) throws {
+        try snapshot.validate()
+        guard snapshot.workspaceID == workspaceID else { throw PartyAccountabilityFailureV1.crossWorkspaceReference }
+    }
+}

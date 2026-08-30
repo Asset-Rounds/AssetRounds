@@ -423,3 +423,11 @@ enum C47ActivityContractCompatibility_FieldEvidenceApp_Domain_Workflow_WorkflowC
     static let legacyInspectionTruthIsNotRewritten = true
     static let threeReceiptIsolationIsRequired = true
 }
+
+enum C48PortableReviewWorkflowBoundaryV1 {
+    static let responseImportIsPreviewFirst = true
+    static let acceptanceDoesNotAutoFinalize = true
+    static let capabilityProofIsNotWorkflowState = true
+    static let rawResponseBytesAreNotWorkflowState = true
+    static let historyOnlyResponsesRemainImmutable = true
+}

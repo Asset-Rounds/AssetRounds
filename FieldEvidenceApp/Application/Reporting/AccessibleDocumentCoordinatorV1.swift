@@ -46,3 +46,27 @@ actor AccessibleDocumentCoordinatorV1{
         let receipt=try await writer.append(value,tree:tree);guard receipt==value else{throw AccessibleDocumentFailureV1.staleAssessment};return receipt
     }
 }
+
+// MARK: - C48 portable-review accessible projection boundary
+
+extension AccessibleDocumentCoordinatorV1 {
+    /// The accessibility coordinator can consume the safe projection for a
+    /// spoken status summary, but never receives the capability, proof, or
+    /// canonical response bytes.
+    nonisolated static func validatePortableReviewDerivedHistory(
+        _ projection: C48PortableReviewDerivedHistoryProjectionV1
+    ) throws -> C48PortableReviewDerivedHistoryProjectionV1 {
+        try C48PortableReviewAccessibleDocumentBoundaryV1.validate(projection)
+        return projection
+    }
+}
+
+enum C48PortableReviewAccessibleDocumentCoordinatorBoundaryV1 {
+    static let consumesDerivedMetadataOnly = true
+    static let capabilityBytesConsumed = false
+    static let capabilityProofBytesConsumed = false
+    static let responseBodyConsumed = false
+    static let rawRequestResponseBytesConsumed = false
+    static let verifiedIdentityConsumed = false
+    static let existingAccessibleRendererRemainsSoleRenderer = true
+}

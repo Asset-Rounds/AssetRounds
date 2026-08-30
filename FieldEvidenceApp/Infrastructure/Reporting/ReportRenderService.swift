@@ -1380,6 +1380,20 @@ extension ReportRenderService {
     }
 }
 
+enum C48PortableReviewReportRenderBoundaryV1 {
+    static let existingReportRenderServiceIsSoleRoute = true
+    static let rendersDerivedMetadataOnly = true
+    static let capabilityBytesRendered = false
+    static let capabilityProofBytesRendered = false
+    static let responseBodyRendered = false
+    static let rawRequestResponseBytesRendered = false
+    static let workspaceAndReplicaIdentityRendered = false
+
+    static func validate(_ projection: C48PortableReviewDerivedHistoryProjectionV1) throws {
+        try C48PortableReviewReportProjectionBoundaryV1.validate(projection)
+    }
+}
+
 extension ReportRenderService {
     /// Report rendering may consume a package only after the non-activating
     /// sandbox has passed. The render service receives the immutable projection

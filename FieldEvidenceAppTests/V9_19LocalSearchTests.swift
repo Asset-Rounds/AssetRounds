@@ -1232,3 +1232,12 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_19
         XCTAssertFalse(ActivityStateMachineV2.permits(from: .finalized, to: .draft))
     }
 }
+
+private final class C48PortableReviewV919SearchTests: XCTestCase {
+    func testC48SearchIndexesDerivedMetadataWithoutSecrets() {
+        XCTAssertTrue(C48PortableReviewSearchBoundaryV1.currentStateAndHistoryMayBeRead)
+        XCTAssertFalse(C48PortableReviewSearchBoundaryV1.capabilityBytesIndexed)
+        XCTAssertFalse(C48PortableReviewSearchBoundaryV1.rawRequestResponseBytesIndexed)
+        XCTAssertTrue(C48PortableReviewSearchBoundaryV1.responseHistoryIsNotMutationAuthority)
+    }
+}

@@ -17,4 +17,20 @@ import SwiftData
         let policies = try modelContext.fetch(FetchDescriptor<CorrectiveActionPolicyRow>()).map { try $0.value() }
         return try CorrectiveActionProjectionBuilderV1.rebuild(workspaceID: workspaceID, actionID: actionID, events: events, policies: policies, now: now)
     }
+
+    /// Read-only exact C14 basis used by C48 preview and the immediate
+    /// pre-write recheck. No portable session fact is persisted here.
+    func portableReviewBasis(
+        mapping: ReviewRequestC14SubjectItemMappingV1,
+        reviewID: UUID
+    ) throws -> InspectionReviewProjectionV1 {
+        try mapping.validate()
+        let projection = try reviewProjection(workspaceID: mapping.workspaceID, reviewID: reviewID)
+        let transitions = try modelContext.fetch(FetchDescriptor<InspectionReviewTransitionRow>()).map { try $0.value() }
+        guard let head = transitions.first(where: { $0.transitionID == projection.headTransitionID }),
+              head.workspaceID == mapping.workspaceID,
+              head.reviewID == reviewID,
+              head.subject == mapping.subject else { throw InspectionReviewFailureV1.staleRevision }
+        return projection
+    }
 }

@@ -942,3 +942,12 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_2P
         XCTAssertFalse(ActivityContractPersistenceEnrollmentV2.planOrScanProviderRequired)
     }
 }
+
+private final class C48PortableReviewS42PDFRecoveryTests: XCTestCase {
+    func testC48PDFRecoveryPreservesImmutableHistoryWithoutSecretBytes() {
+        XCTAssertTrue(C48PortableReviewPDFBoundaryV1.usesExistingPDFRenderer)
+        XCTAssertTrue(C48PortableReviewReportRecoveryBoundaryV1.recoveryReadsImmutableResponseHistory)
+        XCTAssertTrue(C48PortableReviewReportRecoveryBoundaryV1.recoveryDoesNotRewriteResponseBytes)
+        XCTAssertFalse(C48PortableReviewPDFBoundaryV1.capabilityProofBytesEmitted)
+    }
+}

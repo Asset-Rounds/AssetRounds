@@ -1204,3 +1204,15 @@ enum C45AcceptedLabelReplacementBoundaryV1 { static let snapshotFollowsWorkspace
 
 enum C46OperationalContactBoundary_04{static let recordsSchemaVersion=34;static let sourceBytesPersistent=false;static let platformOutcomesPersistent=false}
 enum C47ActivityContractReplacementBoundaryV2 { static let recordsSchemaVersion=35;static let sameWorkspacePreservesCanonicalBytes=true;static let crossWorkspaceRebindsFullMutationHistory=true;static let completedSnapshotDigestIsPreserved=true }
+
+enum C48PortableExchangeReplacementRuleV2 {
+    static func validate(
+        _ snapshot: PortableExchangeBackupSnapshotV2,
+        targetWorkspaceID: UUID
+    ) throws {
+        try snapshot.validate()
+        guard snapshot.sessions.allSatisfy({
+            $0.workspaceID == nil || $0.workspaceID == targetWorkspaceID
+        }) else { throw ReplacementRestoreRuleError.invalidAuthority }
+    }
+}

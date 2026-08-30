@@ -3861,3 +3861,17 @@ enum C47ActivityContractCompatibility_FieldEvidenceApp_Domain_InspectionKernel_C
     static let legacyInspectionTruthIsNotRewritten = true
     static let threeReceiptIsolationIsRequired = true
 }
+
+enum C48PortableReviewCompletedActivityBoundaryV1 {
+    static let completedSnapshotRemainsSubjectTruthOnly = true
+    static let responseBytesAreNotCompletedActivityTruth = true
+    static let capabilityProofIsNotCompletedActivityTruth = true
+    static let externalReviewHistoryCannotRewriteCompletedSnapshot = true
+    static let derivedHistoryUsesPublicRequestIdentityOnly = true
+
+    static func validateDerivedHistory(
+        _ projection: C48PortableReviewDerivedHistoryProjectionV1
+    ) throws {
+        try projection.validate()
+    }
+}

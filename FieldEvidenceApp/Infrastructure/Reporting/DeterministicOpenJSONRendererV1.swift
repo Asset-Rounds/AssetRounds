@@ -3455,3 +3455,26 @@ extension ReportSemanticProjectorV1 {
         )
     }
 }
+
+// MARK: - C48 portable-review derived open-JSON boundary
+
+extension DeterministicOpenJSONRendererV1 {
+    /// Validate-only hook for the existing renderer.  The canonical review
+    /// response is never passed to or serialized by this surface.
+    static func validatePortableReviewDerivedHistory(
+        _ projection: C48PortableReviewDerivedHistoryProjectionV1
+    ) throws -> C48PortableReviewDerivedHistoryProjectionV1 {
+        try C48PortableReviewReportProjectionBoundaryV1.validate(projection)
+        return projection
+    }
+}
+
+enum C48PortableReviewOpenJSONBoundaryV1 {
+    static let usesExistingOpenJSONRenderer = true
+    static let emitsDerivedMetadataOnly = true
+    static let capabilityBytesEmitted = false
+    static let capabilityProofBytesEmitted = false
+    static let responseBodyEmitted = false
+    static let rawRequestResponseBytesEmitted = false
+    static let workspaceAndReplicaIdentityEmitted = false
+}

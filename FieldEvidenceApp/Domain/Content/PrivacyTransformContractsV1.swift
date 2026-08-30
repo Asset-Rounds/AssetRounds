@@ -365,3 +365,10 @@ enum AccessibleDocumentPrivacyTransformBoundaryV1 {
         }
     }
 }
+
+enum C48PortableReviewPrivacyTransformBoundaryV1 {
+    static let capabilityProofIsAContentTransform = false
+    static let rawResponseBytesAreTransformInput = false
+    static let onlySafeDerivedMetadataMayReachReportConsumers = true
+    static let customerSafePrivacyProjectionRemainsExistingPolicy = true
+}

@@ -726,3 +726,17 @@ enum C33TemporalEvidenceRestoreIdentityPolicyV1 {
 }
 
 enum C45AcceptedLabelRestoreIdentityBoundaryV1 { static let replacePreservesCanonicalSnapshot=true;static let cloneForkRebindsHistoricSnapshot=true;static let cloneForkActivatesReprint=false }
+
+enum C48PortableExchangeRestoreIdentityDispositionV2: String, Codable, Sendable {
+    case preserveAcceptedSessionAndCapability = "PRESERVE_ACCEPTED_SESSION_AND_CAPABILITY"
+    case rebindHistoryAndInvalidateCapability = "REBIND_HISTORY_AND_INVALIDATE_CAPABILITY"
+
+    static func resolve(_ mode: BackupRestoreMode) -> Self {
+        switch mode {
+        case .emptyInstall, .replaceExisting:
+            return .preserveAcceptedSessionAndCapability
+        case .clone, .fork:
+            return .rebindHistoryAndInvalidateCapability
+        }
+    }
+}

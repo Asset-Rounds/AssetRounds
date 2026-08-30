@@ -470,3 +470,17 @@ enum C47ActivityContractCompatibility_FieldEvidenceApp_Domain_Workflow_ReportSna
     static let legacyInspectionTruthIsNotRewritten = true
     static let threeReceiptIsolationIsRequired = true
 }
+
+enum C48PortableReviewReportSnapshotBoundaryV1 {
+    static let reportSnapshotCarriesDerivedHistoryOnly = true
+    static let capabilityProofIsExcluded = true
+    static let rawResponseBytesAreExcluded = true
+    static let responseBodyIsExcluded = true
+    static let externalReviewCannotRewriteHistoricSnapshot = true
+
+    static func validateDerivedHistory(
+        _ projection: C48PortableReviewDerivedHistoryProjectionV1
+    ) throws {
+        try projection.validate()
+    }
+}

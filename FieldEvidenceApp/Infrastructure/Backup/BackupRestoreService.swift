@@ -171,6 +171,62 @@ final class BackupRestoreFailureInjection {
 
 @MainActor
 final class BackupRestoreService {
+    private struct PortableExchangeRestoreSidecarV1: Codable, Equatable {
+        static let schemaVersion = 1
+
+        let schemaVersion: Int
+        let operationID: UUID
+        let oldGenerationID: UUID
+        let newGenerationID: UUID
+        let sourceWorkspaceID: UUID?
+        let targetWorkspaceID: UUID
+        let mode: BackupRestoreMode
+        let snapshot: PortableExchangeBackupSnapshotV2
+        let snapshotSHA256: String
+        let expectedBeforeEnvelopeSHA256: String
+
+        init(
+            operationID: UUID,
+            oldGenerationID: UUID,
+            newGenerationID: UUID,
+            sourceWorkspaceID: UUID?,
+            targetWorkspaceID: UUID,
+            mode: BackupRestoreMode,
+            snapshot: PortableExchangeBackupSnapshotV2,
+            expectedBeforeEnvelopeSHA256: String
+        ) throws {
+            self.schemaVersion = Self.schemaVersion
+            self.operationID = operationID
+            self.oldGenerationID = oldGenerationID
+            self.newGenerationID = newGenerationID
+            self.sourceWorkspaceID = sourceWorkspaceID
+            self.targetWorkspaceID = targetWorkspaceID
+            self.mode = mode
+            self.snapshot = snapshot
+            self.snapshotSHA256 = try StoreMigrationCanonicalJSONV1.digest(snapshot)
+            self.expectedBeforeEnvelopeSHA256 = expectedBeforeEnvelopeSHA256
+            try validate()
+        }
+
+        func validate() throws {
+            try snapshot.validate()
+            guard schemaVersion == Self.schemaVersion,
+                  operationID != oldGenerationID,
+                  operationID != newGenerationID,
+                  oldGenerationID != newGenerationID,
+                  StoreMigrationCanonicalJSONV1.isLowercaseSHA256(snapshotSHA256),
+                  StoreMigrationCanonicalJSONV1.isLowercaseSHA256(
+                      expectedBeforeEnvelopeSHA256
+                  ),
+                  try StoreMigrationCanonicalJSONV1.digest(snapshot) == snapshotSHA256,
+                  snapshot.sessions.allSatisfy({
+                      $0.workspaceID == nil || $0.workspaceID == targetWorkspaceID
+                  }) else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+        }
+    }
+
     private struct DraftRestorePublicationBindingV1: Codable, Equatable {
         let schemaVersion: Int
         let receipt: DraftAttachmentRestorePublicationReceiptV1
@@ -572,6 +628,20 @@ final class BackupRestoreService {
             mode: mode
         )
         try C32AssistanceBackupRestorePolicyV1.validate(validatedPackage.records, mode: mode)
+        let portableExchangeSnapshot: PortableExchangeBackupSnapshotV2
+        do {
+            portableExchangeSnapshot = try C48PortableExchangeBackupPackageValidationV2.snapshot(
+                manifest: validatedPackage.manifest,
+                members: validatedPackage.members
+            ) ?? PortableExchangeBackupSnapshotV2(
+                snapshotID: validatedPackage.manifest.source.sourceGenerationID
+                    ?? UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
+                createdAt: validatedPackage.manifest.exportedAt,
+                sessions: []
+            )
+        } catch {
+            throw BackupRestoreServiceError.invalidPackage
+        }
         try storagePreflight.checkBackupImport(
             declaredPayloadByteCount: Int64(
                 validatedPackage.manifest.declaredPayloadByteCount
@@ -746,6 +816,15 @@ final class BackupRestoreService {
                     try workspaceIdentity($0)
                 } ?? frozenCurrentIdentity
             )
+            try PortableExchangeProtectedFilePolicyV2.validate()
+            let targetPortableExchangeWorkspaceID =
+                identityDecision?.targetPointer.workspaceID
+                    ?? frozenCurrentIdentity.workspaceID.rawValue
+            let reboundPortableExchangeSnapshot = try portableExchangeSnapshot(
+                portableExchangeSnapshot,
+                sourceWorkspaceID: validatedPackage.manifest.source.workspaceID,
+                targetWorkspaceID: targetPortableExchangeWorkspaceID
+            )
             let intent: RestoreIntentV1
             if let identityDecision {
                 intent = RestoreIntentV1(
@@ -774,6 +853,23 @@ final class BackupRestoreService {
             try inject(.beforePreparedWrite)
             try Task.checkCancellation()
             try intentStore.create(intent)
+            let expectedBeforePortableExchangeEnvelopeSHA256 = try
+                PortableExchangeSessionStoreV2.recoveryStateSHA256(
+                    applicationSupportURL: applicationSupportURL,
+                    fileManager: fileManager
+                )
+            let portableExchangeRestoreSidecar = try PortableExchangeRestoreSidecarV1(
+                operationID: restoreID,
+                oldGenerationID: currentGenerationID,
+                newGenerationID: newGenerationID,
+                sourceWorkspaceID: validatedPackage.manifest.source.workspaceID,
+                targetWorkspaceID: targetPortableExchangeWorkspaceID,
+                mode: mode,
+                snapshot: reboundPortableExchangeSnapshot,
+                expectedBeforeEnvelopeSHA256:
+                    expectedBeforePortableExchangeEnvelopeSHA256
+            )
+            try persistPortableExchangeRestoreSidecar(portableExchangeRestoreSidecar)
             try inject(.afterPreparedWrite)
             let draftPublicationReceipt = try publishRestoredDraftStaging(
                 package: validatedPackage,
@@ -828,6 +924,14 @@ final class BackupRestoreService {
 
             try inject(.beforePointerSwitch)
             try Task.checkCancellation()
+            let persistedPortableExchangeSidecar = try
+                portableExchangeRestoreSidecar(matching: installed)
+            guard try PortableExchangeSessionStoreV2.recoveryStateSHA256(
+                applicationSupportURL: applicationSupportURL,
+                fileManager: fileManager
+            ) == persistedPortableExchangeSidecar.expectedBeforeEnvelopeSHA256 else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
             try protectDataPointer(named: "current.json")
             guard try generationFactory.currentWorkspaceIdentity(
                     expectedGenerationID: currentGenerationID,
@@ -886,8 +990,13 @@ final class BackupRestoreService {
                 expected: expectedRecords
             )
             try Task.checkCancellation()
+            try applyPortableExchangeRestoreSidecar(
+                matching: switched,
+                targetWorkspaceID: session.workspaceID.rawValue
+            )
             let validated = switched.advancing(to: .newGenerationValidated)
             try intentStore.replace(expected: switched, with: validated)
+            try removePortableExchangeRestoreSidecar(matching: validated)
             try inject(.afterNewGenerationValidation)
 
             try inject(.beforeCleanup)
@@ -935,6 +1044,11 @@ final class BackupRestoreService {
     /// no intent existed.
     func reconcileAtStartup() throws -> StoreGenerationSession? {
         guard let intent = try intentStore.load() else {
+            guard !fileManager.fileExists(
+                atPath: portableExchangeRestoreSidecarURL().path
+            ) else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
             let dataRoot = applicationSupportURL.appendingPathComponent(
                 "FieldEvidenceData",
                 isDirectory: true
@@ -1072,6 +1186,7 @@ final class BackupRestoreService {
                   !discardedPresence.installed else {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
             }
+            try removePortableExchangeRestoreSidecar(matching: intent)
             try intentStore.remove(expected: intent)
             try removeDraftPublicationBinding(intent)
             try cleanupEmptyRestoreDirectories()
@@ -1178,6 +1293,7 @@ final class BackupRestoreService {
                             .generationManifestSHA256
                 )
             }
+            try removePortableExchangeRestoreSidecar(matching: intent)
             try intentStore.remove(expected: intent)
             try removeDraftPublicationBinding(intent)
             try cleanupEmptyRestoreDirectories()
@@ -1207,6 +1323,7 @@ final class BackupRestoreService {
                     keeping: intent.oldGenerationID,
                     authority: generationAuthority
                 )
+                try removePortableExchangeRestoreSidecar(matching: intent)
                 try intentStore.remove(expected: intent)
                 try removeDraftPublicationBinding(intent)
                 try cleanupEmptyRestoreDirectories()
@@ -1248,6 +1365,7 @@ final class BackupRestoreService {
                     keeping: intent.oldGenerationID,
                     authority: generationAuthority
                 )
+                try removePortableExchangeRestoreSidecar(matching: intent)
                 try intentStore.remove(expected: intent)
                 try removeDraftPublicationBinding(intent)
                 try cleanupEmptyRestoreDirectories()
@@ -1265,6 +1383,13 @@ final class BackupRestoreService {
                   currentID == intent.newGenerationID,
                   let newSession else {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            if fileManager.fileExists(atPath: portableExchangeRestoreSidecarURL().path) {
+                try applyPortableExchangeRestoreSidecar(
+                    matching: intent,
+                    targetWorkspaceID: newSession.workspaceID.rawValue
+                )
+                try removePortableExchangeRestoreSidecar(matching: intent)
             }
             try protectDataPointer(named: "retired.json")
             try generationFactory.retireGeneration(
@@ -1760,8 +1885,13 @@ private extension BackupRestoreService {
             currentID: intent.newGenerationID
         )
         try validateLiveSession(session, expected: nil)
+        try applyPortableExchangeRestoreSidecar(
+            matching: intent,
+            targetWorkspaceID: session.workspaceID.rawValue
+        )
         let validated = intent.advancing(to: .newGenerationValidated)
         try intentStore.replace(expected: intent, with: validated)
+        try removePortableExchangeRestoreSidecar(matching: validated)
         try protectDataPointer(named: "retired.json")
         try generationFactory.retireGeneration(
             oldID: intent.oldGenerationID,
@@ -3731,6 +3861,51 @@ private extension BackupRestoreService {
         result = replacingMutationHistoryForCurrentWriter(in: result, with: transformedHistory)
         _ = try result.validateC47ActivityContracts()
         return result
+    }
+
+    func portableExchangeSnapshot(
+        _ source: PortableExchangeBackupSnapshotV2,
+        sourceWorkspaceID: UUID?,
+        targetWorkspaceID: UUID
+    ) throws -> PortableExchangeBackupSnapshotV2 {
+        let sessions = try source.sessions.map { value in
+            guard value.workspaceID == nil || value.workspaceID == sourceWorkspaceID else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            return try PortableExchangeSessionRecordV2(
+                sessionID: value.sessionID,
+                namespace: value.namespace,
+                publicRequestID: value.publicRequestID,
+                revision: value.revision,
+                workspaceID: value.workspaceID == nil ? nil : targetWorkspaceID,
+                canonicalReviewIdentity: value.canonicalReviewIdentity,
+                canonicalSubjectIdentity: value.canonicalSubjectIdentity,
+                protocolReleaseDigest: value.protocolReleaseDigest,
+                pendingMutationID: value.pendingMutationID,
+                pendingEffectSHA256: value.pendingEffectSHA256,
+                pendingImportReceiptSHA256: value.pendingImportReceiptSHA256,
+                createdAt: value.createdAt,
+                updatedAt: value.updatedAt,
+                state: value.state,
+                capabilityState: value.capabilityState,
+                attemptCount: value.attemptCount,
+                immutableBytes: value.immutableBytes,
+                protectedCapability: value.protectedCapability,
+                responseIDs: value.responseIDs,
+                requestManifestSHA256: value.requestManifestSHA256,
+                requestPackageSHA256: value.requestPackageSHA256,
+                acceptedResponseSHA256: value.acceptedResponseSHA256,
+                cloneOrForkGenerationID: value.cloneOrForkGenerationID,
+                escapedCopyAcknowledged: value.escapedCopyAcknowledged
+            )
+        }
+        return try PortableExchangeBackupSnapshotV2(
+            snapshotID: source.snapshotID,
+            createdAt: source.createdAt,
+            sessions: sessions,
+            immutablePayloads: source.immutablePayloads,
+            protectedCapabilityArtifacts: source.protectedCapabilityArtifacts
+        )
     }
 
     func validateResolvedActivityContracts(
@@ -6309,6 +6484,176 @@ private extension BackupRestoreService {
                 "draft-publication-\(canonical(restoreID)).json",
                 isDirectory: false
             )
+    }
+
+    func portableExchangeRestoreSidecarURL() -> URL {
+        applicationSupportURL
+            .appendingPathComponent("FieldEvidenceRestore", isDirectory: true)
+            .appendingPathComponent(
+                "portable-exchange-restore.json",
+                isDirectory: false
+            )
+    }
+
+    func persistPortableExchangeRestoreSidecar(
+        _ sidecar: PortableExchangeRestoreSidecarV1
+    ) throws {
+        try sidecar.validate()
+        let data = try StoreMigrationCanonicalJSONV1.encode(sidecar)
+        let url = portableExchangeRestoreSidecarURL()
+        if fileManager.fileExists(atPath: url.path) {
+            guard try Data(contentsOf: url, options: [.mappedIfSafe]) == data else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+        } else {
+            try data.write(to: url, options: [.atomic])
+        }
+        try ProtectedFilePolicyV1.applyAndVerify(
+            PortableExchangeProtectedFilePolicyV2.restoreSidecarKind,
+            at: url
+        )
+        let descriptor = Darwin.open(url.path, O_RDONLY | O_NOFOLLOW)
+        guard descriptor >= 0 else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        defer { _ = Darwin.close(descriptor) }
+        let directory = Darwin.open(
+            url.deletingLastPathComponent().path,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard directory >= 0 else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        defer { _ = Darwin.close(directory) }
+        guard Darwin.fsync(descriptor) == 0,
+              Darwin.fsync(directory) == 0,
+              try Data(contentsOf: url, options: [.mappedIfSafe]) == data else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+    }
+
+    func portableExchangeRestoreSidecar(
+        matching intent: RestoreIntentV1
+    ) throws -> PortableExchangeRestoreSidecarV1 {
+        let url = portableExchangeRestoreSidecarURL()
+        try ProtectedFilePolicyV1.verify(
+            PortableExchangeProtectedFilePolicyV2.restoreSidecarKind,
+            at: url
+        )
+        let attributes = try fileManager.attributesOfItem(atPath: url.path)
+        guard let byteCount = attributes[.size] as? NSNumber,
+              byteCount.uint64Value > 0,
+              byteCount.uint64Value <= UInt64(PortableExchangeBackupMemberV2.maximumByteCount) * 2
+                + 1_048_576 else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        let data = try Data(contentsOf: url, options: [.mappedIfSafe])
+        let sidecar = try StoreMigrationCanonicalJSONV1.decodeCanonicalContract(
+            PortableExchangeRestoreSidecarV1.self,
+            from: data,
+            validate: { try $0.validate() }
+        )
+        guard sidecar.operationID == intent.restoreID,
+              sidecar.oldGenerationID == intent.oldGenerationID,
+              sidecar.newGenerationID == intent.newGenerationID else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        if let identity = intent.identity {
+            guard sidecar.mode == identity.mode,
+                  sidecar.sourceWorkspaceID == identity.source.workspaceID,
+                  sidecar.targetWorkspaceID == identity.targetPointer.workspaceID else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+        } else {
+            guard sidecar.mode == .emptyInstall || sidecar.mode == .replaceExisting else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+        }
+        return sidecar
+    }
+
+    func removePortableExchangeRestoreSidecar(
+        matching intent: RestoreIntentV1
+    ) throws {
+        let url = portableExchangeRestoreSidecarURL()
+        guard fileManager.fileExists(atPath: url.path) else { return }
+        _ = try portableExchangeRestoreSidecar(matching: intent)
+        try fileManager.removeItem(at: url)
+        let directory = Darwin.open(
+            url.deletingLastPathComponent().path,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard directory >= 0 else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        defer { _ = Darwin.close(directory) }
+        guard Darwin.fsync(directory) == 0 else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+    }
+
+    func applyPortableExchangeRestoreSidecar(
+        matching intent: RestoreIntentV1,
+        targetWorkspaceID: UUID
+    ) throws {
+        let sidecar = try portableExchangeRestoreSidecar(matching: intent)
+        guard sidecar.targetWorkspaceID == targetWorkspaceID else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        let cloneOrFork = sidecar.mode == .clone || sidecar.mode == .fork
+        let firstReceipt = try PortableExchangeSessionStoreV2
+            .restoreSnapshotForRecovery(
+                applicationSupportURL: applicationSupportURL,
+                snapshot: sidecar.snapshot,
+                operationID: sidecar.operationID,
+                expectedResultGenerationID: sidecar.newGenerationID,
+                cloneOrFork: cloneOrFork,
+                expectedBeforeEnvelopeSHA256:
+                    sidecar.expectedBeforeEnvelopeSHA256,
+                fileManager: fileManager
+            )
+        try firstReceipt.validate()
+        let immutableByteCount = sidecar.snapshot.sessions.reduce(UInt64(0)) {
+            $0 + $1.immutableBytes.reduce(UInt64(0)) { $0 + $1.byteCount }
+        }
+        let activeCapabilityCount = cloneOrFork ? 0 : sidecar.snapshot.sessions.filter {
+            $0.protectedCapability != nil && $0.capabilityState.isActive
+        }.count
+        guard firstReceipt.operationID == sidecar.operationID,
+              firstReceipt.snapshotID == sidecar.snapshot.snapshotID,
+              firstReceipt.restoredSessionCount == sidecar.snapshot.sessions.count,
+              firstReceipt.preservedImmutableByteCount == immutableByteCount,
+              firstReceipt.activeCapabilitiesPreserved == activeCapabilityCount,
+              firstReceipt.completedAt == sidecar.snapshot.createdAt else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+
+        // A second application is a read/verify of the exact target image.
+        // This proves both the receipt and the on-disk effect before the only
+        // durable recovery authority is removed.
+        let effectSHA256 = try PortableExchangeSessionStoreV2
+            .recoveryStateSHA256(
+                applicationSupportURL: applicationSupportURL,
+                fileManager: fileManager
+            )
+        let verifiedReceipt = try PortableExchangeSessionStoreV2
+            .restoreSnapshotForRecovery(
+                applicationSupportURL: applicationSupportURL,
+                snapshot: sidecar.snapshot,
+                operationID: sidecar.operationID,
+                expectedResultGenerationID: sidecar.newGenerationID,
+                cloneOrFork: cloneOrFork,
+                expectedBeforeEnvelopeSHA256:
+                    sidecar.expectedBeforeEnvelopeSHA256,
+                fileManager: fileManager
+            )
+        guard verifiedReceipt == firstReceipt,
+              try PortableExchangeSessionStoreV2.recoveryStateSHA256(
+                  applicationSupportURL: applicationSupportURL,
+                  fileManager: fileManager
+              ) == effectSHA256 else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
     }
 
     func expectedDraftPublicationStageIDs(

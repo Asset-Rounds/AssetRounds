@@ -3758,3 +3758,31 @@ struct ActivityContractSearchProjectionV2: Codable, Equatable, Sendable {
     static let indexesFindingStatusDueDateOrSeverity = false
     static let cloneForkSourceAndTargetSnapshotIdentityRemainDistinct = true
 }
+
+// MARK: - C48 portable-review derived search boundary
+
+enum C48PortableReviewSearchBoundaryV1 {
+    static let derivedMetadataType = C48PortableReviewDerivedHistoryProjectionV1.self
+    static let indexedFieldIDs = C48PortableReviewDerivedHistoryProjectionV1.allowedFieldIDs
+    static let currentStateAndHistoryMayBeRead = true
+    static let capabilityBytesIndexed = false
+    static let capabilityProofBytesIndexed = false
+    static let responseBodyIndexed = false
+    static let rawRequestResponseBytesIndexed = false
+    static let workspaceAndReplicaIdentityIndexed = false
+    static let authorIdentityIndexed = false
+    static let deliveryOrApprovalClaimIndexed = false
+    static let responseHistoryIsNotMutationAuthority = true
+
+    static func validate(_ projection: C48PortableReviewDerivedHistoryProjectionV1) throws {
+        try projection.validate()
+    }
+
+    static func derivedHistory(
+        state: ReviewRequestStateProjectionV1,
+        response: ExternalReviewResponseRecordV1? = nil,
+        conflictCount: Int = 0
+    ) throws -> C48PortableReviewDerivedHistoryProjectionV1 {
+        try .init(state: state, response: response, conflictCount: conflictCount)
+    }
+}

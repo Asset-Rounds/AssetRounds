@@ -1191,3 +1191,12 @@ struct OperationalContactCompatibilityPolicyV1:Codable,Equatable,Sendable{
     func validate()throws{guard Self.persistentSchemaVersion==OperationalContactPersistenceEnrollmentV1.persistentSchemaVersion,Self.recordsSchemaVersion==OperationalContactPersistenceEnrollmentV1.recordsSchemaVersion,durableFamilies==["ServiceContactPointRow","SystemHandoffIntentRow"],partyContactsSchemaID=="PARTY_CONTACTS_V1",!platformOutcomeIsReleasedData,!historicIntentIsExecutable else{throw CompatibilityContractErrorV1.invalidSupportTable}}
 }
 extension ReleasedDataCompatibilityPolicyV1{static let operationalContactCompatibility=OperationalContactCompatibilityPolicyV1()}
+
+enum C48PortableReviewReleasedDataCompatibilityBoundaryV1 {
+    static let exchangeProtocolIsSeparateFromWorkspaceSchema = true
+    static let activeCapabilityIsNotAWorkspaceRevision = true
+    static let responseBytesArePreservedOnlyByTheExchangeOwner = true
+    static let derivedHistoryNeverRequiresHistoricSnapshotRewrite = true
+    static let cloneAndForkMustNotReuseActiveCapability = true
+    static let unknownProtocolVersionsFailClosed = true
+}

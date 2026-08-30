@@ -346,3 +346,17 @@ enum C47ActivityContractConformance_FieldEvidenceApp_Domain_Reporting_Accessible
     static let createsSecondRouteOrInspectionAlias = false
     static func validateReadable(_ value: ActivitySessionEnvelopeV2) throws { try value.validateForRead() }
 }
+
+enum C48PortableReviewAccessibleDocumentBoundaryV1 {
+    static let spokenProjectionIsDerivedMetadataOnly = true
+    static let capabilityBytesSpoken = false
+    static let capabilityProofSpoken = false
+    static let rawResponseBytesSpoken = false
+    static let responseBodySpoken = false
+    static let verifiedIdentitySpoken = false
+    static let selfAssertedOriginMayBeSpoken = true
+
+    static func validate(_ projection: C48PortableReviewDerivedHistoryProjectionV1) throws {
+        try projection.validate()
+    }
+}

@@ -4587,3 +4587,58 @@ enum C47ActivityContractConformance_FieldEvidenceApp_Infrastructure_Localization
     static let createsSecondRouteOrInspectionAlias = false
     static func validateReadable(_ value: ActivitySessionEnvelopeV2) throws { try value.validateForRead() }
 }
+
+// MARK: - C48 portable-review derived-consumer localization
+
+extension BundledLocalizationCatalogV1 {
+    static func portableReviewEnglish(
+        _ key: C48PortableReviewLocalizationKeyV1
+    ) -> String {
+        switch key {
+        case .responseRecorded:
+            return "Response recorded"
+        case .responseNotVerified:
+            return "Not verified by AssetRounds"
+        case .responseAcknowledged:
+            return "Acknowledged"
+        case .responseApproved:
+            return "Approval response recorded"
+        case .responseChangesRequested:
+            return "Changes requested"
+        case .historyOnly:
+            return "History only"
+        case .capabilityWarning:
+            return "Anyone who can open or copy this file can respond"
+        }
+    }
+}
+
+enum C48PortableReviewLocalizationCatalogBoundaryV1 {
+    static let sourceLocale = C48PortableReviewLocalizationPolicyV1.sourceLocale
+    static let usesExistingBundledCatalog = true
+    static let capabilityBytesLocalized = false
+    static let capabilityProofLocalized = false
+    static let responseBodyLocalized = false
+    static let rawRequestResponseBytesLocalized = false
+    static let verifiedIdentityLocalized = false
+    static let deliveryOrSecureClaimLocalized = false
+
+    static func validate() throws {
+        try C48PortableReviewLocalizationPolicyV1.validate()
+        let values = C48PortableReviewLocalizationKeyV1.allCases.map {
+            BundledLocalizationCatalogV1.portableReviewEnglish($0)
+        }
+        guard values.allSatisfy({ !$0.isEmpty }),
+              values.contains("Not verified by AssetRounds"),
+              values.contains("Response recorded"),
+              usesExistingBundledCatalog,
+              !capabilityBytesLocalized,
+              !capabilityProofLocalized,
+              !responseBodyLocalized,
+              !rawRequestResponseBytesLocalized,
+              !verifiedIdentityLocalized,
+              !deliveryOrSecureClaimLocalized else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}

@@ -1938,3 +1938,18 @@ enum C32AssistanceCompatibility_Finalization_ReportSnapshotEncoderV1 {
 enum C45AcceptedLabelReportSnapshotBoundaryV1 { static let acceptedLabelSnapshotIsNotEmbeddedInReport=true;static let reprintAuthorityRemainsTypedPersistence=true }
 
 enum C46OperationalContactBoundary_54{static let defaultProjection="EXCLUDED";static let rawPhoneOrEmailEmitted=false;static let platformOutcomeClaimEmitted=false}
+
+enum C48PortableReviewReportSnapshotEncoderBoundaryV1 {
+    static let encodesDerivedHistoryOnly = true
+    static let capabilityBytesEncoded = false
+    static let capabilityProofBytesEncoded = false
+    static let responseBodyEncoded = false
+    static let rawRequestResponseBytesEncoded = false
+    static let workspaceAndReplicaIdentityEncoded = false
+    static let externalReviewCannotRewriteSnapshot = true
+    static let existingSnapshotEncoderRemainsSoleRoute = true
+
+    static func validate(_ projection: C48PortableReviewDerivedHistoryProjectionV1) throws {
+        try projection.validate()
+    }
+}

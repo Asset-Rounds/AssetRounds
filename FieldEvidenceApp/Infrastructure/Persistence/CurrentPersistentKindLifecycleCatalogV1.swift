@@ -1035,3 +1035,10 @@ enum C45AcceptedLabelPersistentLifecycleEnrollmentV1 { static let durableKind:Wo
 
 enum C46OperationalContactBoundary_16{static let persistentFamilies=OperationalContactPersistenceEnrollmentV1.persistentFamilies;static let platformOutcomesPersistent=false}
 enum C47ActivityContractPersistentLifecycleEnrollmentV2 { static let durableFamilies=ActivityContractPersistenceEnrollmentV2.persistentFamilies;static let newRowCount=5;static let completedSnapshotUsesReleasedFileLifecycle=true }
+enum C48PortableExchangePersistentLifecycleBoundaryV2 {
+    static let canonicalRowsAdded = 0
+    static let persistentSchemaVersion = 36
+    static let sessionStoreIsNonpersistent = true
+    static let acceptedResponseUsesExistingC14Writer = true
+    static let eraseRemovesAppOwnedStagingOnly = true
+}

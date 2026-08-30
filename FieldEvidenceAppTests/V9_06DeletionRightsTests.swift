@@ -709,3 +709,11 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_06
         XCTAssertTrue(ActivityContractPersistenceEnrollmentV2.usesSoleWorkspaceWriter)
     }
 }
+
+private final class C48PortableReviewV906DeletionRightsTests: XCTestCase {
+    func testC48DeletionOwnsOnlyLocalExchangeState() {
+        XCTAssertTrue(C48PortableExchangePersistentLifecycleBoundaryV2.eraseRemovesAppOwnedStagingOnly)
+        XCTAssertTrue(C48PortableReviewPersistenceBoundaryV1.sessionStoreIsNonpersistent)
+        XCTAssertTrue(C48PortableReviewPersistenceBoundaryV1.quarantineIsExcludedFromBackup)
+    }
+}

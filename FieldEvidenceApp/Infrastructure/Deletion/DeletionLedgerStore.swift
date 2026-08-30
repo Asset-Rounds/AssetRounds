@@ -263,3 +263,16 @@ enum C45AcceptedLabelDeletionLedgerStoreBoundaryV1 { static let snapshotTombston
 
 enum C46OperationalContactBoundary_45{static let assetOrSiteCascadeDeletesPartyContacts=false;static let workspaceEraseOwnsRows=true}
 enum C47ActivityContractDeletionLedgerStoreBoundaryV2 { static let finalizedHistoryIsPreserved=true;static let cancelledAndUnableHistoryIsPreserved=true;static let immutableActivityEvidenceIsPreserved=true;static let ordinaryDeletionRemovesOnlyUnfinalizedMatchingSubjectRows=true;static let ordinaryDeletionRequiresAssetTombstone=true;static let journalHistoryRemainsAppendOnly=true }
+
+enum C48PortableExchangeDeletionLedgerStorePolicyV2 {
+    static let addsDeletionLedgerEntityKind = false
+    static let exactWorkspaceAndSubjectMappingRequired = true
+    static let terminalHistoryRetained = true
+    static func validate() throws {
+        guard !addsDeletionLedgerEntityKind,
+              exactWorkspaceAndSubjectMappingRequired,
+              terminalHistoryRetained else {
+            throw DeletionLedgerFailureV2.invalidIdentity
+        }
+    }
+}

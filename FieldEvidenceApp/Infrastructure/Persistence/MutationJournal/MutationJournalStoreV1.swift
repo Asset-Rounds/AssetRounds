@@ -355,6 +355,7 @@ final class MutationJournalStoreV1 {
         if case let .applyAssetLabel(value)=envelope.command{try value.validate();guard affectedEntities==[try value.affectedIdentity]else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyOperationalContact(value)=envelope.command{try value.validate();guard affectedEntities==(try value.affectedIdentities)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyActivityContract(value)=envelope.command{try value.validateForCanonicalMutation();guard affectedEntities==(try value.affectedIdentities)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyPortableReview(value)=envelope.command{try value.validate();guard affectedEntities==(try value.affectedIdentities)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyAssetPlacementChange(plan)=envelope.command{try plan.validate();try validateAssetPlacementPoseReferences(plan);guard let expected=try envelope.command.canonicalLocationAffectedIdentities(),affectedEntities==expected else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyLocationHierarchyChange(change)=envelope.command{for plan in change.placementChanges{try plan.validate();try validateAssetPlacementPoseReferences(plan)}}
         let state = try requireState()
@@ -381,6 +382,18 @@ final class MutationJournalStoreV1 {
             for concurrency in try mutation.concurrencyIdentities {
                 let expectedRevision = try mutation.expectedRevision(for: concurrency)
                 guard currentByIdentity[concurrency, default: 0] == expectedRevision else {
+                    throw WorkspaceMutationFailureV1.staleEntityRevision(concurrency)
+                }
+            }
+        }
+        if case let .applyPortableReview(mutation) = envelope.command {
+            guard envelope.expectedRevision.workspaceRevision == mutation.plan.basisWorkspaceRevision else {
+                throw WorkspaceMutationFailureV1.staleWorkspaceRevision
+            }
+            for concurrency in try mutation.concurrencyIdentities {
+                let revision = try mutation.expectedRevision(for: concurrency)
+                guard expectedByIdentity[concurrency] == revision,
+                      currentByIdentity[concurrency, default: 0] == revision else {
                     throw WorkspaceMutationFailureV1.staleEntityRevision(concurrency)
                 }
             }
@@ -417,6 +430,7 @@ final class MutationJournalStoreV1 {
             }else if case let .applyAssetLabel(mutation)=envelope.command{concurrencyIdentity=try mutation.affectedIdentity
             }else if case let .applyOperationalContact(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
             }else if case let .applyActivityContract(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
+            }else if case let .applyPortableReview(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
             }else if case let .applyAssetPlacementChange(plan)=envelope.command,let mutation=try plan.placementPoseMutation,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
             }else if case let .applyLocationHierarchyChange(change)=envelope.command,let mutation=try change.placementPoseMutation,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
             } else {
@@ -426,6 +440,8 @@ final class MutationJournalStoreV1 {
             if let value = expectedByIdentity[concurrencyIdentity] {
                 expectedRevision = value
             } else if case let .applyActivityContract(mutation) = envelope.command {
+                expectedRevision = try mutation.expectedRevision(for: concurrencyIdentity)
+            } else if case let .applyPortableReview(mutation) = envelope.command {
                 expectedRevision = try mutation.expectedRevision(for: concurrencyIdentity)
             } else {
                 throw WorkspaceMutationFailureV1.invalidCommand
@@ -484,6 +500,7 @@ final class MutationJournalStoreV1 {
                 }else if case let .applyAssetLabel(mutation)=envelope.command{initialRevision=mutation.snapshot.revision
                 }else if case let .applyOperationalContact(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
                 }else if case let .applyActivityContract(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
+                }else if case let .applyPortableReview(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
                 }else if case let .applyAssetPlacementChange(plan)=envelope.command,let mutation=try plan.placementPoseMutation,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
                 }else if case let .applyLocationHierarchyChange(change)=envelope.command,let mutation=try change.placementPoseMutation,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
                 } else {
@@ -543,6 +560,7 @@ final class MutationJournalStoreV1 {
         if case let .applyAssetLabel(mutation)=envelope.command{guard postImages==[try mutation.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyOperationalContact(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyActivityContract(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyPortableReview(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyAssetPlacementChange(plan)=envelope.command,let mutation=try plan.placementPoseMutation{let poseImages=try mutation.mutationPostImages;guard poseImages.allSatisfy({postImages.contains($0)})else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyLocationHierarchyChange(change)=envelope.command,let mutation=try change.placementPoseMutation{let poseImages=try mutation.mutationPostImages;guard poseImages.allSatisfy({postImages.contains($0)})else{throw WorkspaceMutationFailureV1.invalidCommand}}
         let after = try currentRevision(writerInstanceID: writerInstanceID)
@@ -648,6 +666,33 @@ final class MutationJournalStoreV1 {
         let rows = try modelContext.fetch(FetchDescriptor<MutationReceiptRow>(predicate: #Predicate { $0.workspaceMutationKey == key }))
         guard rows.count <= 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
         return try rows.first.map { try validate(row: $0, expectedEnvelope: nil) }
+    }
+
+    /// Reconstructs the exact C48 wrapper from the canonical envelope and
+    /// receipt. Recovery must not infer the staged C14 effect from a generic
+    /// result digest or from session metadata alone.
+    func portableReviewReceipt(
+        mutationID: MutationIDV1
+    ) throws -> PortableReviewMutationReceiptV1? {
+        let key = MutationWorkspaceKeyV1.value(
+            workspaceID: identity.workspaceID,
+            mutationID: mutationID
+        )
+        let rows = try modelContext.fetch(FetchDescriptor<MutationReceiptRow>(
+            predicate: #Predicate { $0.workspaceMutationKey == key }
+        ))
+        guard rows.count <= 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        guard let row = rows.first else { return nil }
+        let receipt = try validate(row: row, expectedEnvelope: nil)
+        let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
+        guard case let .applyPortableReview(mutation) = envelope.command,
+              mutation.mutationID == mutationID else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        return try PortableReviewMutationReceiptV1(
+            mutation: mutation,
+            mutationReceipt: receipt
+        )
     }
 
     /// Returns the durable C32 acceptance only when its immutable row and the
@@ -1763,6 +1808,7 @@ final class MutationJournalStoreV1 {
         if case let .applyAssetLabel(mutation)=envelope.command{try mutation.validate()}
         if case let .applyOperationalContact(mutation)=envelope.command{try mutation.validate()}
         if case let .applyActivityContract(mutation)=envelope.command{try mutation.validateForCanonicalMutation()}
+        if case let .applyPortableReview(mutation)=envelope.command{try mutation.validate()}
         let receipt = try MutationReceiptV1.decodeCanonical(from: row.receiptData)
         guard row.mutationID == envelope.mutationID.rawValue,
               row.workspaceID == envelope.workspaceID.rawValue,
@@ -1805,6 +1851,9 @@ final class MutationJournalStoreV1 {
         }
         if case let .applyActivityContract(mutation)=envelope.command{
             _ = try ActivityContractMutationReceiptV2(mutation:mutation,mutationReceipt:receipt)
+        }
+        if case let .applyPortableReview(mutation)=envelope.command{
+            _ = try PortableReviewMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)
         }
         if let basisData = row.reversalBasisData {
             let basis = try ReversalBasisV1.decodeCanonical(from: basisData)

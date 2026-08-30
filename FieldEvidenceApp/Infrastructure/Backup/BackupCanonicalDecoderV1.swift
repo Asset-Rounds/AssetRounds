@@ -1162,3 +1162,13 @@ private extension BackupCanonicalDecoderV1 {
 }
 
 enum C45AcceptedLabelBackupDecoderBoundaryV1 { static let requiresCanonicalSnapshotRoundTrip=true;static let acceptsRendererScratch=false }
+
+enum C48PortableExchangeBackupDecoderV2 {
+    static func decode(_ data: Data) throws -> PortableExchangeBackupSnapshotV2 {
+        try StoreMigrationCanonicalJSONV1.decodeCanonicalContract(
+            PortableExchangeBackupSnapshotV2.self,
+            from: data,
+            validate: { try C48PortableExchangeImportBoundaryV2.validate($0) }
+        )
+    }
+}

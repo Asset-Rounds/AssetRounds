@@ -283,3 +283,42 @@ enum CorrectiveActionProjectionBuilderV1{
 protocol InspectionReviewValidatableV1{func validate()throws}
 extension InspectionReviewTransitionV1:InspectionReviewValidatableV1{};extension ReviewDispositionV1:InspectionReviewValidatableV1{};extension ChangeRequestV1:InspectionReviewValidatableV1{};extension CorrectiveActionPolicyV1:InspectionReviewValidatableV1{};extension CorrectiveActionEventV1:InspectionReviewValidatableV1{}
 enum InspectionReviewCanonicalCodecV1{static func encode<T:Encodable>(_ value:T)throws->Data{try WorkspaceMutationCanonicalV1.data(value)}static func sha256<T:Encodable>(_ value:T)throws->String{try WorkspaceMutationCanonicalV1.sha256(value)}static func decode<T:Codable>(_ type:T.Type,from data:Data)throws->T{guard !data.isEmpty,data.count<=8_388_608 else{throw InspectionReviewFailureV1.invalidValue};let decoder=JSONDecoder();decoder.dateDecodingStrategy = .millisecondsSince1970;let value=try decoder.decode(type,from:data);if let v=value as? any InspectionReviewValidatableV1{try v.validate()};guard try encode(value)==data else{throw InspectionReviewFailureV1.digestMismatch};return value}}
+
+/// C48 may append an ordinary C14 bundle, but it cannot create a second
+/// subject/item ledger or relax the existing transition validator.
+enum PortableReviewC14ReconciliationV1 {
+    static func validate(
+        plan: ExternalReviewImportPlanV1,
+        bundle: InspectionReviewAtomicBundleV1
+    ) throws {
+        try plan.validate(); try bundle.validate()
+        guard plan.decision == .acceptAndApply,
+              bundle.transition.workspaceID == plan.workspaceID,
+              bundle.transition.subject == plan.c14Mapping.subject,
+              bundle.changeRequests.allSatisfy({ plan.c14Mapping.items.contains($0.item) }) else {
+            throw InspectionReviewFailureV1.invalidValue
+        }
+        let body: ReviewResponseBodyV1
+        switch try PortableReviewCanonicalCodecV1.decodeCanonicalResponseRecord(
+            plan.responseRecord.canonicalResponse.canonicalBytes
+        ) {
+        case let .portable(response): body = response.body
+        case let .originRecorded(response): body = response.responseBody
+        }
+        switch body.disposition {
+        case .approved:
+            guard bundle.transition.toState == .accepted,
+                  bundle.disposition?.kind == .accepted,
+                  bundle.changeRequests.isEmpty else { throw InspectionReviewFailureV1.invalidTransition }
+        case .changesRequested:
+            guard bundle.transition.toState == .changesRequested,
+                  bundle.disposition?.kind == .changesRequested,
+                  !bundle.changeRequests.isEmpty,
+                  bundle.changeRequests.count == body.changeItems.count else {
+                throw InspectionReviewFailureV1.invalidTransition
+            }
+        case .acknowledged:
+            throw InspectionReviewFailureV1.invalidTransition
+        }
+    }
+}

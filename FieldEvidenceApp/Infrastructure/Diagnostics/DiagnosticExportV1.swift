@@ -2115,3 +2115,22 @@ extension DiagnosticExportV1 {
 enum C45AcceptedLabelDiagnosticPrivacyBoundaryV1 { static let mayExposeCountsAndDisposition=true;static let excludesLabelTextLocatorTokensAndArtifactBytes=true }
 
 enum C46OperationalContactBoundary_23{static let defaultProjection="EXCLUDED";static let rawPhoneOrEmailEmitted=false;static let platformOutcomeClaimEmitted=false}
+
+// MARK: - C48 portable-review diagnostic/logging boundary
+
+enum C48PortableReviewDiagnosticPrivacyBoundaryV1 {
+    static let diagnosticProjectionIsDerivedMetadataOnly = true
+    static let capabilityBytesEmitted = false
+    static let capabilityProofBytesEmitted = false
+    static let responseBodyEmitted = false
+    static let rawRequestResponseBytesEmitted = false
+    static let workspaceAndReplicaIdentityEmitted = false
+    static let authorIdentityEmitted = false
+    static let logFieldsIncludeCapabilityOrProof = false
+    static let supportBundleIncludesResponseBytes = false
+    static let externalReviewCannotBecomeDiagnosticAcceptance = true
+
+    static func validate(_ projection: C48PortableReviewDerivedHistoryProjectionV1) throws {
+        try projection.validate()
+    }
+}

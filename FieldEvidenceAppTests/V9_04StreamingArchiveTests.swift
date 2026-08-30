@@ -509,6 +509,16 @@ private final class C32AssistanceAnchorV904StreamingArchive: XCTestCase {
         )
     }
 }
+
+private final class C48PortableReviewV904ArchiveTests: XCTestCase {
+    func testC48ArchiveFilesAreProtectedAndExcludedFromBackup() throws {
+        try PortableExchangeProtectedFilePolicyV2.validate()
+        XCTAssertEqual(PortableExchangeProtectedFilePolicyV2.directoryKind, .portableExchangeDirectory)
+        XCTAssertEqual(PortableExchangeProtectedFilePolicyV2.sessionKind, .portableExchangeSessionFile)
+        XCTAssertEqual(PortableExchangeProtectedFilePolicyV2.journalKind, .portableExchangeJournalFile)
+        XCTAssertEqual(PortableExchangeProtectedFilePolicyV2.quarantineKind, .portableExchangeQuarantineFile)
+    }
+}
 private final class C46V904StreamingArchiveCompatibilityTests: XCTestCase {
     func testC46StreamingArchiveKeepsContactValueRestricted() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
