@@ -648,3 +648,9 @@ enum C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Jobs_Resum
     static let contactExportExcludedByDefault = true
     static let noContactProjectionOrNetworkDelivery = true
 }
+
+enum C34SceneRestorationResumableJobBoundaryV1 {
+    static let createsJobContract = false
+    static let bindsNavigationTargetToJobID = false
+    static func validate(anchor: DraftResumeAnchorV1) -> Bool { !createsJobContract && !bindsNavigationTargetToJobID && C34DraftResumeNavigationBoundaryV1.validate(anchor: anchor) }
+}

@@ -1389,3 +1389,14 @@ enum C32AssistanceLifecycleBoundary_FieldEvidenceApp_Domain_Mutation_MutationRec
         try receipt.validate()
     }
 }
+
+enum C34SceneNavigationMutationReceiptBoundaryV1 {
+    static let routePostImageCount = 0
+    static let routeReceiptKindCount = 0
+    static let restorationProducesReceipt = false
+
+    static func validate() -> Bool {
+        routePostImageCount == 0 && routeReceiptKindCount == 0
+            && !restorationProducesReceipt && C34SceneNavigationCanonicalExclusionV1.validate()
+    }
+}

@@ -3,6 +3,12 @@ enum EvidenceContextWorkflowBoundaryV1{static let workflowRowsDoNotOwnEvidenceCo
 enum PlacementPoseWorkflowPersistenceBoundaryV1{static let workflowRowsOwnNoPoseHistory=true;static let completedPoseSnapshotsAreDerived=true}
 import SwiftData
 
+enum C34WorkflowModelNavigationBoundaryV1 {
+    static let workflowRowStoresRouteState = false
+    static let routeSnapshotCopiesWorkflowPayload = false
+    static let restorationMutatesWorkflowRow = false
+}
+
 enum PlanWorkflowPersistenceBoundaryV1 { static let rebasePreviewIsDerived = true; static let framesAreEmbeddedInRevision = true }
 
 enum WorkflowRecordAssetLocatorBoundaryV1 {

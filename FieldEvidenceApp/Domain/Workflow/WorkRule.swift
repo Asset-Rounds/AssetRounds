@@ -7,6 +7,12 @@ enum ScheduleWorkStartRuleV1 {
     }
 }
 
+enum C34NavigationWorkRuleBoundaryV1 {
+    static let routeResolutionStartsWork = false
+    static let routeResolutionCompletesWork = false
+    static let routeResolutionInvokesWorkRule = false
+}
+
 enum C51WorkRuleScheduleBoundaryV1 {
     static let recordedActorSnapshotIsReused = true
     static let scheduledWorkReferenceIsReused = true

@@ -1,4 +1,20 @@
 import Foundation
+
+enum C34SurveySessionNavigationPersistenceBoundaryV1 {
+    static let sceneRowCount = 0
+    static let restorationPromotesOrImportsContent = false
+}
+
+extension SurveySessionRow {
+    func c34ValidateNavigationReference(_ target: NavigationTargetV1) throws {
+        let session = try value()
+        try C34NavigationReferenceAnchorV1.validate(
+            target, workspaceID: session.workspaceID,
+            stableSessionID: session.sessionID,
+            expectedRevision: session.revision
+        )
+    }
+}
 enum EvidenceContextSurveySessionBoundaryV1{static let factsReferenceEvidenceWithoutDuplicatingContextRows=true;static let pairingUsesCanonicalEvidenceRevision=true}
 enum PlacementPoseSurveySessionPersistenceBoundaryV1{static let promotionUsesTheCanonicalPoseWriter=true;static let sessionsOwnNoDuplicatePoseReceipt=true}
 

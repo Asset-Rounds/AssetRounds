@@ -3,6 +3,7 @@
   "schema": "V21P03C36FieldDraftResilienceCorpusV1",
   "corpusID": "V21P03C36FieldDraftResilienceCorpusV1",
   "cardID": "V23-P03-C36",
+  "c34NavigationReproof": {"consumerCardID":"V23-P03-C34","referenceType":"DraftResumeAnchorV1","referenceFields":["sectionID","fieldID","selectedStableID","boundedPosition"],"persistenceClass":"DEVICE_OPERATIONAL_NONCANONICAL","canonicalMutationCount":0,"startsAutosave":false,"startsCommitSaga":false,"startsCapture":false,"containsSecrets":false,"invalidatesOnSemanticChange":true},
   "ordinal": 53,
   "phase": "P03",
   "previousCardID": "V23-P03-C15",

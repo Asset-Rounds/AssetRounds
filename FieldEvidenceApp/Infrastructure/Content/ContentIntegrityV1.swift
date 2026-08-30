@@ -1,6 +1,11 @@
 import Foundation
 import CryptoKit
 
+enum C34NavigationContentIntegrityBoundaryV1 {
+    static let sceneContainsContentBytes = false
+    static let restorationPromotesContent = false
+}
+
 enum ScheduleContentIntegrityBoundaryV1 { static let occurrenceDigestUsesCanonicalDomainCodec = true }
 
 enum C51ScheduleContentIntegrityBoundaryV1 {

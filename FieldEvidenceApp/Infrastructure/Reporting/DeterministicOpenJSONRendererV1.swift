@@ -3612,3 +3612,18 @@ enum C50IncumbentFileExchangeOpenJSONBoundaryV1 {
             && rawStockAndLiveInventoryClaimsExcluded
     }
 }
+
+// MARK: - C34 route snapshot Open JSON exclusion
+
+enum C34RouteSnapshotOpenJSONBoundaryV1 {
+    static let snapshotType: Any.Type = SceneNavigationSnapshotV1.self
+    static let routeSnapshotRendererExists = false
+    static let selectedRootOrPathRendered = false
+    static let stableRouteIdentifiersRendered = false
+    static let fallbackReasonRendered = false
+    static let customerContentRendered = false
+
+    static func validate(_ lifecycle: SceneNavigationLifecycleDispositionV1 = .init()) -> Bool {
+        !lifecycle.reportIncluded && !lifecycle.exportIncluded && !routeSnapshotRendererExists
+    }
+}

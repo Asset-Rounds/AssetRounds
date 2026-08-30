@@ -899,3 +899,14 @@ extension C45BackupExportCompatibilityTests {
         )
     }
 }
+
+extension S6_2BackupExportTests {
+    func testV23P03C34SceneStateIsExcludedFromBackupAndExport() {
+        let lifecycle = SceneNavigationLifecycleDispositionV1()
+        XCTAssertFalse(lifecycle.workspaceTruth)
+        XCTAssertFalse(lifecycle.backupIncluded)
+        XCTAssertFalse(lifecycle.exportIncluded)
+        XCTAssertFalse(lifecycle.journalIncluded)
+        XCTAssertTrue(lifecycle.eraseClears)
+    }
+}

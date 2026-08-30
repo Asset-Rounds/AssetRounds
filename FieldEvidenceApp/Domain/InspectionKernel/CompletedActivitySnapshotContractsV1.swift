@@ -3912,3 +3912,9 @@ enum C49WorkResourceCompletedActivityBoundaryV1 {
         return try C49WorkResourceProjectionSupportV1.envelope(projection, format: "OPEN_JSON")
     }
 }
+
+enum C34RouteAdoptionBoundary_CompletedActivitySnapshotContractsV1 {
+    static let signoffEditorRouteType = SignoffEditorRouteV1.self
+    static let signoffHistoryRouteType = SignoffHistoryRouteV1.self
+    static let canonicalMutationCount = 0
+}

@@ -816,3 +816,9 @@ enum C49WorkResourceContentProvenanceBoundaryV1 {
         return projection.projectionSHA256
     }
 }
+
+enum C34RouteAdoptionBoundary_ContentProvenanceContractsV1 {
+    static let canonicalRegistryType = RouteRegistryV1.self
+    static let resolutionResultType = RouteResolutionResultV1.self
+    static let routeStoresProvenanceBytes = false
+}

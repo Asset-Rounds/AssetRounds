@@ -1879,3 +1879,14 @@ extension WorkspaceWriterV1: ActivityContractCanonicalWorkspaceWritingV2 {
         return try journalStore.receipt(mutationID: mutationID)
     }
 }
+
+enum C34SceneNavigationWorkspaceWriterBoundaryV1 {
+    static let resolutionWriteCount = 0
+    static let restorationWriteCount = 0
+    static let registersRouteWriter = false
+
+    static func validate() -> Bool {
+        resolutionWriteCount == 0 && restorationWriteCount == 0
+            && !registersRouteWriter && C34SceneNavigationCanonicalExclusionV1.validate()
+    }
+}

@@ -779,3 +779,17 @@ private final class C46V924AssetCompatibilityTests: XCTestCase {
         )
     }
 }
+
+extension V9_24AssetSemanticLifecycleTests {
+    func testV23P03C34AssetRouteBindsStableEntityToAssetsRoot() throws {
+        let stableID = UUID()
+        let target = try NavigationTargetV1(
+            workspaceID: WorkspaceID(),
+            destination: .assets,
+            stableEntityID: stableID
+        )
+        try target.validate()
+        XCTAssertEqual(RouteRegistryV1.root(for: target.destination), .assets)
+        XCTAssertEqual(target.stableEntityID, stableID)
+    }
+}

@@ -1,5 +1,13 @@
 import Foundation
 
+enum C34SceneNavigationBackupEncoderBoundaryV1 {
+    static func validate() throws {
+        guard C34SceneNavigationDeviceLifecycleBoundaryV1.validate() else {
+            throw SceneNavigationFailureV1.invalidSnapshot
+        }
+    }
+}
+
 enum C50IncumbentFileExchangeBackupEncoderBoundaryV1 {
     static let encodesProfileSelectionOrSession = false
     static let encodesSourceScratchOrQuarantine = false
@@ -47,6 +55,7 @@ struct BackupCanonicalEncoderV1: Sendable {
     }
 
     func encodeRecords(_ records: V4BackupRecordsV1) throws -> EncodedBackupJSONV1 {
+        try C34SceneNavigationBackupEncoderBoundaryV1.validate()
         guard Self.valid(records) else {
             throw BackupCanonicalEncodingErrorV1.invalidRecords
         }
@@ -212,6 +221,7 @@ struct BackupCanonicalEncoderV1: Sendable {
     }
 
     func encodeManifest(_ manifest: V4BackupManifestV1) throws -> EncodedBackupJSONV1 {
+        try C34SceneNavigationBackupEncoderBoundaryV1.validate()
         guard Self.valid(manifest) else {
             throw BackupCanonicalEncodingErrorV1.invalidManifest
         }

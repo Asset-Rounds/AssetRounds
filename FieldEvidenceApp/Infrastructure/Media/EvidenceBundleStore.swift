@@ -2586,3 +2586,10 @@ enum C50IncumbentFileExchangeBundleBoundaryV1 {
             && directCostAndPrivateFieldsRemainExcludedByDefault
     }
 }
+
+enum C34SceneRestorationMediaWriterBoundaryV1 {
+    static let writesEvidenceBytes = false
+    static let promotesMedia = false
+    static let ownsSceneState = false
+    static func validate(anchor: DraftResumeAnchorV1) -> Bool { !writesEvidenceBytes && !promotesMedia && !ownsSceneState && C34DraftResumeNavigationBoundaryV1.validate(anchor: anchor) }
+}

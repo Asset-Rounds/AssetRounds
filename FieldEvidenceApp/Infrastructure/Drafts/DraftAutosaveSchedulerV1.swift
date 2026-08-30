@@ -264,3 +264,9 @@ enum C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Drafts_Dra
     static let contactExportExcludedByDefault = true
     static let noContactProjectionOrNetworkDelivery = true
 }
+
+enum C34SceneRestorationDraftAutosaveBoundaryV1 {
+    static let schedulesAutosave = false
+    static let startsAutomaticWork = false
+    static func validate(anchor: DraftResumeAnchorV1) -> Bool { !schedulesAutosave && !startsAutomaticWork && C34DraftResumeNavigationBoundaryV1.validate(anchor: anchor) }
+}

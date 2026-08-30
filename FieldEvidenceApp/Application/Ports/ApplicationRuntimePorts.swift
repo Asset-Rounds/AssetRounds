@@ -319,3 +319,86 @@ enum C46SystemHandoffRuntimeBoundaryV1 {
     static let allowsBackgroundHandoff = false
     static let allowsAutomaticRetryOrAlternateTarget = false
 }
+
+/// C34 adoption keeps runtime callers on the canonical route registry and
+/// makes package availability resolve to a safe, non-mutating disposition.
+enum C34RouteAdoptionAdapterV1 {
+    static let appRootType = AppRootV1.self
+    static let routeRegistryType = RouteRegistryV1.self
+    static let packageSurfaceManifestType = PackageSurfaceManifestV1.self
+    static let packageSurfaceRouteType = PackageSurfaceRouteV1.self
+    static let navigationTargetType = NavigationTargetV1.self
+    static let sceneSnapshotType = SceneNavigationSnapshotV1.self
+    static let restorationReceiptType = RouteRestorationReceiptV1.self
+    static let conformanceReceiptType = RouteConformanceReceiptV1.self
+    static let roots = AppRootV1.frozenOrder
+    static let startsAutomaticWork = false
+    static let canonicalMutationCount = 0
+
+    static func packageSurfaceTarget(
+        workspaceID: WorkspaceID,
+        root: AppRootV1,
+        routeID: String,
+        requestedMode: NavigationRequestedModeV1 = .read
+    ) throws -> NavigationTargetV1 {
+        try RouteContractValidationV1.semanticID(routeID)
+        return try NavigationTargetV1(
+            workspaceID: workspaceID,
+            destination: .packageSurface,
+            root: root,
+            packageSurfaceID: routeID,
+            requestedMode: requestedMode
+        )
+    }
+
+    static func resolve(
+        _ target: NavigationTargetV1,
+        registry: RouteRegistryV1,
+        context: RouteResolutionContextV1
+    ) throws -> RouteResolutionResultV1 {
+        let result = try registry.resolve(target, context: context)
+        guard result.canonicalMutationCount == 0, !result.startsAutomaticWork else {
+            throw RouteContractFailureV1.packageAuthorityEscalation
+        }
+        return result
+    }
+
+    static func requireSafeFallback(
+        _ result: RouteResolutionResultV1,
+        availability: FeatureAvailabilityDecisionV1
+    ) throws -> RouteResolutionResultV1 {
+        guard result.canonicalMutationCount == 0,
+              !result.startsAutomaticWork,
+              availability.preservesEssentialOperations else {
+            throw RouteContractFailureV1.packageAuthorityEscalation
+        }
+        if availability.reason != .available {
+            guard result.disposition == .safeFallback else {
+                throw RouteContractFailureV1.packageAuthorityEscalation
+            }
+        }
+        return result
+    }
+
+    static func conformanceReceipt(
+        for registry: RouteRegistryV1,
+        evidenceKind: RouteEvidenceKindV1
+    ) throws -> RouteConformanceReceiptV1 {
+        let receipt = RouteConformanceReceiptV1(
+            registry: registry,
+            evidenceKind: evidenceKind,
+            observedShellCount: 1,
+            observedParserCount: 1,
+            observedMutationAuthorityCount: 0
+        )
+        try receipt.validate()
+        return receipt
+    }
+}
+
+enum C34RouteAdoptionBoundary_ApplicationRuntimePortsV1 {
+    static let fallbackType = NavigationFallbackV1.self
+    static let availabilityDecisionType = FeatureAvailabilityDecisionV1.self
+    static let packageAuthorityRemainsBounded = true
+    static let startsAutomaticWork = false
+}

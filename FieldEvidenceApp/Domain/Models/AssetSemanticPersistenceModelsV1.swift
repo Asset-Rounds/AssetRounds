@@ -1,4 +1,19 @@
 import Foundation
+
+enum C34AssetSemanticNavigationPersistenceBoundaryV1 {
+    static let sceneRowCount = 0
+    static let restorationWritesRows = false
+}
+
+extension AssetKindBindingEventRow {
+    func c34ValidateNavigationReference(_ target: NavigationTargetV1) throws {
+        let event = try value()
+        try C34NavigationReferenceAnchorV1.validate(
+            target, workspaceID: event.workspaceID, stableEntityID: event.assetID,
+            expectedRevision: event.revision
+        )
+    }
+}
 enum EvidenceContextAssetSemanticBoundaryV1{static let contextsBindExactAssetRevision=true;static let semanticRowsNeverOwnContextHistory=true}
 enum PlacementPoseAssetSemanticPersistenceBoundaryV1{static let poseAxisDescriptorsAreEmbedded=true;static let assetSemanticRowsOwnNoPoseTips=true}
 import SwiftData

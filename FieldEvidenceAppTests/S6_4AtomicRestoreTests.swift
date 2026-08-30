@@ -1338,6 +1338,28 @@ extension S6_4AtomicRestoreTests {
 }
 
 extension S6_4AtomicRestoreTests {
+    func testV23P03C34SceneRestoreThenEraseLeavesNoState() throws {
+        let workspace = WorkspaceID(rawValue: UUID(uuid: (0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x47, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x0a)))
+        let target = try NavigationTargetV1(workspaceID: workspace, destination: .work)
+        let today = try NavigationTargetV1(workspaceID: workspace, destination: .today)
+        let assets = try NavigationTargetV1(workspaceID: workspace, destination: .assets)
+        let reports = try NavigationTargetV1(workspaceID: workspace, destination: .reports)
+        let snapshot = try SceneNavigationSnapshotV1(workspaceID: workspace, selectedRoot: .work, paths: [
+            .init(root: .today, targets: [today]),
+            .init(root: .work, targets: [target]),
+            .init(root: .assets, targets: [assets]),
+            .init(root: .reports, targets: [reports])
+        ], snapshotID: UUID())
+        let port = InMemorySceneNavigationDeviceStatePortV1()
+        let adapter = SceneNavigationStateAdapterV1(port: port)
+        try adapter.save(snapshot)
+        XCTAssertEqual(try adapter.loadAndReconcile(), .restored(snapshot))
+        try adapter.erase()
+        XCTAssertEqual(try adapter.loadAndReconcile(), .absent)
+    }
+}
+
+extension S6_4AtomicRestoreTests {
     @MainActor
     func testC33RealBackupRestoreCloneForkCarryDirectOriginalBytesAndTypedRows() async throws {
         let sourceRoot = fileManager.temporaryDirectory.appendingPathComponent(

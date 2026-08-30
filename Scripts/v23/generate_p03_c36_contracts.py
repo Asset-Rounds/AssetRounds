@@ -14,6 +14,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import p03_c36_contracts as contracts
 
+C34_REPROOF_CARD = "V23-P03-C34"
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -22,6 +24,8 @@ def main() -> int:
     modes.add_argument("--check", action="store_true", help="check artifacts without writing")
     modes.add_argument("--dump-json", action="store_true", help="print the generated artifact map")
     args = parser.parse_args()
+
+    assert contracts.C34_NAVIGATION_REPROOF["consumerCardID"] == C34_REPROOF_CARD
 
     rendered = contracts.all_outputs(ROOT)
     if args.dump_json:

@@ -964,3 +964,21 @@ private final class C50IncumbentAdapterS44HistoryBoundaryTests: XCTestCase {
         XCTAssertFalse(C50IncumbentFileExchangeRestoreIdentityBoundaryV1.cloneForkReinterpretsReleasedFiles)
     }
 }
+
+extension S4_4HistoryComparisonTests {
+    func testV23P03C34SnapshotPreservesFrozenRootOrder() throws {
+        let workspace = WorkspaceID(rawValue: UUID(uuid: (0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x47, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x07)))
+        let reports = try NavigationTargetV1(workspaceID: workspace, destination: .reports)
+        let today = try NavigationTargetV1(workspaceID: workspace, destination: .today)
+        let work = try NavigationTargetV1(workspaceID: workspace, destination: .work)
+        let assets = try NavigationTargetV1(workspaceID: workspace, destination: .assets)
+        let snapshot = try SceneNavigationSnapshotV1(workspaceID: workspace, selectedRoot: .today, paths: [
+            .init(root: .today, targets: [today]),
+            .init(root: .work, targets: [work]),
+            .init(root: .assets, targets: [assets]),
+            .init(root: .reports, targets: [reports])
+        ], snapshotID: UUID())
+        XCTAssertEqual(snapshot.paths.map(\.root), AppRootV1.frozenOrder)
+        XCTAssertEqual(snapshot.selectedTarget?.destination, .today)
+    }
+}

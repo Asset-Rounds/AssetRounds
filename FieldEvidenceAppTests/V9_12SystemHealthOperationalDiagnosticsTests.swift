@@ -1449,3 +1449,15 @@ extension C45SystemHealthCompatibilityTests {
         )
     }
 }
+
+extension V9_12SystemHealthOperationalDiagnosticsTests {
+    func testV23P03C34NavigationLifecycleIsDeviceOperationalAndNonpersistent() {
+        let lifecycle = SceneNavigationLifecycleDispositionV1()
+        XCTAssertEqual(lifecycle.persistenceClass, "DEVICE_OPERATIONAL_NONCANONICAL")
+        XCTAssertFalse(lifecycle.workspaceTruth)
+        XCTAssertFalse(lifecycle.backupIncluded)
+        XCTAssertFalse(lifecycle.journalIncluded)
+        XCTAssertFalse(lifecycle.reportIncluded)
+        XCTAssertTrue(lifecycle.eraseClears)
+    }
+}

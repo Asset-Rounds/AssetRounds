@@ -701,3 +701,15 @@ extension C50DeletionArchiveIntegrationTests {
         )
     }
 }
+
+extension V9_06DeletionArchiveIntegrationTests {
+    func testV23P03C34ArchiveExcludesSceneStateFromCanonicalArtifacts() {
+        let lifecycle = SceneNavigationLifecycleDispositionV1()
+        XCTAssertFalse(lifecycle.workspaceTruth)
+        XCTAssertFalse(lifecycle.backupIncluded)
+        XCTAssertFalse(lifecycle.journalIncluded)
+        XCTAssertFalse(lifecycle.reportIncluded)
+        XCTAssertFalse(lifecycle.exportIncluded)
+        XCTAssertFalse(lifecycle.searchIncluded)
+    }
+}

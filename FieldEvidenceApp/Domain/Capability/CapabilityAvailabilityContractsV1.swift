@@ -972,3 +972,10 @@ enum C46OperationalContactConformance_FieldEvidenceApp_Domain_Capability_Capabil
     static let contactExportExcludedByDefault = true
     static let siteRoleOwnershipForbidden = true
 }
+
+enum C34RouteAdoptionBoundary_CapabilityAvailabilityContractsV1 {
+    static let availabilityDecisionType = FeatureAvailabilityDecisionV1.self
+    static let fallbackReasonType = RouteFallbackReasonV1.self
+    static let preservesEssentialOperations = true
+    static let startsAutomaticWork = false
+}

@@ -374,3 +374,52 @@ final class V9_42ScheduleTests: XCTestCase {
         XCTAssertNoThrow(try AllDaysCompatibilityCalendarV1.validate(reference: allDays))
     }
 }
+
+extension V9_42ScheduleTests {
+    func testV23P03C34ScheduleOccurrenceRouteUsesStableOccurrenceIdentity() throws {
+        let release = try C28ScheduleTestSupport.release(
+            recurrence: .fixedCalendar(
+                FixedCalendarScheduleRuleV1(
+                    cadence: .daily,
+                    interval: 1,
+                    anchor: .init(
+                        year: nil, month: nil, day: nil, weekday: nil,
+                        weekdayOrdinal: nil, hour: 9, minute: 0, second: 0
+                    )
+                )
+            )
+        )
+        let releaseReference = try ScheduleDefinitionReleaseReferenceV1(release)
+        let occurrenceID = try OccurrenceIDV1(
+            scheduleDefinitionID: releaseReference.scheduleDefinitionID,
+            identityNamespaceID: releaseReference.occurrenceIdentityNamespaceID,
+            nominalKey: "2026-08-30T09:00:00"
+        )
+        let occurrenceRevision: UInt64 = 1
+        let target = try NavigationTargetV1(
+            workspaceID: releaseReference.workspaceID,
+            destination: .scheduleOccurrence,
+            stableScheduleDefinitionID: releaseReference.scheduleDefinitionID,
+            stableScheduleReleaseID: releaseReference.releaseID,
+            stableOccurrenceID: occurrenceID,
+            requestedMode: .resume,
+            expectedScheduleRevision: releaseReference.revision,
+            expectedOccurrenceRevision: occurrenceRevision
+        )
+        try target.validate()
+        XCTAssertEqual(target.stableOccurrenceID, occurrenceID)
+        XCTAssertEqual(RouteRegistryV1.root(for: target.destination), .work)
+        let result = try RouteRegistryV1().resolve(
+            target,
+            context: .init(
+                currentWorkspaceID: releaseReference.workspaceID,
+                currentRevision: releaseReference.revision,
+                currentScheduleRevisions: [releaseReference.scheduleDefinitionID: releaseReference.revision],
+                currentScheduleReleaseIDs: [releaseReference.scheduleDefinitionID: releaseReference.releaseID],
+                currentOccurrenceRevisions: [occurrenceID: occurrenceRevision]
+            )
+        )
+        XCTAssertEqual(result.disposition, .resolved)
+        XCTAssertEqual(result.target.stableScheduleReleaseID, releaseReference.releaseID)
+    }
+}

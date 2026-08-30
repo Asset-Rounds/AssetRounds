@@ -478,3 +478,14 @@ private final class C46S36CameraCompatibilityTests: XCTestCase {
         )
     }
 }
+
+extension S3_6CameraRecoveryTests {
+    func testV23P03C34ResumeRouteNeverStartsCapture() throws {
+        let workspace = WorkspaceID(rawValue: UUID(uuid: (0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x47, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x04)))
+        let target = try NavigationTargetV1(workspaceID: workspace, destination: .draftReview, requestedMode: .resume, stableSessionID: UUID())
+        let result = try RouteRegistryV1().resolve(target, context: .init(currentWorkspaceID: workspace, currentRevision: 0))
+        XCTAssertEqual(result.disposition, .resolved)
+        XCTAssertEqual(result.canonicalMutationCount, 0)
+        XCTAssertFalse(result.startsAutomaticWork)
+    }
+}

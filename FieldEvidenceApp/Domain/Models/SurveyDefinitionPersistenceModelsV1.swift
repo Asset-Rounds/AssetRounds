@@ -1,4 +1,20 @@
 import Foundation
+
+enum C34SurveyDefinitionNavigationPersistenceBoundaryV1 {
+    static let sceneRowCount = 0
+    static let restorationFinalizesDefinition = false
+}
+
+extension SurveyDefinitionIdentityRow {
+    func c34ValidateNavigationReference(_ target: NavigationTargetV1) throws {
+        let definition = try value()
+        try C34NavigationReferenceAnchorV1.validate(
+            target, workspaceID: definition.workspaceID,
+            stableEntityID: definition.definitionID,
+            expectedRevision: definition.revision
+        )
+    }
+}
 enum EvidenceContextSurveyDefinitionBoundaryV1{static let controlExpectationsRemainFrozenDefinitionInputs=true;static let capturedContextHistoryIsSeparate=true}
 enum PlacementPoseSurveyDefinitionPersistenceBoundaryV1{static let definitionsOwnAxisRequirementsNotPoseEvents=true}
 

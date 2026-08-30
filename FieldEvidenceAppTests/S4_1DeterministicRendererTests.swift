@@ -1409,3 +1409,15 @@ private final class C50IncumbentAdapterS41RendererBoundaryTests: XCTestCase {
         XCTAssertFalse(C50IncumbentFileExchangeProtectedFileBoundaryV1.persistsSecurityScopedBookmarks)
     }
 }
+
+extension S4_1DeterministicRendererTests {
+    func testV23P03C34SceneStateStaysOutsideCanonicalRenderOutputs() {
+        let lifecycle = SceneNavigationLifecycleDispositionV1()
+        XCTAssertEqual(lifecycle.persistenceClass, "DEVICE_OPERATIONAL_NONCANONICAL")
+        XCTAssertFalse(lifecycle.workspaceTruth)
+        XCTAssertFalse(lifecycle.backupIncluded)
+        XCTAssertFalse(lifecycle.reportIncluded)
+        XCTAssertFalse(lifecycle.exportIncluded)
+        XCTAssertFalse(lifecycle.searchIncluded)
+    }
+}

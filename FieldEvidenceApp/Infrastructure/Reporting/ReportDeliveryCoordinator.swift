@@ -2772,3 +2772,17 @@ enum C50IncumbentFileExchangeReportDeliveryBoundaryV1 {
             && deterministicOutputDigestIsRequired
     }
 }
+
+// MARK: - C34 route snapshot delivery exclusion
+
+enum C34RouteSnapshotReportDeliveryBoundaryV1 {
+    static let snapshotType: Any.Type = SceneNavigationSnapshotV1.self
+    static let routeSnapshotMayBeDelivered = false
+    static let routeSnapshotMayBeShared = false
+    static let routeSnapshotMayBeAttachedToMail = false
+    static let restorationReceiptMayBeDelivered = false
+
+    static func validate(_ lifecycle: SceneNavigationLifecycleDispositionV1 = .init()) -> Bool {
+        !lifecycle.exportIncluded && !routeSnapshotMayBeDelivered && !routeSnapshotMayBeShared
+    }
+}

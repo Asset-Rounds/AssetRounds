@@ -1247,3 +1247,9 @@ enum OperationalContactPersistentKindPolicyV1{
     static let nonpersistentKindIDs=Set(["PROJECTION:SystemHandoffResultV1","PROJECTION:PartyContactsImportPreviewV1"])
     static func validateDeclaration()throws{guard durableKindIDs.count==OperationalContactPersistenceEnrollmentV1.durableModelCount,durableKindIDs.isDisjoint(with:nonpersistentKindIDs),(durableKindIDs.union(nonpersistentKindIDs)).allSatisfy(PersistentKindLifecycleValidationV1.validKindID)else{throw PersistentKindLifecycleFailureV1.invalidLifecyclePolicy}}
 }
+
+enum C34SceneNavigationPersistentKindBoundaryV1 {
+    static let persistentKindCount = 0
+    static let lifecycleEnrollmentCount = 0
+    static func validate() -> Bool { persistentKindCount == 0 && lifecycleEnrollmentCount == 0 && C34SceneNavigationCanonicalExclusionV1.validate() }
+}

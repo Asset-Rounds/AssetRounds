@@ -1044,3 +1044,17 @@ final class V9_58ScheduleExceptionCalendarTests: XCTestCase {
         XCTAssertFalse(C51ScheduleBackupClosureV1.derivedDueReminderAndPreviewStateIsArchived)
     }
 }
+
+extension V9_58ScheduleExceptionCalendarTests {
+    func testV23P03C34RouteConformanceReceiptUsesFourRootsAndNoMutationAuthority() throws {
+        let receipt = RouteConformanceReceiptV1(
+            registry: try RouteRegistryV1(), evidenceKind: .golden,
+            observedShellCount: 1, observedParserCount: 1,
+            observedMutationAuthorityCount: 0
+        )
+        try receipt.validate()
+        XCTAssertEqual(receipt.roots, AppRootV1.frozenOrder)
+        XCTAssertEqual(receipt.roots.count, 4)
+        XCTAssertEqual(receipt.mutationAuthorityCount, 0)
+    }
+}

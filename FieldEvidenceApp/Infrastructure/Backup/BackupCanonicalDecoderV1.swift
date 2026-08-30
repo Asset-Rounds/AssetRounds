@@ -1,5 +1,13 @@
 import Foundation
 
+enum C34SceneNavigationBackupDecoderBoundaryV1 {
+    static func validate() throws {
+        guard C34SceneNavigationDeviceLifecycleBoundaryV1.validate() else {
+            throw SceneNavigationFailureV1.invalidSnapshot
+        }
+    }
+}
+
 enum C50IncumbentFileExchangeBackupDecoderBoundaryV1 {
     static let acceptsProfileSelectionOrSession = false
     static let acceptsSourceScratchOrQuarantine = false
@@ -194,6 +202,7 @@ struct BackupCanonicalDecoderV1: Sendable {
     }
 
     func decodeManifest(_ data: Data) throws -> V4BackupManifestV1 {
+        try C34SceneNavigationBackupDecoderBoundaryV1.validate()
         do {
             let value = try decoder().decode(V4BackupManifestV1.self, from: data)
             let canonical = try BackupCanonicalEncoderV1().encodeManifest(value).data
@@ -207,6 +216,7 @@ struct BackupCanonicalDecoderV1: Sendable {
     }
 
     func decodeRecords(_ data: Data) throws -> V4BackupRecordsV1 {
+        try C34SceneNavigationBackupDecoderBoundaryV1.validate()
         do {
             let value = try decoder().decode(V4BackupRecordsV1.self, from: data)
             try Self.validatePartyAccountability(value)

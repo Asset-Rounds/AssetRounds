@@ -1162,3 +1162,24 @@ private final class C46V930DraftCompatibilityTests: XCTestCase {
         )
     }
 }
+
+extension V9_30FieldDraftResilienceTests {
+    func testV23P03C34DraftResumeAnchorIsTypedAndFailClosedAtBounds() throws {
+        let anchor = try DraftResumeAnchorV1(
+            sectionID: "draft.section",
+            fieldID: "draft.field",
+            selectedStableID: "draft.selection",
+            boundedPosition: 100_000
+        )
+        XCTAssertEqual(anchor.sectionID, "draft.section")
+        XCTAssertEqual(anchor.fieldID, "draft.field")
+        XCTAssertEqual(anchor.boundedPosition, 100_000)
+        XCTAssertThrowsError(
+            try DraftResumeAnchorV1(
+                sectionID: "draft.section",
+                fieldID: "draft.field",
+                boundedPosition: 100_001
+            )
+        )
+    }
+}

@@ -422,3 +422,18 @@ enum C49WorkResourceContentReferenceBoundaryV1 {
         }
     }
 }
+
+enum C34ContentReferenceRouteSemanticIDAdapterV1 {
+    static let routeStoresContentBytes = false
+
+    static func semanticID(from reference: ContentReferenceV1) throws -> String {
+        try RouteContractValidationV1.semanticID(reference.contentID)
+        return reference.contentID
+    }
+}
+
+enum C34RouteAdoptionBoundary_ContentReferenceContractsV1 {
+    static let semanticIDAdapter = C34ContentReferenceRouteSemanticIDAdapterV1.self
+    static let canonicalTargetType = NavigationTargetV1.self
+    static let routeStoresContentBytes = false
+}

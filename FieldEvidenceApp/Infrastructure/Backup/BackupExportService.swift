@@ -1,6 +1,14 @@
 import Darwin
 import Foundation
 
+enum C34SceneNavigationBackupExportBoundaryV1 {
+    static func validate() throws {
+        guard C34SceneNavigationDeviceLifecycleBoundaryV1.validate() else {
+            throw SceneNavigationFailureV1.invalidSnapshot
+        }
+    }
+}
+
 enum C50IncumbentFileExchangeBackupExportBoundaryV1 {
     static let exportsAdapterProfileState = false
     static let exportsLeasedInputBytes = false
@@ -349,6 +357,7 @@ final class BackupExportService {
     }
 
     func prepare() throws -> BackupExportPreviewV1 {
+        try C34SceneNavigationBackupExportBoundaryV1.validate()
         try validateGenerationLease()
         guard !modelContext.hasChanges else {
             throw BackupExportServiceError.contextHasChanges
@@ -1775,6 +1784,9 @@ private extension BackupExportService {
     ) throws {
         let sourceIdentity = try currentStreamingWorkspaceIdentity()
         do {
+            guard C34SceneNavigationKernelBackupRestoreBoundaryV1.validate() else {
+                throw BackupExportServiceError.invalidAuthority
+            }
             try KernelBackupRestoreRegistryV4.validate()
             let schema = try KernelPersistenceV4Schema.descriptor()
             guard schema.runtimePosture == .dormantStatic,

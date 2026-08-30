@@ -1,5 +1,29 @@
 import Foundation
 
+enum C34NavigationReferenceAnchorV1 {
+    static let restorationMutatesCanonicalState = false
+    static let sceneStoresCanonicalOrCustomerPayload = false
+
+    static func validate(
+        _ target: NavigationTargetV1,
+        workspaceID: WorkspaceID,
+        stableEntityID: UUID? = nil,
+        stableSessionID: UUID? = nil,
+        expectedRevision: UInt64?
+    ) throws {
+        try target.validate()
+        guard target.workspaceID == workspaceID,
+              target.stableEntityID == stableEntityID,
+              target.stableSessionID == stableSessionID,
+              target.expectedRevision == expectedRevision,
+              target.requestedMode == .read,
+              !restorationMutatesCanonicalState,
+              !sceneStoresCanonicalOrCustomerPayload else {
+            throw SceneNavigationFailureV1.invalidPath
+        }
+    }
+}
+
 enum AssetSemanticScheduleBoundaryV1 { static let assetSemanticsInferDueState = false }
 
 /// C51 consumes the existing C28 occurrence authority as a read-only

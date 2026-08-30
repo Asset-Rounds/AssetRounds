@@ -3102,6 +3102,32 @@ extension WorkspaceID: Codable {
     }
 }
 
+/// C34 scene navigation is device-operational state, never workspace truth.
+/// This assertion is intentionally derived from the canonical kind registries
+/// so a later route/scene persistence case fails conformance instead of
+/// silently acquiring mutation authority.
+enum C34SceneNavigationCanonicalExclusionV1 {
+    static let routeResolutionMutationCount = 0
+    static let routeRestorationMutationCount = 0
+
+    static func validate() -> Bool {
+        let reserved = ["route", "navigation", "scene"]
+        let hasEntityKind = WorkspaceEntityKindV1.allCases.contains { kind in
+            reserved.contains { kind.rawValue.lowercased().contains($0) }
+        }
+        let hasCommandKind = WorkspaceCommandKindV1.allCases.contains { kind in
+            reserved.contains { kind.rawValue.lowercased().contains($0) }
+        }
+        let lifecycle = SceneNavigationLifecycleDispositionV1()
+        return !hasEntityKind && !hasCommandKind
+            && routeResolutionMutationCount == 0
+            && routeRestorationMutationCount == 0
+            && !lifecycle.workspaceTruth
+            && !lifecycle.journalIncluded
+            && !lifecycle.searchIncluded
+    }
+}
+
 extension ReplicaID: Codable {
     private enum CodingKeys: String, CodingKey { case rawValue }
 

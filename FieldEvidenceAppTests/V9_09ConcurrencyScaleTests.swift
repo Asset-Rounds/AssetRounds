@@ -1333,3 +1333,15 @@ private struct V909Corpus: Decodable, Sendable {
         let proxyBacking: String?
     }
 }
+
+extension V9_09ConcurrencyScaleTests {
+    func testV23P03C34RouteDescriptorsAreDeterministicAndUnique() throws {
+        let first = try RouteRegistryV1()
+        let second = try RouteRegistryV1()
+        let firstIDs = first.descriptors.map(\.routeID)
+        XCTAssertEqual(first.descriptors, second.descriptors)
+        XCTAssertEqual(firstIDs, firstIDs.sorted())
+        XCTAssertEqual(Set(firstIDs).count, firstIDs.count)
+        XCTAssertEqual(AppRootV1.frozenOrder.count, 4)
+    }
+}

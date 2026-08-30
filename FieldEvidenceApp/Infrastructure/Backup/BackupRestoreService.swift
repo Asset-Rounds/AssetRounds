@@ -1,6 +1,14 @@
 import Darwin
 import Foundation
 
+enum C34SceneNavigationBackupRestoreBoundaryV1 {
+    static func validate() throws {
+        guard C34SceneNavigationDeviceLifecycleBoundaryV1.validate() else {
+            throw SceneNavigationFailureV1.invalidSnapshot
+        }
+    }
+}
+
 enum C50IncumbentFileExchangeBackupRestoreServiceBoundaryV1 {
     static let restoresAdapterSessionOrSelection = false
     static let restoresSourceScratchOrQuarantine = false
@@ -563,6 +571,7 @@ final class BackupRestoreService {
         currentGenerationRootURL: URL,
         mode: BackupRestoreMode = .emptyInstall
     ) async throws -> StoreGenerationSession {
+        try C34SceneNavigationBackupRestoreBoundaryV1.validate()
         try Task.checkCancellation()
         guard !currentModelContext.hasChanges else {
             throw BackupRestoreServiceError.contextHasChanges
@@ -1473,6 +1482,9 @@ private extension BackupRestoreService {
     ) throws {
         do {
             try IntegrationProjectionBackupRestoreExclusionV1.validate()
+            guard C34SceneNavigationKernelBackupRestoreBoundaryV1.validate() else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
             try KernelBackupRestoreRegistryV4.validate()
             let schema = try KernelPersistenceV4Schema.descriptor()
             guard schema.runtimePosture == .dormantStatic,

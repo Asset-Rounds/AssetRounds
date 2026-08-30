@@ -1,5 +1,10 @@
 import Foundation
 
+enum C34WorkPacketNavigationLifecycleBoundaryV1 {
+    static let restorationUsesReadProjection = true
+    static let restorationCommitsWorkPacket = false
+}
+
 enum WorkPacketScheduleLifecycleBoundaryV1 { static let dueQueueCreatesRows = false }
 
 enum C51WorkPacketScheduleLifecycleBoundaryV1 {

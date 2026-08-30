@@ -1096,3 +1096,25 @@ extension S3_4ResumeRecoveryTests {
         XCTAssertTrue(restoreReceipt.canonicalCommitRequired)
     }
 }
+
+extension S3_4ResumeRecoveryTests {
+    func testV23P03C34IncompleteRecoveryPrecedesExplicitIngressWithoutWriter() throws {
+        let workspace = WorkspaceID(rawValue: UUID(uuid: (0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x47, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x03)))
+        let recovery = try NavigationTargetV1(workspaceID: workspace, destination: .mutationRecovery, requestedMode: .resume)
+        let ingress = try NavigationTargetV1(workspaceID: workspace, destination: .reports)
+        let receipt = try RouteCoordinatorV1(registry: try RouteRegistryV1()).restore(.init(
+            context: .init(currentWorkspaceID: workspace, currentRevision: 0),
+            startupMaintenanceTarget: nil,
+            incompleteMutationRecoveryTarget: recovery,
+            explicitIngressTarget: ingress,
+            sceneSnapshot: nil,
+            discardedSnapshotReason: nil,
+            evidenceKind: .alternate,
+            receiptID: UUID()
+        ))
+        XCTAssertEqual(receipt.source, .incompleteMutationRecovery)
+        XCTAssertEqual(receipt.result.target.destination, .mutationRecovery)
+        XCTAssertEqual(receipt.canonicalMutationCount, 0)
+        XCTAssertFalse(receipt.startsAutomaticWork)
+    }
+}

@@ -2117,3 +2117,23 @@ private final class C50IncumbentAdapterLocalizationAccessibilityTests: XCTestCas
         XCTAssertTrue(source.contains("no selected profile"))
     }
 }
+
+extension V9_22LocalizationAccessibilityTests {
+    func testV23P03C34DraftResumeAnchorRetainsStableSemanticLabels() throws {
+        let anchor = try DraftResumeAnchorV1(
+            sectionID: "accessibility.section",
+            fieldID: "accessibility.field",
+            selectedStableID: "accessibility.selection",
+            boundedPosition: 1
+        )
+        let target = try NavigationTargetV1(
+            workspaceID: WorkspaceID(),
+            destination: .draftReview,
+            requestedMode: .resume,
+            draftResumeAnchor: anchor
+        )
+        try target.validate()
+        XCTAssertEqual(target.requestedMode, .resume)
+        XCTAssertEqual(target.draftResumeAnchor?.selectedStableID, "accessibility.selection")
+    }
+}

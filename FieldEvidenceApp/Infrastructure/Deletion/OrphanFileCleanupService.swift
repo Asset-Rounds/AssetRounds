@@ -3,6 +3,7 @@ import Darwin
 import Foundation
 
 enum C50IncumbentFileExchangeOrphanCleanupBoundaryV1 {
+    static let excludesSceneRouteState = C34SceneNavigationCompatibilityBoundaryV1.validate()
     static let terminalSourceScratchIsRemovable = true
     static let terminalQuarantineIsRemovable = true
     static let liveLeaseBlocksCleanup = true

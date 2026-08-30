@@ -2440,3 +2440,20 @@ enum C50IncumbentFileExchangeSearchRebuildBoundaryV1 {
             && C50IncumbentFileExchangeLocalSearchBoundaryV1.validate()
     }
 }
+
+// MARK: - C34 route snapshot search exclusion
+
+enum C34RouteSnapshotSearchRebuildBoundaryV1 {
+    static let snapshotType: Any.Type = SceneNavigationSnapshotV1.self
+    static let routeSnapshotIndexed = false
+    static let stableRouteIdentifiersIndexed = false
+    static let fallbackReasonsIndexed = false
+    static let searchQueryRecoveredFromRouteState = false
+    static let rebuildInvokesRouteResolution = false
+
+    static func validate(_ lifecycle: SceneNavigationLifecycleDispositionV1 = .init()) -> Bool {
+        !lifecycle.searchIncluded && !routeSnapshotIndexed
+            && !searchQueryRecoveredFromRouteState
+            && !rebuildInvokesRouteResolution
+    }
+}

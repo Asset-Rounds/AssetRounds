@@ -1,13 +1,15 @@
 import Foundation
 
 enum C50IncumbentFileExchangeReplacementRestoreRuleV1 {
+    static let excludesSceneRouteState = C34SceneNavigationCompatibilityBoundaryV1.validate()
     static let replacesCanonicalImportedRowsThroughExistingOwners = true
     static let restoresProfileOrSelectionState = false
     static let restoresScratchSourceOrQuarantine = false
     static let restoresExternalFilePossession = false
 
     static func validate() -> Bool {
-        replacesCanonicalImportedRowsThroughExistingOwners
+        excludesSceneRouteState
+            && replacesCanonicalImportedRowsThroughExistingOwners
             && !restoresProfileOrSelectionState
             && !restoresScratchSourceOrQuarantine
             && !restoresExternalFilePossession

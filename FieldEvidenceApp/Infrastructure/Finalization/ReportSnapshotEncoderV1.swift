@@ -1,5 +1,10 @@
 import Foundation
 
+enum C34NavigationReportSnapshotEncoderBoundaryV1 {
+    static let sceneSnapshotIsEncoderInput = false
+    static let restorationFinalizesReport = false
+}
+
 struct EncodedReportSnapshotV1: Equatable, Sendable {
     let data: Data
     let sha256: String

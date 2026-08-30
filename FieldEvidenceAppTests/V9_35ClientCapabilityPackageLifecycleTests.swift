@@ -1024,3 +1024,34 @@ private final class C46V935PackageCompatibilityTests: XCTestCase {
         )
     }
 }
+
+extension V9_35ClientCapabilityPackageLifecycleTests {
+    func testV23P03C34PackageRouteResolvesOnlyWhenThePackageIsAvailable() throws {
+        let route = PackageSurfaceRouteV1(
+            routeID: "capability.c34.surface",
+            root: .assets,
+            destination: .packageSurface,
+            kind: .destination,
+            startsAutomaticWork: false
+        )
+        let packageID = "capability.c34.package"
+        let registry = try RouteRegistryV1(
+            manifests: [try PackageSurfaceManifestV1(packageID: packageID, routes: [route])]
+        )
+        let target = try NavigationTargetV1(
+            workspaceID: WorkspaceID(),
+            destination: .packageSurface,
+            packageSurfaceID: route.routeID
+        )
+        let result = try registry.resolve(
+            target,
+            context: .init(
+                currentWorkspaceID: target.workspaceID,
+                currentRevision: 0,
+                availablePackageIDs: [packageID]
+            )
+        )
+        XCTAssertEqual(result.disposition, .resolved)
+        XCTAssertFalse(result.startsAutomaticWork)
+    }
+}

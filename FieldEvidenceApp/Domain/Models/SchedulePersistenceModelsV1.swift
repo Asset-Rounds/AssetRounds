@@ -1,6 +1,26 @@
 import Foundation
 import SwiftData
 
+extension ScheduleDefinitionReleaseRow {
+    func c34NavigationAnchor() throws -> C34ScheduleNavigationAnchorV1 {
+        let release = try value()
+        let reference = try ScheduleDefinitionReleaseReferenceV1(release)
+        return try C34ScheduleNavigationAnchorV1(reference: reference)
+    }
+}
+
+extension OccurrenceHistoryEventRow {
+    func c34NavigationAnchor() throws -> C34OccurrenceNavigationAnchorV1 {
+        try C34OccurrenceNavigationAnchorV1(event: value())
+    }
+}
+
+enum C34SchedulePersistenceNavigationBoundaryV1 {
+    static let routeSnapshotCreatesPersistentScheduleRow = false
+    static let routeSnapshotCopiesCanonicalSchedulePayload = false
+    static let restorationWritesScheduleRows = false
+}
+
 enum SchedulePersistenceFailureV1: Error { case corruptRow }
 
 @Model final class ScheduleDefinitionReleaseRow {

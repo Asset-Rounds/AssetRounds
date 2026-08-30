@@ -1615,3 +1615,30 @@ private final class C46V940SurveySessionCompatibilityTests: XCTestCase {
         )
     }
 }
+
+extension V9_40SurveySessionTests {
+    func testV23P03C34ExplicitSurveyResumeRestoresTheStableSessionRoute() throws {
+        let workspace = WorkspaceID()
+        let sessionID = UUID()
+        let target = try NavigationTargetV1(
+            workspaceID: workspace,
+            destination: .work,
+            stableSessionID: sessionID,
+            requestedMode: .resume
+        )
+        let request = RouteRestorationRequestV1(
+            context: .init(currentWorkspaceID: workspace, currentRevision: 4),
+            startupMaintenanceTarget: nil,
+            incompleteMutationRecoveryTarget: nil,
+            explicitIngressTarget: target,
+            sceneSnapshot: nil,
+            discardedSnapshotReason: nil,
+            evidenceKind: .recovery,
+            receiptID: UUID()
+        )
+        let receipt = try RouteCoordinatorV1(registry: RouteRegistryV1()).restore(request)
+        XCTAssertEqual(receipt.source, .explicitIngress)
+        XCTAssertEqual(receipt.result.target.stableSessionID, sessionID)
+        XCTAssertEqual(receipt.canonicalMutationCount, 0)
+    }
+}

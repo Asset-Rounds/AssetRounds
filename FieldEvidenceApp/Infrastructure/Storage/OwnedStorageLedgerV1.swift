@@ -1690,3 +1690,27 @@ actor ScratchDataLeaseStoreV1: ScratchDataLeasePortV1 {
         }
     }
 }
+
+// MARK: - C34 scene-navigation storage enrollment proof
+
+enum C34SceneNavigationOwnedStorageBoundaryV1 {
+    static let snapshotType: Any.Type = SceneNavigationSnapshotV1.self
+    static let persistenceClass = "DEVICE_OPERATIONAL_NONCANONICAL"
+    static let canonicalWorkspaceLedgerEnrollmentCount = 0
+    static let backupEnrollmentCount = 0
+    static let journalEnrollmentCount = 0
+    static let reportEnrollmentCount = 0
+    static let searchEnrollmentCount = 0
+    static let eraseClears = true
+
+    static func validate(_ lifecycle: SceneNavigationLifecycleDispositionV1 = .init()) -> Bool {
+        lifecycle.persistenceClass == persistenceClass
+            && !lifecycle.workspaceTruth
+            && !lifecycle.backupIncluded
+            && !lifecycle.journalIncluded
+            && !lifecycle.reportIncluded
+            && !lifecycle.searchIncluded
+            && lifecycle.eraseClears
+            && canonicalWorkspaceLedgerEnrollmentCount == 0
+    }
+}

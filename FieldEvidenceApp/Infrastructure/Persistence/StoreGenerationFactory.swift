@@ -11871,3 +11871,9 @@ enum C51ScheduleExceptionStoreGenerationBoundaryV1 {
             && C51ScheduleExceptionMigrationBoundaryV1.validate()
     }
 }
+
+enum C34SceneNavigationStoreGenerationBoundaryV1 {
+    static let generatedStoreFamilyCount = 0
+    static let generatesRouteRows = false
+    static func validate() -> Bool { generatedStoreFamilyCount == 0 && !generatesRouteRows && C34SceneNavigationPersistentSchemaBoundaryV1.validate() }
+}

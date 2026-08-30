@@ -1,4 +1,20 @@
 import Foundation
+
+enum C34WorkPacketNavigationPersistenceBoundaryV1 {
+    static let sceneRowCount = 0
+    static let restorationFinalizesWorkPacket = false
+}
+
+extension WorkPacketManifestRow {
+    func c34ValidateNavigationReference(_ target: NavigationTargetV1) throws {
+        let manifest = try value()
+        try C34NavigationReferenceAnchorV1.validate(
+            target, workspaceID: manifest.workspaceID,
+            stableEntityID: manifest.packetID,
+            expectedRevision: manifest.revision
+        )
+    }
+}
 enum EvidenceContextWorkPacketBoundaryV1{static let manifestsMayReferenceEvidenceRevisionButDoNotEmbedContextRows=true}
 enum PlacementPoseWorkPacketPersistenceBoundaryV1{static let packetsReferencePoseResultsWithoutOwningTips=true}
 

@@ -61,6 +61,7 @@ enum OwnedFileKindV1: String, CaseIterable, Equatable, Hashable, Sendable {
     case reportSnapshot
     case reportPDF
     case diagnostics
+    case sceneNavigation
     case commerceEntitlementCache
     case portableExchangeDirectory
     case portableExchangeSessionFile
@@ -114,6 +115,13 @@ enum ProtectedFilePolicyV1 {
         }
     }
     static func validateSchedulePersistencePosture()throws{guard disposition(for:.database).isExcludedFromBackup == false,disposition(for:.journal).isExcludedFromBackup,C51ScheduleBackupClosureV1.embeddedCanonicalComponents.count==6,!C51ScheduleBackupClosureV1.derivedDueReminderAndPreviewStateIsArchived else{throw ProtectedFilePolicyError.resourceValueMismatch}}
+    static func validateSceneNavigationPosture() throws {
+        guard C34SceneNavigationDeviceLifecycleBoundaryV1.validate(),
+              disposition(for: .sceneNavigation)
+                == .init(expectsDirectory: false, isExcludedFromBackup: true) else {
+            throw ProtectedFilePolicyError.resourceValueMismatch
+        }
+    }
 
     /// Recoverability verification stages only under the existing disposable
     /// staging policy. The opaque locator never creates a new durable file
@@ -186,6 +194,7 @@ enum ProtectedFilePolicyV1 {
              .journal,
              .journalTemporary,
              .diagnostics,
+             .sceneNavigation,
              .commerceEntitlementCache,
              .portableExchangeSessionFile,
              .portableExchangeJournalFile,

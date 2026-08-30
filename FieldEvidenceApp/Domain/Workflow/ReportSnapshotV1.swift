@@ -1,5 +1,23 @@
 import Foundation
 
+enum C34ReportSnapshotNavigationBoundaryV1 {
+    static let sceneStoresSnapshotBytes = false
+    static let restorationRewritesSnapshot = false
+}
+
+extension ReportSnapshotV1 {
+    func c34ValidateNavigationReference(
+        _ target: NavigationTargetV1,
+        workspaceID: WorkspaceID,
+        expectedRevision: UInt64?
+    ) throws {
+        try C34NavigationReferenceAnchorV1.validate(
+            target, workspaceID: workspaceID, stableEntityID: reportID,
+            expectedRevision: expectedRevision
+        )
+    }
+}
+
 enum C51ReportSnapshotScheduleBoundaryV1 {
     static let scheduleClosureReferenceType = C51ScheduleClosureReferenceV1.self
     static let scheduleClosureMetadataType = C51ScheduleClosureMetadataV1.self

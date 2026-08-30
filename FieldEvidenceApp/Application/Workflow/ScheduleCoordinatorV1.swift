@@ -120,3 +120,9 @@ import Foundation
         return receipt
     }
 }
+
+enum C34RouteAdoptionBoundary_ScheduleCoordinatorV1 {
+    static let scheduleDestination = NavigationDestinationV1.scheduleOccurrence
+    static let scheduleAnchorType = C34OccurrenceNavigationAnchorV1.self
+    static let restorationStartsAutomaticWork = false
+}

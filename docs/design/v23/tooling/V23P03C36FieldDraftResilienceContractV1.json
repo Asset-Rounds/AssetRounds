@@ -1,6 +1,6 @@
 {
   "artifact": "V23P03C36FieldDraftResilienceContractV1",
-  "artifactDigest": "28d380fe717359c8763c3bd1b97d6cf567b1f735e7b32c3f2d9ed89d8dfe982b",
+  "artifactDigest": "4d589820e22ea902d73dcd426f2129a8ebe16fe881aedafca780a6014202f108",
   "authority": {
     "acceptanceCredit": false,
     "acceptanceEnabled": false,
@@ -487,6 +487,23 @@
     "restoreCompatibilityRequired": true,
     "schemaBehaviorDelta": true,
     "uiSurfaceDelta": false
+  },
+  "c34NavigationReproof": {
+    "canonicalMutationCount": 0,
+    "consumerCardID": "V23-P03-C34",
+    "containsSecrets": false,
+    "invalidatesOnSemanticChange": true,
+    "persistenceClass": "DEVICE_OPERATIONAL_NONCANONICAL",
+    "referenceFields": [
+      "sectionID",
+      "fieldID",
+      "selectedStableID",
+      "boundedPosition"
+    ],
+    "referenceType": "DraftResumeAnchorV1",
+    "startsAutosave": false,
+    "startsCapture": false,
+    "startsCommitSaga": false
   },
   "cardID": "V23-P03-C36",
   "directPrerequisiteEvidence": {
@@ -2107,9 +2124,9 @@
   "requiresAcceptedS10_6Reconciliation": true,
   "schema": "V23P03C36FieldDraftResilienceContractV1",
   "schemaArtifact": {
-    "bytes": 17250,
+    "bytes": 18658,
     "path": "Scripts/v23/field-draft-resilience.schema.json",
-    "sha256": "9200fa3a903f10dd04670c0cb9fb135efe81511d119fe4e2f173fa2ed5ab2994"
+    "sha256": "ccdc7bcedc896c1ba7697a16f79e62b53b6fb29b47aa9808fbf34cb5fb7bced3"
   },
   "schemaVersion": 1,
   "semanticScope": {

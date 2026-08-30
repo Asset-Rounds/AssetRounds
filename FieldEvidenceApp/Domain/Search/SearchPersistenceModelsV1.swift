@@ -1396,3 +1396,10 @@ enum C50IncumbentFileExchangeSearchPersistenceBoundaryV1 {
             && C50IncumbentFileExchangeSearchBoundaryV1.validate()
     }
 }
+
+enum C34SceneNavigationSearchPersistenceBoundaryV1 {
+    static let persistentRowFamilyCount = 0
+    static let indexesSceneSnapshot = false
+    static let indexesRouteRestorationReceipt = false
+    static func validate() -> Bool { persistentRowFamilyCount == 0 && !indexesSceneSnapshot && !indexesRouteRestorationReceipt && C34SceneNavigationCanonicalExclusionV1.validate() }
+}

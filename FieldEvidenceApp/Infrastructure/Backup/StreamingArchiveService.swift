@@ -2,6 +2,14 @@ import CryptoKit
 import Darwin
 import Foundation
 
+enum C34SceneNavigationStreamingArchiveBoundaryV1 {
+    static func validate() throws {
+        guard C34SceneNavigationDeviceLifecycleBoundaryV1.validate() else {
+            throw SceneNavigationFailureV1.invalidSnapshot
+        }
+    }
+}
+
 enum C50IncumbentFileExchangeStreamingArchiveServiceBoundaryV1 {
     static let routesAdapterFilesThroughBackupArchiveWriter = false
     static let routesBackupArchiveMembersThroughAdapterParser = false
@@ -164,6 +172,7 @@ struct StreamingArchiveService: Sendable {
         cancellation: StreamingArchiveCancellationV1 = .none,
         storageCheck: (Int64) throws -> Void = { _ in }
     ) throws -> StreamingArchiveWriteReceiptV1 {
+        try C34SceneNavigationStreamingArchiveBoundaryV1.validate()
         try limits.validate()
         try cancellation.checkpoint()
         try validateArchiveExtension(destinationURL, writing: true)

@@ -1632,3 +1632,9 @@ enum C51ScheduleExceptionMigrationBoundaryV1 {
             && existingScheduleRowsRemainByteStable
     }
 }
+
+enum C34SceneNavigationStoreMigrationBoundaryV1 {
+    static let migrationStageCount = 0
+    static let migratesSceneSnapshot = false
+    static func validate() -> Bool { migrationStageCount == 0 && !migratesSceneSnapshot && C34SceneNavigationPersistentSchemaBoundaryV1.validate() }
+}

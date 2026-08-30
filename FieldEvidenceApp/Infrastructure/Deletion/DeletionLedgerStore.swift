@@ -1,6 +1,7 @@
 import Foundation
 
 enum C50IncumbentFileExchangeDeletionLedgerStoreBoundaryV1 {
+    static let excludesSceneRouteState = C34SceneNavigationCompatibilityBoundaryV1.validate()
     static let persistsAdapterTombstones = false
     static let persistsSourceOrQuarantineDigests = false
     static let canonicalImportedHistoryUsesExistingLedgerKinds = true

@@ -561,3 +561,14 @@ extension C45StreamingArchiveCompatibilityTests {
         )
     }
 }
+
+extension V9_04StreamingArchiveTests {
+    func testV23P03C34StreamingArchiveExcludesDeviceOperationalSceneState() {
+        let lifecycle = SceneNavigationLifecycleDispositionV1()
+        XCTAssertFalse(lifecycle.backupIncluded)
+        XCTAssertFalse(lifecycle.exportIncluded)
+        XCTAssertFalse(lifecycle.reportIncluded)
+        XCTAssertFalse(lifecycle.journalIncluded)
+        XCTAssertTrue(lifecycle.eraseClears)
+    }
+}

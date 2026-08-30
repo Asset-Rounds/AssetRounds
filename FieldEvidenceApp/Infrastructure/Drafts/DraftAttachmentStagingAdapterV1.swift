@@ -1241,3 +1241,10 @@ private extension DraftAttachmentStagingAdapterV1 {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 }
+
+enum C34SceneRestorationAttachmentStagingBoundaryV1 {
+    static let createsStage = false
+    static let promotesStage = false
+    static let claimsStagingOwnership = false
+    static func validate(anchor: DraftResumeAnchorV1) -> Bool { !createsStage && !promotesStage && !claimsStagingOwnership && C34DraftResumeNavigationBoundaryV1.validate(anchor: anchor) }
+}

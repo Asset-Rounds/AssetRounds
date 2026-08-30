@@ -1017,3 +1017,17 @@ enum C50IncumbentFileExchangeReportHistoryBoundaryV1 {
             && materialAndCurrencyProjectionsRemainDeterministic
     }
 }
+
+// MARK: - C34 route snapshot history exclusion
+
+enum C34RouteSnapshotReportHistoryBoundaryV1 {
+    static let snapshotType: Any.Type = SceneNavigationSnapshotV1.self
+    static let routeSnapshotCreatesReportHistory = false
+    static let restorationReceiptCreatesReportHistory = false
+    static let fallbackReasonRewritesFinalizedHistory = false
+    static let localeChangeRewritesFinalizedHistory = false
+
+    static func validate(_ lifecycle: SceneNavigationLifecycleDispositionV1 = .init()) -> Bool {
+        !lifecycle.reportIncluded && !routeSnapshotCreatesReportHistory
+    }
+}

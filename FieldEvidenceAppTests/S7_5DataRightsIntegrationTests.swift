@@ -319,3 +319,16 @@ extension S7_5DataRightsIntegrationTests {
         XCTAssertTrue(OwnedStorageLedgerV1.c36StagingExcludedFromBackup)
     }
 }
+
+extension S7_5DataRightsIntegrationTests {
+    func testV23P03C34ProtectedDataDenialFallsBackWithoutWriter() throws {
+        let workspace = WorkspaceID(rawValue: UUID(uuid: (0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x47, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x0d)))
+        let target = try NavigationTargetV1(workspaceID: workspace, destination: .settings)
+        let result = try RouteRegistryV1().resolve(target, context: .init(currentWorkspaceID: workspace, currentRevision: 0, protectedDataAvailable: false))
+        XCTAssertEqual(result.disposition, .safeFallback)
+        XCTAssertEqual(result.reason, .protectedDataUnavailable)
+        XCTAssertEqual(result.target.destination, .today)
+        XCTAssertEqual(result.canonicalMutationCount, 0)
+        XCTAssertFalse(result.startsAutomaticWork)
+    }
+}

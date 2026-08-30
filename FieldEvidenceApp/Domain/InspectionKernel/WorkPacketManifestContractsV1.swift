@@ -459,3 +459,9 @@ enum C46OperationalContactConformance_FieldEvidenceApp_Domain_InspectionKernel_W
     static let contactExportExcludedByDefault = true
     static let siteRoleOwnershipForbidden = true
 }
+
+enum C34RouteAdoptionBoundary_WorkPacketManifestContractsV1 {
+    static let canonicalTargetType = NavigationTargetV1.self
+    static let workRoot = AppRootV1.work
+    static let startsAutomaticWork = false
+}

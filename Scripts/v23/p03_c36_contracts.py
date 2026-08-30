@@ -34,6 +34,14 @@ COORDINATION_CAS_SEQUENCE = 225
 HYDRATION_TRANSITION_DIGEST = "e0a4cf56d3d511e24074285cfc6174d0a045513f20de73a0fd28e92ec365567b"
 OVERRIDE_RECEIPT_DIGEST = "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452"
 
+C34_NAVIGATION_REPROOF = {
+    "consumerCardID": "V23-P03-C34", "referenceType": "DraftResumeAnchorV1",
+    "referenceFields": ["sectionID", "fieldID", "selectedStableID", "boundedPosition"],
+    "persistenceClass": "DEVICE_OPERATIONAL_NONCANONICAL", "canonicalMutationCount": 0,
+    "startsAutosave": False, "startsCommitSaga": False, "startsCapture": False,
+    "containsSecrets": False, "invalidatesOnSemanticChange": True,
+}
+
 REGISTER_SECTION_SHA256 = "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5"
 REGISTER_SECTION_UTF8_LENGTH = 44217
 REGISTER_ROW_SHA256 = "c45aebce4d9f8a8201feafc7b1e3e38f5b8f31843b8fbdb1cc73767f6d2c8b21"
@@ -407,6 +415,7 @@ CORPUS: dict[str, Any] = {
     "synthetic": True,
     "containsCustomerData": False,
     "containsSecrets": False,
+    "c34NavigationReproof": C34_NAVIGATION_REPROOF,
     "requiredContractNames": list(CONTRACT_NAMES),
     "persistentModelFamilies": [dict(value) for value in PERSISTENT_MODEL_FAMILIES],
     "persistentModelFamilyCount": PERSISTENT_FAMILY_COUNT,
@@ -622,7 +631,7 @@ def contract_document(root: Path, schema_row: dict[str, Any]) -> dict[str, Any]:
         "semanticScope": SEMANTIC_SCOPE, "requiredSemantics": {"contractNames": list(CONTRACT_NAMES), "persistentModelFamilies": [dict(value) for value in PERSISTENT_MODEL_FAMILIES], "persistentModelCount": PERSISTENT_MODEL_COUNT, "persistentModelFamilyCount": PERSISTENT_FAMILY_COUNT, "checkpointStates": CORPUS["checkpointStates"], "presentationStates": CORPUS["presentationStates"], "attachmentStates": CORPUS["attachmentStates"], "sagaStates": CORPUS["sagaStates"], "conflictPlans": CORPUS["conflictPlans"], "recoveryStatuses": CORPUS["recoveryStatuses"], "requiredBehaviors": list(REQUIRED_BEHAVIORS), "forbiddenClaims": list(FORBIDDEN_CLAIMS)},
         "persistenceBoundary": CORPUS["persistence"], "requiredLifecycle": list(LIFECYCLE_DIMENSIONS), "pathEvidence": _path_evidence(source_rows, authority_rows), "evidenceIDs": list(EVIDENCE_IDS), "testMethods": list(TEST_METHODS),
         "priorFenceOverlaps": list(PRIOR_FENCE_OVERLAPS), "priorFenceProof": PRIOR_FENCE_PROOF, "evidenceCases": list(EVIDENCE_CASES),
-        "successor": {"cardID": "V23-P03-C17", "attemptID": 1, "ordering": "IMMEDIATE_REGISTER_SUCCESSOR"}, "statusFlags": _flags(), "requiresAcceptedS10_6Reconciliation": True,
+        "successor": {"cardID": "V23-P03-C17", "attemptID": 1, "ordering": "IMMEDIATE_REGISTER_SUCCESSOR"}, "c34NavigationReproof": C34_NAVIGATION_REPROOF, "statusFlags": _flags(), "requiresAcceptedS10_6Reconciliation": True,
     })
 
 
@@ -634,7 +643,7 @@ def evidence_document(source_rows: list[dict[str, Any]], authority_rows: list[di
         "directPrerequisiteEvidence": DIRECT_PREREQUISITE_EVIDENCE, "sourceContractDigest": sha256_value(source_rows), "authorityArtifactDigest": sha256_value(authority_rows),
         "schemaArtifact": schema_row, "contractArtifact": {"path": CONTRACT_PATH, "bytes": len(pretty(contract_row)), "sha256": sha256_bytes(pretty(contract_row))}, "evidenceIDs": list(EVIDENCE_IDS), "testMethods": list(TEST_METHODS),
         "priorFenceOverlaps": list(PRIOR_FENCE_OVERLAPS), "priorFenceProof": PRIOR_FENCE_PROOF, "evidenceCases": list(EVIDENCE_CASES), "requiredSemanticsDigest": sha256_value(semantics),
-        "persistenceBoundary": CORPUS["persistence"], "pathEvidence": _path_evidence(source_rows, authority_rows), "statusFlags": _flags(), "requiresAcceptedS10_6Reconciliation": True,
+        "persistenceBoundary": CORPUS["persistence"], "pathEvidence": _path_evidence(source_rows, authority_rows), "c34NavigationReproof": C34_NAVIGATION_REPROOF, "statusFlags": _flags(), "requiresAcceptedS10_6Reconciliation": True,
     })
 
 
@@ -643,7 +652,7 @@ def brand_document(contract_row: dict[str, Any]) -> dict[str, Any]:
         "schema": "V23P03C36BrandImpactManifestV1", "artifact": "V23P03C36BrandImpactManifestV1", "cardID": CARD, "schemaVersion": SCHEMA_VERSION,
         "status": "PASS_STATIC_PROVISIONAL", "verificationMode": "STATIC_ONLY", "authority": _authority(), "brandImpactDisposition": "CONTRACT_ONLY_NO_SHIPPING_UI",
         "affectedSurfacePaths": [], "semanticStates": CORPUS["presentationStates"] + CORPUS["attachmentStates"], "contractArtifact": contract_row,
-        "priorFenceOverlaps": list(PRIOR_FENCE_OVERLAPS), "s10FenceOverlapPaths": [], "statusFlags": _flags(), "requiresAcceptedS10_6Reconciliation": True,
+        "priorFenceOverlaps": list(PRIOR_FENCE_OVERLAPS), "s10FenceOverlapPaths": [], "c34NavigationReproof": C34_NAVIGATION_REPROOF, "statusFlags": _flags(), "requiresAcceptedS10_6Reconciliation": True,
     })
 
 
@@ -679,7 +688,7 @@ def all_outputs(root: Path) -> dict[str, bytes]:
         "sourceReferenceCount": len(SOURCE_REFERENCE_PATHS), "sourceArtifacts": source_rows, "authorityArtifacts": authority_rows, "artifacts": manifest_rows,
         "artifactSetDigest": sha256_value(manifest_rows), "sourceProjection": SOURCE_PROJECTION, "directPrerequisiteEvidence": DIRECT_PREREQUISITE_EVIDENCE,
         "persistenceBoundary": CORPUS["persistence"], "priorFenceOverlaps": list(PRIOR_FENCE_OVERLAPS), "priorFenceProof": PRIOR_FENCE_PROOF, "frozenS10ReservationDigest": FROZEN_S10_RESERVATION_DIGEST,
-        "s10FenceOverlapPaths": [], "statusFlags": _flags(), "requiresAcceptedS10_6Reconciliation": True,
+        "s10FenceOverlapPaths": [], "c34NavigationReproof": C34_NAVIGATION_REPROOF, "statusFlags": _flags(), "requiresAcceptedS10_6Reconciliation": True,
     })
     rendered[MANIFEST_PATH] = pretty(manifest)
     return rendered

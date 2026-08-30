@@ -111,6 +111,9 @@ struct CurrentPersistentKindLifecycleCatalogV1: Sendable {
     }
 
     func validate() throws {
+        guard C34SceneNavigationPersistentLifecycleBoundaryV1.validate() else {
+            throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage
+        }
         guard C50IncumbentFileExchangePersistentLifecycleBoundaryV1.validate() else {
             throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage
         }
@@ -171,6 +174,19 @@ struct CurrentPersistentKindLifecycleCatalogV1: Sendable {
         )
         try receipt.validate()
         return receipt
+    }
+}
+
+enum C34SceneNavigationPersistentLifecycleBoundaryV1 {
+    static let persistentRowCount = 0
+    static let workspaceSchemaParticipation = false
+    static let mutationReceiptParticipation = false
+
+    static func validate() -> Bool {
+        C34SceneNavigationDeviceLifecycleBoundaryV1.validate()
+            && persistentRowCount == 0
+            && !workspaceSchemaParticipation
+            && !mutationReceiptParticipation
     }
 }
 

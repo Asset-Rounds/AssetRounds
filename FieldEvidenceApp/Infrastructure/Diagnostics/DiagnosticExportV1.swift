@@ -347,6 +347,20 @@ enum IntegrationProjectionDiagnosticExclusionV1 {
     }
 }
 
+enum C34SceneNavigationDiagnosticExclusionV1 {
+    static let forbiddenJSONKeys = [
+        "sceneNavigation", "sceneSnapshot", "selectedRoot", "paths",
+        "navigationTarget", "routeRestorationReceipt"
+    ]
+
+    static func validate(_ data: Data) throws {
+        guard C34SceneNavigationDeviceLifecycleBoundaryV1.validate(),
+              forbiddenJSONKeys.allSatisfy({ key in
+                  data.range(of: Data("\"\(key)\"".utf8)) == nil
+              }) else { throw DiagnosticExportError.invalidValue }
+    }
+}
+
 struct C30EvidenceContextDiagnosticMetadataV1: Codable, Equatable, Sendable {
     let contextCount: Int
     let pairedLinkCount: Int
@@ -514,6 +528,7 @@ struct DiagnosticExportService {
         }
         let canonicalData = try DiagnosticExportCanonicalEncoderV1.encode(value)
         try IntegrationProjectionDiagnosticExclusionV1.validate(canonicalData)
+        try C34SceneNavigationDiagnosticExclusionV1.validate(canonicalData)
         return PreparedDiagnosticExportV1(value: value, canonicalData: canonicalData)
     }
 }

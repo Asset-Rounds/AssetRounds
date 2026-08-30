@@ -598,3 +598,14 @@ extension C50KernelPersistenceTests {
         )
     }
 }
+
+extension V9_17KernelPersistenceTests {
+    func testV23P03C34RouteRootsRemainExactlyFourAndCanonical() {
+        let destinations: [NavigationDestinationV1] = [.today, .work, .assets, .reports]
+        XCTAssertEqual(
+            destinations.map { RouteRegistryV1.root(for: $0) },
+            AppRootV1.frozenOrder
+        )
+        XCTAssertEqual(AppRootV1.frozenOrder.count, 4)
+    }
+}

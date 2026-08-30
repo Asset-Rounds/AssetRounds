@@ -2,6 +2,114 @@ import Foundation
 
 enum WorkflowScheduleBoundaryV1 { static let dueProjectionMayStartWorkflow = false }
 
+enum C34NavigationAnchorDispositionV1: String, Codable, Hashable, Sendable {
+    case current = "CURRENT"
+    case safeFallbackStaleRevision = "SAFE_FALLBACK_STALE_REVISION"
+    case safeFallbackUnavailable = "SAFE_FALLBACK_UNAVAILABLE"
+
+    var routeFallbackReason: RouteFallbackReasonV1? {
+        switch self {
+        case .current: return nil
+        case .safeFallbackStaleRevision: return .staleRevision
+        case .safeFallbackUnavailable: return .deletedOrTombstoned
+        }
+    }
+}
+
+struct C34ScheduleNavigationAnchorV1: Codable, Equatable, Hashable, Sendable {
+    let workspaceID: WorkspaceID
+    let scheduleDefinitionID: UUID
+    let scheduleReleaseID: UUID
+    let expectedScheduleRevision: UInt64
+
+    init(reference: ScheduleDefinitionReleaseReferenceV1) throws {
+        try reference.validate()
+        workspaceID = reference.workspaceID
+        scheduleDefinitionID = reference.scheduleDefinitionID
+        scheduleReleaseID = reference.releaseID
+        expectedScheduleRevision = reference.revision
+    }
+
+    func validate() throws {
+        try ScheduleLimitsV1.id(scheduleDefinitionID)
+        try ScheduleLimitsV1.id(scheduleReleaseID)
+        try ScheduleLimitsV1.revision(expectedScheduleRevision)
+    }
+
+    func disposition(current: ScheduleDefinitionReleaseReferenceV1?) throws -> C34NavigationAnchorDispositionV1 {
+        try validate()
+        guard let current else { return .safeFallbackUnavailable }
+        try current.validate()
+        guard current.workspaceID == workspaceID, current.scheduleDefinitionID == scheduleDefinitionID else { return .safeFallbackUnavailable }
+        return current.releaseID == scheduleReleaseID && current.revision == expectedScheduleRevision ? .current : .safeFallbackStaleRevision
+    }
+
+    func navigationTarget() throws -> NavigationTargetV1 {
+        try validate()
+        return try NavigationTargetV1(
+            workspaceID: workspaceID,
+            destination: .work,
+            stableScheduleDefinitionID: scheduleDefinitionID,
+            stableScheduleReleaseID: scheduleReleaseID,
+            expectedScheduleRevision: expectedScheduleRevision,
+            fallback: NavigationFallbackV1(root: .work, destination: .work)
+        )
+    }
+}
+
+struct C34OccurrenceNavigationAnchorV1: Codable, Equatable, Hashable, Sendable {
+    let schedule: C34ScheduleNavigationAnchorV1
+    let occurrenceID: OccurrenceIDV1
+    let expectedOccurrenceRevision: UInt64
+
+    init(event: OccurrenceHistoryEventV1) throws {
+        try event.validateIntrinsic()
+        schedule = try C34ScheduleNavigationAnchorV1(reference: event.scheduleRelease)
+        occurrenceID = event.occurrenceID
+        expectedOccurrenceRevision = event.revision
+    }
+
+    func validate() throws {
+        try schedule.validate()
+        try occurrenceID.validate()
+        try ScheduleLimitsV1.revision(expectedOccurrenceRevision)
+    }
+
+    func disposition(current: OccurrenceHistoryEventV1?) throws -> C34NavigationAnchorDispositionV1 {
+        try validate()
+        guard let current else { return .safeFallbackUnavailable }
+        try current.validateIntrinsic()
+        guard current.workspaceID == schedule.workspaceID,
+              current.scheduleRelease.scheduleDefinitionID == schedule.scheduleDefinitionID,
+              current.occurrenceID == occurrenceID else { return .safeFallbackUnavailable }
+        return current.scheduleRelease.releaseID == schedule.scheduleReleaseID
+            && current.scheduleRelease.revision == schedule.expectedScheduleRevision
+            && current.revision == expectedOccurrenceRevision ? .current : .safeFallbackStaleRevision
+    }
+
+    func navigationTarget() throws -> NavigationTargetV1 {
+        try validate()
+        return try NavigationTargetV1(
+            workspaceID: schedule.workspaceID,
+            destination: .scheduleOccurrence,
+            stableScheduleDefinitionID: schedule.scheduleDefinitionID,
+            stableScheduleReleaseID: schedule.scheduleReleaseID,
+            stableOccurrenceID: occurrenceID,
+            requestedMode: .read,
+            expectedScheduleRevision: schedule.expectedScheduleRevision,
+            expectedOccurrenceRevision: expectedOccurrenceRevision,
+            fallback: NavigationFallbackV1(root: .work, destination: .work)
+        )
+    }
+}
+
+enum C34WorkflowNavigationBoundaryV1 {
+    static let restorationExecutesWorkflowMutation = false
+    static let restorationStartsWorkOrScheduleJobs = false
+    static let restorationRecalculatesOccurrenceOrTimeTruth = false
+    static let restorationReplaysActions = false
+}
+
 enum C51WorkflowScheduleBoundaryV1 {
     static let dueProjectionMayStartWorkflow = false
     static let scheduleClosureReferenceType = C51ScheduleClosureReferenceV1.self

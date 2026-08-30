@@ -269,3 +269,9 @@ enum C51ScheduleExceptionIntegrationConsumerBoundaryV1 {
             && checkpointRecoveryReplaysImmutableReceiptHistory
     }
 }
+
+enum C34SceneNavigationIntegrationConsumerBoundaryV1 {
+    static let consumedRouteEventKindCount = 0
+    static let consumesSceneState = false
+    static func validate() -> Bool { consumedRouteEventKindCount == 0 && !consumesSceneState && C34SceneNavigationIntegrationEventBoundaryV1.validate() }
+}

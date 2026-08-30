@@ -1,5 +1,21 @@
 import Foundation
 
+enum C34SceneNavigationDeviceLifecycleBoundaryV1 {
+    static let disposition = SceneNavigationLifecycleDispositionV1()
+
+    static func validate() -> Bool {
+        C34SceneNavigationCompatibilityBoundaryV1.validate()
+            && !disposition.workspaceTruth
+            && !disposition.backupIncluded
+            && !disposition.journalIncluded
+            && !disposition.reportIncluded
+            && !disposition.exportIncluded
+            && !disposition.searchIncluded
+            && disposition.eraseClears
+            && disposition.tolerantDecode
+    }
+}
+
 enum ProtectedDataLifecycleStateV1: String, Equatable, Sendable {
     case available = "AVAILABLE"
     case unavailable = "UNAVAILABLE"
@@ -117,6 +133,7 @@ actor DeviceLifecycleCoordinatorV1 {
     private let jobs: any ResumableLocalJobLifecyclePortV1
     private let operationalSupportStore: (any DeviceOperationalSupportStoreV2)?
     private let scratchDataLeaseStore: (any ScratchDataLeasePortV1)?
+    private let sceneNavigationState: SceneNavigationStateAdapterV1?
     private var state: DeviceLifecycleStateV1
     private var pendingActions: Set<DeviceLifecycleActionV1> = []
     private var deviceLocalRecoveryPending: Bool
@@ -125,11 +142,13 @@ actor DeviceLifecycleCoordinatorV1 {
         jobs: any ResumableLocalJobLifecyclePortV1,
         operationalSupportStore: (any DeviceOperationalSupportStoreV2)?,
         scratchDataLeaseStore: (any ScratchDataLeasePortV1)?,
+        sceneNavigationState: SceneNavigationStateAdapterV1?,
         initialState: DeviceLifecycleStateV1
     ) {
         self.jobs = jobs
         self.operationalSupportStore = operationalSupportStore
         self.scratchDataLeaseStore = scratchDataLeaseStore
+        self.sceneNavigationState = sceneNavigationState
         state = initialState
         deviceLocalRecoveryPending = operationalSupportStore != nil
             || scratchDataLeaseStore != nil
@@ -151,6 +170,7 @@ actor DeviceLifecycleCoordinatorV1 {
             jobs: jobs,
             operationalSupportStore: nil,
             scratchDataLeaseStore: nil,
+            sceneNavigationState: nil,
             initialState: initialState
         )
     }
@@ -178,6 +198,7 @@ actor DeviceLifecycleCoordinatorV1 {
             jobs: jobs,
             operationalSupportStore: operationalSupportStore,
             scratchDataLeaseStore: scratchDataLeaseStore,
+            sceneNavigationState: nil,
             initialState: initialState
         )
         if initialState.protectedData == .available {
@@ -185,6 +206,30 @@ actor DeviceLifecycleCoordinatorV1 {
             try await jobs.resumeAfterLifecycle(.protectedDataUnavailable)
         }
         return coordinator
+    }
+
+    /// The scene snapshot is device-operational state. It is accepted only
+    /// through the tolerant adapter and never opens canonical storage.
+    static func bootstrap(
+        jobs: any ResumableLocalJobLifecyclePortV1,
+        operationalSupportStore: any DeviceOperationalSupportStoreV2,
+        scratchDataLeaseStore: any ScratchDataLeasePortV1,
+        sceneNavigationStatePort: any SceneNavigationDeviceStatePortV1,
+        initialState: DeviceLifecycleStateV1 = .initiallyConservative
+    ) async throws -> DeviceLifecycleCoordinatorV1 {
+        let coordinator = try await bootstrap(
+            jobs: jobs,
+            operationalSupportStore: operationalSupportStore,
+            scratchDataLeaseStore: scratchDataLeaseStore,
+            initialState: initialState
+        )
+        return DeviceLifecycleCoordinatorV1(
+            jobs: jobs,
+            operationalSupportStore: operationalSupportStore,
+            scratchDataLeaseStore: scratchDataLeaseStore,
+            sceneNavigationState: SceneNavigationStateAdapterV1(port: sceneNavigationStatePort),
+            initialState: await coordinator.currentState()
+        )
     }
 
     func currentState() -> DeviceLifecycleStateV1 {
@@ -230,6 +275,7 @@ actor DeviceLifecycleCoordinatorV1 {
         }
         try await scratchDataLeaseStore.resetScratchData()
         try await operationalSupportStore.resetOperationalSupport()
+        try sceneNavigationState?.erase()
         deviceLocalRecoveryPending = false
     }
 

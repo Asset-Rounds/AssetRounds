@@ -185,3 +185,17 @@ enum C46OperationalContactConformance_FieldEvidenceApp_Domain_Models_FieldDraftP
     static let contactExportExcludedByDefault = true
     static let siteRoleOwnershipForbidden = true
 }
+
+/// Navigation carries the existing semantic anchor, never draft bytes,
+/// staging ownership, or a durable draft-state transition.
+enum C34DraftResumeNavigationBoundaryV1 {
+    static let carriedFields = ["sectionID", "fieldID", "selectedStableID", "boundedPosition"]
+    static let carriesPayloadBytes = false
+    static let carriesStageOwnership = false
+    static let persistsSceneState = false
+    static func validate(anchor: DraftResumeAnchorV1) -> Bool {
+        (try? anchor.validate()) != nil && carriedFields.count == 4
+            && !carriesPayloadBytes && !carriesStageOwnership && !persistsSceneState
+            && !SceneNavigationLifecycleDispositionV1().workspaceTruth
+    }
+}

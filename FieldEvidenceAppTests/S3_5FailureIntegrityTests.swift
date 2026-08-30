@@ -671,3 +671,13 @@ extension S3_5FailureIntegrityTests {
         }
     }
 }
+
+extension S3_5FailureIntegrityTests {
+    func testV23P03C34CorruptSceneStateFallsBackAndClearsBytes() throws {
+        let port = InMemorySceneNavigationDeviceStatePortV1()
+        let adapter = SceneNavigationStateAdapterV1(port: port)
+        try port.saveSceneNavigationData(Data("not-json".utf8))
+        XCTAssertEqual(try adapter.loadAndReconcile(), .discarded(.corruptSnapshot))
+        XCTAssertNil(port.data)
+    }
+}

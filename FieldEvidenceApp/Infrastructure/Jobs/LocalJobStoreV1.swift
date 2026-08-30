@@ -1029,3 +1029,10 @@ private struct LegacyLocalJobStoreEnvelopeV0: Decodable {
         case jobs
     }
 }
+
+enum C34SceneRestorationLocalJobStoreBoundaryV1 {
+    static let insertsJob = false
+    static let resumesStoredJob = false
+    static let ownsSceneState = false
+    static func validate(anchor: DraftResumeAnchorV1) -> Bool { !insertsJob && !resumesStoredJob && !ownsSceneState && C34SceneRestorationLocalJobSchemaBoundaryV1.validate(anchor: anchor) }
+}

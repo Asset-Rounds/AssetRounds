@@ -12,6 +12,12 @@ enum ScheduleDeviceClockBoundaryV1 {
     static let scheduleCausalOrderUsesDeviceWallClock = false
 }
 
+enum C34NavigationDeviceTimeBoundaryV1 {
+    static let restorationReadsWallClockToRecalculateSchedule = false
+    static let restorationReinterpretsFrozenOccurrenceBasis = false
+    static let staleRouteFallbackUsesDeviceTime = false
+}
+
 enum DeviceTimeSemanticsFailureV1: Error, Equatable, Sendable {
     case invalidWallTime
     case monotonicClockRegressed

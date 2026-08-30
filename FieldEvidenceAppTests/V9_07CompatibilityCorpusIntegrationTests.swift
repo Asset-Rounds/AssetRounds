@@ -984,3 +984,36 @@ extension C50CompatibilityCorpusIntegrationTests {
         )
     }
 }
+
+extension V9_07CompatibilityCorpusIntegrationTests {
+    func testV23P03C34CompatibilityKeepsFourRootsAndStableRouteIDs() throws {
+        let workspaceID = WorkspaceID(
+            rawValue: UUID(uuidString: "00000000-0000-4000-8000-00000000340d")!
+        )
+        let stableEntityID = UUID(uuidString: "00000000-0000-4000-8000-00000000340e")!
+        let target = try NavigationTargetV1(
+            workspaceID: workspaceID,
+            destination: .reports,
+            stableEntityID: stableEntityID
+        )
+        let today = try NavigationTargetV1(workspaceID: workspaceID, destination: .today)
+        let work = try NavigationTargetV1(workspaceID: workspaceID, destination: .work)
+        let assets = try NavigationTargetV1(workspaceID: workspaceID, destination: .assets)
+        let snapshot = try SceneNavigationSnapshotV1(
+            workspaceID: workspaceID,
+            selectedRoot: .reports,
+            paths: [
+                .init(root: .today, targets: [today]),
+                .init(root: .work, targets: [work]),
+                .init(root: .assets, targets: [assets]),
+                .init(root: .reports, targets: [target]),
+            ],
+            snapshotID: UUID(uuidString: "00000000-0000-4000-8000-00000000340f")!
+        )
+        let data = try RouteCanonicalCodecV1.encode(snapshot)
+        let decoded = try JSONDecoder().decode(SceneNavigationSnapshotV1.self, from: data)
+        XCTAssertEqual(decoded.selectedTarget?.stableEntityID, stableEntityID)
+        XCTAssertEqual(AppRootV1.frozenOrder.map(\.rawValue), ["TODAY", "WORK", "ASSETS", "REPORTS"])
+        XCTAssertEqual(Set(AppRootV1.frozenOrder).count, 4)
+    }
+}

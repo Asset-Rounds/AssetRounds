@@ -896,3 +896,17 @@ private final class C50IncumbentAdapterS83DiagnosticPrivacyBoundaryTests: XCTest
         XCTAssertFalse(C50IncumbentFileExchangeBackupExportBoundaryV1.exportsSecurityBookmarksOrExternalPaths)
     }
 }
+
+extension S8_3DiagnosticPrivacyTests {
+    func testV23P03C34DiagnosticsKeepSceneStateNoncanonicalAndPrivate() {
+        let lifecycle = SceneNavigationLifecycleDispositionV1()
+        XCTAssertEqual(lifecycle.persistenceClass, "DEVICE_OPERATIONAL_NONCANONICAL")
+        XCTAssertFalse(lifecycle.workspaceTruth)
+        XCTAssertFalse(lifecycle.backupIncluded)
+        XCTAssertFalse(lifecycle.journalIncluded)
+        XCTAssertFalse(lifecycle.reportIncluded)
+        XCTAssertFalse(lifecycle.exportIncluded)
+        XCTAssertFalse(lifecycle.searchIncluded)
+        XCTAssertTrue(lifecycle.tolerantDecode)
+    }
+}

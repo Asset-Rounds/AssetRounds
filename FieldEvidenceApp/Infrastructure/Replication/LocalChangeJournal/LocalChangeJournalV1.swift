@@ -1839,3 +1839,9 @@ enum C50IncumbentFileExchangeLocalChangeJournalBoundaryV1 {
             && C50IncumbentFileExchangePersistenceBoundaryV1.validate()
     }
 }
+
+enum C34SceneNavigationLocalJournalBoundaryV1 {
+    static let durableRouteKindCount = 0
+    static let journalsResolutionOrRestoration = false
+    static func validate() -> Bool { durableRouteKindCount == 0 && !journalsResolutionOrRestoration && C34SceneNavigationChangeJournalBoundaryV1.validate() }
+}

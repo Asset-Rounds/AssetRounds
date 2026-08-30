@@ -5061,3 +5061,74 @@ enum C49WorkResourceLocalizationPolicyV1 {
         }
     }
 }
+
+// MARK: - C34 route restoration localization
+
+enum C34RouteLocalizationKeyV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case safeFallbackAction = "navigation.route.fallback.action"
+    case safeFallbackHeading = "navigation.route.fallback.heading"
+    case corruptSnapshot = "navigation.route.fallback.reason.corrupt_snapshot"
+    case deletedOrTombstoned = "navigation.route.fallback.reason.deleted_or_tombstoned"
+    case invalidTarget = "navigation.route.fallback.reason.invalid_target"
+    case protectedDataUnavailable = "navigation.route.fallback.reason.protected_data_unavailable"
+    case retiredOrMissingPackage = "navigation.route.fallback.reason.retired_or_missing_package"
+    case revokedAvailability = "navigation.route.fallback.reason.revoked_availability"
+    case staleRevision = "navigation.route.fallback.reason.stale_revision"
+    case unsupportedSnapshotVersion = "navigation.route.fallback.reason.unsupported_snapshot_version"
+    case wrongWorkspace = "navigation.route.fallback.reason.wrong_workspace"
+}
+
+extension RouteFallbackReasonV1 {
+    var c34LocalizationKey: C34RouteLocalizationKeyV1 {
+        switch self {
+        case .wrongWorkspace: return .wrongWorkspace
+        case .staleRevision: return .staleRevision
+        case .deletedOrTombstoned: return .deletedOrTombstoned
+        case .retiredOrMissingPackage: return .retiredOrMissingPackage
+        case .revokedAvailability: return .revokedAvailability
+        case .protectedDataUnavailable: return .protectedDataUnavailable
+        case .corruptSnapshot: return .corruptSnapshot
+        case .unsupportedSnapshotVersion: return .unsupportedSnapshotVersion
+        case .invalidTarget: return .invalidTarget
+        }
+    }
+}
+
+enum C34RouteLocalizationContractV1 {
+    static let keys = C34RouteLocalizationKeyV1.allCases.sorted { $0.rawValue < $1.rawValue }
+    static let englishRuntimeAuthority = true
+    static let localeChangesDoNotChangeRouteIdentity = true
+    static let rtlChangesDoNotChangeRouteIdentity = true
+    static let customerContentIsNotLocalizationInput = true
+
+    static func english(_ key: C34RouteLocalizationKeyV1) -> String {
+        switch key {
+        case .safeFallbackAction: return "Go to safe destination"
+        case .safeFallbackHeading: return "This destination is unavailable"
+        case .corruptSnapshot: return "Saved navigation could not be read."
+        case .deletedOrTombstoned: return "That item is no longer available."
+        case .invalidTarget: return "That destination is not available."
+        case .protectedDataUnavailable: return "Unlock this device to continue."
+        case .retiredOrMissingPackage: return "That feature is no longer available."
+        case .revokedAvailability: return "Access to that destination is no longer available."
+        case .staleRevision: return "That item changed since it was last opened."
+        case .unsupportedSnapshotVersion: return "Saved navigation came from an unsupported version."
+        case .wrongWorkspace: return "That destination belongs to a different workspace."
+        }
+    }
+
+    static func validate() throws {
+        let values = keys.map(\.rawValue)
+        let mappedReasons = Set([
+            RouteFallbackReasonV1.wrongWorkspace,
+            .staleRevision, .deletedOrTombstoned, .retiredOrMissingPackage,
+            .revokedAvailability, .protectedDataUnavailable, .corruptSnapshot,
+            .unsupportedSnapshotVersion, .invalidTarget,
+        ].map(\.c34LocalizationKey))
+        guard values == values.sorted(), Set(values).count == values.count,
+              mappedReasons.count == 9,
+              keys.allSatisfy({ !english($0).isEmpty }) else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}

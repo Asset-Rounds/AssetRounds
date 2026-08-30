@@ -596,3 +596,9 @@ enum C33TemporalEvidenceBoundary_Application_Search_SearchCoordinatorV1_V1 {
 enum C45AcceptedLabelSearchCoordinatorBoundaryV1 { static let acceptedSnapshotMetadataIsProjected=true;static let forbiddenCustomerTextIsProjected=false;static let reprintUsesTypedQuery=true }
 
 enum C46OperationalContactBoundary_35{static let permittedProjection="PARTY_METADATA_ONLY";static let rawPhoneOrEmailIndexed=false}
+
+enum C34RouteAdoptionBoundary_SearchCoordinatorV1 {
+    static let searchAnchorType = RouteSearchAnchorV1.self
+    static let canonicalTargetType = NavigationTargetV1.self
+    static let routeStoresQueryText = false
+}

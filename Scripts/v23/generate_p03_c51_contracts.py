@@ -7,12 +7,14 @@ sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import p03_c51_contracts as contracts
+C34_REPROOF_CARD = "V23-P03-C34"
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
+    assert contracts.C34_NAVIGATION_REPROOF["consumerCardID"] == C34_REPROOF_CARD
     if args.apply == args.check:
         parser.error("choose exactly one of --apply or --check")
     outputs = contracts.all_outputs(ROOT)

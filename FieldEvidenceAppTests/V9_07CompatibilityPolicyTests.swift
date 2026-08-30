@@ -670,3 +670,18 @@ extension C50CompatibilityPolicyTests {
         )
     }
 }
+
+extension V9_07CompatibilityPolicyTests {
+    func testV23P03C34CompatibilityFailsClosedForUnknownOrCorruptSceneState() throws {
+        let port = InMemorySceneNavigationDeviceStatePortV1()
+        let adapter = SceneNavigationStateAdapterV1(port: port)
+        for payload in [Data(#"{"schemaVersion":2}"#.utf8), Data("corrupt".utf8)] {
+            try port.saveSceneNavigationData(payload)
+            let expected: SceneNavigationLoadResultV1 = payload.first == 123
+                ? .discarded(.unsupportedSnapshotVersion)
+                : .discarded(.corruptSnapshot)
+            XCTAssertEqual(try adapter.loadAndReconcile(), expected)
+            XCTAssertNil(port.data)
+        }
+    }
+}

@@ -1150,3 +1150,10 @@ enum C46OperationalContactChangeJournalBoundaryV1 {
         guard Set(try mutation.affectedIdentities.map(\.kind)).isSubset(of:durableKinds),!platformOutcomeIsCanonical else{throw ChangeJournalFailureV1.tamperedBatch}
     }
 }
+
+enum C34SceneNavigationChangeJournalBoundaryV1 {
+    static let journalCommandCount = 0
+    static let journalEntityKindCount = 0
+    static let restorationIsReplayableMutation = false
+    static func validate() -> Bool { journalCommandCount == 0 && journalEntityKindCount == 0 && !restorationIsReplayableMutation && C34SceneNavigationCanonicalExclusionV1.validate() }
+}

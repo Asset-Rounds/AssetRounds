@@ -672,3 +672,25 @@ enum C50IncumbentFileExchangeAccountabilityBoundaryV1 {
         }
     }
 }
+
+// MARK: - C34 route restoration accountability boundary
+
+/// Restoration carries semantic navigation identity only; it creates no
+/// actor, signoff, approval, qualification, or canonical mutation claim.
+enum C34RouteAccountabilityBoundaryV1 {
+    static let targetType: Any.Type = NavigationTargetV1.self
+    static let restorationReceiptType: Any.Type = RouteRestorationReceiptV1.self
+    static let actorSnapshotCopiedIntoRoute = false
+    static let partyDisplayNameCopiedIntoRoute = false
+    static let signoffOrApprovalInferred = false
+    static let identityOrQualificationInferred = false
+    static let canonicalMutationDuringResolutionAllowed = false
+
+    static func validate(_ receipt: RouteRestorationReceiptV1) throws {
+        try receipt.validate()
+        guard receipt.canonicalMutationCount == 0,
+              !receipt.startsAutomaticWork else {
+            throw PartyAccountabilityFailureV1.unsupportedClaim
+        }
+    }
+}

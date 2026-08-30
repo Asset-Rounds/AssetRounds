@@ -1497,3 +1497,19 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_39
         XCTAssertEqual(ActivityKindV1CompatibilityAdapterV2.v1(.survey), .survey)
     }
 }
+
+extension V9_39SurveyDefinitionTests {
+    func testV23P03C34SurveyRouteCarriesStableResumeSessionIdentity() throws {
+        let sessionID = UUID()
+        let target = try NavigationTargetV1(
+            workspaceID: WorkspaceID(),
+            destination: .work,
+            stableSessionID: sessionID,
+            requestedMode: .resume
+        )
+        try target.validate()
+        XCTAssertEqual(target.stableSessionID, sessionID)
+        XCTAssertEqual(target.requestedMode, .resume)
+        XCTAssertEqual(RouteRegistryV1.root(for: target.destination), .work)
+    }
+}

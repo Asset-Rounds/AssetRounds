@@ -1,5 +1,16 @@
 import Foundation
 
+enum C34SceneNavigationKernelEraseBoundaryV1 {
+    static let persistentRowCount = 0
+    static let eraseDisposition = "DEVICE_OPERATIONAL_CLEAR_ONLY"
+
+    static func validate() -> Bool {
+        C34SceneNavigationDeviceLifecycleBoundaryV1.validate()
+            && persistentRowCount == 0
+            && eraseDisposition == "DEVICE_OPERATIONAL_CLEAR_ONLY"
+    }
+}
+
 enum C50IncumbentFileExchangeKernelDeletionEnrollmentV1 {
     static let canonicalRowRegistrationCount = 0
     static let orphanCleanupOwnsTerminalScratch = true

@@ -1258,6 +1258,36 @@ extension V10_02MutationEnvelopeReceiptTests {
 }
 
 extension V10_02MutationEnvelopeReceiptTests {
+    func testV23P03C34RestorationReceiptBindsStableIdentityWithoutMutation() throws {
+        let workspaceID = WorkspaceID(
+            rawValue: UUID(uuidString: "00000000-0000-4000-8000-000000003402")!
+        )
+        let stableEntityID = UUID(uuidString: "00000000-0000-4000-8000-000000003403")!
+        let target = try NavigationTargetV1(
+            workspaceID: workspaceID,
+            destination: .draftReview,
+            stableEntityID: stableEntityID,
+            requestedMode: .resume
+        )
+        let result = try RouteRegistryV1().resolve(
+            target,
+            context: .init(currentWorkspaceID: workspaceID, currentRevision: 0)
+        )
+        let receipt = try RouteRestorationReceiptV1(
+            receiptID: UUID(uuidString: "00000000-0000-4000-8000-000000003404")!,
+            evidenceKind: .golden,
+            source: .explicitIngress,
+            result: result,
+            snapshotID: nil
+        )
+        try receipt.validate()
+        XCTAssertEqual(receipt.result.target.stableEntityID, stableEntityID)
+        XCTAssertEqual(receipt.canonicalMutationCount, 0)
+        XCTAssertFalse(receipt.startsAutomaticWork)
+    }
+}
+
+extension V10_02MutationEnvelopeReceiptTests {
     func testV23P03C36ReceiptBindsMutationDigestSagaChainAndCanonicalReadBack() throws {
         let fixture = try C36FieldDraftTestSupportV1.makeFixture()
         let mutation = try FieldDraftMutationV1(

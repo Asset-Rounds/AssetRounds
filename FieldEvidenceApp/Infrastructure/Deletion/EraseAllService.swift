@@ -9,6 +9,14 @@ enum C50IncumbentFileExchangeEraseAllBoundaryV1 {
     static let disablesOrRewritesInstalledProfileRelease = false
 }
 
+enum C34SceneNavigationEraseAllBoundaryV1 {
+    static func validate() throws {
+        guard C34SceneNavigationDeviceLifecycleBoundaryV1.validate() else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+}
+
 enum SurveySessionEraseAllEnrollmentV1{static func validate()throws{try SurveySessionDeletionLedgerPolicyV1.validate();guard SurveySessionEraseIntentEnrollmentV1.schemaVersion==25,SurveySessionEraseIntentEnrollmentV1.removesAllFiveFamilies else{throw DeletionLedgerFailureV2.invalidSchemaVersion}}}
 
 enum C30EvidenceContextEraseAllPolicyV1 {
@@ -351,6 +359,7 @@ final class EraseAllService {
     private let makeUUID: () -> UUID
     private let sleeper: any ApplicationSleeper
     private let failureInjection: EraseAllFailureInjection?
+    private let sceneNavigationStatePort: (any SceneNavigationDeviceStatePortV1)?
 
     init(
         applicationSupportURL: URL,
@@ -362,7 +371,8 @@ final class EraseAllService {
             ?? "com.palatis3.fieldrecord",
         makeUUID: @escaping () -> UUID = UUID.init,
         sleeper: any ApplicationSleeper = SystemApplicationSleeper(),
-        failureInjection: EraseAllFailureInjection? = nil
+        failureInjection: EraseAllFailureInjection? = nil,
+        sceneNavigationStatePort: (any SceneNavigationDeviceStatePortV1)? = nil
     ) {
         let support = applicationSupportURL.standardizedFileURL
         self.applicationSupportURL = support
@@ -384,6 +394,7 @@ final class EraseAllService {
         self.makeUUID = makeUUID
         self.sleeper = sleeper
         self.failureInjection = failureInjection
+        self.sceneNavigationStatePort = sceneNavigationStatePort
     }
 
     func erase(
@@ -427,6 +438,7 @@ final class EraseAllService {
         lifecycleRoute: EraseAllLifecycleRouteV1
     ) async throws -> EraseAllOutcome {
         try IntegrationProjectionEraseAllPolicyV1.validate()
+        try C34SceneNavigationEraseAllBoundaryV1.validate()
         guard confirmation == Self.requiredConfirmation else {
             throw EraseAllServiceError.invalidConfirmation
         }
@@ -1250,6 +1262,7 @@ private extension EraseAllService {
             clock: Date.init
         )
         try await scratchDataLeaseStore.eraseScratchData()
+        try sceneNavigationStatePort?.eraseSceneNavigationData()
         try PortableExchangeProtectedFilePolicyV2.validate()
         let portableExchangeStore = try PortableExchangeSessionStoreV2(
             applicationSupportURL: applicationSupportURL,

@@ -1,5 +1,10 @@
 import Foundation
 
+enum C34AssetSemanticNavigationLifecycleBoundaryV1 {
+    static let restorationUsesProjectionOnly = true
+    static let restorationCommitsMutation = false
+}
+
 enum AssetSemanticsScheduleLifecycleBoundaryV1 { static let noSecondScheduleWriter = true }
 
 enum C51AssetSemanticsScheduleLifecycleBoundaryV1 {

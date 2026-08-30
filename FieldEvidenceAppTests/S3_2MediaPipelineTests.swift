@@ -778,3 +778,33 @@ extension S3_2MediaPipelineTests {
         XCTAssertThrowsError(try service.draftAttachmentRequiredBytes(byteCount: 0))
     }
 }
+
+extension S3_2MediaPipelineTests {
+    func testV23P03C34SceneResumeDoesNotStartMediaWork() throws {
+        let workspace = WorkspaceID(rawValue: UUID(uuid: (0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x47, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x02)))
+        let target = try NavigationTargetV1(workspaceID: workspace, destination: .assets, requestedMode: .resume)
+        let today = try NavigationTargetV1(workspaceID: workspace, destination: .today)
+        let work = try NavigationTargetV1(workspaceID: workspace, destination: .work)
+        let reports = try NavigationTargetV1(workspaceID: workspace, destination: .reports)
+        let snapshot = try SceneNavigationSnapshotV1(workspaceID: workspace, selectedRoot: .assets, paths: [
+            .init(root: .today, targets: [today]),
+            .init(root: .work, targets: [work]),
+            .init(root: .assets, targets: [target]),
+            .init(root: .reports, targets: [reports])
+        ], snapshotID: UUID())
+        let receipt = try RouteCoordinatorV1(registry: try RouteRegistryV1()).restore(.init(
+            context: .init(currentWorkspaceID: workspace, currentRevision: 0),
+            startupMaintenanceTarget: nil,
+            incompleteMutationRecoveryTarget: nil,
+            explicitIngressTarget: nil,
+            sceneSnapshot: snapshot,
+            discardedSnapshotReason: nil,
+            evidenceKind: .interruption,
+            receiptID: UUID()
+        ))
+        XCTAssertEqual(receipt.source, .sceneSnapshot)
+        XCTAssertEqual(receipt.result.target.destination, .assets)
+        XCTAssertEqual(receipt.canonicalMutationCount, 0)
+        XCTAssertFalse(receipt.startsAutomaticWork)
+    }
+}

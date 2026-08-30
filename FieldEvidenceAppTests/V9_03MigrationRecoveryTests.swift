@@ -1773,3 +1773,18 @@ extension C50MigrationRecoveryTests {
         )
     }
 }
+
+extension V9_03MigrationRecoveryTests {
+    func testV23P03C34FutureAndCorruptSceneBytesDiscardAndErase() throws {
+        let port = InMemorySceneNavigationDeviceStatePortV1()
+        let adapter = SceneNavigationStateAdapterV1(port: port)
+        try port.saveSceneNavigationData(Data(#"{"schemaVersion":99}"#.utf8))
+        XCTAssertEqual(
+            try adapter.loadAndReconcile(), .discarded(.unsupportedSnapshotVersion)
+        )
+        XCTAssertNil(port.data)
+        try port.saveSceneNavigationData(Data("not-json".utf8))
+        XCTAssertEqual(try adapter.loadAndReconcile(), .discarded(.corruptSnapshot))
+        XCTAssertNil(port.data)
+    }
+}

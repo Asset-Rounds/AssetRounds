@@ -3,6 +3,12 @@ import Darwin
 import Foundation
 
 enum C50IncumbentFileExchangeWholeSignDeletionServiceBoundaryV1 {
+    static func clearSceneRouteState(using adapter: SceneNavigationStateAdapterV1) throws {
+        guard C34SceneNavigationCompatibilityBoundaryV1.validate() else {
+            throw WholeSignDeletionServiceError.invalidAuthority
+        }
+        try adapter.erase()
+    }
     static let removesAdapterScratchDuringSubjectCascade = false
     static let removesAdapterQuarantineDuringSubjectCascade = false
     static let preservesCanonicalImportedRowsPerExistingGraph = true

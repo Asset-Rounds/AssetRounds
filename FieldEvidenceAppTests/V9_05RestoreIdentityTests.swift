@@ -1246,3 +1246,48 @@ extension C50RestoreIdentityTests {
         )
     }
 }
+
+extension V9_05RestoreIdentityTests {
+    func testV23P03C34RestorationPreservesStableOccurrenceWithoutAutoResume() throws {
+        let workspaceID = WorkspaceID(
+            rawValue: UUID(uuidString: "00000000-0000-4000-8000-000000003408")!
+        )
+        let occurrenceID = OccurrenceIDV1(rawValue: String(repeating: "a", count: 64))
+        let scheduleDefinitionID = UUID(uuidString: "00000000-0000-4000-8000-000000003409")!
+        let scheduleReleaseID = UUID(uuidString: "00000000-0000-4000-8000-00000000340c")!
+        let scheduleRevision: UInt64 = 1
+        let occurrenceRevision: UInt64 = 1
+        let target = try NavigationTargetV1(
+            workspaceID: workspaceID,
+            destination: .scheduleOccurrence,
+            stableScheduleDefinitionID: scheduleDefinitionID,
+            stableScheduleReleaseID: scheduleReleaseID,
+            stableOccurrenceID: occurrenceID,
+            requestedMode: .resume,
+            expectedScheduleRevision: scheduleRevision,
+            expectedOccurrenceRevision: occurrenceRevision
+        )
+        let receipt = try RouteCoordinatorV1(registry: try RouteRegistryV1()).restore(
+            .init(
+                context: .init(
+                    currentWorkspaceID: workspaceID,
+                    currentRevision: 0,
+                    currentScheduleRevisions: [scheduleDefinitionID: scheduleRevision],
+                    currentScheduleReleaseIDs: [scheduleDefinitionID: scheduleReleaseID],
+                    currentOccurrenceRevisions: [occurrenceID: occurrenceRevision]
+                ),
+                startupMaintenanceTarget: nil,
+                incompleteMutationRecoveryTarget: nil,
+                explicitIngressTarget: target,
+                sceneSnapshot: nil,
+                discardedSnapshotReason: nil,
+                evidenceKind: .recovery,
+                receiptID: UUID(uuidString: "00000000-0000-4000-8000-00000000340a")!
+            )
+        )
+        try receipt.validate()
+        XCTAssertEqual(receipt.source, .explicitIngress)
+        XCTAssertEqual(receipt.result.target.stableOccurrenceID, occurrenceID)
+        XCTAssertFalse(receipt.startsAutomaticWork)
+    }
+}

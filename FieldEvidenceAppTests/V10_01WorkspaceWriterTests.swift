@@ -962,3 +962,21 @@ extension C45WorkspaceWriterCompatibilityTests {
         )
     }
 }
+
+extension V10_01WorkspaceWriterTests {
+    func testV23P03C34RouteResolutionCannotWriteOrStartWork() throws {
+        let workspaceID = WorkspaceID(
+            rawValue: UUID(uuidString: "00000000-0000-4000-8000-000000003401")!
+        )
+        let target = try NavigationTargetV1(
+            workspaceID: workspaceID, destination: .work, requestedMode: .resume
+        )
+        let result = try RouteRegistryV1().resolve(
+            target,
+            context: .init(currentWorkspaceID: workspaceID, currentRevision: 0)
+        )
+        XCTAssertEqual(result.disposition, .resolved)
+        XCTAssertEqual(result.canonicalMutationCount, 0)
+        XCTAssertFalse(result.startsAutomaticWork)
+    }
+}

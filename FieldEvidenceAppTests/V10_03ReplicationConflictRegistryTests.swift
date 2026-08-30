@@ -709,6 +709,36 @@ extension V10_03ReplicationConflictRegistryTests {
 }
 
 extension V10_03ReplicationConflictRegistryTests {
+    func testV23P03C34PackageSurfaceCannotAddShellParserOrWriter() throws {
+        let route = PackageSurfaceRouteV1(
+            routeID: "package.surface.c34",
+            root: .assets,
+            destination: .packageSurface,
+            kind: .destination,
+            startsAutomaticWork: false
+        )
+        let manifest = try PackageSurfaceManifestV1(
+            packageID: "package.c34", routes: [route]
+        )
+        let registry = try RouteRegistryV1(manifests: [manifest])
+        let receipt = RouteConformanceReceiptV1(
+            registry: registry, evidenceKind: .alternate,
+            observedShellCount: 1, observedParserCount: 1,
+            observedMutationAuthorityCount: 0
+        )
+        try receipt.validate()
+        XCTAssertEqual(receipt.mutationAuthorityCount, 0)
+        XCTAssertEqual(receipt.shellCount, 1)
+        XCTAssertEqual(receipt.parserCount, 1)
+        XCTAssertThrowsError(
+            try PackageSurfaceManifestV1(
+                packageID: "package.c34.shell", routes: [route], addsNavigationShell: true
+            )
+        )
+    }
+}
+
+extension V10_03ReplicationConflictRegistryTests {
     func testV23P03C36ConflictPlanRejectsDivergentSagaAndKeepsExplicitChoicesClosed() throws {
         let fixture = try C36FieldDraftTestSupportV1.makeFixture()
         XCTAssertEqual(DraftConflictResolutionPlanV1.allCases, [

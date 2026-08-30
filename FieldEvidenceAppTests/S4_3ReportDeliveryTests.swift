@@ -1120,3 +1120,15 @@ private final class C50IncumbentAdapterS43DeliveryBoundaryTests: XCTestCase {
         XCTAssertFalse(C50IncumbentFileExchangeEraseAllBoundaryV1.recallsEscapedFiles)
     }
 }
+
+extension S4_3ReportDeliveryTests {
+    func testV23P03C34ReportRouteUsesTypedRootWithoutMutation() throws {
+        let workspace = WorkspaceID(rawValue: UUID(uuid: (0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x47, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x06)))
+        let target = try NavigationTargetV1(workspaceID: workspace, destination: .reports)
+        let result = try RouteRegistryV1().resolve(target, context: .init(currentWorkspaceID: workspace, currentRevision: 0))
+        XCTAssertEqual(RouteRegistryV1.root(for: .reports), .reports)
+        XCTAssertEqual(result.target.destination, .reports)
+        XCTAssertEqual(result.canonicalMutationCount, 0)
+        XCTAssertFalse(result.startsAutomaticWork)
+    }
+}

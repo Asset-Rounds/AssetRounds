@@ -4753,3 +4753,63 @@ enum C50IncumbentFileExchangeLocalizationBoundaryV1 {
             && values.contains("The app could not confirm whether the file was saved")
     }
 }
+
+// MARK: - C34 route restoration catalog
+
+enum C34RouteBundledLocalizationCatalogV1 {
+    static func safeFallbackHeading(
+        bundle: Bundle = .main,
+        locale: Locale = .current
+    ) -> String {
+        String(localized: "navigation.route.fallback.heading",
+               defaultValue: "This destination is unavailable",
+               bundle: bundle, locale: locale,
+               comment: "Heading shown when a restored route safely falls back.")
+    }
+
+    static func safeFallbackAction(
+        bundle: Bundle = .main,
+        locale: Locale = .current
+    ) -> String {
+        String(localized: "navigation.route.fallback.action",
+               defaultValue: "Go to safe destination",
+               bundle: bundle, locale: locale,
+               comment: "Action that opens the validated safe route destination.")
+    }
+
+    static func reason(
+        _ reason: RouteFallbackReasonV1,
+        bundle: Bundle = .main,
+        locale: Locale = .current
+    ) -> String {
+        switch reason {
+        case .wrongWorkspace:
+            return String(localized: "navigation.route.fallback.reason.wrong_workspace", defaultValue: "That destination belongs to a different workspace.", bundle: bundle, locale: locale)
+        case .staleRevision:
+            return String(localized: "navigation.route.fallback.reason.stale_revision", defaultValue: "That item changed since it was last opened.", bundle: bundle, locale: locale)
+        case .deletedOrTombstoned:
+            return String(localized: "navigation.route.fallback.reason.deleted_or_tombstoned", defaultValue: "That item is no longer available.", bundle: bundle, locale: locale)
+        case .retiredOrMissingPackage:
+            return String(localized: "navigation.route.fallback.reason.retired_or_missing_package", defaultValue: "That feature is no longer available.", bundle: bundle, locale: locale)
+        case .revokedAvailability:
+            return String(localized: "navigation.route.fallback.reason.revoked_availability", defaultValue: "Access to that destination is no longer available.", bundle: bundle, locale: locale)
+        case .protectedDataUnavailable:
+            return String(localized: "navigation.route.fallback.reason.protected_data_unavailable", defaultValue: "Unlock this device to continue.", bundle: bundle, locale: locale)
+        case .corruptSnapshot:
+            return String(localized: "navigation.route.fallback.reason.corrupt_snapshot", defaultValue: "Saved navigation could not be read.", bundle: bundle, locale: locale)
+        case .unsupportedSnapshotVersion:
+            return String(localized: "navigation.route.fallback.reason.unsupported_snapshot_version", defaultValue: "Saved navigation came from an unsupported version.", bundle: bundle, locale: locale)
+        case .invalidTarget:
+            return String(localized: "navigation.route.fallback.reason.invalid_target", defaultValue: "That destination is not available.", bundle: bundle, locale: locale)
+        }
+    }
+
+    static func validate() throws {
+        try C34RouteLocalizationContractV1.validate()
+        guard RouteFallbackReasonV1.wrongWorkspace.c34LocalizationKey == .wrongWorkspace,
+              !safeFallbackHeading().isEmpty,
+              !safeFallbackAction().isEmpty else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}

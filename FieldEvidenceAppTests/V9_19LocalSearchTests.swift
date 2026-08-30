@@ -1272,3 +1272,18 @@ private final class C49WorkResourceSearchBoundaryTests: XCTestCase {
         XCTAssertTrue(C49WorkResourceLifecycleBoundaryV1.searchAndReportAreDerivedOnly)
     }
 }
+
+extension V9_19LocalSearchTests {
+    func testV23P03C34SearchAnchorIsSortedBoundedAndStable() throws {
+        let anchor = try RouteSearchAnchorV1(
+            scopeID: "search.scope",
+            filterIDs: ["WORK", "ASSETS"],
+            selectedStableID: "search.result",
+            boundedPosition: 9
+        )
+        try anchor.validate()
+        XCTAssertEqual(anchor.filterIDs, ["ASSETS", "WORK"])
+        XCTAssertEqual(anchor.selectedStableID, "search.result")
+        XCTAssertEqual(anchor.boundedPosition, 9)
+    }
+}

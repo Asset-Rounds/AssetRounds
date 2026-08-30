@@ -486,6 +486,9 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
     }
 
     func validate() throws {
+        guard C34SceneNavigationSyncBoundaryV1.validate() else {
+            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+        }
         guard C50IncumbentFileExchangeSyncBoundaryV1.validate() else {
             throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
         }
@@ -1649,5 +1652,22 @@ enum C50IncumbentFileExchangeSyncBoundaryV1 {
             && canonicalImportedEffectsUseExistingSyncOwner
             && rawInputAndQuarantineAreExcluded
             && C50IncumbentFileExchangePersistenceBoundaryV1.validate()
+    }
+}
+
+enum C34SceneNavigationSyncBoundaryV1 {
+    static let filesystemBackup = CurrentFilesystemBackupDispositionV1.excluded
+    static let semanticBackup = ReplicationBackupDispositionV1.excluded
+    static let portableExport = ReplicationExportDispositionV1.excluded
+    static let journalParticipation = false
+    static let customerExportParticipation = false
+
+    static func validate() -> Bool {
+        C34SceneNavigationDeviceLifecycleBoundaryV1.validate()
+            && filesystemBackup == .excluded
+            && semanticBackup == .excluded
+            && portableExport == .excluded
+            && !journalParticipation
+            && !customerExportParticipation
     }
 }

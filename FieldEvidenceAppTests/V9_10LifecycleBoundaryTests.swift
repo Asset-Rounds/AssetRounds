@@ -1628,3 +1628,29 @@ extension C45LifecycleBoundaryCompatibilityTests {
         )
     }
 }
+
+extension V9_10LifecycleBoundaryTests {
+    func testV23P03C34RouteReceiptLifecycleIsPreviewOnly() throws {
+        let workspaceID = WorkspaceID(
+            rawValue: UUID(uuidString: "00000000-0000-4000-8000-000000003410")!
+        )
+        let target = try NavigationTargetV1(
+            workspaceID: workspaceID, destination: .assets
+        )
+        let result = try RouteRegistryV1().resolve(
+            target,
+            context: .init(currentWorkspaceID: workspaceID, currentRevision: 0)
+        )
+        let receipt = try RouteRestorationReceiptV1(
+            receiptID: UUID(uuidString: "00000000-0000-4000-8000-000000003411")!,
+            evidenceKind: .interruption,
+            source: .explicitIngress,
+            result: result,
+            snapshotID: nil
+        )
+        try receipt.validate()
+        XCTAssertEqual(result.canonicalMutationCount, 0)
+        XCTAssertFalse(result.startsAutomaticWork)
+        XCTAssertFalse(SceneNavigationLifecycleDispositionV1().workspaceTruth)
+    }
+}

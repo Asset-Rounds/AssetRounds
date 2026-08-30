@@ -3963,3 +3963,18 @@ enum C50IncumbentFileExchangeSearchBoundaryV1 {
             && canonicalTargetRowsRemainOwnedByExistingSearchProjections
     }
 }
+
+enum C34SearchRouteSemanticIDAdapterV1 {
+    static let routeAnchorType = RouteSearchAnchorV1.self
+    static let routeStoresQueryText = false
+
+    static func anchor(from session: SearchSessionStateV1) throws -> RouteSearchAnchorV1 {
+        try RouteSearchAnchorV1(sanitizing: session)
+    }
+}
+
+enum C34RouteAdoptionBoundary_SearchContractsV1 {
+    static let searchAnchorType = RouteSearchAnchorV1.self
+    static let canonicalTargetType = NavigationTargetV1.self
+    static let routeStoresQueryText = false
+}

@@ -1,5 +1,6 @@
 {
   "cardID": "V23-P03-C51",
+  "c34NavigationReproof": {"consumerCardID":"V23-P03-C34","referenceType":"NavigationTargetV1","stableReferenceFields":["stableOccurrenceID","expectedRevision"],"persistenceClass":"DEVICE_OPERATIONAL_NONCANONICAL","canonicalMutationCount":0,"startsScheduleWork":false,"changesCalendarOrOverrideTruth":false,"containsSecrets":false,"invalidatesOnSemanticChange":true},
   "schema": "V22P03C51ScheduleExceptionCalendarCorpusV1",
   "schemaVersion": 1,
   "evidenceIDs": [

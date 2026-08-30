@@ -1,5 +1,18 @@
 import Foundation
 
+extension ScheduleOverrideEventV1 {
+    func c34ScheduleNavigationAnchor() throws -> C34ScheduleNavigationAnchorV1 {
+        try validate()
+        return try C34ScheduleNavigationAnchorV1(reference: scheduleRelease)
+    }
+}
+
+enum C34ScheduleOverrideNavigationBoundaryV1 {
+    static let routeAnchorStoresOverridePayload = false
+    static let restorationAppliesOrReplaysOverride = false
+    static let staleOverrideReferenceUsesSafeScheduleFallback = true
+}
+
 enum ScheduleOverrideScopeV1: String, Codable, CaseIterable, Hashable, Sendable {
     case thisOccurrence = "THIS_OCCURRENCE"
     case thisAndFuture = "THIS_AND_FUTURE"

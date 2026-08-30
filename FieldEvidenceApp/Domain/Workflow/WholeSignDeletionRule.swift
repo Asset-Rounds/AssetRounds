@@ -1,6 +1,7 @@
 import Foundation
 
 enum C50IncumbentFileExchangeWholeSignDeletionRuleV1 {
+    static let excludesSceneRouteState = C34SceneNavigationCompatibilityBoundaryV1.validate()
     static let canonicalImportedRowsFollowTheirSubjectOwners = true
     static let adapterLayerDeletesCanonicalRows = false
     static let adapterLayerDeletesImmutableMutationHistory = false

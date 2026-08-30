@@ -109,6 +109,64 @@
       "type": "array",
       "uniqueItems": true
     },
+    "c34NavigationReproof": {
+      "additionalProperties": false,
+      "properties": {
+        "canonicalMutationCount": {
+          "type": "integer"
+        },
+        "consumerCardID": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "containsSecrets": {
+          "type": "boolean"
+        },
+        "invalidatesOnSemanticChange": {
+          "type": "boolean"
+        },
+        "persistenceClass": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "referenceFields": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "referenceType": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "startsAutosave": {
+          "type": "boolean"
+        },
+        "startsCapture": {
+          "type": "boolean"
+        },
+        "startsCommitSaga": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "canonicalMutationCount",
+        "consumerCardID",
+        "containsSecrets",
+        "invalidatesOnSemanticChange",
+        "persistenceClass",
+        "referenceFields",
+        "referenceType",
+        "startsAutosave",
+        "startsCapture",
+        "startsCommitSaga"
+      ],
+      "type": "object"
+    },
     "cardID": {
       "minLength": 1,
       "type": "string"
@@ -712,6 +770,7 @@
     "autosave",
     "backupRestore",
     "boundaryRefs",
+    "c34NavigationReproof",
     "cardID",
     "checkpointStates",
     "conflictPlans",

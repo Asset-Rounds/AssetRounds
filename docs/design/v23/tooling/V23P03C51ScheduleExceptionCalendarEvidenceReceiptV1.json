@@ -17,6 +17,20 @@
     "pathFenceDigest": "8937c7d17e699db09925ad0deeeae769b7a677b2b796599dcf21b2aa34423094",
     "provisionalPrerequisiteDigest": "c5445c9408d5a8e41ebf196b1646fb528dc67103b3b56cd066ca3c5f7d4b5ca0"
   },
+  "c34NavigationReproof": {
+    "canonicalMutationCount": 0,
+    "changesCalendarOrOverrideTruth": false,
+    "consumerCardID": "V23-P03-C34",
+    "containsSecrets": false,
+    "invalidatesOnSemanticChange": true,
+    "persistenceClass": "DEVICE_OPERATIONAL_NONCANONICAL",
+    "referenceType": "NavigationTargetV1",
+    "stableReferenceFields": [
+      "stableOccurrenceID",
+      "expectedRevision"
+    ],
+    "startsScheduleWork": false
+  },
   "cardID": "V23-P03-C51",
   "cases": {
     "alternate": {

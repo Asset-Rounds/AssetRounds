@@ -1281,3 +1281,18 @@ enum C50IncumbentFileExchangeReportRecoveryBoundaryV1 {
             && deterministicDerivedRebuild
     }
 }
+
+// MARK: - C34 route snapshot report recovery exclusion
+
+enum C34RouteSnapshotReportRecoveryBoundaryV1 {
+    static let snapshotType: Any.Type = SceneNavigationSnapshotV1.self
+    static let reportRecoveryRestoresRouteSnapshot = false
+    static let reportRecoveryReplaysRouteResolution = false
+    static let reportRecoveryStartsAutomaticWork = false
+    static let corruptRouteStateIsOwnedBySceneNavigationAdapter = true
+
+    static func validate(_ lifecycle: SceneNavigationLifecycleDispositionV1 = .init()) -> Bool {
+        !lifecycle.reportIncluded && !reportRecoveryRestoresRouteSnapshot
+            && !reportRecoveryReplaysRouteResolution
+    }
+}

@@ -1196,3 +1196,36 @@ private final class C46V911TemporalCompatibilityTests: XCTestCase {
         )
     }
 }
+
+extension V9_11ObservationTemporalSemanticsTests {
+    func testV23P03C34AnchorsUseStableIDsAndBoundedPositions() throws {
+        let field = try FieldPositionAnchorV1(
+            sectionID: "section.c34",
+            fieldID: "field.c34",
+            selectedStableID: "entity.c34",
+            boundedPosition: 7
+        )
+        let search = try RouteSearchAnchorV1(
+            scopeID: "scope.c34",
+            filterIDs: ["filter.c34"],
+            selectedStableID: "entity.c34",
+            boundedPosition: 3
+        )
+        let workspaceID = WorkspaceID(
+            rawValue: UUID(uuidString: "00000000-0000-4000-8000-000000003412")!
+        )
+        let target = try NavigationTargetV1(
+            workspaceID: workspaceID,
+            destination: .searchResults,
+            fieldPosition: field,
+            searchAnchor: search
+        )
+        let roundTrip = try JSONDecoder().decode(
+            NavigationTargetV1.self,
+            from: RouteCanonicalCodecV1.encode(target)
+        )
+        XCTAssertEqual(roundTrip.fieldPosition, field)
+        XCTAssertEqual(roundTrip.searchAnchor, search)
+        XCTAssertEqual(roundTrip.workspaceID, workspaceID)
+    }
+}

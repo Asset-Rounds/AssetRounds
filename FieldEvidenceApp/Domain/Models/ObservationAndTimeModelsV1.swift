@@ -4,6 +4,12 @@ enum PlacementPoseObservationTimeBoundaryV1{static let poseTimesUseCanonicalMill
 
 enum ObservationScheduleBoundaryV1 { static let scheduleTimeBasisIsFrozen = true }
 
+enum C34NavigationObservationTimeBoundaryV1 {
+    static let routeSnapshotStoresObservationOrTimePayload = false
+    static let restorationRecalculatesFrozenTimeTruth = false
+    static let restorationUsesCurrentDeviceZone = false
+}
+
 enum C51ObservationTimeScheduleBoundaryV1 {
     static let occurrenceBasisReusesFrozenScheduleTimeBasis = true
     static let deviceCurrentTimeZoneIsNotReinterpreted = true

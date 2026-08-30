@@ -588,3 +588,9 @@ extension C49WorkResourceContentReferenceBoundaryV1 {
         }
     }
 }
+
+enum C34RouteAdoptionBoundary_LocalContentStoreContractsV1 {
+    static let sceneLifecycleDispositionType = SceneNavigationLifecycleDispositionV1.self
+    static let routeStateIsContentTruth = false
+    static let backupIncluded = false
+}

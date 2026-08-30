@@ -1427,3 +1427,22 @@ private final class C46V914SettingsCompatibilityTests: XCTestCase {
         )
     }
 }
+
+extension V9_14SettingsCapabilityLifecycleTests {
+    func testV23P03C34PackageDestinationRegistrationRemainsNonAutomatic() throws {
+        let route = PackageSurfaceRouteV1(
+            routeID: "settings.c34.surface",
+            root: .assets,
+            destination: .packageSurface,
+            kind: .destination,
+            startsAutomaticWork: false
+        )
+        let manifest = try PackageSurfaceManifestV1(
+            packageID: "settings.c34.package", routes: [route]
+        )
+        let registry = try RouteRegistryV1(manifests: [manifest])
+        XCTAssertEqual(registry.manifests.map { $0.packageID }, ["settings.c34.package"])
+        XCTAssertEqual(registry.manifests.first?.routes.first?.destination, .packageSurface)
+        XCTAssertFalse(registry.manifests.first?.routes.first?.startsAutomaticWork ?? true)
+    }
+}

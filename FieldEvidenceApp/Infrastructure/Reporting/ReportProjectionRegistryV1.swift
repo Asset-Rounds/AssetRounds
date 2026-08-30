@@ -2545,3 +2545,9 @@ enum C50IncumbentFileExchangeReportRegistryBoundaryV1 {
             && rebuildIsDeterministic
     }
 }
+
+enum C34RouteAdoptionBoundary_ReportProjectionRegistryV1 {
+    static let resolutionResultType = RouteResolutionResultV1.self
+    static let restorationReceiptType = RouteRestorationReceiptV1.self
+    static let routeStateIsReportTruth = false
+}

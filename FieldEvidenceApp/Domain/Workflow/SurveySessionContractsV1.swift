@@ -355,3 +355,9 @@ enum C46OperationalContactConformance_FieldEvidenceApp_Domain_Workflow_SurveySes
     static let contactExportExcludedByDefault = true
     static let siteRoleOwnershipForbidden = true
 }
+
+enum C34RouteAdoptionBoundary_SurveySessionContractsV1 {
+    static let canonicalTargetType = NavigationTargetV1.self
+    static let sceneSnapshotType = SceneNavigationSnapshotV1.self
+    static let restorationIsReadOnly = true
+}

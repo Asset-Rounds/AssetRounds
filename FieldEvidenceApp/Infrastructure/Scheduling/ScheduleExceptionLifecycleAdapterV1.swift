@@ -1,5 +1,18 @@
 import Foundation
 
+enum C34ScheduleExceptionNavigationLifecycleV1 {
+    static func disposition(
+        anchor: C34OccurrenceNavigationAnchorV1,
+        current: OccurrenceHistoryEventV1?
+    ) throws -> C34NavigationAnchorDispositionV1 {
+        try anchor.disposition(current: current)
+    }
+
+    static let restorationAppliesExceptionOrOverride = false
+    static let restorationStartsProjectionJob = false
+    static let restorationPersistsNavigationStateHere = false
+}
+
 /// C51 projection-only lifecycle. It owns no store, network, provider, timer,
 /// bookmark, credential, or writer; relaunch recovery is exact recomputation
 /// from C28 occurrence truth plus immutable C51 releases/events.

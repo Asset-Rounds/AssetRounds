@@ -395,3 +395,18 @@ enum C46OperationalContactConformance_FieldEvidenceApp_Application_AssetSemantic
     static let contactExportExcludedByDefault = true
     static let noSecondWriterOrAutomaticHandoff = true
 }
+
+enum C34AssetSemanticRouteAdapterV1 {
+    static let routeStoresDisplayCopy = false
+
+    static func semanticID(_ value: String) throws -> String {
+        try RouteContractValidationV1.semanticID(value)
+        return value
+    }
+}
+
+enum C34RouteAdoptionBoundary_AssetSemanticsCoordinatorV1 {
+    static let canonicalTargetType = NavigationTargetV1.self
+    static let semanticIDAdapter = C34AssetSemanticRouteAdapterV1.self
+    static let restorationIsReadOnly = true
+}

@@ -56,6 +56,16 @@ final class StartupRouter: ObservableObject {
     private var pendingEraseDrainProof: EraseGenerationDrainProof?
     private var retainsGenerationsUntilColdLaunch = false
 
+    /// RouteCoordinatorV1 owns the frozen restoration precedence:
+    /// maintenance, mutation recovery, explicit ingress, scene snapshot,
+    /// then Today. Startup only invokes it after canonical recovery succeeds.
+    func restoreSceneNavigation(
+        _ request: RouteRestorationRequestV1,
+        using coordinator: RouteCoordinatorV1
+    ) throws -> RouteRestorationReceiptV1 {
+        try coordinator.restore(request)
+    }
+
     init(
         applicationSupportURL: URL,
         fileManager: FileManager = .default,

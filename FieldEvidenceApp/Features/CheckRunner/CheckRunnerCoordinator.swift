@@ -2728,3 +2728,9 @@ enum C47ActivityContractConformance_FieldEvidenceApp_Features_CheckRunner_CheckR
     static let usesExistingInfrastructureOnly = true
     static let createsSecondWriterRendererStoreRouteOrInspectionAlias = false
 }
+
+enum C34RouteAdoptionBoundary_CheckRunnerCoordinatorV1 {
+    static let canonicalRegistryType = RouteRegistryV1.self
+    static let resolutionResultType = RouteResolutionResultV1.self
+    static let startsAutomaticWork = false
+}

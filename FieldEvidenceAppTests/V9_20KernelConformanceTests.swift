@@ -897,3 +897,18 @@ extension C50KernelConformanceTests {
         )
     }
 }
+
+extension V9_20KernelConformanceTests {
+    func testV23P03C34ConformanceReceiptFreezesRootsAndSingleShell() throws {
+        let receipt = RouteConformanceReceiptV1(
+            registry: try RouteRegistryV1(), evidenceKind: .golden,
+            observedShellCount: 1, observedParserCount: 1,
+            observedMutationAuthorityCount: 0
+        )
+        try receipt.validate()
+        XCTAssertEqual(receipt.roots, [.today, .work, .assets, .reports])
+        XCTAssertEqual(receipt.shellCount, 1)
+        XCTAssertEqual(receipt.parserCount, 1)
+        XCTAssertEqual(receipt.mutationAuthorityCount, 0)
+    }
+}

@@ -1,6 +1,7 @@
 import Foundation
 
 enum C50IncumbentFileExchangeBackupImportBoundaryV1 {
+    static let excludesSceneRouteState = C34SceneNavigationCompatibilityBoundaryV1.validate()
     static let createsCanonicalFamily = false
     static let acceptsSourceBytesAsBackupMembers = false
     static let acceptsQuarantineAsBackupMembers = false
@@ -8,7 +9,8 @@ enum C50IncumbentFileExchangeBackupImportBoundaryV1 {
     static let canonicalEffectsUseExistingImportOwners = true
 
     static func validate() -> Bool {
-        C50IncumbentFileExchangeBackupBoundaryV1.validate()
+        excludesSceneRouteState
+            && C50IncumbentFileExchangeBackupBoundaryV1.validate()
             && !createsCanonicalFamily
             && !acceptsSourceBytesAsBackupMembers
             && !acceptsQuarantineAsBackupMembers

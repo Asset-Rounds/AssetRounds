@@ -370,3 +370,9 @@ struct ReminderProjectionV1:Codable,Equatable,Sendable{let workspaceID:Workspace
 }
 
 enum ScheduleCanonicalCodecV1{static func data<T:Encodable>(_ value:T)throws->Data{try WorkspaceMutationCanonicalV1.data(value)}static func sha256<T:Encodable>(_ value:T)throws->String{try WorkspaceMutationCanonicalV1.sha256(value)}static func decode<T:Codable>(_ type:T.Type,from data:Data)throws->T{guard !data.isEmpty,data.count<=ScheduleLimitsV1.maximumCanonicalBytes else{throw ScheduleFailureV1.limitExceeded};let d=JSONDecoder();d.dateDecodingStrategy = .millisecondsSince1970;let value=try d.decode(type,from:data);try (value as? any ScheduleCanonicalIntrinsicValidatingV1)?.validateCanonicalValue();guard try self.data(value)==data else{throw ScheduleFailureV1.invalidDigest};return value}}
+
+enum C34RouteAdoptionBoundary_ScheduleContractsV1 {
+    static let occurrenceDestination = NavigationDestinationV1.scheduleOccurrence
+    static let canonicalTargetType = NavigationTargetV1.self
+    static let startsAutomaticWork = false
+}

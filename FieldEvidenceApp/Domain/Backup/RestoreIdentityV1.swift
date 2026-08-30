@@ -1,6 +1,7 @@
 import Foundation
 
 enum C50IncumbentFileExchangeRestoreIdentityBoundaryV1 {
+    static let excludesSceneRouteState = C34SceneNavigationCompatibilityBoundaryV1.validate()
     static let replacementRestoresProfileActivation = false
     static let cloneForkCopiesSessionState = false
     static let cloneForkCopiesSecurityBookmarks = false
@@ -8,7 +9,8 @@ enum C50IncumbentFileExchangeRestoreIdentityBoundaryV1 {
     static let canonicalImportedRowsFollowExistingIdentityRules = true
 
     static func validate(_ mode: BackupRestoreMode) -> Bool {
-        canonicalImportedRowsFollowExistingIdentityRules
+        excludesSceneRouteState
+            && canonicalImportedRowsFollowExistingIdentityRules
             && !cloneForkCopiesSecurityBookmarks
             && !cloneForkReinterpretsReleasedFiles
             && (mode == .clone || mode == .fork

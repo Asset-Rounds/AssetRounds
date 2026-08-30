@@ -249,3 +249,9 @@ enum C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Drafts_Dra
     static let contactExportExcludedByDefault = true
     static let noContactProjectionOrNetworkDelivery = true
 }
+
+enum C34SceneRestorationDraftCommitSagaBoundaryV1 {
+    static let resumesCommitSaga = false
+    static let advancesSagaState = false
+    static func validate(anchor: DraftResumeAnchorV1) -> Bool { !resumesCommitSaga && !advancesSagaState && C34DraftResumeNavigationBoundaryV1.validate(anchor: anchor) }
+}

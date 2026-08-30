@@ -2,6 +2,12 @@ import Foundation
 
 enum ScheduleTimeContextBoundaryV1 { static func validate(_ value: FrozenScheduleTimeBasisV1) throws { try value.validate() } }
 
+enum C34NavigationTimeContextBoundaryV1 {
+    static let restorationResolvesCivilTime = false
+    static let restorationRebindsTimeZone = false
+    static let routeAnchorStoresTimeBasis = false
+}
+
 struct FrozenTimeContext: Equatable, Sendable {
     let observedAtUTC: Date
     let timeZoneID: String

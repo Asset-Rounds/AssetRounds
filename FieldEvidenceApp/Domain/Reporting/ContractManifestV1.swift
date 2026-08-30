@@ -1030,3 +1030,30 @@ enum C49WorkResourceContractManifestBoundaryV1 {
         }
     }
 }
+
+// MARK: - C34 route snapshot privacy and reporting exclusion
+
+enum C34RouteSnapshotContractManifestV1 {
+    static let snapshotType: Any.Type = SceneNavigationSnapshotV1.self
+    static let lifecycleType: Any.Type = SceneNavigationLifecycleDispositionV1.self
+    static let reportProjectionFieldIDs: [String] = []
+    static let customerContentCategoriesExcluded = [
+        "model_blob", "draft_value", "note", "evidence_bytes", "secret",
+        "user_entered_display_text", "search_query",
+    ]
+    static let snapshotBytesExcludedFromReports = true
+    static let snapshotBytesExcludedFromExports = true
+    static let routeIdentifiersExcludedFromDiagnostics = true
+    static let routeSnapshotContainsCustomerContent = false
+    static let routeSnapshotContainsSecrets = false
+
+    static func validate(_ lifecycle: SceneNavigationLifecycleDispositionV1 = .init()) -> Bool {
+        !lifecycle.workspaceTruth
+            && !lifecycle.reportIncluded
+            && !lifecycle.exportIncluded
+            && !routeSnapshotContainsCustomerContent
+            && !routeSnapshotContainsSecrets
+            && reportProjectionFieldIDs.isEmpty
+            && Set(customerContentCategoriesExcluded).count == customerContentCategoriesExcluded.count
+    }
+}

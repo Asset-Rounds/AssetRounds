@@ -1,5 +1,23 @@
 import Foundation
 
+/// C34 keeps scene routing device-operational only.  Compatibility may discard
+/// corrupt or future device bytes, but never migrates them into workspace truth.
+enum C34SceneNavigationCompatibilityBoundaryV1 {
+    static let disposition = SceneNavigationLifecycleDispositionV1()
+
+    static func validate() -> Bool {
+        disposition.persistenceClass == "DEVICE_OPERATIONAL_NONCANONICAL"
+            && !disposition.workspaceTruth
+            && !disposition.backupIncluded
+            && !disposition.journalIncluded
+            && !disposition.reportIncluded
+            && !disposition.exportIncluded
+            && !disposition.searchIncluded
+            && disposition.tolerantDecode
+            && disposition.eraseClears
+    }
+}
+
 enum CompatibilityContractErrorV1: Error, Equatable, Sendable {
     case invalidSchemaVersion
     case invalidCanonicalValue

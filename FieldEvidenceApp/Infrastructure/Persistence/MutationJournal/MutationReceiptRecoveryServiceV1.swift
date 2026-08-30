@@ -175,3 +175,9 @@ enum C50IncumbentFileExchangeRecoveryBoundaryV1 {
             && C50IncumbentFileExchangePersistenceBoundaryV1.validate()
     }
 }
+
+enum C34SceneNavigationMutationRecoveryBoundaryV1 {
+    static let recoversRouteMutationCount = 0
+    static let restorationCreatesMutation = false
+    static func validate() -> Bool { recoversRouteMutationCount == 0 && !restorationCreatesMutation && C34SceneNavigationMutationReceiptBoundaryV1.validate() }
+}

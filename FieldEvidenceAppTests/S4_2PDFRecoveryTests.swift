@@ -974,3 +974,23 @@ private final class C50IncumbentAdapterS42RecoveryBoundaryTests: XCTestCase {
         XCTAssertFalse(C50IncumbentFileExchangeReplacementRestoreRuleV1.restoresScratchSourceOrQuarantine)
     }
 }
+
+extension S4_2PDFRecoveryTests {
+    func testV23P03C34SceneEncodingIsStableAndExcludedFromReportExport() throws {
+        let workspace = WorkspaceID(rawValue: UUID(uuid: (0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x47, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x05)))
+        let target = try NavigationTargetV1(workspaceID: workspace, destination: .reports)
+        let today = try NavigationTargetV1(workspaceID: workspace, destination: .today)
+        let work = try NavigationTargetV1(workspaceID: workspace, destination: .work)
+        let assets = try NavigationTargetV1(workspaceID: workspace, destination: .assets)
+        let snapshot = try SceneNavigationSnapshotV1(workspaceID: workspace, selectedRoot: .reports, paths: [
+            .init(root: .today, targets: [today]),
+            .init(root: .work, targets: [work]),
+            .init(root: .assets, targets: [assets]),
+            .init(root: .reports, targets: [target])
+        ], snapshotID: UUID())
+        XCTAssertEqual(try RouteCanonicalCodecV1.encode(snapshot), try RouteCanonicalCodecV1.encode(snapshot))
+        let lifecycle = SceneNavigationLifecycleDispositionV1()
+        XCTAssertFalse(lifecycle.reportIncluded)
+        XCTAssertFalse(lifecycle.exportIncluded)
+    }
+}

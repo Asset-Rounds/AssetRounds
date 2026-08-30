@@ -1965,3 +1965,19 @@ enum C50IncumbentFileExchangeSnapshotValidatorBoundaryV1 {
             && deterministicRebuildIsRequired
     }
 }
+
+// MARK: - C34 route snapshot report validation exclusion
+
+enum C34RouteSnapshotReportValidatorBoundaryV1 {
+    static let snapshotType: Any.Type = SceneNavigationSnapshotV1.self
+    static let routeSnapshotAcceptedAsReportSnapshot = false
+    static let routeSnapshotAcceptedAsWorkspaceTruth = false
+    static let routeSnapshotBytesAcceptedAsEvidence = false
+    static let restorationReceiptAcceptedAsApproval = false
+
+    static func validate(_ lifecycle: SceneNavigationLifecycleDispositionV1 = .init()) -> Bool {
+        !lifecycle.workspaceTruth && !lifecycle.reportIncluded
+            && !routeSnapshotAcceptedAsReportSnapshot
+            && !routeSnapshotBytesAcceptedAsEvidence
+    }
+}

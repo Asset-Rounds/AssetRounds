@@ -30,5 +30,5 @@
     "excludedRanges": { "type": "array", "maxItems": 32 },
     "includedOverrideDates": { "type": "array", "maxItems": 366, "uniqueItems": true }
   },
-  "$comment": "Swift constructor validation is authoritative for canonical date encodings, effective interval ordering, IANA zone resolution, and release SHA-256 recomputation. Included overrides take precedence over exclusions, which take precedence over base weekdays."
+  "$comment": "Swift constructor validation is authoritative for canonical date encodings, effective interval ordering, IANA zone resolution, and release SHA-256 recomputation. Included overrides take precedence over exclusions, which take precedence over base weekdays. V23-P03-C34 may reference stable occurrence identity and expected revision for typed navigation only; scene state is device-operational, noncanonical, starts no schedule work, and changes no calendar or override truth."
 }

@@ -666,3 +666,23 @@ extension S6_5ReplacementUnionTests {
         XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
     }
 }
+
+extension S6_5ReplacementUnionTests {
+    func testV23P03C34PackageRouteUsesOneShellAndNoWriter() throws {
+        let route = PackageSurfaceRouteV1(routeID: "c34.package", root: .assets, destination: .packageSurface, kind: .destination, startsAutomaticWork: false)
+        let manifest = try PackageSurfaceManifestV1(packageID: "c34.package", routes: [route])
+        let registry = try RouteRegistryV1(manifests: [manifest])
+        let receipt = RouteConformanceReceiptV1(
+            registry: registry,
+            evidenceKind: .golden,
+            observedShellCount: 1,
+            observedParserCount: 1,
+            observedMutationAuthorityCount: 0
+        )
+        try receipt.validate()
+        XCTAssertEqual(receipt.roots, AppRootV1.frozenOrder)
+        XCTAssertEqual(receipt.shellCount, 1)
+        XCTAssertEqual(receipt.parserCount, 1)
+        XCTAssertEqual(receipt.mutationAuthorityCount, 0)
+    }
+}

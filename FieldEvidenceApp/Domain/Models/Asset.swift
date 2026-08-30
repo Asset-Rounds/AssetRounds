@@ -48,6 +48,17 @@ final class Asset {
 }
 
 extension Asset {
+    func c34ValidateNavigationReference(
+        _ target: NavigationTargetV1,
+        workspaceID: WorkspaceID,
+        expectedRevision: UInt64?
+    ) throws {
+        try C34NavigationReferenceAnchorV1.validate(
+            target, workspaceID: workspaceID, stableEntityID: id,
+            expectedRevision: expectedRevision
+        )
+    }
+
     /// A locator resolves to this stable asset identifier only. It never
     /// changes the asset label, package binding, or workflow state.
     func validateResolvedLocator(_ locator: AssetLocatorV1) throws {

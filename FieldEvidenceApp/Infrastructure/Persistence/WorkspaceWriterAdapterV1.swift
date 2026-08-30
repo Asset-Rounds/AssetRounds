@@ -3326,3 +3326,9 @@ enum LightingPersistedAdmissionV1 {
         }
     }
 }
+
+enum C34SceneNavigationWorkspaceWriterAdapterBoundaryV1 {
+    static let adapterWriteCount = 0
+    static let resolvesOrRestoresRoutes = false
+    static func validate() -> Bool { adapterWriteCount == 0 && !resolvesOrRestoresRoutes && C34SceneNavigationWorkspaceWriterBoundaryV1.validate() }
+}

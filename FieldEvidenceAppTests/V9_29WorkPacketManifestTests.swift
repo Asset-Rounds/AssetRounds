@@ -510,3 +510,24 @@ private final class C46V929WorkPacketCompatibilityTests: XCTestCase {
         )
     }
 }
+
+extension V9_29WorkPacketManifestTests {
+    func testV23P03C34WorkRouteCarriesAResumeAnchorWithoutMutation() throws {
+        let anchor = try DraftResumeAnchorV1(
+            sectionID: "work.packet.section",
+            fieldID: "work.packet.field",
+            selectedStableID: "work.packet.item",
+            boundedPosition: 3
+        )
+        let target = try NavigationTargetV1(
+            workspaceID: WorkspaceID(),
+            destination: .draftReview,
+            requestedMode: .resume,
+            draftResumeAnchor: anchor
+        )
+        try target.validate()
+        XCTAssertEqual(RouteRegistryV1.root(for: target.destination), .work)
+        XCTAssertEqual(target.requestedMode, .resume)
+        XCTAssertEqual(target.draftResumeAnchor?.boundedPosition, 3)
+    }
+}

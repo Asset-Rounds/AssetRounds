@@ -1890,3 +1890,17 @@ enum C50IncumbentFileExchangeRenderServiceBoundaryV1 {
             && externalAvailabilityIsNotReportTruth
     }
 }
+
+// MARK: - C34 route snapshot render exclusion
+
+enum C34RouteSnapshotReportRenderBoundaryV1 {
+    static let snapshotType: Any.Type = SceneNavigationSnapshotV1.self
+    static let routeSnapshotIsRenderInput = false
+    static let restorationReceiptIsRenderInput = false
+    static let safeFallbackCopyBelongsToNavigationPresentation = true
+    static let customerContentMayEnterReportThroughRouteState = false
+
+    static func validate(_ lifecycle: SceneNavigationLifecycleDispositionV1 = .init()) -> Bool {
+        !lifecycle.reportIncluded && !routeSnapshotIsRenderInput && !restorationReceiptIsRenderInput
+    }
+}

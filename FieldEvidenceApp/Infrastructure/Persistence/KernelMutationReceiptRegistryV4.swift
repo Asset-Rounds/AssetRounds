@@ -486,3 +486,9 @@ enum C50IncumbentFileExchangeKernelMutationReceiptBoundaryV1 {
             && C50IncumbentFileExchangePersistenceBoundaryV1.validate()
     }
 }
+
+enum C34SceneNavigationKernelReceiptRegistryBoundaryV1 {
+    static let registeredReceiptKindCount = 0
+    static let registersRouteMutation = false
+    static func validate() -> Bool { registeredReceiptKindCount == 0 && !registersRouteMutation && C34SceneNavigationMutationReceiptBoundaryV1.validate() }
+}

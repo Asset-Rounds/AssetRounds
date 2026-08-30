@@ -2,6 +2,12 @@ import Darwin
 import Foundation
 
 enum C50IncumbentFileExchangeEraseIntentStoreBoundaryV1 {
+    static func clearSceneRouteState(using adapter: SceneNavigationStateAdapterV1) throws {
+        guard C34SceneNavigationCompatibilityBoundaryV1.validate() else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        try adapter.erase()
+    }
     static let appOwnedScratchParticipatesInEraseInventory = true
     static let appOwnedQuarantineParticipatesInEraseInventory = true
     static let externalSourceAndExportURLsParticipate = false

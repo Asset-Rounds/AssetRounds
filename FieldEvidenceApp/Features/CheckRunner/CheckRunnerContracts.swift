@@ -985,3 +985,9 @@ enum ActivityRouteCanonicalRegistryV2 {
         return route
     }
 }
+
+enum C34RouteAdoptionBoundary_CheckRunnerContractsV1 {
+    static let workDestination = NavigationDestinationV1.work
+    static let canonicalTargetType = NavigationTargetV1.self
+    static let routeIsReadOnly = true
+}

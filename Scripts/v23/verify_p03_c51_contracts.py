@@ -7,6 +7,7 @@ sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import p03_c51_contracts as contracts
+C34_REPROOF_CARD = "V23-P03-C34"
 
 def _fresh() -> dict[str, bytes]:
     child = ("import base64,json,sys;from pathlib import Path;sys.path.insert(0,str(Path.cwd()/'Scripts'/'v23'));"
@@ -23,6 +24,7 @@ def _fresh() -> dict[str, bytes]:
     return first
 
 def main() -> int:
+    assert contracts.C34_NAVIGATION_REPROOF["consumerCardID"] == C34_REPROOF_CARD
     parser = argparse.ArgumentParser()
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--complete", action="store_true")

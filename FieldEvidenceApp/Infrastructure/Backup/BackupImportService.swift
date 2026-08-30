@@ -1,6 +1,14 @@
 import Darwin
 import Foundation
 
+enum C34SceneNavigationBackupImportBoundaryV1 {
+    static func validate() throws {
+        guard C34SceneNavigationDeviceLifecycleBoundaryV1.validate() else {
+            throw SceneNavigationFailureV1.invalidSnapshot
+        }
+    }
+}
+
 enum C50IncumbentFileExchangeBackupImportServiceBoundaryV1 {
     static let backupParserIsIncumbentFileParser = false
     static let stagesAdapterSourceOrQuarantine = false
@@ -192,6 +200,7 @@ final class BackupImportService: @unchecked Sendable {
         selectedPackageURL: URL,
         cancellation: StreamingArchiveCancellationV1 = .none
     ) throws -> ValidatedV4BackupPackageV1 {
+        try C34SceneNavigationBackupImportBoundaryV1.validate()
         guard selectedPackageURL.isFileURL else {
             throw BackupImportServiceError.invalidSource
         }

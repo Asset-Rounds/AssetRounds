@@ -673,3 +673,15 @@ extension S3_1DraftSchemaTests {
         XCTAssertEqual(FieldReferencePackLifecycleV1.persistentFamilies.count, 2)
     }
 }
+
+extension S3_1DraftSchemaTests {
+    func testV23P03C34DraftAnchorResolvesWithoutAutomaticRestart() throws {
+        let workspace = WorkspaceID(rawValue: UUID(uuid: (0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x47, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x01)))
+        let anchor = try DraftResumeAnchorV1(sectionID: "draft", fieldID: "body", selectedStableID: "field-1", boundedPosition: 2)
+        let target = try NavigationTargetV1(workspaceID: workspace, destination: .draftReview, requestedMode: .resume, draftResumeAnchor: anchor)
+        let result = try RouteRegistryV1().resolve(target, context: .init(currentWorkspaceID: workspace, currentRevision: 0))
+        XCTAssertEqual(result.target.draftResumeAnchor, anchor)
+        XCTAssertEqual(result.canonicalMutationCount, 0)
+        XCTAssertFalse(result.startsAutomaticWork)
+    }
+}

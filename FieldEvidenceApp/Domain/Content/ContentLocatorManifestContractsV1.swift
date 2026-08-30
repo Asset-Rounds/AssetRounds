@@ -441,3 +441,18 @@ enum C49WorkResourceContentLocatorBoundaryV1 {
         }
     }
 }
+
+enum C34ContentLocatorRouteSemanticIDAdapterV1 {
+    static let routeStoresLocatorBytes = false
+
+    static func semanticID(from locator: ContentLocatorV1) throws -> String {
+        try RouteContractValidationV1.semanticID(locator.locatorID)
+        return locator.locatorID
+    }
+}
+
+enum C34RouteAdoptionBoundary_ContentLocatorManifestContractsV1 {
+    static let semanticIDAdapter = C34ContentLocatorRouteSemanticIDAdapterV1.self
+    static let canonicalTargetType = NavigationTargetV1.self
+    static let routeStoresLocatorBytes = false
+}

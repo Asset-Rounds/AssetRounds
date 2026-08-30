@@ -1,5 +1,10 @@
 import Foundation
 
+enum C34SurveySessionNavigationLifecycleBoundaryV1 {
+    static let restorationUsesReadProjection = true
+    static let restorationCommitsSession = false
+}
+
 enum SurveySessionScheduleLifecycleBoundaryV1 { static let occurrenceHistoryMayRewritePublication = false }
 
 enum C51SurveySessionScheduleLifecycleBoundaryV1 {

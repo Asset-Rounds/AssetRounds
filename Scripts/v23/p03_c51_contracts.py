@@ -31,6 +31,14 @@ COORDINATION_LEDGER_DIGEST = "693f51a56743420cae2a60364104ea95811263e7f02d118b0d
 COORDINATION_PROJECTION_DIGEST = "7e6278a2928328d2387f018748e640e224493f8f1c85fe496325e6d3852691d7"
 FROZEN_S10_RESERVATION_DIGEST = "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
 
+C34_NAVIGATION_REPROOF = {
+    "consumerCardID": "V23-P03-C34", "referenceType": "NavigationTargetV1",
+    "stableReferenceFields": ["stableOccurrenceID", "expectedRevision"],
+    "persistenceClass": "DEVICE_OPERATIONAL_NONCANONICAL", "canonicalMutationCount": 0,
+    "startsScheduleWork": False, "changesCalendarOrOverrideTruth": False,
+    "containsSecrets": False, "invalidatesOnSemanticChange": True,
+}
+
 DOSSIER_SHA256 = "3aca94cfcb1c000ca8fc2227b08763348aa7a420bb0b41e82cf0d0222531c6e3"
 DOSSIER_BYTES = 7263
 INHERITED_SHA256 = "48f60ca08a859154cf07bd5fe102687ec85bbd55aad24ff52d816b59940f84c6"
@@ -566,6 +574,7 @@ def contract_document() -> dict[str, Any]:
         "forbidden": {"eventKit": False, "rrule": False, "cron": False, "network": False,
                       "remoteTruth": False, "historyRewrite": False, "unboundedGeneration": False},
         "evidenceIDs": list(EVIDENCE_IDS), "statusFlags": FLAGS,
+        "c34NavigationReproof": C34_NAVIGATION_REPROOF,
     }
 
 
@@ -576,7 +585,7 @@ def evidence_document() -> dict[str, Any]:
             "cardID": CARD, "authority": authority(), "cases": cases,
             "fixtureJourney": "FJ07", "nativeCompileRan": False, "hostedDispatchEnabled": False,
             "physicalLockedState": "REQUIRED_PENDING_OWNER", "acceptanceCredit": False,
-            "releaseCredit": False, "statusFlags": FLAGS}
+            "releaseCredit": False, "c34NavigationReproof": C34_NAVIGATION_REPROOF, "statusFlags": FLAGS}
 
 
 def brand_document() -> dict[str, Any]:
@@ -585,7 +594,7 @@ def brand_document() -> dict[str, Any]:
             "presentation": "LOCAL_DETERMINISTIC_SCHEDULE_EXCEPTION_CALENDAR",
             "truthfulDisclosure": "Scheduling remains local, bounded, and release-pinned.",
             "prohibitedClaims": ["calendar sync", "EventKit integration", "remote holiday feed", "automation service"],
-            "statusFlags": FLAGS}
+            "c34NavigationReproof": C34_NAVIGATION_REPROOF, "statusFlags": FLAGS}
 
 
 def all_outputs(root: Path) -> dict[str, bytes]:
@@ -600,6 +609,7 @@ def all_outputs(root: Path) -> dict[str, bytes]:
                 "priorC50Acceptance": PRIOR_C50_ACCEPTANCE,
                 "priorFenceProof": PRIOR_FENCE_PROOF,
                 "priorFenceProofSHA256": PRIOR_FENCE_PROOF_SHA256,
+                "c34NavigationReproof": C34_NAVIGATION_REPROOF,
                 "statusFlags": FLAGS, "files": _file_inventory(root, outputs)}
     outputs[MANIFEST_PATH] = pretty(manifest)
     return outputs

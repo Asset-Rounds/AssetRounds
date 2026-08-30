@@ -526,3 +526,24 @@ enum C46OperationalContactConformance_FieldEvidenceApp_Domain_Drafts_FieldDraftC
     static let contactExportExcludedByDefault = true
     static let siteRoleOwnershipForbidden = true
 }
+
+enum C34DraftRouteSemanticIDAdapterV1 {
+    static let routeAnchorType = FieldPositionAnchorV1.self
+    static let routeStoresDraftValues = false
+
+    static func fieldPosition(from anchor: DraftResumeAnchorV1) throws -> FieldPositionAnchorV1 {
+        try anchor.validate()
+        return try FieldPositionAnchorV1(
+            sectionID: anchor.sectionID,
+            fieldID: anchor.fieldID,
+            selectedStableID: anchor.selectedStableID,
+            boundedPosition: anchor.boundedPosition
+        )
+    }
+}
+
+enum C34RouteAdoptionBoundary_FieldDraftContractsV1 {
+    static let draftAnchorType = DraftResumeAnchorV1.self
+    static let routeAnchorType = FieldPositionAnchorV1.self
+    static let routeCarriesSemanticIDsOnly = true
+}

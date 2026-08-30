@@ -2,6 +2,7 @@ import CoreFoundation
 import Foundation
 
 enum C50IncumbentFileExchangeEraseIntentBoundaryV1 {
+    static let clearsSceneRouteStateThroughDedicatedAdapter = C34SceneNavigationCompatibilityBoundaryV1.validate()
     static let clearsAppOwnedSourceScratch = true
     static let clearsAppOwnedQuarantine = true
     static let clearsSecurityScopedBookmarks = true

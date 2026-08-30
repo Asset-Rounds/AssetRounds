@@ -727,6 +727,28 @@ extension S6_6EraseRecoveryTests {
 }
 
 extension S6_6EraseRecoveryTests {
+    func testV23P03C34EraseClearsDeviceSceneState() throws {
+        let workspace = WorkspaceID(rawValue: UUID(uuid: (0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x47, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x0b)))
+        let target = try NavigationTargetV1(workspaceID: workspace, destination: .assets)
+        let today = try NavigationTargetV1(workspaceID: workspace, destination: .today)
+        let work = try NavigationTargetV1(workspaceID: workspace, destination: .work)
+        let reports = try NavigationTargetV1(workspaceID: workspace, destination: .reports)
+        let snapshot = try SceneNavigationSnapshotV1(workspaceID: workspace, selectedRoot: .assets, paths: [
+            .init(root: .today, targets: [today]),
+            .init(root: .work, targets: [work]),
+            .init(root: .assets, targets: [target]),
+            .init(root: .reports, targets: [reports])
+        ], snapshotID: UUID())
+        let port = InMemorySceneNavigationDeviceStatePortV1()
+        let adapter = SceneNavigationStateAdapterV1(port: port)
+        try adapter.save(snapshot)
+        try adapter.erase()
+        XCTAssertEqual(try adapter.loadAndReconcile(), .absent)
+        XCTAssertTrue(SceneNavigationLifecycleDispositionV1().eraseClears)
+    }
+}
+
+extension S6_6EraseRecoveryTests {
     func testV23P03C17DeleteAndEraseOwnOnlyDerivedProjectionCleanup() throws {
         XCTAssertNoThrow(try KernelDeletionEraseRegistryV4.validateIntegrationProjectionLifecycle())
         XCTAssertEqual(

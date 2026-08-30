@@ -1,6 +1,7 @@
 import Foundation
 
 enum C50IncumbentFileExchangeDeletionLedgerBoundaryV1 {
+    static let excludesSceneRouteState = C34SceneNavigationCompatibilityBoundaryV1.validate()
     static let createsDeletionLedgerKind = false
     static let ordinaryDeletionPreservesCanonicalImportedHistory = true
     static let scratchAndQuarantineCreateNoTombstone = true
@@ -8,7 +9,8 @@ enum C50IncumbentFileExchangeDeletionLedgerBoundaryV1 {
     static let escapedFilesCannotBeRecalled = true
 
     static func validate() -> Bool {
-        !createsDeletionLedgerKind
+        excludesSceneRouteState
+            && !createsDeletionLedgerKind
             && ordinaryDeletionPreservesCanonicalImportedHistory
             && scratchAndQuarantineCreateNoTombstone
             && eraseOwnsAppControlledScratchAndQuarantine

@@ -40,6 +40,17 @@ import Foundation
 
     static let c51RecoveryPersistsNoProjectionState = true
     static let c51UsesExistingCanonicalWriterOnly = true
+
+    nonisolated static func c34NavigationDisposition(
+        anchor: C34OccurrenceNavigationAnchorV1,
+        current: OccurrenceHistoryEventV1?
+    ) throws -> C34NavigationAnchorDispositionV1 {
+        try anchor.disposition(current: current)
+    }
+
+    static let c34RestorationUsesCanonicalWriter = false
+    static let c34RestorationStartsScheduleJobs = false
+    static let c34RestorationReplaysOccurrenceActions = false
 }
 
 /// Disposable reminder state. Permission or scheduling failure is surfaced and

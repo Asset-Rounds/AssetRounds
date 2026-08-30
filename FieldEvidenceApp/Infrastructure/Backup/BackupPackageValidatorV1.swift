@@ -1,6 +1,14 @@
 import Darwin
 import Foundation
 
+enum C34SceneNavigationPackageValidationBoundaryV1 {
+    static func validate() throws {
+        guard C34SceneNavigationDeviceLifecycleBoundaryV1.validate() else {
+            throw SceneNavigationFailureV1.invalidSnapshot
+        }
+    }
+}
+
 enum C50IncumbentFileExchangePackageValidationBoundaryV1 {
     static let allowedAdapterMemberCount = 0
     static let rejectsSourceBytes = true
@@ -563,6 +571,7 @@ struct BackupPackageValidatorV1: Sendable {
         stagedPackageURL: URL,
         cancellation: StreamingArchiveCancellationV1 = .none
     ) throws -> ValidatedV4BackupPackageV1 {
+        try C34SceneNavigationPackageValidationBoundaryV1.validate()
         do {
             return try validatePackage(
                 stagedPackageURL: stagedPackageURL,

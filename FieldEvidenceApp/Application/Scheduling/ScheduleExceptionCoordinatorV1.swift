@@ -138,3 +138,9 @@ enum ScheduleExceptionProjectionEngineV1 {
 
     private struct OccurrenceClosure: Codable { let values: [ScheduleChangeOccurrenceInputV1] }
 }
+
+enum C34RouteAdoptionBoundary_ScheduleExceptionCoordinatorV1 {
+    static let scheduleDestination = NavigationDestinationV1.scheduleOccurrence
+    static let canonicalTargetType = NavigationTargetV1.self
+    static let restorationIsReadOnly = true
+}

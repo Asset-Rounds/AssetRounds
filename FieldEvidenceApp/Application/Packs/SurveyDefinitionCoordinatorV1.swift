@@ -384,3 +384,10 @@ enum C47ActivityContractConformance_FieldEvidenceApp_Application_Packs_SurveyDef
     static let usesExistingInfrastructureOnly = true
     static let createsSecondWriterRendererStoreRouteOrInspectionAlias = false
 }
+
+enum C34RouteAdoptionBoundary_SurveyDefinitionCoordinatorV1 {
+    static let packageSurfaceRegistration = C34PackageSurfaceRegistrationV1.self
+    static let packageContributionKinds: [PackageSurfaceContributionKindV1] = [.destination, .navigationAction]
+    static let packageRoutesUseExistingRoots = true
+    static let packageRoutesStartAutomaticWork = false
+}

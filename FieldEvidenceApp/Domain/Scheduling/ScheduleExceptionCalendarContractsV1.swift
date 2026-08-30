@@ -1,5 +1,11 @@
 import Foundation
 
+enum C34ExceptionCalendarNavigationBoundaryV1 {
+    static let routeAnchorStoresCalendarPayload = false
+    static let restorationReleasesOrRecalculatesCalendar = false
+    static let calendarAvailabilityFailureUsesSafeScheduleFallback = true
+}
+
 // C51 closed, local-only schedule grammar and immutable exception-calendar authority.
 
 enum ScheduleWeekdayV1: Int, Codable, CaseIterable, Comparable, Hashable, Sendable {

@@ -1261,3 +1261,39 @@ extension C50VersionedSchemaIdentityTests {
         )
     }
 }
+
+extension V9_01VersionedSchemaIdentityTests {
+    func testV23P03C34SceneSnapshotRoundTripKeepsVersionAndStableIDs() throws {
+        let workspaceID = WorkspaceID(
+            rawValue: UUID(uuidString: "00000000-0000-4000-8000-000000003405")!
+        )
+        let stableEntityID = UUID(uuidString: "00000000-0000-4000-8000-000000003406")!
+        let target = try NavigationTargetV1(
+            workspaceID: workspaceID,
+            destination: .draftReview,
+            stableEntityID: stableEntityID,
+            fieldPosition: try FieldPositionAnchorV1(
+                sectionID: "section", fieldID: "field", boundedPosition: 2
+            )
+        )
+        let today = try NavigationTargetV1(workspaceID: workspaceID, destination: .today)
+        let assets = try NavigationTargetV1(workspaceID: workspaceID, destination: .assets)
+        let reports = try NavigationTargetV1(workspaceID: workspaceID, destination: .reports)
+        let snapshot = try SceneNavigationSnapshotV1(
+            workspaceID: workspaceID,
+            selectedRoot: .work,
+            paths: [
+                .init(root: .today, targets: [today]),
+                .init(root: .work, targets: [target]),
+                .init(root: .assets, targets: [assets]),
+                .init(root: .reports, targets: [reports]),
+            ],
+            snapshotID: UUID(uuidString: "00000000-0000-4000-8000-000000003407")!
+        )
+        let data = try RouteCanonicalCodecV1.encode(snapshot)
+        let decoded = try JSONDecoder().decode(SceneNavigationSnapshotV1.self, from: data)
+        XCTAssertEqual(snapshot.schemaVersion, SceneNavigationSnapshotV1.schemaVersion)
+        XCTAssertEqual(decoded, snapshot)
+        XCTAssertEqual(decoded.selectedTarget?.stableEntityID, stableEntityID)
+    }
+}

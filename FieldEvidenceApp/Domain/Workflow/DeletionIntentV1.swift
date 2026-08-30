@@ -1,6 +1,7 @@
 import Foundation
 
 enum C50IncumbentFileExchangeDeletionIntentBoundaryV1 {
+    static let excludesSceneRouteState = C34SceneNavigationCompatibilityBoundaryV1.validate()
     static let ordinaryDeletionTargetsAdapterState = false
     static let ordinaryDeletionPreservesAcceptedCanonicalHistory = true
     static let terminalScratchCleanupUsesNoCanonicalTombstone = true

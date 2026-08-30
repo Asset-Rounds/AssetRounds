@@ -1316,3 +1316,13 @@ extension C45JournalReplayCompatibilityTests {
         )
     }
 }
+
+extension V9_ChangeJournalCheckpointReplayTests {
+    func testV23P03C34NavigationStateIsExcludedFromTheChangeJournal() {
+        let lifecycle = SceneNavigationLifecycleDispositionV1()
+        XCTAssertFalse(lifecycle.journalIncluded)
+        XCTAssertFalse(lifecycle.workspaceTruth)
+        XCTAssertFalse(lifecycle.backupIncluded)
+        XCTAssertTrue(lifecycle.tolerantDecode)
+    }
+}

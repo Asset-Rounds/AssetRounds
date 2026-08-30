@@ -1,6 +1,7 @@
 import Foundation
 
 enum C50IncumbentFileExchangeBackupBoundaryV1 {
+    static let excludesSceneRouteState = C34SceneNavigationCompatibilityBoundaryV1.validate()
     static let recordsSchemaVersion = C49BackupEnrollmentV1.recordsSchemaVersion
     static let profileContractSchemaVersion = IncumbentFileProfileReleaseV1.schemaVersion
     static let selectionContractSchemaVersion = IncumbentSelectionReceiptV1.schemaVersion
@@ -11,7 +12,8 @@ enum C50IncumbentFileExchangeBackupBoundaryV1 {
     static let canonicalImportedRowsRemainOwnedByTargetFamilies = true
 
     static func validate() -> Bool {
-        recordsSchemaVersion == C49BackupEnrollmentV1.recordsSchemaVersion
+        excludesSceneRouteState
+            && recordsSchemaVersion == C49BackupEnrollmentV1.recordsSchemaVersion
             && profileContractSchemaVersion == 1
             && selectionContractSchemaVersion == 1
             && canonicalFamilyCount == 0

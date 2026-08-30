@@ -258,3 +258,9 @@ enum C46OperationalContactConformance_FieldEvidenceApp_Application_Drafts_FieldD
     static let contactExportExcludedByDefault = true
     static let noSecondWriterOrAutomaticHandoff = true
 }
+
+enum C34RouteAdoptionBoundary_FieldDraftCoordinatorV1 {
+    static let draftAnchorType = DraftResumeAnchorV1.self
+    static let routeAnchorType = FieldPositionAnchorV1.self
+    static let routeCarriesSemanticIDsOnly = true
+}

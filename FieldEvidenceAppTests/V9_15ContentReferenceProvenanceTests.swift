@@ -841,3 +841,22 @@ private final class C46V915ContentCompatibilityTests: XCTestCase {
         )
     }
 }
+
+extension V9_15ContentReferenceProvenanceTests {
+    func testV23P03C34StableSemanticSearchReferenceSurvivesTargetValidation() throws {
+        let anchor = try RouteSearchAnchorV1(
+            scopeID: "content.scope",
+            filterIDs: ["WORK", "ASSETS"],
+            selectedStableID: "content.original",
+            boundedPosition: 2
+        )
+        let target = try NavigationTargetV1(
+            workspaceID: WorkspaceID(),
+            destination: .searchResults,
+            searchAnchor: anchor
+        )
+        try target.validate()
+        XCTAssertEqual(target.searchAnchor?.filterIDs, ["ASSETS", "WORK"])
+        XCTAssertEqual(target.searchAnchor?.selectedStableID, "content.original")
+    }
+}

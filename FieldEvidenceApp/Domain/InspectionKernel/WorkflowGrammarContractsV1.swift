@@ -533,3 +533,9 @@ enum C47ActivityContractCompatibility_FieldEvidenceApp_Domain_InspectionKernel_W
     static let legacyInspectionTruthIsNotRewritten = true
     static let threeReceiptIsolationIsRequired = true
 }
+
+enum C34RouteAdoptionBoundary_WorkflowGrammarContractsV1 {
+    static let canonicalTargetType = NavigationTargetV1.self
+    static let fallbackType = NavigationFallbackV1.self
+    static let canonicalMutationCount = 0
+}

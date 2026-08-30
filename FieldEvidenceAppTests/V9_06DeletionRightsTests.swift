@@ -747,3 +747,35 @@ extension C50DeletionRightsTests {
         )
     }
 }
+
+extension V9_06DeletionRightsTests {
+    func testV23P03C34EraseClearsOnlyDeviceNavigationBytes() throws {
+        let workspaceID = WorkspaceID(
+            rawValue: UUID(uuidString: "00000000-0000-4000-8000-00000000340b")!
+        )
+        let target = try NavigationTargetV1(
+            workspaceID: workspaceID, destination: .today
+        )
+        let work = try NavigationTargetV1(workspaceID: workspaceID, destination: .work)
+        let assets = try NavigationTargetV1(workspaceID: workspaceID, destination: .assets)
+        let reports = try NavigationTargetV1(workspaceID: workspaceID, destination: .reports)
+        let snapshot = try SceneNavigationSnapshotV1(
+            workspaceID: workspaceID,
+            selectedRoot: .today,
+            paths: [
+                .init(root: .today, targets: [target]),
+                .init(root: .work, targets: [work]),
+                .init(root: .assets, targets: [assets]),
+                .init(root: .reports, targets: [reports]),
+            ],
+            snapshotID: UUID(uuidString: "00000000-0000-4000-8000-00000000340c")!
+        )
+        let port = InMemorySceneNavigationDeviceStatePortV1()
+        let adapter = SceneNavigationStateAdapterV1(port: port)
+        try adapter.save(snapshot)
+        XCTAssertNotNil(port.data)
+        try adapter.erase()
+        XCTAssertNil(port.data)
+        XCTAssertTrue(SceneNavigationLifecycleDispositionV1().eraseClears)
+    }
+}

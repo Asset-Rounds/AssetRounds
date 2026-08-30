@@ -472,3 +472,9 @@ enum C51ScheduleExceptionProjectionCheckpointBoundaryV1 {
             && !createsCalendarOrOverrideWriter
     }
 }
+
+enum C34SceneNavigationProjectionCheckpointBoundaryV1 {
+    static let checkpointedRouteKindCount = 0
+    static let checkpointsSceneSnapshot = false
+    static func validate() -> Bool { checkpointedRouteKindCount == 0 && !checkpointsSceneSnapshot && C34SceneNavigationIntegrationProjectionBoundaryV1.validate() }
+}

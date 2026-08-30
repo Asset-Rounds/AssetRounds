@@ -231,3 +231,10 @@ enum C46OperationalContactConformance_FieldEvidenceApp_Application_WorkPacket_Wo
     static let contactExportExcludedByDefault = true
     static let noSecondWriterOrAutomaticHandoff = true
 }
+
+enum C34RouteAdoptionBoundary_WorkPacketManifestCoordinatorV1 {
+    static let workDestination = NavigationDestinationV1.work
+    static let canonicalTargetType = NavigationTargetV1.self
+    static let canonicalMutationCount = 0
+    static let startsAutomaticWork = false
+}

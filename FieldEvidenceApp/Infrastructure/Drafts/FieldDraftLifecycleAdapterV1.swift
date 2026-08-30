@@ -159,3 +159,10 @@ enum C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Drafts_Fie
     static let contactExportExcludedByDefault = true
     static let noContactProjectionOrNetworkDelivery = true
 }
+
+enum C34SceneRestorationFieldDraftLifecycleBoundaryV1 {
+    static let writesCheckpoint = false
+    static let changesDraftState = false
+    static let opensByStableAnchorOnly = true
+    static func validate(anchor: DraftResumeAnchorV1) -> Bool { !writesCheckpoint && !changesDraftState && opensByStableAnchorOnly && C34DraftResumeNavigationBoundaryV1.validate(anchor: anchor) }
+}

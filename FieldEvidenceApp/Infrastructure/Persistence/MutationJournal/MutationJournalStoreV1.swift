@@ -2635,3 +2635,9 @@ enum C50IncumbentFileExchangeMutationJournalBoundaryV1 {
             && C50IncumbentFileExchangePersistenceBoundaryV1.validate()
     }
 }
+
+enum C34SceneNavigationMutationJournalStoreBoundaryV1 {
+    static let storedRouteRowCount = 0
+    static let appendsRestorationMutation = false
+    static func validate() -> Bool { storedRouteRowCount == 0 && !appendsRestorationMutation && C34SceneNavigationChangeJournalBoundaryV1.validate() }
+}

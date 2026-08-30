@@ -2578,3 +2578,37 @@ enum C49WorkResourceAccessibilityBoundaryV1 {
         try C49WorkResourceAccessibleDocumentBoundaryV1.lines(projection)
     }
 }
+
+// MARK: - C34 typed route restoration accessibility
+
+enum C34RouteAccessibilityIDV1: String, CaseIterable, Codable, Sendable {
+    case safeFallbackContainer = "navigation.route.fallback"
+    case safeFallbackHeading = "navigation.route.fallback.heading"
+    case safeFallbackReason = "navigation.route.fallback.reason"
+    case safeFallbackDestination = "navigation.route.fallback.destination"
+    case explicitResumeAction = "navigation.route.resume.action"
+}
+
+/// Semantic declarations only; the UI owner must prove rendered behavior.
+enum C34RouteAccessibilityConformanceV1 {
+    static let conformanceReceiptType: Any.Type = RouteConformanceReceiptV1.self
+    static let restorationReceiptType: Any.Type = RouteRestorationReceiptV1.self
+    static let semanticIDs = C34RouteAccessibilityIDV1.allCases.map(\.rawValue)
+    static let voiceOverLabelAndReasonRequired = true
+    static let voiceControlSafeDestinationRequired = true
+    static let switchControlSafeDestinationRequired = true
+    static let dynamicTypeRequired = true
+    static let rtlReadingOrderRequired = true
+    static let nonColorReasonRequired = true
+    static let automaticResumeAnnouncementForbidden = true
+    static let uiConformanceClaimed = false
+
+    static func validate(_ receipt: RouteConformanceReceiptV1) throws {
+        try receipt.validate()
+        guard semanticIDs.count == Set(semanticIDs).count,
+              receipt.roots == AppRootV1.frozenOrder,
+              receipt.mutationAuthorityCount == 0 else {
+            throw SceneNavigationFailureV1.invalidConformance
+        }
+    }
+}

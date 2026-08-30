@@ -459,3 +459,77 @@ enum C47ActivityContractCompatibility_FieldEvidenceApp_Domain_Packs_SurveyDefini
     static let legacyInspectionTruthIsNotRewritten = true
     static let threeReceiptIsolationIsRequired = true
 }
+
+/// C34 package surfaces contribute bounded routes to the canonical registry.
+/// The package remains presentation/advisory truth; it cannot add shell,
+/// parser, settings, mutation, or automatic-work authority.
+enum C34PackageSurfaceRegistrationV1 {
+    static let destination = NavigationDestinationV1.packageSurface
+    static let destinationKind = PackageSurfaceContributionKindV1.destination
+    static let navigationActionKind = PackageSurfaceContributionKindV1.navigationAction
+    static let allowedRoots = AppRootV1.frozenOrder
+    static let startsAutomaticWork = false
+
+    static func manifest(
+        for package: InspectionPackageV2,
+        root: AppRootV1,
+        destinationRouteID: String,
+        navigationActionRouteID: String? = nil
+    ) throws -> PackageSurfaceManifestV1 {
+        try package.validate()
+        guard allowedRoots.contains(root) else {
+            throw RouteContractFailureV1.packageAuthorityEscalation
+        }
+
+        let routeIDs = [destinationRouteID, navigationActionRouteID].compactMap { $0 }
+        try routeIDs.forEach { try RouteContractValidationV1.semanticID($0) }
+        guard routeIDs.count <= 2, routeIDs.count == Set(routeIDs).count else {
+            throw RouteContractFailureV1.packageAuthorityEscalation
+        }
+
+        var routes = [
+            PackageSurfaceRouteV1(
+                routeID: destinationRouteID,
+                root: root,
+                destination: .packageSurface,
+                kind: .destination,
+                startsAutomaticWork: false
+            )
+        ]
+        if let navigationActionRouteID {
+            routes.append(
+                PackageSurfaceRouteV1(
+                    routeID: navigationActionRouteID,
+                    root: root,
+                    destination: .packageSurface,
+                    kind: .navigationAction,
+                    startsAutomaticWork: false
+                )
+            )
+        }
+        return try PackageSurfaceManifestV1(packageID: package.packageID, routes: routes)
+    }
+
+    static func registry(
+        for package: InspectionPackageV2,
+        root: AppRootV1,
+        destinationRouteID: String,
+        navigationActionRouteID: String? = nil,
+        existingManifests: [PackageSurfaceManifestV1] = []
+    ) throws -> RouteRegistryV1 {
+        let packageManifest = try manifest(
+            for: package,
+            root: root,
+            destinationRouteID: destinationRouteID,
+            navigationActionRouteID: navigationActionRouteID
+        )
+        return try RouteRegistryV1(manifests: existingManifests + [packageManifest])
+    }
+}
+
+enum C34RouteAdoptionBoundary_SurveyDefinitionContractsV1 {
+    static let packageSurfaceManifestType = PackageSurfaceManifestV1.self
+    static let packageSurfaceRouteType = PackageSurfaceRouteV1.self
+    static let packageRoutesUseExistingRoots = true
+    static let packageRoutesStartAutomaticWork = false
+}

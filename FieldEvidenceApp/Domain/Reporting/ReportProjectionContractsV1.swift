@@ -5893,3 +5893,23 @@ enum C49WorkResourceProjectionSupportV1 {
         try .init(format: format, projection: projection)
     }
 }
+
+// MARK: - C34 route snapshot reporting lifecycle
+
+/// C34 deliberately defines no report projection for device-operational
+/// navigation state. Canonical report truth remains unchanged.
+enum C34RouteSnapshotReportProjectionBoundaryV1 {
+    static let snapshotType: Any.Type = SceneNavigationSnapshotV1.self
+    static let reportProjectionCount = 0
+    static let workspaceTruthProjected = false
+    static let routePathProjected = false
+    static let fallbackReasonProjected = false
+    static let customerContentProjected = false
+
+    static func validate(_ lifecycle: SceneNavigationLifecycleDispositionV1 = .init()) -> Bool {
+        !lifecycle.workspaceTruth
+            && !lifecycle.reportIncluded
+            && !lifecycle.exportIncluded
+            && reportProjectionCount == 0
+    }
+}

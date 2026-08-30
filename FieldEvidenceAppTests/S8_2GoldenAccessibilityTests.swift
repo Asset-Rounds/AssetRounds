@@ -353,3 +353,17 @@ private final class C50IncumbentAdapterS82AccessibilityBoundaryTests: XCTestCase
         )
     }
 }
+
+extension S8_2GoldenAccessibilityTests {
+    func testV23P03C34AccessibilityUsesStableFourRootRouteIdentity() throws {
+        let receipt = RouteConformanceReceiptV1(
+            registry: try RouteRegistryV1(), evidenceKind: .golden,
+            observedShellCount: 1, observedParserCount: 1,
+            observedMutationAuthorityCount: 0
+        )
+        try receipt.validate()
+        XCTAssertEqual(receipt.roots.map(\.rawValue), ["TODAY", "WORK", "ASSETS", "REPORTS"])
+        XCTAssertEqual(receipt.roots, AppRootV1.frozenOrder)
+        XCTAssertEqual(receipt.duplicateCount, 0)
+    }
+}

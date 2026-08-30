@@ -325,3 +325,16 @@ extension S7_4DraftAccessPolicyTests {
         XCTAssertFalse(CheckRunnerDraftBridgeV1.importsLegacyBundleBeforeCommit)
     }
 }
+
+extension S7_4DraftAccessPolicyTests {
+    func testV23P03C34ReadRouteKeepsTypedSearchAnchorAndNoWriter() throws {
+        let workspace = WorkspaceID(rawValue: UUID(uuid: (0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x47, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x0c)))
+        let search = try RouteSearchAnchorV1(scopeID: "work", filterIDs: ["status", "kind"], selectedStableID: "draft-1", boundedPosition: 3)
+        let target = try NavigationTargetV1(workspaceID: workspace, destination: .searchResults, searchAnchor: search)
+        let result = try RouteRegistryV1().resolve(target, context: .init(currentWorkspaceID: workspace, currentRevision: 0))
+        XCTAssertEqual(result.target.searchAnchor?.filterIDs, ["kind", "status"])
+        XCTAssertEqual(result.target.searchAnchor?.selectedStableID, "draft-1")
+        XCTAssertEqual(result.canonicalMutationCount, 0)
+        XCTAssertFalse(result.startsAutomaticWork)
+    }
+}

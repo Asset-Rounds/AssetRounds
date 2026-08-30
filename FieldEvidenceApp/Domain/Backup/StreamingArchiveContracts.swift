@@ -1,6 +1,7 @@
 import Foundation
 
 enum C50IncumbentFileExchangeStreamingArchiveBoundaryV1 {
+    static let excludesSceneRouteState = C34SceneNavigationCompatibilityBoundaryV1.validate()
     static let adapterSourceMemberCount = 0
     static let adapterQuarantineMemberCount = 0
     static let profileSelectionMemberCount = 0
@@ -8,7 +9,8 @@ enum C50IncumbentFileExchangeStreamingArchiveBoundaryV1 {
     static let canonicalImportedRowsRemainStreamedByExistingFamilies = true
 
     static func validate(recordsSchemaVersion: Int) -> Bool {
-        recordsSchemaVersion <= C50IncumbentFileExchangeBackupBoundaryV1.recordsSchemaVersion
+        excludesSceneRouteState
+            && recordsSchemaVersion <= C50IncumbentFileExchangeBackupBoundaryV1.recordsSchemaVersion
             && adapterSourceMemberCount == 0
             && adapterQuarantineMemberCount == 0
             && profileSelectionMemberCount == 0

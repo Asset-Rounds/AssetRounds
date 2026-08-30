@@ -100,3 +100,9 @@ enum JobScaleBudgetPolicyV1 {
         }
     }
 }
+
+enum C34SceneRestorationJobScaleBoundaryV1 {
+    static let consumesJobBudget = false
+    static let createsScaleAdmission = false
+    static func validate(anchor: DraftResumeAnchorV1) -> Bool { !consumesJobBudget && !createsScaleAdmission && C34DraftResumeNavigationBoundaryV1.validate(anchor: anchor) }
+}

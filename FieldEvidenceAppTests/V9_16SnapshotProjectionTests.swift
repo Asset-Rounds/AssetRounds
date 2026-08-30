@@ -1013,3 +1013,27 @@ private final class C49WorkResourceSnapshotProjectionBoundaryTests: XCTestCase {
         XCTAssertEqual(Set(totals.directCostByCurrency.keys), ["EUR", "USD"])
     }
 }
+
+extension V9_16SnapshotProjectionTests {
+    func testV23P03C34SnapshotProjectionValidatesSelectedRootAndTarget() throws {
+        let workspace = WorkspaceID()
+        let today = try NavigationTargetV1(workspaceID: workspace, destination: .today)
+        let work = try NavigationTargetV1(workspaceID: workspace, destination: .work)
+        let assets = try NavigationTargetV1(workspaceID: workspace, destination: .assets)
+        let target = try NavigationTargetV1(workspaceID: workspace, destination: .reports, requestedMode: .read)
+        let snapshot = try SceneNavigationSnapshotV1(
+            workspaceID: workspace,
+            selectedRoot: .reports,
+            paths: [
+                .init(root: .today, targets: [today]),
+                .init(root: .work, targets: [work]),
+                .init(root: .assets, targets: [assets]),
+                .init(root: .reports, targets: [target]),
+            ],
+            snapshotID: UUID()
+        )
+        try snapshot.validate()
+        XCTAssertEqual(snapshot.selectedTarget?.destination, .reports)
+        XCTAssertEqual(snapshot.selectedTarget?.workspaceID, workspace)
+    }
+}

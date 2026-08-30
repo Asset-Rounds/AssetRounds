@@ -3909,6 +3909,50 @@
     "incumbent_file_exchange.availability_unknown" : {
       "comment" : "C50 truthful callback-loss result; external file availability is unknown.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "The app could not confirm whether the file was saved" } } }
+    },
+    "navigation.route.fallback.action" : {
+      "comment" : "C34 action that opens the validated safe route destination.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Go to safe destination" } } }
+    },
+    "navigation.route.fallback.heading" : {
+      "comment" : "C34 heading shown when a restored route safely falls back.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "This destination is unavailable" } } }
+    },
+    "navigation.route.fallback.reason.corrupt_snapshot" : {
+      "comment" : "C34 safe fallback reason for unreadable device-operational route state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Saved navigation could not be read." } } }
+    },
+    "navigation.route.fallback.reason.deleted_or_tombstoned" : {
+      "comment" : "C34 safe fallback reason for an unavailable stable target.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "That item is no longer available." } } }
+    },
+    "navigation.route.fallback.reason.invalid_target" : {
+      "comment" : "C34 safe fallback reason for an invalid typed target.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "That destination is not available." } } }
+    },
+    "navigation.route.fallback.reason.protected_data_unavailable" : {
+      "comment" : "C34 safe fallback reason while protected data is unavailable.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Unlock this device to continue." } } }
+    },
+    "navigation.route.fallback.reason.retired_or_missing_package" : {
+      "comment" : "C34 safe fallback reason for a retired or missing package surface.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "That feature is no longer available." } } }
+    },
+    "navigation.route.fallback.reason.revoked_availability" : {
+      "comment" : "C34 safe fallback reason for revoked feature availability.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Access to that destination is no longer available." } } }
+    },
+    "navigation.route.fallback.reason.stale_revision" : {
+      "comment" : "C34 safe fallback reason for stale revision-bound navigation.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "That item changed since it was last opened." } } }
+    },
+    "navigation.route.fallback.reason.unsupported_snapshot_version" : {
+      "comment" : "C34 safe fallback reason for a future device-operational route-state version.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Saved navigation came from an unsupported version." } } }
+    },
+    "navigation.route.fallback.reason.wrong_workspace" : {
+      "comment" : "C34 safe fallback reason for a route bound to another workspace.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "That destination belongs to a different workspace." } } }
     }
   },
   "version" : "1.0"

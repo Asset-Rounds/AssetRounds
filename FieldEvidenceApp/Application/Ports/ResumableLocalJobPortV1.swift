@@ -334,3 +334,9 @@ enum C46OperationalContactConformance_FieldEvidenceApp_Application_Ports_Resumab
     static let contactExportExcludedByDefault = true
     static let noSecondWriterOrAutomaticHandoff = true
 }
+
+enum C34SceneRestorationJobPortBoundaryV1 {
+    static let enqueuesJob = false
+    static let resumesPendingJobs = false
+    static func validate(anchor: DraftResumeAnchorV1) -> Bool { !enqueuesJob && !resumesPendingJobs && C34DraftResumeNavigationBoundaryV1.validate(anchor: anchor) }
+}

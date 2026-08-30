@@ -243,3 +243,9 @@ enum C46OperationalContactConformance_FieldEvidenceApp_Application_Workflow_Surv
     static let contactExportExcludedByDefault = true
     static let noSecondWriterOrAutomaticHandoff = true
 }
+
+enum C34RouteAdoptionBoundary_SurveySessionCoordinatorV1 {
+    static let workDestination = NavigationDestinationV1.work
+    static let canonicalTargetType = NavigationTargetV1.self
+    static let restorationIsReadOnly = true
+}

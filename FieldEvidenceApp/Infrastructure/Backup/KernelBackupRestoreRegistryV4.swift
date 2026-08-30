@@ -1,5 +1,16 @@
 import Foundation
 
+enum C34SceneNavigationKernelBackupRestoreBoundaryV1 {
+    static let archiveIncluded = false
+    static let restoreIncluded = false
+    static let mutationReceiptIncluded = false
+
+    static func validate() -> Bool {
+        C34SceneNavigationDeviceLifecycleBoundaryV1.validate()
+            && !archiveIncluded && !restoreIncluded && !mutationReceiptIncluded
+    }
+}
+
 enum C50IncumbentFileExchangeKernelBackupEnrollmentV1 {
     static let canonicalRegistrationCount = 0
     static let persistentSchemaBump = false

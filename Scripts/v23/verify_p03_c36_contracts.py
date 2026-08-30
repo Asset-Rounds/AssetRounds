@@ -16,6 +16,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import p03_c36_contracts as contracts
 
+C34_REPROOF_CARD = "V23-P03-C34"
+
 
 class DuplicateKey(ValueError):
     pass
@@ -93,6 +95,7 @@ def _check_row(row: dict[str, Any], relative: str, rendered: dict[str, bytes], f
 
 
 def main() -> int:
+    assert contracts.C34_NAVIGATION_REPROOF["consumerCardID"] == C34_REPROOF_CARD
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--complete", action="store_true", help="require every hydrated fence path to be changed")
     parser.add_argument("--json", action="store_true", help="retain machine-readable output")

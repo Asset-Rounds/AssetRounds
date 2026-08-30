@@ -195,3 +195,9 @@ enum C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Camera_Cam
     static let contactExportExcludedByDefault = true
     static let noContactProjectionOrNetworkDelivery = true
 }
+
+enum C34SceneRestorationCameraBoundaryV1 {
+    static let startsCapture = false
+    static let requestsPermission = false
+    static func validate(anchor: DraftResumeAnchorV1) -> Bool { !startsCapture && !requestsPermission && C34DraftResumeNavigationBoundaryV1.validate(anchor: anchor) }
+}

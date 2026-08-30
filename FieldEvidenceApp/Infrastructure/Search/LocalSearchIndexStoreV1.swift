@@ -933,6 +933,12 @@ extension LocalSearchIndexStoreV1 {
     }
 }
 
+enum C34RouteAdoptionBoundary_LocalSearchIndexStoreV1 {
+    static let searchAnchorType = RouteSearchAnchorV1.self
+    static let resolutionResultType = RouteResolutionResultV1.self
+    static let routeStateIsIndexed = false
+}
+
 extension LocalSearchIndexStoreV1 {
     static func advancedScheduleOccurrenceSearchRecord(
         from projection: AdvancedScheduleReportProjectionV1,

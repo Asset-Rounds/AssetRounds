@@ -136,3 +136,9 @@ struct LocalJobStoreEnvelopeV1: Codable, Equatable, Sendable {
         id.rawValue.uuidString.lowercased()
     }
 }
+
+enum C34SceneRestorationLocalJobSchemaBoundaryV1 {
+    static let jobSchemaKindCount = 0
+    static let persistsSceneSnapshot = false
+    static func validate(anchor: DraftResumeAnchorV1) -> Bool { jobSchemaKindCount == 0 && !persistsSceneSnapshot && C34DraftResumeNavigationBoundaryV1.validate(anchor: anchor) }
+}

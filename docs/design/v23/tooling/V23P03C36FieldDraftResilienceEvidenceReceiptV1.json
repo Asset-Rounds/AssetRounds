@@ -1,6 +1,6 @@
 {
   "artifact": "V23P03C36FieldDraftResilienceEvidenceReceiptV1",
-  "artifactDigest": "4736eda904315a9412b700c27f3d4cad7fce2e49d7ef41822edb194b25e017ac",
+  "artifactDigest": "8c9c32cbb3ab699ca74b402771b8ab7bd8f2a13ae83b7a0fe7dd0cde790d5e63",
   "authority": {
     "acceptanceCredit": false,
     "acceptanceEnabled": false,
@@ -489,11 +489,28 @@
     "uiSurfaceDelta": false
   },
   "authorityArtifactDigest": "860e3557b5a1642d78eb29df1ff4e797278521a7ef7d053d3655581e1890ff9c",
+  "c34NavigationReproof": {
+    "canonicalMutationCount": 0,
+    "consumerCardID": "V23-P03-C34",
+    "containsSecrets": false,
+    "invalidatesOnSemanticChange": true,
+    "persistenceClass": "DEVICE_OPERATIONAL_NONCANONICAL",
+    "referenceFields": [
+      "sectionID",
+      "fieldID",
+      "selectedStableID",
+      "boundedPosition"
+    ],
+    "referenceType": "DraftResumeAnchorV1",
+    "startsAutosave": false,
+    "startsCapture": false,
+    "startsCommitSaga": false
+  },
   "cardID": "V23-P03-C36",
   "contractArtifact": {
-    "bytes": 132949,
+    "bytes": 133431,
     "path": "docs/design/v23/tooling/V23P03C36FieldDraftResilienceContractV1.json",
-    "sha256": "127e93b4de89583927d4336a260f104632ee10c94dac82d75b994a7a72bc799e"
+    "sha256": "32ec4f82b96b2907a0cc68d340dd2fd67522e0ff7eda9599d3b8af23f94fde37"
   },
   "directPrerequisiteEvidence": {
     "canonicalRelationPreserved": true,
@@ -1956,9 +1973,9 @@
   "result": "PASS_STATIC_PROVISIONAL",
   "schema": "V23P03C36FieldDraftResilienceEvidenceReceiptV1",
   "schemaArtifact": {
-    "bytes": 17250,
+    "bytes": 18658,
     "path": "Scripts/v23/field-draft-resilience.schema.json",
-    "sha256": "9200fa3a903f10dd04670c0cb9fb135efe81511d119fe4e2f173fa2ed5ab2994"
+    "sha256": "ccdc7bcedc896c1ba7697a16f79e62b53b6fb29b47aa9808fbf34cb5fb7bced3"
   },
   "schemaVersion": 1,
   "sourceContractDigest": "f2dd9027c88bb2cd89114b6efa81d7cd089447eb595f5d9cb28ff3c936b09a22",

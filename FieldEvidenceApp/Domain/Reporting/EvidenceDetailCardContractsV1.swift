@@ -2093,3 +2093,17 @@ enum C49WorkResourceEvidenceDetailBoundaryV1 {
         return card
     }
 }
+
+// MARK: - C34 route snapshot evidence-detail exclusion
+
+enum C34RouteSnapshotEvidenceDetailBoundaryV1 {
+    static let snapshotType: Any.Type = SceneNavigationSnapshotV1.self
+    static let evidenceDetailCardCount = 0
+    static let routePathShownAsEvidence = false
+    static let stableRouteIdentifiersShownAsEvidence = false
+    static let fallbackReasonMayBeLocalizedByNavigationOwnerOnly = true
+
+    static func validate(_ lifecycle: SceneNavigationLifecycleDispositionV1 = .init()) -> Bool {
+        !lifecycle.reportIncluded && evidenceDetailCardCount == 0
+    }
+}

@@ -6,6 +6,12 @@ import Foundation
     func currentTargetRevision(workspaceID:WorkspaceID,scope:DraftScopeKeyV1,targetCommandKind:WorkspaceCommandKindV1)throws->UInt64?
 }
 
+enum C34RouteAdoptionBoundary_DraftRecoveryProjectionCoordinatorV1 {
+    static let sceneSnapshotType = SceneNavigationSnapshotV1.self
+    static let restorationReceiptType = RouteRestorationReceiptV1.self
+    static let restorationIsReadOnly = true
+}
+
 @MainActor final class DraftRecoveryProjectionCoordinatorV1{
     private let source:any DraftRecoveryRecordSourceV1;private let registry:DraftPurposeRegistryV1
     init(source:any DraftRecoveryRecordSourceV1,registry:DraftPurposeRegistryV1){self.source=source;self.registry=registry}

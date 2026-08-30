@@ -1442,3 +1442,14 @@ enum C50IncumbentFileExchangePersistenceBoundaryV1 {
             && PersistentSchemaV37.models.count == 121
     }
 }
+
+enum C34SceneNavigationPersistentSchemaBoundaryV1 {
+    static let schemaVersionBumpCount = 0
+    static var routeModelCount: Int {
+        PersistentSchemaV38.models.filter { model in
+            let name = String(reflecting: model).lowercased()
+            return name.contains("route") || name.contains("navigation") || name.contains("scene")
+        }.count
+    }
+    static func validate() -> Bool { schemaVersionBumpCount == 0 && routeModelCount == 0 && C34SceneNavigationPersistentKindBoundaryV1.validate() }
+}

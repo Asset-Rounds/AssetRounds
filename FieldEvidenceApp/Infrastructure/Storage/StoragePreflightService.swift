@@ -272,3 +272,22 @@ extension StoragePreflightService {
     static let c36StagingExcludedFromBackup = true
     static let c36StoragePressureIsRetryable = true
 }
+
+// MARK: - C34 scene-navigation storage preflight boundary
+
+enum C34SceneNavigationStoragePreflightBoundaryV1 {
+    static let snapshotType: Any.Type = SceneNavigationSnapshotV1.self
+    static let canonicalWorkspaceReservationRequired = false
+    static let reportStorageReservationRequired = false
+    static let backupStorageReservationRequired = false
+    static let corruptOrFuturePayloadIsDiscarded = true
+    static let automaticWorkMayStartDuringReconciliation = false
+
+    static func validate(_ lifecycle: SceneNavigationLifecycleDispositionV1 = .init()) -> Bool {
+        lifecycle.tolerantDecode && lifecycle.eraseClears
+            && !lifecycle.workspaceTruth
+            && !canonicalWorkspaceReservationRequired
+            && !reportStorageReservationRequired
+            && !backupStorageReservationRequired
+    }
+}

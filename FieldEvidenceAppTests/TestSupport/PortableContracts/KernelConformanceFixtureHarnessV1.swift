@@ -6698,3 +6698,24 @@ extension KernelConformanceFixtureHarnessV1 {
         return PersistentSchemaV20.models.count
     }
 }
+
+extension KernelConformanceFixtureHarnessV1 {
+    static func testV23P03C34RouteConformanceAnchor() throws -> Int {
+        let registry = try RouteRegistryV1()
+        let receipt = RouteConformanceReceiptV1(
+            registry: registry, evidenceKind: .golden,
+            observedShellCount: 1, observedParserCount: 1,
+            observedMutationAuthorityCount: 0
+        )
+        try receipt.validate()
+        guard receipt.roots == AppRootV1.frozenOrder,
+              receipt.roots.count == 4,
+              receipt.duplicateCount == 0,
+              receipt.mutationAuthorityCount == 0 else {
+            throw KernelConformanceFixtureFailureV1.incompleteCoverage(
+                "C34 route conformance"
+            )
+        }
+        return receipt.routeIDs.count
+    }
+}

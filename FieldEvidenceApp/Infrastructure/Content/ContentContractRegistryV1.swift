@@ -186,6 +186,12 @@ extension ContentContractRegistryV1 {
     }
 }
 
+enum C34RouteAdoptionBoundary_ContentContractRegistryV1 {
+    static let packageSurfaceManifestType = PackageSurfaceManifestV1.self
+    static let canonicalRegistryType = RouteRegistryV1.self
+    static let routeStateIsCanonicalContent = false
+}
+
 
 // C20 is additive. Keeping this separate preserves the immutable C05 registry
 // receipt while publishing the privacy-transform contract family explicitly.
